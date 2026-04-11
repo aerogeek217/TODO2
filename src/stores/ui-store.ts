@@ -106,7 +106,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   pendingCanvasTarget: null,
   isFilterSheetOpen: false,
   isProjectNavigatorOpen: false,
-  isMinimapOpen: true,
+  isMinimapOpen: localStorage.getItem('minimapOpen') !== 'false',
 
   setActiveView(view: AppView) {
     set({ activeView: view })
@@ -240,6 +240,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   toggleMinimap() {
-    set({ isMinimapOpen: !get().isMinimapOpen })
+    const next = !get().isMinimapOpen
+    localStorage.setItem('minimapOpen', String(next))
+    set({ isMinimapOpen: next })
   },
 }))
