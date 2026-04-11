@@ -38,6 +38,7 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 - Dark theme as primary (design tokens in tokens.css)
 
 ## Git Workflow
+- Default branch: `main` (local `master` retained as read-only history archive)
 - Branch naming: `feature/description`, `fix/description`, `refactor/description`
 - Commit messages: imperative mood, under 72 chars
 - One logical change per commit
