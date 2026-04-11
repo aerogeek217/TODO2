@@ -90,7 +90,7 @@ export function createCommands(ctx: CommandContext): Command[] {
     }},
 
     // Filter presets
-    { id: 'filter-starred', name: 'Toggle Starred Only', category: 'filter', action: ctx.toggleStarredOnly },
+    { id: 'filter-starred', name: 'Toggle Follow Up Only', category: 'filter', action: ctx.toggleStarredOnly },
     { id: 'filter-high', name: 'Toggle High Priority', category: 'filter', action: () => {
       ctx.setPriorities(ctx.getPriorities()?.has(Priority.High) && ctx.getPriorities()?.size === 1 ? null : new Set([Priority.High]))
     }},
@@ -122,8 +122,8 @@ export function createCommands(ctx: CommandContext): Command[] {
     commands.push(
       { id: 'bulk-complete', name: `Complete ${label}`, category: 'bulk', action: () => ctx.bulkSetCompleted(ctx.getSelectedIds(), true) },
       { id: 'bulk-uncomplete', name: `Uncomplete ${label}`, category: 'bulk', action: () => ctx.bulkSetCompleted(ctx.getSelectedIds(), false) },
-      { id: 'bulk-star', name: `Star ${label}`, category: 'bulk', action: () => ctx.bulkSetStarred(ctx.getSelectedIds(), true) },
-      { id: 'bulk-unstar', name: `Unstar ${label}`, category: 'bulk', action: () => ctx.bulkSetStarred(ctx.getSelectedIds(), false) },
+      { id: 'bulk-star', name: `Follow Up ${label}`, category: 'bulk', action: () => ctx.bulkSetStarred(ctx.getSelectedIds(), true) },
+      { id: 'bulk-unstar', name: `Remove Follow Up ${label}`, category: 'bulk', action: () => ctx.bulkSetStarred(ctx.getSelectedIds(), false) },
       { id: 'bulk-priority-high', name: `Set ${label} Priority: High`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.High) },
       { id: 'bulk-priority-medium', name: `Set ${label} Priority: Medium`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.Medium) },
       { id: 'bulk-priority-normal', name: `Set ${label} Priority: Normal`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.Normal) },

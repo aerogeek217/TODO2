@@ -137,6 +137,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.dueDate, todo?.priority, todo?.isStarred, todo?.isAssigned, todo?.recurrenceRule?.type])
 
+  // Auto-clear isAssigned when all people and orgs are removed
+  useEffect(() => {
+    if (isEdit && isAssigned && effectiveAssignedPeople.length === 0 && effectiveAssignedOrgs.length === 0 && todo) {
+      setIsAssigned(false)
+      props.onUpdate({ ...todo, isAssigned: undefined })
+    }
+  }, [effectiveAssignedPeople.length, effectiveAssignedOrgs.length])
+
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose()
   }

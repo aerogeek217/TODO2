@@ -19,7 +19,7 @@ interface PlainTextExportPopupProps {
 
 function formatTodoLine(todo: PersistedTodoItem, indent: string, people: Person[], tags: Tag[]): string {
   const check = todo.isCompleted ? '[x]' : '[ ]'
-  const star = todo.isStarred ? ' *' : ''
+  const star = todo.isStarred ? ' [F/U]' : ''
   const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
   const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
   const assigned = todo.isAssigned ? ' [ASSIGNED]' : ''

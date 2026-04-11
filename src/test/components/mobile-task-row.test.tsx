@@ -64,14 +64,14 @@ describe('MobileTaskRow', () => {
       expect(screen.getByRole('checkbox', { name: 'Toggle complete' })).toBeChecked()
     })
 
-    it('shows filled star when starred', () => {
+    it('shows filled icon when follow up is active', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, isStarred: true })} />)
-      expect(screen.getByLabelText('Toggle star')).toHaveTextContent('\u2605')
+      expect(screen.getByLabelText('Toggle follow up')).toBeInTheDocument()
     })
 
-    it('shows empty star when not starred', () => {
+    it('shows outline icon when follow up is inactive', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.getByLabelText('Toggle star')).toHaveTextContent('\u2606')
+      expect(screen.getByLabelText('Toggle follow up')).toBeInTheDocument()
     })
 
     it('renders detail chevron button', () => {
@@ -192,12 +192,12 @@ describe('MobileTaskRow', () => {
 
     it('shows notes icon when notes present', () => {
       const { container } = render(<MobileTaskRow todo={makeTodo({ id: 1, notes: 'Some notes' })} />)
-      expect(container.querySelector('svg')).toBeInTheDocument()
+      expect(container.querySelector('[class*="notesIcon"]')).toBeInTheDocument()
     })
 
     it('renders no notes icon when notes absent', () => {
       const { container } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      expect(container.querySelector('svg')).not.toBeInTheDocument()
+      expect(container.querySelector('[class*="notesIcon"]')).not.toBeInTheDocument()
     })
   })
 
@@ -233,7 +233,7 @@ describe('MobileTaskRow', () => {
 
     it('calls toggleStar on star click', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 5 })} />)
-      fireEvent.click(screen.getByLabelText('Toggle star'))
+      fireEvent.click(screen.getByLabelText('Toggle follow up'))
       expect(mockToggleStar).toHaveBeenCalledWith(5)
     })
 
@@ -256,7 +256,7 @@ describe('MobileTaskRow', () => {
 
     it('does not call toggleStar', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
-      fireEvent.click(screen.getByLabelText('Toggle star'))
+      fireEvent.click(screen.getByLabelText('Toggle follow up'))
       expect(mockToggleStar).not.toHaveBeenCalled()
     })
   })

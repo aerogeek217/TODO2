@@ -600,7 +600,7 @@ export function TopBar() {
             className={`${styles.filterChip} ${filters.starredOnly ? styles.filterChipStarActive : ''}`}
             onClick={toggleStarredOnly}
           >
-            <span className={styles.filterIcon}>★</span> Starred
+            <span className={styles.filterIcon}>&#x1F5E8;</span> Follow up
           </button>
           <button
             className={`${styles.filterChip} ${filters.showCompleted ? styles.filterChipActive : ''}`}

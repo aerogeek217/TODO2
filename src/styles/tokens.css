@@ -76,7 +76,7 @@
   /* Priority */
   --color-priority-high: #ee7d77;
   --color-priority-medium: #f5a623;
-  --color-star: #f5c842;
+  --color-followup: #f5c842;
 
   /* Overdue / special dates */
   --color-overdue: #e86bf0;
@@ -179,7 +179,7 @@
   /* Priority — deepened for readability */
   --color-priority-high: #d94a43;
   --color-priority-medium: #d08a12;
-  --color-star: #c09a15;
+  --color-followup: #c09a15;
 
   /* Overdue */
   --color-overdue: #b838c0;

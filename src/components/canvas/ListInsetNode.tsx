@@ -7,7 +7,7 @@ import styles from './ListInsetNode.module.css'
 
 const PRESET_CONFIG = {
   'due-this-week': { icon: '\u{1F4C5}', label: 'Due & Overdue' },
-  'starred': { icon: '\u2B50', label: 'Starred' },
+  'starred': { icon: '\u{1F5E8}', label: 'Follow up' },
   'high-priority': { icon: '\u{1F534}', label: 'High Priority' },
 } as const
 

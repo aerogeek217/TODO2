@@ -387,7 +387,7 @@ export function CanvasPage() {
       if (!selectedCanvasId) return
       const names: Record<string, string> = {
         'due-this-week': 'Due This Week',
-        'starred': 'Starred',
+        'starred': 'Follow Up',
         'high-priority': 'High Priority',
       }
       await addInset(names[preset] || preset, preset as 'due-this-week' | 'starred' | 'high-priority', selectedCanvasId, x, y)

@@ -594,7 +594,7 @@
 }
 
 .starButton.starred {
-  color: var(--color-star);
+  color: var(--color-followup);
 }
 
 .starButton.unstarred {

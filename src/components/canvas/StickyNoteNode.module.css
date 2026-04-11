@@ -90,6 +90,39 @@
   color: var(--color-priority-high);
 }
 
+.confirmDelete {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.confirmDelete span {
+  opacity: 0.7;
+}
+
+.confirmYes,
+.confirmNo {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 6px;
+  color: inherit;
+}
+
+.confirmYes:hover {
+  background: var(--color-priority-high);
+  border-color: var(--color-priority-high);
+  color: white;
+}
+
+.confirmNo:hover {
+  background: var(--color-surface-bright);
+}
+
 .body {
   flex: 1;
   display: flex;

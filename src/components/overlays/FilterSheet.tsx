@@ -166,15 +166,15 @@ export function FilterSheet() {
                 </div>
                 <div className={styles.filterRow}>
                   <span className={styles.filterLabel}>
-                    <span className={styles.filterLabelIcon}>★</span>
-                    Starred only
+                    <span className={styles.filterLabelIcon}>&#x1F5E8;</span>
+                    Follow up only
                   </span>
                   <button
                     className={`${styles.toggle} ${filters.starredOnly ? styles.toggleActive : ''}`}
                     onClick={toggleStarredOnly}
                     role="switch"
                     aria-checked={filters.starredOnly}
-                    aria-label="Starred only"
+                    aria-label="Follow up only"
                   />
                 </div>
                 <div className={styles.filterRow}>

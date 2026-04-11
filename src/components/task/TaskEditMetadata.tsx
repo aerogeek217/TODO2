@@ -94,6 +94,7 @@ export function TaskEditMetadata({
             <option value="weekly">Weekly</option>
             <option value="biweekly">Biweekly</option>
             <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
             <option value="yearly">Yearly</option>
           </select>
         )}
@@ -202,7 +203,7 @@ export function TaskEditMetadata({
             onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
             + Add
           </button>
-          {isEdit && (
+          {isEdit && (assignedPeople.length > 0 || assignedOrgs.length > 0) && (
             <button
               className={`${styles.assignedToggle} ${isAssigned ? styles.assignedToggleActive : ''}`}
               onClick={onToggleAssigned}

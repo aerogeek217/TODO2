@@ -140,12 +140,12 @@
 }
 
 .starButton:hover {
-  color: var(--color-star);
+  color: var(--color-followup);
   background: rgba(245, 200, 66, 0.08);
 }
 
 .starActive {
-  color: var(--color-star);
+  color: var(--color-followup);
 }
 
 .closeButton {
@@ -210,7 +210,7 @@
 }
 
 .badgeStar {
-  color: var(--color-star);
+  color: var(--color-followup);
   border-color: rgba(245, 200, 66, 0.3);
   background: rgba(245, 200, 66, 0.06);
 }

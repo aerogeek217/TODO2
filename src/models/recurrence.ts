@@ -1,4 +1,4 @@
-export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+export type RecurrenceType = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export interface RecurrenceRule {
   type: RecurrenceType

@@ -348,7 +348,7 @@ export function CalendarView() {
                       {pColor && (
                         <span className={styles.priorityDot} style={{ background: pColor }} />
                       )}
-                      {todo.isStarred && <span className={styles.starIndicator}>&#9733;</span>}
+                      {todo.isStarred && <span className={styles.starIndicator}>&#x1F5E8;</span>}
                       {todo.isHardDeadline && <span className={styles.hardDeadlineFlag}>&#9873;</span>}
                       {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
                       <span className={styles.taskTitle}>{todo.title}</span>

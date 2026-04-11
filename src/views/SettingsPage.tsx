@@ -102,14 +102,16 @@ export function SettingsPage() {
 
   const handleExport = async () => {
     const tables = await buildExportData()
-    const data = { ...tables, exportedAt: new Date().toISOString() }
+    const now = new Date()
+    const data = { ...tables, exportedAt: now.toISOString() }
     const json = JSON.stringify(data, null, 2)
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
 
     if ('showSaveFilePicker' in window) {
       try {
         const startIn = await getStartIn()
         const handle = await (window as unknown as { showSaveFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
-          suggestedName: `todo2-backup-${new Date().toISOString().split('T')[0]}.json`,
+          suggestedName: `todo2-backup-${timestamp}.json`,
           types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
           startIn,
         })
@@ -130,7 +132,7 @@ export function SettingsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `todo2-backup-${new Date().toISOString().split('T')[0]}.json`
+    a.download = `todo2-backup-${timestamp}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -240,7 +242,7 @@ export function SettingsPage() {
 
     const formatTodoLine = (todo: PersistedTodoItem, indent: string) => {
       const check = todo.isCompleted ? '[x]' : '[ ]'
-      const star = todo.isStarred ? ' ★' : ''
+      const star = todo.isStarred ? ' [F/U]' : ''
       const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
       const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
       return `${indent}- ${check} ${todo.title}${star}${pri}${due}`

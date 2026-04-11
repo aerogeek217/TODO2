@@ -3,6 +3,7 @@ import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { useOrgStore } from '../../stores/org-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { getPriorityColor } from '../shared/PriorityMenu'
+import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
@@ -85,14 +86,16 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           style={priorityColor ? { background: priorityColor, borderColor: priorityColor } : undefined}
         />
 
-        <input
-          type="checkbox"
-          className={styles.checkbox}
-          checked={todo.isCompleted}
-          onChange={handleToggleComplete}
-          onClick={(e) => e.stopPropagation()}
-          aria-label="Toggle complete"
-        />
+        {!hasChildren && (
+          <input
+            type="checkbox"
+            className={styles.checkbox}
+            checked={todo.isCompleted}
+            onChange={handleToggleComplete}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Toggle complete"
+          />
+        )}
 
         {hasChildren && (
           <button
@@ -112,9 +115,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
         <button
           className={`${styles.starButton} ${todo.isStarred ? styles.starActive : ''}`}
           onClick={(e) => { e.stopPropagation(); handleToggleStar() }}
-          aria-label="Toggle star"
+          aria-label="Toggle follow up"
         >
-          {todo.isStarred ? '★' : '☆'}
+          <FollowupIcon filled={todo.isStarred} />
         </button>
 
         <button className={styles.chevron} onClick={handleChevronTap} aria-label="Open task details">

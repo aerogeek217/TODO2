@@ -14,6 +14,7 @@ import { toDateInputValue } from '../../utils/date'
 import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { PriorityMenu, getPriorityColor } from '../shared/PriorityMenu'
+import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
@@ -178,14 +179,16 @@ export const TaskRow = memo(function TaskRow({
         )}
       </div>
 
-      <input
-        type="checkbox"
-        className={styles.checkbox}
-        checked={todo.isCompleted}
-        onChange={handleToggleComplete}
-        onClick={(e) => e.stopPropagation()}
-        aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-      />
+      {!hasChildren && (
+        <input
+          type="checkbox"
+          className={styles.checkbox}
+          checked={todo.isCompleted}
+          onChange={handleToggleComplete}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+        />
+      )}
 
       {edit.isEditing ? (
         <input
@@ -369,9 +372,9 @@ export const TaskRow = memo(function TaskRow({
       <button
         className={`${styles.starButton} ${todo.isStarred ? styles.starred : styles.unstarred}`}
         onClick={(e) => { e.stopPropagation(); handleToggleStar() }}
-        aria-label={todo.isStarred ? 'Unstar task' : 'Star task'}
+        aria-label={todo.isStarred ? 'Remove follow up' : 'Follow up'}
       >
-        {todo.isStarred ? '★' : '☆'}
+        <FollowupIcon filled={todo.isStarred} />
       </button>
 
       <button className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete() }} aria-label="Delete task">

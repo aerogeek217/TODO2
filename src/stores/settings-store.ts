@@ -68,7 +68,7 @@ const colorVarMap: Record<keyof ThemeColors, string> = {
   surface: '--color-surface',
   priorityHigh: '--color-priority-high',
   priorityMedium: '--color-priority-medium',
-  star: '--color-star',
+  star: '--color-followup',
 }
 
 /**

@@ -84,13 +84,13 @@ function parseRelativeDate(text: string): Date | null {
 const DATE_KEYWORDS = /\b(today|tomorrow|tmr|yesterday|(?:next\s+)?(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|in\s+\d+\s+days?)\b/gi
 
 // Recurrence patterns: "every day", "every week", "every 2 weeks", "repeat daily", etc.
-const RECURRENCE_PATTERN = /\b(?:every\s+(?:day|week|2\s+weeks|month|year)|repeat\s+(?:daily|weekly|biweekly|monthly|yearly))\b/gi
+const RECURRENCE_PATTERN = /\b(?:every\s+(?:day|week|2\s+weeks|month|quarter|year)|repeat\s+(?:daily|weekly|biweekly|monthly|quarterly|yearly))\b/gi
 
 const RECURRENCE_MAP: Record<string, RecurrenceType> = {
   'every day': 'daily', 'every week': 'weekly', 'every 2 weeks': 'biweekly',
-  'every month': 'monthly', 'every year': 'yearly',
+  'every month': 'monthly', 'every quarter': 'quarterly', 'every year': 'yearly',
   'repeat daily': 'daily', 'repeat weekly': 'weekly', 'repeat biweekly': 'biweekly',
-  'repeat monthly': 'monthly', 'repeat yearly': 'yearly',
+  'repeat monthly': 'monthly', 'repeat quarterly': 'quarterly', 'repeat yearly': 'yearly',
 }
 
 const MAX_INPUT_LENGTH = 500

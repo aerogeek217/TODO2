@@ -9,7 +9,7 @@ const colorLabels: Record<keyof ThemeColors, string> = {
   surface: 'Surface',
   priorityHigh: 'Priority High',
   priorityMedium: 'Priority Medium',
-  star: 'Star',
+  star: 'Follow up',
 }
 
 interface ThemeColorsEditorProps {

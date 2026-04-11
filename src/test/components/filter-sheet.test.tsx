@@ -122,7 +122,7 @@ describe('FilterSheet', () => {
     it('toggles starred only filter', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Show / hide'))
-      fireEvent.click(screen.getByRole('switch', { name: 'Starred only' }))
+      fireEvent.click(screen.getByRole('switch', { name: 'Follow up only' }))
       expect(useFilterStore.getState().filters.starredOnly).toBe(true)
     })
 

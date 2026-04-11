@@ -180,8 +180,8 @@
 
 .filterChipStarActive {
   background: var(--color-surface-bright);
-  border-color: var(--color-star);
-  color: var(--color-star);
+  border-color: var(--color-followup);
+  color: var(--color-followup);
 }
 
 .chevron {

@@ -25,7 +25,7 @@ main.tsx (entry point)
 │   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, StickyNoteNode, SortableTaskList, ProjectNavigator, alignment
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
 │   ├── settings/          → PeopleEditor, TagEditor, ThemeColorsEditor, KeyboardShortcutsModal
-│   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, selection.module.css, dropdown.module.css
+│   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, FollowupIcon, selection.module.css, dropdown.module.css
 ├── stores/                → Zustand (canvas, todo, project, person, tag, org, list-inset, sticky-note, ui, filter, undo, saved-view)
 ├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, settings, saved-view, sticky-note)
 ├── models/                → TypeScript interfaces
@@ -41,7 +41,7 @@ main.tsx (entry point)
 | Canvas | models/canvas.ts | Named spatial workspace |
 | Project | models/project.ts | Positioned group of tasks on a canvas (optional color) |
 | TodoItem | models/todo-item.ts | Core todo entry (id optional, pre-insert); includes optional `progress`, `isHardDeadline`, `isAssigned`, and `recurrenceRule` fields |
-| RecurrenceRule | models/recurrence.ts | Recurrence pattern: type (daily/weekly/biweekly/monthly/yearly), optional originalDayOfMonth to prevent drift |
+| RecurrenceRule | models/recurrence.ts | Recurrence pattern: type (daily/weekly/biweekly/monthly/quarterly/yearly), optional originalDayOfMonth to prevent drift |
 | PersistedTodoItem | models/todo-item.ts | TodoItem with guaranteed id (post-insert) |
 | Person | models/person.ts | Assignable person with name, initials, color |
 | PersistedPerson | models/person.ts | Person with guaranteed id (post-insert) |
@@ -102,6 +102,7 @@ main.tsx (entry point)
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/tags; search input, filtered list, create-new option |
 | PriorityMenu | components/shared/PriorityMenu.tsx | Shared priority picker dropdown (High/Medium/Normal with colored dots); also exports getPriorityColor and getPriorityLabel helpers |
 | ColorInput | components/shared/ColorInput.tsx | Shared color picker: native swatch + editable hex text input with validation, 3-digit expansion, auto-# prefix, blur revert |
+| FollowupIcon | components/shared/FollowupIcon.tsx | SVG chat bubble icon for follow-up toggle (filled/outline variants via `filled` prop) |
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people, tags, and orgs |
 | FileSyncBanner | components/layout/FileSyncBanner.tsx | Dismissible banner suggesting file sync when no file handle saved; dismissal persisted in localStorage |
 | DragInsertContext | components/canvas/DragInsertContext.ts | React context for drag insertion state (insertTodoId, insertIndentLevel, insertAtEnd, insertProjectId, activeDragTodoId, dragExpandedProjectId) |
@@ -146,8 +147,8 @@ main.tsx (entry point)
 | task-placement | services/task-placement.ts | Pure functions for task ordering: computeInsertionSort, placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, moveTasksInDirection, findOrphans, normalizeSortOrders, shouldNormalize |
 | pasteTasksAt | services/clipboard.ts | Paste cut tasks at a target position using placeMultipleAt + applyMutations; clears clipboard after paste |
 | drop-resolver | services/drop-resolver.ts | Pure drop target resolution: resolveDropTarget (DropResolution), resolveDropPreview (preview indicators) |
-| parseInput | services/natural-language-parser.ts | Parses raw text for NLP tokens: `@person` or `@"First Last"`, `#tag`, `/project`, `p1`/`p2`/`p3`, date keywords, recurrence (`every week`, `repeat daily`); returns ParsedInput with cleaned title, persons[], tags[], projects[], priority, dueDate, recurrence |
-| makeRecurrenceRule | services/recurrence.ts | Build a RecurrenceRule, capturing originalDayOfMonth for monthly/yearly |
+| parseInput | services/natural-language-parser.ts | Parses raw text for NLP tokens: `@person` or `@"First Last"`, `#tag`, `/project`, `p1`/`p2`/`p3`, date keywords, recurrence (`every week`, `every quarter`, `repeat daily`); returns ParsedInput with cleaned title, persons[], tags[], projects[], priority, dueDate, recurrence |
+| makeRecurrenceRule | services/recurrence.ts | Build a RecurrenceRule, capturing originalDayOfMonth for monthly/quarterly/yearly |
 | computeNextDueDate | services/recurrence.ts | Advances a due date by one recurrence interval, skipping past dates |
 | generateRecurringInstances | services/recurrence.ts | Generates all recurring dates within a date range for calendar display |
 | resolveInput | services/nlp-resolver.ts | Matches parsed person/tag/project names against known entities (case-insensitive exact/prefix/initials/first-name); returns personIds[], tagIds[], projectId, unmatched names |

@@ -1,5 +1,6 @@
 import type { AutocompleteState } from '../../hooks/use-nlp-autocomplete'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
+import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditHeaderProps {
@@ -50,9 +51,9 @@ export function TaskEditHeader({
       <button
         className={`${styles.starButton} ${isStarred ? styles.starActive : ''}`}
         onClick={onToggleStar}
-        aria-label={isStarred ? 'Unstar task' : 'Star task'}
+        aria-label={isStarred ? 'Remove follow up' : 'Follow up'}
       >
-        {isStarred ? '★' : '☆'}
+        <FollowupIcon filled={isStarred} />
       </button>
       <button className={styles.closeButton} onClick={onClose} aria-label="Close">
         ×

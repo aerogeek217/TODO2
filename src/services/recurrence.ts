@@ -4,7 +4,7 @@ import { startOfToday } from '../utils/date'
 /** Build a RecurrenceRule, capturing originalDayOfMonth for monthly/yearly to prevent drift. */
 export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null): RecurrenceRule {
   const rule: RecurrenceRule = { type }
-  if ((type === 'monthly' || type === 'yearly') && dueDate) {
+  if ((type === 'monthly' || type === 'quarterly' || type === 'yearly') && dueDate) {
     rule.originalDayOfMonth = new Date(dueDate).getDate()
   }
   return rule
@@ -28,6 +28,14 @@ function advanceOnce(date: Date, rule: RecurrenceRule): Date {
       // Set to 1 first to avoid overflow (e.g. Jan 31 + 1 month → Mar 3)
       next.setDate(1)
       next.setMonth(next.getMonth() + 1)
+      const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+      next.setDate(Math.min(targetDay, maxDay))
+      break
+    }
+    case 'quarterly': {
+      const targetDay = rule.originalDayOfMonth ?? next.getDate()
+      next.setDate(1)
+      next.setMonth(next.getMonth() + 3)
       const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
       next.setDate(Math.min(targetDay, maxDay))
       break

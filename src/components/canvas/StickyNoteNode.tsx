@@ -44,6 +44,7 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [showPalette, setShowPalette] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [lineHeight, setLineHeight] = useState(0)
   const [lineHeights, setLineHeights] = useState<number[]>([])
   const paletteRef = useRef<HTMLDivElement>(null)
@@ -244,19 +245,34 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
           />
         ) : (
           <span
-            className={`${styles.noteLabel} nopan nodrag`}
+            className={styles.noteLabel}
             onDoubleClick={() => { setIsEditingTitle(true); requestAnimationFrame(() => titleInputRef.current?.select()) }}
           >
             {localTitle || 'Note'}
           </span>
         )}
 
-        <button
-          className={styles.deleteButton}
-          onClick={() => note.id && onDelete(note.id)}
-        >
-          &times;
-        </button>
+        {confirmingDelete ? (
+          <span className={`${styles.confirmDelete} nopan nodrag`}>
+            <span>Delete?</span>
+            <button className={styles.confirmYes} onClick={() => note.id && onDelete(note.id)}>Yes</button>
+            <button className={styles.confirmNo} onClick={() => setConfirmingDelete(false)}>No</button>
+          </span>
+        ) : (
+          <button
+            className={styles.deleteButton}
+            onClick={() => {
+              if (!note.id) return
+              if (localText.trim() || localTitle.trim()) {
+                setConfirmingDelete(true)
+              } else {
+                onDelete(note.id)
+              }
+            }}
+          >
+            &times;
+          </button>
+        )}
       </div>
 
       <div className={styles.body}>

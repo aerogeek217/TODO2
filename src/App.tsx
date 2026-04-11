@@ -268,7 +268,7 @@ function AppShell() {
         <div className={styles.bulkBar}>
           <span className={styles.bulkLabel}>{selectionCount} selected</span>
           <button className={styles.bulkButton} onClick={() => useTodoStore.getState().bulkSetCompleted([...selectedTodoIds], true)} title="Complete">&#10003;</button>
-          <button className={styles.bulkButton} onClick={() => useTodoStore.getState().bulkSetStarred([...selectedTodoIds], true)} title="Star">&#9733;</button>
+          <button className={styles.bulkButton} onClick={() => useTodoStore.getState().bulkSetStarred([...selectedTodoIds], true)} title="Follow up">&#x1F5E8;</button>
           <button className={styles.bulkButton} onClick={() => useTodoStore.getState().bulkSetPriority([...selectedTodoIds], Priority.High)} title="Priority: High" style={{ color: 'var(--color-priority-high)' }}>&#9679;</button>
           <button className={styles.bulkButton} onClick={() => useUIStore.getState().showBulkConfirmation('delete', [...selectedTodoIds])} title="Delete">&#10005;</button>
           <button className={styles.bulkButton} onClick={() => useUIStore.getState().clearSelection()} title="Clear selection">Esc</button>

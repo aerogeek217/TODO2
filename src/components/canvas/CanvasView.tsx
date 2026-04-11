@@ -424,7 +424,7 @@ export function CanvasView({
       const pos = rfInstanceRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY })
       items.push({ separator: true, label: '', action: () => {} })
       items.push({ label: 'List: Due This Week', action: () => onAddListInset('due-this-week', pos.x, pos.y) })
-      items.push({ label: 'List: Starred', action: () => onAddListInset('starred', pos.x, pos.y) })
+      items.push({ label: 'List: Follow Up', action: () => onAddListInset('starred', pos.x, pos.y) })
       items.push({ label: 'List: High Priority', action: () => onAddListInset('high-priority', pos.x, pos.y) })
     }
     if (items.length > 0) {

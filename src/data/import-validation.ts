@@ -1,7 +1,7 @@
 import { Priority } from '../models/priority'
 import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote } from '../models'
 
-const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'yearly']
+const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
 function isOptRecurrenceRule(v: unknown): boolean {
   if (v === undefined || v === null) return true
