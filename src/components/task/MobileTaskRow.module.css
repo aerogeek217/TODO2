@@ -1,0 +1,276 @@
+.row {
+  display: flex;
+  flex-direction: column;
+  min-height: var(--mobile-row-min-height);
+  padding: 8px 8px 8px 4px;
+  border-radius: var(--radius-chip);
+  transition: background 0.1s;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+.row:active {
+  background: var(--color-surface-high);
+}
+
+.selected {
+  background: var(--color-accent-bg-light);
+}
+
+.completed {
+  opacity: 0.5;
+}
+
+.assigned {
+  border-left: 2px solid var(--color-assigned-border);
+  background: var(--color-assigned-bg);
+}
+
+.ghost {
+  opacity: 0.4;
+}
+
+.cut {
+  opacity: 0.35;
+}
+
+/* Line 1: primary row */
+.primaryRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.expandToggle {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0 -8px;
+  transition: transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.expandToggleCollapsed {
+  transform: rotate(-90deg);
+}
+
+.priorityStrip {
+  width: 6px;
+  height: 24px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.priorityStripNormal {
+  background: transparent;
+}
+
+.checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: var(--radius-checkbox);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.checkbox:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--color-text-on-accent);
+  line-height: 1;
+}
+
+.title {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
+
+.completedTitle {
+  text-decoration: line-through;
+  color: var(--color-text-completed);
+}
+
+.starButton {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  padding: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.starActive {
+  color: var(--color-star);
+}
+
+.chevron {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  padding: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: var(--touch-target-min);
+  min-height: var(--touch-target-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Line 2: metadata row */
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 42px;
+  padding-top: 2px;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+.dueChip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  background: var(--color-tint-5);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.dueOverdue {
+  color: var(--color-overdue);
+  background: var(--color-overdue-bg);
+}
+
+.dueToday {
+  color: var(--color-priority-medium);
+  background: rgba(245, 166, 35, 0.1);
+}
+
+.dueUrgent {
+  color: var(--color-priority-medium);
+}
+
+.dueApproaching {
+  color: var(--color-priority-medium);
+  background: rgba(245, 166, 35, 0.07);
+}
+
+.personChip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  background: var(--color-tint-5);
+  white-space: nowrap;
+}
+
+.tagChip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.orgChip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.progressChip {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  background: var(--color-tint-5);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.progressBarTrack {
+  display: inline-block;
+  width: 32px;
+  height: 3px;
+  background: var(--color-surface-bright);
+  border-radius: 2px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.progressBarFill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+}
+
+.recurrenceIndicator {
+  color: var(--color-text-muted);
+  margin-right: 2px;
+}
+
+.hardDeadlineIcon {
+  color: var(--color-priority-high);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.notesIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.overflow {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}

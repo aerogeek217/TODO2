@@ -1,0 +1,40 @@
+.wrapper {
+  position: relative;
+}
+
+.menu {
+  composes: menu from './dropdown.module.css';
+  z-index: var(--z-dropdown);
+  min-width: 120px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-5);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.option:hover {
+  background: var(--color-surface-high);
+}
+
+.optionActive {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

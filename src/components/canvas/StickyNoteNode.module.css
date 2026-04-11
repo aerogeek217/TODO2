@@ -1,0 +1,275 @@
+.note {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.titleBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.titleBar:active {
+  cursor: grabbing;
+}
+
+.colorDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.colorInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.noteLabel {
+  flex: 1;
+  font-size: var(--font-size-meta);
+  color: inherit;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.titleInput {
+  flex: 1;
+  font-size: var(--font-size-meta);
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  outline: none;
+  padding: 0;
+  min-width: 0;
+  font-family: inherit;
+}
+
+.deleteButton {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 14px;
+  padding: 2px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.titleBar:hover .deleteButton {
+  opacity: 1;
+}
+
+.deleteButton:hover {
+  color: var(--color-priority-high);
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.gutter {
+  position: absolute;
+  top: 8px;
+  left: 2px;
+  bottom: 0;
+  width: 20px;
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.gutterRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.convertIcon {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0;
+  transition: opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.note:hover .convertIcon {
+  opacity: 0.35;
+}
+
+.convertIcon:hover {
+  opacity: 0.8 !important;
+}
+
+.textarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 8px 10px 8px 24px;
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  line-height: 1.5;
+  color: inherit;
+  background: transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+.textarea::placeholder {
+  color: inherit;
+  opacity: 0.4;
+}
+
+/* Resize handle */
+.resizeHandle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(
+    135deg,
+    transparent 40%,
+    var(--color-text-muted) 40%,
+    var(--color-text-muted) 45%,
+    transparent 45%,
+    transparent 55%,
+    var(--color-text-muted) 55%,
+    var(--color-text-muted) 60%,
+    transparent 60%
+  );
+  opacity: 0.4;
+  border-radius: 0 0 var(--radius-card) 0;
+  transition: opacity 0.15s;
+}
+
+.resizeHandle:hover {
+  opacity: 0.8;
+}
+
+/* Preset color palette */
+.palette {
+  position: absolute;
+  top: 100%;
+  left: 4px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.paletteSwatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.paletteSwatch:hover {
+  transform: scale(1.2);
+}
+
+.paletteSwatchActive {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+/* Autocomplete dropdown */
+.acDropdown {
+  position: absolute;
+  z-index: 20;
+  min-width: 160px;
+  max-width: 240px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 4px 0;
+  box-shadow: var(--shadow-dropdown);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.acHeader {
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.acItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  cursor: pointer;
+  text-align: left;
+}
+
+.acItem:hover,
+.acItemSelected {
+  background: var(--color-accent-bg-light);
+}
+
+.acDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+

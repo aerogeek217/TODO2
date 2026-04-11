@@ -1,0 +1,416 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  MeasuringStrategy,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragMoveEvent,
+} from '@dnd-kit/core'
+import type { PersistedTodoItem, Project } from '../models'
+import type { ReactFlowInstance } from '@xyflow/react'
+import { useTodoStore } from '../stores/todo-store'
+import { useUIStore } from '../stores/ui-store'
+import { useUndoStore } from '../stores/undo-store'
+import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
+import { placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
+import { getFlatVisualOrder } from '../utils/hierarchy'
+
+interface UseCanvasDnDOptions {
+  todos: PersistedTodoItem[]
+  todosByProject: Map<number, PersistedTodoItem[]>
+  projects: Project[]
+  selectedCanvasId: number | null
+  addProject: (name: string, canvasId: number, x?: number, y?: number) => Promise<number>
+  applyMutations: (mutations: { todoId: number; changes: Record<string, unknown> }[]) => Promise<void>
+  rfInstanceRef: React.RefObject<ReactFlowInstance | null>
+}
+
+export function useCanvasDnD({
+  todos,
+  todosByProject,
+  projects,
+  selectedCanvasId,
+  addProject,
+  applyMutations,
+  rfInstanceRef,
+}: UseCanvasDnDOptions) {
+  const multiDragIdsRef = useRef<Set<number> | null>(null)
+  const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
+  const [activeDragChildren, setActiveDragChildren] = useState<PersistedTodoItem[]>([])
+  const [multiDragCount, setMultiDragCount] = useState(0)
+  const [dragExpandedProjectId, setDragExpandedProjectId] = useState<number | null>(null)
+  const [insertTodoId, setInsertTodoId] = useState<number | null>(null)
+  const [insertIndentLevel, setInsertIndentLevel] = useState(0)
+  const [insertAtEnd, setInsertAtEnd] = useState(false)
+  const [insertProjectId, setInsertProjectId] = useState<number | null>(null)
+  const [dragGroupIds, setDragGroupIds] = useState<Set<number> | null>(null)
+
+  // Edge panning during drag
+  const edgePanRef = useRef<{
+    active: boolean
+    pointerX: number
+    pointerY: number
+    animId: number | null
+  }>({ active: false, pointerX: 0, pointerY: 0, animId: null })
+  const pointerListenerRef = useRef<((e: PointerEvent) => void) | null>(null)
+
+  // Pointer sensor with distance constraint to avoid conflicting with React Flow pan
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    })
+  )
+
+  // Re-measure droppable rects every 200ms during drag
+  const measuring = useMemo(() => ({
+    droppable: {
+      strategy: MeasuringStrategy.WhileDragging,
+      frequency: 200,
+    }
+  }), [])
+
+  // Edge-of-screen panning during task drag
+  const startEdgePan = useCallback(() => {
+    const EDGE = 60
+    const SPEED = 12
+
+    const loop = () => {
+      if (!edgePanRef.current.active) return
+      const rf = rfInstanceRef.current
+      const el = document.querySelector('.react-flow')
+      if (!rf || !el) { edgePanRef.current.animId = requestAnimationFrame(loop); return }
+
+      const r = el.getBoundingClientRect()
+      const { pointerX: px, pointerY: py } = edgePanRef.current
+      let dx = 0, dy = 0
+
+      if (px > r.left && px < r.left + EDGE) dx = SPEED * ((r.left + EDGE - px) / EDGE)
+      else if (px > r.right - EDGE && px < r.right) dx = -SPEED * ((px - r.right + EDGE) / EDGE)
+      if (py > r.top && py < r.top + EDGE) dy = SPEED * ((r.top + EDGE - py) / EDGE)
+      else if (py > r.bottom - EDGE && py < r.bottom) dy = -SPEED * ((py - r.bottom + EDGE) / EDGE)
+
+      if (dx !== 0 || dy !== 0) {
+        const vp = rf.getViewport()
+        rf.setViewport({ x: vp.x + dx, y: vp.y + dy, zoom: vp.zoom })
+      }
+      edgePanRef.current.animId = requestAnimationFrame(loop)
+    }
+    edgePanRef.current.animId = requestAnimationFrame(loop)
+  }, [rfInstanceRef])
+
+  const stopEdgePan = useCallback(() => {
+    edgePanRef.current.active = false
+    if (edgePanRef.current.animId != null) {
+      cancelAnimationFrame(edgePanRef.current.animId)
+      edgePanRef.current.animId = null
+    }
+  }, [])
+
+  // Cleanup edge pan on unmount
+  useEffect(() => {
+    return () => {
+      if (pointerListenerRef.current) window.removeEventListener('pointermove', pointerListenerRef.current)
+      stopEdgePan()
+    }
+  }, [stopEdgePan])
+
+  const normalizeProject = useCallback(
+    async (projectId: number) => {
+      const fresh = useTodoStore.getState().todos.filter(t => t.projectId === projectId)
+      if (shouldNormalize(fresh)) {
+        const normMuts = normalizeSortOrders(fresh)
+        if (normMuts.length > 0) await applyMutations(normMuts)
+      }
+    },
+    [applyMutations]
+  )
+
+  const executeDrop = useCallback(
+    async (ctx: DropContext) => {
+      const resolution = resolveDropTarget(ctx)
+
+      if (resolution.type === 'noop') return
+
+      useUndoStore.getState().beginGroup()
+
+      switch (resolution.type) {
+        case 'place': {
+          const task = todos.find(t => t.id === resolution.taskId)
+          if (!task) break
+          const projectTodos = todosByProject.get(resolution.target.projectId) ?? []
+          const mutations = placeTaskAt(projectTodos, task, resolution.target)
+          await applyMutations(mutations)
+          await normalizeProject(resolution.target.projectId)
+          break
+        }
+
+        case 'place-multi': {
+          const mutations = placeMultipleAt(todos, resolution.taskIds, resolution.target)
+          await applyMutations(mutations)
+          await normalizeProject(resolution.target.projectId)
+          break
+        }
+
+        case 'indent': {
+          const projectTodos = todosByProject.get(resolution.projectId) ?? []
+          const mutations = indentTasks(projectTodos, resolution.taskIds)
+          if (mutations.length > 0) await applyMutations(mutations)
+          await normalizeProject(resolution.projectId)
+          break
+        }
+
+        case 'outdent': {
+          const projectTodos = todosByProject.get(resolution.projectId) ?? []
+          const mutations = outdentTasks(projectTodos, resolution.taskIds)
+          if (mutations.length > 0) await applyMutations(mutations)
+          await normalizeProject(resolution.projectId)
+          break
+        }
+
+        case 'create-project': {
+          if (!selectedCanvasId) break
+          const projectId = await addProject('New Project', selectedCanvasId, resolution.position.x, resolution.position.y)
+          const taskIds = resolution.taskIds
+          const target = { projectId, parentId: undefined as number | undefined, beforeTodoId: null }
+          if (taskIds.size === 1) {
+            const task = todos.find(t => t.id === Array.from(taskIds)[0])
+            if (task) {
+              const projectTodos = todosByProject.get(projectId) ?? []
+              const mutations = placeTaskAt(projectTodos, task, target)
+              await applyMutations(mutations)
+            }
+          } else {
+            const mutations = placeMultipleAt(todos, taskIds, target)
+            await applyMutations(mutations)
+          }
+          break
+        }
+      }
+
+      useUndoStore.getState().endGroup(`Move task`)
+    },
+    [todos, todosByProject, selectedCanvasId, addProject, applyMutations, normalizeProject]
+  )
+
+  /** Resolve target area expansion: bottom 40% shifts to next visible task */
+  const expandTargetArea = useCallback(
+    (overType: 'task' | 'project' | null, overTodo: PersistedTodoItem | null, overProjectId: number | null, over: { rect?: { top: number; height: number } } | null, activeTodoId: number) => {
+      if (overType !== 'task' || !overTodo || !over?.rect || overTodo.id === activeTodoId) {
+        return { overType, overTodo, overProjectId }
+      }
+      const pointerY = edgePanRef.current.pointerY
+      if (pointerY <= 0 || overTodo.projectId == null) {
+        return { overType, overTodo, overProjectId }
+      }
+      const relY = (pointerY - over.rect.top) / over.rect.height
+      if (relY <= 0.6) {
+        return { overType, overTodo, overProjectId }
+      }
+      const projectTodos = todosByProject.get(overTodo.projectId) ?? []
+      const flat = getFlatVisualOrder(projectTodos)
+      const collapsed = useUIStore.getState().collapsedParents
+      const idx = flat.findIndex(t => t.id === overTodo!.id)
+      const hasVisChildren = idx >= 0 && idx < flat.length - 1 &&
+        flat[idx + 1].parentId === overTodo!.id && !collapsed.has(overTodo!.id)
+      if (idx < 0 || hasVisChildren) {
+        return { overType, overTodo, overProjectId }
+      }
+      const origPid = overTodo.projectId!
+      for (let i = idx + 1; i < flat.length; i++) {
+        if (flat[i].parentId != null && collapsed.has(flat[i].parentId!)) continue
+        return { overType: 'task' as const, overTodo: flat[i], overProjectId }
+      }
+      return { overType: 'project' as const, overTodo: null, overProjectId: origPid }
+    },
+    [todosByProject]
+  )
+
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const { active } = event
+      const todo = active.data.current?.todo as PersistedTodoItem | undefined
+      if (todo) {
+        setActiveDragTodo(todo)
+        const sel = useUIStore.getState().selectedTodoIds
+        const isMulti = sel.size > 1 && sel.has(todo.id)
+
+        // Find children of the dragged task
+        const children = todos.filter(t => t.parentId === todo.id)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+        setActiveDragChildren(children)
+
+        if (isMulti) {
+          multiDragIdsRef.current = new Set(sel)
+          setMultiDragCount(sel.size)
+          const groupIds = new Set(sel)
+          groupIds.delete(todo.id)
+          setDragGroupIds(groupIds)
+        } else if (children.length > 0) {
+          const dragSet = new Set([todo.id, ...children.map(c => c.id)])
+          multiDragIdsRef.current = dragSet
+          setMultiDragCount(dragSet.size)
+          setDragGroupIds(new Set(children.map(c => c.id)))
+        } else {
+          multiDragIdsRef.current = null
+          setMultiDragCount(0)
+          setDragGroupIds(null)
+        }
+
+        // Start edge panning and pointer tracking
+        const initEvent = event.activatorEvent as PointerEvent
+        edgePanRef.current.pointerX = initEvent.clientX
+        edgePanRef.current.pointerY = initEvent.clientY
+        edgePanRef.current.active = true
+        startEdgePan()
+        const onPointerMove = (e: PointerEvent) => {
+          edgePanRef.current.pointerX = e.clientX
+          edgePanRef.current.pointerY = e.clientY
+        }
+        window.addEventListener('pointermove', onPointerMove)
+        pointerListenerRef.current = onPointerMove
+      }
+    },
+    [todos, startEdgePan]
+  )
+
+  const handleDragMove = useCallback(
+    (event: DragMoveEvent) => {
+      const { over, delta } = event
+      const activeTodo = event.active.data.current?.todo as PersistedTodoItem | undefined
+      if (!activeTodo) {
+        setInsertTodoId(null)
+        setInsertIndentLevel(0)
+        setInsertAtEnd(false)
+        setInsertProjectId(null)
+        return
+      }
+
+      const overData = over?.data.current
+      const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
+        : overData?.type === 'project' ? 'project'
+        : null
+      const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
+      const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null
+
+      const { overType, overTodo, overProjectId } = expandTargetArea(
+        rawOverType, rawOverTodo, rawOverProjectId,
+        over ? { rect: over.rect ? { top: over.rect.top, height: over.rect.height } : undefined } : null,
+        activeTodo.id,
+      )
+
+      const preview = resolveDropPreview(activeTodo, overType, overTodo, overProjectId, delta, todosByProject)
+      setInsertTodoId(preview.insertTodoId)
+      setInsertIndentLevel(preview.insertIndentLevel)
+      setInsertAtEnd(preview.insertAtEnd)
+      setInsertProjectId(preview.insertProjectId)
+    },
+    [todosByProject, expandTargetArea]
+  )
+
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { over } = event
+      if (!over) {
+        setDragExpandedProjectId(null)
+        return
+      }
+      const overData = over.data.current
+      let targetProjectId: number | null = null
+      if (overData?.type === 'project') {
+        targetProjectId = overData.projectId as number
+      } else if (overData?.type === 'task') {
+        targetProjectId = (overData.todo as PersistedTodoItem).projectId ?? null
+      }
+      if (targetProjectId != null) {
+        const project = projects.find((p) => p.id === targetProjectId)
+        if (project?.isCollapsed) {
+          setDragExpandedProjectId(targetProjectId)
+          return
+        }
+      }
+      setDragExpandedProjectId(null)
+    },
+    [projects]
+  )
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      // Stop edge panning and pointer tracking
+      stopEdgePan()
+      if (pointerListenerRef.current) {
+        window.removeEventListener('pointermove', pointerListenerRef.current)
+        pointerListenerRef.current = null
+      }
+
+      setActiveDragTodo(null)
+      setActiveDragChildren([])
+      setMultiDragCount(0)
+      setDragExpandedProjectId(null)
+      setInsertTodoId(null)
+      setInsertIndentLevel(0)
+      setInsertAtEnd(false)
+      setInsertProjectId(null)
+      setDragGroupIds(null)
+
+      const { active, over, delta } = event
+      const dragIds = multiDragIdsRef.current
+      multiDragIdsRef.current = null
+
+      const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
+      if (!activeTodo) return
+
+      const overData = over?.data.current
+      const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
+        : overData?.type === 'project' ? 'project'
+        : null
+      const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
+      const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null
+
+      const { overType, overTodo, overProjectId } = expandTargetArea(
+        rawOverType, rawOverTodo, rawOverProjectId,
+        over ? { rect: over.rect ? { top: over.rect.top, height: over.rect.height } : undefined } : null,
+        activeTodo.id,
+      )
+
+      const ctx: DropContext = {
+        activeTodo,
+        overType,
+        overTodo,
+        overProjectId,
+        delta,
+        dragIds,
+        todosByProject,
+        screenToFlow: rfInstanceRef.current?.screenToFlowPosition ?? null,
+        initialRect: active.rect.current.initial ? { left: active.rect.current.initial.left, top: active.rect.current.initial.top } : null,
+        canvasId: selectedCanvasId,
+      }
+
+      await executeDrop(ctx)
+    },
+    [todosByProject, selectedCanvasId, executeDrop, stopEdgePan, expandTargetArea, rfInstanceRef]
+  )
+
+  return {
+    // Event handlers
+    handleDragStart,
+    handleDragMove,
+    handleDragOver,
+    handleDragEnd,
+    // State
+    activeDragTodo,
+    activeDragChildren,
+    multiDragCount,
+    dragExpandedProjectId,
+    insertTodoId,
+    insertIndentLevel,
+    insertAtEnd,
+    insertProjectId,
+    dragGroupIds,
+    // Config
+    sensors,
+    measuring,
+  }
+}

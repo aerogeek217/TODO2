@@ -1,0 +1,11 @@
+/* Drag preview for React Flow nodes.
+   React Flow adds .dragging to node wrappers during drag. */
+.react-flow__node.dragging > div {
+  border-color: var(--color-accent) !important;
+  opacity: 0.85 !important;
+  box-shadow:
+    var(--shadow-drag-node),
+    0 0 0 2px var(--color-accent),
+    var(--shadow-glow) !important;
+  transition: none !important;
+}

@@ -1,0 +1,631 @@
+import { useEffect, useRef, useState, useMemo } from 'react'
+import { useSettingsStore, type ThemeMode } from '../stores/settings-store'
+import { useFileStorageStore, refreshAllStores } from '../stores/file-storage-store'
+import { useProjectStore } from '../stores/project-store'
+import { useTodoStore } from '../stores/todo-store'
+import { usePersonStore } from '../stores/person-store'
+import { useTagStore } from '../stores/tag-store'
+import { buildHierarchy } from '../utils/hierarchy'
+import { Priority } from '../models'
+import type { PersistedTodoItem } from '../models'
+import { db } from '../data/database'
+import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
+import { restoreFromImportData } from '../data/restore'
+import { buildExportData } from '../services/export-import'
+import { backupScheduler } from '../services/backup-scheduler'
+import { backupRepository, type BackupSummary } from '../data/backup-repository'
+import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
+import { useIsMobile } from '../hooks/use-is-mobile'
+import { PeopleEditor } from '../components/settings/PeopleEditor'
+import { TagEditor } from '../components/settings/TagEditor'
+import { ThemeColorsEditor } from '../components/settings/ThemeColorsEditor'
+import { KeyboardShortcutsModal } from '../components/settings/KeyboardShortcutsModal'
+import styles from './SettingsPage.module.css'
+
+const retentionOptions: { value: string; label: string }[] = [
+  { value: '', label: 'Keep forever' },
+  { value: '7', label: '7 days' },
+  { value: '14', label: '14 days' },
+  { value: '30', label: '30 days' },
+  { value: '60', label: '60 days' },
+  { value: '90', label: '90 days' },
+]
+
+async function getStartIn(): Promise<FileSystemHandle | 'documents'> {
+  try {
+    const saved = await loadLastPickerHandle()
+    if (saved) return saved
+  } catch { /* ignore */ }
+  return 'documents'
+}
+
+export function SettingsPage() {
+  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, completedRetentionDays, setCompletedRetentionDays } = useSettingsStore()
+  const fileStorage = useFileStorageStore()
+  const { projects, loadAll: loadProjects } = useProjectStore()
+  const todos = useTodoStore((s) => s.todos)
+  const peopleCount = usePersonStore((s) => s.people.length)
+  const tagCount = useTagStore((s) => s.tags.length)
+  const [exportMsg, setExportMsg] = useState('')
+  const importRef = useRef<HTMLInputElement>(null)
+  const [showPeopleEditor, setShowPeopleEditor] = useState(false)
+  const [showTagEditor, setShowTagEditor] = useState(false)
+  const [showThemeColors, setShowThemeColors] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [backups, setBackups] = useState<BackupSummary[]>([])
+  const [backupMsg, setBackupMsg] = useState('')
+  const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
+  const timerRefs = useRef<number[]>([])
+  const track = (fn: () => void, ms: number) => {
+    timerRefs.current.push(window.setTimeout(fn, ms))
+  }
+
+  const isMobile = useIsMobile()
+  const loadPeople = usePersonStore((s) => s.load)
+  const loadTags = useTagStore((s) => s.load)
+
+  const loadBackups = async () => {
+    setBackups(await backupRepository.listSnapshots())
+  }
+
+  useEffect(() => {
+    load()
+    loadProjects()
+    loadPeople()
+    loadTags()
+    loadBackups()
+    return () => {
+      timerRefs.current.forEach(clearTimeout)
+    }
+  }, [load, loadProjects, loadPeople, loadTags])
+
+  const retentionStats = useMemo(() => {
+    if (completedRetentionDays == null) return null
+    const now = new Date()
+    const cutoff = new Date(now)
+    cutoff.setDate(cutoff.getDate() - completedRetentionDays)
+    const weekFromNow = new Date(now)
+    weekFromNow.setDate(weekFromNow.getDate() + 7)
+    const expiringCutoff = new Date(weekFromNow)
+    expiringCutoff.setDate(expiringCutoff.getDate() - completedRetentionDays)
+
+    const completed = todos.filter((t) => t.isCompleted)
+    const expired = completed.filter((t) => new Date(t.modifiedAt) < cutoff)
+    const expiringThisWeek = completed.filter(
+      (t) => {
+        const mod = new Date(t.modifiedAt)
+        return mod >= cutoff && mod < expiringCutoff
+      }
+    )
+    return { expired: expired.length, expiringThisWeek: expiringThisWeek.length, total: completed.length }
+  }, [todos, completedRetentionDays])
+
+  const handleExport = async () => {
+    const tables = await buildExportData()
+    const data = { ...tables, exportedAt: new Date().toISOString() }
+    const json = JSON.stringify(data, null, 2)
+
+    if ('showSaveFilePicker' in window) {
+      try {
+        const startIn = await getStartIn()
+        const handle = await (window as unknown as { showSaveFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+          suggestedName: `todo2-backup-${new Date().toISOString().split('T')[0]}.json`,
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+          startIn,
+        })
+        const writable = await handle.createWritable()
+        await writable.write(json)
+        await writable.close()
+        saveLastPickerHandle(handle).catch(() => {})
+        setExportMsg('Exported!')
+        track(() => setExportMsg(''), 2000)
+        return
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return // user cancelled
+      }
+    }
+
+    // Fallback for browsers without File System Access API
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `todo2-backup-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+    setExportMsg('Exported!')
+    track(() => setExportMsg(''), 2000)
+  }
+
+  const handleImportClick = async () => {
+    if ('showOpenFilePicker' in window) {
+      try {
+        const startIn = await getStartIn()
+        const [handle] = await (window as unknown as { showOpenFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker({
+          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+          startIn,
+        })
+        saveLastPickerHandle(handle).catch(() => {})
+        const file = await handle.getFile()
+        await doImport(file)
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return // user cancelled
+      }
+    } else {
+      importRef.current?.click()
+    }
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await doImport(file)
+    if (importRef.current) importRef.current.value = ''
+  }
+
+  const doImport = async (file: File) => {
+    try {
+      if (file.size > MAX_IMPORT_SIZE_BYTES) {
+        setExportMsg('Import failed — file too large (50 MB max).')
+        track(() => setExportMsg(''), 3000)
+        return
+      }
+
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      const result = validateImportData(parsed)
+
+      if (!result.ok) {
+        setExportMsg(`Import failed — ${result.error}`)
+        track(() => setExportMsg(''), 4000)
+        return
+      }
+
+      await backupScheduler.snapshotBeforeDestructive().catch(() => {})
+      await restoreFromImportData(result.data)
+
+      await refreshAllStores()
+      setExportMsg('Imported successfully!')
+      track(() => setExportMsg(''), 4000)
+    } catch (err) {
+      const detail = err instanceof SyntaxError ? err.message : 'invalid file'
+      setExportMsg(`Import failed — ${detail}`)
+      track(() => setExportMsg(''), 5000)
+    }
+  }
+
+  const handleExportMarkdown = async () => {
+    const allTodos = await db.todos.toArray()
+    const allProjects = await db.projects.toArray()
+    const allPeople = await db.people.toArray()
+    const allTags = await db.tags.toArray()
+    const allTodoPeople = await db.todoPeople.toArray()
+    const allTodoTags = await db.todoTags.toArray()
+
+    const peopleMap = new Map(allPeople.map((p) => [p.id!, p.name]))
+    const tagMap = new Map(allTags.map((t) => [t.id!, t.name]))
+
+    const todoPeopleMap = new Map<number, string[]>()
+    for (const tp of allTodoPeople) {
+      const name = peopleMap.get(tp.personId)
+      if (name) {
+        const list = todoPeopleMap.get(tp.todoId) ?? []
+        list.push(name)
+        todoPeopleMap.set(tp.todoId, list)
+      }
+    }
+    const todoTagsMap = new Map<number, string[]>()
+    for (const tt of allTodoTags) {
+      const name = tagMap.get(tt.tagId)
+      if (name) {
+        const list = todoTagsMap.get(tt.todoId) ?? []
+        list.push(name)
+        todoTagsMap.set(tt.todoId, list)
+      }
+    }
+
+    // Group todos by project
+    const byProject = new Map<number | undefined, PersistedTodoItem[]>()
+    for (const todo of allTodos as PersistedTodoItem[]) {
+      const key = todo.projectId
+      const list = byProject.get(key) ?? []
+      list.push(todo)
+      byProject.set(key, list)
+    }
+
+    const lines: string[] = ['# TODOs', '']
+    const details: string[] = []
+
+    const formatTodoLine = (todo: PersistedTodoItem, indent: string) => {
+      const check = todo.isCompleted ? '[x]' : '[ ]'
+      const star = todo.isStarred ? ' ★' : ''
+      const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
+      const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
+      return `${indent}- ${check} ${todo.title}${star}${pri}${due}`
+    }
+
+    const collectDetails = (todo: PersistedTodoItem) => {
+      const people = todoPeopleMap.get(todo.id) ?? []
+      const tags = todoTagsMap.get(todo.id) ?? []
+      const hasMeta = people.length > 0 || tags.length > 0 || todo.notes
+      if (!hasMeta) return
+      details.push(`### ${todo.title}`)
+      if (people.length > 0) details.push(`- **People:** ${people.join(', ')}`)
+      if (tags.length > 0) details.push(`- **Tags:** ${tags.join(', ')}`)
+      if (todo.notes) details.push(`- **Notes:** ${todo.notes}`)
+      details.push('')
+    }
+
+    const renderGroup = (groupTodos: PersistedTodoItem[]) => {
+      const hierarchy = buildHierarchy(groupTodos)
+      for (const { parent, children } of hierarchy) {
+        lines.push(formatTodoLine(parent, ''))
+        collectDetails(parent)
+        for (const child of children) {
+          lines.push(formatTodoLine(child, '  '))
+          collectDetails(child)
+        }
+      }
+    }
+
+    // Named projects first
+    for (const project of allProjects) {
+      const groupTodos = byProject.get(project.id!) ?? [] as PersistedTodoItem[]
+      if (groupTodos.length === 0) continue
+      lines.push(`## ${project.name}`, '')
+      renderGroup(groupTodos)
+      lines.push('')
+    }
+
+    // Tasks with no project
+    const noProject = byProject.get(undefined) ?? []
+    if (noProject.length > 0) {
+      lines.push('## No Project', '')
+      renderGroup(noProject)
+      lines.push('')
+    }
+
+    // Append details section
+    if (details.length > 0) {
+      lines.push('---', '', '# Task Details', '', ...details)
+    }
+
+    const md = lines.join('\n')
+
+    if ('showSaveFilePicker' in window) {
+      try {
+        const startIn = await getStartIn()
+        const handle = await (window as unknown as { showSaveFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+          suggestedName: `todos-${new Date().toISOString().split('T')[0]}.md`,
+          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
+          startIn,
+        })
+        const writable = await handle.createWritable()
+        await writable.write(md)
+        await writable.close()
+        saveLastPickerHandle(handle).catch(() => {})
+        setExportMsg('Markdown exported!')
+        track(() => setExportMsg(''), 2000)
+        return
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `todos-${new Date().toISOString().split('T')[0]}.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 100)
+    setExportMsg('Markdown exported!')
+    track(() => setExportMsg(''), 2000)
+  }
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.container}>
+        <div className={styles.pageTitle}>Settings</div>
+
+        {/* Appearance & Shortcuts */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Appearance</div>
+          <div className={styles.themeToggle}>
+            {(['light', 'dark', 'system'] as ThemeMode[]).map((mode) => (
+              <button
+                key={mode}
+                className={`${styles.themeOption} ${themeMode === mode ? styles.themeOptionActive : ''}`}
+                onClick={() => setThemeMode(mode)}
+              >
+                {mode === 'light' ? '☀' : mode === 'dark' ? '☾' : '◑'}{' '}
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className={styles.buttonRow}>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowThemeColors(true)}>
+              Theme Colors
+            </button>
+            {!isMobile && (
+              <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowShortcuts(true)}>
+                Keyboard Shortcuts
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Task Defaults — desktop only */}
+        {!isMobile && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Task Defaults</div>
+          <div className={styles.settingRow}>
+            <span className={styles.settingLabel}>Default project for new tasks</span>
+            <select
+              className={styles.settingSelect}
+              value={defaultProjectId ?? ''}
+              onChange={(e) => setDefaultProjectId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">None</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        )}
+
+        {/* Completed Tasks — desktop only */}
+        {!isMobile && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Completed Tasks</div>
+          <div className={styles.settingRow}>
+            <span className={styles.settingLabel}>Auto-delete completed tasks after</span>
+            <select
+              className={styles.settingSelect}
+              value={completedRetentionDays ?? ''}
+              onChange={(e) => setCompletedRetentionDays(e.target.value ? Number(e.target.value) : null)}
+            >
+              {retentionOptions.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          {retentionStats && (
+            <div className={styles.retentionInfo}>
+              {retentionStats.expired > 0 && (
+                <span className={styles.retentionWarning}>
+                  {retentionStats.expired} completed task{retentionStats.expired !== 1 ? 's' : ''} past retention (will be purged on next startup)
+                </span>
+              )}
+              {retentionStats.expiringThisWeek > 0 && (
+                <span className={styles.retentionMuted}>
+                  {retentionStats.expiringThisWeek} more will expire in the next 7 days
+                </span>
+              )}
+              {retentionStats.expired === 0 && retentionStats.expiringThisWeek === 0 && (
+                <span className={styles.retentionMuted}>
+                  {retentionStats.total} completed task{retentionStats.total !== 1 ? 's' : ''}, none expiring soon
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* People & Tags — desktop only */}
+        {!isMobile && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>People & Tags</div>
+          <div className={styles.buttonRow}>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowPeopleEditor(true)}>
+              Manage People{peopleCount > 0 && ` (${peopleCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowTagEditor(true)}>
+              Manage Tags{tagCount > 0 && ` (${tagCount})`}
+            </button>
+          </div>
+        </div>
+        )}
+
+        {/* Database Location */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Database {isMobile ? '& File Sync' : 'Location'}</div>
+          {isMobile && fileStorage.isConnected && (
+            <div className={styles.fileInfo}>
+              <span className={styles.fileStatus}>
+                Syncing to: {fileStorage.fileName}
+              </span>
+            </div>
+          )}
+          {!fileStorage.isSupported ? (
+            <div className={styles.fileInfo}>
+              <span className={styles.fileStatus}>
+                {isMobile ? 'File sync is not supported on this browser. Use Import/Export instead.' : 'File sync requires Chrome or Edge (File System Access API)'}
+              </span>
+            </div>
+          ) : fileStorage.needsPermission ? (
+            <div className={styles.fileInfo}>
+              <span className={styles.fileName}>{fileStorage.fileName}</span>
+              <span className={styles.fileStatus}>Permission needed to sync to this file</span>
+              <div className={styles.buttonRow}>
+                <button
+                  className={`${styles.button} ${styles.buttonPrimary}`}
+                  onClick={fileStorage.reconnect}
+                  disabled={fileStorage.isLoading}
+                >
+                  Grant Access
+                </button>
+              </div>
+            </div>
+          ) : fileStorage.isConnected ? (
+            <div className={styles.fileInfo}>
+              <span className={styles.fileName}>{fileStorage.fileName}</span>
+              {fileStorage.lastSavedAt && (
+                <span className={styles.fileStatus}>
+                  Last saved: {fileStorage.lastSavedAt.toLocaleTimeString()}
+                </span>
+              )}
+              <div className={styles.buttonRow}>
+                <button
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  onClick={fileStorage.openFile}
+                  disabled={fileStorage.isLoading}
+                >
+                  Attach to Different File
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.fileInfo}>
+              <span className={styles.fileStatus}>Using browser storage only</span>
+              <div className={styles.buttonRow}>
+                <button
+                  className={`${styles.button} ${styles.buttonPrimary}`}
+                  onClick={fileStorage.openFile}
+                  disabled={fileStorage.isLoading}
+                >
+                  Attach to File
+                </button>
+                <button
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  onClick={fileStorage.createFile}
+                  disabled={fileStorage.isLoading}
+                >
+                  Create New File
+                </button>
+              </div>
+            </div>
+          )}
+          {fileStorage.error && <div className={styles.errorMsg}>{fileStorage.error}</div>}
+        </div>
+
+        {/* Import / Export */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Import / Export</div>
+          <div className={styles.buttonRow}>
+            <button className={`${styles.button} ${styles.buttonPrimary}`} onClick={handleExport}>
+              Export JSON
+            </button>
+            <button
+              className={`${styles.button} ${styles.buttonSecondary}`}
+              onClick={handleImportClick}
+            >
+              Import JSON
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={handleExportMarkdown}>
+              Export Markdown
+            </button>
+            <input
+              ref={importRef}
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={handleImport}
+            />
+          </div>
+          {exportMsg && <div className={styles.successMsg}>{exportMsg}</div>}
+        </div>
+
+        {/* Backups — desktop only */}
+        {!isMobile && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Backups</div>
+          {backups.length === 0 ? (
+            <div className={styles.backupEmpty}>No backups yet. Backups are created automatically every 24 hours and before destructive operations.</div>
+          ) : (
+            <div className={styles.backupList}>
+              {backups.map((b) => (
+                <div key={b.id} className={styles.backupRow}>
+                  <span className={styles.backupTime}>
+                    {new Date(b.createdAt).toLocaleString()}
+                  </span>
+                  <span className={`${styles.backupBadge}${b.trigger === 'pre-destructive' ? ` ${styles.backupBadgeDestructive}` : ''}`}>
+                    {b.trigger === 'pre-destructive' ? 'pre-op' : b.trigger}
+                  </span>
+                  <span className={styles.backupSize}>
+                    {b.sizeBytes < 1024 ? `${b.sizeBytes} B` : `${Math.round(b.sizeBytes / 1024)} KB`}
+                  </span>
+                  <div className={styles.backupActions}>
+                    {confirmRestoreId === b.id ? (
+                      <>
+                        <button
+                          className={styles.backupBtn}
+                          onClick={async () => {
+                            setConfirmRestoreId(null)
+                            const result = await backupRepository.restoreSnapshot(b.id)
+                            if (result.ok) {
+                              await refreshAllStores()
+                              setBackupMsg('Restored successfully!')
+                            } else {
+                              setBackupMsg(`Restore failed: ${result.error}`)
+                            }
+                            track(() => setBackupMsg(''), 3000)
+                          }}
+                        >
+                          Confirm
+                        </button>
+                        <button className={styles.backupBtn} onClick={() => setConfirmRestoreId(null)}>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className={styles.backupBtn} onClick={() => setConfirmRestoreId(b.id)}>
+                          Restore
+                        </button>
+                        <button
+                          className={`${styles.backupBtn} ${styles.backupBtnDanger}`}
+                          onClick={async () => {
+                            await backupRepository.deleteSnapshot(b.id)
+                            await loadBackups()
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className={styles.buttonRow}>
+            <button
+              className={`${styles.button} ${styles.buttonSecondary}`}
+              onClick={async () => {
+                await backupRepository.createSnapshot('manual')
+                await loadBackups()
+                setBackupMsg('Backup created!')
+                track(() => setBackupMsg(''), 2000)
+              }}
+            >
+              Create Backup Now
+            </button>
+          </div>
+          {backupMsg && <div className={styles.successMsg}>{backupMsg}</div>}
+        </div>
+        )}
+
+        {/* About */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>About</div>
+          <div className={styles.aboutSection}>
+            TODO2 — A spatial todo app<br />
+            Data stored {fileStorage.isConnected ? `in ${fileStorage.fileName}` : 'locally in your browser (IndexedDB)'}<br />
+            No account, no server, fully offline
+          </div>
+        </div>
+      </div>
+
+      {showThemeColors && <ThemeColorsEditor onClose={() => setShowThemeColors(false)} />}
+      {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showPeopleEditor && <PeopleEditor onClose={() => setShowPeopleEditor(false)} />}
+      {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
+    </div>
+  )
+}

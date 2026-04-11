@@ -1,0 +1,379 @@
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-8);
+}
+
+.container {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.pageTitle {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-8);
+}
+
+.section {
+  margin-bottom: var(--space-9);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: var(--font-size-meta);
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-high);
+  border-radius: var(--radius-card);
+}
+
+.colorLabel {
+  flex: 1;
+  font-size: var(--font-size-task);
+  color: var(--color-text-secondary);
+}
+
+.colorInput {
+  width: 32px;
+  height: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.colorInput::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.colorInput::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+.colorHex {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-family: monospace;
+  width: 60px;
+}
+
+.themeToggle {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-high);
+  border-radius: var(--radius-card);
+  padding: 3px;
+  margin-bottom: var(--space-5);
+}
+
+.themeOption {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.themeOption:hover {
+  color: var(--color-text-primary);
+}
+
+.themeOptionActive {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-card);
+  font-weight: var(--font-weight-semibold);
+}
+
+.buttonRow {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.button {
+  padding: 6px 14px;
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.button:hover {
+  opacity: 0.85;
+}
+
+.buttonPrimary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border: none;
+  font-weight: var(--font-weight-semibold);
+}
+
+.buttonSecondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-high);
+  border-radius: var(--radius-card);
+}
+
+.settingLabel {
+  font-size: var(--font-size-task);
+  color: var(--color-text-secondary);
+}
+
+.settingSelect {
+  background: transparent;
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-task);
+  font-family: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+.settingSelect option {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.retentionInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 0 4px;
+}
+
+.retentionWarning {
+  font-size: var(--font-size-meta);
+  color: var(--color-priority-medium);
+}
+
+.retentionMuted {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.aboutSection {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  line-height: 1.8;
+}
+
+.shortcutCategory {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.shortcutCategory:first-of-type {
+  margin-top: 0;
+}
+
+.shortcutGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+}
+
+.shortcutKey {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  padding: 1px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-family: monospace;
+  text-align: center;
+}
+
+.shortcutDesc {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 2px 0;
+}
+
+.successMsg {
+  font-size: var(--font-size-meta);
+  color: var(--color-accent);
+  padding: 4px 0;
+}
+
+.errorMsg {
+  font-size: var(--font-size-meta);
+  color: var(--color-priority-high);
+  padding: 4px 0;
+}
+
+.backupList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.backupRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--color-surface-high);
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-meta);
+}
+
+.backupTime {
+  flex: 1;
+  color: var(--color-text-secondary);
+}
+
+.backupBadge {
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+
+.backupBadgeDestructive {
+  color: var(--color-priority-medium);
+  border-color: var(--color-priority-medium);
+}
+
+.backupSize {
+  color: var(--color-text-muted);
+  font-family: monospace;
+  min-width: 50px;
+  text-align: right;
+}
+
+.backupActions {
+  display: flex;
+  gap: 4px;
+}
+
+.backupBtn {
+  padding: 2px 8px;
+  border-radius: var(--radius-chip);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  transition: opacity 0.15s;
+}
+
+.backupBtn:hover {
+  opacity: 0.85;
+}
+
+.backupBtnDanger:hover {
+  color: var(--color-priority-high);
+  border-color: var(--color-priority-high);
+}
+
+.backupEmpty {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 4px 0;
+}
+
+.fileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fileName {
+  font-size: var(--font-size-task);
+  color: var(--color-text-primary);
+  font-family: monospace;
+}
+
+.fileStatus {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* ── Mobile overrides ── */
+
+@media (max-width: 640px) {
+  .page {
+    padding: 16px;
+    padding-bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+
+  .container {
+    max-width: none;
+  }
+
+  .pageTitle {
+    font-size: 20px;
+  }
+
+  .themeOption {
+    min-height: var(--mobile-row-min-height);
+  }
+
+  .button {
+    min-height: var(--touch-target-min);
+    padding: 10px 16px;
+  }
+
+  .settingRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .settingSelect {
+    width: 100%;
+    min-height: var(--touch-target-min);
+  }
+
+  .buttonRow {
+    flex-wrap: wrap;
+  }
+}

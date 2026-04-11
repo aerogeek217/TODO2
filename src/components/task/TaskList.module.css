@@ -1,0 +1,27 @@
+.sel { composes: sel from '../shared/selection.module.css'; }
+.selFirst { composes: selFirst from '../shared/selection.module.css'; }
+.selLast { composes: selLast from '../shared/selection.module.css'; }
+.focused { composes: focused from '../shared/selection.module.css'; }
+
+.dragPlaceholder {
+  height: 32px;
+  margin: 2px 0;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-accent-bg-subtle);
+  transition: height 0.2s ease, opacity 0.2s ease;
+}
+
+.dropIndicator {
+  height: 32px;
+  margin: 2px 0;
+  border: 2px dashed var(--color-accent-dim);
+  border-radius: var(--radius-card);
+  background: var(--color-accent-bg-light);
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { border-color: var(--color-accent-dim); }
+  50% { border-color: var(--color-accent); }
+}

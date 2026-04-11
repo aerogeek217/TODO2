@@ -1,0 +1,46 @@
+# Claude Code
+.claude/
+.mcp.json
+
+# Local data
+.data/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Vite
+*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+
+# Local docs (planning, not published)
+docs/plans/
+
+# Obsidian vault
+.obsidian/
+
+# Batch scripts
+*.bat

@@ -1,0 +1,1010 @@
+/* ═══════════════════════════════════════════════
+   TaskEditPopup — Modern Rounded Card
+   Warm glass, generous radii, prominent title,
+   inset metadata container, pill-shaped controls
+   ═══════════════════════════════════════════════ */
+
+/* ── Backdrop ── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--color-backdrop);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  animation: backdropFade 200ms ease-out;
+}
+
+@keyframes backdropFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Card ── */
+
+.card {
+  width: 600px;
+  max-height: 72vh;
+  background: linear-gradient(
+    168deg,
+    var(--color-card-glass-from) 0%,
+    var(--color-card-glass-to) 100%
+  );
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--color-tint-7);
+  border-radius: 24px;
+  box-shadow: var(--shadow-glass-card);
+  animation: cardPop 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@keyframes cardPop {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── Header ── */
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding: var(--space-9) var(--space-9) var(--space-5);
+}
+
+.titleWrapper {
+  position: relative;
+  flex: 1;
+}
+
+.checkboxLarge {
+  width: 24px;
+  height: 24px;
+  appearance: none;
+  border: 2px solid var(--color-text-muted);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 4px;
+  position: relative;
+  transition: all 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.checkboxLarge:hover {
+  border-color: var(--color-accent-dim);
+}
+
+.checkboxLarge:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 12px var(--color-accent-shadow);
+}
+
+.checkboxLarge:checked::after {
+  content: '\2713';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--color-text-on-accent);
+}
+
+.titleInput {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  font-family: inherit;
+  outline: none;
+  padding: 0;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+}
+
+.titleInput::placeholder {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.starButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px 4px;
+  flex-shrink: 0;
+  transition: all 200ms ease;
+  border-radius: 8px;
+}
+
+.starButton:hover {
+  color: var(--color-star);
+  background: rgba(245, 200, 66, 0.08);
+}
+
+.starActive {
+  color: var(--color-star);
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  transition: all 200ms ease;
+  border-radius: 8px;
+}
+
+.closeButton:hover {
+  color: var(--color-text-primary);
+  background: var(--color-tint-5);
+}
+
+/* ── Priority Badges ── */
+
+.badges {
+  display: flex;
+  gap: 8px;
+  padding: 0 28px 16px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border: 1px solid var(--color-tint-8);
+  background: var(--color-tint-3);
+  transition: all 200ms ease;
+}
+
+.badge:hover {
+  background: var(--color-tint-6);
+  border-color: var(--color-tint-12);
+}
+
+.badgePriorityHigh {
+  color: var(--color-priority-high);
+  border-color: rgba(238, 125, 119, 0.3);
+  background: rgba(238, 125, 119, 0.06);
+}
+
+.badgePriorityMedium {
+  color: var(--color-priority-medium);
+  border-color: rgba(245, 166, 35, 0.3);
+  background: rgba(245, 166, 35, 0.06);
+}
+
+.badgePriorityNormal {
+  color: var(--color-text-secondary);
+}
+
+.badgeStar {
+  color: var(--color-star);
+  border-color: rgba(245, 200, 66, 0.3);
+  background: rgba(245, 200, 66, 0.06);
+}
+
+.badgeStarOff {
+  color: var(--color-text-muted);
+}
+
+/* ── Divider (hidden — spacing used instead) ── */
+
+.divider {
+  height: 0;
+  margin: 0;
+  border: none;
+  background: none;
+}
+
+/* ── Scroll Body ── */
+
+.scrollBody {
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+.scrollBodyDropdownOpen {
+  overflow-y: clip;
+}
+
+.scrollBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollBody::-webkit-scrollbar-thumb {
+  background: var(--color-tint-8);
+  border-radius: 3px;
+}
+
+.scrollBody::-webkit-scrollbar-thumb:hover {
+  background: var(--color-tint-14);
+}
+
+/* ── Metadata Section (inset container) ── */
+
+.metaSection {
+  margin: 4px 14px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--color-inset);
+  border-radius: 18px;
+  border: 1px solid var(--color-tint-3);
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  transition: background 150ms ease;
+}
+
+.metaRow:hover {
+  background: var(--color-tint-3);
+}
+
+.metaLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  width: 56px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--font-weight-bold);
+}
+
+.metaInput {
+  flex: 1;
+  width: 100%;
+  background: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  border-bottom: 1px solid transparent;
+  font-size: var(--font-size-nav);
+  font-family: inherit;
+  padding: 2px 0;
+  outline: none;
+  transition: border-color 200ms ease;
+}
+
+.metaInput:focus {
+  border-bottom-color: var(--color-accent-focus);
+}
+
+.metaInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ── Hard Deadline Toggle ── */
+
+.hardDeadlineBtn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  color: var(--color-text-muted);
+  transition: all 200ms ease;
+  flex-shrink: 0;
+  border-radius: 6px;
+}
+
+.hardDeadlineBtn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-tint-4);
+}
+
+.hardDeadlineActive {
+  color: var(--color-priority-high);
+}
+
+.hardDeadlineActive:hover {
+  color: var(--color-priority-high);
+}
+
+/* ── Date Clear ── */
+
+.dateClearBtn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-nav);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.dateClearBtn:hover {
+  color: var(--color-text-primary);
+}
+
+/* ── Chip Area ── */
+
+.chipArea {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  position: relative;
+}
+
+.personTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  background: var(--color-tint-4);
+  border: 1px solid var(--color-tint-8);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 150ms ease;
+}
+
+.personTag:hover {
+  background: var(--color-tint-7);
+  border-color: var(--color-tint-14);
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  background: transparent;
+  border: 1px solid;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 150ms ease;
+}
+
+.tagChip:hover {
+  opacity: 0.85;
+}
+
+.orgChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 150ms ease;
+}
+
+.orgChip:hover {
+  opacity: 0.85;
+}
+
+.chipAddBtn {
+  background: transparent;
+  border: 1px dashed var(--color-tint-10);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.chipAddBtn:hover {
+  color: var(--color-text-secondary);
+  border-color: var(--color-tint-20);
+  background: var(--color-tint-3);
+}
+
+/* ── Chip Dropdown ── */
+
+.chipDropdown {
+  composes: menu from '../shared/dropdown.module.css';
+  left: 0;
+  z-index: var(--z-row-open);
+  min-width: 180px;
+  border-radius: 16px;
+}
+
+.chipDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+  border-radius: 8px;
+}
+
+.chipDropdownItem:hover {
+  background: var(--color-tint-5);
+}
+
+.chipCheck {
+  width: 16px;
+  text-align: center;
+  color: var(--color-accent);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.chipCreateRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--color-tint-6);
+  margin-top: 2px;
+}
+
+.chipCreateInput {
+  flex: 1;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: none;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 2px 2px;
+  outline: none;
+  min-width: 0;
+}
+
+.chipCreateInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.chipCreateBtn {
+  background: transparent;
+  border: 1px solid var(--color-tint-8);
+  color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 150ms ease;
+}
+
+.chipCreateBtn:hover {
+  background: var(--color-tint-5);
+  border-color: var(--color-tint-14);
+}
+
+/* ── Project Selector ── */
+
+.projectChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  background: transparent;
+  border: 1px solid var(--color-tint-8);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 150ms ease;
+}
+
+.projectChip:hover {
+  background: var(--color-tint-4);
+  border-color: var(--color-tint-14);
+}
+
+.projectDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.projectSearchInput {
+  width: 100%;
+  background: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  border-bottom: 1px solid var(--color-tint-6);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 8px 12px;
+  outline: none;
+}
+
+.projectSearchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.projectList {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+.projectOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease;
+  border-radius: 10px;
+}
+
+.projectOption:hover {
+  background: var(--color-tint-5);
+}
+
+.projectOptionActive {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ── Selects (Recurrence) ── */
+
+.personSelect {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-tint-8);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 3px 12px;
+  cursor: pointer;
+  outline: none;
+  transition: all 200ms ease;
+}
+
+.personSelect:hover {
+  border-color: var(--color-tint-16);
+}
+
+.personSelect option {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+/* ── Priority Menu ── */
+
+.priorityWrapper {
+  position: relative;
+}
+
+.priorityMenu {
+  composes: menu from '../shared/dropdown.module.css';
+  left: 0;
+  z-index: var(--z-dropdown);
+  min-width: 150px;
+  border-radius: 16px;
+  padding: 4px;
+}
+
+.priorityOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms ease;
+  border-radius: 10px;
+}
+
+.priorityOption:hover {
+  background: var(--color-tint-5);
+}
+
+.priorityOptionActive {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.priorityDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Notes / Progress Section ── */
+
+.notesSection {
+  padding: 12px 28px;
+}
+
+.notesLabel {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--font-weight-bold);
+}
+
+.notesTextarea {
+  width: 100%;
+  min-height: 80px;
+  background: var(--color-inset-light);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-tint-5);
+  border-radius: 14px;
+  font-size: var(--font-size-task);
+  font-family: inherit;
+  padding: 12px 14px;
+  outline: none;
+  resize: vertical;
+  line-height: 1.55;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.notesTextarea:focus {
+  border-color: var(--color-accent-glow);
+  box-shadow: 0 0 0 3px var(--color-accent-bg-subtle);
+}
+
+.notesTextarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ── Footer (Edit Mode) ── */
+
+.footer {
+  padding: 18px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--color-tint-4);
+}
+
+.timestamps {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.01em;
+}
+
+.footerActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.deleteButton {
+  background: transparent;
+  border: 1px solid var(--color-tint-8);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-pill);
+  padding: 7px 18px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.deleteButton:hover {
+  color: var(--color-priority-high);
+  border-color: rgba(238, 125, 119, 0.35);
+  background: rgba(238, 125, 119, 0.06);
+}
+
+.duplicateButton {
+  background: transparent;
+  border: 1px solid var(--color-tint-8);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-pill);
+  padding: 7px 18px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.duplicateButton:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent-dim);
+  background: var(--color-accent-bg-light);
+}
+
+/* ── Footer (Create Mode) ── */
+
+.createFooter {
+  padding: 18px 28px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--color-tint-4);
+}
+
+.cancelButton {
+  background: transparent;
+  border: 1px solid var(--color-tint-8);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 8px 22px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.cancelButton:hover {
+  background: var(--color-tint-4);
+  border-color: var(--color-tint-14);
+}
+
+.saveButton {
+  background: var(--color-accent);
+  border: none;
+  color: var(--color-text-on-accent);
+  border-radius: var(--radius-pill);
+  padding: 8px 24px;
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 200ms ease;
+  box-shadow: 0 2px 10px var(--color-accent-shadow);
+}
+
+.saveButton:hover {
+  box-shadow: 0 4px 18px var(--color-accent-glow);
+  transform: translateY(-1px);
+}
+
+.saveButton:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px var(--color-accent-shadow-subtle);
+}
+
+.saveButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── Assigned Toggle ── */
+
+.assignedToggle {
+  background: transparent;
+  border: 1px dashed var(--color-tint-10);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.assignedToggle:hover {
+  color: var(--color-text-secondary);
+  border-color: var(--color-tint-20);
+}
+
+.assignedToggleActive {
+  background: var(--color-assigned-bg);
+  border-color: var(--color-assigned-border);
+  color: var(--color-assigned-text);
+  border-style: solid;
+}
+
+/* ── Mobile: full-screen sheet ── */
+
+@media (max-width: 640px) {
+  .backdrop {
+    padding-top: 0;
+    align-items: stretch;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .card {
+    width: 100%;
+    max-height: none;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+    background: var(--color-surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: none;
+    box-shadow: none;
+    animation: mobileSheetSlideUp 200ms ease-out;
+  }
+
+  @keyframes mobileSheetSlideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .header {
+    padding: 16px 16px 12px;
+    position: sticky;
+    top: 0;
+    background: var(--color-surface);
+    z-index: 1;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .titleInput {
+    font-size: 18px;
+  }
+
+  .scrollBody {
+    padding-bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .metaSection {
+    margin: 4px 8px;
+  }
+
+  .metaRow {
+    min-height: var(--mobile-row-min-height);
+    padding: 10px 14px;
+  }
+
+  .badges {
+    padding: 0 16px 12px;
+  }
+
+  .notesSection {
+    padding: 12px 16px;
+  }
+
+  .notesTextarea {
+    min-height: 120px;
+  }
+
+  .footer {
+    padding: 16px;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .footerActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .deleteButton,
+  .duplicateButton {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    min-height: var(--touch-target-min);
+  }
+
+  .createFooter {
+    padding: 16px;
+  }
+
+  .cancelButton,
+  .saveButton {
+    min-height: var(--touch-target-min);
+    padding: 10px 20px;
+  }
+
+  .chipDropdown {
+    position: relative;
+    top: auto;
+    left: auto;
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+    margin-top: 6px;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .priorityMenu {
+    position: relative;
+    top: auto;
+    left: auto;
+    box-shadow: none;
+    border: 1px solid var(--color-border);
+    margin-top: 6px;
+  }
+
+  .starButton,
+  .closeButton {
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+  }
+
+  .checkboxLarge {
+    min-width: var(--touch-target-min);
+    min-height: var(--touch-target-min);
+  }
+}
+
+/* Neutralize sticky hover on touch devices */
+@media (hover: none) {
+  .metaRow:hover {
+    background: transparent;
+  }
+
+  .badge:hover {
+    background: var(--color-tint-3);
+    border-color: var(--color-tint-8);
+  }
+
+  .chipAddBtn:hover {
+    color: var(--color-text-muted);
+    border-color: var(--color-tint-8);
+    background: transparent;
+  }
+}

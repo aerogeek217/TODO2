@@ -1,0 +1,85 @@
+.snackbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-dialog);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  animation: slideUp var(--transition-spring) both;
+}
+
+.message {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.undoButton {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-semibold);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.undoButton:hover {
+  background: var(--color-accent-bg-light);
+}
+
+.dismissButton {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.dismissButton:hover {
+  color: var(--color-text-secondary);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ── Mobile: raise above tab bar ── */
+
+@media (max-width: 640px) {
+  .snackbar {
+    bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 72px);
+  }
+
+  .undoButton {
+    padding: 6px 12px;
+    min-height: var(--touch-target-min);
+  }
+
+  .dismissButton {
+    padding: 6px 8px;
+    min-height: var(--touch-target-min);
+  }
+}

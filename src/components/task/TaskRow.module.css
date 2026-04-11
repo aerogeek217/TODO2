@@ -1,0 +1,625 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 1px var(--space-4);
+  border-radius: var(--radius-chip);
+  transition: background 0.1s, opacity 0.3s ease;
+  position: relative;
+  cursor: grab;
+}
+
+.row:active {
+  cursor: grabbing;
+}
+
+.row:hover {
+  background: var(--color-surface-high);
+}
+
+.rowDropdownOpen {
+  z-index: var(--z-row-open);
+}
+
+
+.row.completed {
+  opacity: 0.4;
+}
+
+.row.assigned {
+  background: var(--color-assigned-bg);
+  border-left: 2px solid var(--color-assigned-border);
+}
+
+.row.ghost {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.row.cut {
+  opacity: 0.35;
+  border: 1px dashed var(--color-accent-dim);
+}
+
+.dragHandle {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.row:hover .dragHandle {
+  opacity: 0.5;
+}
+
+.row:hover .dragHandle:hover {
+  opacity: 1;
+}
+
+.expandToggle {
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s, color 0.15s;
+  z-index: var(--z-above);
+}
+
+.expandToggle:hover {
+  color: var(--color-text-secondary);
+}
+
+.expandToggleCollapsed {
+  transform: translateY(-50%) rotate(-90deg);
+}
+
+.priorityStripWrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.priorityStrip {
+  width: 8px;
+  height: 24px;
+  border-radius: 4px 1px 1px 4px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1.5px solid var(--color-text-muted);
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.priorityStripNormal {
+  border-color: var(--color-border);
+}
+
+.priorityStripNormal:hover {
+  border-color: var(--color-text-muted);
+}
+
+.priorityStrip:hover {
+  border-color: var(--color-text-secondary);
+}
+
+.priorityMenu {
+  composes: menu from '../shared/dropdown.module.css';
+  left: -4px;
+  z-index: var(--z-dropdown);
+  min-width: 110px;
+}
+
+.priorityOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.priorityOption:hover {
+  background: var(--color-surface-high);
+}
+
+.priorityOptionActive {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.priorityDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  appearance: none;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: var(--radius-checkbox);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.checkbox:hover {
+  border-color: var(--color-text-secondary);
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.checkbox:checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  animation: checkPop 0.2s ease;
+}
+
+@keyframes checkPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--color-text-on-accent);
+  line-height: 1;
+}
+
+.title {
+  flex: 1;
+  font-size: var(--font-size-task);
+  color: var(--color-text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title.completedTitle {
+  text-decoration: line-through;
+  color: var(--color-text-completed);
+}
+
+.titleInput {
+  flex: 1;
+  font-size: var(--font-size-task);
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-accent-dim);
+  font-family: inherit;
+  padding: 0;
+  outline: none;
+  min-width: 0;
+}
+
+/* Notes indicator */
+.notesIndicator {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* Progress chip */
+.progressChip {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  flex-shrink: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.progressBarTrack {
+  display: inline-block;
+  width: 40px;
+  height: 4px;
+  background: var(--color-surface-bright);
+  border-radius: 2px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.progressBarFill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Date chip */
+.dueDateChip {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  padding: 2px 8px;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-bright);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.recurrenceIndicator {
+  color: var(--color-text-muted);
+  margin-right: 2px;
+}
+
+.dueDateClickable {
+  cursor: pointer;
+  position: relative;
+}
+
+.dueDateClickable:hover {
+  color: var(--color-text-primary);
+}
+
+.dueDateChip.overdue {
+  color: var(--color-overdue);
+  background: var(--color-overdue-bg);
+  box-shadow: 0 0 8px var(--color-overdue-glow);
+}
+
+.dueDateToday {
+  color: var(--color-priority-high);
+  background: rgba(238, 125, 119, 0.12);
+  box-shadow: 0 0 8px rgba(238, 125, 119, 0.3);
+}
+
+.dueDateUrgent {
+  color: var(--color-priority-medium);
+  background: rgba(245, 166, 35, 0.12);
+  box-shadow: 0 0 8px rgba(245, 166, 35, 0.25);
+}
+
+.dueDateApproaching {
+  color: var(--color-priority-medium);
+  background: rgba(245, 166, 35, 0.07);
+  box-shadow: 0 0 4px rgba(245, 166, 35, 0.15);
+}
+
+/* Soft dates: text color only, no glow */
+.dueDateSoft.overdue,
+.dueDateSoft.dueDateToday,
+.dueDateSoft.dueDateUrgent,
+.dueDateSoft.dueDateApproaching {
+  box-shadow: none;
+  background: var(--color-surface-bright);
+}
+
+.deadlineFlag {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 1px;
+  margin-left: 3px;
+  color: var(--color-text-muted);
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.deadlineFlag:hover {
+  color: var(--color-text-primary);
+}
+
+.deadlineFlagActive {
+  color: var(--color-priority-high);
+}
+
+.deadlineFlagActive:hover {
+  color: var(--color-priority-high);
+}
+
+.hiddenDateInput {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Chip groups (people, tags) */
+.chipGroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.chipGroupEmpty {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.row:hover .chipGroupEmpty {
+  opacity: 1;
+}
+
+.personChip {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  background: transparent;
+  border: none;
+  padding: 1px 4px;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: var(--radius-chip);
+  transition: background 0.1s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.personChip:hover {
+  background: var(--color-surface-bright);
+}
+
+.orgChip {
+  font-size: var(--font-size-meta);
+  padding: 0 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+  transition: background 0.1s;
+}
+
+.orgChip:hover {
+  background: var(--color-surface-bright);
+}
+
+.tagChip {
+  font-size: var(--font-size-meta);
+  padding: 0 5px;
+  border: 1px solid;
+  border-radius: var(--radius-chip);
+  white-space: nowrap;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.1s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.tagChip:hover {
+  opacity: 0.8;
+}
+
+.chipTrigger {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  padding: 1px 4px;
+  cursor: pointer;
+  border-radius: var(--radius-chip);
+  transition: color 0.15s, background 0.15s;
+}
+
+.chipTrigger:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-bright);
+}
+
+.chipDropdown {
+  composes: menu from '../shared/dropdown.module.css';
+  left: 0;
+  z-index: var(--z-dropdown);
+  min-width: 140px;
+}
+
+.chipDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.chipDropdownItem:hover {
+  background: var(--color-surface-high);
+}
+
+.chipCheck {
+  width: 14px;
+  text-align: center;
+  color: var(--color-accent);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.chipCreateRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--color-border);
+  margin-top: 2px;
+}
+
+.chipCreateInput {
+  flex: 1;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: none;
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  padding: 2px 2px;
+  outline: none;
+  min-width: 0;
+}
+
+.chipCreateInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.chipCreateBtn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-accent);
+  border-radius: var(--radius-chip);
+  width: 18px;
+  height: 18px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chipCreateBtn:hover {
+  background: var(--color-surface-high);
+}
+
+.tagColorInput {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tagColorInput::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+
+.tagColorInput::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+/* Calendar icon (hover-reveal when no date) */
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: var(--radius-chip);
+  position: relative;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.actionBtn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-bright);
+}
+
+.actionBtnHover {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.row:hover .actionBtnHover {
+  opacity: 1;
+}
+
+.starButton {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  padding: 0 4px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.starButton.starred {
+  color: var(--color-star);
+}
+
+.starButton.unstarred {
+  color: var(--color-text-muted);
+}
+
+.starButton.unstarred:hover {
+  color: var(--color-text-secondary);
+}
+
+.deleteButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  padding: 0 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.row:hover .deleteButton {
+  opacity: 1;
+}
+
+.deleteButton:hover {
+  color: var(--color-priority-high);
+}

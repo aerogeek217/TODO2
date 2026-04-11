@@ -1,0 +1,462 @@
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ═══ Search input ═══ */
+
+.searchWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 8px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.searchInput {
+  width: 140px;
+  padding: 4px 24px 4px 26px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, width 0.15s;
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent-dim);
+  width: 200px;
+}
+
+.searchClear {
+  position: absolute;
+  right: 4px;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.searchClear:hover {
+  color: var(--color-text-primary);
+}
+
+/* ═══ Search Mini-List ═══ */
+
+.searchMiniList {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 360px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-dropdown);
+  padding: 4px;
+}
+
+.miniListItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.miniListItem:hover {
+  background: var(--color-surface-high);
+}
+
+.miniListItemCompleted {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.miniListItemAssigned {
+  border-left: 2px solid var(--color-assigned-border);
+}
+
+.miniListPriority {
+  width: 3px;
+  height: 16px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.miniListTitle {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.miniListDue {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* ═══ Filter label icons ═══ */
+
+.filterIcon {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
+  font-size: 12px;
+}
+
+.filterIconSvg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ═══ Filter chips ═══ */
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filterChip:hover {
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+}
+
+.filterChipActive {
+  background: var(--color-surface-bright);
+  border-color: var(--color-accent-dim);
+  color: var(--color-text-primary);
+}
+
+.filterChipStarActive {
+  background: var(--color-surface-bright);
+  border-color: var(--color-star);
+  color: var(--color-star);
+}
+
+.chevron {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  transition: transform 0.15s;
+  margin-left: -1px;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ═══ Dropdowns ═══ */
+
+.dropdownWrapper {
+  position: relative;
+}
+
+.dropdownPanel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  z-index: var(--z-overlay);
+  padding: 4px;
+  animation: dropIn 0.1s ease-out;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdownActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 6px;
+}
+
+.dropdownAction {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.1s;
+}
+
+.dropdownAction:hover {
+  text-decoration: underline;
+}
+
+.dropdownActionDisabled {
+  color: var(--color-text-muted);
+  cursor: default;
+  pointer-events: none;
+}
+
+.dropdownActionSep {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.dropdownDivider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 0 4px 4px;
+}
+
+/* ═══ Dropdown search ═══ */
+
+.dropdownSearchWrapper {
+  padding: 0 4px 4px;
+}
+
+.dropdownSearchInput {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-nav);
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.dropdownSearchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.dropdownSearchInput:focus {
+  border-color: var(--color-accent-dim);
+}
+
+/* ═══ Scrollable items ═══ */
+
+.dropdownItemsScrollable {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.dropdownEmpty {
+  padding: 8px 10px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-nav);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dropdownItem:hover {
+  background: var(--color-surface-high);
+}
+
+/* ═══ Custom checkbox ═══ */
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 3px;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.check.checked {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.check.checked::after {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-0.5px, -0.5px);
+}
+
+/* ═══ Color dots ═══ */
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.noneLabel {
+  font-style: italic;
+  opacity: 0.65;
+}
+
+/* ═══ Date range ═══ */
+
+.dateFieldSelector {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+}
+
+.dateFieldOption {
+  flex: 1;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 3px 6px;
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.dateFieldOption:hover {
+  background: var(--color-surface-high);
+}
+
+.dateFieldOptionActive {
+  background: var(--color-accent-dim);
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-dim);
+}
+
+.dateRangeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+}
+
+.dateLabel {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  min-width: 36px;
+}
+
+.dateInput {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 4px 8px;
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  outline: none;
+}
+
+.dateInput:focus {
+  border-color: var(--color-accent-dim);
+}
+
+/* ═══ Clear filters button ═══ */
+
+.clearFilters {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  padding: 4px 6px;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.clearFilters:hover {
+  color: var(--color-text-primary);
+}
+
+/* ═══ Storage status ═══ */
+
+.storageStatus {
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+
+/* ═══ Mobile: hide entire TopBar ═══ */
+
+@media (max-width: 640px) {
+  .topBar {
+    display: none;
+  }
+}

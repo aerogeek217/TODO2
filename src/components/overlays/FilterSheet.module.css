@@ -1,0 +1,354 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: var(--z-overlay);
+  animation: backdropFade 150ms ease-out;
+}
+
+@keyframes backdropFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 75vh;
+  background: var(--color-surface);
+  border-radius: 16px 16px 0 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  animation: sheetSlideUp 200ms ease-out;
+  padding-bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px));
+}
+
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.scrollBody {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 16px 16px;
+}
+
+/* Search */
+.searchWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 10px 36px 10px 36px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent-dim);
+}
+
+.searchClear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  padding: 4px 8px;
+  cursor: pointer;
+  min-height: var(--touch-target-min);
+  display: flex;
+  align-items: center;
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 8px 0;
+}
+
+/* Filter rows */
+.filterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--mobile-row-min-height);
+  padding: 4px 0;
+}
+
+.filterLabel {
+  font-size: 14px;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filterLabelIcon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Priority chips */
+.priorityRow {
+  display: flex;
+  gap: 8px;
+}
+
+.priorityChip {
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  min-height: var(--touch-target-min);
+  transition: all 0.15s;
+}
+
+.priorityChipActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-light);
+  color: var(--color-text-primary);
+}
+
+/* Toggle switch */
+.toggle {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-surface-bright);
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+}
+
+.toggleActive {
+  background: var(--color-accent);
+}
+
+.toggleActive::after {
+  transform: translateX(20px);
+}
+
+/* Date range */
+.dateSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.dateFieldSelector {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-high);
+  border-radius: var(--radius-card);
+  padding: 3px;
+}
+
+.dateFieldOption {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.dateFieldOptionActive {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.dateInputs {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dateInput {
+  flex: 1;
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 8px;
+  font-size: var(--font-size-nav);
+  font-family: inherit;
+  outline: none;
+}
+
+.dateInput:focus {
+  border-color: var(--color-accent-dim);
+}
+
+/* Accordion entity list */
+.entitySection {
+  margin-top: 4px;
+}
+
+.entityHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--mobile-row-min-height);
+  padding: 4px 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.entityHeader:active {
+  background: var(--color-tint-3);
+  border-radius: var(--radius-chip);
+}
+
+.entityChevron {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  transition: transform 0.15s;
+}
+
+.entityChevronOpen {
+  transform: rotate(90deg);
+}
+
+.entityList {
+  padding: 0 0 8px;
+}
+
+.entitySearchInput {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-nav);
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 4px;
+}
+
+.entitySearchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.entityItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--mobile-row-min-height);
+  padding: 4px 8px;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.entityItem:active {
+  background: var(--color-tint-5);
+}
+
+.entityDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.entityName {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.entityCheck {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-accent);
+}
+
+.entityNone {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Clear all button */
+.clearButton {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 12px;
+  min-height: var(--touch-target-min);
+}
+
+.clearButton:active {
+  background: var(--color-accent-bg-light);
+}
+
+.activeCount {
+  font-size: 11px;
+  color: var(--color-accent);
+  background: var(--color-accent-bg-light);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px;
+  margin-left: 4px;
+}

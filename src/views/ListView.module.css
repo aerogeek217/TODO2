@@ -1,0 +1,484 @@
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.container {
+  margin: 0 auto;
+}
+
+.narrow {
+  max-width: 640px;
+}
+
+.medium {
+  max-width: 720px;
+}
+
+.pageHeader {
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pageTitle {
+  font-size: var(--font-size-title);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pageSubtitle {
+  font-size: var(--font-size-nav);
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+  flex: 1;
+}
+
+.progressBar {
+  height: 3px;
+  background: var(--color-surface-bright);
+  border-radius: var(--radius-sm);
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: var(--radius-sm);
+  transition: width 0.3s ease;
+}
+
+/* Saved views bar */
+.savedViewsBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.savedViewChip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.savedViewChip:hover {
+  border-color: var(--color-text-muted);
+}
+
+.savedViewChipActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-light);
+}
+
+.savedViewName {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  padding: 4px 6px 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.savedViewName:hover {
+  color: var(--color-text-primary);
+}
+
+.savedViewChipActive .savedViewName {
+  color: var(--color-accent);
+}
+
+.savedViewRemove {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-nav);
+  padding: 4px 6px 4px 2px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.savedViewRemove:hover {
+  color: var(--color-priority-high);
+}
+
+.savedViewRenameInput {
+  background: var(--color-surface);
+  border: none;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-meta);
+  padding: 4px 6px;
+  width: 100px;
+  outline: none;
+}
+
+.saveViewButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  padding: 4px 10px;
+  cursor: pointer;
+  margin-left: auto;
+  transition: all 0.15s ease;
+}
+
+.saveViewButton:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+/* Sort-by toolbar */
+.sortBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sortLabel {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  margin-right: 4px;
+}
+
+.sortButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sortButton:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+.sortButtonActive {
+  background: var(--color-accent);
+  color: var(--color-surface);
+  border-color: var(--color-accent);
+}
+
+.sortButtonActive:hover {
+  background: var(--color-accent);
+  color: var(--color-surface);
+  border-color: var(--color-accent);
+}
+
+.exportButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.exportButton:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+.section {
+  margin-bottom: 18px;
+  border-radius: var(--radius-card);
+  padding: 6px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sectionOver {
+  background: var(--color-accent-bg-light);
+  box-shadow: inset 0 0 0 1px var(--color-accent-dim);
+}
+
+/* Drag overlay */
+.dragOverlay {
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-drag-overlay);
+  padding: 2px 0;
+  min-width: 240px;
+  max-width: 500px;
+  transform: scale(1.03);
+  opacity: 0.95;
+}
+
+.taskList {
+  padding-left: 20px;
+}
+
+.sourceGroup {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  margin-left: 4px;
+}
+
+.empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-nav);
+  text-align: center;
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.clearFiltersButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-accent);
+  font-size: var(--font-size-meta);
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clearFiltersButton:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-light);
+}
+
+/* People view */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.personCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 14px;
+}
+
+.personCardHighlight {
+  border-color: var(--color-accent-dim);
+}
+
+.personHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.personName {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.personCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+.personOverdue {
+  font-size: var(--font-size-meta);
+  color: var(--color-priority-high);
+}
+
+.personTasks {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Save View dialog */
+.dialogBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: var(--z-overlay);
+}
+
+.dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  min-width: 300px;
+  z-index: var(--z-overlay);
+  box-shadow: var(--shadow-popup);
+}
+
+.dialogTitle {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: 12px;
+}
+
+.dialogInput {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  padding: 6px 10px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.dialogInput:focus {
+  border-color: var(--color-accent);
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dialogCancel {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: var(--font-size-meta);
+}
+
+.dialogCancel:hover {
+  border-color: var(--color-text-muted);
+}
+
+.dialogConfirm {
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-surface);
+  padding: 5px 14px;
+  cursor: pointer;
+  font-size: var(--font-size-meta);
+}
+
+.dialogConfirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialogConfirm:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.summaryBar {
+  margin-top: 20px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  display: flex;
+  gap: 16px;
+}
+
+/* ── Mobile overrides ── */
+
+@media (max-width: 640px) {
+  .page {
+    padding: 8px 12px;
+    padding-bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
+
+  .container {
+    max-width: none;
+  }
+
+  .pageHeader {
+    display: none;
+  }
+
+  .sortBar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 4px 0;
+  }
+
+  .sortBar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sortButton {
+    min-height: 36px;
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+
+  .sortLabel {
+    display: none;
+  }
+
+  .exportButton {
+    display: none;
+  }
+
+  .saveViewButton {
+    display: none;
+  }
+
+  .savedViewsBar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+
+  .savedViewsBar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .taskList {
+    padding-left: 8px;
+  }
+
+  .section {
+    padding: 4px;
+  }
+
+  .dragOverlay {
+    display: none;
+  }
+}
+
+/* Neutralize sticky hover on touch devices */
+@media (hover: none) {
+  .sortButton:hover {
+    color: var(--color-text-muted);
+    border-color: var(--color-border);
+  }
+
+  .savedViewName:hover {
+    color: var(--color-text-secondary);
+  }
+}

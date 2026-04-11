@@ -1,0 +1,26 @@
+.sel {
+  position: relative;
+  box-shadow: -1.5px 0 0 0 var(--color-accent), 1.5px 0 0 0 var(--color-accent);
+}
+
+.selFirst {
+  border-top-left-radius: var(--radius-chip);
+  border-top-right-radius: var(--radius-chip);
+  box-shadow: -1.5px 0 0 0 var(--color-accent), 1.5px 0 0 0 var(--color-accent), 0 -1.5px 0 0 var(--color-accent);
+}
+
+.selLast {
+  border-bottom-left-radius: var(--radius-chip);
+  border-bottom-right-radius: var(--radius-chip);
+  box-shadow: -1.5px 0 0 0 var(--color-accent), 1.5px 0 0 0 var(--color-accent), 0 1.5px 0 0 var(--color-accent);
+}
+
+.selFirst.selLast {
+  box-shadow: -1.5px 0 0 0 var(--color-accent), 1.5px 0 0 0 var(--color-accent), 0 -1.5px 0 0 var(--color-accent), 0 1.5px 0 0 var(--color-accent);
+}
+
+.focused {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-chip);
+}

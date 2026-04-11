@@ -1,0 +1,532 @@
+import { useEffect, useCallback, useMemo, useRef } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+} from '@dnd-kit/core'
+import { useCanvasStore } from '../stores/canvas-store'
+import { useProjectStore } from '../stores/project-store'
+import { useTodoStore } from '../stores/todo-store'
+import { usePersonStore } from '../stores/person-store'
+import { useTagStore } from '../stores/tag-store'
+import { useOrgStore } from '../stores/org-store'
+import { useUIStore } from '../stores/ui-store'
+import { useFilterStore } from '../stores/filter-store'
+import { useFileStorageStore } from '../stores/file-storage-store'
+import { useListInsetStore } from '../stores/list-inset-store'
+import { useStickyNoteStore } from '../stores/sticky-note-store'
+import { useCanvasDnD } from '../hooks/use-canvas-dnd'
+import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
+import { CanvasView } from '../components/canvas/CanvasView'
+import { ProjectNavigator } from '../components/canvas/ProjectNavigator'
+import { TaskRow } from '../components/task/TaskRow'
+import { TaskEditPopup } from '../components/task/TaskEditPopup'
+import type { PersistedTodoItem } from '../models'
+import type { ReactFlowInstance } from '@xyflow/react'
+import { DragInsertContext } from '../components/canvas/DragInsertContext'
+import { startOfDay } from '../utils/date'
+import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
+import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
+import { parseTaskInput, applyNlpMetadata } from '../services/nlp-task-creator'
+import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
+
+export function CanvasPage() {
+  const { selectedCanvasId } = useCanvasStore()
+  const { projects, loadByCanvas: loadProjects, add: addProject, updatePosition, update: updateProject, remove: removeProject } = useProjectStore()
+  const { todos, loadByCanvas: loadTodos, add: addTodo, addAt: addTodoAt, update: updateTodo, applyMutations } = useTodoStore()
+  const { people, assignedPeopleMap, load: loadPeople, loadAssignments, assignPerson } = usePersonStore()
+  const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag } = useTagStore()
+  const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const { openEditPopup, showBulkConfirmation } = useUIStore()
+  const taskEdit = useTaskEditCallbacks()
+  const { filters, isActive: isFilterActive } = useFilterStore()
+  const { insets, loadByCanvas: loadInsets, add: addInset, update: updateInset, updatePosition: updateInsetPosition, remove: removeInset } = useListInsetStore()
+  const { notes: stickyNotes, loadByCanvas: loadNotes, add: addNote, update: updateNote, updatePosition: updateNotePosition, updateText: updateNoteText, updateTitle: updateNoteTitle, updateColor: updateNoteColor, remove: removeNote } = useStickyNoteStore()
+
+
+
+  const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
+  const isProjectNavigatorOpen = useUIStore((s) => s.isProjectNavigatorOpen)
+
+  useEffect(() => {
+    loadPeople()
+    loadTags()
+    loadOrgs()
+  }, [loadPeople, loadTags, loadOrgs])
+
+  useEffect(() => {
+    loadPersonOrgMap()
+  }, [people, orgs, loadPersonOrgMap])
+
+  useEffect(() => {
+    if (selectedCanvasId) {
+      loadProjects(selectedCanvasId)
+      loadTodos(selectedCanvasId)
+      loadInsets(selectedCanvasId)
+      loadNotes(selectedCanvasId)
+    }
+  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadNotes])
+
+  // Reset normalization guard when file-storage completes an operation (e.g. import)
+  const normalizedRef = useRef(false)
+  const fsLoading = useFileStorageStore((s) => s.isLoading)
+  useEffect(() => {
+    normalizedRef.current = false
+  }, [fsLoading])
+
+  // Normalize sortOrders on canvas load if any project has drifted values
+  useEffect(() => {
+    if (todos.length === 0 || normalizedRef.current) return
+    normalizedRef.current = true
+    const byProject = new Map<number, PersistedTodoItem[]>()
+    for (const t of todos) {
+      if (t.projectId == null) continue
+      const list = byProject.get(t.projectId) ?? []
+      list.push(t)
+      byProject.set(t.projectId, list)
+    }
+    for (const [, projectTodos] of byProject) {
+      if (shouldNormalize(projectTodos)) {
+        const mutations = normalizeSortOrders(projectTodos)
+        if (mutations.length > 0) applyMutations(mutations)
+      }
+    }
+  }, [todos, applyMutations])
+
+  // Load people and tag assignments when todos change
+  useEffect(() => {
+    const todoIds = todos.map((t) => t.id)
+    if (todoIds.length > 0) {
+      loadAssignments(todoIds)
+      loadTagAssignments(todoIds)
+      loadOrgAssignments(todoIds)
+    }
+  }, [todos, loadAssignments, loadTagAssignments, loadOrgAssignments])
+
+  // Consume pending canvas navigation target from command palette
+  const pendingTarget = useUIStore((s) => s.pendingCanvasTarget)
+  useEffect(() => {
+    if (!pendingTarget) return
+    const rf = rfInstanceRef.current
+    if (!rf) return
+    // Center the viewport on the target position
+    const el = document.querySelector('.react-flow')
+    const w = el?.clientWidth ?? window.innerWidth
+    const h = el?.clientHeight ?? window.innerHeight
+    const zoom = 1
+    rf.setViewport({ x: -pendingTarget.x * zoom + w / 2, y: -pendingTarget.y * zoom + h / 2, zoom })
+    useUIStore.getState().setPendingCanvasTarget(null)
+  }, [pendingTarget])
+
+  const todosByProject = useMemo(() => {
+    const map = new Map<number, PersistedTodoItem[]>()
+    for (const todo of todos) {
+      if (todo.projectId != null) {
+        // Hide completed tasks when showCompleted is off
+        if (!filters.showCompleted && todo.isCompleted) continue
+        // Hide assigned tasks when showAssigned is off
+        if (!filters.showAssigned && todo.isAssigned) continue
+        const list = map.get(todo.projectId) ?? []
+        list.push(todo)
+        map.set(todo.projectId, list)
+      }
+    }
+    // Sort each project's tasks by sortOrder
+    for (const [, list] of map) {
+      list.sort((a, b) => a.sortOrder - b.sortOrder)
+    }
+    return map
+  }, [todos, filters.showCompleted, filters.showAssigned])
+
+  // --- DnD (extracted to useCanvasDnD hook) ---
+  const dnd = useCanvasDnD({
+    todos,
+    todosByProject,
+    projects,
+    selectedCanvasId,
+    addProject,
+    applyMutations,
+    rfInstanceRef,
+  })
+
+  // Ghost-filter: compute IDs of todos that don't match non-completion filters (dimmed on canvas)
+  const filterGhostIds = useMemo(() => {
+    if (!isFilterActive) return undefined
+    // Check if any filter besides showCompleted is active
+    const hasNonCompletionFilter = filters.priorities !== null || filters.starredOnly || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.searchText !== '' || filters.dateRangeStart !== null || filters.dateRangeEnd !== null
+    if (!hasNonCompletionFilter) return undefined
+    const searchLower = filters.searchText.toLowerCase()
+    const ghost = new Set<number>()
+    for (const todo of todos) {
+      if (!filters.showCompleted && todo.isCompleted) continue // already hidden
+      if (!filters.showAssigned && todo.isAssigned) continue // already hidden
+      if (searchLower && !todo.title.toLowerCase().includes(searchLower)) { ghost.add(todo.id); continue }
+      // Check non-completion filter criteria only
+      if (filters.priorities !== null && !filters.priorities.has(todo.priority)) { ghost.add(todo.id); continue }
+      if (filters.starredOnly && !todo.isStarred) { ghost.add(todo.id); continue }
+      if (filters.hardDeadlineOnly && !todo.isHardDeadline) { ghost.add(todo.id); continue }
+      if (filters.personIds !== null) {
+        const assignedPersonIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
+        if (assignedPersonIds.length === 0) {
+          if (!filters.personIds.has(0)) { ghost.add(todo.id); continue }
+        } else if (!assignedPersonIds.some((id) => filters.personIds!.has(id))) { ghost.add(todo.id); continue }
+      }
+      if (filters.tagIds !== null) {
+        const todoTagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
+        if (todoTagIds.length === 0) {
+          if (!filters.tagIds.has(0)) { ghost.add(todo.id); continue }
+        } else if (!todoTagIds.some((id) => filters.tagIds!.has(id))) { ghost.add(todo.id); continue }
+      }
+      if (filters.orgIds !== null) {
+        const assignedPeople = assignedPeopleMap.get(todo.id) ?? []
+        const personOrgIds = assignedPeople.flatMap((p) => personOrgMap.get(p.id!) ?? [])
+        const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
+        const allOrgIds = [...personOrgIds, ...directOrgIds]
+        if (allOrgIds.length === 0) {
+          if (!filters.orgIds.has(0)) { ghost.add(todo.id); continue }
+        } else if (!allOrgIds.some((id) => filters.orgIds!.has(id))) { ghost.add(todo.id); continue }
+      }
+      if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
+        const rawDate = filters.dateField === 'due' ? todo.dueDate
+          : filters.dateField === 'created' ? todo.createdAt
+          : todo.modifiedAt
+        if (!rawDate) {
+          if (!filters.dateRangeIncludeNoDue) { ghost.add(todo.id); continue }
+        } else {
+          const d = startOfDay(new Date(rawDate))
+          if (filters.dateRangeStart !== null) {
+            const s = startOfDay(new Date(filters.dateRangeStart))
+            if (d < s) { ghost.add(todo.id); continue }
+          }
+          if (filters.dateRangeEnd !== null) {
+            const e = new Date(filters.dateRangeEnd); e.setHours(23, 59, 59, 999)
+            if (d > e) { ghost.add(todo.id); continue }
+          }
+        }
+      }
+    }
+    return ghost.size > 0 ? ghost : undefined
+  }, [todos, isFilterActive, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap])
+
+  // Merge filter ghosts with drag-child ghosts
+  const ghostTodoIds = useMemo(() => {
+    const dragChildIds = dnd.activeDragChildren.map(c => c.id)
+    if (!filterGhostIds && dragChildIds.length === 0) return undefined
+    const merged = new Set(filterGhostIds)
+    for (const id of dragChildIds) merged.add(id)
+    return merged.size > 0 ? merged : undefined
+  }, [filterGhostIds, dnd.activeDragChildren])
+
+  const handleNodeDragStop = useCallback(
+    (projectId: number, x: number, y: number) => {
+      updatePosition(projectId, x, y)
+    },
+    [updatePosition]
+  )
+
+  const handleAddTask = useCallback(
+    async (projectId: number, rawTitle: string) => {
+      if (!selectedCanvasId) return
+      const { title, resolved } = parseTaskInput(rawTitle, people, tags, projects)
+      const pid = resolved.projectId ?? projectId
+      const id = await addTodo(title || rawTitle, selectedCanvasId, pid)
+      await applyNlpMetadata(
+        id, resolved,
+        (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
+        updateTodo, assignPerson, assignTag,
+      )
+    },
+    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, people, tags, projects]
+  )
+
+  const handleInsertTask = useCallback(
+    async (rawTitle: string, projectId: number, beforeTodoId: number | null, parentId: number | undefined): Promise<number> => {
+      if (!selectedCanvasId) return -1
+      const { title, resolved } = parseTaskInput(rawTitle, people, tags, projects)
+      const pid = resolved.projectId ?? projectId
+      const projectTodos = todosByProject.get(pid) ?? []
+      const siblings = projectTodos.filter(t =>
+        parentId ? t.parentId === parentId : t.parentId == null
+      ).sort((a, b) => a.sortOrder - b.sortOrder)
+      const { computeInsertionSort } = await import('../services/task-placement')
+      const sortOrder = computeInsertionSort(siblings, beforeTodoId)
+      const id = await addTodoAt(title || rawTitle, pid, selectedCanvasId, parentId, sortOrder)
+      await applyNlpMetadata(
+        id, resolved,
+        (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
+        updateTodo, assignPerson, assignTag,
+      )
+      return id
+    },
+    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, people, tags, projects]
+  )
+
+  const handleDeleteProject = useCallback(
+    (projectId: number) => {
+      const project = projects.find(p => p.id === projectId)
+      const taskCount = todos.filter(t => t.projectId === projectId).length
+      const name = project?.name ?? 'this project'
+      const message = taskCount > 0
+        ? `Remove "${name}"? Its ${taskCount} task${taskCount !== 1 ? 's' : ''} will be moved to a new "Orphaned Tasks" project.`
+        : `Remove "${name}"?`
+      showBulkConfirmation('custom', [projectId], {
+        title: 'Remove project',
+        message,
+        confirmLabel: 'Remove',
+        onConfirm: () => removeProject(projectId),
+      })
+    },
+    [projects, todos, removeProject, showBulkConfirmation]
+  )
+
+  const handleRenameProject = useCallback(
+    async (projectId: number, name: string) => {
+      const project = projects.find((p) => p.id === projectId)
+      if (!project) return
+      await updateProject({ ...project, name })
+    },
+    [projects, updateProject]
+  )
+
+  const handleToggleCollapse = useCallback(
+    async (projectId: number) => {
+      const project = projects.find((p) => p.id === projectId)
+      if (!project) return
+      await updateProject({ ...project, isCollapsed: !project.isCollapsed })
+    },
+    [projects, updateProject]
+  )
+
+  const handleResizeProject = useCallback(
+    async (projectId: number, width: number) => {
+      const project = projects.find(p => p.id === projectId)
+      if (!project) return
+      await updateProject({ ...project, width })
+    },
+    [projects, updateProject]
+  )
+
+  const handleSetProjectColor = useCallback(
+    async (projectId: number, color: string | undefined) => {
+      const project = projects.find(p => p.id === projectId)
+      if (!project) return
+      await updateProject({ ...project, color })
+    },
+    [projects, updateProject]
+  )
+
+  const handleToggleCollapseInset = useCallback(
+    async (id: number) => {
+      const inset = insets.find(i => i.id === id)
+      if (!inset) return
+      await updateInset({ ...inset, isCollapsed: !inset.isCollapsed })
+    },
+    [insets, updateInset]
+  )
+
+  const handleResizeInset = useCallback(
+    async (id: number, width: number, height: number) => {
+      const inset = insets.find(i => i.id === id)
+      if (!inset) return
+      await updateInset({ ...inset, width, height })
+    },
+    [insets, updateInset]
+  )
+
+  const handleConvertNoteLines = useCallback(
+    async (lines: string[]) => {
+      if (!selectedCanvasId) return
+      for (const line of lines) {
+        const { title, resolved } = parseTaskInput(line, people, tags, projects)
+        let pid = resolved.projectId
+        if (!pid) {
+          pid = projects[0]?.id
+          if (!pid) {
+            pid = await addProject('Notes', selectedCanvasId)
+          }
+        }
+        const id = await addTodo(title || line, selectedCanvasId, pid)
+        await applyNlpMetadata(
+          id, resolved,
+          (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
+          updateTodo, assignPerson, assignTag,
+        )
+      }
+    },
+    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, people, tags, projects, addProject]
+  )
+
+  const handleResizeNote = useCallback(
+    async (id: number, width: number, height: number) => {
+      const note = stickyNotes.find(n => n.id === id)
+      if (!note) return
+      await updateNote({ ...note, width, height, modifiedAt: new Date() })
+    },
+    [stickyNotes, updateNote]
+  )
+
+  const handleAddListInset = useCallback(
+    async (preset: string, x: number, y: number) => {
+      if (!selectedCanvasId) return
+      const names: Record<string, string> = {
+        'due-this-week': 'Due This Week',
+        'starred': 'Starred',
+        'high-priority': 'High Priority',
+      }
+      await addInset(names[preset] || preset, preset as 'due-this-week' | 'starred' | 'high-priority', selectedCanvasId, x, y)
+    },
+    [selectedCanvasId, addInset]
+  )
+
+  const handleClickTask = useCallback(
+    (todoId: number) => openEditPopup(todoId),
+    [openEditPopup]
+  )
+
+  const handleReactFlowInit = useCallback((instance: ReactFlowInstance) => {
+    rfInstanceRef.current = instance
+  }, [])
+
+  // Listen for fit-view events from App (Ctrl+0 / command palette)
+  useEffect(() => {
+    const handler = () => {
+      rfInstanceRef.current?.fitView({ padding: 0.15, duration: 300 })
+    }
+    window.addEventListener('canvas-fit-view', handler)
+    return () => window.removeEventListener('canvas-fit-view', handler)
+  }, [])
+
+  const handleAddProject = useCallback(async (x: number, y: number) => {
+    if (selectedCanvasId) await addProject('New Project', selectedCanvasId, x, y)
+  }, [selectedCanvasId, addProject])
+
+  const handleAddStickyNote = useCallback(async (x: number, y: number) => {
+    if (selectedCanvasId) await addNote(selectedCanvasId, x, y)
+  }, [selectedCanvasId, addNote])
+
+  const projectHandlers = useMemo(() => ({
+    onAddTask: handleAddTask,
+    onInsertTask: handleInsertTask,
+    onDeleteProject: handleDeleteProject,
+    onRenameProject: handleRenameProject,
+    onToggleCollapse: handleToggleCollapse,
+    onResizeProject: handleResizeProject,
+    onSetProjectColor: handleSetProjectColor,
+    onAddProject: handleAddProject,
+  }), [handleAddTask, handleInsertTask, handleDeleteProject, handleRenameProject, handleToggleCollapse, handleResizeProject, handleSetProjectColor, handleAddProject])
+
+  const insetHandlers = useMemo(() => ({
+    onDeleteInset: removeInset,
+    onToggleCollapseInset: handleToggleCollapseInset,
+    onInsetDragStop: updateInsetPosition,
+    onAddListInset: handleAddListInset,
+    onResizeInset: handleResizeInset,
+  }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleAddListInset, handleResizeInset])
+
+  const stickyHandlers = useMemo(() => ({
+    onAddStickyNote: handleAddStickyNote,
+    onDeleteNote: removeNote,
+    onUpdateNoteText: updateNoteText,
+    onUpdateNoteTitle: updateNoteTitle,
+    onUpdateNoteColor: updateNoteColor,
+    onNoteDragStop: updateNotePosition,
+    onResizeNote: handleResizeNote,
+    onConvertNoteLines: handleConvertNoteLines,
+  }), [handleAddStickyNote, removeNote, updateNoteText, updateNoteTitle, updateNoteColor, updateNotePosition, handleResizeNote, handleConvertNoteLines])
+
+  return (
+    <DndContext
+      sensors={dnd.sensors}
+      measuring={dnd.measuring}
+      onDragStart={dnd.handleDragStart}
+      onDragMove={dnd.handleDragMove}
+      onDragOver={dnd.handleDragOver}
+      onDragEnd={dnd.handleDragEnd}
+    >
+      <DragInsertContext.Provider value={{ insertTodoId: dnd.insertTodoId, insertIndentLevel: dnd.insertIndentLevel, insertAtEnd: dnd.insertAtEnd, insertProjectId: dnd.insertProjectId, activeDragTodoId: dnd.activeDragTodo?.id ?? null, dragExpandedProjectId: dnd.dragExpandedProjectId, dragGroupIds: dnd.dragGroupIds }}>
+      <CanvasView
+        projects={projects}
+        todosByProject={todosByProject}
+        assignedPeopleMap={assignedPeopleMap}
+        assignedTagsMap={assignedTagsMap}
+        assignedOrgsMap={assignedOrgsMap}
+        ghostTodoIds={ghostTodoIds}
+        onNodeDragStop={handleNodeDragStop}
+        onReactFlowInit={handleReactFlowInit}
+        onOpenDetail={handleClickTask}
+        projectHandlers={projectHandlers}
+        listInsets={insets}
+        allTodos={todos}
+        insetHandlers={insetHandlers}
+        stickyNotes={stickyNotes}
+        stickyHandlers={stickyHandlers}
+        allPeople={people}
+        allTags={tags}
+      />
+      {isProjectNavigatorOpen && (
+        <ProjectNavigator
+          projects={projects}
+          todosByProject={todosByProject}
+          rfInstance={rfInstanceRef.current}
+        />
+      )}
+      </DragInsertContext.Provider>
+
+      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+        {dnd.activeDragTodo && (
+          <div className={overlayStyles.overlay}>
+            <TaskRow
+              todo={dnd.activeDragTodo}
+              ghost
+            />
+            {dnd.activeDragChildren.map(child => (
+              <TaskRow
+                key={child.id}
+                todo={child}
+                indentLevel={1}
+                ghost
+              />
+            ))}
+            {dnd.multiDragCount > 1 && !dnd.activeDragChildren.length && (
+              <div className={overlayStyles.badge}>{dnd.multiDragCount}</div>
+            )}
+          </div>
+        )}
+      </DragOverlay>
+
+      {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
+        <TaskEditPopup
+          mode="edit"
+          {...taskEdit.editProps}
+          allPeople={taskEdit.allPeople}
+          allTags={taskEdit.allTags}
+          allOrgs={taskEdit.allOrgs}
+          onClose={taskEdit.closeEditPopup}
+          {...taskEdit.entityCreators}
+        />
+      )}
+
+      {taskEdit.editPopupMode === 'create' && (
+        <TaskEditPopup
+          mode="create"
+          assignedPeople={[]}
+          allPeople={taskEdit.allPeople}
+          assignedTags={[]}
+          allTags={taskEdit.allTags}
+          onClose={taskEdit.closeEditPopup}
+          onCreate={taskEdit.onCreate}
+          assignedOrgs={[]}
+          allOrgs={taskEdit.allOrgs}
+          onAssignPerson={() => {}}
+          onUnassignPerson={() => {}}
+          onAssignTag={() => {}}
+          onUnassignTag={() => {}}
+          onAssignOrg={() => {}}
+          onUnassignOrg={() => {}}
+          {...taskEdit.entityCreators}
+        />
+      )}
+
+      <FilteredListPopup />
+    </DndContext>
+  )
+}

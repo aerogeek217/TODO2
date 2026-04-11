@@ -1,0 +1,265 @@
+.project {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  min-width: 260px;
+  max-width: 320px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--transition-spring), border-color var(--transition-spring);
+  overflow: visible;
+}
+
+.project:hover {
+  border-color: var(--color-text-muted);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.project.selected {
+  border-color: var(--color-accent-dim);
+}
+
+.project.hasColor:hover {
+  border-color: var(--project-color);
+  box-shadow: var(--shadow-card-hover-color), 0 0 8px color-mix(in srgb, var(--project-color) 30%, transparent);
+}
+
+.dropTarget {
+  border-color: var(--color-accent-dim);
+  box-shadow: 0 0 0 1px var(--color-accent-dim), 0 0 12px var(--color-accent-shadow-subtle);
+}
+
+.titleBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: grab;
+  user-select: none;
+}
+
+.titleBar:active {
+  cursor: grabbing;
+}
+
+.collapseButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+  flex-shrink: 0;
+}
+
+.collapseButton:hover {
+  color: var(--color-text-secondary);
+}
+
+.collapseButton.collapsed {
+  transform: rotate(-90deg);
+}
+
+.projectName {
+  flex: 1;
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.colorPicker {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.colorPicker::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+
+.colorPicker::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.titleBar:hover .colorPicker {
+  opacity: 1;
+}
+
+.sortWrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sortButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.titleBar:hover .sortButton {
+  opacity: 1;
+}
+
+.sortButton:hover {
+  color: var(--color-text-secondary);
+}
+
+.sortMenu {
+  composes: menu from '../shared/dropdown.module.css';
+  right: 0;
+  z-index: var(--z-dropdown);
+  min-width: 110px;
+}
+
+.sortOption {
+  display: flex;
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.sortOption:hover {
+  background: var(--color-surface-high);
+}
+
+.sortOptionActive {
+  color: var(--color-text-primary);
+}
+
+.sortArrow {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-accent);
+}
+
+.deleteProject {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  padding: 2px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.titleBar:hover .deleteProject {
+  opacity: 1;
+}
+
+.deleteProject:hover {
+  color: var(--color-priority-high);
+}
+
+.taskList {
+  padding: 4px 0 4px 16px;
+}
+
+.collapsedBody {
+  display: none;
+}
+
+.nodeBody {
+  padding-bottom: 6px;
+}
+
+
+.addTaskRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 8px;
+}
+
+.addTaskInput {
+  flex: 1;
+  background: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  border-bottom: 1px solid var(--color-accent-dim);
+  font-size: var(--font-size-task);
+  font-family: inherit;
+  padding: 4px 0;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.addTaskInput::placeholder {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.renameInput {
+  flex: 1;
+  background: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  border-bottom: 1px solid var(--color-accent-dim);
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: inherit;
+  padding: 0;
+  outline: none;
+}
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.resizeHandle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+}
+
+.project:hover .resizeHandle {
+  opacity: 1;
+}

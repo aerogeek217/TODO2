@@ -1,0 +1,296 @@
+/* ═══════════════════════════════════════════
+   Design Tokens — Theme-independent base
+   ═══════════════════════════════════════════ */
+:root {
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 28px;
+  --space-10: 32px;
+  --space-12: 48px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-card: 10px;
+  --radius-chip: 8px;
+  --radius-checkbox: 5px;
+  --radius-pill: 999px;
+  --radius-lg: 16px;
+
+  /* Z-Index */
+  --z-above: 1;
+  --z-dropdown: 10;
+  --z-row-open: 20;
+  --z-fab: 100;
+  --z-overlay: 300;
+  --z-canvas-draw: 1000;
+  --z-dialog: 1001;
+
+  /* Mobile */
+  --mobile-tab-bar-height: 56px;
+  --mobile-row-min-height: 48px;
+  --touch-target-min: 44px;
+
+  /* Transitions */
+  --transition-spring: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --transition-fade: 180ms ease;
+
+  /* Typography */
+  --font-family: 'Plus Jakarta Sans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-size-sm: 12px;
+  --font-size-title: 24px;
+  --font-size-nav: 14px;
+  --font-size-task: 14px;
+  --font-size-meta: 12px;
+  --font-size-app-name: 15px;
+  --font-size-input: 16px;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+}
+
+/* ═══════════════════════════════════════════
+   Dark Theme (default)
+   ═══════════════════════════════════════════ */
+[data-theme="dark"],
+:root:not([data-theme]) {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --color-canvas-bg: #111110;
+  --color-surface: #1a1918;
+  --color-surface-high: #211f1e;
+  --color-surface-bright: #2d2b29;
+  --color-surface-glass: rgba(26, 25, 24, 0.85);
+  --color-border: #302e2b;
+
+  /* Accent */
+  --color-accent: #7ec4bc;
+  --color-accent-dim: #4f9a91;
+
+  /* Priority */
+  --color-priority-high: #ee7d77;
+  --color-priority-medium: #f5a623;
+  --color-star: #f5c842;
+
+  /* Overdue / special dates */
+  --color-overdue: #e86bf0;
+  --color-overdue-bg: rgba(232, 107, 240, 0.12);
+  --color-overdue-glow: rgba(232, 107, 240, 0.3);
+
+  /* Text */
+  --color-text-primary: #ece9e6;
+  --color-text-secondary: #bfbbb6;
+  --color-text-muted: #7d7972;
+  --color-text-completed: #4a4743;
+  --color-text-on-accent: #111110;
+
+  /* Assigned status */
+  --color-assigned-bg: rgba(126, 196, 188, 0.07);
+  --color-assigned-border: rgba(126, 196, 188, 0.25);
+  --color-assigned-text: #7db8b3;
+
+  /* Accent alpha */
+  --color-accent-bg-subtle: rgba(126, 196, 188, 0.05);
+  --color-accent-bg-light: rgba(126, 196, 188, 0.08);
+  --color-accent-bg-medium: rgba(126, 196, 188, 0.12);
+  --color-accent-glow: rgba(126, 196, 188, 0.3);
+  --color-accent-focus: rgba(126, 196, 188, 0.4);
+  --color-accent-shadow: rgba(126, 196, 188, 0.2);
+  --color-accent-shadow-subtle: rgba(126, 196, 188, 0.15);
+
+  /* Overlay */
+  --color-overlay: rgba(0, 0, 0, 0.4);
+
+  /* Tint scale — foreground contrast overlays (white on dark) */
+  --color-tint-3: rgba(255, 255, 255, 0.03);
+  --color-tint-4: rgba(255, 255, 255, 0.04);
+  --color-tint-5: rgba(255, 255, 255, 0.05);
+  --color-tint-6: rgba(255, 255, 255, 0.06);
+  --color-tint-7: rgba(255, 255, 255, 0.07);
+  --color-tint-8: rgba(255, 255, 255, 0.08);
+  --color-tint-10: rgba(255, 255, 255, 0.10);
+  --color-tint-12: rgba(255, 255, 255, 0.12);
+  --color-tint-14: rgba(255, 255, 255, 0.14);
+  --color-tint-16: rgba(255, 255, 255, 0.16);
+  --color-tint-20: rgba(255, 255, 255, 0.20);
+
+  /* Inset backgrounds (recessed areas) */
+  --color-inset: rgba(0, 0, 0, 0.18);
+  --color-inset-light: rgba(0, 0, 0, 0.14);
+
+  /* Backdrop */
+  --color-backdrop: rgba(0, 0, 0, 0.55);
+
+  /* Card glass */
+  --color-card-glass-from: rgba(38, 36, 34, 0.97);
+  --color-card-glass-to: rgba(26, 25, 24, 0.95);
+
+  /* Canvas dot */
+  --color-canvas-dot: #3a3a3a;
+
+  /* Shadows */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(48, 46, 43, 0.5);
+  --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(48, 46, 43, 0.4);
+  --shadow-glow: 0 0 20px rgba(126, 196, 188, 0.3);
+  --shadow-glass-card:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 24px 64px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 var(--color-tint-4);
+  --shadow-fab: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.2);
+  --shadow-fab-hover: 0 6px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4), 0 1px 4px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover-color: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-drag-overlay:
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 12px 32px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--color-accent-shadow-subtle);
+  --shadow-drag-node: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-controls: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* ═══════════════════════════════════════════
+   Light Theme
+   ═══════════════════════════════════════════ */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Backgrounds */
+  --color-canvas-bg: #f5f4f2;
+  --color-surface: #ffffff;
+  --color-surface-high: #f0efed;
+  --color-surface-bright: #e5e3e0;
+  --color-surface-glass: rgba(255, 255, 255, 0.88);
+  --color-border: #d9d5d0;
+
+  /* Accent — deepened for contrast on light backgrounds */
+  --color-accent: #3a9e93;
+  --color-accent-dim: #2d7d74;
+
+  /* Priority — deepened for readability */
+  --color-priority-high: #d94a43;
+  --color-priority-medium: #d08a12;
+  --color-star: #c09a15;
+
+  /* Overdue */
+  --color-overdue: #b838c0;
+  --color-overdue-bg: rgba(184, 56, 192, 0.08);
+  --color-overdue-glow: rgba(184, 56, 192, 0.15);
+
+  /* Text */
+  --color-text-primary: #1a1917;
+  --color-text-secondary: #5c5852;
+  --color-text-muted: #9a9590;
+  --color-text-completed: #c4c0bb;
+  --color-text-on-accent: #ffffff;
+
+  /* Assigned status */
+  --color-assigned-bg: rgba(58, 158, 147, 0.06);
+  --color-assigned-border: rgba(58, 158, 147, 0.25);
+  --color-assigned-text: #2d7d74;
+
+  /* Accent alpha */
+  --color-accent-bg-subtle: rgba(58, 158, 147, 0.04);
+  --color-accent-bg-light: rgba(58, 158, 147, 0.06);
+  --color-accent-bg-medium: rgba(58, 158, 147, 0.10);
+  --color-accent-glow: rgba(58, 158, 147, 0.2);
+  --color-accent-focus: rgba(58, 158, 147, 0.3);
+  --color-accent-shadow: rgba(58, 158, 147, 0.15);
+  --color-accent-shadow-subtle: rgba(58, 158, 147, 0.1);
+
+  /* Overlay */
+  --color-overlay: rgba(0, 0, 0, 0.25);
+
+  /* Tint scale — foreground contrast overlays (black on light) */
+  --color-tint-3: rgba(0, 0, 0, 0.03);
+  --color-tint-4: rgba(0, 0, 0, 0.04);
+  --color-tint-5: rgba(0, 0, 0, 0.05);
+  --color-tint-6: rgba(0, 0, 0, 0.06);
+  --color-tint-7: rgba(0, 0, 0, 0.07);
+  --color-tint-8: rgba(0, 0, 0, 0.08);
+  --color-tint-10: rgba(0, 0, 0, 0.10);
+  --color-tint-12: rgba(0, 0, 0, 0.12);
+  --color-tint-14: rgba(0, 0, 0, 0.14);
+  --color-tint-16: rgba(0, 0, 0, 0.16);
+  --color-tint-20: rgba(0, 0, 0, 0.20);
+
+  /* Inset backgrounds */
+  --color-inset: rgba(0, 0, 0, 0.04);
+  --color-inset-light: rgba(0, 0, 0, 0.025);
+
+  /* Backdrop */
+  --color-backdrop: rgba(0, 0, 0, 0.35);
+
+  /* Card glass */
+  --color-card-glass-from: rgba(255, 255, 255, 0.98);
+  --color-card-glass-to: rgba(248, 247, 246, 0.96);
+
+  /* Canvas dot */
+  --color-canvas-dot: #d4d2cf;
+
+  /* Shadows — lighter, subtler */
+  --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-modal: 0 12px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-glow: 0 0 16px rgba(58, 158, 147, 0.15);
+  --shadow-glass-card:
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    0 24px 64px rgba(0, 0, 0, 0.05);
+  --shadow-fab: 0 2px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-fab-hover: 0 4px 16px rgba(0, 0, 0, 0.14), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover-color: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-drag-overlay:
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 12px 32px rgba(0, 0, 0, 0.08),
+    0 0 0 1px var(--color-accent-shadow-subtle);
+  --shadow-drag-node: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --shadow-controls: 0 1px 6px rgba(0, 0, 0, 0.08);
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* ═══════════════════════════════════════════
+   Global Reset & Base Styles
+   ═══════════════════════════════════════════ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-task);
+  color: var(--color-text-primary);
+  background: var(--color-canvas-bg);
+  line-height: 1.5;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+input {
+  font-family: inherit;
+}
