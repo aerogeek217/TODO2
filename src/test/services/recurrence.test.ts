@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { computeNextDueDate, generateRecurringInstances } from '../../services/recurrence'
+import { computeNextDueDate, generateRecurringInstances, makeRecurrenceRule } from '../../services/recurrence'
 import type { RecurrenceRule } from '../../models/recurrence'
 
 /** Create a local midnight date (avoids UTC timezone issues) */
@@ -55,9 +55,24 @@ describe('computeNextDueDate', () => {
 
   it('monthly rule: Jan 31 clamps to Feb 28', () => {
     fakeToday(2026, 2, 1)
-    const rule: RecurrenceRule = { type: 'monthly' }
+    const rule: RecurrenceRule = { type: 'monthly', originalDayOfMonth: 31 }
     const result = computeNextDueDate(localDate(2026, 1, 31), rule)
     expect(fmt(result)).toBe('2026-02-28')
+  })
+
+  it('monthly rule: no day-of-month drift (Jan 31 → Feb 28 → Mar 31)', () => {
+    fakeToday(2026, 3, 1)
+    const rule: RecurrenceRule = { type: 'monthly', originalDayOfMonth: 31 }
+    // Start from Jan 31, should skip Feb 28 and land on Mar 31
+    const result = computeNextDueDate(localDate(2026, 1, 31), rule)
+    expect(fmt(result)).toBe('2026-03-31')
+  })
+
+  it('monthly rule: without originalDayOfMonth still works (legacy)', () => {
+    fakeToday(2026, 2, 1)
+    const rule: RecurrenceRule = { type: 'monthly' }
+    const result = computeNextDueDate(localDate(2026, 1, 15), rule)
+    expect(fmt(result)).toBe('2026-02-15')
   })
 
   it('yearly rule: advances by 1 year', () => {
@@ -69,9 +84,16 @@ describe('computeNextDueDate', () => {
 
   it('yearly rule: Feb 29 clamps to Feb 28 on non-leap year', () => {
     fakeToday(2025, 2, 1)
-    const rule: RecurrenceRule = { type: 'yearly' }
+    const rule: RecurrenceRule = { type: 'yearly', originalDayOfMonth: 29 }
     const result = computeNextDueDate(localDate(2024, 2, 29), rule)
     expect(fmt(result)).toBe('2025-02-28')
+  })
+
+  it('yearly rule: Feb 29 restores to Feb 29 on next leap year', () => {
+    fakeToday(2028, 1, 1)
+    const rule: RecurrenceRule = { type: 'yearly', originalDayOfMonth: 29 }
+    const result = computeNextDueDate(localDate(2027, 2, 28), rule)
+    expect(fmt(result)).toBe('2028-02-29')
   })
 
   it('skips past dates: keeps advancing until result >= today', () => {
@@ -128,5 +150,32 @@ describe('generateRecurringInstances', () => {
       localDate(2026, 1, 31),
     )
     expect(instances).toHaveLength(0)
+  })
+})
+
+describe('makeRecurrenceRule', () => {
+  it('monthly: captures originalDayOfMonth from due date', () => {
+    const rule = makeRecurrenceRule('monthly', localDate(2026, 1, 31))
+    expect(rule).toEqual({ type: 'monthly', originalDayOfMonth: 31 })
+  })
+
+  it('yearly: captures originalDayOfMonth from due date', () => {
+    const rule = makeRecurrenceRule('yearly', localDate(2024, 2, 29))
+    expect(rule).toEqual({ type: 'yearly', originalDayOfMonth: 29 })
+  })
+
+  it('daily: does not set originalDayOfMonth', () => {
+    const rule = makeRecurrenceRule('daily', localDate(2026, 1, 31))
+    expect(rule).toEqual({ type: 'daily' })
+  })
+
+  it('weekly: does not set originalDayOfMonth', () => {
+    const rule = makeRecurrenceRule('weekly', localDate(2026, 1, 31))
+    expect(rule).toEqual({ type: 'weekly' })
+  })
+
+  it('no due date: does not set originalDayOfMonth', () => {
+    const rule = makeRecurrenceRule('monthly', null)
+    expect(rule).toEqual({ type: 'monthly' })
   })
 })

@@ -1,5 +1,14 @@
-import type { RecurrenceRule } from '../models/recurrence'
+import type { RecurrenceRule, RecurrenceType } from '../models/recurrence'
 import { startOfToday } from '../utils/date'
+
+/** Build a RecurrenceRule, capturing originalDayOfMonth for monthly/yearly to prevent drift. */
+export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null): RecurrenceRule {
+  const rule: RecurrenceRule = { type }
+  if ((type === 'monthly' || type === 'yearly') && dueDate) {
+    rule.originalDayOfMonth = new Date(dueDate).getDate()
+  }
+  return rule
+}
 
 /** Advance a due date by one recurrence interval. */
 function advanceOnce(date: Date, rule: RecurrenceRule): Date {
@@ -15,21 +24,20 @@ function advanceOnce(date: Date, rule: RecurrenceRule): Date {
       next.setDate(next.getDate() + 14)
       break
     case 'monthly': {
-      const day = next.getDate()
+      const targetDay = rule.originalDayOfMonth ?? next.getDate()
+      // Set to 1 first to avoid overflow (e.g. Jan 31 + 1 month → Mar 3)
+      next.setDate(1)
       next.setMonth(next.getMonth() + 1)
-      // Clamp to end of month (e.g. Jan 31 → Feb 28)
-      if (next.getDate() !== day) {
-        next.setDate(0) // last day of previous month
-      }
+      const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+      next.setDate(Math.min(targetDay, maxDay))
       break
     }
     case 'yearly': {
-      const day = next.getDate()
+      const targetDay = rule.originalDayOfMonth ?? next.getDate()
+      next.setDate(1)
       next.setFullYear(next.getFullYear() + 1)
-      // Handle Feb 29 → Feb 28 in non-leap years
-      if (next.getDate() !== day) {
-        next.setDate(0)
-      }
+      const maxDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+      next.setDate(Math.min(targetDay, maxDay))
       break
     }
   }

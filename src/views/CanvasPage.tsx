@@ -117,10 +117,13 @@ export function CanvasPage() {
     useUIStore.getState().setPendingCanvasTarget(null)
   }, [pendingTarget])
 
-  const todosByProject = useMemo(() => {
+  const { todosByProject, assignedGhostIds } = useMemo(() => {
     const map = new Map<number, PersistedTodoItem[]>()
+    const assignedParentIds = new Set<number>()
+    const todoById = new Map<number, PersistedTodoItem>()
     for (const todo of todos) {
       if (todo.projectId != null) {
+        todoById.set(todo.id, todo)
         // Hide completed tasks when showCompleted is off
         if (!filters.showCompleted && todo.isCompleted) continue
         // Hide assigned tasks when showAssigned is off
@@ -130,11 +133,25 @@ export function CanvasPage() {
         map.set(todo.projectId, list)
       }
     }
+    // Add back assigned parents whose non-assigned children are visible
+    if (!filters.showAssigned) {
+      for (const [, list] of map) {
+        for (const todo of list) {
+          if (todo.parentId != null && !map.get(todo.projectId!)?.some(t => t.id === todo.parentId)) {
+            const parent = todoById.get(todo.parentId)
+            if (parent?.isAssigned && !assignedParentIds.has(parent.id)) {
+              assignedParentIds.add(parent.id)
+              list.push(parent)
+            }
+          }
+        }
+      }
+    }
     // Sort each project's tasks by sortOrder
     for (const [, list] of map) {
       list.sort((a, b) => a.sortOrder - b.sortOrder)
     }
-    return map
+    return { todosByProject: map, assignedGhostIds: assignedParentIds }
   }, [todos, filters.showCompleted, filters.showAssigned])
 
   // --- DnD (extracted to useCanvasDnD hook) ---
@@ -207,14 +224,15 @@ export function CanvasPage() {
     return ghost.size > 0 ? ghost : undefined
   }, [todos, isFilterActive, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap])
 
-  // Merge filter ghosts with drag-child ghosts
+  // Merge filter ghosts, assigned-parent ghosts, and drag-child ghosts
   const ghostTodoIds = useMemo(() => {
     const dragChildIds = dnd.activeDragChildren.map(c => c.id)
-    if (!filterGhostIds && dragChildIds.length === 0) return undefined
+    if (!filterGhostIds && assignedGhostIds.size === 0 && dragChildIds.length === 0) return undefined
     const merged = new Set(filterGhostIds)
+    for (const id of assignedGhostIds) merged.add(id)
     for (const id of dragChildIds) merged.add(id)
     return merged.size > 0 ? merged : undefined
-  }, [filterGhostIds, dnd.activeDragChildren])
+  }, [filterGhostIds, assignedGhostIds, dnd.activeDragChildren])
 
   const handleNodeDragStop = useCallback(
     (projectId: number, x: number, y: number) => {

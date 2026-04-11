@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { TodoItem, PersistedTodoItem, Person, Tag, Org, RecurrenceType, RecurrenceRule } from '../../models'
+import type { TodoItem, PersistedTodoItem, Person, Tag, Org, RecurrenceType } from '../../models'
 import { Priority } from '../../models'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { PriorityMenu, getPriorityLabel } from '../shared/PriorityMenu'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { toDateInputValue } from '../../utils/date'
+import { makeRecurrenceRule } from '../../services/recurrence'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
@@ -152,9 +153,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }, [onClose])
 
-  const buildRecurrenceRule = useCallback((): RecurrenceRule | undefined => {
-    return recurrenceType ? { type: recurrenceType } : undefined
-  }, [recurrenceType])
+  const buildRule = useCallback(() => {
+    return recurrenceType ? makeRecurrenceRule(recurrenceType, dueDate ? new Date(dueDate + 'T00:00:00') : null) : undefined
+  }, [recurrenceType, dueDate])
 
   const saveEdit = useCallback((overrides: Partial<TodoItem> = {}) => {
     if (!isEdit || !todo) return
@@ -166,7 +167,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
       isHardDeadline: isHardDeadline || undefined,
       isAssigned: isAssigned || undefined,
-      recurrenceRule: dueDate ? buildRecurrenceRule() : undefined,
+      recurrenceRule: dueDate ? buildRule() : undefined,
       priority,
       isStarred,
       ...overrides,
@@ -242,7 +243,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         notes: notes || undefined,
         dueDate: newDate ? new Date(newDate + 'T00:00:00') : undefined,
         isHardDeadline: isHardDeadline || undefined,
-        recurrenceRule: newDate && recurrenceType ? { type: recurrenceType } : undefined,
+        recurrenceRule: newDate && recurrenceType ? makeRecurrenceRule(recurrenceType, new Date(newDate + 'T00:00:00')) : undefined,
       })
     }
   }
@@ -251,13 +252,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     const val = e.target.value as RecurrenceType | ''
     setRecurrenceType(val)
     if (isEdit && todo) {
+      const dueDateObj = dueDate ? new Date(dueDate + 'T00:00:00') : null
       props.onUpdate({
         ...todo,
         title: title.trim() || todo.title,
         notes: notes || undefined,
-        dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
+        dueDate: dueDateObj ?? undefined,
         isHardDeadline: isHardDeadline || undefined,
-        recurrenceRule: val ? { type: val } : undefined,
+        recurrenceRule: val ? makeRecurrenceRule(val, dueDateObj) : undefined,
       })
     }
   }
@@ -302,7 +304,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       progress: progress || undefined,
       dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
       isHardDeadline: isHardDeadline || undefined,
-      recurrenceRule: dueDate && recurrenceType ? { type: recurrenceType } : undefined,
+      recurrenceRule: dueDate && recurrenceType ? makeRecurrenceRule(recurrenceType, new Date(dueDate + 'T00:00:00')) : undefined,
       priority,
       isStarred,
       projectId,

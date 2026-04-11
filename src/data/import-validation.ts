@@ -6,7 +6,11 @@ const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'yearl
 function isOptRecurrenceRule(v: unknown): boolean {
   if (v === undefined || v === null) return true
   if (!isObj(v)) return false
-  return typeof v.type === 'string' && VALID_RECURRENCE_TYPES.includes(v.type)
+  if (typeof v.type !== 'string' || !VALID_RECURRENCE_TYPES.includes(v.type)) return false
+  if ('originalDayOfMonth' in v && v.originalDayOfMonth !== undefined) {
+    if (typeof v.originalDayOfMonth !== 'number' || v.originalDayOfMonth < 1 || v.originalDayOfMonth > 31) return false
+  }
+  return true
 }
 import type { SettingRow } from './database'
 

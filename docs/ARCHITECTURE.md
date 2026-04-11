@@ -41,7 +41,7 @@ main.tsx (entry point)
 | Canvas | models/canvas.ts | Named spatial workspace |
 | Project | models/project.ts | Positioned group of tasks on a canvas (optional color) |
 | TodoItem | models/todo-item.ts | Core todo entry (id optional, pre-insert); includes optional `progress`, `isHardDeadline`, `isAssigned`, and `recurrenceRule` fields |
-| RecurrenceRule | models/recurrence.ts | Recurrence pattern: type (daily/weekly/biweekly/monthly/yearly) |
+| RecurrenceRule | models/recurrence.ts | Recurrence pattern: type (daily/weekly/biweekly/monthly/yearly), optional originalDayOfMonth to prevent drift |
 | PersistedTodoItem | models/todo-item.ts | TodoItem with guaranteed id (post-insert) |
 | Person | models/person.ts | Assignable person with name, initials, color |
 | PersistedPerson | models/person.ts | Person with guaranteed id (post-insert) |
@@ -139,7 +139,7 @@ main.tsx (entry point)
 | fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh |
 | backupScheduler | services/backup-scheduler.ts | Auto-snapshot every 24h, pre-destructive snapshots, prune to 10 max; started in App.tsx |
 | useFileStorageStore | stores/file-storage-store.ts | File storage connection state and actions; exports refreshAllStores() |
-| generateInitials | utils/person.ts | Generates 1-2 character uppercase initials from a name |
+| generateInitials | utils/person.ts | Generates 1-3 character uppercase initials from a name |
 | toggleItem | utils/filter.ts | Toggle an item in a null-or-Set filter (null = all shown, Set = explicit selection) |
 | isValidCssColor | data/import-validation.ts | Validates hex color strings (#rgb or #rrggbb only) |
 | undoable | services/undoable.ts | Helper to register an action as undoable; skips when undo store is mid-undo/redo |
@@ -147,6 +147,7 @@ main.tsx (entry point)
 | pasteTasksAt | services/clipboard.ts | Paste cut tasks at a target position using placeMultipleAt + applyMutations; clears clipboard after paste |
 | drop-resolver | services/drop-resolver.ts | Pure drop target resolution: resolveDropTarget (DropResolution), resolveDropPreview (preview indicators) |
 | parseInput | services/natural-language-parser.ts | Parses raw text for NLP tokens: `@person` or `@"First Last"`, `#tag`, `/project`, `p1`/`p2`/`p3`, date keywords, recurrence (`every week`, `repeat daily`); returns ParsedInput with cleaned title, persons[], tags[], projects[], priority, dueDate, recurrence |
+| makeRecurrenceRule | services/recurrence.ts | Build a RecurrenceRule, capturing originalDayOfMonth for monthly/yearly |
 | computeNextDueDate | services/recurrence.ts | Advances a due date by one recurrence interval, skipping past dates |
 | generateRecurringInstances | services/recurrence.ts | Generates all recurring dates within a date range for calendar display |
 | resolveInput | services/nlp-resolver.ts | Matches parsed person/tag/project names against known entities (case-insensitive exact/prefix/initials/first-name); returns personIds[], tagIds[], projectId, unmatched names |

@@ -9,6 +9,7 @@ import { useUIStore } from '../stores/ui-store'
 import type { TodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { parseTaskInput } from '../services/nlp-task-creator'
+import { makeRecurrenceRule } from '../services/recurrence'
 
 /**
  * Shared callbacks for TaskEditPopup wiring.
@@ -46,7 +47,7 @@ export function useTaskEditCallbacks() {
           dueDate,
           isStarred: partial.isStarred ?? todo.isStarred,
           notes: partial.notes ?? todo.notes,
-          recurrenceRule: partial.recurrenceRule ?? (dueDate && resolved.recurrence ? { type: resolved.recurrence } : undefined),
+          recurrenceRule: partial.recurrenceRule ?? (dueDate && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, dueDate) : undefined),
         })
       }
     }

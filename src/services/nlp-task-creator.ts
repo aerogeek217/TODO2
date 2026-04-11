@@ -1,5 +1,6 @@
 import { parseInput } from './natural-language-parser'
 import { resolveInput, type ResolvedInput } from './nlp-resolver'
+import { makeRecurrenceRule } from './recurrence'
 import type { Person, Tag, Project, PersistedTodoItem } from '../models'
 
 export interface NlpCreateResult {
@@ -38,7 +39,7 @@ export async function applyNlpMetadata(
         ...todo,
         priority: resolved.priority ?? todo.priority,
         dueDate,
-        recurrenceRule: dueDate && resolved.recurrence ? { type: resolved.recurrence } : todo.recurrenceRule,
+        recurrenceRule: dueDate && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, dueDate) : todo.recurrenceRule,
       })
     }
   }

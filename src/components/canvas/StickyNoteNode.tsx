@@ -45,6 +45,7 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [lineHeight, setLineHeight] = useState(0)
+  const [lineHeights, setLineHeights] = useState<number[]>([])
   const paletteRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -112,6 +113,32 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
     const lh = parseFloat(computed.lineHeight)
     setLineHeight(isNaN(lh) ? fs * 1.5 : lh)
   }, [])
+
+  // Measure per-line visual heights (accounts for word-wrap)
+  const measureLineHeights = useCallback(() => {
+    const ta = textareaRef.current
+    if (!ta || lineHeight <= 0) return
+    const lines = localText.split('\n')
+    const mirror = document.createElement('div')
+    const computed = getComputedStyle(ta)
+    mirror.style.cssText = `position:absolute;visibility:hidden;height:auto;overflow:hidden;white-space:pre-wrap;word-wrap:break-word;box-sizing:border-box;`
+    mirror.style.width = `${ta.clientWidth}px`
+    mirror.style.font = computed.font
+    mirror.style.lineHeight = computed.lineHeight
+    mirror.style.paddingLeft = computed.paddingLeft
+    mirror.style.paddingRight = computed.paddingRight
+    document.body.appendChild(mirror)
+    const heights = lines.map((line) => {
+      mirror.textContent = line || '\u200b' // zero-width space for empty lines
+      return mirror.offsetHeight
+    })
+    document.body.removeChild(mirror)
+    setLineHeights(heights)
+  }, [localText, lineHeight])
+
+  useEffect(() => {
+    measureLineHeights()
+  }, [measureLineHeights])
 
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value
@@ -236,7 +263,7 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
         {onConvertLines && lineHeight > 0 && (
           <div ref={gutterRef} className={`${styles.gutter} nopan nodrag nowheel`}>
             {textLines.map((line, i) => (
-              <div key={i} className={styles.gutterRow} style={{ height: lineHeight }}>
+              <div key={i} className={styles.gutterRow} style={{ height: lineHeights[i] || lineHeight }}>
                 {line.trim() && (
                   <button
                     className={styles.convertIcon}
@@ -335,6 +362,8 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
             const newH = Math.max(120, startH + (ev.clientY - startY) / zoom)
 
             if (note.id && onResize) onResize(note.id, newW, newH)
+            // Re-measure line heights after resize (width change affects wrapping)
+            requestAnimationFrame(measureLineHeights)
 
             resizeCleanupRef.current?.()
           }

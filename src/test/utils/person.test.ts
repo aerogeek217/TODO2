@@ -10,8 +10,12 @@ describe('generateInitials', () => {
     expect(generateInitials('Alice')).toBe('A')
   })
 
-  it('three+ words truncates to 2 chars', () => {
-    expect(generateInitials('John Michael Doe')).toBe('JM')
+  it('three words → 3 chars', () => {
+    expect(generateInitials('John Michael Doe')).toBe('JMD')
+  })
+
+  it('four+ words truncates to 3 chars', () => {
+    expect(generateInitials('John Michael David Doe')).toBe('JMD')
   })
 
   it('extra whitespace handled', () => {
