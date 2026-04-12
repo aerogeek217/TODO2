@@ -203,7 +203,7 @@ export function TaskEditMetadata({
             onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
             + Add
           </button>
-          {isEdit && (assignedPeople.length > 0 || assignedOrgs.length > 0) && (
+          {(assignedPeople.length > 0 || assignedOrgs.length > 0) && (
             <button
               className={`${styles.assignedToggle} ${isAssigned ? styles.assignedToggleActive : ''}`}
               onClick={onToggleAssigned}

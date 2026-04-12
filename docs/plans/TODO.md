@@ -3,11 +3,10 @@
 
 ## Bugs
 
+- [x] Assign button missing in create-task mode (was gated behind `isEdit`)
 
 
 ## Features and Enhancements
-
-### Code Review Remediation (docs/plans/CODE-REVIEW.md)
 - [ ] Add a Dashboard view. We'll start by including Top 10 lists. For a few categories, this will show a top 10 list of the most important tasks weighted by hard deadline, then due date, then priority. (For example, a task with high priority due next friday would be ranked higher than a task simply due next friday). Categories include Mine (not assigned and no discussion required), Followup, and Assigned. Also include a Stale list with the top 10 oldest "last modified" dates. The Top 10 lists are not filtered. I think we can fit all lists at once, but they could be selectable if it makes the dashboard too cluttered.
 
 

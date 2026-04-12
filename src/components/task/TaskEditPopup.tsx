@@ -139,9 +139,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   // Auto-clear isAssigned when all people and orgs are removed
   useEffect(() => {
-    if (isEdit && isAssigned && effectiveAssignedPeople.length === 0 && effectiveAssignedOrgs.length === 0 && todo) {
+    if (isAssigned && effectiveAssignedPeople.length === 0 && effectiveAssignedOrgs.length === 0) {
       setIsAssigned(false)
-      props.onUpdate({ ...todo, isAssigned: undefined })
+      if (isEdit && todo) props.onUpdate({ ...todo, isAssigned: undefined })
     }
   }, [effectiveAssignedPeople.length, effectiveAssignedOrgs.length])
 
@@ -321,6 +321,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       recurrenceRule: dueDate && recurrenceType ? makeRecurrenceRule(recurrenceType, new Date(dueDate + 'T00:00:00')) : undefined,
       priority,
       isStarred,
+      isAssigned: isAssigned || undefined,
       projectId,
     }, {
       personIds: [...pendingPersonIds],
