@@ -149,7 +149,7 @@ main.tsx (entry point)
 | FilterSheet | components/overlays/FilterSheet.tsx | Mobile filter bottom sheet: search, priority, date range, toggles, people/orgs/tags/statuses accordion lists; reads/writes useFilterStore |
 | MobileTaskRow | components/task/MobileTaskRow.tsx | Mobile-optimized two-line task row: priority + checkbox + title + star + chevron (line 1), due/people/tags/org/notes (line 2); 48px min touch targets |
 | CanvasContextMenu | components/overlays/CanvasContextMenu.tsx | Reusable right-click context menu (canvas background, project, box) |
-| ListInsetNode | components/canvas/ListInsetNode.tsx | Canvas node showing filtered task list (preset: due-this-week, starred, high-priority); draggable TaskRow components (drag to taskboard) |
+| ListInsetNode | components/canvas/ListInsetNode.tsx | Canvas node showing filtered task list (preset: due-this-week, starred, high-priority); draggable TaskRow components (drag to taskboard); filter description subtitle |
 | StickyNoteNode | components/canvas/StickyNoteNode.tsx | Canvas note widget with editable title, textarea, per-line task conversion, color picker palette, @/#// autocomplete |
 | FilteredListPopup | components/overlays/FilteredListPopup.tsx | On-demand floating list popup triggered by right-clicking priority/person/tag on any TaskRow; reads from stores directly |
 | ProjectNavigator | components/canvas/ProjectNavigator.tsx | Collapsible overlay panel listing all projects; click to fitView-navigate; toggled with P key |

@@ -160,29 +160,29 @@
 
 .resizeHandle {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 14px;
-  height: 14px;
-  cursor: nwse-resize;
-  background: linear-gradient(
-    135deg,
-    transparent 40%,
-    var(--color-text-muted) 40%,
-    var(--color-text-muted) 45%,
-    transparent 45%,
-    transparent 55%,
-    var(--color-text-muted) 55%,
-    var(--color-text-muted) 60%,
-    transparent 60%
-  );
-  opacity: 0.4;
-  border-radius: 0 0 var(--radius-card) 0;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  opacity: 0;
   transition: opacity 0.15s;
 }
 
-.resizeHandle:hover {
-  opacity: 0.8;
+.resizeHandle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+}
+
+.node:hover .resizeHandle {
+  opacity: 1;
 }
 
 .dropTarget {

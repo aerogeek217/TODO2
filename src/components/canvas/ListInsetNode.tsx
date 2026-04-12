@@ -54,6 +54,25 @@ function getInsetHeaderInfo(inset: ListInset): { icon: React.ReactNode; label: s
   return { icon: '\u{1F4CB}', label: inset.name }
 }
 
+function getFilterDescription(inset: ListInset): string {
+  if (inset.preset) {
+    switch (inset.preset) {
+      case 'due-this-week': return 'Tasks due within 7 days or overdue'
+      case 'starred': return 'Tasks marked for follow-up'
+      case 'high-priority': return 'Tasks with high priority'
+    }
+  }
+  if (inset.attributeFilter) {
+    switch (inset.attributeFilter.type) {
+      case 'priority': return `Tasks with ${(PRIORITY_LABELS[inset.attributeFilter.priority] || 'priority').toLowerCase()}`
+      case 'person': return `Tasks assigned to ${inset.attributeFilter.personName}`
+      case 'tag': return `Tasks tagged ${inset.attributeFilter.tagName}`
+      case 'org': return `Tasks assigned to ${inset.attributeFilter.orgName}`
+    }
+  }
+  return ''
+}
+
 function DraggableInsetRow({ todo, insetId, children }: { todo: PersistedTodoItem; insetId: number; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `inset-${insetId}-${todo.id}`,
@@ -128,7 +147,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter])
 
   return (
-    <div className={styles.inset} style={{ width: inset.width, height: inset.isCollapsed ? undefined : inset.height }}>
+    <div className={styles.inset} style={{ width: inset.width }}>
       <div className={styles.titleBar}>
         <button
           className={`${styles.collapseButton} ${inset.isCollapsed ? styles.collapsed : ''}`}
@@ -146,6 +165,8 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           &times;
         </button>
       </div>
+
+      {!inset.isCollapsed && <div className={styles.filterDesc}>{getFilterDescription(inset)}</div>}
 
       <div className={`${inset.isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}>
         {filteredTodos.length === 0 ? (
@@ -165,52 +186,39 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         )}
       </div>
 
-      {/* Resize handle */}
-      {!inset.isCollapsed && (
-        <div
-          className={`${styles.resizeHandle} nopan nodrag`}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            const startX = e.clientX
-            const startY = e.clientY
-            const startW = inset.width
-            const startH = inset.height
-            const zoom = getZoom()
-            const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
-            const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
+      <div
+        className={`${styles.resizeHandle} nopan nodrag`}
+        onMouseDown={(e) => {
+          e.stopPropagation()
+          const startX = e.clientX
+          const startW = inset.width
+          const zoom = getZoom()
+          const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+          const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
 
-            const onMouseMove = (ev: MouseEvent) => {
-              const dx = ev.clientX - startX
-              const dy = ev.clientY - startY
-              const newW = Math.max(220, startW + dx / zoom)
-              const newH = Math.max(120, startH + dy / zoom)
-
-              if (insetDiv) {
-                insetDiv.style.width = `${newW}px`
-                insetDiv.style.height = `${newH}px`
-              }
+          const onMouseMove = (ev: MouseEvent) => {
+            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+            if (insetDiv) {
+              insetDiv.style.width = `${newW}px`
             }
+          }
 
-            const onMouseUp = (ev: MouseEvent) => {
-              const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
-              const newH = Math.max(120, startH + (ev.clientY - startY) / zoom)
+          const onMouseUp = (ev: MouseEvent) => {
+            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+            if (inset.id && onResize) onResize(inset.id, newW, inset.height)
+            cleanup()
+          }
 
-              if (inset.id && onResize) onResize(inset.id, newW, newH)
-
-              cleanup()
-            }
-
-            const cleanup = () => {
-              window.removeEventListener('mousemove', onMouseMove)
-              window.removeEventListener('mouseup', onMouseUp)
-              resizeCleanupRef.current = null
-            }
-            resizeCleanupRef.current = cleanup
-            window.addEventListener('mousemove', onMouseMove)
-            window.addEventListener('mouseup', onMouseUp)
-          }}
-        />
-      )}
+          const cleanup = () => {
+            window.removeEventListener('mousemove', onMouseMove)
+            window.removeEventListener('mouseup', onMouseUp)
+            resizeCleanupRef.current = null
+          }
+          resizeCleanupRef.current = cleanup
+          window.addEventListener('mousemove', onMouseMove)
+          window.addEventListener('mouseup', onMouseUp)
+        }}
+      />
     </div>
   )
 }

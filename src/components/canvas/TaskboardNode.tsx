@@ -121,7 +121,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   }, [])
 
   return (
-    <div ref={setDropRef} className={`${styles.node} ${isOver ? styles.dropTarget : ''}`} style={{ width, height: isCollapsed ? undefined : height }}>
+    <div ref={setDropRef} className={`${styles.node} ${isOver ? styles.dropTarget : ''}`} style={{ width }}>
       <div className={styles.titleBar}>
         <button className={`${styles.collapseButton} ${isCollapsed ? styles.collapsed : ''}`} onClick={onToggleCollapse}>&#9662;</button>
         <span className={styles.icon}>&#9776;</span>
@@ -157,46 +157,39 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         )}
       </div>
 
-      {!isCollapsed && (
-        <div
-          className={`${styles.resizeHandle} nopan nodrag`}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            const startX = e.clientX
-            const startY = e.clientY
-            const startW = width
-            const startH = height
-            const zoom = getZoom()
-            const nodeEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
-            const nodeDiv = nodeEl?.querySelector('.' + styles.node) as HTMLElement | null
+      <div
+        className={`${styles.resizeHandle} nopan nodrag`}
+        onMouseDown={(e) => {
+          e.stopPropagation()
+          const startX = e.clientX
+          const startW = width
+          const zoom = getZoom()
+          const nodeEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+          const nodeDiv = nodeEl?.querySelector('.' + styles.node) as HTMLElement | null
 
-            const onMouseMove = (ev: MouseEvent) => {
-              const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
-              const newH = Math.max(120, startH + (ev.clientY - startY) / zoom)
-              if (nodeDiv) {
-                nodeDiv.style.width = `${newW}px`
-                nodeDiv.style.height = `${newH}px`
-              }
+          const onMouseMove = (ev: MouseEvent) => {
+            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+            if (nodeDiv) {
+              nodeDiv.style.width = `${newW}px`
             }
+          }
 
-            const onMouseUp = (ev: MouseEvent) => {
-              const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
-              const newH = Math.max(120, startH + (ev.clientY - startY) / zoom)
-              onResize?.(newW, newH)
-              cleanup()
-            }
+          const onMouseUp = (ev: MouseEvent) => {
+            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+            onResize?.(newW, height)
+            cleanup()
+          }
 
-            const cleanup = () => {
-              window.removeEventListener('mousemove', onMouseMove)
-              window.removeEventListener('mouseup', onMouseUp)
-              resizeCleanupRef.current = null
-            }
-            resizeCleanupRef.current = cleanup
-            window.addEventListener('mousemove', onMouseMove)
-            window.addEventListener('mouseup', onMouseUp)
-          }}
-        />
-      )}
+          const cleanup = () => {
+            window.removeEventListener('mousemove', onMouseMove)
+            window.removeEventListener('mouseup', onMouseUp)
+            resizeCleanupRef.current = null
+          }
+          resizeCleanupRef.current = cleanup
+          window.addEventListener('mousemove', onMouseMove)
+          window.addEventListener('mouseup', onMouseUp)
+        }}
+      />
     </div>
   )
 }
