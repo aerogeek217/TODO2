@@ -1,4 +1,4 @@
-import { undoable } from '../services/undoable'
+import { optimistic, type SetFn } from './store-helpers'
 
 /**
  * Factory that generates assign/unassign/bulk assignment actions for
@@ -31,6 +31,7 @@ export function createAssignmentActions<T extends { id?: number }>(
   getEntities: () => T[],
   getMap: () => Map<number, T[]>,
   setMap: (map: Map<number, T[]>) => void,
+  set: SetFn,
 ): AssignmentActions {
   const { repo, label, getName } = config
 
@@ -61,36 +62,49 @@ export function createAssignmentActions<T extends { id?: number }>(
     },
 
     async assign(todoId: number, entityId: number) {
-      // Repo handles idempotency check
-      await repo.assign(todoId, entityId)
       const entity = getEntities().find((e) => e.id === entityId)
-      if (entity) {
-        const current = getMap().get(todoId) ?? []
-        if (!current.some((e) => e.id === entityId)) {
+      if (!entity) return
+      const current = getMap().get(todoId) ?? []
+      if (current.some((e) => e.id === entityId)) return
+
+      const prevMap = new Map(getMap())
+      return optimistic(
+        set,
+        () => {
           const updated = new Map(getMap())
           updated.set(todoId, [...current, entity])
           setMap(updated)
-        }
-      }
-      undoable(
-        `Assign ${label} "${entity ? getName(entity) : label}"`,
-        () => actions.assign(todoId, entityId),
-        () => actions.unassign(todoId, entityId),
+        },
+        () => repo.assign(todoId, entityId),
+        () => setMap(prevMap),
+        `Failed to assign ${label}`,
+        {
+          description: `Assign ${label} "${getName(entity)}"`,
+          redo: () => actions.assign(todoId, entityId),
+          undo: () => actions.unassign(todoId, entityId),
+        },
       )
     },
 
     async unassign(todoId: number, entityId: number) {
       const entity = getEntities().find((e) => e.id === entityId)
-      await repo.unassign(todoId, entityId)
-      const current = getMap().get(todoId) ?? []
-      const updated = new Map(getMap())
-      updated.set(todoId, current.filter((e) => e.id !== entityId))
-      setMap(updated)
-
-      undoable(
-        `Unassign ${label} "${entity ? getName(entity) : label}"`,
-        () => actions.unassign(todoId, entityId),
-        () => actions.assign(todoId, entityId),
+      const prevMap = new Map(getMap())
+      return optimistic(
+        set,
+        () => {
+          const current = getMap().get(todoId) ?? []
+          const updated = new Map(getMap())
+          updated.set(todoId, current.filter((e) => e.id !== entityId))
+          setMap(updated)
+        },
+        () => repo.unassign(todoId, entityId),
+        () => setMap(prevMap),
+        `Failed to unassign ${label}`,
+        {
+          description: `Unassign ${label} "${entity ? getName(entity) : label}"`,
+          redo: () => actions.unassign(todoId, entityId),
+          undo: () => actions.assign(todoId, entityId),
+        },
       )
     },
 
@@ -105,21 +119,28 @@ export function createAssignmentActions<T extends { id?: number }>(
           toAssign.push(todoId)
         }
       }
-      await Promise.all(toAssign.map((id) => repo.assign(id, entityId)))
-      const updated = new Map(getMap())
-      for (const todoId of toAssign) {
-        const current = updated.get(todoId) ?? []
-        updated.set(todoId, [...current, entity])
-      }
-      setMap(updated)
+      if (toAssign.length === 0) return
 
-      if (toAssign.length > 0) {
-        undoable(
-          `Assign "${getName(entity)}" to ${toAssign.length} tasks`,
-          () => actions.bulkAssign(todoIds, entityId),
-          () => actions.bulkUnassign(toAssign, entityId),
-        )
-      }
+      const prevMap = new Map(map)
+      return optimistic(
+        set,
+        () => {
+          const updated = new Map(getMap())
+          for (const todoId of toAssign) {
+            const current = updated.get(todoId) ?? []
+            updated.set(todoId, [...current, entity])
+          }
+          setMap(updated)
+        },
+        () => Promise.all(toAssign.map((id) => repo.assign(id, entityId))).then(() => {}),
+        () => setMap(prevMap),
+        `Failed to assign ${label}`,
+        {
+          description: `Assign "${getName(entity)}" to ${toAssign.length} tasks`,
+          redo: () => actions.bulkAssign(todoIds, entityId),
+          undo: () => actions.bulkUnassign(toAssign, entityId),
+        },
+      )
     },
 
     async bulkUnassign(todoIds: number[], entityId: number) {
@@ -132,21 +153,28 @@ export function createAssignmentActions<T extends { id?: number }>(
           toUnassign.push(todoId)
         }
       }
-      await Promise.all(toUnassign.map((id) => repo.unassign(id, entityId)))
-      const updated = new Map(getMap())
-      for (const todoId of toUnassign) {
-        const current = updated.get(todoId) ?? []
-        updated.set(todoId, current.filter((e) => e.id !== entityId))
-      }
-      setMap(updated)
+      if (toUnassign.length === 0) return
 
-      if (toUnassign.length > 0) {
-        undoable(
-          `Unassign "${entity ? getName(entity) : label}" from ${toUnassign.length} tasks`,
-          () => actions.bulkUnassign(todoIds, entityId),
-          () => actions.bulkAssign(toUnassign, entityId),
-        )
-      }
+      const prevMap = new Map(map)
+      return optimistic(
+        set,
+        () => {
+          const updated = new Map(getMap())
+          for (const todoId of toUnassign) {
+            const current = updated.get(todoId) ?? []
+            updated.set(todoId, current.filter((e) => e.id !== entityId))
+          }
+          setMap(updated)
+        },
+        () => Promise.all(toUnassign.map((id) => repo.unassign(id, entityId))).then(() => {}),
+        () => setMap(prevMap),
+        `Failed to unassign ${label}`,
+        {
+          description: `Unassign "${entity ? getName(entity) : label}" from ${toUnassign.length} tasks`,
+          redo: () => actions.bulkUnassign(todoIds, entityId),
+          undo: () => actions.bulkAssign(toUnassign, entityId),
+        },
+      )
     },
   }
 

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Tag } from '../models'
 import { db, tagRepository } from '../data'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 
@@ -37,6 +37,7 @@ export const useTagStore = create<TagState>((set, get) => {
     () => get().tags,
     () => get().assignedTagsMap,
     (map) => set({ assignedTagsMap: map }),
+    set,
   )
 
   return {
@@ -57,11 +58,18 @@ export const useTagStore = create<TagState>((set, get) => {
     },
 
     async update(tag: Tag) {
-      await tagRepository.update(tag)
-      set({
-        tags: get().tags.map((t) => (t.id === tag.id ? { ...tag } : t)),
-        assignedTagsMap: updateEntityInMap(tag, get().assignedTagsMap),
-      })
+      const prevTags = get().tags
+      const prevMap = get().assignedTagsMap
+      return optimistic(
+        set,
+        () => set({
+          tags: prevTags.map((t) => (t.id === tag.id ? { ...tag } : t)),
+          assignedTagsMap: updateEntityInMap(tag, prevMap),
+        }),
+        () => tagRepository.update(tag),
+        () => set({ tags: prevTags, assignedTagsMap: prevMap }),
+        'Failed to update tag',
+      )
     },
 
     async remove(id: number) {

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { taskboardRepository } from '../data/taskboard-repository'
 import type { TaskboardEntry } from '../models'
-import { mutate } from './store-helpers'
+import { mutate, optimistic } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface TaskboardState {
@@ -58,43 +58,50 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
   async remove(todoId: number) {
     const entry = get().entries.find(e => e.todoId === todoId)
     if (!entry) return
+    const prevEntries = get().entries
 
-    await mutate(set, async () => {
-      await taskboardRepository.removeByTodoId(todoId)
-      set({ entries: get().entries.filter(e => e.todoId !== todoId) })
-
-      undoable(
-        'Remove from taskboard',
-        () => get().remove(todoId),
-        async () => {
+    return optimistic(
+      set,
+      () => set({ entries: prevEntries.filter(e => e.todoId !== todoId) }),
+      () => taskboardRepository.removeByTodoId(todoId),
+      () => set({ entries: prevEntries }),
+      'Failed to remove from taskboard',
+      {
+        description: 'Remove from taskboard',
+        redo: () => get().remove(todoId),
+        undo: async () => {
           await taskboardRepository.insert({ todoId: entry.todoId, sortOrder: entry.sortOrder })
           const entries = await taskboardRepository.getAll()
           set({ entries })
         },
-        true,
-      )
-    }, 'Failed to remove from taskboard')
+        showSnackbar: true,
+      },
+    )
   },
 
   async clear() {
     const prev = get().entries
     if (prev.length === 0) return
 
-    await mutate(set, async () => {
-      for (const e of prev) await taskboardRepository.removeByTodoId(e.todoId)
-      set({ entries: [] })
-
-      undoable(
-        'Clear taskboard',
-        () => get().clear(),
-        async () => {
+    return optimistic(
+      set,
+      () => set({ entries: [] }),
+      async () => {
+        for (const e of prev) await taskboardRepository.removeByTodoId(e.todoId)
+      },
+      () => set({ entries: prev }),
+      'Failed to clear taskboard',
+      {
+        description: 'Clear taskboard',
+        redo: () => get().clear(),
+        undo: async () => {
           for (const e of prev) await taskboardRepository.insert({ todoId: e.todoId, sortOrder: e.sortOrder })
           const entries = await taskboardRepository.getAll()
           set({ entries })
         },
-        true,
-      )
-    }, 'Failed to clear taskboard')
+        showSnackbar: true,
+      },
+    )
   },
 
   has(todoId: number) {
@@ -102,17 +109,20 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
   },
 
   async reorder(fromIndex: number, toIndex: number) {
-    const entries = [...get().entries]
+    const prevEntries = get().entries
+    const entries = [...prevEntries]
     const [moved] = entries.splice(fromIndex, 1)
     entries.splice(toIndex, 0, moved)
-
     const updated = entries.map((e, i) => ({ ...e, sortOrder: (i + 1) * 1000 }))
-    set({ entries: updated })
 
-    await mutate(set, async () => {
-      await taskboardRepository.reorder(
+    return optimistic(
+      set,
+      () => set({ entries: updated }),
+      () => taskboardRepository.reorder(
         updated.map(e => ({ id: e.id!, sortOrder: e.sortOrder }))
-      )
-    }, 'Failed to reorder taskboard')
+      ),
+      () => set({ entries: prevEntries }),
+      'Failed to reorder taskboard',
+    )
   },
 }))

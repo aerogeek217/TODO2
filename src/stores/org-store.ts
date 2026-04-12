@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Org } from '../models'
 import { db, orgRepository } from '../data'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 
@@ -41,6 +41,7 @@ export const useOrgStore = create<OrgState>((set, get) => {
     () => get().orgs,
     () => get().assignedOrgsMap,
     (map) => set({ assignedOrgsMap: map }),
+    set,
   )
 
   return {
@@ -68,11 +69,18 @@ export const useOrgStore = create<OrgState>((set, get) => {
     },
 
     async update(org: Org) {
-      await orgRepository.update(org)
-      set({
-        orgs: get().orgs.map((o) => (o.id === org.id ? { ...org } : o)),
-        assignedOrgsMap: updateEntityInMap(org, get().assignedOrgsMap),
-      })
+      const prevOrgs = get().orgs
+      const prevMap = get().assignedOrgsMap
+      return optimistic(
+        set,
+        () => set({
+          orgs: prevOrgs.map((o) => (o.id === org.id ? { ...org } : o)),
+          assignedOrgsMap: updateEntityInMap(org, prevMap),
+        }),
+        () => orgRepository.update(org),
+        () => set({ orgs: prevOrgs, assignedOrgsMap: prevMap }),
+        'Failed to update org',
+      )
     },
 
     async remove(id: number) {

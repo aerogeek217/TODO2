@@ -16,7 +16,7 @@ import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
 import { undoable } from '../services/undoable'
 
-type SetFn = (partial: Record<string, unknown>) => void
+export type SetFn = (partial: Record<string, unknown>) => void
 
 /**
  * DUP-1: Execute a data-fetching function with loading/error state management.

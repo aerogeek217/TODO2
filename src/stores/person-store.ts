@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Person } from '../models'
 import { db, personRepository } from '../data'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface PersonState {
@@ -37,6 +37,7 @@ export const usePersonStore = create<PersonState>((set, get) => {
     () => get().people,
     () => get().assignedPeopleMap,
     (map) => set({ assignedPeopleMap: map }),
+    set,
   )
 
   return {
@@ -57,11 +58,18 @@ export const usePersonStore = create<PersonState>((set, get) => {
     },
 
     async update(person: Person) {
-      await personRepository.update(person)
-      set({
-        people: get().people.map((p) => (p.id === person.id ? { ...person } : p)),
-        assignedPeopleMap: updateEntityInMap(person, get().assignedPeopleMap),
-      })
+      const prevPeople = get().people
+      const prevMap = get().assignedPeopleMap
+      return optimistic(
+        set,
+        () => set({
+          people: prevPeople.map((p) => (p.id === person.id ? { ...person } : p)),
+          assignedPeopleMap: updateEntityInMap(person, prevMap),
+        }),
+        () => personRepository.update(person),
+        () => set({ people: prevPeople, assignedPeopleMap: prevMap }),
+        'Failed to update person',
+      )
     },
 
     async remove(id: number) {
