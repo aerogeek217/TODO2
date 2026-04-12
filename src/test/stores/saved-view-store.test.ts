@@ -13,6 +13,7 @@ const defaultFilters: FilterCriteria = {
   personIds: null,
   tagIds: null,
   orgIds: null,
+  statusIds: null,
   searchText: '',
   dateField: 'due',
   dateRangeStart: null,

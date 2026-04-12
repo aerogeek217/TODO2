@@ -1,5 +1,5 @@
 import { Priority } from '../models/priority'
-import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -117,6 +117,16 @@ function checkTodo(v: unknown): CheckResult {
     ['projectId', isOptNum(v.projectId)],
     ['canvasId', isOptNum(v.canvasId)],
     ['parentId', isOptNum(v.parentId)],
+    ['statusId', isOptNum(v.statusId)],
+    ['sortOrder', isFiniteNum(v.sortOrder)],
+  ])
+}
+
+function checkStatus(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['name', isStr(v.name, 200)],
+    ['color', isValidCssColor(v.color)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
   ])
 }
@@ -214,7 +224,7 @@ function checkPersonOrg(v: unknown): CheckResult {
   ])
 }
 
-const VALID_SORT_BY = ['priority', 'due', 'people', 'tag', 'project', 'org']
+const VALID_SORT_BY = ['priority', 'due', 'people', 'tag', 'project', 'org', 'status']
 const VALID_DATE_FIELDS = ['due', 'created', 'modified']
 
 function isOptNullableIntArray(v: unknown): boolean {
@@ -238,6 +248,7 @@ function checkSavedViewFilters(v: unknown): CheckResult {
     ['personIds', isOptNullableIntArray(v.personIds)],
     ['tagIds', isOptNullableIntArray(v.tagIds)],
     ['orgIds', isOptNullableIntArray(v.orgIds)],
+    ['statusIds', isOptNullableIntArray(v.statusIds)],
     ['dateField', v.dateField === undefined || (typeof v.dateField === 'string' && VALID_DATE_FIELDS.includes(v.dateField))],
     ['dateRangeStart', isOptDateLike(v.dateRangeStart)],
     ['dateRangeEnd', isOptDateLike(v.dateRangeEnd)],
@@ -281,7 +292,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'completedRetentionDays', 'canvasViewport']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'completedRetentionDays', 'canvasViewport']
 
 function isValidSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
@@ -298,6 +309,10 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === 'defaultProjectId') {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : 'value (defaultProjectId must be numeric)'
+  }
+  if (v.key === 'defaultStatusId') {
+    const n = Number(v.value)
+    return Number.isFinite(n) ? true : 'value (defaultStatusId must be numeric)'
   }
   if (v.key === 'completedRetentionDays') {
     const n = Number(v.value)
@@ -336,7 +351,12 @@ function pickTodo(v: Record<string, unknown>): TodoItem {
     ...(v.projectId != null ? { projectId: v.projectId as number } : {}),
     ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
     ...(v.parentId != null ? { parentId: v.parentId as number } : {}),
+    ...(v.statusId != null ? { statusId: v.statusId as number } : {}),
   }
+}
+
+function pickStatus(v: Record<string, unknown>): Status {
+  return { id: v.id as number | undefined, name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number }
 }
 
 function pickPerson(v: Record<string, unknown>): Person {
@@ -417,6 +437,7 @@ function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] 
     personIds: v.personIds as number[] | null,
     tagIds: v.tagIds as number[] | null,
     orgIds: v.orgIds as number[] | null,
+    ...(v.statusIds !== undefined ? { statusIds: v.statusIds as number[] | null } : {}),
     dateRangeIncludeNoDue: (v.dateRangeIncludeNoDue as boolean) ?? false,
     ...(v.dateField !== undefined ? { dateField: v.dateField as SavedView['filters']['dateField'] } : {}),
     ...(v.dateRangeStart !== undefined ? { dateRangeStart: v.dateRangeStart as string | null } : {}),
@@ -465,6 +486,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'savedViews', check: checkSavedView },
   { key: 'stickyNotes', check: checkStickyNote },
   { key: 'taskboardEntries', check: checkTaskboardEntry },
+  { key: 'statuses', check: checkStatus },
 ]
 
 export interface ImportData {
@@ -483,6 +505,7 @@ export interface ImportData {
   savedViews: SavedView[]
   stickyNotes: StickyNote[]
   taskboardEntries: TaskboardEntry[]
+  statuses: Status[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -555,6 +578,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       savedViews: ((raw.savedViews ?? []) as Record<string, unknown>[]).map(pickSavedView),
       stickyNotes: ((raw.stickyNotes ?? []) as Record<string, unknown>[]).map(pickStickyNote),
       taskboardEntries: ((raw.taskboardEntries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
+      statuses: ((raw.statuses ?? []) as Record<string, unknown>[]).map(pickStatus),
     },
   }
 }

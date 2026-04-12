@@ -11,6 +11,7 @@ import { useOrgStore } from './org-store'
 import { useSavedViewStore } from './saved-view-store'
 import { useStickyNoteStore } from './sticky-note-store'
 import { useTaskboardStore } from './taskboard-store'
+import { useStatusStore } from './status-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
 
@@ -27,6 +28,7 @@ async function refreshAllStores() {
     useTagStore.getState().load(),
     useOrgStore.getState().load(),
     useOrgStore.getState().loadPersonOrgMap(),
+    useStatusStore.getState().load(),
     useSavedViewStore.getState().load(),
     useTaskboardStore.getState().load(),
     ...(canvasId != null ? [

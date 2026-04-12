@@ -18,6 +18,8 @@ export interface FilterCriteria {
   tagIds: Set<number> | null
   /** null = no filter; Set = only people in these orgs are shown */
   orgIds: Set<number> | null
+  /** null = no filter; Set = only those statuses shown (0 = no status) */
+  statusIds: Set<number> | null
   /** Empty string = no filter; non-empty = case-insensitive substring match on title */
   searchText: string
   /** Which date field to filter on: due, created, or modified */
@@ -43,6 +45,7 @@ interface FilterState {
   setPersonIds: (personIds: Set<number> | null) => void
   setTagIds: (tagIds: Set<number> | null) => void
   setOrgIds: (orgIds: Set<number> | null) => void
+  setStatusIds: (statusIds: Set<number> | null) => void
   setSearchText: (text: string) => void
   setDateField: (field: DateField) => void
   setDateRange: (start: Date | null, end: Date | null) => void
@@ -62,6 +65,7 @@ const defaultFilters: FilterCriteria = {
   personIds: null,
   tagIds: null,
   orgIds: null,
+  statusIds: null,
   searchText: '',
   dateField: 'due',
   dateRangeStart: null,
@@ -70,7 +74,7 @@ const defaultFilters: FilterCriteria = {
 }
 
 function isFilterActive(f: FilterCriteria): boolean {
-  return f.priorities !== null || f.showCompleted || f.showAssigned || f.starredOnly || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
+  return f.priorities !== null || f.showCompleted || f.showAssigned || f.starredOnly || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
 }
 
 function todoMatchesFilter(
@@ -101,6 +105,12 @@ function todoMatchesFilter(
     if (!hasAssignment) {
       if (!filters.tagIds.has(0)) return false
     } else if (!assignedTagIds.some((id) => filters.tagIds!.has(id))) return false
+  }
+  if (filters.statusIds !== null) {
+    const hasStatus = todo.statusId != null
+    if (!hasStatus) {
+      if (!filters.statusIds.has(0)) return false
+    } else if (!filters.statusIds.has(todo.statusId!)) return false
   }
   if (filters.orgIds !== null) {
     const hasPersonOrg = assignedPersonOrgIds && assignedPersonOrgIds.length > 0
@@ -178,6 +188,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setOrgIds(orgIds: Set<number> | null) {
     commit(set, { ...get().filters, orgIds })
+  },
+
+  setStatusIds(statusIds: Set<number> | null) {
+    commit(set, { ...get().filters, statusIds })
   },
 
   setSearchText(searchText: string) {

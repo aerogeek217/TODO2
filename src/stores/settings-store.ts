@@ -27,6 +27,7 @@ interface SettingsState {
   colors: ThemeColors
   themeMode: ThemeMode
   defaultProjectId: number | null
+  defaultStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   canvasViewport: CanvasViewport | null
 
@@ -35,6 +36,7 @@ interface SettingsState {
   resetColors: () => Promise<void>
   setThemeMode: (mode: ThemeMode) => Promise<void>
   setDefaultProjectId: (id: number | null) => Promise<void>
+  setDefaultStatusId: (id: number | null) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setCanvasViewport: (vp: CanvasViewport) => void
 }
@@ -142,6 +144,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: { ...defaultColors },
   themeMode: 'dark' as ThemeMode,
   defaultProjectId: null,
+  defaultStatusId: null,
   completedRetentionDays: null,
   canvasViewport: null,
 
@@ -151,6 +154,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const colors = { ...defaultColors }
       const customKeys = new Set<string>()
       let defaultProjectId: number | null = null
+      let defaultStatusId: number | null = null
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
       let canvasViewport: CanvasViewport | null = null
@@ -163,6 +167,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           }
         } else if (row.key === 'defaultProjectId') {
           defaultProjectId = row.value ? Number(row.value) : null
+        } else if (row.key === 'defaultStatusId') {
+          defaultStatusId = row.value ? Number(row.value) : null
         } else if (row.key === 'completedRetentionDays') {
           const parsed = row.value ? Number(row.value) : null
           completedRetentionDays = parsed != null && isValidRetentionDays(parsed) ? parsed : null
@@ -178,7 +184,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultProjectId, completedRetentionDays, themeMode, canvasViewport })
+      set({ colors, defaultProjectId, defaultStatusId, completedRetentionDays, themeMode, canvasViewport })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -218,6 +224,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await settingsRepository.put('defaultProjectId', String(id))
     }
     set({ defaultProjectId: id })
+  },
+
+  async setDefaultStatusId(id: number | null) {
+    if (id == null) {
+      await settingsRepository.delete('defaultStatusId')
+    } else {
+      await settingsRepository.put('defaultStatusId', String(id))
+    }
+    set({ defaultStatusId: id })
   },
 
   async setCompletedRetentionDays(days: number | null) {

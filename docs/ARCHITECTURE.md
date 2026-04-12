@@ -19,14 +19,14 @@ main.tsx (entry point)
 │   ├── DashboardView      → Top 10 lists (Mine/Follow-up/Assigned/Stale) ranked by importance score + Taskboard
 │   ├── ListView           → Unified list with sort-by grouping (Priority/Due/People/Tag/Project), saved views, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
-│   └── SettingsPage       → Compact hub: theme toggle (light/dark/system), manage buttons open modals; task defaults, database location, import/export
+│   └── SettingsPage       → Compact hub: theme toggle (light/dark/system), manage buttons open modals; task defaults (project, status), database location, import/export
 ├── components/
 │   ├── layout/            → Sidebar (vertical icon nav), TopBar (filter bar + search + storage status), FileSyncBanner, BottomTabBar (mobile)
 │   ├── task/              → TaskRow, TaskList, TaskEditPopup, MobileTaskRow
 │   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, StickyNoteNode, SortableTaskList, ProjectNavigator, alignment
 │   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node with sortable reorder)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
-│   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, ThemeColorsEditor, KeyboardShortcutsModal
+│   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, StatusEditor, ThemeColorsEditor, KeyboardShortcutsModal
 │   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, FollowupIcon, selection.module.css, dropdown.module.css
 ├── stores/                → Zustand (canvas, todo, project, person, tag, org, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view)
 ├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, settings, saved-view, sticky-note)
@@ -42,7 +42,7 @@ main.tsx (entry point)
 |-------------|----------|---------|
 | Canvas | models/canvas.ts | Named spatial workspace |
 | Project | models/project.ts | Positioned group of tasks on a canvas (optional color) |
-| TodoItem | models/todo-item.ts | Core todo entry (id optional, pre-insert); includes optional `progress`, `isHardDeadline`, `isAssigned`, and `recurrenceRule` fields |
+| TodoItem | models/todo-item.ts | Core todo entry (id optional, pre-insert); includes optional `progress`, `statusId`, `isHardDeadline`, `isAssigned`, and `recurrenceRule` fields |
 | RecurrenceRule | models/recurrence.ts | Recurrence pattern: type (daily/weekly/biweekly/monthly/quarterly/yearly), optional originalDayOfMonth to prevent drift |
 | PersistedTodoItem | models/todo-item.ts | TodoItem with guaranteed id (post-insert) |
 | Person | models/person.ts | Assignable person with name, initials, color |
@@ -53,9 +53,11 @@ main.tsx (entry point)
 | TodoTag | models/todo-tag.ts | Many-to-many join: todo ↔ tag |
 | TodoPerson | models/todo-person.ts | Many-to-many join: todo ↔ person |
 | TodoOrg | models/todo-org.ts | Many-to-many join: todo ↔ org (direct org assignment) |
+| Status | models/status.ts | User-defined workflow state with name, color, and sortOrder |
+| PersistedStatus | models/status.ts | Status with guaranteed id (post-insert) |
 | Priority | models/priority.ts | Enum: Normal, Medium, High |
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
-| ListSortBy | models/app-view.ts | Type: priority, due, people, org, tag, project |
+| ListSortBy | models/app-view.ts | Type: priority, due, people, org, tag, project, status |
 | DateField | models/app-view.ts | Type: due, created, modified — used by filter store and saved views |
 | ListInset | models/list-inset.ts | Filtered task list widget on canvas (preset: due-this-week, starred, high-priority; or attributeFilter: priority/person/tag/org) |
 | ListInsetAttributeFilter | models/list-inset.ts | Attribute-based filter for list insets: priority, person, tag, or org |
@@ -63,7 +65,7 @@ main.tsx (entry point)
 | TaskboardEntry | models/taskboard-entry.ts | Ordered task queue entry (todoId, sortOrder) for next-up work tracking |
 | Backup | models/backup.ts | Auto-snapshot record: trigger type, serialized data, size |
 | SavedView | models/saved-view.ts | Named saved list view: sortBy + serializable filter snapshot (including dateRangeStart/End) |
-| Todo2Database | data/database.ts | Dexie DB class with schema (v16 base + v17/v18 incremental; v1-v15 collapsed) |
+| Todo2Database | data/database.ts | Dexie DB class with schema (v16 base + v17/v18/v19 incremental; v1-v15 collapsed) |
 | ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks |
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
@@ -77,6 +79,7 @@ main.tsx (entry point)
 | listInsetRepository | data/list-inset-repository.ts | CRUD for ListInset (position, resize) |
 | stickyNoteRepository | data/sticky-note-repository.ts | CRUD for StickyNote (position, text, color) |
 | taskboardRepository | data/taskboard-repository.ts | CRUD for TaskboardEntry (add, remove by todoId, reorder) |
+| statusRepository | data/status-repository.ts | CRUD for Status (transactional cascade delete clears statusId from todos) |
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | savedViewRepository | data/saved-view-repository.ts | CRUD for SavedView (getAll, add, update, remove) |
 | backupRepository | data/backup-repository.ts | Snapshot CRUD: createSnapshot, listSnapshots (lightweight), restoreSnapshot (validates + imports), pruneSnapshots |
@@ -99,12 +102,13 @@ main.tsx (entry point)
 | usePersonStore | stores/person-store.ts | People list, CRUD, todo-person assignments, bulk assign/unassign |
 | useOrgStore | stores/org-store.ts | Orgs list, CRUD, assignedOrgsMap, personOrgMap (centralized person↔org membership), todo-org assignments (assign/unassign/bulk with undo) |
 | useTagStore | stores/tag-store.ts | Tags list, CRUD, bulk assign/unassign |
-| useFilterStore | stores/filter-store.ts | Filter criteria (priorities, personIds, tagIds, orgIds as null\|Set; showCompleted, showAssigned, starredOnly, hardDeadlineOnly, searchText, dateField (due/created/modified), dateRangeStart/End, dateRangeIncludeNoDue), displayed in TopBar filter bar |
+| useFilterStore | stores/filter-store.ts | Filter criteria (priorities, personIds, tagIds, orgIds, statusIds as null\|Set; showCompleted, showAssigned, starredOnly, hardDeadlineOnly, searchText, dateField (due/created/modified), dateRangeStart/End, dateRangeIncludeNoDue), displayed in TopBar filter bar |
 | useUIStore | stores/ui-store.ts | Active view, selected task(s), multi-selection (selectedTodoIds Set, selectionAnchorId, selectionFocusId, focusedTodoId, rangeSelectTodo, selectAll), edit popup mode, parent collapse, bulk confirmation dialog state, inlineCreateAfterId (Insert hotkey), clipboard (clipboardTodoIds, clipboardSourceProjectId, cutTasks, clearClipboard), filteredListPopup (AttributeFilter: priority/person/tag), pendingCanvasTarget (command palette navigation) |
 | useUndoStore | stores/undo-store.ts | Undo/redo stacks (max 50), push/undo/redo/clear, isPerformingUndoRedo guard, beginGroup/endGroup (compound ops), snackbar state with auto-dismiss |
 | useSettingsStore | stores/settings-store.ts | Theme mode (light/dark/system), theme color overrides, defaultProjectId, completedRetentionDays, canvasViewport (single source of truth, debounced persistence); persisted to settings table; only user-customized colors set as inline overrides |
 | useListInsetStore | stores/list-inset-store.ts | List inset widgets CRUD, position, addFiltered (attribute-based insets) |
 | useStickyNoteStore | stores/sticky-note-store.ts | Sticky notes CRUD, position, title, text, color (default yellow #FFF3B0) |
+| useStatusStore | stores/status-store.ts | Status definitions: load, add, update, remove (cascade delete clears todos + default setting, with undo) |
 | useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, remove, clear, has, reorder with undo support |
 | useSavedViewStore | stores/saved-view-store.ts | Saved list views CRUD: save, rename, remove, apply (restores filters + grouping) |
 | TaskEditPopup | components/task/TaskEditPopup.tsx | Centered modal for editing/creating tasks; project selector in create/edit mode (replaced TaskDetailPanel + QuickAddPopup) |
@@ -139,7 +143,7 @@ main.tsx (entry point)
 | UndoSnackbar | components/overlays/UndoSnackbar.tsx | Bottom-center toast after destructive actions with "Undo" button, auto-dismiss 5s |
 | Sidebar | components/layout/Sidebar.tsx | Desktop vertical icon sidebar: Canvas (grid), List (lines), Calendar (calendar) at top, Settings (gear) at bottom; hidden on mobile |
 | BottomTabBar | components/layout/BottomTabBar.tsx | Mobile bottom tab navigation (List, Filters, Settings); shows filter active indicator dot |
-| FilterSheet | components/overlays/FilterSheet.tsx | Mobile filter bottom sheet: search, priority, date range, toggles, people/orgs/tags accordion lists; reads/writes useFilterStore |
+| FilterSheet | components/overlays/FilterSheet.tsx | Mobile filter bottom sheet: search, priority, date range, toggles, people/orgs/tags/statuses accordion lists; reads/writes useFilterStore |
 | MobileTaskRow | components/task/MobileTaskRow.tsx | Mobile-optimized two-line task row: priority + checkbox + title + star + chevron (line 1), due/people/tags/org/notes (line 2); 48px min touch targets |
 | CanvasContextMenu | components/overlays/CanvasContextMenu.tsx | Reusable right-click context menu (canvas background, project, box) |
 | ListInsetNode | components/canvas/ListInsetNode.tsx | Canvas node showing filtered task list (preset: due-this-week, starred, high-priority); draggable TaskRow components (drag to taskboard) |
@@ -187,8 +191,8 @@ main.tsx (entry point)
 | Directory | Contents | Key Files |
 |-----------|----------|-----------|
 | src/models/ | TypeScript interfaces + enums | todo-item.ts, project.ts, canvas.ts, person.ts, tag.ts, todo-tag.ts, todo-person.ts, priority.ts, app-view.ts |
-| src/data/ | Persistence layer (Dexie/IndexedDB) | database.ts, todo-repository.ts, project-repository.ts, canvas-repository.ts, list-inset-repository.ts, person-repository.ts, tag-repository.ts, settings-repository.ts, backup-repository.ts, import-validation.ts |
-| src/stores/ | Zustand state management | todo-store.ts, canvas-store.ts, project-store.ts, list-inset-store.ts, person-store.ts, tag-store.ts, ui-store.ts, filter-store.ts, file-storage-store.ts, undo-store.ts |
+| src/data/ | Persistence layer (Dexie/IndexedDB) | database.ts, todo-repository.ts, project-repository.ts, canvas-repository.ts, list-inset-repository.ts, person-repository.ts, tag-repository.ts, status-repository.ts, settings-repository.ts, backup-repository.ts, import-validation.ts |
+| src/stores/ | Zustand state management | todo-store.ts, canvas-store.ts, project-store.ts, list-inset-store.ts, person-store.ts, tag-store.ts, status-store.ts, ui-store.ts, filter-store.ts, file-storage-store.ts, undo-store.ts |
 | src/styles/ | CSS design tokens | tokens.css |
 | src/views/ | Route-level page components | CanvasPage.tsx, ListView.tsx, SettingsPage.tsx |
 | src/components/ | Reusable UI components | layout/, task/, canvas/, overlays/, settings/, shared/ |

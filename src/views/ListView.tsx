@@ -15,6 +15,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useProjectStore } from '../stores/project-store'
 import { useOrgStore } from '../stores/org-store'
+import { useStatusStore } from '../stores/status-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore } from '../stores/filter-store'
 import { useSavedViewStore, savedFiltersToRuntime } from '../stores/saved-view-store'
@@ -27,7 +28,7 @@ import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopup'
 import { Priority } from '../models'
-import type { PersistedTodoItem, Person, Tag, Project, Org, ListSortBy } from '../models'
+import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy } from '../models'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import styles from './ListView.module.css'
@@ -46,6 +47,7 @@ const sortByOptions: { value: ListSortBy; label: string }[] = [
   { value: 'org', label: 'Org' },
   { value: 'tag', label: 'Tag' },
   { value: 'project', label: 'Project' },
+  { value: 'status', label: 'Status' },
 ]
 
 
@@ -270,6 +272,33 @@ export function buildOrgSections(
   return sections
 }
 
+export function buildStatusSections(
+  todos: PersistedTodoItem[],
+  statuses: Status[],
+): Section[] {
+  const sections: Section[] = []
+  const statusMap = new Map(statuses.map(s => [s.id!, s]))
+  const sorted = [...statuses].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+
+  for (const status of sorted) {
+    const statusTodos = todos.filter(t => t.statusId === status.id)
+    if (statusTodos.length > 0) {
+      sections.push({
+        key: `status-${status.id}`,
+        label: status.name,
+        accentColor: status.color,
+        todos: statusTodos,
+      })
+    }
+  }
+
+  const noStatus = todos.filter(t => !t.statusId || !statusMap.has(t.statusId))
+  if (noStatus.length > 0) {
+    sections.push({ key: 'no-status', label: 'No Status', todos: noStatus })
+  }
+  return sections
+}
+
 export function addGhostParents(sectionTodos: PersistedTodoItem[], allTodos: PersistedTodoItem[]): { todos: PersistedTodoItem[]; ghostIds: Set<number> } {
   const sectionIds = new Set(sectionTodos.map((t) => t.id))
   const allById = new Map(allTodos.map((t) => [t.id, t]))
@@ -359,6 +388,7 @@ export function ListView() {
   const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag, unassignTag } = useTagStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const { statuses, load: loadStatuses } = useStatusStore()
   const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation } = useUIStore()
   const { filters, applyFilter, setAllFilters } = useFilterStore()
   const taskEdit = useTaskEditCallbacks()
@@ -384,8 +414,9 @@ export function ListView() {
     loadTags()
     loadAllProjects()
     loadOrgs()
+    loadStatuses()
     loadSavedViews()
-  }, [loadAll, loadPeople, loadTags, loadAllProjects, loadOrgs, loadSavedViews])
+  }, [loadAll, loadPeople, loadTags, loadAllProjects, loadOrgs, loadStatuses, loadSavedViews])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
@@ -440,8 +471,10 @@ export function ListView() {
         return buildProjectSections(activeTodos, projects)
       case 'org':
         return buildOrgSections(activeTodos, orgs, assignedPeopleMap, assignedOrgsMap, personOrgMap, filters.orgIds)
+      case 'status':
+        return buildStatusSections(activeTodos, statuses)
     }
-  }, [listSortBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, tags, assignedTagsMap, projects, orgs, personOrgMap, filters.orgIds])
+  }, [listSortBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, tags, assignedTagsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
 
   const sectionLabelMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -547,6 +580,11 @@ export function ListView() {
       const fromLabel = sectionLabelMap.get(fromKey) ?? fromKey
       const toLabel = sectionLabelMap.get(toKey) ?? toKey
       setPendingReassign({ todo, fromKey, toKey, fromLabel, toLabel, attribute: 'tag' })
+    } else if (listSortBy === 'status') {
+      const newStatusId = toKey === 'no-status' ? undefined : toKey.startsWith('status-') ? Number(toKey.slice(7)) : null
+      if (newStatusId !== null && newStatusId !== todo.statusId) {
+        updateTodo({ ...todo, statusId: newStatusId, modifiedAt: new Date() })
+      }
     }
     // 'due' — no reassignment (ambiguous target dates)
   }, [listSortBy, sectionLabelMap, updateTodo])

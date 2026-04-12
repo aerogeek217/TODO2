@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Project } from '../models'
+import type { PersistedTodoItem, Project, Status } from '../models'
 import { Priority } from '../models'
 import { startOfToday } from '../utils/date'
 
@@ -21,6 +21,7 @@ export interface CommandContext {
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
   bulkSetStarred: (ids: number[], starred: boolean) => Promise<void>
   bulkSetPriority: (ids: number[], priority: Priority) => Promise<void>
+  bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
   bulkRemove: (ids: number[]) => Promise<void>
   getSelectedIds: () => number[]
   /** Filter actions */
@@ -47,6 +48,8 @@ export interface CommandContext {
   toggleProjectNavigator?: () => void
   /** Open keyboard shortcuts modal */
   openShortcutsModal?: () => void
+  /** Statuses for bulk commands */
+  getStatuses?: () => Status[]
 }
 
 export function createCommands(ctx: CommandContext): Command[] {
@@ -127,6 +130,26 @@ export function createCommands(ctx: CommandContext): Command[] {
       { id: 'bulk-priority-high', name: `Set ${label} Priority: High`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.High) },
       { id: 'bulk-priority-medium', name: `Set ${label} Priority: Medium`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.Medium) },
       { id: 'bulk-priority-normal', name: `Set ${label} Priority: Normal`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.Normal) },
+    )
+    // Bulk status commands
+    const statuses = ctx.getStatuses?.() ?? []
+    for (const status of statuses) {
+      commands.push({
+        id: `bulk-status-${status.id}`,
+        name: `Set ${label} Status: ${status.name}`,
+        category: 'bulk',
+        action: () => ctx.bulkSetStatus(ctx.getSelectedIds(), status.id!),
+      })
+    }
+    if (statuses.length > 0) {
+      commands.push({
+        id: 'bulk-status-clear',
+        name: `Clear Status from ${label}`,
+        category: 'bulk',
+        action: () => ctx.bulkSetStatus(ctx.getSelectedIds(), undefined),
+      })
+    }
+    commands.push(
       { id: 'bulk-delete', name: `Delete ${label}`, category: 'bulk', action: () => ctx.bulkRemove(ctx.getSelectedIds()) },
       { id: 'bulk-cut', name: `Cut ${label}`, shortcut: 'Ctrl+X', category: 'bulk', action: async () => {
         const ids = ctx.getSelectedIds()

@@ -24,6 +24,7 @@ interface TodoState {
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
   bulkSetStarred: (ids: number[], starred: boolean) => Promise<void>
   bulkSetPriority: (ids: number[], priority: Priority) => Promise<void>
+  bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
   bulkSetDueDate: (ids: number[], date: Date | undefined) => Promise<void>
   bulkRemove: (ids: number[]) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
@@ -405,6 +406,10 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     await bulkUpdateField(ids, 'priority', priority, `Set priority on ${ids.length} tasks`, get, set)
   },
 
+  async bulkSetStatus(ids: number[], statusId: number | undefined) {
+    await bulkUpdateField(ids, 'statusId', statusId, `Set status on ${ids.length} tasks`, get, set)
+  },
+
   async bulkSetDueDate(ids: number[], date: Date | undefined) {
     await bulkUpdateField(ids, 'dueDate', date, `Set due date on ${ids.length} tasks`, get, set)
   },
@@ -532,6 +537,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         dueDate: todo.dueDate,
         notes: todo.notes,
         progress: todo.progress,
+        statusId: todo.statusId,
         recurrenceRule: todo.recurrenceRule,
         isHardDeadline: todo.isHardDeadline,
       })

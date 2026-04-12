@@ -38,7 +38,7 @@ export function useTaskEditCallbacks() {
     const id = await addTodo(parsedTitle || partial.title!, selectedCanvasId ?? undefined, pid)
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)
     if (todo) {
-      const hasMeta = partial.priority !== undefined || partial.dueDate || partial.isStarred || partial.isAssigned || partial.notes || resolved.priority !== undefined || resolved.dueDate || resolved.recurrence || partial.recurrenceRule
+      const hasMeta = partial.priority !== undefined || partial.dueDate || partial.isStarred || partial.isAssigned || partial.notes || partial.statusId !== undefined || resolved.priority !== undefined || resolved.dueDate || resolved.recurrence || partial.recurrenceRule
       if (hasMeta) {
         const dueDate = resolved.dueDate ?? partial.dueDate ?? todo.dueDate
         await updateTodo({
@@ -47,6 +47,7 @@ export function useTaskEditCallbacks() {
           dueDate,
           isStarred: partial.isStarred ?? todo.isStarred,
           isAssigned: partial.isAssigned ?? todo.isAssigned,
+          statusId: partial.statusId ?? todo.statusId,
           notes: partial.notes ?? todo.notes,
           recurrenceRule: partial.recurrenceRule ?? (dueDate && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, dueDate) : undefined),
         })

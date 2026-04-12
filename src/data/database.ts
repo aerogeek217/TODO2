@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
 
 export interface SettingRow {
   key: string
@@ -23,6 +23,7 @@ export class Todo2Database extends Dexie {
   savedViews!: Table<SavedView, number>
   stickyNotes!: Table<StickyNote, number>
   taskboardEntries!: Table<TaskboardEntry, number>
+  statuses!: Table<Status, number>
 
   constructor() {
     super('todo2')
@@ -53,10 +54,16 @@ export class Todo2Database extends Dexie {
     this.version(18).stores({
       taskboardEntries: '++id, todoId, sortOrder',
     })
+
+    // v19: add statuses table and statusId index on todos
+    this.version(19).stores({
+      statuses: '++id, sortOrder',
+      todos: '++id, projectId, canvasId, parentId, priority, isCompleted, isStarred, dueDate, sortOrder, statusId',
+    })
   }
 }
 
 export const db = new Todo2Database()
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries, db.statuses] as const

@@ -19,6 +19,7 @@ import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useStickyNoteStore } from './stores/sticky-note-store'
+import { useStatusStore } from './stores/status-store'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
@@ -172,6 +173,7 @@ function AppShell() {
       bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
       bulkSetStarred: useTodoStore.getState().bulkSetStarred,
       bulkSetPriority: useTodoStore.getState().bulkSetPriority,
+      bulkSetStatus: useTodoStore.getState().bulkSetStatus,
       bulkRemove: useTodoStore.getState().bulkRemove,
       getSelectedIds: () => [...useUIStore.getState().selectedTodoIds],
       toggleStarredOnly: useFilterStore.getState().toggleStarredOnly,
@@ -202,6 +204,7 @@ function AppShell() {
       createStickyNote: location.pathname === '/' ? createStickyNote : undefined,
       toggleProjectNavigator: location.pathname === '/' ? toggleProjectNavigator : undefined,
       openShortcutsModal: () => setShowShortcuts(true),
+      getStatuses: () => useStatusStore.getState().statuses,
     }),
     [navigate, todos, projects, selectionCount, fitView, createStickyNote, toggleProjectNavigator, location.pathname]
   )

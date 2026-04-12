@@ -3,6 +3,7 @@ import type { TodoItem, PersistedTodoItem, Person, Tag, Org, RecurrenceType } fr
 import { Priority } from '../../models'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useStatusStore } from '../../stores/status-store'
 import { PriorityMenu, getPriorityLabel } from '../shared/PriorityMenu'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { toDateInputValue } from '../../utils/date'
@@ -67,10 +68,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const projects = useProjectStore((s) => s.projects)
   const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
+  const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
+  const statuses = useStatusStore((s) => s.statuses)
 
   const [title, setTitle] = useState(todo?.title ?? '')
   const [notes, setNotes] = useState(todo?.notes ?? '')
   const [progress, setProgress] = useState(todo?.progress ?? '')
+  const [statusId, setStatusId] = useState<number | undefined>(
+    todo?.statusId ?? (mode === 'create' ? (defaultStatusId ?? undefined) : undefined)
+  )
   const [dueDate, setDueDate] = useState(toDateInputValue(todo?.dueDate))
   const [isHardDeadline, setIsHardDeadline] = useState(todo?.isHardDeadline ?? false)
   const [priority, setPriorityState] = useState<Priority>(todo?.priority ?? Priority.Normal)
@@ -98,6 +104,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     : assignedOrgs
 
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
+  const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | 'orgs' | 'project' | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
   const titleRef = useRef<HTMLInputElement>(null)
@@ -108,6 +115,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const projectRef = useRef<HTMLDivElement>(null)
   const projectSearchRef = useRef<HTMLInputElement>(null)
   const priorityRef = useRef<HTMLDivElement>(null)
+  const statusMenuRef = useRef<HTMLDivElement>(null)
 
   const acPeople = useMemo(() => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [allPeople])
   const acTags = useMemo(() => allTags.map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })), [allTags])
@@ -179,6 +187,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       title: title.trim() || todo.title,
       notes: notes || undefined,
       progress: progress || undefined,
+      statusId,
       dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
       isHardDeadline: isHardDeadline || undefined,
       isAssigned: isAssigned || undefined,
@@ -187,7 +196,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       isStarred,
       ...overrides,
     })
-  }, [isEdit, todo, title, notes, progress, dueDate, isHardDeadline, isAssigned, recurrenceType, priority, isStarred, props.onUpdate])
+  }, [isEdit, todo, title, notes, progress, statusId, dueDate, isHardDeadline, isAssigned, recurrenceType, priority, isStarred, props.onUpdate])
 
   const handleTitleBlur = () => { if (isEdit) saveEdit() }
 
@@ -317,6 +326,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       title: title.trim(),
       notes: notes || undefined,
       progress: progress || undefined,
+      statusId,
       dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
       isHardDeadline: isHardDeadline || undefined,
       recurrenceRule: dueDate && recurrenceType ? makeRecurrenceRule(recurrenceType, new Date(dueDate + 'T00:00:00')) : undefined,
@@ -447,6 +457,18 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return () => document.removeEventListener('mousedown', handler, true)
   }, [showPriorityMenu])
 
+  // Close status menu on outside click
+  useEffect(() => {
+    if (!showStatusMenu) return
+    const handler = (e: MouseEvent) => {
+      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
+        setShowStatusMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [showStatusMenu])
+
   return (
     <div className={styles.backdrop} onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
       <div className={styles.card}>
@@ -467,19 +489,65 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onAcSelect={handleAcSelect}
         />
 
-        {/* Priority badge */}
+        {/* Priority & Status badges */}
         <div className={styles.badges}>
           <div className={styles.priorityWrapper} ref={priorityRef}>
             <button
               className={`${styles.badge} ${priorityBadgeClass}`}
               onClick={() => setShowPriorityMenu((v) => !v)}
             >
-              {getPriorityLabel(priority)} ▾
+              {getPriorityLabel(priority)} &#x25BE;
             </button>
             {showPriorityMenu && (
               <PriorityMenu currentPriority={priority} onSelect={handleSetPriority} />
             )}
           </div>
+          {statuses.length > 0 && (
+            <div className={styles.priorityWrapper} ref={statusMenuRef}>
+              <button
+                className={styles.badge}
+                onClick={() => setShowStatusMenu((v) => !v)}
+              >
+                {statusId ? (
+                  <><span className={styles.statusBadgeDot} style={{ background: statuses.find(s => s.id === statusId)?.color }} />{statuses.find(s => s.id === statusId)?.name ?? 'Status'}</>
+                ) : (
+                  'Status'
+                )}
+                {' '}&#x25BE;
+              </button>
+              {showStatusMenu && (
+                <div className={styles.statusMenu}>
+                  <button
+                    className={`${styles.statusOption} ${!statusId ? styles.statusOptionActive : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setStatusId(undefined)
+                      setShowStatusMenu(false)
+                      if (isEdit && todo) props.onUpdate({ ...todo, statusId: undefined, modifiedAt: new Date() })
+                    }}
+                  >
+                    <span className={styles.statusBadgeDot} style={{ background: 'var(--color-text-muted)' }} />
+                    No Status
+                  </button>
+                  {statuses.map(s => (
+                    <button
+                      key={s.id}
+                      className={`${styles.statusOption} ${statusId === s.id ? styles.statusOptionActive : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setStatusId(s.id)
+                        setShowStatusMenu(false)
+                        if (isEdit && todo) props.onUpdate({ ...todo, statusId: s.id, modifiedAt: new Date() })
+                      }}
+                    >
+                      <span className={styles.statusBadgeDot} style={{ background: s.color }} />
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className={`${styles.scrollBody} ${openDropdown ? styles.scrollBodyDropdownOpen : ''}`}>
@@ -525,9 +593,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onUpdate={isEdit ? props.onUpdate : undefined}
           />
 
-          {/* Progress */}
+          {/* Status Notes */}
           <div className={styles.notesSection}>
-            <div className={styles.notesLabel}>Progress</div>
+            <div className={styles.notesLabel}>Status Notes</div>
             <input
               className={styles.metaInput}
               value={progress}

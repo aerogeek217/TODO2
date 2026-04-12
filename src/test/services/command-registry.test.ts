@@ -12,6 +12,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
     bulkSetStarred: vi.fn().mockResolvedValue(undefined),
     bulkSetPriority: vi.fn().mockResolvedValue(undefined),
+    bulkSetStatus: vi.fn().mockResolvedValue(undefined),
     bulkRemove: vi.fn().mockResolvedValue(undefined),
     getSelectedIds: vi.fn().mockReturnValue([]),
     toggleStarredOnly: vi.fn(),

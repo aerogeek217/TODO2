@@ -8,15 +8,16 @@ import { buildHierarchy } from '../utils/hierarchy'
  * JSON serialization (export, file-storage save, or backup snapshot).
  */
 export async function buildExportData() {
-  const [todos, projects, canvases, listInsets, people, settings, tags, todoTags, todoPeople, todoOrgs, personOrgs, orgs, savedViews, stickyNotes, taskboardEntries] =
+  const [todos, projects, canvases, listInsets, people, settings, tags, todoTags, todoPeople, todoOrgs, personOrgs, orgs, savedViews, stickyNotes, taskboardEntries, statuses] =
     await Promise.all([
       db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(), db.listInsets.toArray(),
       db.people.toArray(), db.settings.toArray(), db.tags.toArray(), db.todoTags.toArray(),
       db.todoPeople.toArray(), db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
       db.savedViews.toArray(), db.stickyNotes.toArray(), db.taskboardEntries.toArray(),
+      db.statuses.toArray(),
     ])
 
-  return { todos, projects, canvases, listInsets, people, settings, tags, todoTags, todoPeople, todoOrgs, personOrgs, orgs, savedViews, stickyNotes, taskboardEntries }
+  return { todos, projects, canvases, listInsets, people, settings, tags, todoTags, todoPeople, todoOrgs, personOrgs, orgs, savedViews, stickyNotes, taskboardEntries, statuses }
 }
 
 /**

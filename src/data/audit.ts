@@ -19,7 +19,7 @@ export interface AuditReport {
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
   const [
-    todos, projects, canvases, people, tags, orgs,
+    todos, projects, canvases, people, tags, orgs, statuses,
     todoPeople, todoTags, todoOrgs, personOrgs, taskboardEntries,
     listInsets, stickyNotes,
   ] = await Promise.all([
@@ -29,6 +29,7 @@ export async function auditData(): Promise<AuditReport> {
     db.people.toArray(),
     db.tags.toArray(),
     db.orgs.toArray(),
+    db.statuses.toArray(),
     db.todoPeople.toArray(),
     db.todoTags.toArray(),
     db.todoOrgs.toArray(),
@@ -44,6 +45,7 @@ export async function auditData(): Promise<AuditReport> {
   const personIds = new Set(people.map((p) => p.id!))
   const tagIds = new Set(tags.map((t) => t.id!))
   const orgIds = new Set(orgs.map((o) => o.id!))
+  const statusIds = new Set(statuses.map((s) => s.id!))
 
   const issues: AuditIssue[] = []
 
@@ -158,6 +160,20 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
+  const todosWithBadStatus = todos.filter(
+    (t) => t.statusId != null && !statusIds.has(t.statusId),
+  )
+  if (todosWithBadStatus.length > 0) {
+    issues.push({
+      table: 'todos',
+      description: 'Todos referencing deleted statuses',
+      count: todosWithBadStatus.length,
+      ids: todosWithBadStatus.map((t) => t.id!),
+      fix: 'clear-field',
+      field: 'statusId',
+    })
+  }
+
   const projectsWithBadCanvas = projects.filter(
     (p) => p.canvasId != null && !canvasIds.has(p.canvasId),
   )
@@ -211,7 +227,7 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   await db.transaction(
     'rw',
     [db.todos, db.projects, db.todoPeople, db.todoTags, db.todoOrgs,
-     db.personOrgs, db.taskboardEntries, db.listInsets, db.stickyNotes],
+     db.personOrgs, db.taskboardEntries, db.listInsets, db.stickyNotes, db.statuses],
     async () => {
       for (const issue of issues) {
         if (issue.fix === 'delete') {

@@ -18,6 +18,7 @@ export interface TodoItem {
   projectId?: number
   canvasId?: number
   parentId?: number
+  statusId?: number
   sortOrder: number
 }
 

@@ -4,6 +4,7 @@ import { useFilterStore, type DateField } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
@@ -301,7 +302,7 @@ function EntityDropdownItems({
 }
 
 export function TopBar() {
-  const { filters, isActive, setPriorities, toggleShowCompleted, toggleShowAssigned, toggleStarredOnly, toggleHardDeadlineOnly, setPersonIds, setTagIds, setOrgIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setPriorities, toggleShowCompleted, toggleShowAssigned, toggleStarredOnly, toggleHardDeadlineOnly, setPersonIds, setTagIds, setOrgIds, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -324,16 +325,18 @@ export function TopBar() {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
+  const statuses = useStatusStore((s) => s.statuses)
 
   // Track which filter dropdown is in "preview empty" mode:
   // when opened with all selected, show unchecked visually but don't commit to store
   // until user clicks an item. If closed without selection, stays at all (null).
-  const [previewEmpty, setPreviewEmpty] = useState<'people' | 'org' | 'tags' | null>(null)
+  const [previewEmpty, setPreviewEmpty] = useState<'people' | 'org' | 'tags' | 'status' | null>(null)
 
   const priorityActive = filters.priorities !== null
   const peopleActive = filters.personIds !== null
   const tagsActive = filters.tagIds !== null
   const orgsActive = filters.orgIds !== null
+  const statusActive = filters.statusIds !== null
   const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null
 
   const handlePriorityToggle = useCallback(
@@ -377,16 +380,30 @@ export function TopBar() {
     },
     [filters.orgIds, orgs, setOrgIds, previewEmpty],
   )
+  const handleStatusToggle = useCallback(
+    (statusId: number) => {
+      if (previewEmpty === 'status') {
+        setPreviewEmpty(null)
+        setStatusIds(new Set([statusId]))
+        return
+      }
+      const allIds = [0, ...statuses.map((s) => s.id!)]
+      setStatusIds(toggleItem(filters.statusIds, statusId, allIds))
+    },
+    [filters.statusIds, statuses, setStatusIds, previewEmpty],
+  )
 
   const isPriorityChecked = (p: Priority) => filters.priorities === null || filters.priorities.has(p)
   const isPersonChecked = (id: number) => previewEmpty === 'people' ? false : filters.personIds === null || filters.personIds.has(id)
   const isTagChecked = (id: number) => previewEmpty === 'tags' ? false : filters.tagIds === null || filters.tagIds.has(id)
   const isOrgChecked = (id: number) => previewEmpty === 'org' ? false : filters.orgIds === null || filters.orgIds.has(id)
+  const isStatusChecked = (id: number) => previewEmpty === 'status' ? false : filters.statusIds === null || filters.statusIds.has(id)
 
   const priorityNone = filters.priorities !== null && filters.priorities.size === 0
   const peopleNone = previewEmpty === 'people' || (filters.personIds !== null && filters.personIds.size === 0)
   const tagsNone = previewEmpty === 'tags' || (filters.tagIds !== null && filters.tagIds.size === 0)
   const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
+  const statusNone = previewEmpty === 'status' || (filters.statusIds !== null && filters.statusIds.size === 0)
 
   const miniListResults = useMemo(() => {
     if (!localSearch || !searchFocused) return []
@@ -590,6 +607,29 @@ export function TopBar() {
                   entities={tags}
                   isChecked={isTagChecked}
                   onToggle={handleTagToggle}
+                />
+              )}
+            </FilterDropdown>
+          )}
+
+          {statuses.length > 0 && (
+            <FilterDropdown
+              label={<><span className={styles.filterIcon}>&#x25C9;</span> Status</>}
+              active={statusActive || previewEmpty === 'status'}
+              allSelected={!statusActive && previewEmpty !== 'status'}
+              noneSelected={statusNone}
+              onSelectAll={() => { setPreviewEmpty(null); setStatusIds(null) }}
+              onDeselectAll={() => { setPreviewEmpty(null); setStatusIds(new Set()) }}
+              onOpen={() => { if (!statusActive) setPreviewEmpty('status') }}
+              onClose={() => { if (previewEmpty === 'status') setPreviewEmpty(null) }}
+              searchable
+            >
+              {(searchText: string) => (
+                <EntityDropdownItems
+                  searchText={searchText}
+                  entities={statuses}
+                  isChecked={isStatusChecked}
+                  onToggle={handleStatusToggle}
                 />
               )}
             </FilterDropdown>

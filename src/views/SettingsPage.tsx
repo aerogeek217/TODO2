@@ -19,6 +19,8 @@ import { OrgEditor } from '../components/settings/OrgEditor'
 import { TagEditor } from '../components/settings/TagEditor'
 import { ThemeColorsEditor } from '../components/settings/ThemeColorsEditor'
 import { KeyboardShortcutsModal } from '../components/settings/KeyboardShortcutsModal'
+import { StatusEditor } from '../components/settings/StatusEditor'
+import { useStatusStore } from '../stores/status-store'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -39,13 +41,16 @@ async function getStartIn(): Promise<FileSystemHandle | 'documents'> {
 }
 
 export function SettingsPage() {
-  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, completedRetentionDays, setCompletedRetentionDays } = useSettingsStore()
+  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays } = useSettingsStore()
   const fileStorage = useFileStorageStore()
   const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
   const peopleCount = usePersonStore((s) => s.people.length)
   const orgCount = useOrgStore((s) => s.orgs.length)
   const tagCount = useTagStore((s) => s.tags.length)
+  const statusCount = useStatusStore((s) => s.statuses.length)
+  const statuses = useStatusStore((s) => s.statuses)
+  const loadStatuses = useStatusStore((s) => s.load)
   const [exportMsg, setExportMsg] = useState('')
   const importRef = useRef<HTMLInputElement>(null)
   const [showPeopleEditor, setShowPeopleEditor] = useState(false)
@@ -53,6 +58,7 @@ export function SettingsPage() {
   const [showTagEditor, setShowTagEditor] = useState(false)
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showStatusEditor, setShowStatusEditor] = useState(false)
   const [backups, setBackups] = useState<BackupSummary[]>([])
   const [backupMsg, setBackupMsg] = useState('')
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
@@ -79,11 +85,12 @@ export function SettingsPage() {
     loadPeople()
     loadOrgs()
     loadTags()
+    loadStatuses()
     loadBackups()
     return () => {
       timerRefs.current.forEach(clearTimeout)
     }
-  }, [load, loadProjects, loadPeople, loadOrgs, loadTags])
+  }, [load, loadProjects, loadPeople, loadOrgs, loadTags, loadStatuses])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -289,6 +296,19 @@ export function SettingsPage() {
               ))}
             </select>
           </div>
+          <div className={styles.settingRow}>
+            <span className={styles.settingLabel}>Default status for new tasks</span>
+            <select
+              className={styles.settingSelect}
+              value={defaultStatusId ?? ''}
+              onChange={(e) => setDefaultStatusId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">None</option>
+              {statuses.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
         )}
 
@@ -333,7 +353,7 @@ export function SettingsPage() {
         {/* People & Tags — desktop only */}
         {!isMobile && (
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>People, Orgs & Tags</div>
+          <div className={styles.sectionTitle}>People, Orgs, Tags & Statuses</div>
           <div className={styles.buttonRow}>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowPeopleEditor(true)}>
               Manage People{peopleCount > 0 && ` (${peopleCount})`}
@@ -343,6 +363,9 @@ export function SettingsPage() {
             </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowTagEditor(true)}>
               Manage Tags{tagCount > 0 && ` (${tagCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowStatusEditor(true)}>
+              Manage Statuses{statusCount > 0 && ` (${statusCount})`}
             </button>
           </div>
         </div>
@@ -612,6 +635,7 @@ export function SettingsPage() {
       {showPeopleEditor && <PeopleEditor onClose={() => setShowPeopleEditor(false)} />}
       {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
+      {showStatusEditor && <StatusEditor onClose={() => setShowStatusEditor(false)} />}
     </div>
   )
 }

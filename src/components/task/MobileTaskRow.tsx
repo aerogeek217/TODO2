@@ -1,6 +1,7 @@
 import { useCallback, memo } from 'react'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { useOrgStore } from '../../stores/org-store'
+import { useStatusStore } from '../../stores/status-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { getPriorityColor } from '../shared/PriorityMenu'
 import { FollowupIcon } from '../shared/FollowupIcon'
@@ -64,6 +65,11 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     onSelect?.(todo.id, { shift: false, ctrl: false })
   }, [onSelect, todo.id])
 
+  const statusColor = useStatusStore((s) => {
+    if (!todo.statusId) return undefined
+    return s.statuses.find(st => st.id === todo.statusId)?.color
+  })
+
   // Metadata for line 2
   const people = assignedPeople ?? []
   const tags = assignedTags ?? []
@@ -107,6 +113,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             ▾
           </button>
         )}
+
+        {statusColor && <span className={styles.statusDot} style={{ background: statusColor }} />}
 
         <span className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}

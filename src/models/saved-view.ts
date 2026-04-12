@@ -10,6 +10,7 @@ export interface SavedViewFilters {
   personIds: number[] | null
   tagIds: number[] | null
   orgIds: number[] | null
+  statusIds?: number[] | null
   /** Which date field to filter on (optional for backward compat; defaults to 'due') */
   dateField?: DateField
   /** ISO string of date range start (optional for backward compat) */

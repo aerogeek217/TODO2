@@ -8,6 +8,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
+import { useStatusStore } from '../../stores/status-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
@@ -101,6 +102,10 @@ export const TaskRow = memo(function TaskRow({
   const allOrgs = useOrgStore((s) => s.orgs)
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
+  const statusColor = useStatusStore((s) => {
+    if (!todo.statusId) return undefined
+    return s.statuses.find(st => st.id === todo.statusId)?.color
+  })
 
   // Bulk-aware mutation callbacks
   const bulk = useBulkActions()
@@ -230,6 +235,8 @@ export const TaskRow = memo(function TaskRow({
           aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
         />
       )}
+
+      {statusColor && <span className={styles.statusDot} style={{ background: statusColor }} />}
 
       {edit.isEditing ? (
         <input

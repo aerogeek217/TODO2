@@ -4,6 +4,7 @@ import { useFilterStore, type DateField } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { Priority } from '../../models'
 import { toDateInputValue } from '../../utils/date'
@@ -65,13 +66,14 @@ function EntityFilterList({
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
-  const { filters, isActive, setPriorities, toggleShowCompleted, toggleStarredOnly, toggleHardDeadlineOnly, toggleShowAssigned, setPersonIds, setTagIds, setOrgIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setPriorities, toggleShowCompleted, toggleStarredOnly, toggleHardDeadlineOnly, toggleShowAssigned, setPersonIds, setTagIds, setOrgIds, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
+  const statuses = useStatusStore((s) => s.statuses)
   const location = useLocation()
 
-  const [openSection, setOpenSection] = useState<'priority' | 'toggles' | 'date' | 'people' | 'orgs' | 'tags' | null>(null)
+  const [openSection, setOpenSection] = useState<'priority' | 'toggles' | 'date' | 'people' | 'orgs' | 'tags' | 'status' | null>(null)
   const [entitySearch, setEntitySearch] = useState('')
 
   useEffect(() => {
@@ -118,6 +120,11 @@ export function FilterSheet() {
 
   const toggleOrg = (id: number) => {
     setOrgIds(toggleItem(filters.orgIds, id, [0, ...allOrgIds]))
+  }
+
+  const allStatusIds = statuses.map((s) => s.id!)
+  const toggleStatus = (id: number) => {
+    setStatusIds(toggleItem(filters.statusIds, id, [0, ...allStatusIds]))
   }
 
   const handleToggleSection = (section: typeof openSection) => {
@@ -378,6 +385,30 @@ export function FilterSheet() {
                   onToggle={toggleTag}
                   noneLabel="No tags"
                   searchPlaceholder="Search tags..."
+                  searchText={entitySearch}
+                  onSearchChange={setEntitySearch}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Statuses */}
+          {statuses.length > 0 && (
+            <div className={styles.entitySection}>
+              <div className={styles.entityHeader} onClick={() => handleToggleSection('status')}>
+                <span className={styles.filterLabel}>
+                  Status
+                  {filters.statusIds !== null && <span className={styles.activeCount}>{filters.statusIds.size}</span>}
+                </span>
+                <span className={`${styles.entityChevron} ${openSection === 'status' ? styles.entityChevronOpen : ''}`}>&#x25B8;</span>
+              </div>
+              {openSection === 'status' && (
+                <EntityFilterList
+                  entities={statuses}
+                  filterIds={filters.statusIds}
+                  onToggle={toggleStatus}
+                  noneLabel="No status"
+                  searchPlaceholder="Search statuses..."
                   searchText={entitySearch}
                   onSearchChange={setEntitySearch}
                 />
