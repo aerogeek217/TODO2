@@ -136,6 +136,7 @@ export function useCanvasDnD({
 
       useUndoStore.getState().beginGroup()
 
+      try {
       switch (resolution.type) {
         case 'place': {
           const task = todos.find(t => t.id === resolution.taskId)
@@ -189,8 +190,9 @@ export function useCanvasDnD({
           break
         }
       }
-
-      useUndoStore.getState().endGroup(`Move task`)
+      } finally {
+        useUndoStore.getState().endGroup(`Move task`)
+      }
     },
     [todos, todosByProject, selectedCanvasId, addProject, applyMutations, normalizeProject]
   )

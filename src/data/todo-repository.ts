@@ -109,6 +109,22 @@ export const todoRepository = {
     })
   },
 
+  async bulkDelete(ids: number[]): Promise<void> {
+    if (ids.length === 0) return
+    await db.transaction('rw', [db.todos, db.todoTags, db.todoPeople, db.todoOrgs], async () => {
+      for (const id of ids) {
+        const children = await db.todos.where('parentId').equals(id).toArray()
+        for (const child of children) {
+          await db.todos.update(child.id!, { parentId: undefined })
+        }
+        await db.todoTags.where('todoId').equals(id).delete()
+        await db.todoPeople.where('todoId').equals(id).delete()
+        await db.todoOrgs.where('todoId').equals(id).delete()
+        await db.todos.delete(id)
+      }
+    })
+  },
+
   async reorder(id: number, newSortOrder: number): Promise<void> {
     await db.todos.update(id, { sortOrder: newSortOrder, modifiedAt: new Date() })
   },

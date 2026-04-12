@@ -65,7 +65,7 @@ main.tsx (entry point)
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
 | buildAssignmentMap | data/join-helpers.ts | Generic join table → entity map builder (Map\<linkId, Entity[]\>) |
-| todoRepository | data/todo-repository.ts | Full CRUD + queries for TodoItem, bulkUpdate (batched transaction) |
+| todoRepository | data/todo-repository.ts | Full CRUD + queries for TodoItem, bulkUpdate (batched transaction), bulkDelete (atomic multi-delete) |
 | projectRepository | data/project-repository.ts | CRUD + position updates for Project |
 | canvasRepository | data/canvas-repository.ts | CRUD for Canvas (cascading delete: todos, projects, todoTags, todoPeople, todoOrgs, stickyNotes, listInsets) |
 | personRepository | data/person-repository.ts | CRUD for Person + todoPeople join queries |

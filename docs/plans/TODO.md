@@ -7,6 +7,14 @@
 
 ## Features and Enhancements
 
+### Code Review Remediation (docs/plans/CODE-REVIEW.md)
+- [x] **Phase 1 — Critical and Data Integrity** — C1 undo group leak, H1/H2 atomic bulk deletes, H3 atomic entity restore, M2 DB-sourced assignment capture, M1 duplicate undo pollution
+- [ ] **Phase 2 — Security Hardening** — M3/M4/M5 import validation gaps, L1 viewport field stripping
+- [ ] **Phase 3 — Architecture Cleanup** — M6 viewport dedup, M7 circular imports, M9/M10/M13/M16 pattern fixes
+- [ ] **Phase 4 — Component Refactoring** — M11 entity filter extract, M15 ARIA, L6-L9 React fixes, M8 error handling
+- [ ] **Phase 5 — Cleanup and Testing** — DC1-DC3 dead code, test coverage for alignment/dnd/file-storage
+- [ ] Add a Top view, consolidating top items. Planning and discussion required.
+
 
 ## User Testing
 

@@ -350,7 +350,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       return { todo: t, personIds: a.personIds, tagIds: a.tagIds, orgIds: a.orgIds }
     })
 
-    await Promise.all(ids.map((id) => todoRepository.delete(id)))
+    await todoRepository.bulkDelete(ids)
     const idSet = new Set(ids)
     set({ todos: get().todos.filter((t) => !idSet.has(t.id)) })
 
@@ -449,14 +449,24 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     if (newTodo) {
       set({ todos: [...get().todos, newTodo] })
     }
-    // Copy assignments
+    // Copy assignments at repo level (bypasses store undo registration)
     const { personIds, tagIds, orgIds } = await captureAssignments(id)
-    const { usePersonStore } = await import('./person-store')
-    const { useTagStore } = await import('./tag-store')
-    const { useOrgStore } = await import('./org-store')
-    for (const pid of personIds) await usePersonStore.getState().assignPerson(newId, pid)
-    for (const tid of tagIds) await useTagStore.getState().assignTag(newId, tid)
-    for (const oid of orgIds) await useOrgStore.getState().assignOrg(newId, oid)
+    const { personRepository } = await import('../data/person-repository')
+    const { tagRepository } = await import('../data/tag-repository')
+    const { orgRepository } = await import('../data/org-repository')
+    for (const pid of personIds) await personRepository.assignPerson(newId, pid)
+    for (const tid of tagIds) await tagRepository.addTagToTodo(newId, tid)
+    for (const oid of orgIds) await orgRepository.assignOrg(newId, oid)
+    // Refresh assignment caches for the new task
+    if (personIds.length > 0 || tagIds.length > 0 || orgIds.length > 0) {
+      const { usePersonStore } = await import('./person-store')
+      const { useTagStore } = await import('./tag-store')
+      const { useOrgStore } = await import('./org-store')
+      const todoIds = get().todos.map(t => t.id)
+      if (personIds.length > 0) await usePersonStore.getState().loadAssignments(todoIds)
+      if (tagIds.length > 0) await useTagStore.getState().loadAssignments(todoIds)
+      if (orgIds.length > 0) await useOrgStore.getState().loadAssignments(todoIds)
+    }
     undoable(
       `Duplicate "${todo.title}"`,
       async () => { await get().duplicate(id) },
@@ -502,7 +512,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     const { backupScheduler } = await import('../services/backup-scheduler')
     await backupScheduler.snapshotBeforeDestructive().catch(() => {})
     const ids = expired.map((t) => t.id)
-    await Promise.all(ids.map((id) => todoRepository.delete(id)))
+    await todoRepository.bulkDelete(ids)
     const idSet = new Set(ids)
     set({ todos: get().todos.filter((t) => !idSet.has(t.id)) })
     return ids.length
