@@ -1,4 +1,4 @@
-import { useEffect, useRef as useReactRef, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 /**
  * Calls `callback` when a mousedown occurs outside the referenced element.
@@ -9,7 +9,7 @@ export function useClickOutside(
   callback: () => void,
   active: boolean,
 ) {
-  const callbackRef = useReactRef(callback)
+  const callbackRef = useRef(callback)
   callbackRef.current = callback
 
   useEffect(() => {

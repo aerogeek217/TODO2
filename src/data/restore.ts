@@ -1,23 +1,36 @@
-import { db, ALL_DATA_TABLES } from './database'
+import type { Table } from 'dexie'
+import { db } from './database'
 import type { ImportData } from './import-validation'
 import { validateImportData } from './import-validation'
 
-/** The import data keys in the same order as ALL_DATA_TABLES */
-const DATA_KEYS: (keyof ImportData)[] = [
-  'todos', 'projects', 'canvases', 'listInsets', 'people', 'settings',
-  'tags', 'todoTags', 'todoPeople', 'todoOrgs', 'personOrgs', 'orgs',
-  'savedViews', 'stickyNotes',
+/** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
+const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
+  { table: db.todos, key: 'todos' },
+  { table: db.projects, key: 'projects' },
+  { table: db.canvases, key: 'canvases' },
+  { table: db.listInsets, key: 'listInsets' },
+  { table: db.people, key: 'people' },
+  { table: db.settings, key: 'settings' },
+  { table: db.tags, key: 'tags' },
+  { table: db.todoTags, key: 'todoTags' },
+  { table: db.todoPeople, key: 'todoPeople' },
+  { table: db.todoOrgs, key: 'todoOrgs' },
+  { table: db.personOrgs, key: 'personOrgs' },
+  { table: db.orgs, key: 'orgs' },
+  { table: db.savedViews, key: 'savedViews' },
+  { table: db.stickyNotes, key: 'stickyNotes' },
 ]
 
 /** Clear all data tables and bulk-add from validated import data. Must be called inside a transaction or will create its own. */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
-  await db.transaction('rw', [...ALL_DATA_TABLES], async () => {
-    for (const table of ALL_DATA_TABLES) await table.clear()
+  const tables = TABLE_KEY_PAIRS.map(p => p.table)
+  await db.transaction('rw', tables, async () => {
+    for (const { table } of TABLE_KEY_PAIRS) await table.clear()
 
-    for (let i = 0; i < ALL_DATA_TABLES.length; i++) {
-      const rows = v[DATA_KEYS[i]]
+    for (const { table, key } of TABLE_KEY_PAIRS) {
+      const rows = v[key]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (rows?.length) await (ALL_DATA_TABLES[i] as any).bulkAdd(rows)
+      if (rows?.length) await (table as any).bulkAdd(rows)
     }
   })
 }
