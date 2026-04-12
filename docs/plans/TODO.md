@@ -14,6 +14,7 @@
 - [x] **Org autocomplete via @** — orgs appear alongside people in `@` autocomplete dropdown (sticky notes, task create, insert trigger); NLP resolver falls back to org matching for unmatched `@` names; org assignment wired through full task creation pipeline
 - [x] **Remove redundant bulk actions bar** — bottom bar duplicated actions already available via multi-select-aware TaskRow icons (useBulkActions hook)
 - [x] **Sticky note title grab cursor** — title label now shows grab cursor instead of text cursor, matching project node pattern (double-click to edit, otherwise draggable)
+- [x] **Remove buttons on task detail chips** — people, org, and tag chips in TaskEditPopup now show × buttons for quick removal without opening the dropdown
 
 
 

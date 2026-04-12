@@ -191,12 +191,14 @@ export function TaskEditMetadata({
               style={person.color ? { color: person.color, borderColor: person.color } : undefined}
               onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
               @{person.name}
+              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onTogglePerson(person.id!) }}>&times;</span>
             </button>
           ))}
           {assignedOrgs.map((org) => (
             <button key={`o-${org.id}`} className={styles.orgChip} style={org.color ? { borderColor: org.color, color: org.color } : undefined}
               onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
               {org.name}
+              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onToggleOrg(org.id!) }}>&times;</span>
             </button>
           ))}
           <button className={styles.chipAddBtn}
@@ -240,6 +242,7 @@ export function TaskEditMetadata({
             <button key={tag.id} className={styles.tagChip} style={{ borderColor: tag.color, color: tag.color }}
               onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
               {tag.name}
+              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onToggleTag(tag.id!) }}>&times;</span>
             </button>
           ))}
           {onAssignTag && (
