@@ -45,7 +45,7 @@ main.tsx (entry point)
 | PersistedTodoItem | models/todo-item.ts | TodoItem with guaranteed id (post-insert) |
 | Person | models/person.ts | Assignable person with name, initials, color |
 | PersistedPerson | models/person.ts | Person with guaranteed id (post-insert) |
-| Org | models/org.ts | Organization/group for people (name, optional color) |
+| Org | models/org.ts | Organization/group for people (name, optional initials, optional color) |
 | PersonOrg | models/person-org.ts | Many-to-many join: person ↔ org |
 | Tag | models/tag.ts | Label with name and color |
 | TodoTag | models/todo-tag.ts | Many-to-many join: todo ↔ tag |
@@ -60,7 +60,7 @@ main.tsx (entry point)
 | StickyNote | models/sticky-note.ts | Free-text note widget on canvas (optional title, text, position, dimensions, optional color defaulting to yellow #FFF3B0, timestamps) |
 | Backup | models/backup.ts | Auto-snapshot record: trigger type, serialized data, size |
 | SavedView | models/saved-view.ts | Named saved list view: sortBy + serializable filter snapshot (including dateRangeStart/End) |
-| Todo2Database | data/database.ts | Dexie DB class with schema (v16) |
+| Todo2Database | data/database.ts | Dexie DB class with schema (v17) |
 | ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks |
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |

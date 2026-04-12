@@ -145,8 +145,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }, [effectiveAssignedPeople.length, effectiveAssignedOrgs.length])
 
+  // Track whether mousedown started on the backdrop itself.
+  // Prevents closing when user selects text inside and drags outside.
+  const mouseDownOnBackdropRef = useRef(false)
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    mouseDownOnBackdropRef.current = e.target === e.currentTarget
+  }
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose()
+    if (e.target === e.currentTarget && mouseDownOnBackdropRef.current) onClose()
   }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -440,7 +446,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, [showPriorityMenu])
 
   return (
-    <div className={styles.backdrop} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
+    <div className={styles.backdrop} onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
       <div className={styles.card}>
         <TaskEditHeader
           isEdit={isEdit}

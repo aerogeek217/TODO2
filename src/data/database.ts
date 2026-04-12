@@ -332,6 +332,9 @@ export class Todo2Database extends Dexie {
       savedViews: '++id, sortOrder',
       stickyNotes: '++id, canvasId',
     })
+
+    // v17: add initials field to orgs (no index change, field stored inline)
+    this.version(17).stores({})
   }
 }
 

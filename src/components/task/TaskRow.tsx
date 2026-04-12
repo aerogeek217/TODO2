@@ -267,7 +267,7 @@ export const TaskRow = memo(function TaskRow({
                   title={compact ? org.name : undefined}
                   onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
                   onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'org', orgId: org.id!, orgName: org.name, orgColor: org.color }) }}>
-                  {compact ? org.name.slice(0, 2).toUpperCase() : `@${org.name}`}
+                  {compact ? (org.initials || org.name.slice(0, 2).toUpperCase()) : `@${org.name}`}
                 </button>
               ))}
             </>

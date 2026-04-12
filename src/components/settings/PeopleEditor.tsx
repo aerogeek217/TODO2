@@ -21,6 +21,7 @@ interface PersonEditState {
 interface OrgEditState {
   id: number
   name: string
+  initials: string
   color: string
 }
 
@@ -56,6 +57,9 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const [editingOrg, setEditingOrg] = useState<OrgEditState | null>(null)
   const [addingOrg, setAddingOrg] = useState(false)
   const [newOrgName, setNewOrgName] = useState('')
+  const [newOrgInitials, setNewOrgInitials] = useState('')
+  const [newOrgInitialsManual, setNewOrgInitialsManual] = useState(false)
+  const [editOrgInitialsManual, setEditOrgInitialsManual] = useState(false)
   const [newOrgColor, setNewOrgColor] = useState(DEFAULT_ENTITY_COLOR)
   const [deleteOrgId, setDeleteOrgId] = useState<number | null>(null)
   const [deleteOrgCount, setDeleteOrgCount] = useState(0)
@@ -140,12 +144,14 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
 
   const startEditOrg = (o: Org) => {
     clearState()
-    setEditingOrg({ id: o.id!, name: o.name, color: o.color ?? DEFAULT_ENTITY_COLOR })
+    setEditingOrg({ id: o.id!, name: o.name, initials: o.initials || generateInitials(o.name), color: o.color ?? DEFAULT_ENTITY_COLOR })
+    setEditOrgInitialsManual(true)
   }
 
   const saveEditOrg = async () => {
     if (!editingOrg || !editingOrg.name.trim()) return
-    await updateOrg({ id: editingOrg.id, name: editingOrg.name.trim(), color: editingOrg.color })
+    const initials = editingOrg.initials || generateInitials(editingOrg.name)
+    await updateOrg({ id: editingOrg.id, name: editingOrg.name.trim(), initials, color: editingOrg.color })
     setEditingOrg(null)
   }
 
@@ -153,12 +159,15 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     clearState()
     setAddingOrg(true)
     setNewOrgName('')
+    setNewOrgInitials('')
+    setNewOrgInitialsManual(false)
     setNewOrgColor(DEFAULT_ENTITY_COLOR)
   }
 
   const saveAddOrg = async () => {
     if (!newOrgName.trim()) return
-    await addOrg(newOrgName.trim(), newOrgColor)
+    const initials = newOrgInitials || generateInitials(newOrgName)
+    await addOrg(newOrgName.trim(), newOrgColor, initials)
     setAddingOrg(false)
   }
 
@@ -275,7 +284,8 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
       return (
         <div key={org.id} className={styles.editRow} onKeyDown={handleKeyDown(saveEditOrg, () => setEditingOrg(null))}>
           <ColorInput value={ed.color} onChange={(color) => setEditingOrg({ ...ed, color })} />
-          <input className={styles.editInput} value={ed.name} onChange={(e) => setEditingOrg({ ...ed, name: e.target.value })} placeholder="Org name" autoFocus />
+          <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditingOrg({ ...ed, name, ...(!editOrgInitialsManual ? { initials: generateInitials(name) } : {}) }) }} placeholder="Org name" autoFocus />
+          <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditOrgInitialsManual(true); setEditingOrg({ ...ed, initials: e.target.value.toUpperCase().slice(0, 3) }) }} placeholder="AB" />
           <div className={styles.editActions}>
             <button className={styles.saveBtn} onClick={saveEditOrg}>Save</button>
             <button className={styles.cancelBtn} onClick={() => setEditingOrg(null)}>Cancel</button>
@@ -288,6 +298,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
       <div key={org.id} className={styles.row}>
         {org.color ? <div className={styles.colorSwatch} style={{ background: org.color }} onClick={() => startEditOrg(org)} /> : <div className={styles.colorSwatch} onClick={() => startEditOrg(org)} />}
         <span className={styles.nameEditable} onClick={() => startEditOrg(org)}>{org.name}</span>
+        <span className={styles.initials}>{org.initials || generateInitials(org.name)}</span>
         <div className={styles.actions}>
           <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDeleteOrg(org.id!)} title="Delete">&times;</button>
         </div>
@@ -309,7 +320,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
           {people.length === 0 && !adding && (
             <div className={styles.empty}>No people yet</div>
           )}
-          {people.map(renderPersonRow)}
+          {people.toSorted((a, b) => a.name.localeCompare(b.name)).map(renderPersonRow)}
 
           {adding && (
             <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => setAdding(false))}>
@@ -334,12 +345,13 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
           {orgs.length === 0 && !addingOrg && (
             <div className={styles.empty}>No orgs yet</div>
           )}
-          {orgs.map(renderOrgRow)}
+          {orgs.toSorted((a, b) => a.name.localeCompare(b.name)).map(renderOrgRow)}
 
           {addingOrg && (
             <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddOrg, () => setAddingOrg(false))}>
               <ColorInput value={newOrgColor} onChange={setNewOrgColor} />
-              <input className={styles.editInput} value={newOrgName} onChange={(e) => setNewOrgName(e.target.value)} placeholder="Org name" autoFocus />
+              <input className={styles.editInput} value={newOrgName} onChange={(e) => { setNewOrgName(e.target.value); if (!newOrgInitialsManual) setNewOrgInitials(generateInitials(e.target.value)) }} placeholder="Org name" autoFocus />
+              <input className={styles.editInputSmall} value={newOrgInitials} onChange={(e) => { setNewOrgInitialsManual(true); setNewOrgInitials(e.target.value.toUpperCase().slice(0, 3)) }} placeholder="AB" />
               <div className={styles.editActions}>
                 <button className={styles.saveBtn} onClick={saveAddOrg}>Add</button>
                 <button className={styles.cancelBtn} onClick={() => setAddingOrg(false)}>Cancel</button>

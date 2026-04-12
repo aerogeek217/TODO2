@@ -215,8 +215,8 @@ export function TaskEditMetadata({
             <div className={styles.chipDropdown} ref={orgsRef}>
               <ChipSelector
                 items={[
-                  ...allPeople.map(p => ({ id: p.id!, name: p.name })),
-                  ...allOrgs.map(o => ({ id: -o.id!, name: o.name, color: o.color })),
+                  ...allPeople.toSorted((a, b) => a.name.localeCompare(b.name)).map(p => ({ id: p.id!, name: p.name })),
+                  ...allOrgs.toSorted((a, b) => a.name.localeCompare(b.name)).map(o => ({ id: -o.id!, name: o.name, color: o.color })),
                 ]}
                 selectedIds={(() => {
                   const ids = new Set(assignedPeopleIds)
@@ -251,7 +251,7 @@ export function TaskEditMetadata({
           {openDropdown === 'tags' && (
             <div className={styles.chipDropdown}>
               <ChipSelector
-                items={allTags.map(t => ({ id: t.id!, name: t.name, color: t.color }))}
+                items={allTags.toSorted((a, b) => a.name.localeCompare(b.name)).map(t => ({ id: t.id!, name: t.name, color: t.color }))}
                 selectedIds={assignedTagIds}
                 onToggle={onToggleTag}
                 onCreate={onCreateTag}

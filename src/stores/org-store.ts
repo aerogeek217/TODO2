@@ -16,7 +16,7 @@ interface OrgState {
   error: string | null
 
   load: () => Promise<void>
-  add: (name: string, color?: string) => Promise<number>
+  add: (name: string, color?: string, initials?: string) => Promise<number>
   update: (org: Org) => Promise<void>
   remove: (id: number) => Promise<void>
   loadAssignments: (todoIds: number[]) => Promise<void>
@@ -61,9 +61,10 @@ export const useOrgStore = create<OrgState>((set, get) => {
       set({ personOrgMap: map })
     },
 
-    async add(name: string, color = DEFAULT_ENTITY_COLOR) {
-      const id = await orgRepository.insert({ name, color })
-      set({ orgs: [...get().orgs, { id, name, color }] })
+    async add(name: string, color = DEFAULT_ENTITY_COLOR, initials?: string) {
+      const org: Org = { name, color, ...(initials ? { initials } : {}) }
+      const id = await orgRepository.insert(org)
+      set({ orgs: [...get().orgs, { ...org, id }] })
       return id
     },
 

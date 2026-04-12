@@ -6,8 +6,8 @@
 - [x] **Recurrence day drift** — monthly/yearly recurrence drifts when months have fewer days (e.g., Jan 31 → Feb 28 → Mar 28). Need to store original day-of-month alongside recurrence rule. Files: `src/models/recurrence.ts`, `src/services/recurrence.ts`. Requires model change + DB migration.
 - [x] When a line wraps on a post-it, there should be only one icon to add it as a task (at the start of the line). Currently it's placing an icon for each wrapped line, and these are actually adding the next task down.
 - [x] When delegated parents are hidden, non-delegated children should still show up. The parents would have the ghost appearance in this case.
-- [ ] When selecting text on a task detail page (and possibly other popups), if I accidentally drag the cursor away from the text input it closes the task. It should not close it.
-- [ ] When clearing filters on the lists page, preset badges are remaining highlighted even if they're not longer active
+- [x] When selecting text on a task detail page (and possibly other popups), if I accidentally drag the cursor away from the text input it closes the task. It should not close it.
+- [x] When clearing filters on the lists page, preset badges are remaining highlighted even if they're not longer active
 
 ## Features and Enhancements
 - [x] Don't allow tasks with no people or org to be assigned.
@@ -18,15 +18,19 @@
 - [x] For recurring tasks, add quarterly option
 - [x] When exporting JSON, include a timestamp so we don't have conflicts for same-day saves.
 - [x] Confirmation on delete post-it with non-empty contents
-- [ ] Confirmation when deleting list presets
-- [ ] Allow initials to be specified for orgs
-- [ ] In lists (filter selectors, selections in task detail, people editor), sort people and orgs alphabetically
+- [x] Confirmation when deleting list presets
+- [x] Allow initials to be specified for orgs
+- [x] In lists (filter selectors, selections in task detail, people editor), sort people and orgs alphabetically
 - [ ] Separate people and orgs into separate editors on the settings page
 - [ ] In list view, when grouping by people, for tasks with more than one person, only group by people that satisfy any active org filters. I'd expect to see only people from the filtered org(s) as the grouping headers. Currently it's just picking the first person on the task, regardless of whether they satisfy the filter. I think this is the only combination where this issue occurs, but think about other types of filters and groups.
 - [ ] Post-it delete confirmation should use the same UI pattern as other confirmations, not a custom set of buttons on the post-it
 
 ## User Testing
-
+- [x] Selecting text on task detail doesn't close window
+- [ ] List presets not highlighted after filters cleared
+- [ ] Confirm when deleting presets
+- [ ] Initials for orgs
+- [ ] Alphabetical people and or sorting
 
 ## Future Work
 

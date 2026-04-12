@@ -348,7 +348,7 @@ export function ListView() {
   const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag, unassignTag } = useTagStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
-  const { listSortBy, setListSortBy, openEditPopup } = useUIStore()
+  const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation } = useUIStore()
   const { filters, applyFilter, setAllFilters } = useFilterStore()
   const taskEdit = useTaskEditCallbacks()
   const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, renameView, removeView, setActiveViewId } = useSavedViewStore()
@@ -604,7 +604,12 @@ export function ListView() {
                   )}
                   <button
                     className={styles.savedViewRemove}
-                    onClick={() => removeView(view.id)}
+                    onClick={() => showBulkConfirmation('custom', [], {
+                      title: `Delete saved view "${view.name}"?`,
+                      message: 'This action cannot be undone.',
+                      confirmLabel: 'Delete',
+                      onConfirm: () => removeView(view.id),
+                    })}
                     title="Remove saved view"
                   >
                     ×

@@ -24,9 +24,10 @@ export function ChipSelector({ items, selectedIds, onToggle, onCreate, placehold
   }, [])
 
   const lowerQuery = query.toLowerCase().trim()
+  const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name))
   const filtered = lowerQuery
-    ? items.filter(item => item.name.toLowerCase().includes(lowerQuery))
-    : items
+    ? sorted.filter(item => item.name.toLowerCase().includes(lowerQuery))
+    : sorted
 
   const exactMatch = items.some(item => item.name.toLowerCase() === lowerQuery)
   const showCreate = onCreate && lowerQuery && !exactMatch

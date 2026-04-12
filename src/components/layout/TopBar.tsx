@@ -486,7 +486,7 @@ export function TopBar() {
               {(searchText: string) => {
                 const q = searchText.toLowerCase()
                 const showNone = !q || 'none'.includes(q)
-                const filtered = q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people
+                const filtered = (q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people).toSorted((a, b) => a.name.localeCompare(b.name))
                 return (
                   <>
                     {showNone && (
@@ -524,7 +524,7 @@ export function TopBar() {
             {(searchText: string) => {
               const q = searchText.toLowerCase()
               const showNone = !q || 'none'.includes(q)
-              const filtered = q ? orgs.filter((o) => o.name.toLowerCase().includes(q)) : orgs
+              const filtered = (q ? orgs.filter((o) => o.name.toLowerCase().includes(q)) : orgs).toSorted((a, b) => a.name.localeCompare(b.name))
               return (
                 <>
                   {showNone && (
@@ -571,7 +571,7 @@ export function TopBar() {
               {(searchText: string) => {
                 const q = searchText.toLowerCase()
                 const showNone = !q || 'none'.includes(q)
-                const filtered = q ? tags.filter((t) => t.name.toLowerCase().includes(q)) : tags
+                const filtered = (q ? tags.filter((t) => t.name.toLowerCase().includes(q)) : tags).toSorted((a, b) => a.name.localeCompare(b.name))
                 return (
                   <>
                     {showNone && (
@@ -610,7 +610,7 @@ export function TopBar() {
           </button>
 
       {isActive && (
-        <button className={styles.clearFilters} onClick={clearAll} title="Clear all filters">
+        <button className={styles.clearFilters} onClick={() => { clearAll(); setPreviewEmpty(null) }} title="Clear all filters">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M1.5 2h13l-5 6.5V14l-3-2V8.5L1.5 2z" />
             <line x1="2" y1="14" x2="14" y2="2" stroke="var(--color-priority-high)" strokeWidth="2" />

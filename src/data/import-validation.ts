@@ -337,6 +337,7 @@ function pickPerson(v: Record<string, unknown>): Person {
 function pickOrg(v: Record<string, unknown>): Org {
   return {
     id: v.id as number | undefined, name: v.name as string,
+    ...(v.initials != null ? { initials: v.initials as string } : {}),
     ...(v.color != null ? { color: v.color as string } : {}),
   }
 }

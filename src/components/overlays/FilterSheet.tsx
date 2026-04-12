@@ -296,6 +296,7 @@ export function FilterSheet() {
                   </div>
                   {people
                     .filter((p) => !entitySearch || p.name.toLowerCase().includes(entitySearch.toLowerCase()))
+                    .toSorted((a, b) => a.name.localeCompare(b.name))
                     .map((p) => (
                       <div key={p.id} className={styles.entityItem} onClick={() => togglePerson(p.id!)}>
                         <span className={styles.entityDot} style={{ background: p.color || 'var(--color-accent)' }} />
@@ -334,6 +335,7 @@ export function FilterSheet() {
                   </div>
                   {orgs
                     .filter((o) => !entitySearch || o.name.toLowerCase().includes(entitySearch.toLowerCase()))
+                    .toSorted((a, b) => a.name.localeCompare(b.name))
                     .map((o) => (
                       <div key={o.id} className={styles.entityItem} onClick={() => toggleOrg(o.id!)}>
                         <span className={styles.entityDot} style={{ background: o.color || 'var(--color-accent)' }} />
@@ -372,6 +374,7 @@ export function FilterSheet() {
                   </div>
                   {tags
                     .filter((t) => !entitySearch || t.name.toLowerCase().includes(entitySearch.toLowerCase()))
+                    .toSorted((a, b) => a.name.localeCompare(b.name))
                     .map((t) => (
                       <div key={t.id} className={styles.entityItem} onClick={() => toggleTag(t.id!)}>
                         <span className={styles.entityDot} style={{ background: t.color || 'var(--color-accent)' }} />

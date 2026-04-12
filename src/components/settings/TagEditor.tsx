@@ -92,7 +92,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
           {tags.length === 0 && !adding && (
             <div className={styles.empty}>No tags yet</div>
           )}
-          {tags.map((t) => {
+          {tags.toSorted((a, b) => a.name.localeCompare(b.name)).map((t) => {
             if (deleteId === t.id) {
               return (
                 <div key={t.id} className={styles.deleteConfirm}>
