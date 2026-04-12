@@ -536,6 +536,8 @@ export function ListView() {
     }
   }, [listSortBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, tags, assignedTagsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
 
+  const statusMap = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
+
   const sectionLabelMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const s of sections) map.set(s.key, s.label)
@@ -904,6 +906,7 @@ export function ListView() {
           sections={sections}
           assignedPeopleMap={assignedPeopleMap}
           assignedTagsMap={assignedTagsMap}
+          statusMap={statusMap}
           onClose={() => setShowExport(false)}
         />
       )}

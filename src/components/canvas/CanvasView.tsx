@@ -126,6 +126,8 @@ interface CanvasViewProps {
   taskboardHeight?: number
   onResizeTaskboard?: (width: number, height: number) => void
   onCascadeShift?: (shifts: Array<{ projectId: number; x: number; y: number }>) => void
+  completedFilter?: string
+  assignedFilter?: string
 }
 
 export function CanvasView({
@@ -158,6 +160,8 @@ export function CanvasView({
   taskboardHeight,
   onResizeTaskboard,
   onCascadeShift,
+  completedFilter,
+  assignedFilter,
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onAddListInset, onResizeInset } = insetHandlers
@@ -297,6 +301,9 @@ export function CanvasView({
         allTodos: allTodos ?? [],
         assignedPeopleMap,
         assignedTagsMap,
+        ghostTodoIds,
+        completedFilter,
+        assignedFilter,
         onOpenDetail,
         isCollapsed: isTaskboardCollapsed ?? false,
         onToggleCollapse: onToggleTaskboardCollapse ?? (() => {}),
@@ -316,7 +323,7 @@ export function CanvasView({
     stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
     allPeople, allTags, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
-    activeDragTodoId,
+    completedFilter, assignedFilter, activeDragTodoId,
   ])
 
   // Local node state — React Flow controlled mode.

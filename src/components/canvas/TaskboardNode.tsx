@@ -27,6 +27,9 @@ export interface TaskboardNodeData {
   allTodos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap?: Map<number, Tag[]>
+  ghostTodoIds?: Set<number>
+  completedFilter?: string
+  assignedFilter?: string
   onOpenDetail?: (todoId: number) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
@@ -39,13 +42,14 @@ export interface TaskboardNodeData {
 type TaskboardNodeType = TaskboardNodeData
 
 function SortableTaskboardEntry({
-  entryId, index, todo, assignedPeople, assignedTags, onOpenDetail,
+  entryId, index, todo, assignedPeople, assignedTags, ghost, onOpenDetail,
 }: {
   entryId: number
   index: number
   todo: PersistedTodoItem
   assignedPeople: Person[] | undefined
   assignedTags: Tag[] | undefined
+  ghost?: boolean
   onOpenDetail?: (todoId: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entryId })
@@ -59,7 +63,7 @@ function SortableTaskboardEntry({
     <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} compact onOpenDetail={onOpenDetail} />
+        <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} ghost={ghost} compact onOpenDetail={onOpenDetail} />
       </div>
       <button className={styles.removeBtn} onClick={handleRemove} title="Remove from taskboard">&times;</button>
     </div>
@@ -67,7 +71,7 @@ function SortableTaskboardEntry({
 }
 
 function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
-  const { entries, allTodos, assignedPeopleMap, assignedTagsMap, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
+  const { entries, allTodos, assignedPeopleMap, assignedTagsMap, ghostTodoIds, completedFilter, assignedFilter, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
   const [reorderKey, setReorderKey] = useState(0)
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
@@ -86,8 +90,15 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   }, [allTodos])
 
   const visibleEntries = useMemo(
-    () => entries.filter(e => { const t = todoMap.get(e.todoId); return t && !t.isCompleted }),
-    [entries, todoMap],
+    () => entries.filter(e => {
+      const t = todoMap.get(e.todoId)
+      if (!t) return false
+      if (completedFilter === 'incomplete-only' && t.isCompleted) return false
+      if (completedFilter === 'completed' && !t.isCompleted) return false
+      if (assignedFilter === 'unassigned-only' && t.isAssigned) return false
+      return true
+    }),
+    [entries, todoMap, completedFilter, assignedFilter],
   )
 
   const entryIds = useMemo(() => visibleEntries.map(e => e.id!), [visibleEntries])
@@ -136,6 +147,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
                     assignedTags={assignedTagsMap?.get(todo.id)}
+                    ghost={ghostTodoIds?.has(todo.id)}
                     onOpenDetail={onOpenDetail}
                   />
                 )

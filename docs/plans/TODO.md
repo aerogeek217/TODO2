@@ -30,8 +30,8 @@
 - [x] **List view drag parent+children across groups** — dragging a parent to a different group now applies the group property (priority, project, status, person, tag) to all children too; drop indicator shows correct insertion position
 - [x] **Canvas ghost filtering restored** — non-matching tasks ghost (25% opacity) on canvas instead of disappearing; only "only" filter variants hide tasks entirely
 - [x] **Four-option assigned/completed filters** — Assigned and Completed filters expanded from 3 to 4 options: All (no filter), Unassigned/Incomplete (ghost on canvas, hide in lists), Assigned/Completed (ghost on canvas, hide in lists), Unassigned only/Incomplete only (hide everywhere); defaults are the "only" variants
-- [ ] **Status: markdown export** — include status names in markdown export task lines
-- [ ] **Status: plain text export** — include status in PlainTextExportPopup task lines
+- [x] **Status: markdown export** — include status names in markdown export task lines
+- [x] **Status: plain text export** — include status in PlainTextExportPopup task lines
 
 
 ## User Testing

@@ -30,6 +30,7 @@ export async function buildMarkdownExport(): Promise<string> {
 
   const peopleMap = new Map(data.people.map((p) => [p.id!, p.name]))
   const tagMap = new Map(data.tags.map((t) => [t.id!, t.name]))
+  const statusMap = new Map(data.statuses.map((s) => [s.id!, s.name]))
 
   const todoPeopleMap = new Map<number, string[]>()
   for (const tp of data.todoPeople) {
@@ -67,7 +68,9 @@ export async function buildMarkdownExport(): Promise<string> {
     const star = todo.isStarred ? ' [F/U]' : ''
     const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
     const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
-    return `${indent}- ${check} ${todo.title}${star}${pri}${due}`
+    const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
+    const statusStr = status ? ` [${status}]` : ''
+    return `${indent}- ${check} ${todo.title}${star}${pri}${statusStr}${due}`
   }
 
   const collectDetails = (todo: PersistedTodoItem) => {

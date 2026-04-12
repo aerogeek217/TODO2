@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
-import type { PersistedTodoItem, Person, Tag } from '../../models'
+import type { PersistedTodoItem, Person, Tag, Status } from '../../models'
 import { Priority } from '../../models'
 import { buildHierarchy } from '../../utils/hierarchy'
 import styles from './PlainTextExportPopup.module.css'
@@ -14,24 +14,28 @@ interface PlainTextExportPopupProps {
   sections: Section[]
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
+  statusMap: Map<number, Status>
   onClose: () => void
 }
 
-function formatTodoLine(todo: PersistedTodoItem, indent: string, people: Person[], tags: Tag[]): string {
+function formatTodoLine(todo: PersistedTodoItem, indent: string, people: Person[], tags: Tag[], statusMap: Map<number, Status>): string {
   const check = todo.isCompleted ? '[x]' : '[ ]'
   const star = todo.isStarred ? ' [F/U]' : ''
   const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
   const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
   const assigned = todo.isAssigned ? ' [ASSIGNED]' : ''
+  const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
+  const statusStr = status ? ` [${status.name}]` : ''
   const peopleStr = people.length > 0 ? ` @${people.map(p => p.name).join(', @')}` : ''
   const tagStr = tags.length > 0 ? ` #${tags.map(t => t.name).join(', #')}` : ''
-  return `${indent}${check} ${todo.title}${star}${pri}${due}${assigned}${peopleStr}${tagStr}`
+  return `${indent}${check} ${todo.title}${star}${pri}${statusStr}${due}${assigned}${peopleStr}${tagStr}`
 }
 
 function generatePlainText(
   sections: Section[],
   assignedPeopleMap: Map<number, Person[]>,
   assignedTagsMap: Map<number, Tag[]>,
+  statusMap: Map<number, Status>,
 ): string {
   const lines: string[] = []
 
@@ -42,11 +46,11 @@ function generatePlainText(
     for (const { parent, children } of hierarchy) {
       const people = assignedPeopleMap.get(parent.id) ?? []
       const tags = assignedTagsMap.get(parent.id) ?? []
-      lines.push(formatTodoLine(parent, '  ', people, tags))
+      lines.push(formatTodoLine(parent, '  ', people, tags, statusMap))
       for (const child of children) {
         const cp = assignedPeopleMap.get(child.id) ?? []
         const ct = assignedTagsMap.get(child.id) ?? []
-        lines.push(formatTodoLine(child, '    ', cp, ct))
+        lines.push(formatTodoLine(child, '    ', cp, ct, statusMap))
       }
     }
     lines.push('')
@@ -55,11 +59,11 @@ function generatePlainText(
   return lines.join('\n').trimEnd()
 }
 
-export function PlainTextExportPopup({ sections, assignedPeopleMap, assignedTagsMap, onClose }: PlainTextExportPopupProps) {
+export function PlainTextExportPopup({ sections, assignedPeopleMap, assignedTagsMap, statusMap, onClose }: PlainTextExportPopupProps) {
   const [copied, setCopied] = useState(false)
   const contentRef = useRef<HTMLPreElement>(null)
 
-  const text = generatePlainText(sections, assignedPeopleMap, assignedTagsMap)
+  const text = generatePlainText(sections, assignedPeopleMap, assignedTagsMap, statusMap)
 
   const handleCopy = useCallback(async () => {
     try {

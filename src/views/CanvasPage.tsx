@@ -501,6 +501,8 @@ export function CanvasPage() {
         taskboardHeight={taskboardSize.h}
         onResizeTaskboard={handleResizeTaskboard}
         onCascadeShift={handleCascadeShift}
+        completedFilter={filters.completedFilter}
+        assignedFilter={filters.assignedFilter}
       />
       {isProjectNavigatorOpen && (
         <ProjectNavigator
