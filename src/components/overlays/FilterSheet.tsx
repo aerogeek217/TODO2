@@ -192,9 +192,9 @@ export function FilterSheet() {
             <div className={styles.entityHeader} onClick={() => handleToggleSection('toggles')}>
               <span className={styles.filterLabel}>
                 Show / hide
-                {(filters.hardDeadlineOnly || filters.followupFilter !== 'all' || filters.completedFilter !== 'incomplete' || filters.assignedFilter !== 'unassigned') && (
+                {(filters.hardDeadlineOnly || filters.followupFilter !== 'all' || (filters.completedFilter !== 'incomplete' && filters.completedFilter !== 'incomplete-only') || (filters.assignedFilter !== 'unassigned' && filters.assignedFilter !== 'unassigned-only')) && (
                   <span className={styles.activeCount}>
-                    {[filters.hardDeadlineOnly, filters.followupFilter !== 'all', filters.completedFilter !== 'incomplete', filters.assignedFilter !== 'unassigned'].filter(Boolean).length}
+                    {[filters.hardDeadlineOnly, filters.followupFilter !== 'all', filters.completedFilter !== 'incomplete' && filters.completedFilter !== 'incomplete-only', filters.assignedFilter !== 'unassigned' && filters.assignedFilter !== 'unassigned-only'].filter(Boolean).length}
                   </span>
                 )}
               </span>
@@ -238,13 +238,13 @@ export function FilterSheet() {
                     Completed
                   </span>
                   <div className={styles.dateFieldSelector}>
-                    {(['all', 'incomplete', 'completed'] as const).map((v) => (
+                    {(['all', 'incomplete', 'completed', 'incomplete-only'] as const).map((v) => (
                       <button
                         key={v}
                         className={`${styles.dateFieldOption} ${filters.completedFilter === v ? styles.dateFieldOptionActive : ''}`}
                         onClick={() => setCompletedFilter(v)}
                       >
-                        {v === 'all' ? 'All' : v === 'incomplete' ? 'No' : 'Yes'}
+                        {v === 'all' ? 'All' : v === 'incomplete' ? 'No' : v === 'completed' ? 'Yes' : 'No only'}
                       </button>
                     ))}
                   </div>
@@ -255,13 +255,13 @@ export function FilterSheet() {
                     Assigned
                   </span>
                   <div className={styles.dateFieldSelector}>
-                    {(['all', 'unassigned', 'assigned'] as const).map((v) => (
+                    {(['all', 'unassigned', 'assigned', 'unassigned-only'] as const).map((v) => (
                       <button
                         key={v}
                         className={`${styles.dateFieldOption} ${filters.assignedFilter === v ? styles.dateFieldOptionActive : ''}`}
                         onClick={() => setAssignedFilter(v)}
                       >
-                        {v === 'all' ? 'All' : v === 'unassigned' ? 'No' : 'Yes'}
+                        {v === 'all' ? 'All' : v === 'unassigned' ? 'No' : v === 'assigned' ? 'Yes' : 'No only'}
                       </button>
                     ))}
                   </div>

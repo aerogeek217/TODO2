@@ -10,6 +10,6 @@ export type ListSortBy = 'priority' | 'due' | 'people' | 'tag' | 'project' | 'or
 
 export type DateField = 'due' | 'created' | 'modified'
 
-export type AssignedFilter = 'all' | 'unassigned' | 'assigned'
+export type AssignedFilter = 'all' | 'unassigned' | 'assigned' | 'unassigned-only'
 export type FollowupFilter = 'all' | 'followup' | 'no-followup'
-export type CompletedFilter = 'all' | 'incomplete' | 'completed'
+export type CompletedFilter = 'all' | 'incomplete' | 'completed' | 'incomplete-only'

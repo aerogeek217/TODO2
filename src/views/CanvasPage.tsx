@@ -39,7 +39,7 @@ export function CanvasPage() {
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap, assignOrg } = useOrgStore()
   const { openEditPopup, showBulkConfirmation } = useUIStore()
   const taskEdit = useTaskEditCallbacks()
-  const { filters, applyFilter } = useFilterStore()
+  const { filters, matchesFilter } = useFilterStore()
   const { insets, loadByCanvas: loadInsets, add: addInset, update: updateInset, updatePosition: updateInsetPosition, remove: removeInset } = useListInsetStore()
   const { notes: stickyNotes, loadByCanvas: loadNotes, add: addNote, update: updateNote, updatePosition: updateNotePosition, updateText: updateNoteText, updateTitle: updateNoteTitle, updateColor: updateNoteColor, remove: removeNote } = useStickyNoteStore()
 
@@ -129,21 +129,22 @@ export function CanvasPage() {
     useUIStore.getState().setPendingCanvasTarget(null)
   }, [pendingTarget])
 
+  // Canvas only hides tasks for "only" filter variants; other values ghost instead
   const todosByProject = useMemo(() => {
-    const filtered = applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
     const map = new Map<number, PersistedTodoItem[]>()
-    for (const todo of filtered) {
-      if (todo.projectId != null) {
-        const list = map.get(todo.projectId) ?? []
-        list.push(todo)
-        map.set(todo.projectId, list)
-      }
+    for (const todo of todos) {
+      if (todo.projectId == null) continue
+      if (filters.completedFilter === 'incomplete-only' && todo.isCompleted) continue
+      if (filters.assignedFilter === 'unassigned-only' && todo.isAssigned) continue
+      const list = map.get(todo.projectId) ?? []
+      list.push(todo)
+      map.set(todo.projectId, list)
     }
     for (const [, list] of map) {
       list.sort((a, b) => a.sortOrder - b.sortOrder)
     }
     return map
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter])
+  }, [todos, filters.completedFilter, filters.assignedFilter])
 
   // --- DnD (extracted to useCanvasDnD hook) ---
   const dnd = useCanvasDnD({
@@ -156,12 +157,52 @@ export function CanvasPage() {
     rfInstanceRef,
   })
 
-  // Drag-child ghosts (dimmed while dragging parent)
+  // Ghost-filter: compute IDs of visible todos that don't match non-hiding filters (dimmed on canvas)
+  // "only" variants hide tasks entirely (handled in todosByProject); regular variants ghost here
+  const filterGhostIds = useMemo(() => {
+    const hasGhostFilter =
+      filters.priorities !== null || filters.followupFilter !== 'all' || filters.hardDeadlineOnly ||
+      filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null ||
+      filters.statusIds !== null || filters.searchText !== '' ||
+      filters.dateRangeStart !== null || filters.dateRangeEnd !== null ||
+      filters.completedFilter === 'incomplete' || filters.completedFilter === 'completed' ||
+      filters.assignedFilter === 'unassigned' || filters.assignedFilter === 'assigned'
+    if (!hasGhostFilter) return undefined
+    const ghost = new Set<number>()
+    for (const todo of todos) {
+      if (todo.projectId == null) continue
+      // Skip tasks already hidden by "only" variants
+      if (filters.completedFilter === 'incomplete-only' && todo.isCompleted) continue
+      if (filters.assignedFilter === 'unassigned-only' && todo.isAssigned) continue
+      // Ghost completed/assigned based on regular filter values
+      let isGhost = false
+      if (filters.completedFilter === 'incomplete' && todo.isCompleted) isGhost = true
+      else if (filters.completedFilter === 'completed' && !todo.isCompleted) isGhost = true
+      if (filters.assignedFilter === 'unassigned' && todo.isAssigned) isGhost = true
+      else if (filters.assignedFilter === 'assigned' && !todo.isAssigned) isGhost = true
+      // Ghost based on other filters (skipVisibility=true skips completed/assigned checks)
+      if (!isGhost) {
+        const personIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
+        const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
+        const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])
+        const dOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
+        if (!matchesFilter(todo, personIds, tagIds, pOrgIds, dOrgIds, true)) {
+          isGhost = true
+        }
+      }
+      if (isGhost) ghost.add(todo.id)
+    }
+    return ghost.size > 0 ? ghost : undefined
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter])
+
+  // Merge filter ghosts and drag-child ghosts
   const ghostTodoIds = useMemo(() => {
     const dragChildIds = dnd.activeDragChildren.map(c => c.id)
-    if (dragChildIds.length === 0) return undefined
-    return new Set(dragChildIds)
-  }, [dnd.activeDragChildren])
+    if (!filterGhostIds && dragChildIds.length === 0) return undefined
+    const merged = new Set(filterGhostIds)
+    for (const id of dragChildIds) merged.add(id)
+    return merged.size > 0 ? merged : undefined
+  }, [filterGhostIds, dnd.activeDragChildren])
 
   const handleNodeDragStop = useCallback(
     (projectId: number, x: number, y: number) => {

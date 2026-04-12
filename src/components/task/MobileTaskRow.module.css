@@ -126,6 +126,10 @@
   color: var(--color-text-primary);
 }
 
+.title.parentTitle {
+  font-weight: 600;
+}
+
 .completedTitle {
   text-decoration: line-through;
   color: var(--color-text-completed);

@@ -59,9 +59,9 @@ main.tsx (entry point)
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
 | ListSortBy | models/app-view.ts | Type: priority, due, people, org, tag, project, status |
 | DateField | models/app-view.ts | Type: due, created, modified — used by filter store and saved views |
-| AssignedFilter | models/app-view.ts | Type: all, unassigned, assigned — tri-state filter for task assignment visibility |
+| AssignedFilter | models/app-view.ts | Type: all, unassigned, assigned, unassigned-only — task assignment filter; "only" hides on canvas, others ghost |
 | FollowupFilter | models/app-view.ts | Type: all, followup, no-followup — tri-state filter for follow-up/starred visibility |
-| CompletedFilter | models/app-view.ts | Type: all, incomplete, completed — tri-state filter for completion visibility |
+| CompletedFilter | models/app-view.ts | Type: all, incomplete, completed, incomplete-only — completion filter; "only" hides on canvas, others ghost |
 | ListInset | models/list-inset.ts | Filtered task list widget on canvas (preset: due-this-week, starred, high-priority; or attributeFilter: priority/person/tag/org) |
 | ListInsetAttributeFilter | models/list-inset.ts | Attribute-based filter for list insets: priority, person, tag, or org |
 | StickyNote | models/sticky-note.ts | Free-text note widget on canvas (optional title, text, position, dimensions, optional color defaulting to yellow #FFF3B0, timestamps) |

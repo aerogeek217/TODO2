@@ -25,8 +25,10 @@
 ## Up Next
 
 - [x] **Tri-state filter dropdowns** — Assigned, Follow up, and Completed filters converted from boolean toggles to 3-option dropdowns (All/Assigned/Unassigned, All/Follow up/No follow up, All/Incomplete/Completed); radio-button dropdown UI on desktop, segmented controls on mobile; backward-compatible saved view serialization with dual-write
-- [ ] **Status badge should tint to match selected status color** — the priority badge in TaskEditPopup changes its text/border/background color based on the selected priority; the status badge should do the same using the selected status's color (inline style with rgba tinting)
-- [ ] **Status: canvas list inset attribute filter** — add status variant to ListInsetAttributeFilter / AttributeFilter for canvas list insets (deferred from initial implementation)
+- [x] **Bold parent tasks** — parent tasks (with children) display with font-weight 600 in canvas and list views (TaskRow + MobileTaskRow)
+- [x] **List view drag parent+children across groups** — dragging a parent to a different group now applies the group property (priority, project, status, person, tag) to all children too; drop indicator shows correct insertion position
+- [x] **Canvas ghost filtering restored** — non-matching tasks ghost (25% opacity) on canvas instead of disappearing; only "only" filter variants hide tasks entirely
+- [x] **Four-option assigned/completed filters** — Assigned and Completed filters expanded from 3 to 4 options: All (no filter), Unassigned/Incomplete (ghost on canvas, hide in lists), Assigned/Completed (ghost on canvas, hide in lists), Unassigned only/Incomplete only (hide everywhere); defaults are the "only" variants
 - [ ] **Status: markdown export** — include status names in markdown export task lines
 - [ ] **Status: plain text export** — include status in PlainTextExportPopup task lines
 

@@ -289,7 +289,7 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
           title={todo.title}
           onClick={(e) => {
             e.stopPropagation()

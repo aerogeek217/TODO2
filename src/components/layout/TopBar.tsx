@@ -660,11 +660,12 @@ export function TopBar() {
           <SimpleFilterDropdown<AssignedFilter>
             icon={<svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
             value={filters.assignedFilter}
-            defaultValue="unassigned"
+            defaultValue="unassigned-only"
             options={[
               { value: 'all', label: 'All' },
               { value: 'unassigned', label: 'Unassigned' },
               { value: 'assigned', label: 'Assigned' },
+              { value: 'unassigned-only', label: 'Unassigned only' },
             ]}
             onChange={setAssignedFilter}
           />
@@ -706,11 +707,12 @@ export function TopBar() {
           <SimpleFilterDropdown<CompletedFilter>
             icon={<span className={styles.filterIcon}>✓</span>}
             value={filters.completedFilter}
-            defaultValue="incomplete"
+            defaultValue="incomplete-only"
             options={[
               { value: 'all', label: 'All' },
               { value: 'incomplete', label: 'Incomplete' },
               { value: 'completed', label: 'Completed' },
+              { value: 'incomplete-only', label: 'Incomplete only' },
             ]}
             onChange={setCompletedFilter}
           />

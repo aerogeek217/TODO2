@@ -15,7 +15,8 @@ interface TaskListProps {
   ghostIds?: Set<number>
   draggable?: boolean
   sectionKey?: string
-  dropIndicator?: boolean
+  /** Index in the flat visual list where the drop indicator should appear, or undefined to hide */
+  dropIndicatorIndex?: number
   onOpenDetail?: (todoId: number) => void
 }
 
@@ -56,7 +57,7 @@ export function TaskList({
   ghostIds,
   draggable,
   sectionKey,
-  dropIndicator,
+  dropIndicatorIndex,
   onOpenDetail,
 }: TaskListProps) {
   const { collapsedParents, toggleCollapseParent, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
@@ -130,16 +131,19 @@ export function TaskList({
         )
 
         return (
-          <div key={item.todo.id} className={cls}>
-            {!isMobile && draggable && sectionKey && !ghostIds?.has(item.todo.id) ? (
-              <DraggableRow todo={item.todo} sectionKey={sectionKey}>
-                {row}
-              </DraggableRow>
-            ) : row}
+          <div key={item.todo.id}>
+            {dropIndicatorIndex === idx && <div className={styles.dropIndicator} />}
+            <div className={cls}>
+              {!isMobile && draggable && sectionKey && !ghostIds?.has(item.todo.id) ? (
+                <DraggableRow todo={item.todo} sectionKey={sectionKey}>
+                  {row}
+                </DraggableRow>
+              ) : row}
+            </div>
           </div>
         )
       })}
-      {dropIndicator && <div className={styles.dropIndicator} />}
+      {dropIndicatorIndex != null && dropIndicatorIndex >= flatItems.length && <div className={styles.dropIndicator} />}
     </>
   )
 }

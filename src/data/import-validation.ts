@@ -237,8 +237,8 @@ function isOptBool(v: unknown): boolean {
   return v === undefined || isBool(v)
 }
 
-const VALID_COMPLETED_FILTERS = ['all', 'incomplete', 'completed']
-const VALID_ASSIGNED_FILTERS = ['all', 'unassigned', 'assigned']
+const VALID_COMPLETED_FILTERS = ['all', 'incomplete', 'completed', 'incomplete-only']
+const VALID_ASSIGNED_FILTERS = ['all', 'unassigned', 'assigned', 'unassigned-only']
 const VALID_FOLLOWUP_FILTERS = ['all', 'followup', 'no-followup']
 
 function isOptFilterStr(v: unknown, valid: string[]): boolean {
@@ -441,8 +441,8 @@ function pickStickyNote(v: Record<string, unknown>): StickyNote {
 
 function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] {
   // Normalize: prefer new string fields, fall back to old booleans
-  const completedFilter = (v.completedFilter as string) ?? ((v.showCompleted as boolean) ? 'all' : 'incomplete')
-  const assignedFilter = (v.assignedFilter as string) ?? ((v.showAssigned as boolean) ? 'all' : 'unassigned')
+  const completedFilter = (v.completedFilter as string) ?? ((v.showCompleted as boolean) ? 'all' : 'incomplete-only')
+  const assignedFilter = (v.assignedFilter as string) ?? ((v.showAssigned as boolean) ? 'all' : 'unassigned-only')
   const followupFilter = (v.followupFilter as string) ?? ((v.starredOnly as boolean) ? 'followup' : 'all')
   return {
     priorities: v.priorities as number[] | null,
@@ -450,8 +450,8 @@ function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] 
     assignedFilter,
     followupFilter,
     // Backward compat: dual-write old boolean fields
-    showCompleted: completedFilter !== 'incomplete',
-    showAssigned: assignedFilter !== 'unassigned',
+    showCompleted: completedFilter !== 'incomplete' && completedFilter !== 'incomplete-only',
+    showAssigned: assignedFilter !== 'unassigned' && assignedFilter !== 'unassigned-only',
     starredOnly: followupFilter === 'followup',
     hardDeadlineOnly: (v.hardDeadlineOnly as boolean) ?? false,
     personIds: v.personIds as number[] | null,

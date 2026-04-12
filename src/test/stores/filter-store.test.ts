@@ -132,8 +132,8 @@ describe('useFilterStore', () => {
     expect(filters.tagIds).toBe(null)
     expect(filters.personIds).toBe(null)
     expect(filters.followupFilter).toBe('all')
-    expect(filters.completedFilter).toBe('incomplete')
-    expect(filters.assignedFilter).toBe('unassigned')
+    expect(filters.completedFilter).toBe('incomplete-only')
+    expect(filters.assignedFilter).toBe('unassigned-only')
     expect(isActive).toBe(false)
   })
 

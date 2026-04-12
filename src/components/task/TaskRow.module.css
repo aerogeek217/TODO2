@@ -264,6 +264,10 @@
   white-space: nowrap;
 }
 
+.title.parentTitle {
+  font-weight: 600;
+}
+
 .title.completedTitle {
   text-decoration: line-through;
   color: var(--color-text-completed);

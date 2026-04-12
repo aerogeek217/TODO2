@@ -116,7 +116,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
         {statusColor && <span className={styles.statusDot} style={{ background: statusColor }} />}
 
-        <span className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}>
+        <span className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}
         </span>
 

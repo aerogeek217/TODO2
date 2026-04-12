@@ -30,6 +30,7 @@ import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopu
 import { Priority } from '../models'
 import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy } from '../models'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
+import { buildHierarchy } from '../utils/hierarchy'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import styles from './ListView.module.css'
 
@@ -318,6 +319,36 @@ export function addGhostParents(sectionTodos: PersistedTodoItem[], allTodos: Per
   return { todos: result, ghostIds }
 }
 
+/**
+ * Compute the flat visual index where `dragTodo` (plus its children) would appear
+ * if inserted into `sectionTodos`. Simulates the same hierarchy + flatten that TaskList does.
+ */
+function computeDropIndex(
+  sectionTodos: PersistedTodoItem[],
+  allTodos: PersistedTodoItem[],
+  dragTodo: PersistedTodoItem,
+  collapsedParents: Set<number>,
+): number {
+  // Simulate the section after the drop: add drag todo + its children
+  const dragChildren = allTodos.filter(t => t.parentId === dragTodo.id)
+  const dragIds = new Set([dragTodo.id, ...dragChildren.map(c => c.id)])
+  const merged = [...sectionTodos.filter(t => !dragIds.has(t.id)), dragTodo, ...dragChildren]
+
+  // Run the same ghost-parent + hierarchy + flatten pipeline as TaskList
+  const { todos: withGhosts } = addGhostParents(merged, allTodos)
+  const hierarchy = buildHierarchy(withGhosts)
+
+  let idx = 0
+  for (const { parent, children } of hierarchy) {
+    if (parent.id === dragTodo.id) return idx
+    idx++ // parent row
+    if (children.length > 0 && !collapsedParents.has(parent.id)) {
+      idx += children.length
+    }
+  }
+  return idx // fallback: end of list
+}
+
 // --- Droppable section wrapper ---
 
 function DroppableSection({
@@ -389,7 +420,7 @@ export function ListView() {
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { statuses, load: loadStatuses } = useStatusStore()
-  const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation } = useUIStore()
+  const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
   const { filters, applyFilter, setAllFilters } = useFilterStore()
   const taskEdit = useTaskEditCallbacks()
   const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, renameView, removeView, setActiveViewId } = useSavedViewStore()
@@ -438,7 +469,7 @@ export function ListView() {
   const activeTodos = useMemo(() => {
     const filtered = applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
     // When grouped by People, include assigned tasks that pass all other filters
-    if (listSortBy === 'people' && filters.assignedFilter === 'unassigned') {
+    if (listSortBy === 'people' && (filters.assignedFilter === 'unassigned' || filters.assignedFilter === 'unassigned-only')) {
       const filteredIds = new Set(filtered.map(t => t.id))
       const { matchesFilter } = useFilterStore.getState()
       const assignedExtras = todos.filter(t => {
@@ -557,19 +588,23 @@ export function ListView() {
   }, [])
 
   const performDrop = useCallback((todo: PersistedTodoItem, fromKey: string, toKey: string) => {
+    const children = todos.filter(t => t.parentId === todo.id)
+    const now = new Date()
+
     if (listSortBy === 'priority') {
       const newPriority = parseSectionPriority(toKey)
       if (newPriority != null) {
-        updateTodo({ ...todo, priority: newPriority, modifiedAt: new Date() })
+        updateTodo({ ...todo, priority: newPriority, modifiedAt: now })
+        for (const child of children) {
+          updateTodo({ ...child, priority: newPriority, modifiedAt: now })
+        }
       }
     } else if (listSortBy === 'project') {
       const newProjectId = parseSectionProjectId(toKey)
       if (newProjectId !== null && newProjectId !== todo.projectId) {
-        updateTodo({ ...todo, projectId: newProjectId, modifiedAt: new Date() })
-        // Disassociate children left behind in original project
-        const orphans = todos.filter(t => t.parentId === todo.id && t.projectId === todo.projectId)
-        for (const child of orphans) {
-          updateTodo({ ...child, parentId: undefined, modifiedAt: new Date() })
+        updateTodo({ ...todo, projectId: newProjectId, modifiedAt: now })
+        for (const child of children) {
+          updateTodo({ ...child, projectId: newProjectId, modifiedAt: now })
         }
       }
     } else if (listSortBy === 'people') {
@@ -583,11 +618,14 @@ export function ListView() {
     } else if (listSortBy === 'status') {
       const newStatusId = toKey === 'no-status' ? undefined : toKey.startsWith('status-') ? Number(toKey.slice(7)) : null
       if (newStatusId !== null && newStatusId !== todo.statusId) {
-        updateTodo({ ...todo, statusId: newStatusId, modifiedAt: new Date() })
+        updateTodo({ ...todo, statusId: newStatusId, modifiedAt: now })
+        for (const child of children) {
+          updateTodo({ ...child, statusId: newStatusId, modifiedAt: now })
+        }
       }
     }
     // 'due' — no reassignment (ambiguous target dates)
-  }, [listSortBy, sectionLabelMap, updateTodo])
+  }, [listSortBy, todos, sectionLabelMap, updateTodo])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveDragTodo(null)
@@ -606,23 +644,29 @@ export function ListView() {
   const confirmReassign = useCallback(async () => {
     if (!pendingReassign) return
     const { todo, fromKey, toKey, attribute } = pendingReassign
+    const children = todos.filter(t => t.parentId === todo.id)
+    const allIds = [todo.id, ...children.map(c => c.id)]
 
     if (attribute === 'person') {
       const fromPersonId = parseSectionPersonId(fromKey)
       const toPersonId = parseSectionPersonId(toKey)
-      if (fromPersonId != null) await unassignPerson(todo.id, fromPersonId)
-      if (toPersonId != null) await assignPerson(todo.id, toPersonId)
+      for (const id of allIds) {
+        if (fromPersonId != null) await unassignPerson(id, fromPersonId)
+        if (toPersonId != null) await assignPerson(id, toPersonId)
+      }
     } else if (attribute === 'tag') {
       const fromTagId = parseSectionTagId(fromKey)
       const toTagId = parseSectionTagId(toKey)
-      if (fromTagId != null) await unassignTag(todo.id, fromTagId)
-      if (toTagId != null) await assignTag(todo.id, toTagId)
+      for (const id of allIds) {
+        if (fromTagId != null) await unassignTag(id, fromTagId)
+        if (toTagId != null) await assignTag(id, toTagId)
+      }
     }
 
     setPendingReassign(null)
     // Reload to reflect changes
     await loadAll()
-  }, [pendingReassign, assignPerson, unassignPerson, assignTag, unassignTag, loadAll])
+  }, [pendingReassign, todos, assignPerson, unassignPerson, assignTag, unassignTag, loadAll])
 
   const cancelReassign = useCallback(() => {
     setPendingReassign(null)
@@ -727,6 +771,9 @@ export function ListView() {
             const { todos: todosWithGhosts, ghostIds } = addGhostParents(section.todos, todos)
             const isCollapsed = !!collapsed[section.key]
             const isOver = overSectionKey === section.key
+            const dropIdx = (isOver && activeDragTodo)
+              ? computeDropIndex(section.todos, todos, activeDragTodo, collapsedParents)
+              : undefined
             return (
               <DroppableSection key={section.key} sectionKey={section.key} isOver={isOver}>
                 <SectionHeader
@@ -745,7 +792,7 @@ export function ListView() {
                       ghostIds={ghostIds}
                       draggable={isDndEnabled}
                       sectionKey={section.key}
-                      dropIndicator={isOver && !!activeDragTodo}
+                      dropIndicatorIndex={dropIdx}
                       onOpenDetail={handleClick}
                     />
                   </div>

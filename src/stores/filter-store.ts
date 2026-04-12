@@ -60,8 +60,8 @@ interface FilterState {
 
 const defaultFilters: FilterCriteria = {
   priorities: null,
-  completedFilter: 'incomplete',
-  assignedFilter: 'unassigned',
+  completedFilter: 'incomplete-only',
+  assignedFilter: 'unassigned-only',
   followupFilter: 'all',
   hardDeadlineOnly: false,
   personIds: null,
@@ -76,7 +76,7 @@ const defaultFilters: FilterCriteria = {
 }
 
 function isFilterActive(f: FilterCriteria): boolean {
-  return f.priorities !== null || f.completedFilter !== 'incomplete' || f.assignedFilter !== 'unassigned' || f.followupFilter !== 'all' || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
+  return f.priorities !== null || (f.completedFilter !== 'incomplete' && f.completedFilter !== 'incomplete-only') || (f.assignedFilter !== 'unassigned' && f.assignedFilter !== 'unassigned-only') || f.followupFilter !== 'all' || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
 }
 
 function todoMatchesFilter(
@@ -88,6 +88,9 @@ function todoMatchesFilter(
   directOrgIds?: number[],
   skipVisibility?: boolean,
 ): boolean {
+  // "only" variants always hide (canvas + lists); regular variants hide only in lists (skipVisibility=false)
+  if (filters.completedFilter === 'incomplete-only' && todo.isCompleted) return false
+  if (filters.assignedFilter === 'unassigned-only' && todo.isAssigned) return false
   if (!skipVisibility) {
     if (filters.completedFilter === 'incomplete' && todo.isCompleted) return false
     if (filters.completedFilter === 'completed' && !todo.isCompleted) return false
@@ -177,7 +180,9 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   cycleCompletedFilter() {
     const { filters } = get()
-    const next: CompletedFilter = filters.completedFilter === 'incomplete' ? 'all' : filters.completedFilter === 'all' ? 'completed' : 'incomplete'
+    const cycle: CompletedFilter[] = ['incomplete', 'all', 'completed', 'incomplete-only']
+    const idx = cycle.indexOf(filters.completedFilter)
+    const next = cycle[(idx + 1) % cycle.length]
     commit(set, { ...filters, completedFilter: next })
   },
 
