@@ -114,6 +114,7 @@ interface CanvasViewProps {
   stickyHandlers: StickyHandlers
   allPeople?: Person[]
   allTags?: Tag[]
+  allOrgs?: Org[]
   taskboardEntries?: TaskboardEntry[]
   isTaskboardCollapsed?: boolean
   onToggleTaskboardCollapse?: () => void
@@ -144,6 +145,7 @@ export function CanvasView({
   stickyHandlers,
   allPeople,
   allTags,
+  allOrgs,
   taskboardEntries,
   isTaskboardCollapsed,
   onToggleTaskboardCollapse,
@@ -278,6 +280,7 @@ export function CanvasView({
         people: allPeople,
         tags: allTags,
         projects,
+        orgs: allOrgs,
       } satisfies StickyNoteNodeData,
     }))
 
@@ -308,7 +311,7 @@ export function CanvasView({
     onResizeProject, onSetProjectColor, handleResizeSnap,
     listInsets, allTodos, onDeleteInset, onToggleCollapseInset, onResizeInset,
     stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
-    allPeople, allTags,
+    allPeople, allTags, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
     activeDragTodoId,
   ])

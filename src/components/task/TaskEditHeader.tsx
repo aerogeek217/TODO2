@@ -1,4 +1,4 @@
-import type { AutocompleteState } from '../../hooks/use-nlp-autocomplete'
+import type { AutocompleteState, AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './TaskEditPopup.module.css'
@@ -17,7 +17,7 @@ interface TaskEditHeaderProps {
   onToggleStar: () => void
   onClose: () => void
   acState: AutocompleteState
-  onAcSelect: (item: { id: number; name: string }) => void
+  onAcSelect: (item: AutocompleteItem) => void
 }
 
 export function TaskEditHeader({
@@ -44,7 +44,7 @@ export function TaskEditHeader({
           onChange={onTitleChange}
           onBlur={onTitleBlur}
           onKeyDown={onTitleKeyDown}
-          placeholder={mode === 'create' ? 'New task... (@person #tag /project p1 tomorrow)' : 'Task title'}
+          placeholder={mode === 'create' ? 'New task... (@person @org #tag /project p1 tomorrow)' : 'Task title'}
         />
         <NlpAutocomplete state={acState} onSelect={onAcSelect} />
       </div>

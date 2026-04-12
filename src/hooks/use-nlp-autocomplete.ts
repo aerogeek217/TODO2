@@ -4,6 +4,7 @@ export interface AutocompleteItem {
   id: number
   name: string
   color?: string
+  kind: 'person' | 'org' | 'tag' | 'project'
 }
 
 export interface AutocompleteState {
@@ -29,6 +30,7 @@ interface UseNlpAutocompleteOptions {
   people: AutocompleteItem[]
   tags: AutocompleteItem[]
   projects?: AutocompleteItem[]
+  orgs?: AutocompleteItem[]
 }
 
 /**
@@ -38,7 +40,7 @@ interface UseNlpAutocompleteOptions {
 // Shared canvas for text measurement — avoids creating one per keystroke
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-export function useNlpAutocomplete({ people, tags, projects = [] }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, tags, projects = [], orgs = [] }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   const triggerPosRef = useRef<number>(-1)
 
@@ -75,7 +77,7 @@ export function useNlpAutocomplete({ people, tags, projects = [] }: UseNlpAutoco
     const query = beforeCursor.slice(triggerIdx + 1).toLowerCase()
     triggerPosRef.current = triggerIdx
 
-    const sourceItems = triggerChar === '@' ? people : triggerChar === '#' ? tags : projects
+    const sourceItems = triggerChar === '@' ? [...people, ...orgs] : triggerChar === '#' ? tags : projects
     const filtered = query
       ? sourceItems.filter((item) => item.name.toLowerCase().includes(query))
       : sourceItems
@@ -104,7 +106,7 @@ export function useNlpAutocomplete({ people, tags, projects = [] }: UseNlpAutoco
       selectedIndex: 0,
       caretLeft,
     })
-  }, [people, tags, projects, state.visible, dismiss])
+  }, [people, tags, projects, orgs, state.visible, dismiss])
 
   /**
    * Handle keyboard events for autocomplete navigation.

@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import type { StickyNote, Person, Tag, Project } from '../../models'
+import type { StickyNote, Person, Tag, Project, Org } from '../../models'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useUIStore } from '../../stores/ui-store'
@@ -33,12 +33,13 @@ export interface StickyNoteNodeData {
   people?: Person[]
   tags?: Tag[]
   projects?: Project[]
+  orgs?: Org[]
 }
 
 type StickyNoteNodeType = StickyNoteNodeData
 
 function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType }) {
-  const { note, onDelete, onUpdateText, onUpdateTitle, onUpdateColor, onResize, onConvertLines, people = [], tags = [], projects = [] } = data
+  const { note, onDelete, onUpdateText, onUpdateTitle, onUpdateColor, onResize, onConvertLines, people = [], tags = [], projects = [], orgs = [] } = data
   const { getZoom } = useReactFlow()
   const [localText, setLocalText] = useState(note.text)
   const [localTitle, setLocalTitle] = useState(note.title || '')
@@ -77,11 +78,12 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
     }
   }, [note.id, note.title, localTitle, onUpdateTitle])
 
-  // Autocomplete for @person #tag /project
-  const acPeople = useMemo(() => people.map((p) => ({ id: p.id!, name: p.name, color: p.color })), [people])
-  const acTags = useMemo(() => tags.map((t) => ({ id: t.id!, name: t.name, color: t.color })), [tags])
-  const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: (p as { color?: string }).color })), [projects])
-  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects })
+  // Autocomplete for @person/@org #tag /project
+  const acPeople = useMemo(() => people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [people])
+  const acTags = useMemo(() => tags.map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })), [tags])
+  const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: (p as { color?: string }).color, kind: 'project' as const })), [projects])
+  const acOrgs = useMemo(() => orgs.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [orgs])
+  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects, orgs: acOrgs })
   const [acDropdownPos, setAcDropdownPos] = useState<{ top: number; left: number } | null>(null)
   // Save cursor position when autocomplete triggers so selection works after re-render
   const acCursorRef = useRef<number>(0)
@@ -321,11 +323,11 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
           style={{ top: acDropdownPos.top, left: acDropdownPos.left }}
         >
           <div className={styles.acHeader}>
-            {ac.state.trigger === '@' ? 'People' : ac.state.trigger === '#' ? 'Tags' : 'Projects'}
+            {ac.state.trigger === '@' ? (ac.state.items.some((item) => item.kind === 'org') ? 'People & Orgs' : 'People') : ac.state.trigger === '#' ? 'Tags' : 'Projects'}
           </div>
           {ac.state.items.map((item, i) => (
             <button
-              key={item.id}
+              key={`${item.kind}-${item.id}`}
               className={`${styles.acItem} ${i === ac.state.selectedIndex ? styles.acItemSelected : ''}`}
               onMouseDown={(e) => {
                 e.preventDefault()
@@ -337,6 +339,9 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
                 <span className={styles.acDot} style={{ background: item.color }} />
               )}
               <span>{ac.state.trigger}{item.name}</span>
+              {item.kind === 'org' && (
+                <span className={styles.acKindLabel}>(org)</span>
+              )}
             </button>
           ))}
         </div>

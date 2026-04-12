@@ -30,7 +30,7 @@ export function useTaskEditCallbacks() {
   )
 
   const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds: number[]; orgIds: number[] }) => {
-    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, tags, projects)
+    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, tags, projects, orgs)
     let pid = resolved.projectId ?? partial.projectId
     if (!pid && selectedCanvasId) {
       pid = await addProject('New Project', selectedCanvasId)
@@ -54,13 +54,12 @@ export function useTaskEditCallbacks() {
     }
     const allPersonIds = new Set([...resolved.personIds, ...(assignments?.personIds ?? [])])
     const allTagIds = new Set([...resolved.tagIds, ...(assignments?.tagIds ?? [])])
+    const allOrgIds = new Set([...resolved.orgIds, ...(assignments?.orgIds ?? [])])
     for (const personId of allPersonIds) await assignPerson(id, personId)
     for (const tagId of allTagIds) await assignTag(id, tagId)
-    if (assignments) {
-      for (const orgId of assignments.orgIds) await assignOrg(id, orgId)
-    }
+    for (const orgId of allOrgIds) await assignOrg(id, orgId)
     return id
-  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, addProject, people, tags, projects])
+  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, addProject, people, tags, projects, orgs])
 
   const editProps = useMemo(() => {
     if (!selectedTodo) return null

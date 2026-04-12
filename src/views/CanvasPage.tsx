@@ -35,7 +35,7 @@ export function CanvasPage() {
   const { todos, loadByCanvas: loadTodos, add: addTodo, addAt: addTodoAt, update: updateTodo, applyMutations } = useTodoStore()
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments, assignPerson } = usePersonStore()
   const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag } = useTagStore()
-  const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap, assignOrg } = useOrgStore()
   const { openEditPopup, showBulkConfirmation } = useUIStore()
   const taskEdit = useTaskEditCallbacks()
   const { filters, isActive: isFilterActive } = useFilterStore()
@@ -227,16 +227,16 @@ export function CanvasPage() {
       if (!selectedCanvasId) return
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
-      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects)
+      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
       const pid = resolved.projectId ?? projectId
       const id = await addTodo(title || rawTitle, selectedCanvasId, pid)
       await applyNlpMetadata(
         id, resolved,
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
-        updateTodo, assignPerson, assignTag,
+        updateTodo, assignPerson, assignTag, assignOrg,
       )
     },
-    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, people, tags]
+    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
   )
 
   const handleInsertTask = useCallback(
@@ -244,7 +244,7 @@ export function CanvasPage() {
       if (!selectedCanvasId) return -1
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
-      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects)
+      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
       const pid = resolved.projectId ?? projectId
       const projectTodos = todosByProject.get(pid) ?? []
       const siblings = projectTodos.filter(t =>
@@ -256,11 +256,11 @@ export function CanvasPage() {
       await applyNlpMetadata(
         id, resolved,
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
-        updateTodo, assignPerson, assignTag,
+        updateTodo, assignPerson, assignTag, assignOrg,
       )
       return id
     },
-    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, people, tags]
+    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
   )
 
   const handleDeleteProject = useCallback(
@@ -339,7 +339,7 @@ export function CanvasPage() {
     async (lines: string[]) => {
       if (!selectedCanvasId) return
       for (const line of lines) {
-        const { title, resolved } = parseTaskInput(line, people, tags, projects)
+        const { title, resolved } = parseTaskInput(line, people, tags, projects, orgs)
         let pid = resolved.projectId
         if (!pid) {
           pid = projects[0]?.id
@@ -351,11 +351,11 @@ export function CanvasPage() {
         await applyNlpMetadata(
           id, resolved,
           (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
-          updateTodo, assignPerson, assignTag,
+          updateTodo, assignPerson, assignTag, assignOrg,
         )
       }
     },
-    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, people, tags, projects, addProject]
+    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, projects, orgs, addProject]
   )
 
   const handleResizeNote = useCallback(
@@ -492,6 +492,7 @@ export function CanvasPage() {
         stickyHandlers={stickyHandlers}
         allPeople={people}
         allTags={tags}
+        allOrgs={orgs}
         taskboardEntries={taskboardEntries}
         isTaskboardCollapsed={isTaskboardCollapsed}
         onToggleTaskboardCollapse={handleToggleTaskboardCollapse}

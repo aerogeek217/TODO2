@@ -54,7 +54,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: text;
+  cursor: inherit;
 }
 
 .titleInput {
@@ -270,6 +270,13 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.acKindLabel {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
 

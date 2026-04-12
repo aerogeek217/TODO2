@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { resolveInput } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
 import { Priority } from '../../models'
-import type { Person, Tag, Project } from '../../models'
+import type { Person, Tag, Project, Org } from '../../models'
 
 const people: Person[] = [
   { id: 1, name: 'John Smith', initials: 'JS', color: '#ff0000' },
@@ -140,5 +140,55 @@ describe('nlp-resolver', () => {
     expect(result.tagIds).toEqual([11])
     expect(result.priority).toBe(Priority.High)
     expect(result.title).toBe('Fix bug')
+  })
+
+  describe('org resolution', () => {
+    const orgs: Org[] = [
+      { id: 50, name: 'Acme Corp', initials: 'AC', color: '#ff0' },
+      { id: 51, name: 'Globex', color: '#0ff' },
+    ]
+
+    it('resolves @name as org when no person matches', () => {
+      const parsed = parseInput('Task @Acme')
+      const result = resolveInput(parsed, people, tags, projects, orgs)
+      expect(result.orgIds).toEqual([50])
+      expect(result.personIds).toEqual([])
+      expect(result.unmatchedPersons).toEqual([])
+    })
+
+    it('resolves org by initials', () => {
+      const parsed = parseInput('Task @AC')
+      const result = resolveInput(parsed, people, tags, projects, orgs)
+      expect(result.orgIds).toEqual([50])
+    })
+
+    it('person takes priority over org with same name prefix', () => {
+      const parsed = parseInput('Task @Mike')
+      const result = resolveInput(parsed, people, tags, projects, orgs)
+      expect(result.personIds).toEqual([3])
+      expect(result.orgIds).toEqual([])
+    })
+
+    it('resolves mixed people and orgs from @tokens', () => {
+      const parsed = parseInput('Task @Mike @Globex')
+      const result = resolveInput(parsed, people, tags, projects, orgs)
+      expect(result.personIds).toEqual([3])
+      expect(result.orgIds).toEqual([51])
+    })
+
+    it('reports truly unmatched @tokens when no person or org matches', () => {
+      const parsed = parseInput('Task @Unknown')
+      const result = resolveInput(parsed, people, tags, projects, orgs)
+      expect(result.personIds).toEqual([])
+      expect(result.orgIds).toEqual([])
+      expect(result.unmatchedPersons).toEqual(['Unknown'])
+    })
+
+    it('returns empty orgIds when no orgs provided', () => {
+      const parsed = parseInput('Task @Acme')
+      const result = resolveInput(parsed, people, tags, projects)
+      expect(result.orgIds).toEqual([])
+      expect(result.unmatchedPersons).toEqual(['Acme'])
+    })
   })
 })

@@ -9,14 +9,16 @@ interface NlpAutocompleteProps {
 export function NlpAutocomplete({ state, onSelect }: NlpAutocompleteProps) {
   if (!state.visible || state.items.length === 0) return null
 
+  const hasOrgs = state.trigger === '@' && state.items.some((item) => item.kind === 'org')
+
   return (
     <div className={styles.dropdown} style={{ left: state.caretLeft }}>
       <div className={styles.header}>
-        {state.trigger === '@' ? 'People' : state.trigger === '#' ? 'Tags' : 'Projects'}
+        {state.trigger === '@' ? (hasOrgs ? 'People & Orgs' : 'People') : state.trigger === '#' ? 'Tags' : 'Projects'}
       </div>
       {state.items.map((item, i) => (
         <button
-          key={item.id}
+          key={`${item.kind}-${item.id}`}
           className={`${styles.item} ${i === state.selectedIndex ? styles.selected : ''}`}
           onMouseDown={(e) => {
             e.preventDefault() // prevent input blur
@@ -29,6 +31,9 @@ export function NlpAutocomplete({ state, onSelect }: NlpAutocompleteProps) {
           <span className={styles.name}>
             {state.trigger}{item.name}
           </span>
+          {item.kind === 'org' && (
+            <span className={styles.kindLabel}>(org)</span>
+          )}
         </button>
       ))}
     </div>

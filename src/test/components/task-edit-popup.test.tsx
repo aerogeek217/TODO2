@@ -11,7 +11,7 @@ beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
 })
 
-const TITLE_PLACEHOLDER = 'New task... (@person #tag /project p1 tomorrow)'
+const TITLE_PLACEHOLDER = 'New task... (@person @org #tag /project p1 tomorrow)'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })

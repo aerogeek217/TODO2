@@ -4,6 +4,7 @@ import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useProjectStore } from '../../stores/project-store'
+import { useOrgStore } from '../../stores/org-store'
 import styles from './InsertTrigger.module.css'
 
 interface InsertTriggerProps {
@@ -22,12 +23,14 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const projects = useProjectStore((s) => s.projects)
+  const orgsFromStore = useOrgStore((s) => s.orgs)
 
-  const acPeople = useMemo(() => people.map((p) => ({ id: p.id!, name: p.name, color: p.color })), [people])
-  const acTags = useMemo(() => tags.map((t) => ({ id: t.id!, name: t.name, color: t.color })), [tags])
-  const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color })), [projects])
+  const acPeople = useMemo(() => people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [people])
+  const acTags = useMemo(() => tags.map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })), [tags])
+  const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
+  const acOrgs = useMemo(() => orgsFromStore.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [orgsFromStore])
 
-  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects })
+  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects, orgs: acOrgs })
 
   useEffect(() => {
     if (editing) {

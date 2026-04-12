@@ -168,9 +168,9 @@ main.tsx (entry point)
 | makeRecurrenceRule | services/recurrence.ts | Build a RecurrenceRule, capturing originalDayOfMonth for monthly/quarterly/yearly |
 | computeNextDueDate | services/recurrence.ts | Advances a due date by one recurrence interval, skipping past dates |
 | generateRecurringInstances | services/recurrence.ts | Generates all recurring dates within a date range for calendar display |
-| resolveInput | services/nlp-resolver.ts | Matches parsed person/tag/project names against known entities (case-insensitive exact/prefix/initials/first-name); returns personIds[], tagIds[], projectId, unmatched names |
-| parseTaskInput | services/nlp-task-creator.ts | Combines parseInput + resolveInput; applyNlpMetadata assigns parsed metadata after task creation |
-| useNlpAutocomplete | hooks/use-nlp-autocomplete.ts | Hook for `@`/`#`/`/` autocomplete in input fields: tracks trigger position, filters people/tags/projects, handles arrow/Tab/Enter/Escape navigation |
+| resolveInput | services/nlp-resolver.ts | Matches parsed person/tag/project/org names against known entities (case-insensitive exact/prefix/initials/first-name); person-first for @tokens, unmatched fall through to org matching; returns personIds[], tagIds[], orgIds[], projectId, unmatched names |
+| parseTaskInput | services/nlp-task-creator.ts | Combines parseInput + resolveInput; applyNlpMetadata assigns parsed metadata (people, tags, orgs) after task creation |
+| useNlpAutocomplete | hooks/use-nlp-autocomplete.ts | Hook for `@`/`#`/`/` autocomplete in input fields: tracks trigger position, filters people/orgs/tags/projects, handles arrow/Tab/Enter/Escape navigation |
 | NlpAutocomplete | components/shared/NlpAutocomplete.tsx | Floating dropdown for autocomplete suggestions; renders people or tags with color dots |
 
 ## Data Flow

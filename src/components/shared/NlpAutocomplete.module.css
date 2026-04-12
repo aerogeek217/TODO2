@@ -55,6 +55,13 @@
   white-space: nowrap;
 }
 
+.kindLabel {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
 @media (max-width: 640px) {
   .dropdown {
     max-width: calc(100vw - 24px);

@@ -4,7 +4,7 @@ import { Priority } from '../../models'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { PriorityMenu, getPriorityLabel } from '../shared/PriorityMenu'
-import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
+import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { toDateInputValue } from '../../utils/date'
 import { makeRecurrenceRule } from '../../services/recurrence'
 import { TaskEditHeader } from './TaskEditHeader'
@@ -109,10 +109,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const projectSearchRef = useRef<HTMLInputElement>(null)
   const priorityRef = useRef<HTMLDivElement>(null)
 
-  const acPeople = useMemo(() => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color })), [allPeople])
-  const acTags = useMemo(() => allTags.map((t) => ({ id: t.id!, name: t.name, color: t.color })), [allTags])
-  const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color })), [projects])
-  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects })
+  const acPeople = useMemo(() => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [allPeople])
+  const acTags = useMemo(() => allTags.map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })), [allTags])
+  const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
+  const acOrgs = useMemo(() => allOrgs.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [allOrgs])
+  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects, orgs: acOrgs })
 
   useEffect(() => {
     if (!isEdit) titleRef.current?.focus()
@@ -195,7 +196,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     ac.handleInputChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)
   }
 
-  const handleAcSelect = (item: { id: number; name: string }) => {
+  const handleAcSelect = (item: AutocompleteItem) => {
     const input = titleRef.current
     if (!input) return
     const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length, item)

@@ -1,4 +1,4 @@
-import type { Person, Tag, Project, RecurrenceType } from '../models'
+import type { Person, Tag, Project, Org, RecurrenceType } from '../models'
 import { Priority } from '../models'
 import type { ParsedInput } from './natural-language-parser'
 
@@ -9,10 +9,13 @@ export interface ResolvedInput {
   recurrence?: RecurrenceType
   personIds: number[]
   tagIds: number[]
+  orgIds: number[]
   /** Person names that didn't match any existing person */
   unmatchedPersons: string[]
   /** Tag names that didn't match any existing tag */
   unmatchedTags: string[]
+  /** Org names that didn't match any existing org */
+  unmatchedOrgs: string[]
   /** Resolved project ID (first match wins) */
   projectId?: number
   /** Project names that didn't match any existing project */
@@ -62,10 +65,22 @@ function resolveNames<T extends { id?: number }>(
 }
 
 /**
- * Resolve parsed NLP input against known people, tags, and projects.
+ * Case-insensitive match for orgs: exact name, prefix, then initials.
  */
-export function resolveInput(parsed: ParsedInput, people: Person[], tags: Tag[], projects: Project[] = []): ResolvedInput {
+function matchOrg(name: string, orgs: Org[]): Org | undefined {
+  const lower = name.toLowerCase()
+  return matchByName(name, orgs, (o) => o.name)
+    ?? orgs.find((o) => o.initials?.toLowerCase() === lower)
+}
+
+/**
+ * Resolve parsed NLP input against known people, tags, projects, and orgs.
+ * Person-first: @tokens match people first, unmatched names fall through to org matching.
+ */
+export function resolveInput(parsed: ParsedInput, people: Person[], tags: Tag[], projects: Project[] = [], orgs: Org[] = []): ResolvedInput {
   const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
+  // Try unmatched person names against orgs (person-first precedence)
+  const orgResult = resolveNames(persons.unmatched, (name) => matchOrg(name, orgs))
   const tagResult = resolveNames(parsed.tags, (name) => matchByName(name, tags, (t) => t.name))
   const projectResult = resolveNames(parsed.projects, (name) => matchByName(name, projects, (p) => p.name))
 
@@ -76,8 +91,10 @@ export function resolveInput(parsed: ParsedInput, people: Person[], tags: Tag[],
     recurrence: parsed.recurrence,
     personIds: persons.ids,
     tagIds: tagResult.ids,
-    unmatchedPersons: persons.unmatched,
+    orgIds: orgResult.ids,
+    unmatchedPersons: orgResult.unmatched,
     unmatchedTags: tagResult.unmatched,
+    unmatchedOrgs: [],
     projectId: projectResult.ids[0],
     unmatchedProjects: projectResult.unmatched,
   }
