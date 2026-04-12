@@ -33,7 +33,6 @@
 
 .row.ghost {
   opacity: 0.25;
-  pointer-events: none;
 }
 
 .row.cut {

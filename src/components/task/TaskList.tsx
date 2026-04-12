@@ -134,7 +134,7 @@ export function TaskList({
           <div key={item.todo.id}>
             {dropIndicatorIndex === idx && <div className={styles.dropIndicator} />}
             <div className={cls}>
-              {!isMobile && draggable && sectionKey && !ghostIds?.has(item.todo.id) ? (
+              {!isMobile && draggable && sectionKey ? (
                 <DraggableRow todo={item.todo} sectionKey={sectionKey}>
                   {row}
                 </DraggableRow>

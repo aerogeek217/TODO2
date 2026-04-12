@@ -24,6 +24,7 @@
 
 ## Up Next
 
+- [x] **Ghosted task interactivity** — ghosted tasks (filter-dimmed) now allow double-click to open details on canvas and dragging in list view; removed blanket `pointer-events: none`, replaced with targeted guards; fixed list view drop indicator position for cross-section drags that introduce ghost parents
 - [x] **Tri-state filter dropdowns** — Assigned, Follow up, and Completed filters converted from boolean toggles to 3-option dropdowns (All/Assigned/Unassigned, All/Follow up/No follow up, All/Incomplete/Completed); radio-button dropdown UI on desktop, segmented controls on mobile; backward-compatible saved view serialization with dual-write
 - [x] **Bold parent tasks** — parent tasks (with children) display with font-weight 600 in canvas and list views (TaskRow + MobileTaskRow)
 - [x] **List view drag parent+children across groups** — dragging a parent to a different group now applies the group property (priority, project, status, person, tag) to all children too; drop indicator shows correct insertion position

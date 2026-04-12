@@ -320,8 +320,9 @@ export function addGhostParents(sectionTodos: PersistedTodoItem[], allTodos: Per
 }
 
 /**
- * Compute the flat visual index where `dragTodo` (plus its children) would appear
- * if inserted into `sectionTodos`. Simulates the same hierarchy + flatten that TaskList does.
+ * Compute the flat visual index in the CURRENT display where the drop indicator should appear.
+ * Simulates the post-drop hierarchy to find where the drag todo lands, then maps back to the
+ * current flat list by finding the first non-drag item after the drag block.
  */
 function computeDropIndex(
   sectionTodos: PersistedTodoItem[],
@@ -329,24 +330,52 @@ function computeDropIndex(
   dragTodo: PersistedTodoItem,
   collapsedParents: Set<number>,
 ): number {
-  // Simulate the section after the drop: add drag todo + its children
   const dragChildren = allTodos.filter(t => t.parentId === dragTodo.id)
   const dragIds = new Set([dragTodo.id, ...dragChildren.map(c => c.id)])
-  const merged = [...sectionTodos.filter(t => !dragIds.has(t.id)), dragTodo, ...dragChildren]
+  const withoutDrag = sectionTodos.filter(t => !dragIds.has(t.id))
 
-  // Run the same ghost-parent + hierarchy + flatten pipeline as TaskList
-  const { todos: withGhosts } = addGhostParents(merged, allTodos)
-  const hierarchy = buildHierarchy(withGhosts)
-
-  let idx = 0
-  for (const { parent, children } of hierarchy) {
-    if (parent.id === dragTodo.id) return idx
-    idx++ // parent row
-    if (children.length > 0 && !collapsedParents.has(parent.id)) {
-      idx += children.length
+  // Helper: flatten a hierarchy respecting collapsed state
+  const flatten = (hierarchy: ReturnType<typeof buildHierarchy>): number[] => {
+    const flat: number[] = []
+    for (const { parent, children } of hierarchy) {
+      flat.push(parent.id)
+      if (children.length > 0 && !collapsedParents.has(parent.id)) {
+        for (const child of children) flat.push(child.id)
+      }
     }
+    return flat
   }
-  return idx // fallback: end of list
+
+  // Same-section hover: the drag task is already displayed (as a placeholder),
+  // so post-drop ghost parents match the current display — index maps directly
+  if (sectionTodos.some(t => t.id === dragTodo.id)) {
+    const merged = [...withoutDrag, dragTodo, ...dragChildren]
+    const { todos: withGhosts } = addGhostParents(merged, allTodos)
+    const postFlat = flatten(buildHierarchy(withGhosts))
+    const idx = postFlat.indexOf(dragTodo.id)
+    return idx >= 0 ? idx : postFlat.length
+  }
+
+  // Cross-section: post-drop list may have new ghost parents that the current
+  // display doesn't, so map via the first non-drag item after the drag block
+  const merged = [...withoutDrag, dragTodo, ...dragChildren]
+  const { todos: mergedGhosts } = addGhostParents(merged, allTodos)
+  const postFlat = flatten(buildHierarchy(mergedGhosts))
+
+  const dragStart = postFlat.indexOf(dragTodo.id)
+  if (dragStart < 0) return 0
+
+  let dragEnd = dragStart
+  while (dragEnd + 1 < postFlat.length && dragIds.has(postFlat[dragEnd + 1])) dragEnd++
+
+  const afterId = dragEnd + 1 < postFlat.length ? postFlat[dragEnd + 1] : null
+
+  const { todos: currentGhosts } = addGhostParents(sectionTodos, allTodos)
+  const currentFlat = flatten(buildHierarchy(currentGhosts))
+
+  if (afterId == null) return currentFlat.length
+  const idx = currentFlat.indexOf(afterId)
+  return idx >= 0 ? idx : currentFlat.length
 }
 
 // --- Droppable section wrapper ---

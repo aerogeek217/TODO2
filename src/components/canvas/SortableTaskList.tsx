@@ -61,7 +61,7 @@ function SortableTaskRow({
   } = useSortable({
     id: `todo-${todo.id}`,
     data: { type: 'task', todo },
-    disabled: disabledDrop,
+    disabled: disabledDrop || ghost,
   })
 
   if (isDragging) {
