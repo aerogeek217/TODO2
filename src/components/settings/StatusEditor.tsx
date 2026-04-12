@@ -1,4 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useStatusStore } from '../../stores/status-store'
 import { statusRepository } from '../../data'
 import type { Status } from '../../models'
@@ -16,14 +32,41 @@ interface StatusEditorProps {
   onClose: () => void
 }
 
+function SortableStatusRow({ status, onEdit, onDelete }: {
+  status: Status & { id: number }
+  onEdit: (s: Status) => void
+  onDelete: (id: number) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: status.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+
+  return (
+    <div ref={setNodeRef} style={style} className={`${styles.row} ${isDragging ? styles.rowDragging : ''}`}>
+      <span className={styles.dragHandle} {...attributes} {...listeners}>
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
+          <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
+          <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
+          <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
+        </svg>
+      </span>
+      <div className={styles.colorSwatch} style={{ background: status.color }} onClick={() => onEdit(status)} />
+      <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
+      <div className={styles.actions}>
+        <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} title="Delete">&times;</button>
+      </div>
+    </div>
+  )
+}
+
 export function StatusEditor({ onClose }: StatusEditorProps) {
-  const { statuses, load, add, update, remove } = useStatusStore()
+  const { statuses, load, add, update, remove, reorder } = useStatusStore()
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
+  const [reorderKey, setReorderKey] = useState(0)
 
   useEffect(() => { load() }, [load])
 
@@ -81,7 +124,27 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     if (e.key === 'Escape') setAdding(false)
   }
 
-  const sorted = [...statuses].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  const sorted = useMemo(
+    () => [...statuses].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+    [statuses],
+  )
+  const sortedIds = useMemo(() => sorted.map(s => s.id!), [sorted])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const fromIndex = sorted.findIndex(s => s.id === active.id)
+    const toIndex = sorted.findIndex(s => s.id === over.id)
+    if (fromIndex !== -1 && toIndex !== -1) {
+      reorder(fromIndex, toIndex)
+      setReorderKey(k => k + 1)
+    }
+  }, [sorted, reorder])
 
   return (
     <>
@@ -96,50 +159,53 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           {sorted.length === 0 && !adding && (
             <div className={styles.empty}>No statuses yet</div>
           )}
-          {sorted.map((s) => {
-            if (deleteId === s.id) {
-              return (
-                <div key={s.id} className={styles.deleteConfirm}>
-                  <div className={styles.colorSwatch} style={{ background: s.color }} />
-                  <div className={styles.deleteMsg}>
-                    Delete <strong>{s.name}</strong>?{deleteCount > 0 && ` Used on ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
-                  </div>
-                  <button className={styles.deleteBtnConfirm} onClick={confirmDelete}>Delete</button>
-                  <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
-                </div>
-              )
-            }
+          <DndContext key={reorderKey} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
+              {sorted.map((s) => {
+                if (deleteId === s.id) {
+                  return (
+                    <div key={s.id} className={styles.deleteConfirm}>
+                      <div className={styles.colorSwatch} style={{ background: s.color }} />
+                      <div className={styles.deleteMsg}>
+                        Delete <strong>{s.name}</strong>?{deleteCount > 0 && ` Used on ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
+                      </div>
+                      <button className={styles.deleteBtnConfirm} onClick={confirmDelete}>Delete</button>
+                      <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
+                    </div>
+                  )
+                }
 
-            if (editing && editing.id === s.id) {
-              const ed = editing
-              return (
-                <div key={s.id} className={styles.editRow} onKeyDown={handleEditKeyDown}>
-                  <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-                  <input
-                    className={styles.editInput}
-                    value={ed.name}
-                    onChange={(e) => setEditing({ ...ed, name: e.target.value })}
-                    placeholder="Status name"
-                    autoFocus
+                if (editing && editing.id === s.id) {
+                  const ed = editing
+                  return (
+                    <div key={s.id} className={styles.editRow} onKeyDown={handleEditKeyDown}>
+                      <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+                      <input
+                        className={styles.editInput}
+                        value={ed.name}
+                        onChange={(e) => setEditing({ ...ed, name: e.target.value })}
+                        placeholder="Status name"
+                        autoFocus
+                      />
+                      <div className={styles.editActions}>
+                        <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
+                        <button className={styles.cancelBtn} onClick={() => setEditing(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <SortableStatusRow
+                    key={s.id}
+                    status={s as Status & { id: number }}
+                    onEdit={startEdit}
+                    onDelete={startDelete}
                   />
-                  <div className={styles.editActions}>
-                    <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
-                    <button className={styles.cancelBtn} onClick={() => setEditing(null)}>Cancel</button>
-                  </div>
-                </div>
-              )
-            }
-
-            return (
-              <div key={s.id} className={styles.row}>
-                <div className={styles.colorSwatch} style={{ background: s.color }} onClick={() => startEdit(s)} />
-                <span className={styles.nameEditable} onClick={() => startEdit(s)}>{s.name}</span>
-                <div className={styles.actions}>
-                  <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDelete(s.id!)} title="Delete">&times;</button>
-                </div>
-              </div>
-            )
-          })}
+                )
+              })}
+            </SortableContext>
+          </DndContext>
         </div>
 
         {adding ? (

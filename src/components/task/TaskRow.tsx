@@ -90,9 +90,11 @@ export const TaskRow = memo(function TaskRow({
 }: TaskRowProps) {
   const dateRef = useRef<HTMLInputElement>(null)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
+  const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const priorityMenuRef = useRef<HTMLDivElement>(null)
+  const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
 
@@ -102,10 +104,11 @@ export const TaskRow = memo(function TaskRow({
   const allOrgs = useOrgStore((s) => s.orgs)
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
-  const statusColor = useStatusStore((s) => {
+  const statuses = useStatusStore((s) => s.statuses)
+  const statusColor = useMemo(() => {
     if (!todo.statusId) return undefined
-    return s.statuses.find(st => st.id === todo.statusId)?.color
-  })
+    return statuses.find(st => st.id === todo.statusId)?.color
+  }, [todo.statusId, statuses])
 
   // Bulk-aware mutation callbacks
   const bulk = useBulkActions()
@@ -126,6 +129,7 @@ export const TaskRow = memo(function TaskRow({
 
   // Click-outside handlers
   const closePriority = useCallback(() => setShowPriorityMenu(false), [])
+  const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
   useClickOutside(priorityMenuRef, closePriority, showPriorityMenu)
 
@@ -173,7 +177,7 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${todo.isAssigned ? styles.assigned : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showPriorityMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${todo.isAssigned ? styles.assigned : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showPriorityMenu || showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
       style={indentLevel > 0 ? { paddingLeft: `${TASK_ROW_PADDING_LEFT + indentLevel * INDENT_PX}px` } : undefined}
       data-todo-id={todo.id}
       onClick={(e) => { e.stopPropagation(); onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }) }}
@@ -236,7 +240,40 @@ export const TaskRow = memo(function TaskRow({
         />
       )}
 
-      {statusColor && <span className={styles.statusDot} style={{ background: statusColor }} />}
+      {statusColor && (
+        <div ref={statusRef} className={styles.statusWrapper}>
+          <button
+            className={styles.statusDot}
+            style={{ background: statusColor }}
+            onClick={(e) => { e.stopPropagation(); if (!ghost) setShowStatusMenu(v => !v) }}
+            title="Set status"
+          />
+          {showStatusMenu && !ghost && createPortal(
+            <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
+              <div className={styles.statusMenu}>
+                <button
+                  className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: undefined, modifiedAt: new Date() }); setShowStatusMenu(false) }}
+                >
+                  <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
+                  No Status
+                </button>
+                {statuses.map(s => (
+                  <button
+                    key={s.id}
+                    className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
+                    onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: s.id, modifiedAt: new Date() }); setShowStatusMenu(false) }}
+                  >
+                    <span className={styles.statusOptionDot} style={{ background: s.color }} />
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </PortalDropdown>,
+            document.body,
+          )}
+        </div>
+      )}
 
       {edit.isEditing ? (
         <input

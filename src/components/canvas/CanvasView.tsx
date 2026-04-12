@@ -102,6 +102,7 @@ interface CanvasViewProps {
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap?: Map<number, Tag[]>
   assignedOrgsMap?: Map<number, Org[]>
+  personOrgMap?: Map<number, number[]>
   ghostTodoIds?: Set<number>
   onNodeDragStop: (projectId: number, x: number, y: number) => void
   onReactFlowInit?: (instance: ReactFlowInstance) => void
@@ -133,6 +134,7 @@ export function CanvasView({
   assignedPeopleMap,
   assignedTagsMap,
   assignedOrgsMap,
+  personOrgMap,
   ghostTodoIds,
   onNodeDragStop,
   onReactFlowInit,
@@ -257,6 +259,7 @@ export function CanvasView({
         assignedPeopleMap,
         assignedTagsMap,
         assignedOrgsMap,
+        personOrgMap,
         onDelete: onDeleteInset ?? (() => {}),
         onToggleCollapse: onToggleCollapseInset ?? (() => {}),
         onOpenDetail,
@@ -309,7 +312,7 @@ export function CanvasView({
     projects, todosByProject, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
     onResizeProject, onSetProjectColor, handleResizeSnap,
-    listInsets, allTodos, onDeleteInset, onToggleCollapseInset, onResizeInset,
+    listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset,
     stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
     allPeople, allTags, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,

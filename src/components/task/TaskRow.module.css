@@ -199,7 +199,55 @@
   line-height: 1;
 }
 
+.statusWrapper {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.statusMenu {
+  composes: menu from '../shared/dropdown.module.css';
+  min-width: 150px;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.statusOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.statusOption:hover {
+  background: var(--color-tint-5);
+}
+
+.statusOptionActive {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.statusOptionDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;

@@ -3,6 +3,7 @@ import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
 import { Priority } from '../../models'
+import { useFilterStore } from '../../stores/filter-store'
 import { TaskRow } from '../task/TaskRow'
 import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './ListInsetNode.module.css'
@@ -25,6 +26,7 @@ export interface ListInsetNodeData {
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap?: Map<number, Tag[]>
   assignedOrgsMap?: Map<number, Org[]>
+  personOrgMap?: Map<number, number[]>
   onDelete: (id: number) => void
   onToggleCollapse: (id: number) => void
   onOpenDetail?: (todoId: number) => void
@@ -66,22 +68,25 @@ function DraggableInsetRow({ todo, insetId, children }: { todo: PersistedTodoIte
 }
 
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
-  const { inset, allTodos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, onDelete, onToggleCollapse, onOpenDetail, onResize } = data
+  const { inset, allTodos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, onDelete, onToggleCollapse, onOpenDetail, onResize } = data
   const headerInfo = getInsetHeaderInfo(inset)
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
+  const { filters, applyFilter } = useFilterStore()
 
   // Clean up resize listeners on unmount
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
   const filteredTodos = useMemo(() => {
+    // Apply global filters first
+    const globalFiltered = applyFilter(allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
+
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const weekEnd = new Date(today)
     weekEnd.setDate(weekEnd.getDate() + 7)
 
-    return allTodos.filter(todo => {
-      if (todo.isCompleted) return false
+    return globalFiltered.filter(todo => {
       // Attribute-based filter
       if (inset.attributeFilter) {
         switch (inset.attributeFilter.type) {
@@ -120,7 +125,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       }
       return a.sortOrder - b.sortOrder
     })
-  }, [allTodos, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap])
+  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter])
 
   return (
     <div className={styles.inset} style={{ width: inset.width, height: inset.isCollapsed ? undefined : inset.height }}>

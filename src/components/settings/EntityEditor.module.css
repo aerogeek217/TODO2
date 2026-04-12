@@ -75,6 +75,29 @@
   background: var(--color-surface-hover);
 }
 
+/* Drag handle for reordering */
+.dragHandle {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  opacity: 0;
+  flex-shrink: 0;
+  cursor: grab;
+  padding: 2px 0;
+}
+
+.row:hover .dragHandle {
+  opacity: 0.5;
+}
+
+.row:hover .dragHandle:hover {
+  opacity: 1;
+}
+
+.rowDragging {
+  opacity: 0.4;
+}
+
 .colorSwatch {
   width: 20px;
   height: 20px;

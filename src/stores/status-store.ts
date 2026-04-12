@@ -14,6 +14,7 @@ interface StatusState {
   add: (name: string, color?: string) => Promise<number>
   update: (status: Status) => Promise<void>
   remove: (id: number) => Promise<void>
+  reorder: (fromIndex: number, toIndex: number) => Promise<void>
 }
 
 export const useStatusStore = create<StatusState>((set, get) => ({
@@ -97,5 +98,22 @@ export const useStatusStore = create<StatusState>((set, get) => ({
         true,
       )
     }
+  },
+
+  async reorder(fromIndex: number, toIndex: number) {
+    const sorted = [...get().statuses].sort((a, b) => a.sortOrder - b.sortOrder)
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
+
+    const [moved] = sorted.splice(fromIndex, 1)
+    sorted.splice(toIndex, 0, moved)
+
+    const updated = sorted.map((s, i) => ({ ...s, sortOrder: i }))
+    set({ statuses: updated })
+
+    await db.transaction('rw', db.statuses, async () => {
+      for (const s of updated) {
+        await db.statuses.update(s.id!, { sortOrder: s.sortOrder })
+      }
+    })
   },
 }))
