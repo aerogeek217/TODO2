@@ -16,7 +16,7 @@ main.tsx (entry point)
 ├── styles/tokens.css      → CSS custom properties (design system: dark/light themes via [data-theme], tint scale, shadows, radii, z-index, spacing, typography)
 ├── views/                 → Route-level pages
 │   ├── CanvasPage         → components/canvas/, stores
-│   ├── DashboardView      → Top 10 lists (Mine/Follow-up/Assigned/Stale) ranked by importance score
+│   ├── DashboardView      → Top 10 lists (Mine/Follow-up/Assigned/Stale) ranked by importance score + Taskboard
 │   ├── ListView           → Unified list with sort-by grouping (Priority/Due/People/Tag/Project), saved views, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Compact hub: theme toggle (light/dark/system), manage buttons open modals; task defaults, database location, import/export
@@ -24,10 +24,11 @@ main.tsx (entry point)
 │   ├── layout/            → Sidebar (vertical icon nav), TopBar (filter bar + search + storage status), FileSyncBanner, BottomTabBar (mobile)
 │   ├── task/              → TaskRow, TaskList, TaskEditPopup, MobileTaskRow
 │   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, StickyNoteNode, SortableTaskList, ProjectNavigator, alignment
+│   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node with sortable reorder)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
 │   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, ThemeColorsEditor, KeyboardShortcutsModal
 │   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, FollowupIcon, selection.module.css, dropdown.module.css
-├── stores/                → Zustand (canvas, todo, project, person, tag, org, list-inset, sticky-note, ui, filter, undo, saved-view)
+├── stores/                → Zustand (canvas, todo, project, person, tag, org, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view)
 ├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, settings, saved-view, sticky-note)
 ├── models/                → TypeScript interfaces
 ├── hooks/                 → Custom React hooks
@@ -59,9 +60,10 @@ main.tsx (entry point)
 | ListInset | models/list-inset.ts | Filtered task list widget on canvas (preset: due-this-week, starred, high-priority; or attributeFilter: priority/person/tag/org) |
 | ListInsetAttributeFilter | models/list-inset.ts | Attribute-based filter for list insets: priority, person, tag, or org |
 | StickyNote | models/sticky-note.ts | Free-text note widget on canvas (optional title, text, position, dimensions, optional color defaulting to yellow #FFF3B0, timestamps) |
+| TaskboardEntry | models/taskboard-entry.ts | Ordered task queue entry (todoId, sortOrder) for next-up work tracking |
 | Backup | models/backup.ts | Auto-snapshot record: trigger type, serialized data, size |
 | SavedView | models/saved-view.ts | Named saved list view: sortBy + serializable filter snapshot (including dateRangeStart/End) |
-| Todo2Database | data/database.ts | Dexie DB class with schema (v17) |
+| Todo2Database | data/database.ts | Dexie DB class with schema (v18) |
 | ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks |
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
@@ -74,6 +76,7 @@ main.tsx (entry point)
 | orgRepository | data/org-repository.ts | CRUD for Org (cascading delete clears personOrgs + todoOrgs), todo-org assignment queries, person-org many-to-many (getOrgsForPerson, getPersonOrgMap, setPersonOrgs) |
 | listInsetRepository | data/list-inset-repository.ts | CRUD for ListInset (position, resize) |
 | stickyNoteRepository | data/sticky-note-repository.ts | CRUD for StickyNote (position, text, color) |
+| taskboardRepository | data/taskboard-repository.ts | CRUD for TaskboardEntry (add, remove by todoId, reorder) |
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | savedViewRepository | data/saved-view-repository.ts | CRUD for SavedView (getAll, add, update, remove) |
 | backupRepository | data/backup-repository.ts | Snapshot CRUD: createSnapshot, listSnapshots (lightweight), restoreSnapshot (validates + imports), pruneSnapshots |
@@ -99,6 +102,7 @@ main.tsx (entry point)
 | useSettingsStore | stores/settings-store.ts | Theme mode (light/dark/system), theme color overrides, defaultProjectId, completedRetentionDays, canvasViewport (single source of truth, debounced persistence); persisted to settings table; only user-customized colors set as inline overrides |
 | useListInsetStore | stores/list-inset-store.ts | List inset widgets CRUD, position, addFiltered (attribute-based insets) |
 | useStickyNoteStore | stores/sticky-note-store.ts | Sticky notes CRUD, position, title, text, color (default yellow #FFF3B0) |
+| useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, remove, clear, has, reorder with undo support |
 | useSavedViewStore | stores/saved-view-store.ts | Saved list views CRUD: save, rename, remove, apply (restores filters + grouping) |
 | TaskEditPopup | components/task/TaskEditPopup.tsx | Centered modal for editing/creating tasks; project selector in create/edit mode (replaced TaskDetailPanel + QuickAddPopup) |
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/tags; search input, filtered list, create-new option |
@@ -137,6 +141,8 @@ main.tsx (entry point)
 | StickyNoteNode | components/canvas/StickyNoteNode.tsx | Canvas note widget with editable title, textarea, per-line task conversion, color picker palette, @/#// autocomplete |
 | FilteredListPopup | components/overlays/FilteredListPopup.tsx | On-demand floating list popup triggered by right-clicking priority/person/tag on any TaskRow; reads from stores directly |
 | ProjectNavigator | components/canvas/ProjectNavigator.tsx | Collapsible overlay panel listing all projects; click to fitView-navigate; toggled with P key |
+| TaskboardPanel | components/taskboard/TaskboardPanel.tsx | Dashboard card for taskboard; sortable drag reorder via dnd-kit |
+| TaskboardNode | components/canvas/TaskboardNode.tsx | Canvas node for taskboard; resizable, closable (clears with confirmation), sortable drag reorder; appears when entries exist |
 | PlainTextExportPopup | components/overlays/PlainTextExportPopup.tsx | Modal with plain text representation of current list sections; copy-to-clipboard support |
 | DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Follow-up, Assigned, Stale; unfiltered; 2x2 grid layout; collapsible cards |
 | scoreTask | views/DashboardView.tsx | Importance scoring: hard deadline (+50), overdue (100+days), due proximity (60-days), priority (High+20, Medium+10) |

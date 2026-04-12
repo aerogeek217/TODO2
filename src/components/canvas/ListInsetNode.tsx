@@ -3,13 +3,14 @@ import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
 import { Priority } from '../../models'
 import { TaskRow } from '../task/TaskRow'
+import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './ListInsetNode.module.css'
 
-const PRESET_CONFIG = {
+const PRESET_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
   'due-this-week': { icon: '\u{1F4C5}', label: 'Due & Overdue' },
-  'starred': { icon: '\u{1F5E8}', label: 'Follow up' },
+  'starred': { icon: <FollowupIcon filled />, label: 'Follow up' },
   'high-priority': { icon: '\u{1F534}', label: 'High Priority' },
-} as const
+}
 
 const PRIORITY_LABELS: Record<number, string> = {
   [Priority.High]: 'High Priority',
@@ -31,7 +32,7 @@ export interface ListInsetNodeData {
 
 type ListInsetNodeType = ListInsetNodeData
 
-function getInsetHeaderInfo(inset: ListInset): { icon: string; label: string } {
+function getInsetHeaderInfo(inset: ListInset): { icon: React.ReactNode; label: string } {
   if (inset.preset) {
     return PRESET_CONFIG[inset.preset]
   }

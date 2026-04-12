@@ -8,6 +8,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { Priority } from '../../models'
+import { FollowupIcon } from '../shared/FollowupIcon'
 import { startOfToday } from '../../utils/date'
 import { toggleItem } from '../../utils/filter'
 import styles from './TopBar.module.css'
@@ -600,7 +601,7 @@ export function TopBar() {
             role="switch"
             aria-checked={filters.starredOnly}
           >
-            <span className={styles.filterIcon}>&#x1F5E8;</span> Follow up
+            <span className={styles.filterIcon}><FollowupIcon filled={filters.starredOnly} /></span> Follow up
           </button>
           <button
             className={`${styles.filterChip} ${filters.showCompleted ? styles.filterChipActive : ''}`}

@@ -23,6 +23,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     orgs: [],
     savedViews: [],
     stickyNotes: [],
+    taskboardEntries: [],
     ...overrides,
   }
 }

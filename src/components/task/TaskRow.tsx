@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useMemo, memo } from 'react'
+import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { Priority } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
@@ -6,6 +7,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
@@ -15,6 +17,7 @@ import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { PriorityMenu, getPriorityColor } from '../shared/PriorityMenu'
 import { FollowupIcon } from '../shared/FollowupIcon'
+import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
@@ -57,6 +60,7 @@ export const TaskRow = memo(function TaskRow({
   const dateRef = useRef<HTMLInputElement>(null)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const priorityMenuRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
@@ -144,6 +148,12 @@ export const TaskRow = memo(function TaskRow({
         e.stopPropagation()
         edit.cancelScheduledEdit()
         if (!edit.isEditing) onOpenDetail?.(todo.id)
+      }}
+      onContextMenu={(e) => {
+        if (ghost) return
+        e.preventDefault()
+        e.stopPropagation()
+        setContextMenu({ x: e.clientX, y: e.clientY, onBoard: useTaskboardStore.getState().has(todo.id) })
       }}
     >
       <span className={styles.dragHandle} aria-hidden="true">
@@ -380,6 +390,20 @@ export const TaskRow = memo(function TaskRow({
       <button className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete() }} aria-label="Delete task">
         ×
       </button>
+
+      {contextMenu && createPortal(
+        <CanvasContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={[
+            contextMenu.onBoard
+              ? { label: 'Remove from Taskboard', action: () => useTaskboardStore.getState().remove(todo.id) }
+              : { label: 'Add to Taskboard', action: () => useTaskboardStore.getState().add(todo.id) },
+          ]}
+          onClose={() => setContextMenu(null)}
+        />,
+        document.body,
+      )}
     </div>
   )
 })

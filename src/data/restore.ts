@@ -19,6 +19,7 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.orgs, key: 'orgs' },
   { table: db.savedViews, key: 'savedViews' },
   { table: db.stickyNotes, key: 'stickyNotes' },
+  { table: db.taskboardEntries, key: 'taskboardEntries' },
 ]
 
 /** Clear all data tables and bulk-add from validated import data. Must be called inside a transaction or will create its own. */

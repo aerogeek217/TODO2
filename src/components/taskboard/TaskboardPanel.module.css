@@ -1,0 +1,117 @@
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.headerTitle {
+  flex: 1;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.headerCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  margin-right: 8px;
+}
+
+.closeButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.closeButton:hover {
+  color: var(--color-text-secondary);
+}
+
+.list {
+  overflow-y: auto;
+  padding: 2px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+  min-height: 32px;
+}
+
+.sortableItem {
+  display: flex;
+  align-items: center;
+  transition: background 0.1s;
+}
+
+.sortableItem:hover {
+  background: var(--color-surface-high);
+}
+
+.sortableItem.dragging {
+  opacity: 0.4;
+}
+
+.orderNumber {
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding-left: 4px;
+}
+
+.taskWrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.removeBtn {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.sortableItem:hover .removeBtn {
+  opacity: 1;
+}
+
+.removeBtn:hover {
+  color: var(--color-danger);
+}
+
+.empty {
+  padding: 16px 10px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.dropHint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+}

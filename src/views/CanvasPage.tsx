@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -14,6 +14,7 @@ import { useFilterStore } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useStickyNoteStore } from '../stores/sticky-note-store'
+import { useTaskboardStore } from '../stores/taskboard-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { CanvasView } from '../components/canvas/CanvasView'
@@ -43,6 +44,16 @@ export function CanvasPage() {
 
 
 
+  const { entries: taskboardEntries, load: loadTaskboard } = useTaskboardStore()
+  const [taskboardPosition, setTaskboardPosition] = useState<{ x: number; y: number }>(() => {
+    const saved = localStorage.getItem('taskboardPosition')
+    return saved ? JSON.parse(saved) : { x: -400, y: 0 }
+  })
+  const [isTaskboardCollapsed, setIsTaskboardCollapsed] = useState(() => localStorage.getItem('taskboardCollapsed') === 'true')
+  const [taskboardSize, setTaskboardSize] = useState<{ w: number; h: number }>(() => {
+    const saved = localStorage.getItem('taskboardSize')
+    return saved ? JSON.parse(saved) : { w: 320, h: 400 }
+  })
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
   const isProjectNavigatorOpen = useUIStore((s) => s.isProjectNavigatorOpen)
 
@@ -50,7 +61,8 @@ export function CanvasPage() {
     loadPeople()
     loadTags()
     loadOrgs()
-  }, [loadPeople, loadTags, loadOrgs])
+    loadTaskboard()
+  }, [loadPeople, loadTags, loadOrgs, loadTaskboard])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -413,6 +425,34 @@ export function CanvasPage() {
     onConvertNoteLines: handleConvertNoteLines,
   }), [handleAddStickyNote, removeNote, updateNoteText, updateNoteTitle, updateNoteColor, updateNotePosition, handleResizeNote, handleConvertNoteLines])
 
+  const handleTaskboardDragStop = useCallback((x: number, y: number) => {
+    setTaskboardPosition({ x, y })
+    localStorage.setItem('taskboardPosition', JSON.stringify({ x, y }))
+  }, [])
+
+  const handleToggleTaskboardCollapse = useCallback(() => {
+    setIsTaskboardCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('taskboardCollapsed', String(next))
+      return next
+    })
+  }, [])
+
+  const handleCloseTaskboard = useCallback(() => {
+    const count = useTaskboardStore.getState().entries.length
+    showBulkConfirmation('custom', [], {
+      title: 'Clear taskboard',
+      message: `Remove all ${count} task${count !== 1 ? 's' : ''} from the taskboard?`,
+      confirmLabel: 'Clear',
+      onConfirm: () => useTaskboardStore.getState().clear(),
+    })
+  }, [showBulkConfirmation])
+
+  const handleResizeTaskboard = useCallback((w: number, h: number) => {
+    setTaskboardSize({ w, h })
+    localStorage.setItem('taskboardSize', JSON.stringify({ w, h }))
+  }, [])
+
   return (
     <DndContext
       sensors={dnd.sensors}
@@ -441,6 +481,15 @@ export function CanvasPage() {
         stickyHandlers={stickyHandlers}
         allPeople={people}
         allTags={tags}
+        taskboardEntries={taskboardEntries}
+        isTaskboardCollapsed={isTaskboardCollapsed}
+        onToggleTaskboardCollapse={handleToggleTaskboardCollapse}
+        onCloseTaskboard={handleCloseTaskboard}
+        onTaskboardDragStop={handleTaskboardDragStop}
+        taskboardPosition={taskboardPosition}
+        taskboardWidth={taskboardSize.w}
+        taskboardHeight={taskboardSize.h}
+        onResizeTaskboard={handleResizeTaskboard}
       />
       {isProjectNavigatorOpen && (
         <ProjectNavigator

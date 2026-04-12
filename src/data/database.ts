@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry } from '../models'
 
 export interface SettingRow {
   key: string
@@ -22,6 +22,7 @@ export class Todo2Database extends Dexie {
   backups!: Table<Backup, number>
   savedViews!: Table<SavedView, number>
   stickyNotes!: Table<StickyNote, number>
+  taskboardEntries!: Table<TaskboardEntry, number>
 
   constructor() {
     super('todo2')
@@ -335,10 +336,15 @@ export class Todo2Database extends Dexie {
 
     // v17: add initials field to orgs (no index change, field stored inline)
     this.version(17).stores({})
+
+    // v18: add taskboardEntries table for ordered task queue
+    this.version(18).stores({
+      taskboardEntries: '++id, todoId, sortOrder',
+    })
   }
 }
 
 export const db = new Todo2Database()
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries] as const

@@ -4,6 +4,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
+import { useTaskboardStore } from '../stores/taskboard-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
@@ -11,6 +12,7 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { Priority } from '../models'
 import type { PersistedTodoItem } from '../models'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
+import { TaskboardPanel } from '../components/taskboard/TaskboardPanel'
 import styles from './DashboardView.module.css'
 
 const TOP_N = 10
@@ -103,6 +105,7 @@ export function DashboardView() {
   const { assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments } = useTagStore()
   const { load: loadOrgs, loadAssignments: loadOrgAssignments } = useOrgStore()
   const { openEditPopup } = useUIStore()
+  const { load: loadTaskboard } = useTaskboardStore()
   const taskEdit = useTaskEditCallbacks()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
@@ -111,7 +114,8 @@ export function DashboardView() {
     loadPeople()
     loadTags()
     loadOrgs()
-  }, [loadAll, loadPeople, loadTags, loadOrgs])
+    loadTaskboard()
+  }, [loadAll, loadPeople, loadTags, loadOrgs, loadTaskboard])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
@@ -139,6 +143,10 @@ export function DashboardView() {
           <div className={styles.pageHeader}>
             <div className={styles.pageTitle}>Dashboard</div>
             <div className={styles.pageSubtitle}>Top 10 by importance</div>
+          </div>
+
+          <div className={styles.taskboardSection}>
+            <TaskboardPanel />
           </div>
 
           <div className={styles.grid}>

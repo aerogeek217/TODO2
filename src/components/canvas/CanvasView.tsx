@@ -16,8 +16,9 @@ import '@xyflow/react/dist/style.css'
 import { ProjectNode, type ProjectNodeData } from './ProjectNode'
 import { ListInsetNode, type ListInsetNodeData } from './ListInsetNode'
 import { StickyNoteNode, type StickyNoteNodeData } from './StickyNoteNode'
+import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
-import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, StickyNote } from '../../models'
+import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, StickyNote, TaskboardEntry } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
@@ -53,11 +54,13 @@ function AlignmentGuides({ lines }: { lines: AlignmentLine[] }) {
 
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
+const TASKBOARD_NODE_ID = 'taskboard'
 
 const nodeTypes: NodeTypes = {
   project: ProjectNode as unknown as NodeTypes[string],
   listInset: ListInsetNode as unknown as NodeTypes[string],
   stickyNote: StickyNoteNode as unknown as NodeTypes[string],
+  taskboard: TaskboardNode as unknown as NodeTypes[string],
 }
 
 export interface ProjectHandlers {
@@ -108,6 +111,15 @@ interface CanvasViewProps {
   stickyHandlers: StickyHandlers
   allPeople?: Person[]
   allTags?: Tag[]
+  taskboardEntries?: TaskboardEntry[]
+  isTaskboardCollapsed?: boolean
+  onToggleTaskboardCollapse?: () => void
+  onCloseTaskboard?: () => void
+  onTaskboardDragStop?: (x: number, y: number) => void
+  taskboardPosition?: { x: number; y: number }
+  taskboardWidth?: number
+  taskboardHeight?: number
+  onResizeTaskboard?: (width: number, height: number) => void
 }
 
 export function CanvasView({
@@ -128,6 +140,15 @@ export function CanvasView({
   stickyHandlers,
   allPeople,
   allTags,
+  taskboardEntries,
+  isTaskboardCollapsed,
+  onToggleTaskboardCollapse,
+  onCloseTaskboard,
+  onTaskboardDragStop,
+  taskboardPosition,
+  taskboardWidth,
+  taskboardHeight,
+  onResizeTaskboard,
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onAddListInset, onResizeInset } = insetHandlers
@@ -247,7 +268,26 @@ export function CanvasView({
       } satisfies StickyNoteNodeData,
     }))
 
-    return [...projectNodes, ...insetNodes, ...noteNodes]
+    const tbNode: Node[] = (taskboardEntries && taskboardEntries.length > 0) ? [{
+      id: TASKBOARD_NODE_ID,
+      type: 'taskboard',
+      position: taskboardPosition ?? { x: -400, y: 0 },
+      data: {
+        entries: taskboardEntries,
+        allTodos: allTodos ?? [],
+        assignedPeopleMap,
+        assignedTagsMap,
+        onOpenDetail,
+        isCollapsed: isTaskboardCollapsed ?? false,
+        onToggleCollapse: onToggleTaskboardCollapse ?? (() => {}),
+        onClose: onCloseTaskboard ?? (() => {}),
+        width: taskboardWidth ?? 320,
+        height: taskboardHeight ?? 400,
+        onResize: onResizeTaskboard,
+      } satisfies TaskboardNodeData,
+    }] : []
+
+    return [...projectNodes, ...insetNodes, ...noteNodes, ...tbNode]
   }, [
     projects, todosByProject, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
@@ -255,6 +295,7 @@ export function CanvasView({
     listInsets, allTodos, onDeleteInset, onToggleCollapseInset, onResizeInset,
     stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
     allPeople, allTags,
+    taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
   ])
 
   // Local node state — React Flow controlled mode.
@@ -338,7 +379,9 @@ export function CanvasView({
               // Remember final position so the sync effect preserves it until the store updates
               droppedPositions.current.set(change.id, { ...change.position })
               const id = change.id
-              if (id.startsWith(INSET_PREFIX)) {
+              if (id === TASKBOARD_NODE_ID) {
+                onTaskboardDragStop?.(change.position.x, change.position.y)
+              } else if (id.startsWith(INSET_PREFIX)) {
                 onInsetDragStop?.(Number(id.slice(INSET_PREFIX.length)), change.position.x, change.position.y)
               } else if (id.startsWith(NOTE_PREFIX)) {
                 onNoteDragStop?.(Number(id.slice(NOTE_PREFIX.length)), change.position.x, change.position.y)

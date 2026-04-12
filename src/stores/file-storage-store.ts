@@ -10,6 +10,7 @@ import { useListInsetStore } from './list-inset-store'
 import { useOrgStore } from './org-store'
 import { useSavedViewStore } from './saved-view-store'
 import { useStickyNoteStore } from './sticky-note-store'
+import { useTaskboardStore } from './taskboard-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
 
@@ -27,6 +28,7 @@ async function refreshAllStores() {
     useOrgStore.getState().load(),
     useOrgStore.getState().loadPersonOrgMap(),
     useSavedViewStore.getState().load(),
+    useTaskboardStore.getState().load(),
     ...(canvasId != null ? [
       useListInsetStore.getState().loadByCanvas(canvasId),
       useStickyNoteStore.getState().loadByCanvas(canvasId),

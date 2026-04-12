@@ -1,5 +1,5 @@
 import { Priority } from '../models/priority'
-import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry } from '../models'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -261,6 +261,14 @@ function checkStickyNote(v: unknown): CheckResult {
   ])
 }
 
+function checkTaskboardEntry(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['todoId', isFiniteNum(v.todoId)],
+    ['sortOrder', isFiniteNum(v.sortOrder)],
+  ])
+}
+
 function checkSavedView(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   const basic = checkFields(v, [
@@ -426,6 +434,10 @@ function pickSavedView(v: Record<string, unknown>): SavedView {
   }
 }
 
+function pickTaskboardEntry(v: Record<string, unknown>): TaskboardEntry {
+  return { id: v.id as number | undefined, todoId: v.todoId as number, sortOrder: v.sortOrder as number }
+}
+
 function pickSetting(v: Record<string, unknown>): SettingRow {
   return { key: v.key as string, value: v.value as string }
 }
@@ -452,6 +464,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'orgs', check: checkOrg },
   { key: 'savedViews', check: checkSavedView },
   { key: 'stickyNotes', check: checkStickyNote },
+  { key: 'taskboardEntries', check: checkTaskboardEntry },
 ]
 
 export interface ImportData {
@@ -469,6 +482,7 @@ export interface ImportData {
   orgs: Org[]
   savedViews: SavedView[]
   stickyNotes: StickyNote[]
+  taskboardEntries: TaskboardEntry[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -540,6 +554,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       orgs: ((raw.orgs ?? []) as Record<string, unknown>[]).map(pickOrg),
       savedViews: ((raw.savedViews ?? []) as Record<string, unknown>[]).map(pickSavedView),
       stickyNotes: ((raw.stickyNotes ?? []) as Record<string, unknown>[]).map(pickStickyNote),
+      taskboardEntries: ((raw.taskboardEntries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
     },
   }
 }
