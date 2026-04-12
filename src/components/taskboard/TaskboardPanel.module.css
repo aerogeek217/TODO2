@@ -2,33 +2,47 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-dropdown);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
+.chevron {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  transition: transform 0.15s ease;
+}
+
+.chevronCollapsed {
+  transform: rotate(-90deg);
+}
+
 .header {
   display: flex;
   align-items: center;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  user-select: none;
   flex-shrink: 0;
+}
+
+.header:hover {
+  background: var(--color-surface-high);
 }
 
 .headerTitle {
   flex: 1;
-  font-size: var(--font-size-meta);
+  font-size: var(--font-size-nav);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--color-text-primary);
 }
 
 .headerCount {
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
-  margin-right: 8px;
+  margin-left: auto;
 }
 
 .closeButton {
