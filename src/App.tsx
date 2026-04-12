@@ -19,7 +19,7 @@ import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useStickyNoteStore } from './stores/sticky-note-store'
-import { Priority } from './models'
+
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
@@ -162,8 +162,7 @@ function AppShell() {
 
   const todos = useTodoStore((s) => s.todos)
   const projects = useProjectStore((s) => s.projects)
-  const selectedTodoIds = useUIStore((s) => s.selectedTodoIds)
-  const selectionCount = selectedTodoIds.size
+  const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
 
   const commandCtx = useMemo(
     () => ({
@@ -271,16 +270,7 @@ function AppShell() {
       )}
       {!isMobile && showPalette && <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={handleClosePalette} />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
-      {selectionCount > 0 && (
-        <div className={styles.bulkBar}>
-          <span className={styles.bulkLabel}>{selectionCount} selected</span>
-          <button className={styles.bulkButton} onClick={() => useTodoStore.getState().bulkSetCompleted([...selectedTodoIds], true)} title="Complete">&#10003;</button>
-          <button className={styles.bulkButton} onClick={() => useTodoStore.getState().bulkSetStarred([...selectedTodoIds], true)} title="Follow up">&#x1F5E8;</button>
-          <button className={styles.bulkButton} onClick={() => useTodoStore.getState().bulkSetPriority([...selectedTodoIds], Priority.High)} title="Priority: High" style={{ color: 'var(--color-priority-high)' }}>&#9679;</button>
-          <button className={styles.bulkButton} onClick={() => useUIStore.getState().showBulkConfirmation('delete', [...selectedTodoIds])} title="Delete">&#10005;</button>
-          <button className={styles.bulkButton} onClick={() => useUIStore.getState().clearSelection()} title="Clear selection">Esc</button>
-        </div>
-      )}
+
       <AppBulkConfirmDialog />
       <UndoSnackbar />
       {isMobile && <FilterSheet />}

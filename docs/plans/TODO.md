@@ -11,6 +11,8 @@
 - [x] **Cascade shift stacked canvas projects** — auto-shift projects below when a neighbor's height changes (task add/remove, collapse), with 40px gap threshold, BFS cascade, debounced persistence
 - [x] **Drag tasks to taskboard from dashboard and canvas list insets** — drag from dashboard lists (Mine/Follow-up/Assigned/Stale) and canvas list inset nodes (Due, Starred, High Priority) into the taskboard
 - [x] **Org autocomplete via @** — orgs appear alongside people in `@` autocomplete dropdown (sticky notes, task create, insert trigger); NLP resolver falls back to org matching for unmatched `@` names; org assignment wired through full task creation pipeline
+- [x] **Remove redundant bulk actions bar** — bottom bar duplicated actions already available via multi-select-aware TaskRow icons (useBulkActions hook)
+- [x] **Sticky note title grab cursor** — title label now shows grab cursor instead of text cursor, matching project node pattern (double-click to edit, otherwise draggable)
 
 
 
