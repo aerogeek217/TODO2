@@ -7,6 +7,8 @@ import { Priority } from '../models'
 interface SavedViewState {
   views: PersistedSavedView[]
   activeViewId: number | null
+  loading: boolean
+  error: string | null
 
   load: () => Promise<void>
   saveCurrentView: (name: string, sortBy: ListSortBy, filters: FilterCriteria) => Promise<void>
@@ -53,10 +55,20 @@ export function savedFiltersToRuntime(s: SavedViewFilters): Partial<FilterCriter
 export const useSavedViewStore = create<SavedViewState>((set, get) => ({
   views: [],
   activeViewId: null,
+  loading: false,
+  error: null,
 
   async load() {
-    const views = await savedViewRepository.getAll()
-    set({ views })
+    set({ loading: true, error: null })
+    try {
+      const views = await savedViewRepository.getAll()
+      set({ views })
+    } catch (e) {
+      console.error('Failed to load saved views:', e)
+      set({ error: 'Failed to load saved views' })
+    } finally {
+      set({ loading: false })
+    }
   },
 
   async saveCurrentView(name: string, sortBy: ListSortBy, filters: FilterCriteria) {

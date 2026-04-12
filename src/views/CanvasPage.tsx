@@ -23,7 +23,6 @@ import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import type { PersistedTodoItem } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
 import { DragInsertContext } from '../components/canvas/DragInsertContext'
-import { startOfDay } from '../utils/date'
 import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { parseTaskInput, applyNlpMetadata } from '../services/nlp-task-creator'
@@ -166,63 +165,26 @@ export function CanvasPage() {
   })
 
   // Ghost-filter: compute IDs of todos that don't match non-completion filters (dimmed on canvas)
+  const { matchesFilter } = useFilterStore()
   const filterGhostIds = useMemo(() => {
     if (!isFilterActive) return undefined
-    // Check if any filter besides showCompleted is active
-    const hasNonCompletionFilter = filters.priorities !== null || filters.starredOnly || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.searchText !== '' || filters.dateRangeStart !== null || filters.dateRangeEnd !== null
-    if (!hasNonCompletionFilter) return undefined
-    const searchLower = filters.searchText.toLowerCase()
+    // Check if any filter besides showCompleted/showAssigned is active
+    const hasNonVisibilityFilter = filters.priorities !== null || filters.starredOnly || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.searchText !== '' || filters.dateRangeStart !== null || filters.dateRangeEnd !== null
+    if (!hasNonVisibilityFilter) return undefined
     const ghost = new Set<number>()
     for (const todo of todos) {
       if (!filters.showCompleted && todo.isCompleted) continue // already hidden
       if (!filters.showAssigned && todo.isAssigned) continue // already hidden
-      if (searchLower && !todo.title.toLowerCase().includes(searchLower)) { ghost.add(todo.id); continue }
-      // Check non-completion filter criteria only
-      if (filters.priorities !== null && !filters.priorities.has(todo.priority)) { ghost.add(todo.id); continue }
-      if (filters.starredOnly && !todo.isStarred) { ghost.add(todo.id); continue }
-      if (filters.hardDeadlineOnly && !todo.isHardDeadline) { ghost.add(todo.id); continue }
-      if (filters.personIds !== null) {
-        const assignedPersonIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
-        if (assignedPersonIds.length === 0) {
-          if (!filters.personIds.has(0)) { ghost.add(todo.id); continue }
-        } else if (!assignedPersonIds.some((id) => filters.personIds!.has(id))) { ghost.add(todo.id); continue }
-      }
-      if (filters.tagIds !== null) {
-        const todoTagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
-        if (todoTagIds.length === 0) {
-          if (!filters.tagIds.has(0)) { ghost.add(todo.id); continue }
-        } else if (!todoTagIds.some((id) => filters.tagIds!.has(id))) { ghost.add(todo.id); continue }
-      }
-      if (filters.orgIds !== null) {
-        const assignedPeople = assignedPeopleMap.get(todo.id) ?? []
-        const personOrgIds = assignedPeople.flatMap((p) => personOrgMap.get(p.id!) ?? [])
-        const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
-        const allOrgIds = [...personOrgIds, ...directOrgIds]
-        if (allOrgIds.length === 0) {
-          if (!filters.orgIds.has(0)) { ghost.add(todo.id); continue }
-        } else if (!allOrgIds.some((id) => filters.orgIds!.has(id))) { ghost.add(todo.id); continue }
-      }
-      if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
-        const rawDate = filters.dateField === 'due' ? todo.dueDate
-          : filters.dateField === 'created' ? todo.createdAt
-          : todo.modifiedAt
-        if (!rawDate) {
-          if (!filters.dateRangeIncludeNoDue) { ghost.add(todo.id); continue }
-        } else {
-          const d = startOfDay(new Date(rawDate))
-          if (filters.dateRangeStart !== null) {
-            const s = startOfDay(new Date(filters.dateRangeStart))
-            if (d < s) { ghost.add(todo.id); continue }
-          }
-          if (filters.dateRangeEnd !== null) {
-            const e = new Date(filters.dateRangeEnd); e.setHours(23, 59, 59, 999)
-            if (d > e) { ghost.add(todo.id); continue }
-          }
-        }
+      const personIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
+      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
+      const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])
+      const dOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
+      if (!matchesFilter(todo, personIds, tagIds, pOrgIds, dOrgIds, true)) {
+        ghost.add(todo.id)
       }
     }
     return ghost.size > 0 ? ghost : undefined
-  }, [todos, isFilterActive, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap])
+  }, [todos, isFilterActive, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter])
 
   // Merge filter ghosts, assigned-parent ghosts, and drag-child ghosts
   const ghostTodoIds = useMemo(() => {

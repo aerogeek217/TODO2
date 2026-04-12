@@ -135,6 +135,7 @@ function checkOrg(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
     ['name', isStr(v.name, 200)],
+    ['initials', isOptStr(v.initials, 4)],
     ['color', isOptColor(v.color)],
   ])
 }
@@ -157,8 +158,8 @@ function isValidAttributeFilter(f: unknown): boolean {
   switch (f.type) {
     case 'priority': return isFiniteNum(f.priority)
     case 'person': return isFiniteNum(f.personId) && isStr(f.personName, 200)
-    case 'tag': return isFiniteNum(f.tagId) && isStr(f.tagName, 200)
-    case 'org': return isFiniteNum(f.orgId) && isStr(f.orgName, 200)
+    case 'tag': return isFiniteNum(f.tagId) && isStr(f.tagName, 200) && isOptColor(f.tagColor)
+    case 'org': return isFiniteNum(f.orgId) && isStr(f.orgName, 200) && isOptColor(f.orgColor)
     default: return false
   }
 }
@@ -238,8 +239,8 @@ function checkSavedViewFilters(v: unknown): CheckResult {
     ['tagIds', isOptNullableIntArray(v.tagIds)],
     ['orgIds', isOptNullableIntArray(v.orgIds)],
     ['dateField', v.dateField === undefined || (typeof v.dateField === 'string' && VALID_DATE_FIELDS.includes(v.dateField))],
-    ['dateRangeStart', v.dateRangeStart === undefined || v.dateRangeStart === null || (typeof v.dateRangeStart === 'string')],
-    ['dateRangeEnd', v.dateRangeEnd === undefined || v.dateRangeEnd === null || (typeof v.dateRangeEnd === 'string')],
+    ['dateRangeStart', isOptDateLike(v.dateRangeStart)],
+    ['dateRangeEnd', isOptDateLike(v.dateRangeEnd)],
     ['dateRangeIncludeNoDue', isOptBool(v.dateRangeIncludeNoDue)],
   ])
 }

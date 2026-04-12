@@ -396,11 +396,8 @@ export function CanvasView({
 
 
 
-  const uiViewport = useUIStore((s) => s.canvasViewport)
-  const persistedViewport = useSettingsStore((s) => s.canvasViewport)
-  const savedViewport = uiViewport ?? persistedViewport
+  const savedViewport = useSettingsStore((s) => s.canvasViewport)
   const handleViewportChange = useCallback((vp: CanvasViewport) => {
-    useUIStore.getState().setCanvasViewport(vp)
     useSettingsStore.getState().setCanvasViewport(vp)
   }, [])
 

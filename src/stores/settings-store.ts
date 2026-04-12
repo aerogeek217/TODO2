@@ -172,7 +172,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           try {
             const parsed = JSON.parse(row.value)
             if (parsed && typeof parsed.x === 'number' && typeof parsed.y === 'number' && typeof parsed.zoom === 'number') {
-              canvasViewport = parsed
+              canvasViewport = { x: parsed.x, y: parsed.y, zoom: parsed.zoom }
             }
           } catch { /* ignore invalid JSON */ }
         }

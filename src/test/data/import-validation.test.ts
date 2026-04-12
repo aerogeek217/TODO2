@@ -241,6 +241,87 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
+  // --- Phase 2: Security hardening (M3/M4/M5) ---
+
+  it('org with too-long initials fails', () => {
+    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: 'ABCDE' }] }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('org with valid initials passes', () => {
+    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: 'ENG' }] }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('org with null/undefined initials passes', () => {
+    const r1 = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: null }] }))
+    expect(r1.ok).toBe(true)
+    const r2 = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng' }] }))
+    expect(r2.ok).toBe(true)
+  })
+
+  it('listInset attributeFilter with invalid tagColor fails', () => {
+    const result = validateImportData(validData({
+      listInsets: [
+        { id: 1, name: 'Bad Color', canvasId: 1, x: 0, y: 0, width: 320, height: 300, isCollapsed: false,
+          attributeFilter: { type: 'tag', tagId: 1, tagName: 'urgent', tagColor: 'not-a-color' } },
+      ],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('listInset attributeFilter with invalid orgColor fails', () => {
+    const result = validateImportData(validData({
+      listInsets: [
+        { id: 1, name: 'Bad Color', canvasId: 1, x: 0, y: 0, width: 320, height: 300, isCollapsed: false,
+          attributeFilter: { type: 'org', orgId: 1, orgName: 'Acme', orgColor: 'javascript:alert(1)' } },
+      ],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('savedView with invalid dateRangeStart fails', () => {
+    const result = validateImportData(validData({
+      savedViews: [{
+        id: 1, name: 'View', sortBy: 'priority', sortOrder: 0,
+        filters: {
+          showCompleted: false, showAssigned: false, starredOnly: false,
+          hardDeadlineOnly: false, dateRangeIncludeNoDue: false,
+          dateRangeStart: 'not-a-date',
+        },
+      }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('savedView with valid date range passes', () => {
+    const result = validateImportData(validData({
+      savedViews: [{
+        id: 1, name: 'View', sortBy: 'priority', sortOrder: 0,
+        filters: {
+          showCompleted: false, showAssigned: false, starredOnly: false,
+          hardDeadlineOnly: false, dateRangeIncludeNoDue: false,
+          dateRangeStart: '2026-01-01', dateRangeEnd: '2026-12-31',
+        },
+      }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('savedView with null date range fields passes', () => {
+    const result = validateImportData(validData({
+      savedViews: [{
+        id: 1, name: 'View', sortBy: 'priority', sortOrder: 0,
+        filters: {
+          showCompleted: false, showAssigned: false, starredOnly: false,
+          hardDeadlineOnly: false, dateRangeIncludeNoDue: false,
+          dateRangeStart: null, dateRangeEnd: null,
+        },
+      }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
   it('listInset with both preset and attributeFilter passes validation', () => {
     const result = validateImportData(validData({
       listInsets: [

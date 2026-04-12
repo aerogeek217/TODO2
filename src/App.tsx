@@ -120,7 +120,7 @@ function AppShell() {
     if (location.pathname !== '/') return
     const canvasId = useCanvasStore.getState().selectedCanvasId
     if (!canvasId) return
-    const vp = useUIStore.getState().canvasViewport
+    const vp = useSettingsStore.getState().canvasViewport
     const el = document.querySelector('.react-flow')
     const w = el?.clientWidth ?? window.innerWidth
     const h = el?.clientHeight ?? window.innerHeight

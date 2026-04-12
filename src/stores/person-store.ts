@@ -4,7 +4,6 @@ import { db, personRepository } from '../data'
 import { createAssignmentActions } from './assignment-helpers'
 import { loadWithState, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
 import { undoable } from '../services/undoable'
-import { useTodoStore } from './todo-store'
 
 interface PersonState {
   people: Person[]
@@ -80,6 +79,7 @@ export const usePersonStore = create<PersonState>((set, get) => {
           async () => {
             await restoreEntityWithJoins(db.people, person, joins)
             await get().load()
+            const { useTodoStore } = await import('./todo-store')
             const todoIds = useTodoStore.getState().todos.map(t => t.id)
             await get().loadAssignments(todoIds)
           },

@@ -5,7 +5,6 @@ import { createAssignmentActions } from './assignment-helpers'
 import { loadWithState, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
-import { useTodoStore } from './todo-store'
 
 interface TagState {
   tags: Tag[]
@@ -79,6 +78,7 @@ export const useTagStore = create<TagState>((set, get) => {
           async () => {
             await restoreEntityWithJoins(db.tags, tag, joins)
             await get().load()
+            const { useTodoStore } = await import('./todo-store')
             const todoIds = useTodoStore.getState().todos.map(t => t.id)
             await get().loadAssignments(todoIds)
           },

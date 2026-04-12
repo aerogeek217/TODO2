@@ -3,6 +3,7 @@ import type { Project } from '../models'
 import { projectRepository } from '../data'
 import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from './todo-store'
+import { loadWithState } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface ProjectState {
@@ -24,29 +25,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   error: null,
 
   async loadAll() {
-    set({ loading: true, error: null })
-    try {
-      const projects = await projectRepository.getAll()
-      set({ projects })
-    } catch (e) {
-      console.error('Failed to load projects:', e)
-      set({ error: 'Failed to load projects' })
-    } finally {
-      set({ loading: false })
-    }
+    const projects = await loadWithState(set, () => projectRepository.getAll(), 'projects')
+    if (projects) set({ projects })
   },
 
   async loadByCanvas(canvasId: number) {
-    set({ loading: true, error: null })
-    try {
-      const projects = await projectRepository.getByCanvas(canvasId)
-      set({ projects })
-    } catch (e) {
-      console.error('Failed to load projects by canvas:', e)
-      set({ error: 'Failed to load projects by canvas' })
-    } finally {
-      set({ loading: false })
-    }
+    const projects = await loadWithState(set, () => projectRepository.getByCanvas(canvasId), 'projects')
+    if (projects) set({ projects })
   },
 
   async add(name: string, canvasId: number, x = 0, y = 0) {

@@ -9,6 +9,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { useCanvasStore } from '../../stores/canvas-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { TaskRow } from '../task/TaskRow'
 import styles from './FilteredListPopup.module.css'
 
@@ -162,7 +163,7 @@ export function FilteredListPopup() {
       if (isDraggingRef.current && activeView === AppView.Canvas && selectedCanvasId && popup) {
         // Convert screen position to flow coordinates
         const canvasEl = document.querySelector('.react-flow')
-        const viewport = useUIStore.getState().canvasViewport
+        const viewport = useSettingsStore.getState().canvasViewport
         if (canvasEl && viewport) {
           const rect = canvasEl.getBoundingClientRect()
           const flowX = (ev.clientX - rect.left - viewport.x) / viewport.zoom

@@ -50,7 +50,7 @@ interface FilterState {
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
   applyFilter: (todos: PersistedTodoItem[], assignedPeopleMap?: Map<number, Person[]>, assignedTagsMap?: Map<number, Tag[]>, personOrgMap?: Map<number, number[]>, assignedOrgsMap?: Map<number, Org[]>) => PersistedTodoItem[]
-  matchesFilter: (todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[]) => boolean
+  matchesFilter: (todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], skipVisibility?: boolean) => boolean
 }
 
 const defaultFilters: FilterCriteria = {
@@ -80,9 +80,12 @@ function todoMatchesFilter(
   assignedTagIds?: number[],
   assignedPersonOrgIds?: number[],
   directOrgIds?: number[],
+  skipVisibility?: boolean,
 ): boolean {
-  if (!filters.showCompleted && todo.isCompleted) return false
-  if (!filters.showAssigned && todo.isAssigned) return false
+  if (!skipVisibility) {
+    if (!filters.showCompleted && todo.isCompleted) return false
+    if (!filters.showAssigned && todo.isAssigned) return false
+  }
   if (filters.priorities !== null && !filters.priorities.has(todo.priority)) return false
   if (filters.searchText && !todo.title.toLowerCase().includes(filters.searchText.toLowerCase())) return false
   if (filters.starredOnly && !todo.isStarred) return false
@@ -213,7 +216,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     })
   },
 
-  matchesFilter(todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[]): boolean {
-    return todoMatchesFilter(todo, get().filters, assignedPersonIds, assignedTagIds, assignedPersonOrgIds, directOrgIds)
+  matchesFilter(todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], skipVisibility?: boolean): boolean {
+    return todoMatchesFilter(todo, get().filters, assignedPersonIds, assignedTagIds, assignedPersonOrgIds, directOrgIds, skipVisibility)
   },
 }))

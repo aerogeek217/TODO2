@@ -6,13 +6,9 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
-import { buildHierarchy } from '../utils/hierarchy'
-import { Priority } from '../models'
-import type { PersistedTodoItem } from '../models'
-import { db } from '../data/database'
 import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 import { restoreFromImportData } from '../data/restore'
-import { buildExportData } from '../services/export-import'
+import { buildExportData, buildMarkdownExport } from '../services/export-import'
 import { backupScheduler } from '../services/backup-scheduler'
 import { backupRepository, type BackupSummary } from '../data/backup-repository'
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
@@ -205,102 +201,7 @@ export function SettingsPage() {
   }
 
   const handleExportMarkdown = async () => {
-    const allTodos = await db.todos.toArray()
-    const allProjects = await db.projects.toArray()
-    const allPeople = await db.people.toArray()
-    const allTags = await db.tags.toArray()
-    const allTodoPeople = await db.todoPeople.toArray()
-    const allTodoTags = await db.todoTags.toArray()
-
-    const peopleMap = new Map(allPeople.map((p) => [p.id!, p.name]))
-    const tagMap = new Map(allTags.map((t) => [t.id!, t.name]))
-
-    const todoPeopleMap = new Map<number, string[]>()
-    for (const tp of allTodoPeople) {
-      const name = peopleMap.get(tp.personId)
-      if (name) {
-        const list = todoPeopleMap.get(tp.todoId) ?? []
-        list.push(name)
-        todoPeopleMap.set(tp.todoId, list)
-      }
-    }
-    const todoTagsMap = new Map<number, string[]>()
-    for (const tt of allTodoTags) {
-      const name = tagMap.get(tt.tagId)
-      if (name) {
-        const list = todoTagsMap.get(tt.todoId) ?? []
-        list.push(name)
-        todoTagsMap.set(tt.todoId, list)
-      }
-    }
-
-    // Group todos by project
-    const byProject = new Map<number | undefined, PersistedTodoItem[]>()
-    for (const todo of allTodos as PersistedTodoItem[]) {
-      const key = todo.projectId
-      const list = byProject.get(key) ?? []
-      list.push(todo)
-      byProject.set(key, list)
-    }
-
-    const lines: string[] = ['# TODOs', '']
-    const details: string[] = []
-
-    const formatTodoLine = (todo: PersistedTodoItem, indent: string) => {
-      const check = todo.isCompleted ? '[x]' : '[ ]'
-      const star = todo.isStarred ? ' [F/U]' : ''
-      const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
-      const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
-      return `${indent}- ${check} ${todo.title}${star}${pri}${due}`
-    }
-
-    const collectDetails = (todo: PersistedTodoItem) => {
-      const people = todoPeopleMap.get(todo.id) ?? []
-      const tags = todoTagsMap.get(todo.id) ?? []
-      const hasMeta = people.length > 0 || tags.length > 0 || todo.notes
-      if (!hasMeta) return
-      details.push(`### ${todo.title}`)
-      if (people.length > 0) details.push(`- **People:** ${people.join(', ')}`)
-      if (tags.length > 0) details.push(`- **Tags:** ${tags.join(', ')}`)
-      if (todo.notes) details.push(`- **Notes:** ${todo.notes}`)
-      details.push('')
-    }
-
-    const renderGroup = (groupTodos: PersistedTodoItem[]) => {
-      const hierarchy = buildHierarchy(groupTodos)
-      for (const { parent, children } of hierarchy) {
-        lines.push(formatTodoLine(parent, ''))
-        collectDetails(parent)
-        for (const child of children) {
-          lines.push(formatTodoLine(child, '  '))
-          collectDetails(child)
-        }
-      }
-    }
-
-    // Named projects first
-    for (const project of allProjects) {
-      const groupTodos = byProject.get(project.id!) ?? [] as PersistedTodoItem[]
-      if (groupTodos.length === 0) continue
-      lines.push(`## ${project.name}`, '')
-      renderGroup(groupTodos)
-      lines.push('')
-    }
-
-    // Tasks with no project
-    const noProject = byProject.get(undefined) ?? []
-    if (noProject.length > 0) {
-      lines.push('## No Project', '')
-      renderGroup(noProject)
-      lines.push('')
-    }
-
-    // Append details section
-    if (details.length > 0) {
-      lines.push('---', '', '# Task Details', '', ...details)
-    }
-
-    const md = lines.join('\n')
+    const md = await buildMarkdownExport()
 
     if ('showSaveFilePicker' in window) {
       try {

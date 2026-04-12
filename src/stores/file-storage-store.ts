@@ -32,6 +32,15 @@ async function refreshAllStores() {
       useStickyNoteStore.getState().loadByCanvas(canvasId),
     ] : []),
   ])
+  // Reload assignment maps after entities and todos are loaded
+  const todoIds = useTodoStore.getState().todos.map(t => t.id)
+  if (todoIds.length > 0) {
+    await Promise.all([
+      usePersonStore.getState().loadAssignments(todoIds),
+      useTagStore.getState().loadAssignments(todoIds),
+      useOrgStore.getState().loadAssignments(todoIds),
+    ])
+  }
 }
 
 interface FileStorageState extends FileStorageStatus {

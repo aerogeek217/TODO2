@@ -44,7 +44,6 @@ interface UIState {
   bulkConfirmation: BulkConfirmation | null
   collapsedParents: Set<number>
   listSortBy: ListSortBy
-  canvasViewport: CanvasViewport | null
   inlineCreateAfterId: number | null
   clipboardTodoIds: number[]
   clipboardSourceProjectId: number | null
@@ -59,7 +58,6 @@ interface UIState {
   isMinimapOpen: boolean
 
   setActiveView: (view: AppView) => void
-  setCanvasViewport: (viewport: CanvasViewport) => void
   selectTodo: (id: number | null) => void
   selectOneTodo: (id: number) => void
   toggleSelectTodo: (id: number) => void
@@ -98,7 +96,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   bulkConfirmation: null,
   collapsedParents: new Set<number>(),
   listSortBy: 'priority' as ListSortBy,
-  canvasViewport: null,
   inlineCreateAfterId: null,
   clipboardTodoIds: [],
   clipboardSourceProjectId: null,
@@ -183,10 +180,6 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setListSortBy(sortBy: ListSortBy) {
     set({ listSortBy: sortBy })
-  },
-
-  setCanvasViewport(viewport: CanvasViewport) {
-    set({ canvasViewport: viewport })
   },
 
   toggleCollapseParent(todoId: number) {

@@ -24,7 +24,6 @@ const UI_RESET = {
   bulkConfirmation: null,
   collapsedParents: new Set<number>(),
   listSortBy: 'priority' as const,
-  canvasViewport: null,
   inlineCreateAfterId: null,
   clipboardTodoIds: [] as number[],
   clipboardSourceProjectId: null,
