@@ -102,6 +102,27 @@ describe('useSavedViewStore', () => {
       expect(saved.orgIds).toBeNull()
     })
 
+    it('saveCurrentView_withStatusIds_serializesSetToArray', async () => {
+      const filters: FilterCriteria = {
+        ...defaultFilters,
+        statusIds: new Set([1, 2]),
+      }
+
+      await useSavedViewStore.getState().saveCurrentView('Status View', 'status', filters)
+
+      const { views } = useSavedViewStore.getState()
+      const saved = views[0].filters
+      expect(saved.statusIds).toEqual(expect.arrayContaining([1, 2]))
+    })
+
+    it('saveCurrentView_withNullStatusIds_omitsStatusIdsField', async () => {
+      await useSavedViewStore.getState().saveCurrentView('No Status', 'priority', defaultFilters)
+
+      const { views } = useSavedViewStore.getState()
+      const saved = views[0].filters
+      expect(saved.statusIds).toBeUndefined()
+    })
+
     it('saveCurrentView_withExistingViews_setsSortOrderIncrementally', async () => {
       await useSavedViewStore.getState().saveCurrentView('First', 'priority', defaultFilters)
       await useSavedViewStore.getState().saveCurrentView('Second', 'due', defaultFilters)
@@ -306,6 +327,41 @@ describe('savedFiltersToRuntime', () => {
     expect(result.completedFilter).toBe('completed')
     expect(result.assignedFilter).toBe('assigned')
     expect(result.followupFilter).toBe('no-followup')
+  })
+
+  it('savedFiltersToRuntime_withStatusIds_convertsArrayToSet', () => {
+    const saved = {
+      priorities: null,
+      personIds: null,
+      tagIds: null,
+      orgIds: null,
+      statusIds: [1, 2, 3],
+      showCompleted: false,
+      showAssigned: false,
+      starredOnly: false,
+      hardDeadlineOnly: false,
+      dateRangeIncludeNoDue: false,
+    }
+
+    const result = savedFiltersToRuntime(saved)
+    expect(result.statusIds).toEqual(new Set([1, 2, 3]))
+  })
+
+  it('savedFiltersToRuntime_withNoStatusIds_returnsNull', () => {
+    const saved = {
+      priorities: null,
+      personIds: null,
+      tagIds: null,
+      orgIds: null,
+      showCompleted: false,
+      showAssigned: false,
+      starredOnly: false,
+      hardDeadlineOnly: false,
+      dateRangeIncludeNoDue: false,
+    }
+
+    const result = savedFiltersToRuntime(saved)
+    expect(result.statusIds).toBeNull()
   })
 
   it('savedFiltersToRuntime_withDateField_preservesDateField', () => {

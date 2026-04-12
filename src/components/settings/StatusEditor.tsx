@@ -66,7 +66,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
-  const [reorderKey, setReorderKey] = useState(0)
+  const [nameError, setNameError] = useState('')
 
   useEffect(() => { load() }, [load])
 
@@ -74,30 +74,42 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     setEditing({ id: s.id!, name: s.name, color: s.color })
     setAdding(false)
     setDeleteId(null)
+    setNameError('')
   }
 
   const saveEdit = async () => {
     if (!editing || !editing.name.trim()) return
     const existing = statuses.find(s => s.id === editing.id)
     if (!existing) return
-    await update({ ...existing, name: editing.name.trim(), color: editing.color })
-    setEditing(null)
+    try {
+      await update({ ...existing, name: editing.name.trim(), color: editing.color })
+      setEditing(null)
+      setNameError('')
+    } catch (e) {
+      setNameError((e as Error).message)
+    }
   }
 
   const startAdd = () => {
     setAdding(true)
     setEditing(null)
     setDeleteId(null)
+    setNameError('')
     setNewName('')
     setNewColor(DEFAULT_ENTITY_COLOR)
   }
 
   const saveAdd = async () => {
     if (!newName.trim()) return
-    await add(newName.trim(), newColor)
-    setAdding(false)
-    setNewName('')
-    setNewColor(DEFAULT_ENTITY_COLOR)
+    try {
+      await add(newName.trim(), newColor)
+      setAdding(false)
+      setNewName('')
+      setNewColor(DEFAULT_ENTITY_COLOR)
+      setNameError('')
+    } catch (e) {
+      setNameError((e as Error).message)
+    }
   }
 
   const startDelete = async (id: number) => {
@@ -142,7 +154,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     const toIndex = sorted.findIndex(s => s.id === over.id)
     if (fromIndex !== -1 && toIndex !== -1) {
       reorder(fromIndex, toIndex)
-      setReorderKey(k => k + 1)
     }
   }, [sorted, reorder])
 
@@ -159,7 +170,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           {sorted.length === 0 && !adding && (
             <div className={styles.empty}>No statuses yet</div>
           )}
-          <DndContext key={reorderKey} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
               {sorted.map((s) => {
                 if (deleteId === s.id) {
@@ -178,19 +189,22 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                 if (editing && editing.id === s.id) {
                   const ed = editing
                   return (
-                    <div key={s.id} className={styles.editRow} onKeyDown={handleEditKeyDown}>
-                      <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-                      <input
-                        className={styles.editInput}
-                        value={ed.name}
-                        onChange={(e) => setEditing({ ...ed, name: e.target.value })}
-                        placeholder="Status name"
-                        autoFocus
-                      />
-                      <div className={styles.editActions}>
-                        <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
-                        <button className={styles.cancelBtn} onClick={() => setEditing(null)}>Cancel</button>
+                    <div key={s.id}>
+                      <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
+                        <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+                        <input
+                          className={styles.editInput}
+                          value={ed.name}
+                          onChange={(e) => { setEditing({ ...ed, name: e.target.value }); setNameError('') }}
+                          placeholder="Status name"
+                          autoFocus
+                        />
+                        <div className={styles.editActions}>
+                          <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
+                          <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+                        </div>
                       </div>
+                      {nameError && <div className={styles.errorHint}>{nameError}</div>}
                     </div>
                   )
                 }
@@ -209,19 +223,22 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
         </div>
 
         {adding ? (
-          <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
-            <ColorInput value={newColor} onChange={setNewColor} />
-            <input
-              className={styles.editInput}
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Status name"
-              autoFocus
-            />
-            <div className={styles.editActions}>
-              <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
-              <button className={styles.cancelBtn} onClick={() => setAdding(false)}>Cancel</button>
+          <div>
+            <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
+              <ColorInput value={newColor} onChange={setNewColor} />
+              <input
+                className={styles.editInput}
+                value={newName}
+                onChange={(e) => { setNewName(e.target.value); setNameError('') }}
+                placeholder="Status name"
+                autoFocus
+              />
+              <div className={styles.editActions}>
+                <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
+                <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+              </div>
             </div>
+            {nameError && <div className={styles.errorHint}>{nameError}</div>}
           </div>
         ) : (
           <button className={styles.addBtn} onClick={startAdd}>+ Add Status</button>

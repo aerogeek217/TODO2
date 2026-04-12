@@ -35,9 +35,19 @@ function PortalDropdown({ anchorRef, onClickOutside, children }: {
   // Continuously track anchor position (handles scroll, canvas pan, etc.)
   useEffect(() => {
     let raf: number
+    let prevTop = -9999
+    let prevLeft = -9999
     const tick = () => {
       const rect = anchorRef.current?.getBoundingClientRect()
-      if (rect) setPos({ top: rect.bottom + 4, left: rect.left })
+      if (rect) {
+        const top = rect.bottom + 4
+        const left = rect.left
+        if (top !== prevTop || left !== prevLeft) {
+          prevTop = top
+          prevLeft = left
+          setPos({ top, left })
+        }
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)

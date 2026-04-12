@@ -332,4 +332,49 @@ describe('validateImportData', () => {
     }))
     expect(result.ok).toBe(true)
   })
+
+  it('valid status object passes validation', () => {
+    const result = validateImportData(validData({
+      statuses: [{ id: 1, name: 'Open', color: '#00ff00', sortOrder: 0 }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('status with missing name fails', () => {
+    const result = validateImportData(validData({
+      statuses: [{ id: 1, color: '#00ff00', sortOrder: 0 }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('status with invalid color fails', () => {
+    const result = validateImportData(validData({
+      statuses: [{ id: 1, name: 'Open', color: 'not-a-color', sortOrder: 0 }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('status with NaN sortOrder fails', () => {
+    const result = validateImportData(validData({
+      statuses: [{ id: 1, name: 'Open', color: '#00ff00', sortOrder: NaN }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('status with too-long name fails', () => {
+    const result = validateImportData(validData({
+      statuses: [{ id: 1, name: 'x'.repeat(201), color: '#00ff00', sortOrder: 0 }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('multiple valid statuses pass validation', () => {
+    const result = validateImportData(validData({
+      statuses: [
+        { id: 1, name: 'Open', color: '#00ff00', sortOrder: 0 },
+        { id: 2, name: 'Closed', color: '#ff0000', sortOrder: 1 },
+      ],
+    }))
+    expect(result.ok).toBe(true)
+  })
 })

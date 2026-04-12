@@ -181,6 +181,33 @@ describe('useFilterStore', () => {
     expect(matchesFilter(makeTodo({ id: 3 }), [1], [], [30], [30])).toBe(false)
   })
 
+  it('setStatusIds filters by statusId', () => {
+    useFilterStore.getState().setStatusIds(new Set([5]))
+    const { matchesFilter } = useFilterStore.getState()
+
+    expect(matchesFilter(makeTodo({ id: 1, statusId: 5 }))).toBe(true)
+    expect(matchesFilter(makeTodo({ id: 2, statusId: 3 }))).toBe(false)
+    // No status filtered out when 0 not in set
+    expect(matchesFilter(makeTodo({ id: 3 }))).toBe(false)
+  })
+
+  it('setStatusIds with 0 (None): tasks with no status pass', () => {
+    useFilterStore.getState().setStatusIds(new Set([0, 5]))
+    const { matchesFilter } = useFilterStore.getState()
+
+    expect(matchesFilter(makeTodo({ id: 1, statusId: 5 }))).toBe(true)
+    expect(matchesFilter(makeTodo({ id: 2 }))).toBe(true)
+    expect(matchesFilter(makeTodo({ id: 3, statusId: 99 }))).toBe(false)
+  })
+
+  it('null statusIds means no filter', () => {
+    useFilterStore.getState().setStatusIds(null)
+    const { matchesFilter } = useFilterStore.getState()
+
+    expect(matchesFilter(makeTodo({ id: 1, statusId: 5 }))).toBe(true)
+    expect(matchesFilter(makeTodo({ id: 2 }))).toBe(true)
+  })
+
   it('dateField defaults to due', () => {
     expect(useFilterStore.getState().filters.dateField).toBe('due')
   })

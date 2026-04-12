@@ -381,6 +381,12 @@
 }
 
 
+.errorHint {
+  font-size: var(--font-size-meta);
+  color: var(--color-priority-high);
+  padding: 2px 10px 0;
+}
+
 .empty {
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);

@@ -164,6 +164,34 @@ describe('auditData', () => {
     expect(issue.fix).toBe('delete')
   })
 
+  it('detects todos with deleted statusId', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    await db.todos.add(makeTodo({ canvasId, statusId: 999 }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'todos' && i.field === 'statusId')!
+    expect(issue).toBeDefined()
+    expect(issue.count).toBe(1)
+    expect(issue.fix).toBe('clear-field')
+  })
+
+  it('ignores todos with valid statusId', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    const statusId = await db.statuses.add({ name: 'Open', color: '#00ff00', sortOrder: 0 } as any)
+    await db.todos.add(makeTodo({ canvasId, statusId }) as any)
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.field === 'statusId')).toBeUndefined()
+  })
+
+  it('ignores todos with null/undefined statusId', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    await db.todos.add(makeTodo({ canvasId }) as any)
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.field === 'statusId')).toBeUndefined()
+  })
+
   // --- Multiple issue types at once ---
 
   it('detects multiple issue types in one scan', async () => {
@@ -213,6 +241,18 @@ describe('cleanupIssues', () => {
     const todo = await db.todos.get(todoId)
     expect(todo!.projectId).toBeUndefined()
     expect(todo!.title).toBe('Test todo') // rest of todo intact
+  })
+
+  it('clears dangling statusId on todos', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    const todoId = await db.todos.add(makeTodo({ canvasId, statusId: 999 }) as any)
+
+    const report = await auditData()
+    await cleanupIssues(report.issues)
+
+    const todo = await db.todos.get(todoId)
+    expect(todo!.statusId).toBeUndefined()
+    expect(todo!.title).toBe('Test todo')
   })
 
   it('clears dangling parentId on todos', async () => {

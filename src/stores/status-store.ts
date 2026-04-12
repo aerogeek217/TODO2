@@ -29,6 +29,9 @@ export const useStatusStore = create<StatusState>((set, get) => ({
 
   async add(name: string, color = DEFAULT_ENTITY_COLOR) {
     const { statuses } = get()
+    if (statuses.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+      throw new Error(`Status "${name}" already exists`)
+    }
     const maxSort = statuses.reduce((max, s) => Math.max(max, s.sortOrder), 0)
     const id = await statusRepository.insert({ name, color, sortOrder: maxSort + 1 })
     set({ statuses: [...statuses, { id, name, color, sortOrder: maxSort + 1 }] })
@@ -36,7 +39,11 @@ export const useStatusStore = create<StatusState>((set, get) => ({
   },
 
   async update(status: Status) {
-    const prev = get().statuses
+    const { statuses } = get()
+    if (statuses.some(s => s.id !== status.id && s.name.toLowerCase() === status.name.toLowerCase())) {
+      throw new Error(`Status "${status.name}" already exists`)
+    }
+    const prev = statuses
     return optimistic(
       set,
       () => set({ statuses: prev.map(s => s.id === status.id ? { ...status } : s) }),

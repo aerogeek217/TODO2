@@ -148,6 +148,35 @@ describe('restoreFromImportData', () => {
       expect(await db.todoTags.count()).toBe(1)
     })
 
+    it('restoreFromImportData_withStatuses_persistsStatusTable', async () => {
+      const data = makeImportData({
+        statuses: [
+          { id: 1, name: 'Open', color: '#00ff00', sortOrder: 0 },
+          { id: 2, name: 'Closed', color: '#ff0000', sortOrder: 1 },
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const statuses = await db.statuses.toArray()
+      expect(statuses).toHaveLength(2)
+      expect(statuses.map(s => s.name)).toContain('Open')
+      expect(statuses.map(s => s.name)).toContain('Closed')
+    })
+
+    it('restoreFromImportData_withExistingStatuses_replacesWithImported', async () => {
+      await db.statuses.add({ name: 'Old Status', color: '#aabbcc', sortOrder: 0 })
+
+      await restoreFromImportData(makeImportData({
+        statuses: [{ id: 5, name: 'New Status', color: '#112233', sortOrder: 0 }],
+      }))
+
+      const statuses = await db.statuses.toArray()
+      expect(statuses).toHaveLength(1)
+      expect(statuses[0].name).toBe('New Status')
+      expect(statuses[0].id).toBe(5)
+    })
+
     it('restoreFromImportData_withEmptyOptionalTables_leavesThemEmpty', async () => {
       // Act
       await restoreFromImportData(makeImportData())
