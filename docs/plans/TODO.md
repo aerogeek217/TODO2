@@ -3,6 +3,7 @@
 
 ## Bugs
 
+- [x] **TaskRow people/org dropdown broken** — `useClickOutside` on `peopleRef`/`tagsRef` fired on portal clicks (portal is outside those refs in DOM), closing dropdown before `onToggle` could execute. Fixed by removing redundant handlers; `PortalDropdown` already handles outside-click detection.
 
 
 ## Features and Enhancements

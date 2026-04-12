@@ -123,8 +123,6 @@ export const TaskRow = memo(function TaskRow({
   const closePriority = useCallback(() => setShowPriorityMenu(false), [])
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
   useClickOutside(priorityMenuRef, closePriority, showPriorityMenu)
-  useClickOutside(peopleRef, closeDropdown, openDropdown === 'people')
-  useClickOutside(tagsRef, closeDropdown, openDropdown === 'tags')
 
   // Ghost rows are non-interactive (drag overlay visuals)
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
