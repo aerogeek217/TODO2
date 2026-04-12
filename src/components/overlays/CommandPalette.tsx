@@ -5,6 +5,8 @@ import styles from './CommandPalette.module.css'
 
 interface CommandPaletteProps {
   commands: Command[]
+  /** Lazy search for dynamic commands (tasks/projects) — only called when query is non-empty */
+  onSearchDynamic?: (query: string) => Command[]
   onClose: () => void
 }
 
@@ -21,7 +23,7 @@ const CATEGORY_LABELS: Record<CommandCategory, string> = {
 /** Max dynamic results (tasks/projects) to show to avoid overwhelming the list */
 const MAX_DYNAMIC_RESULTS = 20
 
-export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
+export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -31,16 +33,9 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
   const isCommandMode = query.startsWith('>')
   const searchQuery = isCommandMode ? query.slice(1).trim() : query.trim()
 
-  const searchableCommands = useMemo(() => {
-    if (isCommandMode) {
-      return commands.filter((c) => c.category !== 'tasks' && c.category !== 'projects')
-    }
-    return commands
-  }, [commands, isCommandMode])
-
   const fuse = useMemo(
-    () => new Fuse(searchableCommands, { keys: ['name', 'category'], threshold: 0.4, includeMatches: true }),
-    [searchableCommands]
+    () => new Fuse(commands, { keys: ['name', 'category'], threshold: 0.4, includeMatches: true }),
+    [commands]
   )
 
   /** Map from command id to matched character indices in the name field */
@@ -62,12 +57,18 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
   }, [searchQuery, fuse])
 
   const results = useMemo(() => {
-    let items: Command[]
     if (!searchQuery) {
-      // No query: show commands (not tasks/projects — too many)
-      items = commands.filter((c) => c.category !== 'tasks' && c.category !== 'projects')
-    } else {
-      items = fuse.search(searchQuery).map((r) => r.item)
+      // No query: show static commands only
+      return commands.filter((c) => c.category !== 'tasks' && c.category !== 'projects')
+    }
+
+    // Static commands via fuzzy search
+    const items = fuse.search(searchQuery).map((r) => r.item)
+
+    // Merge lazily-searched dynamic commands (tasks/projects) unless in command-only mode
+    if (!isCommandMode && onSearchDynamic) {
+      const dynamic = onSearchDynamic(searchQuery)
+      items.push(...dynamic)
     }
 
     // Cap dynamic results
@@ -85,7 +86,7 @@ export function CommandPalette({ commands, onClose }: CommandPaletteProps) {
       commandResults.push(item)
     }
     return commandResults
-  }, [searchQuery, fuse, commands])
+  }, [searchQuery, fuse, commands, isCommandMode, onSearchDynamic])
 
   // Group results by category, preserving order
   const grouped = useMemo(() => {

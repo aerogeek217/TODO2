@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createCommands } from '../../services/command-registry'
+import { createCommands, searchDynamicCommands } from '../../services/command-registry'
 import type { CommandContext } from '../../services/command-registry'
 import { Priority } from '../../models'
 import { makeTodo, makeProject } from '../helpers'
@@ -21,8 +21,8 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     clearAllFilters: vi.fn(),
     toggleShowCompleted: vi.fn(),
     setDateRange: vi.fn(),
-    todos: [],
-    projects: [],
+    getTodos: () => [],
+    getProjects: () => [],
     focusTask: vi.fn(),
     focusProject: vi.fn(),
     ...overrides,
@@ -298,94 +298,111 @@ describe('createCommands — filter-high command', () => {
   })
 })
 
-// ─── Dynamic task commands ────────────────────────────────────────────────────
+// ─── searchDynamicCommands — lazy task search ────────────────────────────────
 
-describe('createCommands — dynamic task commands', () => {
-  it('createCommands_withTodos_generatesOneCommandPerTodo', () => {
+describe('searchDynamicCommands — task search', () => {
+  it('searchDynamicCommands_withMatchingQuery_returnsMatchingTodos', () => {
     const todos = [
-      makeTodo({ id: 1 }),
-      makeTodo({ id: 2 }),
-      makeTodo({ id: 3 }),
+      makeTodo({ id: 1, title: 'Write unit tests' }),
+      makeTodo({ id: 2, title: 'Fix login bug' }),
+      makeTodo({ id: 3, title: 'Write docs' }),
     ]
-    const ctx = makeContext({ todos })
-    const commands = createCommands(ctx)
-    const taskCmds = commands.filter(c => c.category === 'tasks')
-    expect(taskCmds).toHaveLength(3)
+    const ctx = makeContext({ getTodos: () => todos })
+    const results = searchDynamicCommands('write', ctx)
+    expect(results.filter(c => c.category === 'tasks')).toHaveLength(2)
   })
 
-  it('createCommands_withTodos_commandIdsMatchTodoIds', () => {
-    const todos = [makeTodo({ id: 7 }), makeTodo({ id: 42 })]
-    const ctx = makeContext({ todos })
-    const commands = createCommands(ctx)
-    expect(commands.some(c => c.id === 'task-7')).toBe(true)
-    expect(commands.some(c => c.id === 'task-42')).toBe(true)
+  it('searchDynamicCommands_withQuery_commandIdsMatchTodoIds', () => {
+    const todos = [makeTodo({ id: 7, title: 'Alpha' }), makeTodo({ id: 42, title: 'Beta' })]
+    const ctx = makeContext({ getTodos: () => todos })
+    const results = searchDynamicCommands('alpha', ctx)
+    expect(results.some(c => c.id === 'task-7')).toBe(true)
+    expect(results.some(c => c.id === 'task-42')).toBe(false)
   })
 
-  it('createCommands_withTodos_commandNameIsTodoTitle', () => {
+  it('searchDynamicCommands_withQuery_commandNameIsTodoTitle', () => {
     const todos = [makeTodo({ id: 5, title: 'Write unit tests' })]
-    const ctx = makeContext({ todos })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'task-5')!
+    const ctx = makeContext({ getTodos: () => todos })
+    const results = searchDynamicCommands('unit', ctx)
+    const cmd = results.find(c => c.id === 'task-5')!
     expect(cmd.name).toBe('Write unit tests')
   })
 
-  it('createCommands_withTodos_actionCallsFocusTask', () => {
-    const todos = [makeTodo({ id: 9 })]
-    const ctx = makeContext({ todos })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'task-9')!
+  it('searchDynamicCommands_withQuery_actionCallsFocusTask', () => {
+    const todos = [makeTodo({ id: 9, title: 'Test task' })]
+    const ctx = makeContext({ getTodos: () => todos })
+    const results = searchDynamicCommands('test', ctx)
+    const cmd = results.find(c => c.id === 'task-9')!
     cmd.action()
     expect(ctx.focusTask).toHaveBeenCalledWith(9)
   })
 
-  it('createCommands_noTodos_generatesNoTaskCommands', () => {
-    const ctx = makeContext({ todos: [] })
-    const commands = createCommands(ctx)
-    expect(commands.filter(c => c.category === 'tasks')).toHaveLength(0)
+  it('searchDynamicCommands_emptyQuery_returnsEmpty', () => {
+    const todos = [makeTodo({ id: 1, title: 'Something' })]
+    const ctx = makeContext({ getTodos: () => todos })
+    expect(searchDynamicCommands('', ctx)).toHaveLength(0)
+  })
+
+  it('searchDynamicCommands_noMatch_returnsEmpty', () => {
+    const todos = [makeTodo({ id: 1, title: 'Something' })]
+    const ctx = makeContext({ getTodos: () => todos })
+    expect(searchDynamicCommands('zzz', ctx)).toHaveLength(0)
+  })
+
+  it('searchDynamicCommands_caseInsensitive_matchesRegardlessOfCase', () => {
+    const todos = [makeTodo({ id: 1, title: 'Fix Login Bug' })]
+    const ctx = makeContext({ getTodos: () => todos })
+    expect(searchDynamicCommands('fix login', ctx)).toHaveLength(1)
   })
 })
 
-// ─── Dynamic project commands ─────────────────────────────────────────────────
+// ─── searchDynamicCommands — lazy project search ─────────────────────────────
 
-describe('createCommands — dynamic project commands', () => {
-  it('createCommands_withProjects_generatesOneCommandPerProject', () => {
+describe('searchDynamicCommands — project search', () => {
+  it('searchDynamicCommands_withMatchingQuery_returnsMatchingProjects', () => {
     const projects = [
-      makeProject({ id: 1, canvasId: 1 }),
-      makeProject({ id: 2, canvasId: 1 }),
+      makeProject({ id: 1, canvasId: 1, name: 'Backend' }),
+      makeProject({ id: 2, canvasId: 1, name: 'Frontend' }),
     ]
-    const ctx = makeContext({ projects })
-    const commands = createCommands(ctx)
-    const projCmds = commands.filter(c => c.category === 'projects')
-    expect(projCmds).toHaveLength(2)
+    const ctx = makeContext({ getProjects: () => projects })
+    const results = searchDynamicCommands('back', ctx)
+    expect(results.filter(c => c.category === 'projects')).toHaveLength(1)
   })
 
-  it('createCommands_withProjects_commandIdsMatchProjectIds', () => {
-    const projects = [makeProject({ id: 11, canvasId: 1 })]
-    const ctx = makeContext({ projects })
-    const commands = createCommands(ctx)
-    expect(commands.some(c => c.id === 'project-11')).toBe(true)
-  })
-
-  it('createCommands_withProjects_commandNameIsProjectName', () => {
+  it('searchDynamicCommands_withQuery_commandNameIsProjectName', () => {
     const projects = [makeProject({ id: 3, canvasId: 1, name: 'My Sprint' })]
-    const ctx = makeContext({ projects })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'project-3')!
+    const ctx = makeContext({ getProjects: () => projects })
+    const results = searchDynamicCommands('sprint', ctx)
+    const cmd = results.find(c => c.id === 'project-3')!
     expect(cmd.name).toBe('My Sprint')
   })
 
-  it('createCommands_withProjects_actionCallsFocusProject', () => {
-    const projects = [makeProject({ id: 4, canvasId: 1 })]
-    const ctx = makeContext({ projects })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'project-4')!
+  it('searchDynamicCommands_withQuery_actionCallsFocusProject', () => {
+    const projects = [makeProject({ id: 4, canvasId: 1, name: 'Design' })]
+    const ctx = makeContext({ getProjects: () => projects })
+    const results = searchDynamicCommands('design', ctx)
+    const cmd = results.find(c => c.id === 'project-4')!
     cmd.action()
     expect(ctx.focusProject).toHaveBeenCalledWith(4)
   })
 
-  it('createCommands_noProjects_generatesNoProjectCommands', () => {
-    const ctx = makeContext({ projects: [] })
+  it('searchDynamicCommands_noMatchingProjects_returnsEmpty', () => {
+    const projects = [makeProject({ id: 1, canvasId: 1, name: 'Backend' })]
+    const ctx = makeContext({ getProjects: () => projects })
+    expect(searchDynamicCommands('zzz', ctx).filter(c => c.category === 'projects')).toHaveLength(0)
+  })
+})
+
+// ─── createCommands no longer includes dynamic commands ──────────────────────
+
+describe('createCommands — no dynamic commands', () => {
+  it('createCommands_withTodosAndProjects_doesNotIncludeDynamicCommands', () => {
+    const ctx = makeContext({
+      getTodos: () => [makeTodo({ id: 1 })],
+      getProjects: () => [makeProject({ id: 1, canvasId: 1 })],
+    })
     const commands = createCommands(ctx)
+    expect(commands.filter(c => c.category === 'tasks')).toHaveLength(0)
     expect(commands.filter(c => c.category === 'projects')).toHaveLength(0)
   })
 })

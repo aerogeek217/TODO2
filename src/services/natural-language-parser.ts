@@ -116,9 +116,6 @@ export function parseInput(text: string): ParsedInput {
   // Extract short priorities (p1, p2, p3)
   SHORT_PRIORITY_PATTERN.lastIndex = 0
   while ((match = SHORT_PRIORITY_PATTERN.exec(text)) !== null) {
-    // Skip if already covered by a bang priority token at this position
-    const overlaps = tokens.some((t) => t.type === 'priority' && t.start <= match!.index && t.end >= match!.index + match![0].length)
-    if (overlaps) continue
     const num = match[0].charAt(1)
     const value = num === '1' ? 'high' : num === '2' ? 'medium' : 'normal'
     tokens.push({
@@ -193,6 +190,17 @@ export function parseInput(text: string): ParsedInput {
       end: match.index + match[0].length,
     })
   }
+
+  // Remove cross-type overlaps: tokens are in pattern-priority order
+  // (priority > person > tag > project > date > recurrence), so earlier
+  // tokens win when ranges overlap (e.g. @friday beats date "friday")
+  const deduped: ParsedToken[] = []
+  for (const token of tokens) {
+    const overlaps = deduped.some((t) => token.start < t.end && token.end > t.start)
+    if (!overlaps) deduped.push(token)
+  }
+  tokens.length = 0
+  tokens.push(...deduped)
 
   // Sort tokens by position
   tokens.sort((a, b) => a.start - b.start)

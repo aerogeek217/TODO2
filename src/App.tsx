@@ -20,7 +20,7 @@ import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useStickyNoteStore } from './stores/sticky-note-store'
 import { Priority } from './models'
-import { createCommands } from './services/command-registry'
+import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
@@ -165,47 +165,52 @@ function AppShell() {
   const selectedTodoIds = useUIStore((s) => s.selectedTodoIds)
   const selectionCount = selectedTodoIds.size
 
-  const commands = useMemo(
-    () =>
-      createCommands({
-        navigateTo: (path) => navigate(path),
-        openQuickAdd: () => openCreatePopup(),
-        selectionCount,
-        bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
-        bulkSetStarred: useTodoStore.getState().bulkSetStarred,
-        bulkSetPriority: useTodoStore.getState().bulkSetPriority,
-        bulkRemove: useTodoStore.getState().bulkRemove,
-        getSelectedIds: () => [...useUIStore.getState().selectedTodoIds],
-        toggleStarredOnly: useFilterStore.getState().toggleStarredOnly,
-        toggleHardDeadlineOnly: useFilterStore.getState().toggleHardDeadlineOnly,
-        setPriorities: useFilterStore.getState().setPriorities,
-        getPriorities: () => useFilterStore.getState().filters.priorities,
-        clearAllFilters: useFilterStore.getState().clearAll,
-        toggleShowCompleted: useFilterStore.getState().toggleShowCompleted,
-        setDateRange: useFilterStore.getState().setDateRange,
-        todos,
-        projects,
-        focusTask: (todoId: number) => {
-          const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-          if (!todo?.projectId) return
-          const project = useProjectStore.getState().projects.find((p) => p.id === todo.projectId)
-          if (!project) return
-          useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
-          useUIStore.getState().selectOneTodo(todoId)
-          navigate('/')
-        },
-        focusProject: (projectId: number) => {
-          const project = useProjectStore.getState().projects.find((p) => p.id === projectId)
-          if (!project) return
-          useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
-          navigate('/')
-        },
-        fitView,
-        createStickyNote: location.pathname === '/' ? createStickyNote : undefined,
-        toggleProjectNavigator: location.pathname === '/' ? toggleProjectNavigator : undefined,
-        openShortcutsModal: () => setShowShortcuts(true),
-      }),
+  const commandCtx = useMemo(
+    () => ({
+      navigateTo: (path: string) => navigate(path),
+      openQuickAdd: () => openCreatePopup(),
+      selectionCount,
+      bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
+      bulkSetStarred: useTodoStore.getState().bulkSetStarred,
+      bulkSetPriority: useTodoStore.getState().bulkSetPriority,
+      bulkRemove: useTodoStore.getState().bulkRemove,
+      getSelectedIds: () => [...useUIStore.getState().selectedTodoIds],
+      toggleStarredOnly: useFilterStore.getState().toggleStarredOnly,
+      toggleHardDeadlineOnly: useFilterStore.getState().toggleHardDeadlineOnly,
+      setPriorities: useFilterStore.getState().setPriorities,
+      getPriorities: () => useFilterStore.getState().filters.priorities,
+      clearAllFilters: useFilterStore.getState().clearAll,
+      toggleShowCompleted: useFilterStore.getState().toggleShowCompleted,
+      setDateRange: useFilterStore.getState().setDateRange,
+      getTodos: () => todos,
+      getProjects: () => projects,
+      focusTask: (todoId: number) => {
+        const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+        if (!todo?.projectId) return
+        const project = useProjectStore.getState().projects.find((p) => p.id === todo.projectId)
+        if (!project) return
+        useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
+        useUIStore.getState().selectOneTodo(todoId)
+        navigate('/')
+      },
+      focusProject: (projectId: number) => {
+        const project = useProjectStore.getState().projects.find((p) => p.id === projectId)
+        if (!project) return
+        useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
+        navigate('/')
+      },
+      fitView,
+      createStickyNote: location.pathname === '/' ? createStickyNote : undefined,
+      toggleProjectNavigator: location.pathname === '/' ? toggleProjectNavigator : undefined,
+      openShortcutsModal: () => setShowShortcuts(true),
+    }),
     [navigate, todos, projects, selectionCount, fitView, createStickyNote, toggleProjectNavigator, location.pathname]
+  )
+
+  const commands = useMemo(() => createCommands(commandCtx), [commandCtx])
+  const handleSearchDynamic = useCallback(
+    (query: string) => searchDynamicCommands(query, commandCtx),
+    [commandCtx]
   )
 
   if (initError) {
@@ -264,7 +269,7 @@ function AppShell() {
           )}
         </div>
       )}
-      {!isMobile && showPalette && <CommandPalette commands={commands} onClose={handleClosePalette} />}
+      {!isMobile && showPalette && <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={handleClosePalette} />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {selectionCount > 0 && (
         <div className={styles.bulkBar}>

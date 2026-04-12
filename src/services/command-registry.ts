@@ -31,10 +31,10 @@ export interface CommandContext {
   clearAllFilters: () => void
   toggleShowCompleted: () => void
   setDateRange: (start: Date | null, end: Date | null) => void
-  /** All todos (for task search) */
-  todos: PersistedTodoItem[]
-  /** All projects (for project navigation) */
-  projects: Project[]
+  /** Lazy todo getter (for task search — only called when palette has a query) */
+  getTodos: () => PersistedTodoItem[]
+  /** Lazy project getter (for project navigation — only called when palette has a query) */
+  getProjects: () => Project[]
   /** Navigate to a task on canvas */
   focusTask: (todoId: number) => void
   /** Navigate to a project on canvas */
@@ -141,25 +141,40 @@ export function createCommands(ctx: CommandContext): Command[] {
     )
   }
 
-  // Dynamic project commands
-  for (const project of ctx.projects) {
-    commands.push({
-      id: `project-${project.id}`,
-      name: project.name,
-      category: 'projects',
-      action: () => ctx.focusProject(project.id!),
-    })
-  }
-
-  // Dynamic task commands
-  for (const todo of ctx.todos) {
-    commands.push({
-      id: `task-${todo.id}`,
-      name: todo.title,
-      category: 'tasks',
-      action: () => ctx.focusTask(todo.id),
-    })
-  }
-
   return commands
+}
+
+/**
+ * Filter-first dynamic command search — only creates Command objects for
+ * todos/projects whose names match the query. Called lazily by the command
+ * palette when the user types a search string.
+ */
+export function searchDynamicCommands(query: string, ctx: CommandContext): Command[] {
+  if (!query) return []
+  const q = query.toLowerCase()
+  const results: Command[] = []
+
+  for (const project of ctx.getProjects()) {
+    if (project.name.toLowerCase().includes(q)) {
+      results.push({
+        id: `project-${project.id}`,
+        name: project.name,
+        category: 'projects',
+        action: () => ctx.focusProject(project.id!),
+      })
+    }
+  }
+
+  for (const todo of ctx.getTodos()) {
+    if (todo.title.toLowerCase().includes(q)) {
+      results.push({
+        id: `task-${todo.id}`,
+        name: todo.title,
+        category: 'tasks',
+        action: () => ctx.focusTask(todo.id),
+      })
+    }
+  }
+
+  return results
 }

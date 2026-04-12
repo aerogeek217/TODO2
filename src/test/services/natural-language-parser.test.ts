@@ -192,6 +192,42 @@ describe('natural-language-parser', () => {
     expect(result.title).toBe('Do something and then rest')
   })
 
+  // ─── Cross-type overlap detection ──────────────────────────────────────────
+
+  it('person @friday is not also parsed as a date', () => {
+    const result = parseInput('Ask @friday about the report')
+    expect(result.persons).toEqual(['friday'])
+    expect(result.dueDate).toBeUndefined()
+    expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
+  })
+
+  it('tag #monday is not also parsed as a date', () => {
+    const result = parseInput('Review #monday items')
+    expect(result.tags).toEqual(['monday'])
+    expect(result.dueDate).toBeUndefined()
+    expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
+  })
+
+  it('project /tomorrow is not also parsed as a date', () => {
+    const result = parseInput('Check /tomorrow tasks')
+    expect(result.projects).toEqual(['tomorrow'])
+    expect(result.dueDate).toBeUndefined()
+    expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
+  })
+
+  it('person and separate date do not conflict when non-overlapping', () => {
+    const result = parseInput('Ask @Mike about tomorrow')
+    expect(result.persons).toEqual(['Mike'])
+    expect(result.dueDate).toBeDefined()
+  })
+
+  it('bang priority and short priority at different positions both parse but first wins', () => {
+    const result = parseInput('Fix !high bug p2')
+    expect(result.priority).toBe(Priority.High)
+    // Both tokens exist (non-overlapping), but first priority wins in resolution
+    expect(result.tokens.filter(t => t.type === 'priority')).toHaveLength(2)
+  })
+
   it('bare day name on same day resolves to next week, not today', () => {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const todayName = dayNames[new Date().getDay()]
