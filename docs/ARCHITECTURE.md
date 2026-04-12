@@ -16,6 +16,7 @@ main.tsx (entry point)
 ├── styles/tokens.css      → CSS custom properties (design system: dark/light themes via [data-theme], tint scale, shadows, radii, z-index, spacing, typography)
 ├── views/                 → Route-level pages
 │   ├── CanvasPage         → components/canvas/, stores
+│   ├── DashboardView      → Top 10 lists (Mine/Follow-up/Assigned/Stale) ranked by importance score
 │   ├── ListView           → Unified list with sort-by grouping (Priority/Due/People/Tag/Project), saved views, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Compact hub: theme toggle (light/dark/system), manage buttons open modals; task defaults, database location, import/export
@@ -52,7 +53,7 @@ main.tsx (entry point)
 | TodoPerson | models/todo-person.ts | Many-to-many join: todo ↔ person |
 | TodoOrg | models/todo-org.ts | Many-to-many join: todo ↔ org (direct org assignment) |
 | Priority | models/priority.ts | Enum: Normal, Medium, High |
-| AppView | models/app-view.ts | Enum: Canvas, List, Settings |
+| AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
 | ListSortBy | models/app-view.ts | Type: priority, due, people, org, tag, project |
 | DateField | models/app-view.ts | Type: due, created, modified — used by filter store and saved views |
 | ListInset | models/list-inset.ts | Filtered task list widget on canvas (preset: due-this-week, starred, high-priority; or attributeFilter: priority/person/tag/org) |
@@ -120,7 +121,7 @@ main.tsx (entry point)
 | useIsMobile | hooks/use-is-mobile.ts | Reactive mobile detection hook (640px breakpoint via matchMedia + useSyncExternalStore) |
 | useKeyboardShortcuts | hooks/use-keyboard-shortcuts.ts | Global keyboard shortcut handler: undo/redo, task navigation (Arrow/Home/End), task actions (Enter/Space/Delete/Insert), movement (Ctrl+Arrow/Tab), chord navigation (G then C/L/A/S), filter focus (F), select all (Ctrl+A), keyboard shortcuts modal (?) |
 | useBulkActions | hooks/use-bulk-actions.ts | Hook wrapping mutations with multi-select awareness; called directly by TaskRow |
-| useTaskEditCallbacks | hooks/use-task-edit-callbacks.ts | Shared TaskEditPopup wiring: onCreate (NLP + metadata), editProps (assignments, actions), entityCreators — used by CanvasPage, ListView, CalendarView |
+| useTaskEditCallbacks | hooks/use-task-edit-callbacks.ts | Shared TaskEditPopup wiring: onCreate (NLP + metadata), editProps (assignments, actions), entityCreators — used by CanvasPage, DashboardView, ListView, CalendarView |
 | useCanvasDnD | hooks/use-canvas-dnd.ts | DnD state, edge panning, drag handlers, drop execution — extracted from CanvasPage |
 | useInlineEdit | hooks/use-inline-edit.ts | Inline title editing: state, focus, save/cancel, 250ms click-to-edit timer |
 | useClickOutside | hooks/use-click-outside.ts | Click-outside detection hook for closing dropdowns/menus |
@@ -137,6 +138,9 @@ main.tsx (entry point)
 | FilteredListPopup | components/overlays/FilteredListPopup.tsx | On-demand floating list popup triggered by right-clicking priority/person/tag on any TaskRow; reads from stores directly |
 | ProjectNavigator | components/canvas/ProjectNavigator.tsx | Collapsible overlay panel listing all projects; click to fitView-navigate; toggled with P key |
 | PlainTextExportPopup | components/overlays/PlainTextExportPopup.tsx | Modal with plain text representation of current list sections; copy-to-clipboard support |
+| DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Follow-up, Assigned, Stale; unfiltered; 2x2 grid layout; collapsible cards |
+| scoreTask | views/DashboardView.tsx | Importance scoring: hard deadline (+50), overdue (100+days), due proximity (60-days), priority (High+20, Medium+10) |
+| buildDashboardLists | views/DashboardView.tsx | Builds 4 dashboard lists from all incomplete todos using scoreTask ranking (Mine/Follow-up/Assigned by score, Stale by oldest modifiedAt) |
 | buildExportData | services/export-import.ts | Reads all 12 DB tables in parallel; shared by file-storage, settings export, and backup snapshots |
 | buildMarkdownExport | services/export-import.ts | Builds markdown representation of all tasks grouped by project; uses buildExportData |
 | fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh |
@@ -163,7 +167,7 @@ main.tsx (entry point)
 1. **App startup**: Dexie opens IndexedDB, `useCanvasStore.ensureDefault()` creates default canvas if needed, then `fileStorageService.initialize()` reconnects to a saved file handle (if any) and loads file data into IndexedDB. Settings store loads theme mode and applies `data-theme` attribute to `<html>` (light/dark/system); only user-customized color overrides are applied as inline styles. If `completedRetentionDays` is configured, expired completed tasks are purged. `backupScheduler.start()` begins periodic auto-snapshots.
 2. **Normal use**: User manages todos via UI, Zustand stores call repository methods, Dexie persists to IndexedDB. If file storage is connected, Dexie hooks debounce-save all changes to the JSON file on disk
 3. **Canvas**: Single canvas only (selector removed); `useCanvasStore.ensureDefault()` creates/selects it at startup
-4. **View switching**: Sidebar icon buttons navigate between Canvas, List, Calendar, and Settings views via React Router; List view groups all todos by a user-selected sort-by attribute (Priority, Due, People, Tag, Project)
+4. **View switching**: Sidebar icon buttons navigate between Canvas, Dashboard, List, Calendar, and Settings views via React Router; Dashboard shows unfiltered Top 10 lists; List view groups all todos by a user-selected sort-by attribute (Priority, Due, People, Tag, Project)
 5. **Person assignment**: Many-to-many via `todoPeople` join table; `usePersonStore` maintains an `assignedPeopleMap` cache for efficient lookups
 6. **Person-org membership**: Many-to-many via `personOrgs` join table; a person can belong to multiple orgs
 

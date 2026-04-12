@@ -7,8 +7,9 @@
 
 
 ## Features and Enhancements
-- [ ] Add a Dashboard view. We'll start by including Top 10 lists. For a few categories, this will show a top 10 list of the most important tasks weighted by hard deadline, then due date, then priority. (For example, a task with high priority due next friday would be ranked higher than a task simply due next friday). Categories include Mine (not assigned and no discussion required), Followup, and Assigned. Also include a Stale list with the top 10 oldest "last modified" dates. The Top 10 lists are not filtered. I think we can fit all lists at once, but they could be selectable if it makes the dashboard too cluttered.
 
+- [x] Add a Dashboard view with Top 10 lists (Mine, Follow-up, Assigned, Stale) ranked by hard deadline, due date, and priority
+- [ ] **Dashboard test coverage** — add unit tests for `scoreTask` and `buildDashboardLists` in `src/views/DashboardView.tsx`
 
 ## User Testing
 

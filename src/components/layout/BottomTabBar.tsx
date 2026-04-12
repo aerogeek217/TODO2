@@ -10,11 +10,30 @@ export function BottomTabBar() {
   const isFilterSheetOpen = useUIStore((s) => s.isFilterSheetOpen)
   const toggleFilterSheet = useUIStore((s) => s.toggleFilterSheet)
 
-  const isListActive = location.pathname === '/list' || location.pathname === '/'
+  const isDashboardActive = location.pathname === '/dashboard' || location.pathname === '/'
+  const isListActive = location.pathname === '/list'
   const isSettingsActive = location.pathname === '/settings'
 
   return (
     <nav className={styles.tabBar} aria-label="Main navigation">
+      <button
+        className={`${styles.tab} ${isDashboardActive && !isFilterSheetOpen ? styles.tabActive : ''}`}
+        role="tab"
+        aria-selected={isDashboardActive && !isFilterSheetOpen}
+        onClick={() => {
+          if (isFilterSheetOpen) toggleFilterSheet()
+          if (location.pathname !== '/dashboard') navigate('/dashboard')
+        }}
+      >
+        <span className={styles.tabIcon}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/>
+            <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+          </svg>
+        </span>
+        <span className={styles.tabLabel}>Dashboard</span>
+      </button>
+
       <button
         className={`${styles.tab} ${isListActive && !isFilterSheetOpen ? styles.tabActive : ''}`}
         role="tab"
