@@ -53,13 +53,13 @@ interface Section {
 }
 
 const sortByOptions: { value: ListSortBy; label: string }[] = [
+  { value: 'project', label: 'Project' },
   { value: 'priority', label: 'Priority' },
-  { value: 'due', label: 'Due Date' },
+  { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
   { value: 'org', label: 'Org' },
   { value: 'tag', label: 'Tag' },
-  { value: 'project', label: 'Project' },
-  { value: 'status', label: 'Status' },
+  { value: 'due', label: 'Due Date' },
 ]
 
 
