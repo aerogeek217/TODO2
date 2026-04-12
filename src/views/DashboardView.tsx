@@ -26,7 +26,7 @@ const TOP_N = 10
  *  - Due date proximity: closer due dates score higher
  *  - Priority: High=2, Medium=1, Normal=0 adds a bonus
  */
-function scoreTask(todo: PersistedTodoItem, now: number): number {
+export function scoreTask(todo: PersistedTodoItem, now: number): number {
   let score = 0
 
   // Priority bonus
@@ -53,14 +53,14 @@ function scoreTask(todo: PersistedTodoItem, now: number): number {
   return score
 }
 
-interface DashboardList {
+export interface DashboardList {
   key: string
   label: string
   description: string
   todos: PersistedTodoItem[]
 }
 
-function buildDashboardLists(todos: PersistedTodoItem[]): DashboardList[] {
+export function buildDashboardLists(todos: PersistedTodoItem[]): DashboardList[] {
   const now = startOfToday().getTime()
   const incomplete = todos.filter((t) => !t.isCompleted)
 

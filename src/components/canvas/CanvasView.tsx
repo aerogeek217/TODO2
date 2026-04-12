@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   ReactFlow,
   Background,
@@ -17,6 +17,7 @@ import { ProjectNode, type ProjectNodeData } from './ProjectNode'
 import { ListInsetNode, type ListInsetNodeData } from './ListInsetNode'
 import { StickyNoteNode, type StickyNoteNodeData } from './StickyNoteNode'
 import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
+import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
 import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, StickyNote, TaskboardEntry } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
@@ -153,6 +154,7 @@ export function CanvasView({
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onAddListInset, onResizeInset } = insetHandlers
   const { onAddStickyNote, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onNoteDragStop, onResizeNote, onConvertNoteLines } = stickyHandlers
+  const { activeDragTodoId } = useContext(DragInsertContext)
   const isNavOpen = useUIStore((s) => s.isProjectNavigatorOpen)
   const isMinimapOpen = useUIStore((s) => s.isMinimapOpen)
   // Track which nodes are currently being dragged by React Flow
@@ -268,12 +270,13 @@ export function CanvasView({
       } satisfies StickyNoteNodeData,
     }))
 
-    const tbNode: Node[] = (taskboardEntries && taskboardEntries.length > 0) ? [{
+    const showTaskboard = (taskboardEntries && taskboardEntries.length > 0) || activeDragTodoId != null
+    const tbNode: Node[] = showTaskboard ? [{
       id: TASKBOARD_NODE_ID,
       type: 'taskboard',
       position: taskboardPosition ?? { x: -400, y: 0 },
       data: {
-        entries: taskboardEntries,
+        entries: taskboardEntries ?? [],
         allTodos: allTodos ?? [],
         assignedPeopleMap,
         assignedTagsMap,
@@ -296,6 +299,7 @@ export function CanvasView({
     stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
     allPeople, allTags,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
+    activeDragTodoId,
   ])
 
   // Local node state — React Flow controlled mode.

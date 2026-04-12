@@ -1,0 +1,126 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { db } from '../../data/database'
+import { useTaskboardStore } from '../../stores/taskboard-store'
+
+beforeEach(async () => {
+  await db.delete()
+  await db.open()
+  useTaskboardStore.setState({ entries: [], loading: false, error: null })
+})
+
+describe('useTaskboardStore', () => {
+  describe('load', () => {
+    it('loads entries from database sorted by sortOrder', async () => {
+      await db.taskboardEntries.bulkAdd([
+        { todoId: 10, sortOrder: 2000 },
+        { todoId: 20, sortOrder: 1000 },
+      ])
+
+      await useTaskboardStore.getState().load()
+
+      const { entries } = useTaskboardStore.getState()
+      expect(entries).toHaveLength(2)
+      expect(entries[0].todoId).toBe(20)
+      expect(entries[1].todoId).toBe(10)
+    })
+
+    it('sets loading to false after completion', async () => {
+      await useTaskboardStore.getState().load()
+      expect(useTaskboardStore.getState().loading).toBe(false)
+    })
+  })
+
+  describe('add', () => {
+    it('adds a new entry to the store and database', async () => {
+      await useTaskboardStore.getState().add(42)
+
+      const { entries } = useTaskboardStore.getState()
+      expect(entries).toHaveLength(1)
+      expect(entries[0].todoId).toBe(42)
+
+      const dbEntry = await db.taskboardEntries.where('todoId').equals(42).first()
+      expect(dbEntry).toBeDefined()
+    })
+
+    it('does not add duplicate todoId', async () => {
+      await useTaskboardStore.getState().add(42)
+      await useTaskboardStore.getState().add(42)
+
+      const { entries } = useTaskboardStore.getState()
+      expect(entries).toHaveLength(1)
+    })
+  })
+
+  describe('remove', () => {
+    it('removes an entry from the store and database', async () => {
+      await useTaskboardStore.getState().add(42)
+      await useTaskboardStore.getState().remove(42)
+
+      expect(useTaskboardStore.getState().entries).toHaveLength(0)
+      const dbEntry = await db.taskboardEntries.where('todoId').equals(42).first()
+      expect(dbEntry).toBeUndefined()
+    })
+
+    it('does nothing when todoId not in taskboard', async () => {
+      await useTaskboardStore.getState().add(1)
+      await useTaskboardStore.getState().remove(999)
+
+      expect(useTaskboardStore.getState().entries).toHaveLength(1)
+    })
+  })
+
+  describe('clear', () => {
+    it('removes all entries from store and database', async () => {
+      await useTaskboardStore.getState().add(1)
+      await useTaskboardStore.getState().add(2)
+      await useTaskboardStore.getState().add(3)
+
+      await useTaskboardStore.getState().clear()
+
+      expect(useTaskboardStore.getState().entries).toHaveLength(0)
+      const dbEntries = await db.taskboardEntries.toArray()
+      expect(dbEntries).toHaveLength(0)
+    })
+
+    it('does nothing when already empty', async () => {
+      await useTaskboardStore.getState().clear()
+      expect(useTaskboardStore.getState().entries).toHaveLength(0)
+    })
+  })
+
+  describe('has', () => {
+    it('returns true when todoId is in taskboard', async () => {
+      await useTaskboardStore.getState().add(42)
+      expect(useTaskboardStore.getState().has(42)).toBe(true)
+    })
+
+    it('returns false when todoId is not in taskboard', () => {
+      expect(useTaskboardStore.getState().has(999)).toBe(false)
+    })
+  })
+
+  describe('reorder', () => {
+    it('moves an entry from one position to another', async () => {
+      await useTaskboardStore.getState().add(1)
+      await useTaskboardStore.getState().add(2)
+      await useTaskboardStore.getState().add(3)
+
+      // Move item at index 2 (todoId=3) to index 0
+      await useTaskboardStore.getState().reorder(2, 0)
+
+      const { entries } = useTaskboardStore.getState()
+      expect(entries.map(e => e.todoId)).toEqual([3, 1, 2])
+    })
+
+    it('updates sortOrders in database after reorder', async () => {
+      await useTaskboardStore.getState().add(1)
+      await useTaskboardStore.getState().add(2)
+
+      await useTaskboardStore.getState().reorder(1, 0)
+
+      const dbEntries = await db.taskboardEntries.orderBy('sortOrder').toArray()
+      expect(dbEntries[0].todoId).toBe(2)
+      expect(dbEntries[1].todoId).toBe(1)
+    })
+  })
+})

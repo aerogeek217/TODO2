@@ -7,6 +7,7 @@ import {
   KeyboardSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core'
 import {
@@ -71,6 +72,11 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
+  const { isOver, setNodeRef: setDropRef } = useDroppable({
+    id: 'taskboard-drop',
+    data: { type: 'taskboard' },
+  })
+
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
   const todoMap = useMemo(() => {
@@ -104,7 +110,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   }, [])
 
   return (
-    <div className={styles.node} style={{ width, height: isCollapsed ? undefined : height }}>
+    <div ref={setDropRef} className={`${styles.node} ${isOver ? styles.dropTarget : ''}`} style={{ width, height: isCollapsed ? undefined : height }}>
       <div className={styles.titleBar}>
         <button className={`${styles.collapseButton} ${isCollapsed ? styles.collapsed : ''}`} onClick={onToggleCollapse}>&#9662;</button>
         <span className={styles.icon}>&#9776;</span>

@@ -14,6 +14,7 @@ import type { ReactFlowInstance } from '@xyflow/react'
 import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
+import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { getFlatVisualOrder } from '../utils/hierarchy'
@@ -291,6 +292,16 @@ export function useCanvasDnD({
       }
 
       const overData = over?.data.current
+
+      // Hovering over taskboard — clear insert preview (taskboard handles its own highlight)
+      if (overData?.type === 'taskboard') {
+        setInsertTodoId(null)
+        setInsertIndentLevel(0)
+        setInsertAtEnd(false)
+        setInsertProjectId(null)
+        return
+      }
+
       const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
         : overData?.type === 'project' ? 'project'
         : null
@@ -365,6 +376,18 @@ export function useCanvasDnD({
       if (!activeTodo) return
 
       const overData = over?.data.current
+
+      // Dropped onto the taskboard — add task(s) instead of moving
+      if (overData?.type === 'taskboard') {
+        const { add } = useTaskboardStore.getState()
+        if (dragIds) {
+          for (const id of dragIds) await add(id)
+        } else {
+          await add(activeTodo.id)
+        }
+        return
+      }
+
       const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
         : overData?.type === 'project' ? 'project'
         : null
