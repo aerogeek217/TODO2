@@ -61,18 +61,14 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
   useClickOutside(paletteRef, () => setShowPalette(false), showPalette)
 
   // Sync external text changes (e.g. from undo)
-  const lastNoteTextRef = useRef(note.text)
-  if (note.text !== lastNoteTextRef.current) {
-    lastNoteTextRef.current = note.text
+  useEffect(() => {
     setLocalText(note.text)
-  }
+  }, [note.text])
 
   // Sync external title changes
-  const lastNoteTitleRef = useRef(note.title || '')
-  if ((note.title || '') !== lastNoteTitleRef.current) {
-    lastNoteTitleRef.current = note.title || ''
+  useEffect(() => {
     setLocalTitle(note.title || '')
-  }
+  }, [note.title])
 
   const handleTitleSave = useCallback(() => {
     setIsEditingTitle(false)

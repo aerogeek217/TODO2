@@ -79,6 +79,7 @@ function FilterDropdown({
       <button
         className={`${styles.filterChip} ${active ? styles.filterChipActive : ''}`}
         onClick={handleToggle}
+        aria-expanded={open}
       >
         {label}
         <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}>&#9662;</span>
@@ -188,6 +189,7 @@ function DateRangeDropdown({
       <button
         className={`${styles.filterChip} ${active ? styles.filterChipActive : ''}`}
         onClick={handleOpen}
+        aria-expanded={open}
       >
         <svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         {' '}Date
@@ -254,6 +256,46 @@ function DateRangeDropdown({
         </div>
       )}
     </div>
+  )
+}
+
+function EntityDropdownItems({
+  searchText,
+  entities,
+  isChecked,
+  onToggle,
+  namePrefix,
+  showDot = true,
+}: {
+  searchText: string
+  entities: { id?: number; name: string; color?: string }[]
+  isChecked: (id: number) => boolean
+  onToggle: (id: number) => void
+  namePrefix?: string
+  showDot?: boolean
+}) {
+  const q = searchText.toLowerCase()
+  const showNone = !q || 'none'.includes(q)
+  const filtered = (q ? entities.filter(e => e.name.toLowerCase().includes(q)) : entities).toSorted((a, b) => a.name.localeCompare(b.name))
+  return (
+    <>
+      {showNone && (
+        <label className={styles.dropdownItem} onClick={() => onToggle(0)}>
+          <span className={`${styles.check} ${isChecked(0) ? styles.checked : ''}`} />
+          <span className={styles.noneLabel}>None</span>
+        </label>
+      )}
+      {filtered.map(entity => (
+        <label key={entity.id} className={styles.dropdownItem} onClick={() => onToggle(entity.id!)}>
+          <span className={`${styles.check} ${isChecked(entity.id!) ? styles.checked : ''}`} />
+          {showDot && entity.color && <span className={styles.dot} style={{ background: entity.color }} />}
+          {namePrefix}{entity.name}
+        </label>
+      ))}
+      {q && !showNone && filtered.length === 0 && (
+        <div className={styles.dropdownEmpty}>No matches</div>
+      )}
+    </>
   )
 }
 
@@ -467,6 +509,8 @@ export function TopBar() {
           <button
             className={`${styles.filterChip} ${filters.hardDeadlineOnly ? styles.filterChipActive : ''}`}
             onClick={toggleHardDeadlineOnly}
+            role="switch"
+            aria-checked={filters.hardDeadlineOnly}
           >
             <span className={styles.filterIcon}>⚑</span> Deadlines
           </button>
@@ -483,30 +527,16 @@ export function TopBar() {
               onClose={() => { if (previewEmpty === 'people') setPreviewEmpty(null) }}
               searchable
             >
-              {(searchText: string) => {
-                const q = searchText.toLowerCase()
-                const showNone = !q || 'none'.includes(q)
-                const filtered = (q ? people.filter((p) => p.name.toLowerCase().includes(q)) : people).toSorted((a, b) => a.name.localeCompare(b.name))
-                return (
-                  <>
-                    {showNone && (
-                      <label className={styles.dropdownItem} onClick={() => handlePersonToggle(0)}>
-                        <span className={`${styles.check} ${isPersonChecked(0) ? styles.checked : ''}`} />
-                        <span className={styles.noneLabel}>None</span>
-                      </label>
-                    )}
-                    {filtered.map((person) => (
-                      <label key={person.id} className={styles.dropdownItem} onClick={() => handlePersonToggle(person.id!)}>
-                        <span className={`${styles.check} ${isPersonChecked(person.id!) ? styles.checked : ''}`} />
-                        @{person.name}
-                      </label>
-                    ))}
-                    {q && !showNone && filtered.length === 0 && (
-                      <div className={styles.dropdownEmpty}>No matches</div>
-                    )}
-                  </>
-                )
-              }}
+              {(searchText: string) => (
+                <EntityDropdownItems
+                  searchText={searchText}
+                  entities={people}
+                  isChecked={isPersonChecked}
+                  onToggle={handlePersonToggle}
+                  namePrefix="@"
+                  showDot={false}
+                />
+              )}
             </FilterDropdown>
           )}
 
@@ -521,36 +551,21 @@ export function TopBar() {
             onClose={() => { if (previewEmpty === 'org') setPreviewEmpty(null) }}
             searchable
           >
-            {(searchText: string) => {
-              const q = searchText.toLowerCase()
-              const showNone = !q || 'none'.includes(q)
-              const filtered = (q ? orgs.filter((o) => o.name.toLowerCase().includes(q)) : orgs).toSorted((a, b) => a.name.localeCompare(b.name))
-              return (
-                <>
-                  {showNone && (
-                    <label className={styles.dropdownItem} onClick={() => handleOrgToggle(0)}>
-                      <span className={`${styles.check} ${isOrgChecked(0) ? styles.checked : ''}`} />
-                      <span className={styles.noneLabel}>None</span>
-                    </label>
-                  )}
-                  {filtered.map((org) => (
-                    <label key={org.id} className={styles.dropdownItem} onClick={() => handleOrgToggle(org.id!)}>
-                      <span className={`${styles.check} ${isOrgChecked(org.id!) ? styles.checked : ''}`} />
-                      {org.color && <span className={styles.dot} style={{ background: org.color }} />}
-                      {org.name}
-                    </label>
-                  ))}
-                  {q && !showNone && filtered.length === 0 && (
-                    <div className={styles.dropdownEmpty}>No matches</div>
-                  )}
-                </>
-              )
-            }}
+            {(searchText: string) => (
+              <EntityDropdownItems
+                searchText={searchText}
+                entities={orgs}
+                isChecked={isOrgChecked}
+                onToggle={handleOrgToggle}
+              />
+            )}
           </FilterDropdown>
 
           <button
             className={`${styles.filterChip} ${filters.showAssigned ? styles.filterChipActive : ''}`}
             onClick={toggleShowAssigned}
+            role="switch"
+            aria-checked={filters.showAssigned}
           >
             <svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             {' '}Assigned
@@ -568,43 +583,30 @@ export function TopBar() {
               onClose={() => { if (previewEmpty === 'tags') setPreviewEmpty(null) }}
               searchable
             >
-              {(searchText: string) => {
-                const q = searchText.toLowerCase()
-                const showNone = !q || 'none'.includes(q)
-                const filtered = (q ? tags.filter((t) => t.name.toLowerCase().includes(q)) : tags).toSorted((a, b) => a.name.localeCompare(b.name))
-                return (
-                  <>
-                    {showNone && (
-                      <label className={styles.dropdownItem} onClick={() => handleTagToggle(0)}>
-                        <span className={`${styles.check} ${isTagChecked(0) ? styles.checked : ''}`} />
-                        <span className={styles.noneLabel}>None</span>
-                      </label>
-                    )}
-                    {filtered.map((tag) => (
-                      <label key={tag.id} className={styles.dropdownItem} onClick={() => handleTagToggle(tag.id!)}>
-                        <span className={`${styles.check} ${isTagChecked(tag.id!) ? styles.checked : ''}`} />
-                        <span className={styles.dot} style={{ background: tag.color }} />
-                        {tag.name}
-                      </label>
-                    ))}
-                    {q && !showNone && filtered.length === 0 && (
-                      <div className={styles.dropdownEmpty}>No matches</div>
-                    )}
-                  </>
-                )
-              }}
+              {(searchText: string) => (
+                <EntityDropdownItems
+                  searchText={searchText}
+                  entities={tags}
+                  isChecked={isTagChecked}
+                  onToggle={handleTagToggle}
+                />
+              )}
             </FilterDropdown>
           )}
 
           <button
             className={`${styles.filterChip} ${filters.starredOnly ? styles.filterChipStarActive : ''}`}
             onClick={toggleStarredOnly}
+            role="switch"
+            aria-checked={filters.starredOnly}
           >
             <span className={styles.filterIcon}>&#x1F5E8;</span> Follow up
           </button>
           <button
             className={`${styles.filterChip} ${filters.showCompleted ? styles.filterChipActive : ''}`}
             onClick={toggleShowCompleted}
+            role="switch"
+            aria-checked={filters.showCompleted}
           >
             <span className={styles.filterIcon}>✓</span> Completed
           </button>

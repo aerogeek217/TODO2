@@ -81,8 +81,11 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   const sortMenuRef = useRef<HTMLDivElement>(null)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
-  // Clean up resize listeners on unmount
-  useEffect(() => () => { resizeCleanupRef.current?.() }, [])
+  // Clean up resize listeners and rename timer on unmount
+  useEffect(() => () => {
+    resizeCleanupRef.current?.()
+    if (renameTimerRef.current) clearTimeout(renameTimerRef.current)
+  }, [])
 
   const handleSort = (sortBy: SortBy) => {
     setShowSortMenu(false)

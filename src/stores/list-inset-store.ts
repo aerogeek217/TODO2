@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { ListInset, ListInsetPreset, ListInsetAttributeFilter } from '../models'
 import { listInsetRepository } from '../data'
 import { undoable } from '../services/undoable'
+import { mutate } from './store-helpers'
 
 interface ListInsetState {
   insets: ListInset[]
@@ -35,69 +36,79 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
   },
 
   async add(name: string, preset: ListInsetPreset, canvasId: number, x: number, y: number) {
-    const id = await listInsetRepository.insert({
-      name,
-      preset,
-      canvasId,
-      x,
-      y,
-      width: 280,
-      height: 300,
-      isCollapsed: false,
-    })
-    const inset = await listInsetRepository.getById(id)
-    if (inset) {
-      set({ insets: [...get().insets, inset] })
-    }
-    return id
+    return mutate(set, async () => {
+      const id = await listInsetRepository.insert({
+        name,
+        preset,
+        canvasId,
+        x,
+        y,
+        width: 280,
+        height: 300,
+        isCollapsed: false,
+      })
+      const inset = await listInsetRepository.getById(id)
+      if (inset) {
+        set({ insets: [...get().insets, inset] })
+      }
+      return id
+    }, 'Failed to add list inset')
   },
 
   async addFiltered(name: string, filter: ListInsetAttributeFilter, canvasId: number, x: number, y: number) {
-    const id = await listInsetRepository.insert({
-      name,
-      attributeFilter: filter,
-      canvasId,
-      x,
-      y,
-      width: 320,
-      height: 300,
-      isCollapsed: false,
-    })
-    const inset = await listInsetRepository.getById(id)
-    if (inset) {
-      set({ insets: [...get().insets, inset] })
-    }
-    return id
+    return mutate(set, async () => {
+      const id = await listInsetRepository.insert({
+        name,
+        attributeFilter: filter,
+        canvasId,
+        x,
+        y,
+        width: 320,
+        height: 300,
+        isCollapsed: false,
+      })
+      const inset = await listInsetRepository.getById(id)
+      if (inset) {
+        set({ insets: [...get().insets, inset] })
+      }
+      return id
+    }, 'Failed to add filtered list inset')
   },
 
   async update(inset: ListInset) {
-    await listInsetRepository.update(inset)
-    set({
-      insets: get().insets.map((i) => (i.id === inset.id ? { ...inset } : i)),
-    })
+    return mutate(set, async () => {
+      await listInsetRepository.update(inset)
+      set({
+        insets: get().insets.map((i) => (i.id === inset.id ? { ...inset } : i)),
+      })
+    }, 'Failed to update list inset')
   },
 
   async updatePosition(id: number, x: number, y: number) {
-    await listInsetRepository.updatePosition(id, x, y)
-    set({
-      insets: get().insets.map((i) => (i.id === id ? { ...i, x, y } : i)),
-    })
+    return mutate(set, async () => {
+      await listInsetRepository.updatePosition(id, x, y)
+      set({
+        insets: get().insets.map((i) => (i.id === id ? { ...i, x, y } : i)),
+      })
+    }, 'Failed to update list inset position')
   },
 
   async remove(id: number) {
-    const inset = get().insets.find((i) => i.id === id)
-    await listInsetRepository.remove(id)
-    set({ insets: get().insets.filter((i) => i.id !== id) })
-    if (inset) {
-      undoable(
-        `Delete list inset "${inset.name}"`,
-        () => get().remove(id),
-        async () => {
-          await listInsetRepository.insert(inset)
-          set({ insets: [...get().insets, inset] })
-        },
-        true,
-      )
-    }
+    return mutate(set, async () => {
+      const inset = get().insets.find((i) => i.id === id)
+      await listInsetRepository.remove(id)
+      set({ insets: get().insets.filter((i) => i.id !== id) })
+      if (inset) {
+        undoable(
+          `Delete list inset "${inset.name}"`,
+          () => get().remove(id),
+          async () => {
+            await listInsetRepository.insert(inset)
+            set({ insets: [...get().insets, inset] })
+          },
+          true,
+        )
+      }
+    }, 'Failed to delete list inset')
   },
 }))

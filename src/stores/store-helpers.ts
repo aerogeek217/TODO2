@@ -41,6 +41,25 @@ export async function loadWithState<T>(
 }
 
 /**
+ * Wrap a store mutation with error handling: clears previous error, catches failures,
+ * logs them, sets error state, and re-throws so callers can handle if needed.
+ */
+export async function mutate<T>(
+  set: SetFn,
+  fn: () => Promise<T>,
+  label: string,
+): Promise<T> {
+  set({ error: null })
+  try {
+    return await fn()
+  } catch (e) {
+    console.error(`${label}:`, e)
+    set({ error: label })
+    throw e
+  }
+}
+
+/**
  * DUP-2: Update an entity in an assignment map (Map<todoId, Entity[]>).
  * When an entity is edited, all references in the map must be refreshed.
  */

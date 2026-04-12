@@ -127,17 +127,20 @@ export function SortableTaskList({
   }, [inlineCreateAfterId, todos, clearInlineCreate])
 
   // Build flat visible list for sortable context
-  const visibleItems: { todo: PersistedTodoItem; indentLevel: number; hasChildren: boolean; isExpanded: boolean }[] = []
-  for (const { parent, children } of hierarchy) {
-    const hasChildren = children.length > 0
-    const isExpanded = !collapsedParents.has(parent.id)
-    visibleItems.push({ todo: parent, indentLevel: 0, hasChildren, isExpanded })
-    if (hasChildren && isExpanded) {
-      for (const child of children) {
-        visibleItems.push({ todo: child, indentLevel: 1, hasChildren: false, isExpanded: false })
+  const visibleItems = useMemo(() => {
+    const items: { todo: PersistedTodoItem; indentLevel: number; hasChildren: boolean; isExpanded: boolean }[] = []
+    for (const { parent, children } of hierarchy) {
+      const hasChildren = children.length > 0
+      const isExpanded = !collapsedParents.has(parent.id)
+      items.push({ todo: parent, indentLevel: 0, hasChildren, isExpanded })
+      if (hasChildren && isExpanded) {
+        for (const child of children) {
+          items.push({ todo: child, indentLevel: 1, hasChildren: false, isExpanded: false })
+        }
       }
     }
-  }
+    return items
+  }, [hierarchy, collapsedParents])
 
   const items = visibleItems.map((v) => `todo-${v.todo.id}`)
 

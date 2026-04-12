@@ -18,6 +18,50 @@ function priorityLabel(p: Priority): string {
   return 'Normal'
 }
 
+function EntityFilterList({
+  entities,
+  filterIds,
+  onToggle,
+  noneLabel,
+  searchPlaceholder,
+  searchText,
+  onSearchChange,
+}: {
+  entities: { id?: number; name: string; color?: string }[]
+  filterIds: Set<number> | null
+  onToggle: (id: number) => void
+  noneLabel: string
+  searchPlaceholder: string
+  searchText: string
+  onSearchChange: (text: string) => void
+}) {
+  return (
+    <div className={styles.entityList}>
+      <input
+        className={styles.entitySearchInput}
+        placeholder={searchPlaceholder}
+        value={searchText}
+        onChange={(e) => onSearchChange(e.target.value)}
+      />
+      <div className={styles.entityItem} onClick={() => onToggle(0)}>
+        <span className={styles.entityDot} style={{ background: 'var(--color-text-muted)' }} />
+        <span className={`${styles.entityName} ${styles.entityNone}`}>{noneLabel}</span>
+        <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filterIds === null || filterIds.has(0)} readOnly />
+      </div>
+      {entities
+        .filter(e => !searchText || e.name.toLowerCase().includes(searchText.toLowerCase()))
+        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .map(e => (
+          <div key={e.id} className={styles.entityItem} onClick={() => onToggle(e.id!)}>
+            <span className={styles.entityDot} style={{ background: e.color || 'var(--color-accent)' }} />
+            <span className={styles.entityName}>{e.name}</span>
+            <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filterIds === null || filterIds.has(e.id!)} readOnly />
+          </div>
+        ))}
+    </div>
+  )
+}
+
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
@@ -280,31 +324,15 @@ export function FilterSheet() {
                 <span className={`${styles.entityChevron} ${openSection === 'people' ? styles.entityChevronOpen : ''}`}>▸</span>
               </div>
               {openSection === 'people' && (
-                <div className={styles.entityList}>
-                  <input
-                    className={styles.entitySearchInput}
-                    placeholder="Search people..."
-                    value={entitySearch}
-                    onChange={(e) => setEntitySearch(e.target.value)}
-
-                  />
-                  {/* Unassigned option */}
-                  <div className={styles.entityItem} onClick={() => togglePerson(0)}>
-                    <span className={styles.entityDot} style={{ background: 'var(--color-text-muted)' }} />
-                    <span className={`${styles.entityName} ${styles.entityNone}`}>Unassigned</span>
-                    <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filters.personIds === null || filters.personIds.has(0)} readOnly />
-                  </div>
-                  {people
-                    .filter((p) => !entitySearch || p.name.toLowerCase().includes(entitySearch.toLowerCase()))
-                    .toSorted((a, b) => a.name.localeCompare(b.name))
-                    .map((p) => (
-                      <div key={p.id} className={styles.entityItem} onClick={() => togglePerson(p.id!)}>
-                        <span className={styles.entityDot} style={{ background: p.color || 'var(--color-accent)' }} />
-                        <span className={styles.entityName}>{p.name}</span>
-                        <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filters.personIds === null || filters.personIds.has(p.id!)} readOnly />
-                      </div>
-                    ))}
-                </div>
+                <EntityFilterList
+                  entities={people}
+                  filterIds={filters.personIds}
+                  onToggle={togglePerson}
+                  noneLabel="Unassigned"
+                  searchPlaceholder="Search people..."
+                  searchText={entitySearch}
+                  onSearchChange={setEntitySearch}
+                />
               )}
             </div>
           )}
@@ -320,30 +348,15 @@ export function FilterSheet() {
                 <span className={`${styles.entityChevron} ${openSection === 'orgs' ? styles.entityChevronOpen : ''}`}>▸</span>
               </div>
               {openSection === 'orgs' && (
-                <div className={styles.entityList}>
-                  <input
-                    className={styles.entitySearchInput}
-                    placeholder="Search orgs..."
-                    value={entitySearch}
-                    onChange={(e) => setEntitySearch(e.target.value)}
-
-                  />
-                  <div className={styles.entityItem} onClick={() => toggleOrg(0)}>
-                    <span className={styles.entityDot} style={{ background: 'var(--color-text-muted)' }} />
-                    <span className={`${styles.entityName} ${styles.entityNone}`}>No org</span>
-                    <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filters.orgIds === null || filters.orgIds.has(0)} readOnly />
-                  </div>
-                  {orgs
-                    .filter((o) => !entitySearch || o.name.toLowerCase().includes(entitySearch.toLowerCase()))
-                    .toSorted((a, b) => a.name.localeCompare(b.name))
-                    .map((o) => (
-                      <div key={o.id} className={styles.entityItem} onClick={() => toggleOrg(o.id!)}>
-                        <span className={styles.entityDot} style={{ background: o.color || 'var(--color-accent)' }} />
-                        <span className={styles.entityName}>{o.name}</span>
-                        <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filters.orgIds === null || filters.orgIds.has(o.id!)} readOnly />
-                      </div>
-                    ))}
-                </div>
+                <EntityFilterList
+                  entities={orgs}
+                  filterIds={filters.orgIds}
+                  onToggle={toggleOrg}
+                  noneLabel="No org"
+                  searchPlaceholder="Search orgs..."
+                  searchText={entitySearch}
+                  onSearchChange={setEntitySearch}
+                />
               )}
             </div>
           )}
@@ -359,30 +372,15 @@ export function FilterSheet() {
                 <span className={`${styles.entityChevron} ${openSection === 'tags' ? styles.entityChevronOpen : ''}`}>▸</span>
               </div>
               {openSection === 'tags' && (
-                <div className={styles.entityList}>
-                  <input
-                    className={styles.entitySearchInput}
-                    placeholder="Search tags..."
-                    value={entitySearch}
-                    onChange={(e) => setEntitySearch(e.target.value)}
-
-                  />
-                  <div className={styles.entityItem} onClick={() => toggleTag(0)}>
-                    <span className={styles.entityDot} style={{ background: 'var(--color-text-muted)' }} />
-                    <span className={`${styles.entityName} ${styles.entityNone}`}>No tags</span>
-                    <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filters.tagIds === null || filters.tagIds.has(0)} readOnly />
-                  </div>
-                  {tags
-                    .filter((t) => !entitySearch || t.name.toLowerCase().includes(entitySearch.toLowerCase()))
-                    .toSorted((a, b) => a.name.localeCompare(b.name))
-                    .map((t) => (
-                      <div key={t.id} className={styles.entityItem} onClick={() => toggleTag(t.id!)}>
-                        <span className={styles.entityDot} style={{ background: t.color || 'var(--color-accent)' }} />
-                        <span className={styles.entityName}>{t.name}</span>
-                        <input type="checkbox" className={styles.entityCheck} tabIndex={-1} aria-hidden="true" checked={filters.tagIds === null || filters.tagIds.has(t.id!)} readOnly />
-                      </div>
-                    ))}
-                </div>
+                <EntityFilterList
+                  entities={tags}
+                  filterIds={filters.tagIds}
+                  onToggle={toggleTag}
+                  noneLabel="No tags"
+                  searchPlaceholder="Search tags..."
+                  searchText={entitySearch}
+                  onSearchChange={setEntitySearch}
+                />
               )}
             </div>
           )}

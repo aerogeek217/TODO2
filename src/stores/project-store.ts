@@ -3,7 +3,7 @@ import type { Project } from '../models'
 import { projectRepository } from '../data'
 import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from './todo-store'
-import { loadWithState } from './store-helpers'
+import { loadWithState, mutate } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface ProjectState {
@@ -35,92 +35,100 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   async add(name: string, canvasId: number, x = 0, y = 0) {
-    const { projects } = get()
-    const maxSort = projects.reduce((max, p) => Math.max(max, p.sortOrder), 0)
-    const id = await projectRepository.insert({
-      name,
-      canvasId,
-      positionX: x,
-      positionY: y,
-      isCollapsed: false,
-      sortOrder: maxSort + 1,
-      createdAt: new Date(),
-    })
-    await get().loadByCanvas(canvasId)
-    return id
+    return mutate(set, async () => {
+      const { projects } = get()
+      const maxSort = projects.reduce((max, p) => Math.max(max, p.sortOrder), 0)
+      const id = await projectRepository.insert({
+        name,
+        canvasId,
+        positionX: x,
+        positionY: y,
+        isCollapsed: false,
+        sortOrder: maxSort + 1,
+        createdAt: new Date(),
+      })
+      await get().loadByCanvas(canvasId)
+      return id
+    }, 'Failed to add project')
   },
 
   async update(project: Project) {
-    await projectRepository.update(project)
-    set({
-      projects: get().projects.map((p) => (p.id === project.id ? { ...project } : p)),
-    })
+    return mutate(set, async () => {
+      await projectRepository.update(project)
+      set({
+        projects: get().projects.map((p) => (p.id === project.id ? { ...project } : p)),
+      })
+    }, 'Failed to update project')
   },
 
   async updatePosition(id: number, x: number, y: number) {
-    await projectRepository.updatePosition(id, x, y)
-    set({
-      projects: get().projects.map((p) =>
-        p.id === id ? { ...p, positionX: x, positionY: y } : p
-      ),
-    })
+    return mutate(set, async () => {
+      await projectRepository.updatePosition(id, x, y)
+      set({
+        projects: get().projects.map((p) =>
+          p.id === id ? { ...p, positionX: x, positionY: y } : p
+        ),
+      })
+    }, 'Failed to update project position')
   },
 
   async remove(id: number) {
-    const project = get().projects.find((p) => p.id === id)
-    const tasks = await todoRepository.getByProject(id)
+    return mutate(set, async () => {
+      const project = get().projects.find((p) => p.id === id)
+      const tasks = await todoRepository.getByProject(id)
 
-    await projectRepository.delete(id)
+      await projectRepository.delete(id)
 
-    // Reassign orphaned tasks to a new project so they stay visible
-    let orphanProjectId: number | undefined
-    if (tasks.length > 0 && project) {
-      orphanProjectId = await projectRepository.insert({
-        name: 'Orphaned Tasks',
-        canvasId: project.canvasId,
-        positionX: project.positionX,
-        positionY: project.positionY,
-        isCollapsed: false,
-        sortOrder: project.sortOrder,
-        createdAt: new Date(),
-      })
-      await todoRepository.bulkUpdate(
-        tasks.map((t) => ({ todoId: t.id, changes: { projectId: orphanProjectId } }))
-      )
-    }
-
-    if (project) {
-      await get().loadByCanvas(project.canvasId)
-      if (tasks.length > 0) {
-        await useTodoStore.getState().loadByCanvas(project.canvasId)
+      // Reassign orphaned tasks to a new project so they stay visible
+      let orphanProjectId: number | undefined
+      if (tasks.length > 0 && project) {
+        orphanProjectId = await projectRepository.insert({
+          name: 'Orphaned Tasks',
+          canvasId: project.canvasId,
+          positionX: project.positionX,
+          positionY: project.positionY,
+          isCollapsed: false,
+          sortOrder: project.sortOrder,
+          createdAt: new Date(),
+        })
+        await todoRepository.bulkUpdate(
+          tasks.map((t) => ({ todoId: t.id, changes: { projectId: orphanProjectId } }))
+        )
       }
-      undoable(
-        `Delete project "${project.name}"`,
-        () => get().remove(id),
-        async () => {
-          // Find the current orphan project dynamically (may differ after redo cycles)
-          if (tasks.length > 0) {
-            const currentTodo = await todoRepository.getById(tasks[0].id)
-            const currentProjectId = currentTodo?.projectId
-            if (currentProjectId != null && currentProjectId !== id) {
-              await projectRepository.delete(currentProjectId)
-            }
-          }
-          // Restore original project
-          await projectRepository.insert(project)
-          // Reassign tasks back to original project
-          if (tasks.length > 0) {
-            await todoRepository.bulkUpdate(
-              tasks.map((t) => ({ todoId: t.id, changes: { projectId: id } }))
-            )
-          }
-          await get().loadByCanvas(project.canvasId)
+
+      if (project) {
+        await get().loadByCanvas(project.canvasId)
+        if (tasks.length > 0) {
           await useTodoStore.getState().loadByCanvas(project.canvasId)
-        },
-        true,
-      )
-    } else {
-      set({ projects: get().projects.filter((p) => p.id !== id) })
-    }
+        }
+        undoable(
+          `Delete project "${project.name}"`,
+          () => get().remove(id),
+          async () => {
+            // Find the current orphan project dynamically (may differ after redo cycles)
+            if (tasks.length > 0) {
+              const currentTodo = await todoRepository.getById(tasks[0].id)
+              const currentProjectId = currentTodo?.projectId
+              if (currentProjectId != null && currentProjectId !== id) {
+                await projectRepository.delete(currentProjectId)
+              }
+            }
+            // Restore original project
+            await projectRepository.insert(project)
+            // Reassign tasks back to original project
+            if (tasks.length > 0) {
+              await todoRepository.bulkUpdate(
+                tasks.map((t) => ({ todoId: t.id, changes: { projectId: id } }))
+              )
+            }
+            await get().loadByCanvas(project.canvasId)
+            await useTodoStore.getState().loadByCanvas(project.canvasId)
+          },
+          true,
+        )
+      } else {
+        set({ projects: get().projects.filter((p) => p.id !== id) })
+      }
+    }, 'Failed to delete project')
   },
 }))

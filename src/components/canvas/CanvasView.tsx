@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   ReactFlow,
   Background,
@@ -261,12 +261,14 @@ export function CanvasView({
   // This preserves drag positions across re-renders caused by dnd-kit or other state changes.
   const [nodes, setNodes] = useState<Node[]>(dataNodes)
 
-  bringToFrontRef.current = (nodeId: string) => {
-    setNodes(nds => nds.map(n => ({
-      ...n,
-      zIndex: n.id === nodeId ? 1000 : 0
-    })))
-  }
+  useLayoutEffect(() => {
+    bringToFrontRef.current = (nodeId: string) => {
+      setNodes(nds => nds.map(n => ({
+        ...n,
+        zIndex: n.id === nodeId ? 1000 : 0
+      })))
+    }
+  })
 
   // Sync data changes from props into local state, preserving positions, selection, and z-order of nodes mid-drag
   useEffect(() => {
