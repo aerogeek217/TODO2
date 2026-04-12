@@ -60,6 +60,42 @@ export async function mutate<T>(
 }
 
 /**
+ * Optimistic mutation: update UI state immediately, persist async, rollback on failure.
+ * Uses item-level rollback (caller patches only affected items) to prevent concurrent
+ * rollbacks from stomping each other's state.
+ *
+ * Undo is only registered after successful persist. Failed operations never enter the
+ * undo stack.
+ */
+export async function optimistic(
+  set: SetFn,
+  apply: () => void,
+  persist: () => Promise<void>,
+  rollback: () => void,
+  label: string,
+  undo?: {
+    description: string
+    redo: () => void | Promise<void>
+    undo: () => void | Promise<void>
+    showSnackbar?: boolean
+  },
+): Promise<void> {
+  set({ error: null })
+  apply()
+  try {
+    await persist()
+    if (undo) {
+      undoable(undo.description, undo.redo, undo.undo, undo.showSnackbar)
+    }
+  } catch (e) {
+    console.error(`${label}:`, e)
+    rollback()
+    set({ error: label })
+    throw e
+  }
+}
+
+/**
  * DUP-2: Update an entity in an assignment map (Map<todoId, Entity[]>).
  * When an entity is edited, all references in the map must be refreshed.
  */
@@ -150,7 +186,7 @@ export async function restoreEntityWithJoins(
 
 /**
  * DUP-5: Bulk update a single field on multiple todos, with undo support.
- * Works for fields updated via todoRepository.bulkUpdate (priority, dueDate).
+ * Uses optimistic update: state changes immediately, DB write follows.
  */
 export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   ids: number[],
@@ -158,37 +194,50 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
   value: PersistedTodoItem[K],
   label: string,
   get: () => { todos: PersistedTodoItem[] },
-  set: (partial: { todos: PersistedTodoItem[] }) => void,
+  set: SetFn,
 ): Promise<void> {
   const prevValues = get().todos
     .filter((t) => ids.includes(t.id))
     .map((t) => ({ id: t.id, prev: t[field] }))
-
-  await todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } })))
   const idSet = new Set(ids)
-  const now = new Date()
-  set({
-    todos: get().todos.map((t) =>
-      idSet.has(t.id) ? { ...t, [field]: value, modifiedAt: now } : t,
-    ),
-  })
 
-  undoable(
+  await optimistic(
+    set,
+    () => {
+      const now = new Date()
+      set({
+        todos: get().todos.map((t) =>
+          idSet.has(t.id) ? { ...t, [field]: value, modifiedAt: now } : t,
+        ),
+      })
+    },
+    () => todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } }))),
+    () => {
+      const prevMap = new Map(prevValues.map((s) => [s.id, s.prev]))
+      set({
+        todos: get().todos.map((t) =>
+          prevMap.has(t.id) ? { ...t, [field]: prevMap.get(t.id), modifiedAt: new Date() } : t,
+        ),
+      })
+    },
     label,
-    () => bulkUpdateField(ids, field, value, label, get, set),
-    async () => {
-      const mutations = prevValues
-        .filter((s) => s.prev !== value)
-        .map((s) => ({ todoId: s.id, changes: { [field]: s.prev } }))
-      if (mutations.length > 0) {
-        await todoRepository.bulkUpdate(mutations)
-        const prevMap = new Map(prevValues.map((s) => [s.id, s.prev]))
-        set({
-          todos: get().todos.map((t) =>
-            idSet.has(t.id) ? { ...t, [field]: prevMap.get(t.id), modifiedAt: new Date() } : t,
-          ),
-        })
-      }
+    {
+      description: label,
+      redo: () => bulkUpdateField(ids, field, value, label, get, set),
+      undo: async () => {
+        const mutations = prevValues
+          .filter((s) => s.prev !== value)
+          .map((s) => ({ todoId: s.id, changes: { [field]: s.prev } }))
+        if (mutations.length > 0) {
+          await todoRepository.bulkUpdate(mutations)
+          const prevMap = new Map(prevValues.map((s) => [s.id, s.prev]))
+          set({
+            todos: get().todos.map((t) =>
+              idSet.has(t.id) ? { ...t, [field]: prevMap.get(t.id), modifiedAt: new Date() } : t,
+            ),
+          })
+        }
+      },
     },
   )
 }

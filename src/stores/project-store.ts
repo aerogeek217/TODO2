@@ -3,7 +3,7 @@ import type { Project } from '../models'
 import { projectRepository } from '../data'
 import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from './todo-store'
-import { loadWithState, mutate } from './store-helpers'
+import { loadWithState, mutate, optimistic } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface ProjectState {
@@ -53,23 +53,42 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   async update(project: Project) {
-    return mutate(set, async () => {
-      await projectRepository.update(project)
-      set({
+    const prev = get().projects.find((p) => p.id === project.id)
+    if (!prev) return
+    const snapshot = { ...prev }
+    return optimistic(
+      set,
+      () => set({
         projects: get().projects.map((p) => (p.id === project.id ? { ...project } : p)),
-      })
-    }, 'Failed to update project')
+      }),
+      () => projectRepository.update(project),
+      () => set({
+        projects: get().projects.map((p) => (p.id === project.id ? snapshot : p)),
+      }),
+      'Failed to update project',
+    )
   },
 
   async updatePosition(id: number, x: number, y: number) {
-    return mutate(set, async () => {
-      await projectRepository.updatePosition(id, x, y)
-      set({
+    const prev = get().projects.find((p) => p.id === id)
+    if (!prev) return
+    const prevX = prev.positionX
+    const prevY = prev.positionY
+    return optimistic(
+      set,
+      () => set({
         projects: get().projects.map((p) =>
           p.id === id ? { ...p, positionX: x, positionY: y } : p
         ),
-      })
-    }, 'Failed to update project position')
+      }),
+      () => projectRepository.updatePosition(id, x, y),
+      () => set({
+        projects: get().projects.map((p) =>
+          p.id === id ? { ...p, positionX: prevX, positionY: prevY } : p
+        ),
+      }),
+      'Failed to update project position',
+    )
   },
 
   async remove(id: number) {

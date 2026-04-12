@@ -5,7 +5,7 @@ import { todoRepository } from '../data'
 import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
 import { computeNextDueDate } from '../services/recurrence'
-import { loadWithState, mutate, captureAssignments, captureAssignmentsBulk, bulkUpdateField } from './store-helpers'
+import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField } from './store-helpers'
 
 interface TodoState {
   todos: PersistedTodoItem[]
@@ -114,42 +114,53 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   },
 
   async update(todo: PersistedTodoItem) {
-    return mutate(set, async () => {
-      const prev = get().todos.find((t) => t.id === todo.id)
-      await todoRepository.update(todo)
-      set({
-        todos: get().todos.map((t) => (t.id === todo.id ? { ...todo } : t)),
-      })
-      if (prev) {
-        const snapshot = { ...prev }
-        undoable(
-          `Edit "${todo.title}"`,
-          () => get().update(todo),
-          () => get().update(snapshot),
-        )
-      }
-    }, 'Failed to update task')
+    const prev = get().todos.find((t) => t.id === todo.id)
+    if (!prev) return
+    const snapshot = { ...prev }
+    const now = new Date()
+    return optimistic(
+      set,
+      () => set({
+        todos: get().todos.map((t) => (t.id === todo.id ? { ...todo, modifiedAt: now } : t)),
+      }),
+      () => todoRepository.update(todo),
+      () => set({
+        todos: get().todos.map((t) => (t.id === todo.id ? snapshot : t)),
+      }),
+      'Failed to update task',
+      {
+        description: `Edit "${todo.title}"`,
+        redo: () => get().update(todo),
+        undo: () => get().update(snapshot),
+      },
+    )
   },
 
   async toggleComplete(id: number) {
-    return mutate(set, async () => {
-      const todo = get().todos.find((t) => t.id === id)
-      if (!todo) return
+    const todo = get().todos.find((t) => t.id === id)
+    if (!todo) return
 
-      // Recurring task: advance due date instead of completing
-      if (!todo.isCompleted && todo.recurrenceRule && todo.dueDate) {
-        const prevDueDate = todo.dueDate
-        const nextDueDate = computeNextDueDate(new Date(prevDueDate), todo.recurrenceRule)
-        await todoRepository.bulkUpdate([{ todoId: id, changes: { dueDate: nextDueDate } }])
-        const now = new Date()
-        set({
+    // Recurring task: advance due date instead of completing
+    if (!todo.isCompleted && todo.recurrenceRule && todo.dueDate) {
+      const prevDueDate = todo.dueDate
+      const nextDueDate = computeNextDueDate(new Date(prevDueDate), todo.recurrenceRule)
+      return optimistic(
+        set,
+        () => set({
           todos: get().todos.map((t) =>
-            t.id === id ? { ...t, dueDate: nextDueDate, modifiedAt: now } : t
+            t.id === id ? { ...t, dueDate: nextDueDate, modifiedAt: new Date() } : t
           ),
-        })
-        undoable(
-          `Advance recurring "${todo.title}"`,
-          async () => {
+        }),
+        () => todoRepository.bulkUpdate([{ todoId: id, changes: { dueDate: nextDueDate } }]),
+        () => set({
+          todos: get().todos.map((t) =>
+            t.id === id ? { ...t, dueDate: prevDueDate } : t
+          ),
+        }),
+        'Failed to advance recurring task',
+        {
+          description: `Advance recurring "${todo.title}"`,
+          redo: async () => {
             await todoRepository.bulkUpdate([{ todoId: id, changes: { dueDate: nextDueDate } }])
             set({
               todos: get().todos.map((t) =>
@@ -157,7 +168,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
               ),
             })
           },
-          async () => {
+          undo: async () => {
             await todoRepository.bulkUpdate([{ todoId: id, changes: { dueDate: prevDueDate } }])
             set({
               todos: get().todos.map((t) =>
@@ -165,45 +176,60 @@ export const useTodoStore = create<TodoState>((set, get) => ({
               ),
             })
           },
-          true,
-        )
-        return
-      }
+          showSnackbar: true,
+        },
+      )
+    }
 
-      const completed = !todo.isCompleted
-      await todoRepository.complete(id, completed)
-      set({
+    const completed = !todo.isCompleted
+    const label = completed ? 'Complete' : 'Uncomplete'
+    return optimistic(
+      set,
+      () => set({
         todos: get().todos.map((t) =>
           t.id === id ? { ...t, isCompleted: completed, modifiedAt: new Date() } : t
         ),
-      })
-      const label = completed ? 'Complete' : 'Uncomplete'
-      undoable(
-        `${label} "${todo.title}"`,
-        () => get().toggleComplete(id),
-        () => get().toggleComplete(id),
-      )
-    }, 'Failed to toggle task completion')
+      }),
+      () => todoRepository.complete(id, completed),
+      () => set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, isCompleted: !completed } : t
+        ),
+      }),
+      'Failed to toggle task completion',
+      {
+        description: `${label} "${todo.title}"`,
+        redo: () => get().toggleComplete(id),
+        undo: () => get().toggleComplete(id),
+      },
+    )
   },
 
   async toggleStar(id: number) {
-    return mutate(set, async () => {
-      const todo = get().todos.find((t) => t.id === id)
-      if (!todo) return
-      const starred = !todo.isStarred
-      await todoRepository.toggleStar(id, starred)
-      set({
+    const todo = get().todos.find((t) => t.id === id)
+    if (!todo) return
+    const starred = !todo.isStarred
+    const label = starred ? 'Star' : 'Unstar'
+    return optimistic(
+      set,
+      () => set({
         todos: get().todos.map((t) =>
           t.id === id ? { ...t, isStarred: starred, modifiedAt: new Date() } : t
         ),
-      })
-      const label = starred ? 'Star' : 'Unstar'
-      undoable(
-        `${label} "${todo.title}"`,
-        () => get().toggleStar(id),
-        () => get().toggleStar(id),
-      )
-    }, 'Failed to toggle star')
+      }),
+      () => todoRepository.toggleStar(id, starred),
+      () => set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, isStarred: !starred } : t
+        ),
+      }),
+      'Failed to toggle star',
+      {
+        description: `${label} "${todo.title}"`,
+        redo: () => get().toggleStar(id),
+        undo: () => get().toggleStar(id),
+      },
+    )
   },
 
   async remove(id: number) {
@@ -234,74 +260,94 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     const recurringIds = new Set(recurringTodos.map((t) => t.id))
     const normalIds = ids.filter((id) => !recurringIds.has(id))
 
-    // Advance recurring tasks
+    // Capture previous state for rollback/undo
     const recurringPrevDates = recurringTodos.map((t) => ({ id: t.id, prevDueDate: t.dueDate! }))
     const recurringMutations = recurringTodos.map((t) => ({
       todoId: t.id,
       changes: { dueDate: computeNextDueDate(new Date(t.dueDate!), t.recurrenceRule!) },
     }))
-    if (recurringMutations.length > 0) {
-      await todoRepository.bulkUpdate(recurringMutations)
-    }
-
-    // Complete normal tasks
     const prevStates = get().todos
       .filter((t) => normalIds.includes(t.id))
       .map((t) => ({ id: t.id, wasCompleted: t.isCompleted }))
-    await Promise.all(normalIds.map((id) => todoRepository.complete(id, completed)))
-
-    // Update store state
     const normalIdSet = new Set(normalIds)
     const recurringDateMap = new Map(recurringMutations.map(m => [m.todoId, m.changes.dueDate]))
-    const now = new Date()
-    set({
-      todos: get().todos.map((t) => {
-        if (recurringDateMap.has(t.id)) {
-          return { ...t, dueDate: recurringDateMap.get(t.id)!, modifiedAt: now }
-        }
-        if (normalIdSet.has(t.id)) {
-          return { ...t, isCompleted: completed, modifiedAt: now }
-        }
-        return t
-      }),
-    })
 
     const label = completed ? 'Complete' : 'Uncomplete'
-    undoable(
-      `${label} ${ids.length} tasks`,
-      () => get().bulkSetCompleted(ids, completed),
-      async () => {
-        // Revert recurring date advances
-        if (recurringPrevDates.length > 0) {
-          const revertMutations = recurringPrevDates.map(s => ({
-            todoId: s.id, changes: { dueDate: s.prevDueDate },
-          }))
-          await todoRepository.bulkUpdate(revertMutations)
-          const revertDateMap = new Map(recurringPrevDates.map(s => [s.id, s.prevDueDate]))
-          set({
-            todos: get().todos.map((t) =>
-              revertDateMap.has(t.id) ? { ...t, dueDate: revertDateMap.get(t.id)!, modifiedAt: new Date() } : t
-            ),
-          })
-        }
-        // Revert normal completions
-        for (const { id, wasCompleted } of prevStates) {
-          if (wasCompleted !== completed) {
-            await todoRepository.complete(id, wasCompleted)
-          }
-        }
-        const revertIds = prevStates.filter(s => s.wasCompleted !== completed).map(s => s.id)
-        if (revertIds.length > 0) {
-          const revertSet = new Set(revertIds)
-          const stateMap = new Map(prevStates.map(s => [s.id, s.wasCompleted]))
-          set({
-            todos: get().todos.map((t) =>
-              revertSet.has(t.id) ? { ...t, isCompleted: stateMap.get(t.id)!, modifiedAt: new Date() } : t
-            ),
-          })
-        }
+    return optimistic(
+      set,
+      () => {
+        const now = new Date()
+        set({
+          todos: get().todos.map((t) => {
+            if (recurringDateMap.has(t.id)) {
+              return { ...t, dueDate: recurringDateMap.get(t.id)!, modifiedAt: now }
+            }
+            if (normalIdSet.has(t.id)) {
+              return { ...t, isCompleted: completed, modifiedAt: now }
+            }
+            return t
+          }),
+        })
       },
-      true,
+      async () => {
+        if (recurringMutations.length > 0) {
+          await todoRepository.bulkUpdate(recurringMutations)
+        }
+        await Promise.all(normalIds.map((id) => todoRepository.complete(id, completed)))
+      },
+      () => {
+        // Item-level rollback: restore per-item previous values
+        const prevDateMap = new Map(recurringPrevDates.map(s => [s.id, s.prevDueDate]))
+        const prevCompletedMap = new Map(prevStates.map(s => [s.id, s.wasCompleted]))
+        set({
+          todos: get().todos.map((t) => {
+            if (prevDateMap.has(t.id)) {
+              return { ...t, dueDate: prevDateMap.get(t.id)! }
+            }
+            if (prevCompletedMap.has(t.id)) {
+              return { ...t, isCompleted: prevCompletedMap.get(t.id)! }
+            }
+            return t
+          }),
+        })
+      },
+      `Failed to ${label.toLowerCase()} tasks`,
+      {
+        description: `${label} ${ids.length} tasks`,
+        redo: () => get().bulkSetCompleted(ids, completed),
+        undo: async () => {
+          // Revert recurring date advances
+          if (recurringPrevDates.length > 0) {
+            const revertMutations = recurringPrevDates.map(s => ({
+              todoId: s.id, changes: { dueDate: s.prevDueDate },
+            }))
+            await todoRepository.bulkUpdate(revertMutations)
+            const revertDateMap = new Map(recurringPrevDates.map(s => [s.id, s.prevDueDate]))
+            set({
+              todos: get().todos.map((t) =>
+                revertDateMap.has(t.id) ? { ...t, dueDate: revertDateMap.get(t.id)!, modifiedAt: new Date() } : t
+              ),
+            })
+          }
+          // Revert normal completions
+          for (const { id, wasCompleted } of prevStates) {
+            if (wasCompleted !== completed) {
+              await todoRepository.complete(id, wasCompleted)
+            }
+          }
+          const revertIds = prevStates.filter(s => s.wasCompleted !== completed).map(s => s.id)
+          if (revertIds.length > 0) {
+            const revertSet = new Set(revertIds)
+            const stateMap = new Map(prevStates.map(s => [s.id, s.wasCompleted]))
+            set({
+              todos: get().todos.map((t) =>
+                revertSet.has(t.id) ? { ...t, isCompleted: stateMap.get(t.id)!, modifiedAt: new Date() } : t
+              ),
+            })
+          }
+        },
+        showSnackbar: true,
+      },
     )
   },
 
@@ -309,35 +355,48 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     const prevStates = get().todos
       .filter((t) => ids.includes(t.id))
       .map((t) => ({ id: t.id, wasStarred: t.isStarred }))
-
-    await Promise.all(ids.map((id) => todoRepository.toggleStar(id, starred)))
     const idSet = new Set(ids)
-    const now = new Date()
-    set({
-      todos: get().todos.map((t) =>
-        idSet.has(t.id) ? { ...t, isStarred: starred, modifiedAt: now } : t
-      ),
-    })
 
-    undoable(
-      `${starred ? 'Star' : 'Unstar'} ${ids.length} tasks`,
-      () => get().bulkSetStarred(ids, starred),
-      async () => {
-        for (const { id, wasStarred } of prevStates) {
-          if (wasStarred !== starred) {
-            await todoRepository.toggleStar(id, wasStarred)
+    return optimistic(
+      set,
+      () => {
+        const now = new Date()
+        set({
+          todos: get().todos.map((t) =>
+            idSet.has(t.id) ? { ...t, isStarred: starred, modifiedAt: now } : t
+          ),
+        })
+      },
+      () => Promise.all(ids.map((id) => todoRepository.toggleStar(id, starred))).then(() => {}),
+      () => {
+        const prevMap = new Map(prevStates.map(s => [s.id, s.wasStarred]))
+        set({
+          todos: get().todos.map((t) =>
+            prevMap.has(t.id) ? { ...t, isStarred: prevMap.get(t.id)! } : t
+          ),
+        })
+      },
+      'Failed to toggle stars',
+      {
+        description: `${starred ? 'Star' : 'Unstar'} ${ids.length} tasks`,
+        redo: () => get().bulkSetStarred(ids, starred),
+        undo: async () => {
+          for (const { id, wasStarred } of prevStates) {
+            if (wasStarred !== starred) {
+              await todoRepository.toggleStar(id, wasStarred)
+            }
           }
-        }
-        const revertIds = prevStates.filter(s => s.wasStarred !== starred).map(s => s.id)
-        if (revertIds.length > 0) {
-          const revertSet = new Set(revertIds)
-          const stateMap = new Map(prevStates.map(s => [s.id, s.wasStarred]))
-          set({
-            todos: get().todos.map((t) =>
-              revertSet.has(t.id) ? { ...t, isStarred: stateMap.get(t.id)!, modifiedAt: new Date() } : t
-            ),
-          })
-        }
+          const revertIds = prevStates.filter(s => s.wasStarred !== starred).map(s => s.id)
+          if (revertIds.length > 0) {
+            const revertSet = new Set(revertIds)
+            const stateMap = new Map(prevStates.map(s => [s.id, s.wasStarred]))
+            set({
+              todos: get().todos.map((t) =>
+                revertSet.has(t.id) ? { ...t, isStarred: stateMap.get(t.id)!, modifiedAt: new Date() } : t
+              ),
+            })
+          }
+        },
       },
     )
   },
@@ -382,60 +441,75 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
   async reorder(id: number, newSortOrder: number) {
     const todo = get().todos.find((t) => t.id === id)
-    const prevSortOrder = todo?.sortOrder
-
-    await todoRepository.reorder(id, newSortOrder)
-    set({
-      todos: get().todos.map((t) =>
-        t.id === id ? { ...t, sortOrder: newSortOrder } : t
-      ),
-    })
-
-    if (prevSortOrder != null) {
-      undoable(
-        `Reorder task`,
-        () => get().reorder(id, newSortOrder),
-        () => get().reorder(id, prevSortOrder),
-      )
-    }
+    if (!todo) return
+    const prevSortOrder = todo.sortOrder
+    return optimistic(
+      set,
+      () => set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, sortOrder: newSortOrder } : t
+        ),
+      }),
+      () => todoRepository.reorder(id, newSortOrder),
+      () => set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, sortOrder: prevSortOrder } : t
+        ),
+      }),
+      'Failed to reorder task',
+      {
+        description: 'Reorder task',
+        redo: () => get().reorder(id, newSortOrder),
+        undo: () => get().reorder(id, prevSortOrder),
+      },
+    )
   },
 
   async applyMutations(mutations: TaskMutation[]) {
     if (mutations.length === 0) return
-    return mutate(set, async () => {
-      // Capture previous state for undo
-      const prevState = new Map<number, Partial<PersistedTodoItem>>()
-      for (const m of mutations) {
-        const todo = get().todos.find(t => t.id === m.todoId)
-        if (todo) {
-          const prev: Partial<PersistedTodoItem> = {}
-          if ('projectId' in m.changes) prev.projectId = todo.projectId
-          if ('parentId' in m.changes) prev.parentId = todo.parentId
-          if ('sortOrder' in m.changes) prev.sortOrder = todo.sortOrder
-          prevState.set(m.todoId, prev)
-        }
+    // Capture previous state for undo/rollback
+    const prevState = new Map<number, Partial<PersistedTodoItem>>()
+    for (const m of mutations) {
+      const todo = get().todos.find(t => t.id === m.todoId)
+      if (todo) {
+        const prev: Partial<PersistedTodoItem> = {}
+        if ('projectId' in m.changes) prev.projectId = todo.projectId
+        if ('parentId' in m.changes) prev.parentId = todo.parentId
+        if ('sortOrder' in m.changes) prev.sortOrder = todo.sortOrder
+        prevState.set(m.todoId, prev)
       }
+    }
+    const mutationMap = new Map(mutations.map(m => [m.todoId, m.changes]))
 
-      await todoRepository.bulkUpdate(mutations)
-      const now = new Date()
-      const mutationMap = new Map(mutations.map(m => [m.todoId, m.changes]))
-      set({
+    return optimistic(
+      set,
+      () => {
+        const now = new Date()
+        set({
+          todos: get().todos.map(t => {
+            const changes = mutationMap.get(t.id)
+            if (!changes) return t
+            return { ...t, ...changes, modifiedAt: now }
+          }),
+        })
+      },
+      () => todoRepository.bulkUpdate(mutations),
+      () => set({
         todos: get().todos.map(t => {
-          const changes = mutationMap.get(t.id)
-          if (!changes) return t
-          return { ...t, ...changes, modifiedAt: now }
+          const prev = prevState.get(t.id)
+          if (!prev) return t
+          return { ...t, ...prev }
         }),
-      })
-
-      const reverseMutations: TaskMutation[] = Array.from(prevState.entries()).map(
-        ([todoId, changes]) => ({ todoId, changes })
-      )
-      undoable(
-        `Move ${mutations.length} tasks`,
-        () => get().applyMutations(mutations),
-        () => get().applyMutations(reverseMutations),
-      )
-    }, 'Failed to apply task mutations')
+      }),
+      'Failed to apply task mutations',
+      {
+        description: `Move ${mutations.length} tasks`,
+        redo: () => get().applyMutations(mutations),
+        undo: () => get().applyMutations(
+          Array.from(prevState.entries()).map(([todoId, changes]) => ({ todoId, changes })),
+        ),
+      },
+    )
   },
 
   async duplicate(id: number) {

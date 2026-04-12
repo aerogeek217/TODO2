@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useStickyNoteStore } from '../../stores/sticky-note-store'
+import { stickyNoteRepository } from '../../data/sticky-note-repository'
 
 beforeEach(async () => {
   await db.delete()
@@ -241,6 +242,25 @@ describe('useStickyNoteStore', () => {
       const { notes } = useStickyNoteStore.getState()
       expect(notes).toHaveLength(1)
       expect(notes[0].id).toBe(id1)
+    })
+  })
+
+  describe('optimistic rollback', () => {
+    it('updateText_dbRejects_revertsTextToOriginal', async () => {
+      // Arrange
+      const id = await useStickyNoteStore.getState().add(1, 0, 0)
+      await useStickyNoteStore.getState().updateText(id, 'original')
+      const spy = vi.spyOn(stickyNoteRepository, 'update').mockRejectedValueOnce(new Error('DB error'))
+
+      // Act
+      await expect(useStickyNoteStore.getState().updateText(id, 'new text')).rejects.toThrow('DB error')
+
+      // Assert
+      const note = useStickyNoteStore.getState().notes.find((n) => n.id === id)
+      expect(note!.text).toBe('original')
+      expect(useStickyNoteStore.getState().error).toBeTruthy()
+
+      spy.mockRestore()
     })
   })
 })

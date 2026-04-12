@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { StickyNote } from '../models'
 import { stickyNoteRepository } from '../data'
 import { undoable } from '../services/undoable'
-import { mutate } from './store-helpers'
+import { mutate, optimistic } from './store-helpers'
 
 interface StickyNoteState {
   notes: StickyNote[]
@@ -60,57 +60,92 @@ export const useStickyNoteStore = create<StickyNoteState>((set, get) => ({
   },
 
   async update(note: StickyNote) {
-    return mutate(set, async () => {
-      await stickyNoteRepository.update(note)
-      set({
+    const prev = get().notes.find((n) => n.id === note.id)
+    if (!prev) return
+    const snapshot = { ...prev }
+    return optimistic(
+      set,
+      () => set({
         notes: get().notes.map((n) => (n.id === note.id ? { ...note } : n)),
-      })
-    }, 'Failed to update sticky note')
+      }),
+      () => stickyNoteRepository.update(note),
+      () => set({
+        notes: get().notes.map((n) => (n.id === note.id ? snapshot : n)),
+      }),
+      'Failed to update sticky note',
+    )
   },
 
   async updatePosition(id: number, x: number, y: number) {
-    return mutate(set, async () => {
-      await stickyNoteRepository.updatePosition(id, x, y)
-      set({
+    const prev = get().notes.find((n) => n.id === id)
+    if (!prev) return
+    const prevX = prev.x
+    const prevY = prev.y
+    return optimistic(
+      set,
+      () => set({
         notes: get().notes.map((n) => (n.id === id ? { ...n, x, y } : n)),
-      })
-    }, 'Failed to update sticky note position')
+      }),
+      () => stickyNoteRepository.updatePosition(id, x, y),
+      () => set({
+        notes: get().notes.map((n) => (n.id === id ? { ...n, x: prevX, y: prevY } : n)),
+      }),
+      'Failed to update sticky note position',
+    )
   },
 
   async updateText(id: number, text: string) {
-    return mutate(set, async () => {
-      const note = get().notes.find((n) => n.id === id)
-      if (!note) return
-      const updated = { ...note, text, modifiedAt: new Date() }
-      await stickyNoteRepository.update(updated)
-      set({
+    const note = get().notes.find((n) => n.id === id)
+    if (!note) return
+    const prevText = note.text
+    const updated = { ...note, text, modifiedAt: new Date() }
+    return optimistic(
+      set,
+      () => set({
         notes: get().notes.map((n) => (n.id === id ? updated : n)),
-      })
-    }, 'Failed to update sticky note text')
+      }),
+      () => stickyNoteRepository.update(updated),
+      () => set({
+        notes: get().notes.map((n) => (n.id === id ? { ...n, text: prevText } : n)),
+      }),
+      'Failed to update sticky note text',
+    )
   },
 
   async updateTitle(id: number, title: string) {
-    return mutate(set, async () => {
-      const note = get().notes.find((n) => n.id === id)
-      if (!note) return
-      const updated = { ...note, title: title || undefined, modifiedAt: new Date() }
-      await stickyNoteRepository.update(updated)
-      set({
+    const note = get().notes.find((n) => n.id === id)
+    if (!note) return
+    const prevTitle = note.title
+    const updated = { ...note, title: title || undefined, modifiedAt: new Date() }
+    return optimistic(
+      set,
+      () => set({
         notes: get().notes.map((n) => (n.id === id ? updated : n)),
-      })
-    }, 'Failed to update sticky note title')
+      }),
+      () => stickyNoteRepository.update(updated),
+      () => set({
+        notes: get().notes.map((n) => (n.id === id ? { ...n, title: prevTitle } : n)),
+      }),
+      'Failed to update sticky note title',
+    )
   },
 
   async updateColor(id: number, color: string | undefined) {
-    return mutate(set, async () => {
-      const note = get().notes.find((n) => n.id === id)
-      if (!note) return
-      const updated = { ...note, color, modifiedAt: new Date() }
-      await stickyNoteRepository.update(updated)
-      set({
+    const note = get().notes.find((n) => n.id === id)
+    if (!note) return
+    const prevColor = note.color
+    const updated = { ...note, color, modifiedAt: new Date() }
+    return optimistic(
+      set,
+      () => set({
         notes: get().notes.map((n) => (n.id === id ? updated : n)),
-      })
-    }, 'Failed to update sticky note color')
+      }),
+      () => stickyNoteRepository.update(updated),
+      () => set({
+        notes: get().notes.map((n) => (n.id === id ? { ...n, color: prevColor } : n)),
+      }),
+      'Failed to update sticky note color',
+    )
   },
 
   async remove(id: number) {

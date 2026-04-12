@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useListInsetStore } from '../../stores/list-inset-store'
+import { listInsetRepository } from '../../data/list-inset-repository'
 
 beforeEach(async () => {
   await db.delete()
@@ -251,6 +252,25 @@ describe('useListInsetStore', () => {
       // Assert DB
       const row = await db.listInsets.get(id)
       expect(row!.attributeFilter).toEqual(filter)
+    })
+  })
+
+  describe('optimistic rollback', () => {
+    it('updatePosition_dbRejects_revertsPositionToOriginal', async () => {
+      // Arrange
+      const id = await useListInsetStore.getState().add('Moveable', 'starred', 1, 50, 75)
+      const spy = vi.spyOn(listInsetRepository, 'updatePosition').mockRejectedValueOnce(new Error('DB error'))
+
+      // Act
+      await expect(useListInsetStore.getState().updatePosition(id, 999, 999)).rejects.toThrow('DB error')
+
+      // Assert
+      const inset = useListInsetStore.getState().insets.find((i) => i.id === id)
+      expect(inset!.x).toBe(50)
+      expect(inset!.y).toBe(75)
+      expect(useListInsetStore.getState().error).toBeTruthy()
+
+      spy.mockRestore()
     })
   })
 })

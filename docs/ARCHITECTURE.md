@@ -86,6 +86,7 @@ main.tsx (entry point)
 | createAssignmentActions | stores/assignment-helpers.ts | Factory for assign/unassign/bulk/load actions shared by tag, person, org stores |
 | loadWithState | stores/store-helpers.ts | Loading/error state boilerplate for store data fetching |
 | mutate | stores/store-helpers.ts | Error handling wrapper for store mutation actions (clears error, catches failures, logs, sets error state) |
+| optimistic | stores/store-helpers.ts | Optimistic mutation: applies state immediately, persists async, rolls back on failure; undo registered only after successful persist |
 | updateEntityInMap | stores/store-helpers.ts | Refresh entity references in assignment maps when entity is edited |
 | captureJoinRows, restoreEntityWithJoins | stores/store-helpers.ts | Capture and restore join table rows for entity delete undo |
 | captureAssignments, captureAssignmentsBulk | stores/store-helpers.ts | Capture person/tag/org assignment IDs for todo undo |

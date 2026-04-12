@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useProjectStore } from '../../stores/project-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { projectRepository } from '../../data/project-repository'
 
 let canvasId: number
 
@@ -64,5 +65,23 @@ describe('useProjectStore', () => {
     const id = await useProjectStore.getState().add('P1', canvasId)
     await useProjectStore.getState().remove(id)
     expect(useProjectStore.getState().projects.find(p => p.id === id)).toBeUndefined()
+  })
+
+  describe('optimistic rollback', () => {
+    it('updatePosition_dbRejects_revertsPositionToOriginal', async () => {
+      // Arrange
+      const id = await useProjectStore.getState().add('P1', canvasId, 10, 20)
+      const spy = vi.spyOn(projectRepository, 'updatePosition').mockRejectedValueOnce(new Error('DB error'))
+
+      // Act
+      await expect(useProjectStore.getState().updatePosition(id, 999, 999)).rejects.toThrow('DB error')
+
+      // Assert
+      const project = useProjectStore.getState().projects.find((p) => p.id === id)
+      expect(project!.positionX).toBe(10)
+      expect(project!.positionY).toBe(20)
+
+      spy.mockRestore()
+    })
   })
 })

@@ -1,11 +1,14 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useTodoStore } from '../../stores/todo-store'
+import { useUndoStore } from '../../stores/undo-store'
+import { todoRepository } from '../../data/todo-repository'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useTodoStore.setState({ todos: [], loading: false })
+  useUndoStore.getState().clear()
 })
 
 describe('todoStore', () => {
@@ -185,5 +188,72 @@ describe('todoStore', () => {
     await useTodoStore.getState().add('Active task')
     const count = await useTodoStore.getState().purgeExpiredCompleted(30)
     expect(count).toBe(0)
+  })
+
+  describe('optimistic rollback', () => {
+    it('toggleStar_dbRejects_revertsIsStarredToFalse', async () => {
+      // Arrange
+      const id = await useTodoStore.getState().add('Task')
+      const spy = vi.spyOn(todoRepository, 'toggleStar').mockRejectedValueOnce(new Error('DB error'))
+
+      // Act
+      await expect(useTodoStore.getState().toggleStar(id)).rejects.toThrow('DB error')
+
+      // Assert
+      const todo = useTodoStore.getState().todos.find((t) => t.id === id)
+      expect(todo!.isStarred).toBe(false)
+      expect(useTodoStore.getState().error).toBeTruthy()
+
+      spy.mockRestore()
+    })
+
+    it('toggleComplete_dbRejects_revertsIsCompletedToFalse', async () => {
+      // Arrange
+      const id = await useTodoStore.getState().add('Task')
+      const spy = vi.spyOn(todoRepository, 'complete').mockRejectedValueOnce(new Error('DB error'))
+
+      // Act
+      await expect(useTodoStore.getState().toggleComplete(id)).rejects.toThrow('DB error')
+
+      // Assert
+      const todo = useTodoStore.getState().todos.find((t) => t.id === id)
+      expect(todo!.isCompleted).toBe(false)
+
+      spy.mockRestore()
+    })
+
+    it('update_dbRejects_revertsToOriginalTitle', async () => {
+      // Arrange
+      const id = await useTodoStore.getState().add('Original title')
+      const original = useTodoStore.getState().todos.find((t) => t.id === id)!
+      const spy = vi.spyOn(todoRepository, 'update').mockRejectedValueOnce(new Error('DB error'))
+
+      // Act
+      await expect(
+        useTodoStore.getState().update({ ...original, title: 'Changed title' })
+      ).rejects.toThrow('DB error')
+
+      // Assert
+      const todo = useTodoStore.getState().todos.find((t) => t.id === id)
+      expect(todo!.title).toBe('Original title')
+
+      spy.mockRestore()
+    })
+
+    it('toggleStar_dbRejects_doesNotPushToUndoStack', async () => {
+      // Arrange
+      const id = await useTodoStore.getState().add('Task')
+      // Clear the undo entry pushed by add() so only toggleStar's result matters
+      useUndoStore.getState().clear()
+      const spy = vi.spyOn(todoRepository, 'toggleStar').mockRejectedValueOnce(new Error('DB error'))
+
+      // Act
+      await expect(useTodoStore.getState().toggleStar(id)).rejects.toThrow()
+
+      // Assert
+      expect(useUndoStore.getState().undoStack).toHaveLength(0)
+
+      spy.mockRestore()
+    })
   })
 })

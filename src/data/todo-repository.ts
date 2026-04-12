@@ -56,8 +56,7 @@ export const todoRepository = {
   },
 
   async update(todo: PersistedTodoItem): Promise<void> {
-    todo.modifiedAt = new Date()
-    await db.todos.put(todo)
+    await db.todos.put({ ...todo, modifiedAt: new Date() })
   },
 
   async complete(id: number, completed: boolean): Promise<void> {
