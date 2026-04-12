@@ -3,6 +3,8 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  KeyboardSensor,
+  closestCenter,
   useSensor,
   useSensors,
   useDroppable,
@@ -10,6 +12,13 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
@@ -27,6 +36,8 @@ import { SectionHeader } from '../components/shared/SectionHeader'
 import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopup'
+import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
+import { createPortal } from 'react-dom'
 import { Priority } from '../models'
 import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy } from '../models'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
@@ -440,6 +451,75 @@ interface PendingReassign {
   attribute: 'person' | 'tag'
 }
 
+// --- Sortable saved view chip ---
+
+interface SortableViewChipProps {
+  view: import('../models').PersistedSavedView
+  isActive: boolean
+  isRenaming: boolean
+  renameText: string
+  onRenameChange: (text: string) => void
+  onFinishRename: () => void
+  onCancelRename: () => void
+  onApply: (view: { sortBy: ListSortBy; filters: import('../models/saved-view').SavedViewFilters; id: number }) => void
+  onStartRename: (id: number, name: string) => void
+  onContextMenu: (e: React.MouseEvent, view: { id: number; name: string }) => void
+  onRemove: (id: number, name: string) => void
+}
+
+function SortableViewChip({
+  view, isActive, isRenaming, renameText, onRenameChange,
+  onFinishRename, onCancelRename, onApply, onStartRename, onContextMenu, onRemove,
+}: SortableViewChipProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: view.id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`${styles.savedViewChip} ${isActive ? styles.savedViewChipActive : ''}`}
+      {...attributes}
+      {...listeners}
+      onContextMenu={(e) => onContextMenu(e, view)}
+    >
+      {isRenaming ? (
+        <input
+          className={styles.savedViewRenameInput}
+          value={renameText}
+          onChange={(e) => onRenameChange(e.target.value)}
+          onBlur={onFinishRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onFinishRename()
+            if (e.key === 'Escape') onCancelRename()
+          }}
+          autoFocus
+        />
+      ) : (
+        <button
+          className={styles.savedViewName}
+          onClick={() => onApply(view)}
+          onDoubleClick={() => onStartRename(view.id, view.name)}
+          title="Click to apply, double-click to rename, right-click for options"
+        >
+          {view.name}
+        </button>
+      )}
+      <button
+        className={styles.savedViewRemove}
+        onClick={() => onRemove(view.id, view.name)}
+        title="Remove saved view"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 // --- Main component ---
 
 export function ListView() {
@@ -452,7 +532,7 @@ export function ListView() {
   const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
   const { filters, applyFilter, setAllFilters } = useFilterStore()
   const taskEdit = useTaskEditCallbacks()
-  const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, renameView, removeView, setActiveViewId } = useSavedViewStore()
+  const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, updateView, renameView, removeView, reorder: reorderViews, setActiveViewId } = useSavedViewStore()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
   const [overSectionKey, setOverSectionKey] = useState<string | null>(null)
@@ -496,26 +576,8 @@ export function ListView() {
   }, [people, orgs, loadPersonOrgMap])
 
   const activeTodos = useMemo(() => {
-    const filtered = applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
-    // When grouped by People, include assigned tasks that pass all other filters
-    if (listSortBy === 'people' && (filters.assignedFilter === 'unassigned' || filters.assignedFilter === 'unassigned-only')) {
-      const filteredIds = new Set(filtered.map(t => t.id))
-      const { matchesFilter } = useFilterStore.getState()
-      const assignedExtras = todos.filter(t => {
-        if (!t.isAssigned || filteredIds.has(t.id) || t.isCompleted) return false
-        // Check all filters except showAssigned
-        const personIds = (assignedPeopleMap.get(t.id) ?? []).map(p => p.id!)
-        const tagIds = (assignedTagsMap.get(t.id) ?? []).map(tg => tg.id!)
-        const personOrgIds = personIds.flatMap(pid => personOrgMap.get(pid) ?? [])
-        const directOrgIds = (assignedOrgsMap.get(t.id) ?? []).map(o => o.id!)
-        // Temporarily treat as non-assigned for filter check
-        const proxy = { ...t, isAssigned: false }
-        return matchesFilter(proxy, personIds, tagIds, personOrgIds, directOrgIds)
-      })
-      if (assignedExtras.length > 0) return [...filtered, ...assignedExtras]
-    }
-    return filtered
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter, listSortBy])
+    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter])
 
   const sections = useMemo(() => {
     switch (listSortBy) {
@@ -601,6 +663,48 @@ export function ListView() {
     setRenamingViewId(null)
     setRenameText('')
   }, [renamingViewId, renameText, renameView])
+
+  const handleUpdateView = useCallback(async (id: number) => {
+    await updateView(id, listSortBy, filters)
+  }, [updateView, listSortBy, filters])
+
+  // --- Saved view reorder ---
+  const [viewReorderKey, setViewReorderKey] = useState(0)
+  const viewSortSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const savedViewIds = useMemo(() => savedViews.map(v => v.id), [savedViews])
+
+  const handleViewDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const sorted = [...savedViews].sort((a, b) => a.sortOrder - b.sortOrder)
+    const fromIndex = sorted.findIndex(v => v.id === active.id)
+    const toIndex = sorted.findIndex(v => v.id === over.id)
+    if (fromIndex !== -1 && toIndex !== -1) {
+      reorderViews(fromIndex, toIndex)
+      setViewReorderKey(k => k + 1)
+    }
+  }, [savedViews, reorderViews])
+
+  // --- Saved view context menu ---
+  const [viewContextMenu, setViewContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
+
+  const handleViewContextMenu = useCallback((e: React.MouseEvent, view: { id: number; name: string }) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setViewContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        { label: 'Update to current settings', action: () => handleUpdateView(view.id) },
+        { label: 'Rename', action: () => handleStartRename(view.id, view.name) },
+        { separator: true, label: '', action: () => {} },
+        { label: 'Delete', action: () => removeView(view.id), danger: true },
+      ],
+    })
+  }, [handleUpdateView, handleStartRename, removeView])
 
   // --- DnD handlers ---
 
@@ -716,46 +820,35 @@ export function ListView() {
           </div>
 
           {savedViews.length > 0 && (
-            <div className={styles.savedViewsBar}>
-              {savedViews.map((view) => (
-                <div key={view.id} className={`${styles.savedViewChip} ${activeViewId === view.id ? styles.savedViewChipActive : ''}`}>
-                  {renamingViewId === view.id ? (
-                    <input
-                      className={styles.savedViewRenameInput}
-                      value={renameText}
-                      onChange={(e) => setRenameText(e.target.value)}
-                      onBlur={handleFinishRename}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleFinishRename()
-                        if (e.key === 'Escape') { setRenamingViewId(null); setRenameText('') }
-                      }}
-                      autoFocus
-                    />
-                  ) : (
-                    <button
-                      className={styles.savedViewName}
-                      onClick={() => handleApplyView(view)}
-                      onDoubleClick={() => handleStartRename(view.id, view.name)}
-                      title="Click to apply, double-click to rename"
-                    >
-                      {view.name}
-                    </button>
-                  )}
-                  <button
-                    className={styles.savedViewRemove}
-                    onClick={() => showBulkConfirmation('custom', [], {
-                      title: `Delete saved view "${view.name}"?`,
-                      message: 'This action cannot be undone.',
-                      confirmLabel: 'Delete',
-                      onConfirm: () => removeView(view.id),
-                    })}
-                    title="Remove saved view"
-                  >
-                    ×
-                  </button>
+            <DndContext key={viewReorderKey} sensors={viewSortSensors} collisionDetection={closestCenter} onDragEnd={handleViewDragEnd}>
+              <SortableContext items={savedViewIds} strategy={horizontalListSortingStrategy}>
+                <div className={styles.savedViewsBar}>
+                  {savedViews.map((view) => {
+                    return (
+                      <SortableViewChip
+                        key={view.id}
+                        view={view}
+                        isActive={activeViewId === view.id}
+                        isRenaming={renamingViewId === view.id}
+                        renameText={renameText}
+                        onRenameChange={setRenameText}
+                        onFinishRename={handleFinishRename}
+                        onCancelRename={() => { setRenamingViewId(null); setRenameText('') }}
+                        onApply={handleApplyView}
+                        onStartRename={handleStartRename}
+                        onContextMenu={handleViewContextMenu}
+                        onRemove={(id, name) => showBulkConfirmation('custom', [], {
+                          title: `Delete saved view "${name}"?`,
+                          message: 'This action cannot be undone.',
+                          confirmLabel: 'Delete',
+                          onConfirm: () => removeView(id),
+                        })}
+                      />
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           )}
 
           <div className={styles.sortBar}>
@@ -909,6 +1002,15 @@ export function ListView() {
           statusMap={statusMap}
           onClose={() => setShowExport(false)}
         />
+      )}
+      {viewContextMenu && createPortal(
+        <CanvasContextMenu
+          x={viewContextMenu.x}
+          y={viewContextMenu.y}
+          items={viewContextMenu.items}
+          onClose={() => setViewContextMenu(null)}
+        />,
+        document.body,
       )}
     </>
   )

@@ -12,8 +12,10 @@ interface SavedViewState {
 
   load: () => Promise<void>
   saveCurrentView: (name: string, sortBy: ListSortBy, filters: FilterCriteria) => Promise<void>
+  updateView: (id: number, sortBy: ListSortBy, filters: FilterCriteria) => Promise<void>
   renameView: (id: number, name: string) => Promise<void>
   removeView: (id: number) => Promise<void>
+  reorder: (fromIndex: number, toIndex: number) => Promise<void>
   setActiveViewId: (id: number | null) => void
 }
 
@@ -90,6 +92,12 @@ export const useSavedViewStore = create<SavedViewState>((set, get) => ({
     set({ views: [...views, view], activeViewId: id })
   },
 
+  async updateView(id: number, sortBy: ListSortBy, filters: FilterCriteria) {
+    const serialized = filtersToSerializable(filters)
+    await savedViewRepository.update(id, { sortBy, filters: serialized })
+    set({ views: get().views.map((v) => (v.id === id ? { ...v, sortBy, filters: serialized } : v)), activeViewId: id })
+  },
+
   async renameView(id: number, name: string) {
     await savedViewRepository.update(id, { name })
     set({ views: get().views.map((v) => (v.id === id ? { ...v, name } : v)) })
@@ -102,6 +110,18 @@ export const useSavedViewStore = create<SavedViewState>((set, get) => ({
       views: views.filter((v) => v.id !== id),
       activeViewId: activeViewId === id ? null : activeViewId,
     })
+  },
+
+  async reorder(fromIndex: number, toIndex: number) {
+    const sorted = [...get().views].sort((a, b) => a.sortOrder - b.sortOrder)
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
+    const [moved] = sorted.splice(fromIndex, 1)
+    sorted.splice(toIndex, 0, moved)
+    const updated = sorted.map((v, i) => ({ ...v, sortOrder: i }))
+    set({ views: updated })
+    for (const v of updated) {
+      await savedViewRepository.update(v.id, { sortOrder: v.sortOrder })
+    }
   },
 
   setActiveViewId(id: number | null) {

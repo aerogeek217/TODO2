@@ -32,6 +32,11 @@
 - [x] **Four-option assigned/completed filters** — Assigned and Completed filters expanded from 3 to 4 options: All (no filter), Unassigned/Incomplete (ghost on canvas, hide in lists), Assigned/Completed (ghost on canvas, hide in lists), Unassigned only/Incomplete only (hide everywhere); defaults are the "only" variants
 - [x] **Status: markdown export** — include status names in markdown export task lines
 - [x] **Status: plain text export** — include status in PlainTextExportPopup task lines
+- [x] **Taskboard respects global filters** — canvas taskboard ghosts non-matching tasks (consistent with project nodes); dashboard taskboard hides non-matching tasks (consistent with list view)
+- [x] **Taskboard reorder fix** — dashboard TaskboardPanel handleDragEnd used visibleEntries indices instead of full entries indices, causing reorder to move wrong items or appear to not stick
+- [x] **Saved view presets: right-click update and drag reorder** — right-click context menu on presets (Update to current settings, Rename, Delete); drag-to-reorder via dnd-kit SortableContext with horizontal strategy; added updateView and reorder to saved-view-store
+- [x] **List view filter consistency** — removed People-grouping override that re-added assigned tasks when Unassigned filter was active; all filter variants now respected across all groupings
+- [x] **Filter active indicator fix** — `isFilterActive` now treats only the defaults (incomplete-only, unassigned-only) as inactive; selecting Unassigned/Incomplete (non-"only") correctly shows the clear filters button
 
 
 ## User Testing

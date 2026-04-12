@@ -33,12 +33,11 @@ interface SortableEntryProps {
   todo: PersistedTodoItem
   assignedPeople: import('../../models').Person[] | undefined
   assignedTags: import('../../models').Tag[] | undefined
-  ghost?: boolean
   onRemove: (todoId: number) => void
   onOpenDetail: (todoId: number) => void
 }
 
-function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, ghost, onRemove, onOpenDetail }: SortableEntryProps) {
+function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onRemove, onOpenDetail }: SortableEntryProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entryId })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -46,7 +45,7 @@ function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, gho
     <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} ghost={ghost} compact onOpenDetail={onOpenDetail} />
+        <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} compact onOpenDetail={onOpenDetail} />
       </div>
       <button className={styles.removeBtn} onClick={(e) => { e.stopPropagation(); onRemove(todo.id) }} title="Remove from taskboard">&times;</button>
     </div>
@@ -79,35 +78,14 @@ export function TaskboardPanel() {
     () => entries.filter(e => {
       const t = todoMap.get(e.todoId)
       if (!t) return false
-      // "only" variants hide entirely
-      if (filters.completedFilter === 'incomplete-only' && t.isCompleted) return false
-      if (filters.completedFilter === 'completed' && !t.isCompleted) return false
-      if (filters.assignedFilter === 'unassigned-only' && t.isAssigned) return false
-      return true
+      const personIds = (assignedPeopleMap.get(t.id) ?? []).map(p => p.id!)
+      const tagIds = (assignedTagsMap.get(t.id) ?? []).map(tg => tg.id!)
+      const pOrgIds = personIds.flatMap(pid => personOrgMap.get(pid) ?? [])
+      const dOrgIds = (assignedOrgsMap.get(t.id) ?? []).map(o => o.id!)
+      return matchesFilter(t, personIds, tagIds, pOrgIds, dOrgIds)
     }),
-    [entries, todoMap, filters.completedFilter, filters.assignedFilter],
+    [entries, todoMap, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter],
   )
-
-  const ghostTodoIds = useMemo(() => {
-    const ghost = new Set<number>()
-    for (const entry of visibleEntries) {
-      const t = todoMap.get(entry.todoId)
-      if (!t) continue
-      let isGhost = false
-      if (filters.completedFilter === 'incomplete' && t.isCompleted) isGhost = true
-      else if (filters.assignedFilter === 'unassigned' && t.isAssigned) isGhost = true
-      else if (filters.assignedFilter === 'assigned' && !t.isAssigned) isGhost = true
-      if (!isGhost) {
-        const personIds = (assignedPeopleMap.get(t.id) ?? []).map(p => p.id!)
-        const tagIds = (assignedTagsMap.get(t.id) ?? []).map(tg => tg.id!)
-        const pOrgIds = (assignedPeopleMap.get(t.id) ?? []).flatMap(p => personOrgMap.get(p.id!) ?? [])
-        const dOrgIds = (assignedOrgsMap.get(t.id) ?? []).map(o => o.id!)
-        if (!matchesFilter(t, personIds, tagIds, pOrgIds, dOrgIds, true)) isGhost = true
-      }
-      if (isGhost) ghost.add(t.id)
-    }
-    return ghost.size > 0 ? ghost : undefined
-  }, [visibleEntries, todoMap, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter])
 
   const entryIds = useMemo(() => visibleEntries.map(e => e.id!), [visibleEntries])
 
@@ -119,13 +97,13 @@ export function TaskboardPanel() {
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const fromIndex = visibleEntries.findIndex(e => e.id === active.id)
-    const toIndex = visibleEntries.findIndex(e => e.id === over.id)
+    const fromIndex = entries.findIndex(e => e.id === active.id)
+    const toIndex = entries.findIndex(e => e.id === over.id)
     if (fromIndex !== -1 && toIndex !== -1) {
       reorder(fromIndex, toIndex)
       setReorderKey(k => k + 1)
     }
-  }, [visibleEntries, reorder])
+  }, [entries, reorder])
 
   const handleRemove = useCallback((todoId: number) => { remove(todoId) }, [remove])
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
@@ -158,7 +136,6 @@ export function TaskboardPanel() {
                       todo={todo}
                       assignedPeople={assignedPeopleMap.get(todo.id)}
                       assignedTags={assignedTagsMap.get(todo.id)}
-                      ghost={ghostTodoIds?.has(todo.id)}
                       onRemove={handleRemove}
                       onOpenDetail={handleOpenDetail}
                     />

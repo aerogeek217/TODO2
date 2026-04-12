@@ -76,7 +76,7 @@ const defaultFilters: FilterCriteria = {
 }
 
 function isFilterActive(f: FilterCriteria): boolean {
-  return f.priorities !== null || (f.completedFilter !== 'incomplete' && f.completedFilter !== 'incomplete-only') || (f.assignedFilter !== 'unassigned' && f.assignedFilter !== 'unassigned-only') || f.followupFilter !== 'all' || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
+  return f.priorities !== null || f.completedFilter !== 'incomplete-only' || f.assignedFilter !== 'unassigned-only' || f.followupFilter !== 'all' || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
 }
 
 function todoMatchesFilter(
