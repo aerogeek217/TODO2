@@ -231,6 +231,17 @@ function resolveMultiDrop(ctx: DropContext): DropResolution {
     }
   }
 
+  // Dropped on own group member — noop
+  if (overType === 'task' && overTodo && dragIds.has(overTodo.id)) {
+    return { type: 'noop' }
+  }
+
+  // Check if drag group has internal parent-child relationships (e.g. parent+children drag)
+  const hasInternalHierarchy = (() => {
+    const allInProject = ctx.todosByProject.get(activeTodo.projectId!) ?? []
+    return allInProject.some(t => dragIds.has(t.id) && t.parentId != null && dragIds.has(t.parentId))
+  })()
+
   // Determine target from over data
   let targetProjectId: number | undefined
   let beforeTodoId: number | null = null
@@ -241,9 +252,21 @@ function resolveMultiDrop(ctx: DropContext): DropResolution {
   } else if (overType === 'task' && overTodo) {
     targetProjectId = overTodo.projectId ?? undefined
     beforeTodoId = overTodo.id
-    // Match drop target's parent level, guard against self-parenting
-    if (overTodo.parentId != null && !dragIds.has(overTodo.parentId)) {
+    // Match drop target's parent level, guard against self-parenting and 3-level nesting
+    if (overTodo.parentId != null && !dragIds.has(overTodo.parentId) && !hasInternalHierarchy) {
       targetParentId = overTodo.parentId
+    } else if (overTodo.parentId != null && hasInternalHierarchy) {
+      // Forced to root level — resolve beforeTodoId to next root task after overTodo
+      const projectTodos = ctx.todosByProject.get(targetProjectId!) ?? []
+      const flat = getFlatVisualOrder(projectTodos)
+      const overIdx = flat.findIndex(t => t.id === overTodo.id)
+      beforeTodoId = null
+      for (let i = overIdx + 1; i < flat.length; i++) {
+        if (flat[i].parentId == null && !dragIds.has(flat[i].id)) {
+          beforeTodoId = flat[i].id
+          break
+        }
+      }
     }
   } else if (overType === null) {
     const distance = Math.sqrt(delta.x ** 2 + delta.y ** 2)
@@ -281,6 +304,11 @@ export function resolveDropPreview(
   todosByProject: Map<number, PersistedTodoItem[]>,
 ): Omit<PreviewResult, 'dragExpandedProjectId'> {
   if (!activeTodo) return { insertTodoId: null, insertIndentLevel: 0, insertAtEnd: false, insertProjectId: null }
+
+  // Hovering over own child — self-group, no preview
+  if (overTodo && overTodo.parentId === activeTodo.id) {
+    return { insertTodoId: null, insertIndentLevel: 0, insertAtEnd: false, insertProjectId: null }
+  }
 
   const projectTodos = activeTodo.projectId != null ? (todosByProject.get(activeTodo.projectId) ?? []) : []
   const hasOwnChildren = projectTodos.some(t => t.parentId === activeTodo.id)

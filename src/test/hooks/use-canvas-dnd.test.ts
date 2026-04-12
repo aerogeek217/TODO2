@@ -175,7 +175,7 @@ describe('useCanvasDnD — handleDragStart', () => {
 
     expect(result.current.activeDragTodo).toEqual(todo1)
     expect(result.current.multiDragCount).toBe(2) // parent + child
-    expect(result.current.dragGroupIds).toEqual(new Set([child1.id]))
+    expect(result.current.dragGroupIds).toBeNull()
   })
 
   it('uses selected todos for multi-drag when multiple selected', () => {

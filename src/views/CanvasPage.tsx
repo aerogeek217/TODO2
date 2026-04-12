@@ -2,6 +2,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
+  pointerWithin,
 } from '@dnd-kit/core'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useProjectStore } from '../stores/project-store'
@@ -468,6 +469,7 @@ export function CanvasPage() {
     <DndContext
       sensors={dnd.sensors}
       measuring={dnd.measuring}
+      collisionDetection={pointerWithin}
       onDragStart={dnd.handleDragStart}
       onDragMove={dnd.handleDragMove}
       onDragOver={dnd.handleDragOver}

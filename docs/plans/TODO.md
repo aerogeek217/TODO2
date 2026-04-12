@@ -4,6 +4,7 @@
 ## Bugs
 
 - [x] **TaskRow people/org dropdown broken** — `useClickOutside` on `peopleRef`/`tagsRef` fired on portal clicks (portal is outside those refs in DOM), closing dropdown before `onToggle` could execute. Fixed by removing redundant handlers; `PortalDropdown` already handles outside-click detection.
+- [x] **Parent+children drag restricted to top/bottom** — DragOverlay rect (tall, includes children) used by dnd-kit `rectIntersection` for collision, causing project droppable to win over task rows. Fixed: switched to `pointerWithin` collision detection, added self-group guards in drop resolver.
 
 
 ## Features and Enhancements

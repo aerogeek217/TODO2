@@ -660,4 +660,121 @@ describe('resolveDropPreview', () => {
     )
     expect(result.insertIndentLevel).toBe(0)
   })
+
+  it('hovering over own child → no preview (self-group)', () => {
+    const active = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
+    const ownChild = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 2 })
+    const todosByProject = new Map([[10, [active, ownChild]]])
+
+    const result = resolveDropPreview(
+      active,
+      'task',
+      ownChild,
+      null,
+      { x: 0, y: 50 },
+      todosByProject,
+    )
+    expect(result).toEqual({
+      insertTodoId: null,
+      insertIndentLevel: 0,
+      insertAtEnd: false,
+      insertProjectId: null,
+    })
+  })
+})
+
+// ─── resolveMultiDrop — parent+children drag ─────────────────────────
+
+describe('resolveMultiDrop — parent+children drag', () => {
+  it('dropped on own group member → noop', () => {
+    const parent = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
+    const child = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 2 })
+    const other = makeTodo({ id: 2, projectId: 10, sortOrder: 3 })
+    const dragIds = new Set([1, 3])
+    const todosByProject = new Map([[10, [parent, child, other]]])
+
+    const result = resolveDropTarget(makeCtx({
+      activeTodo: parent,
+      overType: 'task',
+      overTodo: child,
+      delta: { x: 0, y: 50 },
+      dragIds,
+      todosByProject,
+    }))
+    expect(result).toEqual({ type: 'noop' })
+  })
+
+  it('group with internal hierarchy prevents child-level nesting', () => {
+    const parentQ = makeTodo({ id: 10, projectId: 100, sortOrder: 1 })
+    const childQ = makeTodo({ id: 11, projectId: 100, parentId: 10, sortOrder: 2 })
+    const parent = makeTodo({ id: 1, projectId: 100, sortOrder: 3 })
+    const child = makeTodo({ id: 2, projectId: 100, parentId: 1, sortOrder: 4 })
+    const rootAfter = makeTodo({ id: 20, projectId: 100, sortOrder: 5 })
+    const dragIds = new Set([1, 2])
+    const todosByProject = new Map([[100, [parentQ, childQ, parent, child, rootAfter]]])
+
+    // Drop parent+child group onto childQ (child of parentQ)
+    const result = resolveDropTarget(makeCtx({
+      activeTodo: parent,
+      overType: 'task',
+      overTodo: childQ,
+      delta: { x: 0, y: 50 },
+      dragIds,
+      todosByProject,
+    }))
+    // Should place at root level, not nested under parentQ
+    expect(result.type).toBe('place-multi')
+    if (result.type === 'place-multi') {
+      expect(result.target.parentId).toBeUndefined()
+      // beforeTodoId should resolve to the next root after childQ (skipping drag group members)
+      expect(result.target.beforeTodoId).toBe(20)
+    }
+  })
+
+  it('group with internal hierarchy — no root after target → append at end', () => {
+    const parentQ = makeTodo({ id: 10, projectId: 100, sortOrder: 1 })
+    const childQ = makeTodo({ id: 11, projectId: 100, parentId: 10, sortOrder: 2 })
+    const parent = makeTodo({ id: 1, projectId: 100, sortOrder: 3 })
+    const child = makeTodo({ id: 2, projectId: 100, parentId: 1, sortOrder: 4 })
+    const dragIds = new Set([1, 2])
+    const todosByProject = new Map([[100, [parentQ, childQ, parent, child]]])
+
+    const result = resolveDropTarget(makeCtx({
+      activeTodo: parent,
+      overType: 'task',
+      overTodo: childQ,
+      delta: { x: 0, y: 50 },
+      dragIds,
+      todosByProject,
+    }))
+    expect(result.type).toBe('place-multi')
+    if (result.type === 'place-multi') {
+      expect(result.target.parentId).toBeUndefined()
+      expect(result.target.beforeTodoId).toBeNull()
+    }
+  })
+
+  it('group without internal hierarchy still allows child-level nesting', () => {
+    // Multi-select of two independent root tasks (no parent-child within group)
+    const parentQ = makeTodo({ id: 10, projectId: 100, sortOrder: 1 })
+    const childQ = makeTodo({ id: 11, projectId: 100, parentId: 10, sortOrder: 2 })
+    const taskA = makeTodo({ id: 1, projectId: 100, sortOrder: 3 })
+    const taskB = makeTodo({ id: 2, projectId: 100, sortOrder: 4 })
+    const dragIds = new Set([1, 2])
+    const todosByProject = new Map([[100, [parentQ, childQ, taskA, taskB]]])
+
+    const result = resolveDropTarget(makeCtx({
+      activeTodo: taskA,
+      overType: 'task',
+      overTodo: childQ,
+      delta: { x: 0, y: 50 },
+      dragIds,
+      todosByProject,
+    }))
+    expect(result.type).toBe('place-multi')
+    if (result.type === 'place-multi') {
+      expect(result.target.parentId).toBe(10) // adopts parentQ as parent
+      expect(result.target.beforeTodoId).toBe(11)
+    }
+  })
 })
