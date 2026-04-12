@@ -314,6 +314,39 @@
   border-color: var(--color-priority-high);
 }
 
+.auditClean {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 4px 0;
+}
+
+.auditList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auditRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--color-surface-high);
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-meta);
+}
+
+.auditCount {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-priority-medium);
+  min-width: 20px;
+  text-align: right;
+}
+
+.auditDesc {
+  color: var(--color-text-secondary);
+}
+
 .backupEmpty {
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);

@@ -17,7 +17,7 @@
 
 ## Future Work
 
-- [ ] **Collapse Dexie migrations** — export database to JSON, collapse 10 migration versions down to a single current schema declaration (keeping only the v3 upgrade logic as a safety net or removing entirely), re-import. Removes ~150 lines of redundant schema re-declarations (v5/v8/v9 are no-ops, others just add a table/index).
+- [x] **Collapse Dexie migrations** — collapsed v1-v15 into single v16 base schema, kept v17/v18 incremental. Removed ~287 lines and all 4 upgrade callbacks. Backward compat cutoff: 2026-04-10.
 - [x] **Optimistic updates with rollback** — deferred from Phase 8
 - [x] **Optimistic updates for assignment helpers** — `createAssignmentActions` (assign/unassign/bulk) needs structural refactor to access store `set` for error state before converting to optimistic pattern
 - [x] **Optimistic updates for entity store updates** — person/tag/org `update` methods touch two state slices (entity list + assignment map); need atomic rollback of both

@@ -63,7 +63,7 @@ main.tsx (entry point)
 | TaskboardEntry | models/taskboard-entry.ts | Ordered task queue entry (todoId, sortOrder) for next-up work tracking |
 | Backup | models/backup.ts | Auto-snapshot record: trigger type, serialized data, size |
 | SavedView | models/saved-view.ts | Named saved list view: sortBy + serializable filter snapshot (including dateRangeStart/End) |
-| Todo2Database | data/database.ts | Dexie DB class with schema (v18) |
+| Todo2Database | data/database.ts | Dexie DB class with schema (v16 base + v17/v18 incremental; v1-v15 collapsed) |
 | ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks |
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
@@ -80,6 +80,8 @@ main.tsx (entry point)
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | savedViewRepository | data/saved-view-repository.ts | CRUD for SavedView (getAll, add, update, remove) |
 | backupRepository | data/backup-repository.ts | Snapshot CRUD: createSnapshot, listSnapshots (lightweight), restoreSnapshot (validates + imports), pruneSnapshots |
+| auditData | data/audit.ts | Scan all tables for orphaned join rows and dangling foreign keys; returns AuditReport with issues and cleanup metadata |
+| cleanupIssues | data/audit.ts | Atomic cleanup of all audit issues (delete orphans, clear dangling FKs) in single transaction |
 | validateImportData | data/import-validation.ts | Schema validation for JSON import (all models, color sanitization, size limits, SavedView filter validation, setting key allowlist) |
 | restoreFromImportData | data/restore.ts | Shared clear-all-tables + bulk-add from ImportData; used by backup restore, file import, and settings import |
 | parseAndRestore | data/restore.ts | Parse JSON string, validate, and restore all data tables; used by backup restore |

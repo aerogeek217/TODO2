@@ -29,12 +29,13 @@ export const canvasRepository = {
 
   async delete(id: number): Promise<void> {
     // Cascade: delete projects, todos, sticky notes, list insets belonging to this canvas
-    await db.transaction('rw', [db.canvases, db.projects, db.todos, db.todoTags, db.todoPeople, db.todoOrgs, db.stickyNotes, db.listInsets], async () => {
+    await db.transaction('rw', [db.canvases, db.projects, db.todos, db.todoTags, db.todoPeople, db.todoOrgs, db.taskboardEntries, db.stickyNotes, db.listInsets], async () => {
       const todoIds = await db.todos.where('canvasId').equals(id).primaryKeys()
       if (todoIds.length > 0) {
         await db.todoTags.where('todoId').anyOf(todoIds).delete()
         await db.todoPeople.where('todoId').anyOf(todoIds).delete()
         await db.todoOrgs.where('todoId').anyOf(todoIds).delete()
+        await db.taskboardEntries.where('todoId').anyOf(todoIds).delete()
       }
       await db.todos.where('canvasId').equals(id).delete()
       await db.projects.where('canvasId').equals(id).delete()

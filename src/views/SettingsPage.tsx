@@ -8,6 +8,7 @@ import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 import { restoreFromImportData } from '../data/restore'
+import { auditData, cleanupIssues, type AuditReport } from '../data/audit'
 import { buildExportData, buildMarkdownExport } from '../services/export-import'
 import { backupScheduler } from '../services/backup-scheduler'
 import { backupRepository, type BackupSummary } from '../data/backup-repository'
@@ -55,6 +56,9 @@ export function SettingsPage() {
   const [backups, setBackups] = useState<BackupSummary[]>([])
   const [backupMsg, setBackupMsg] = useState('')
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
+  const [auditReport, setAuditReport] = useState<AuditReport | null>(null)
+  const [auditMsg, setAuditMsg] = useState('')
+  const [auditRunning, setAuditRunning] = useState(false)
   const timerRefs = useRef<number[]>([])
   const track = (fn: () => void, ms: number) => {
     timerRefs.current.push(window.setTimeout(fn, ms))
@@ -442,6 +446,75 @@ export function SettingsPage() {
           </div>
           {exportMsg && <div className={styles.successMsg}>{exportMsg}</div>}
         </div>
+
+        {/* Data Audit — desktop only */}
+        {!isMobile && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Data Integrity</div>
+          {auditReport == null ? (
+            <div className={styles.buttonRow} style={{ marginTop: 0 }}>
+              <button
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                onClick={async () => {
+                  setAuditRunning(true)
+                  try {
+                    setAuditReport(await auditData())
+                  } finally {
+                    setAuditRunning(false)
+                  }
+                }}
+                disabled={auditRunning}
+              >
+                {auditRunning ? 'Scanning...' : 'Run Audit'}
+              </button>
+            </div>
+          ) : auditReport.totalOrphans === 0 ? (
+            <>
+              <div className={styles.auditClean}>No issues found.</div>
+              <div className={styles.buttonRow} style={{ marginTop: 0 }}>
+                <button
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  onClick={() => setAuditReport(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={styles.auditList}>
+                {auditReport.issues.map((issue, i) => (
+                  <div key={i} className={styles.auditRow}>
+                    <span className={styles.auditCount}>{issue.count}</span>
+                    <span className={styles.auditDesc}>{issue.description}</span>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.buttonRow}>
+                <button
+                  className={`${styles.button} ${styles.buttonPrimary}`}
+                  onClick={async () => {
+                    const cleaned = await cleanupIssues(auditReport.issues)
+                    await refreshAllStores()
+                    setAuditReport(null)
+                    setAuditMsg(`Cleaned up ${cleaned} orphaned record${cleaned !== 1 ? 's' : ''}.`)
+                    track(() => setAuditMsg(''), 4000)
+                  }}
+                >
+                  Clean Up {auditReport.totalOrphans} Issue{auditReport.totalOrphans !== 1 ? 's' : ''}
+                </button>
+                <button
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  onClick={() => setAuditReport(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </>
+          )}
+          {auditMsg && <div className={styles.successMsg}>{auditMsg}</div>}
+        </div>
+        )}
 
         {/* Backups — desktop only */}
         {!isMobile && (
