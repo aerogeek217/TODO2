@@ -31,7 +31,7 @@ import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
 
 export function CanvasPage() {
   const { selectedCanvasId } = useCanvasStore()
-  const { projects, loadByCanvas: loadProjects, add: addProject, updatePosition, update: updateProject, remove: removeProject } = useProjectStore()
+  const { projects, loadByCanvas: loadProjects, add: addProject, updatePosition, bulkUpdatePositions, update: updateProject, remove: removeProject } = useProjectStore()
   const { todos, loadByCanvas: loadTodos, add: addTodo, addAt: addTodoAt, update: updateTodo, applyMutations } = useTodoStore()
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments, assignPerson } = usePersonStore()
   const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag } = useTagStore()
@@ -215,10 +215,19 @@ export function CanvasPage() {
     [updatePosition]
   )
 
+  const handleCascadeShift = useCallback(
+    (shifts: Array<{ projectId: number; x: number; y: number }>) => {
+      bulkUpdatePositions(shifts.map(s => ({ id: s.projectId, x: s.x, y: s.y })))
+    },
+    [bulkUpdatePositions]
+  )
+
   const handleAddTask = useCallback(
     async (projectId: number, rawTitle: string) => {
       if (!selectedCanvasId) return
-      const { title, resolved } = parseTaskInput(rawTitle, people, tags, projects)
+      // Read projects at call time to avoid re-creating this callback on position-only changes
+      const currentProjects = useProjectStore.getState().projects
+      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects)
       const pid = resolved.projectId ?? projectId
       const id = await addTodo(title || rawTitle, selectedCanvasId, pid)
       await applyNlpMetadata(
@@ -227,13 +236,15 @@ export function CanvasPage() {
         updateTodo, assignPerson, assignTag,
       )
     },
-    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, people, tags, projects]
+    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, people, tags]
   )
 
   const handleInsertTask = useCallback(
     async (rawTitle: string, projectId: number, beforeTodoId: number | null, parentId: number | undefined): Promise<number> => {
       if (!selectedCanvasId) return -1
-      const { title, resolved } = parseTaskInput(rawTitle, people, tags, projects)
+      // Read projects at call time to avoid re-creating this callback on position-only changes
+      const currentProjects = useProjectStore.getState().projects
+      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects)
       const pid = resolved.projectId ?? projectId
       const projectTodos = todosByProject.get(pid) ?? []
       const siblings = projectTodos.filter(t =>
@@ -249,7 +260,7 @@ export function CanvasPage() {
       )
       return id
     },
-    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, people, tags, projects]
+    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, people, tags]
   )
 
   const handleDeleteProject = useCallback(
@@ -490,6 +501,7 @@ export function CanvasPage() {
         taskboardWidth={taskboardSize.w}
         taskboardHeight={taskboardSize.h}
         onResizeTaskboard={handleResizeTaskboard}
+        onCascadeShift={handleCascadeShift}
       />
       {isProjectNavigatorOpen && (
         <ProjectNavigator

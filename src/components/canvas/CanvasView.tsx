@@ -19,6 +19,7 @@ import { StickyNoteNode, type StickyNoteNodeData } from './StickyNoteNode'
 import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
+import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from './cascade-shift'
 import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, StickyNote, TaskboardEntry } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -121,6 +122,7 @@ interface CanvasViewProps {
   taskboardWidth?: number
   taskboardHeight?: number
   onResizeTaskboard?: (width: number, height: number) => void
+  onCascadeShift?: (shifts: Array<{ projectId: number; x: number; y: number }>) => void
 }
 
 export function CanvasView({
@@ -150,6 +152,7 @@ export function CanvasView({
   taskboardWidth,
   taskboardHeight,
   onResizeTaskboard,
+  onCascadeShift,
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onAddListInset, onResizeInset } = insetHandlers
@@ -176,6 +179,12 @@ export function CanvasView({
   const draggingIds = useRef(new Set<string>())
   // Preserve final positions of just-dropped nodes until the store catches up
   const droppedPositions = useRef(new Map<string, { x: number; y: number }>())
+  // Track measured heights for cascade shift detection
+  const prevHeightsRef = useRef(new Map<string, number>())
+  const cascadingRef = useRef(false)
+  // Debounce cascade persistence to avoid store-update re-renders during InsertTrigger transitions
+  const cascadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingCascadeRef = useRef<Array<{ projectId: number; x: number; y: number }> | null>(null)
   // Ref for bring-to-front callback (assigned after setNodes is available)
   const bringToFrontRef = useRef<(nodeId: string) => void>(() => {})
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
@@ -397,12 +406,79 @@ export function CanvasView({
         }
       }
 
-      // Apply snapping during drag
+      // Detect project height changes for cascade shifting (read BEFORE updating prevHeightsRef)
+      const dimChanges: HeightDelta[] = []
+      if (!cascadingRef.current && draggingIds.current.size === 0) {
+        for (const change of changes) {
+          if (change.type === 'dimensions' && !change.resizing && change.dimensions) {
+            const id = change.id
+            if (id.startsWith(INSET_PREFIX) || id.startsWith(NOTE_PREFIX) || id === TASKBOARD_NODE_ID) continue
+            const prevH = prevHeightsRef.current.get(id)
+            const newH = change.dimensions.height
+            if (prevH != null && Math.abs(newH - prevH) > 1) {
+              dimChanges.push({ nodeId: id, previousHeight: prevH, currentHeight: newH })
+            }
+          }
+        }
+      }
+      // Always update prevHeightsRef for all dimension changes
+      for (const change of changes) {
+        if (change.type === 'dimensions' && change.dimensions) {
+          prevHeightsRef.current.set(change.id, change.dimensions.height)
+        }
+      }
+
+      // Capture cascade persist data from inside setNodes (updater runs synchronously)
+      let cascadePersist: Array<{ nodeId: string; x: number; y: number }> = []
+
+      // Apply snapping during drag, cascade shifts when idle
       setNodes(nds => {
         const updated = applyNodeChanges(changes, nds)
 
         if (!hasActiveDrag || draggingIds.current.size > 1) {
-          if (draggingIds.current.size === 0) setAlignmentLines([])
+          if (draggingIds.current.size === 0) {
+            setAlignmentLines([])
+
+            // Cascade shift: when no drag is active and project heights changed
+            if (dimChanges.length > 0) {
+              const allRects: ScopedRect[] = []
+              const projectIds = new Set<string>()
+              for (const n of updated) {
+                const internal = rfInstanceRef.current?.getInternalNode(n.id)
+                allRects.push({
+                  nodeId: n.id,
+                  x: n.position.x,
+                  y: n.position.y,
+                  width: internal?.measured?.width ?? 280,
+                  height: internal?.measured?.height ?? 200,
+                })
+                if (!n.id.startsWith(INSET_PREFIX) && !n.id.startsWith(NOTE_PREFIX) && n.id !== TASKBOARD_NODE_ID) {
+                  projectIds.add(n.id)
+                }
+              }
+
+              const shifts = computeCascadeShifts(dimChanges, allRects, CASCADE_GAP_THRESHOLD, projectIds)
+              if (shifts.length > 0) {
+                cascadingRef.current = true
+                const shiftMap = new Map(shifts.map(s => [s.nodeId, s.newY]))
+
+                cascadePersist = shifts.map(s => {
+                  const node = updated.find(n => n.id === s.nodeId)
+                  return node
+                    ? { nodeId: s.nodeId, x: node.position.x, y: s.newY }
+                    : { nodeId: s.nodeId, x: 0, y: s.newY }
+                }).filter(s => {
+                  const node = updated.find(n => n.id === s.nodeId)
+                  return node != null
+                })
+
+                return updated.map(n => {
+                  const newY = shiftMap.get(n.id)
+                  return newY != null ? { ...n, position: { ...n.position, y: newY } } : n
+                })
+              }
+            }
+          }
           return updated
         }
 
@@ -434,8 +510,31 @@ export function CanvasView({
 
         return updated
       })
+
+      // Persist cascade shifts: apply droppedPositions immediately (visual),
+      // but debounce the store update to avoid re-render chains that steal input focus.
+      if (cascadePersist.length > 0) {
+        for (const { nodeId, x, y } of cascadePersist) {
+          droppedPositions.current.set(nodeId, { x, y })
+        }
+        // Debounce store persistence — if another cascade fires within 300ms
+        // (e.g. InsertTrigger opening then closing), only the final positions are written.
+        pendingCascadeRef.current = cascadePersist.map(s => ({
+          projectId: Number(s.nodeId), x: s.x, y: s.y,
+        }))
+        if (cascadeTimerRef.current) clearTimeout(cascadeTimerRef.current)
+        cascadeTimerRef.current = setTimeout(() => {
+          const pending = pendingCascadeRef.current
+          if (pending && pending.length > 0) {
+            onCascadeShift?.(pending)
+          }
+          pendingCascadeRef.current = null
+          cascadeTimerRef.current = null
+        }, 300)
+        queueMicrotask(() => { cascadingRef.current = false })
+      }
     },
-    [onNodeDragStop, getNodeAbsoluteRect]
+    [onNodeDragStop, getNodeAbsoluteRect, onCascadeShift]
   )
 
   const handleInit = useCallback((instance: ReactFlowInstance) => {

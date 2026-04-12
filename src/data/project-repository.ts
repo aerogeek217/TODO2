@@ -27,6 +27,15 @@ export const projectRepository = {
     await db.projects.update(id, { positionX: x, positionY: y })
   },
 
+  async bulkUpdatePositions(updates: Array<{ id: number; x: number; y: number }>): Promise<void> {
+    if (updates.length === 0) return
+    await db.transaction('rw', db.projects, async () => {
+      for (const { id, x, y } of updates) {
+        await db.projects.update(id, { positionX: x, positionY: y })
+      }
+    })
+  },
+
   async delete(id: number): Promise<void> {
     await db.transaction('rw', [db.projects, db.todos], async () => {
       await db.todos.where('projectId').equals(id).modify({ projectId: undefined })

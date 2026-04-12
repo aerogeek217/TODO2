@@ -16,6 +16,7 @@ interface ProjectState {
   add: (name: string, canvasId: number, x?: number, y?: number) => Promise<number>
   update: (project: Project) => Promise<void>
   updatePosition: (id: number, x: number, y: number) => Promise<void>
+  bulkUpdatePositions: (updates: Array<{ id: number; x: number; y: number }>) => Promise<void>
   remove: (id: number) => Promise<void>
 }
 
@@ -88,6 +89,35 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ),
       }),
       'Failed to update project position',
+    )
+  },
+
+  async bulkUpdatePositions(updates: Array<{ id: number; x: number; y: number }>) {
+    if (updates.length === 0) return
+    const prevPositions = new Map(
+      get().projects
+        .filter((p) => updates.some((u) => u.id === p.id))
+        .map((p) => [p.id!, { x: p.positionX, y: p.positionY }]),
+    )
+    const updateMap = new Map(updates.map((u) => [u.id, u]))
+    return optimistic(
+      set,
+      () =>
+        set({
+          projects: get().projects.map((p) => {
+            const u = updateMap.get(p.id!)
+            return u ? { ...p, positionX: u.x, positionY: u.y } : p
+          }),
+        }),
+      () => projectRepository.bulkUpdatePositions(updates),
+      () =>
+        set({
+          projects: get().projects.map((p) => {
+            const prev = prevPositions.get(p.id!)
+            return prev ? { ...p, positionX: prev.x, positionY: prev.y } : p
+          }),
+        }),
+      'Failed to bulk update positions',
     )
   },
 

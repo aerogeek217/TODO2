@@ -65,6 +65,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
       <div className={styles.inputRow} style={{ position: 'relative' }} onContextMenu={onContextMenu}>
         <input
           ref={inputRef}
+          autoFocus
           className={styles.input}
           defaultValue=""
           onChange={(e) => {

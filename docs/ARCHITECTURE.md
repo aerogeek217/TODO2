@@ -69,7 +69,7 @@ main.tsx (entry point)
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
 | buildAssignmentMap | data/join-helpers.ts | Generic join table → entity map builder (Map\<linkId, Entity[]\>) |
 | todoRepository | data/todo-repository.ts | Full CRUD + queries for TodoItem, bulkUpdate (batched transaction), bulkDelete (atomic multi-delete) |
-| projectRepository | data/project-repository.ts | CRUD + position updates for Project |
+| projectRepository | data/project-repository.ts | CRUD + position updates (single + bulk) for Project |
 | canvasRepository | data/canvas-repository.ts | CRUD for Canvas (cascading delete: todos, projects, todoTags, todoPeople, todoOrgs, stickyNotes, listInsets) |
 | personRepository | data/person-repository.ts | CRUD for Person + todoPeople join queries |
 | tagRepository | data/tag-repository.ts | CRUD for Tag + todoTags join queries |
@@ -123,6 +123,7 @@ main.tsx (entry point)
 | buildHierarchy | utils/hierarchy.ts | Groups flat todo list into parent/child hierarchy (max 2 levels), sorts roots by sortOrder; promotes grandchildren to root ancestor to prevent invisible tasks |
 | getFlatVisualOrder | utils/hierarchy.ts | Returns todos in visual display order (parent, children, parent, children, ...) |
 | findAlignments, findAlignmentsScoped, findResizeSnap | components/canvas/alignment.ts | Snap-to-edge alignment for dragging/resizing nodes (5px threshold, guide lines) |
+| computeCascadeShifts, CASCADE_GAP_THRESHOLD | components/canvas/cascade-shift.ts | Auto-shift stacked projects when a neighbor's height changes (40px gap threshold, BFS cascade) |
 | useIsMobile | hooks/use-is-mobile.ts | Reactive mobile detection hook (640px breakpoint via matchMedia + useSyncExternalStore) |
 | useKeyboardShortcuts | hooks/use-keyboard-shortcuts.ts | Global keyboard shortcut handler: undo/redo, task navigation (Arrow/Home/End), task actions (Enter/Space/Delete/Insert), movement (Ctrl+Arrow/Tab), chord navigation (G then C/L/A/S), filter focus (F), select all (Ctrl+A), keyboard shortcuts modal (?) |
 | useBulkActions | hooks/use-bulk-actions.ts | Hook wrapping mutations with multi-select awareness; called directly by TaskRow |
