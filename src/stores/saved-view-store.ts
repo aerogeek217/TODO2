@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { savedViewRepository } from '../data/saved-view-repository'
+import { db } from '../data/database'
 import type { PersistedSavedView, SavedViewFilters, ListSortBy } from '../models'
 import type { FilterCriteria } from './filter-store'
 import { Priority } from '../models'
@@ -80,47 +81,75 @@ export const useSavedViewStore = create<SavedViewState>((set, get) => ({
   },
 
   async saveCurrentView(name: string, sortBy: ListSortBy, filters: FilterCriteria) {
-    const { views } = get()
-    const maxSort = views.length > 0 ? Math.max(...views.map((v) => v.sortOrder)) : 0
-    const id = await savedViewRepository.add({
-      name,
-      sortBy,
-      filters: filtersToSerializable(filters),
-      sortOrder: maxSort + 1,
-    })
-    const view = { id, name, sortBy, filters: filtersToSerializable(filters), sortOrder: maxSort + 1 }
-    set({ views: [...views, view], activeViewId: id })
+    try {
+      const { views } = get()
+      const maxSort = views.length > 0 ? Math.max(...views.map((v) => v.sortOrder)) : 0
+      const id = await savedViewRepository.add({
+        name,
+        sortBy,
+        filters: filtersToSerializable(filters),
+        sortOrder: maxSort + 1,
+      })
+      const view = { id, name, sortBy, filters: filtersToSerializable(filters), sortOrder: maxSort + 1 }
+      set({ views: [...views, view], activeViewId: id })
+    } catch (e) {
+      console.error('Failed to save view:', e)
+      set({ error: 'Failed to save view' })
+    }
   },
 
   async updateView(id: number, sortBy: ListSortBy, filters: FilterCriteria) {
-    const serialized = filtersToSerializable(filters)
-    await savedViewRepository.update(id, { sortBy, filters: serialized })
-    set({ views: get().views.map((v) => (v.id === id ? { ...v, sortBy, filters: serialized } : v)), activeViewId: id })
+    try {
+      const serialized = filtersToSerializable(filters)
+      await savedViewRepository.update(id, { sortBy, filters: serialized })
+      set({ views: get().views.map((v) => (v.id === id ? { ...v, sortBy, filters: serialized } : v)), activeViewId: id })
+    } catch (e) {
+      console.error('Failed to update view:', e)
+      set({ error: 'Failed to update view' })
+    }
   },
 
   async renameView(id: number, name: string) {
-    await savedViewRepository.update(id, { name })
-    set({ views: get().views.map((v) => (v.id === id ? { ...v, name } : v)) })
+    try {
+      await savedViewRepository.update(id, { name })
+      set({ views: get().views.map((v) => (v.id === id ? { ...v, name } : v)) })
+    } catch (e) {
+      console.error('Failed to rename view:', e)
+      set({ error: 'Failed to rename view' })
+    }
   },
 
   async removeView(id: number) {
-    await savedViewRepository.remove(id)
-    const { views, activeViewId } = get()
-    set({
-      views: views.filter((v) => v.id !== id),
-      activeViewId: activeViewId === id ? null : activeViewId,
-    })
+    try {
+      await savedViewRepository.remove(id)
+      const { views, activeViewId } = get()
+      set({
+        views: views.filter((v) => v.id !== id),
+        activeViewId: activeViewId === id ? null : activeViewId,
+      })
+    } catch (e) {
+      console.error('Failed to remove view:', e)
+      set({ error: 'Failed to remove view' })
+    }
   },
 
   async reorder(fromIndex: number, toIndex: number) {
-    const sorted = [...get().views].sort((a, b) => a.sortOrder - b.sortOrder)
+    const prev = get().views
+    const sorted = [...prev].sort((a, b) => a.sortOrder - b.sortOrder)
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
     const [moved] = sorted.splice(fromIndex, 1)
     sorted.splice(toIndex, 0, moved)
     const updated = sorted.map((v, i) => ({ ...v, sortOrder: i }))
     set({ views: updated })
-    for (const v of updated) {
-      await savedViewRepository.update(v.id, { sortOrder: v.sortOrder })
+    try {
+      await db.transaction('rw', db.savedViews, async () => {
+        for (const v of updated) {
+          await savedViewRepository.update(v.id, { sortOrder: v.sortOrder })
+        }
+      })
+    } catch (e) {
+      console.error('Failed to reorder views:', e)
+      set({ views: prev, error: 'Failed to reorder views' })
     }
   },
 

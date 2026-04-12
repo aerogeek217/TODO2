@@ -137,6 +137,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       setTitle(todo.title)
       setNotes(todo.notes ?? '')
       setProgress(todo.progress ?? '')
+      setStatusId(todo.statusId ?? undefined)
+      setProjectId(todo.projectId)
       setDueDate(toDateInputValue(todo.dueDate))
       setIsHardDeadline(todo.isHardDeadline ?? false)
       setPriorityState(todo.priority)
@@ -144,7 +146,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       setIsAssigned(todo.isAssigned ?? false)
       setRecurrenceType(todo.recurrenceRule?.type ?? '')
     }
-  }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.dueDate, todo?.priority, todo?.isStarred, todo?.isAssigned, todo?.recurrenceRule?.type])
+  }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.statusId, todo?.projectId, todo?.dueDate, todo?.isHardDeadline, todo?.priority, todo?.isStarred, todo?.isAssigned, todo?.recurrenceRule?.type])
 
   // Auto-clear isAssigned when all people and orgs are removed
   useEffect(() => {

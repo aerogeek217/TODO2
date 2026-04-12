@@ -28,8 +28,8 @@ main.tsx (entry point)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
 │   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, StatusEditor, ThemeColorsEditor, KeyboardShortcutsModal
 │   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, FollowupIcon, selection.module.css, dropdown.module.css
-├── stores/                → Zustand (canvas, todo, project, person, tag, org, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view)
-├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, settings, saved-view, sticky-note)
+├── stores/                → Zustand (canvas, todo, project, person, tag, org, status, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view, settings, file-storage)
+├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, status, settings, saved-view, sticky-note)
 ├── models/                → TypeScript interfaces
 ├── hooks/                 → Custom React hooks
 ├── utils/                 → Shared pure utilities (hierarchy helpers)

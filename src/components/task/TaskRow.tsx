@@ -240,11 +240,11 @@ export const TaskRow = memo(function TaskRow({
         />
       )}
 
-      {statusColor && (
+      {statuses.length > 0 && (
         <div ref={statusRef} className={styles.statusWrapper}>
           <button
             className={styles.statusDot}
-            style={{ background: statusColor }}
+            style={statusColor ? { background: statusColor } : { background: 'var(--color-text-muted)', opacity: 0.3 }}
             onClick={(e) => { e.stopPropagation(); if (!ghost) setShowStatusMenu(v => !v) }}
             title="Set status"
           />

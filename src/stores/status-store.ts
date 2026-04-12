@@ -101,7 +101,8 @@ export const useStatusStore = create<StatusState>((set, get) => ({
   },
 
   async reorder(fromIndex: number, toIndex: number) {
-    const sorted = [...get().statuses].sort((a, b) => a.sortOrder - b.sortOrder)
+    const prev = get().statuses
+    const sorted = [...prev].sort((a, b) => a.sortOrder - b.sortOrder)
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
 
     const [moved] = sorted.splice(fromIndex, 1)
@@ -110,10 +111,15 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     const updated = sorted.map((s, i) => ({ ...s, sortOrder: i }))
     set({ statuses: updated })
 
-    await db.transaction('rw', db.statuses, async () => {
-      for (const s of updated) {
-        await db.statuses.update(s.id!, { sortOrder: s.sortOrder })
-      }
-    })
+    try {
+      await db.transaction('rw', db.statuses, async () => {
+        for (const s of updated) {
+          await db.statuses.update(s.id!, { sortOrder: s.sortOrder })
+        }
+      })
+    } catch (e) {
+      console.error('Failed to reorder statuses:', e)
+      set({ statuses: prev, error: 'Failed to reorder statuses' })
+    }
   },
 }))

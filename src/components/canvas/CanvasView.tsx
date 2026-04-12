@@ -194,6 +194,7 @@ export function CanvasView({
   const cascadingRef = useRef(false)
   // Debounce cascade persistence to avoid store-update re-renders during InsertTrigger transitions
   const cascadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (cascadeTimerRef.current) clearTimeout(cascadeTimerRef.current) }, [])
   const pendingCascadeRef = useRef<Array<{ projectId: number; x: number; y: number }> | null>(null)
   // Ref for bring-to-front callback (assigned after setNodes is available)
   const bringToFrontRef = useRef<(nodeId: string) => void>(() => {})

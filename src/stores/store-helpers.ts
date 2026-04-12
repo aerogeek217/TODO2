@@ -198,7 +198,7 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
 ): Promise<void> {
   const prevValues = get().todos
     .filter((t) => ids.includes(t.id))
-    .map((t) => ({ id: t.id, prev: t[field] }))
+    .map((t) => ({ id: t.id, prev: t[field], modifiedAt: t.modifiedAt }))
   const idSet = new Set(ids)
 
   await optimistic(
@@ -213,11 +213,12 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
     },
     () => todoRepository.bulkUpdate(ids.map((id) => ({ todoId: id, changes: { [field]: value } }))),
     () => {
-      const prevMap = new Map(prevValues.map((s) => [s.id, s.prev]))
+      const prevMap = new Map(prevValues.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
       set({
-        todos: get().todos.map((t) =>
-          prevMap.has(t.id) ? { ...t, [field]: prevMap.get(t.id), modifiedAt: new Date() } : t,
-        ),
+        todos: get().todos.map((t) => {
+          const saved = prevMap.get(t.id)
+          return saved ? { ...t, [field]: saved.prev, modifiedAt: saved.modifiedAt } : t
+        }),
       })
     },
     label,
@@ -227,14 +228,15 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
       undo: async () => {
         const mutations = prevValues
           .filter((s) => s.prev !== value)
-          .map((s) => ({ todoId: s.id, changes: { [field]: s.prev } }))
+          .map((s) => ({ todoId: s.id, changes: { [field]: s.prev, modifiedAt: s.modifiedAt } }))
         if (mutations.length > 0) {
           await todoRepository.bulkUpdate(mutations)
-          const prevMap = new Map(prevValues.map((s) => [s.id, s.prev]))
+          const prevMap = new Map(prevValues.map((s) => [s.id, { prev: s.prev, modifiedAt: s.modifiedAt }]))
           set({
-            todos: get().todos.map((t) =>
-              idSet.has(t.id) ? { ...t, [field]: prevMap.get(t.id), modifiedAt: new Date() } : t,
-            ),
+            todos: get().todos.map((t) => {
+              const saved = prevMap.get(t.id)
+              return saved ? { ...t, [field]: saved.prev, modifiedAt: saved.modifiedAt } : t
+            }),
           })
         }
       },

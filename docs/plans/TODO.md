@@ -39,6 +39,14 @@
 - [x] **Filter active indicator fix** — `isFilterActive` now treats only the defaults (incomplete-only, unassigned-only) as inactive; selecting Unassigned/Incomplete (non-"only") correctly shows the clear filters button
 
 
+## Up Next
+
+- [ ] **Status feature test coverage** — status-store.ts (all 5 actions), filter-store statusIds dimension, audit todosWithBadStatus check, saved-view statusIds round-trip, import-validation checkStatus, restore with statuses table (T1-T6 in code review)
+- [ ] **Duplicate status name prevention** — StatusEditor allows creating two statuses with identical names; add validation in store add/update and UI
+- [ ] **StatusEditor reorderKey remount** — `key={reorderKey}` on DndContext forces unnecessary unmount/remount after each drag; remove it
+- [ ] **PortalDropdown RAF optimization** — setPos called every frame even when position unchanged; compare before setting to avoid 60fps re-renders
+- [ ] **"Status Notes" label clarity** — progress field relabeled "Status Notes" but is unrelated to new statusId workflow; consider renaming
+
 ## User Testing
 
 

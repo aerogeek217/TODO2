@@ -531,6 +531,7 @@ export function ListView() {
   const { statuses, load: loadStatuses } = useStatusStore()
   const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
   const { filters, applyFilter, setAllFilters } = useFilterStore()
+  const isFilterActive = useFilterStore((s) => s.isActive)
   const taskEdit = useTaskEditCallbacks()
   const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, updateView, renameView, removeView, reorder: reorderViews, setActiveViewId } = useSavedViewStore()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -880,7 +881,7 @@ export function ListView() {
 
           {totalActive === 0 && (
             <div className={styles.empty}>
-              {filters.priorities !== null || filters.followupFilter !== 'all' || filters.completedFilter !== 'incomplete' || filters.assignedFilter !== 'unassigned' || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.searchText || filters.dateRangeStart !== null || filters.dateRangeEnd !== null ? (
+              {isFilterActive ? (
                 <>
                   No tasks match your current filters.
                   <button className={styles.clearFiltersButton} onClick={() => useFilterStore.getState().clearAll()}>Clear filters</button>
