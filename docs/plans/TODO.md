@@ -8,6 +8,7 @@
 ## Features and Enhancements
 
 - [x] **Cascade shift stacked canvas projects** — auto-shift projects below when a neighbor's height changes (task add/remove, collapse), with 40px gap threshold, BFS cascade, debounced persistence
+- [x] **Drag tasks to taskboard from dashboard and canvas list insets** — drag from dashboard lists (Mine/Follow-up/Assigned/Stale) and canvas list inset nodes (Due, Starred, High Priority) into the taskboard
 
 
 

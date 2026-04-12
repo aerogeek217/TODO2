@@ -1,4 +1,14 @@
 import { useEffect, useMemo, useCallback, useState } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
@@ -6,6 +16,7 @@ import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
+import { useIsMobile } from '../hooks/use-is-mobile'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
@@ -99,6 +110,27 @@ export function buildDashboardLists(todos: PersistedTodoItem[]): DashboardList[]
   ]
 }
 
+function DashboardDraggableRow({
+  todo,
+  listKey,
+  children,
+}: {
+  todo: PersistedTodoItem
+  listKey: string
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `dashboard-${listKey}-${todo.id}`,
+    data: { type: 'dashboard-task', todo },
+  })
+
+  return (
+    <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.4 : 1 }}>
+      {children}
+    </div>
+  )
+}
+
 export function DashboardView() {
   const { todos, loadAll } = useTodoStore()
   const { assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments } = usePersonStore()
@@ -107,7 +139,26 @@ export function DashboardView() {
   const { openEditPopup } = useUIStore()
   const { load: loadTaskboard } = useTaskboardStore()
   const taskEdit = useTaskEditCallbacks()
+  const isMobile = useIsMobile()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  )
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
+    if (todo) setActiveDragTodo(todo)
+  }, [])
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setActiveDragTodo(null)
+    const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
+    const overData = event.over?.data.current
+    if (!todo || overData?.type !== 'taskboard') return
+    await useTaskboardStore.getState().add(todo.id)
+  }, [])
 
   useEffect(() => {
     loadAll()
@@ -136,7 +187,7 @@ export function DashboardView() {
     setCollapsed((s) => ({ ...s, [key]: !s[key] }))
   }, [])
 
-  return (
+  const pageContent = (
     <>
       <div className={styles.page}>
         <div className={styles.container}>
@@ -166,14 +217,26 @@ export function DashboardView() {
                       <div className={styles.empty}>No tasks</div>
                     ) : (
                       list.todos.map((todo) => (
-                        <TaskRow
-                          key={todo.id}
-                          todo={todo}
-                          assignedPeople={assignedPeopleMap.get(todo.id)}
-                          assignedTags={assignedTagsMap.get(todo.id)}
-                          compact
-                          onOpenDetail={handleClick}
-                        />
+                        !isMobile ? (
+                          <DashboardDraggableRow key={todo.id} todo={todo} listKey={list.key}>
+                            <TaskRow
+                              todo={todo}
+                              assignedPeople={assignedPeopleMap.get(todo.id)}
+                              assignedTags={assignedTagsMap.get(todo.id)}
+                              compact
+                              onOpenDetail={handleClick}
+                            />
+                          </DashboardDraggableRow>
+                        ) : (
+                          <TaskRow
+                            key={todo.id}
+                            todo={todo}
+                            assignedPeople={assignedPeopleMap.get(todo.id)}
+                            assignedTags={assignedTagsMap.get(todo.id)}
+                            compact
+                            onOpenDetail={handleClick}
+                          />
+                        )
                       ))
                     )}
                   </div>
@@ -218,5 +281,24 @@ export function DashboardView() {
       </div>
       <FilteredListPopup />
     </>
+  )
+
+  if (isMobile) return pageContent
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      {pageContent}
+      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+        {activeDragTodo && (
+          <div className={styles.dragOverlay}>
+            <TaskRow todo={activeDragTodo} compact ghost />
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
   )
 }

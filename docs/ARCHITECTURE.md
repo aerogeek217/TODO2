@@ -140,14 +140,14 @@ main.tsx (entry point)
 | FilterSheet | components/overlays/FilterSheet.tsx | Mobile filter bottom sheet: search, priority, date range, toggles, people/orgs/tags accordion lists; reads/writes useFilterStore |
 | MobileTaskRow | components/task/MobileTaskRow.tsx | Mobile-optimized two-line task row: priority + checkbox + title + star + chevron (line 1), due/people/tags/org/notes (line 2); 48px min touch targets |
 | CanvasContextMenu | components/overlays/CanvasContextMenu.tsx | Reusable right-click context menu (canvas background, project, box) |
-| ListInsetNode | components/canvas/ListInsetNode.tsx | Canvas node showing filtered task list (preset: due-this-week, starred, high-priority); uses TaskRow components |
+| ListInsetNode | components/canvas/ListInsetNode.tsx | Canvas node showing filtered task list (preset: due-this-week, starred, high-priority); draggable TaskRow components (drag to taskboard) |
 | StickyNoteNode | components/canvas/StickyNoteNode.tsx | Canvas note widget with editable title, textarea, per-line task conversion, color picker palette, @/#// autocomplete |
 | FilteredListPopup | components/overlays/FilteredListPopup.tsx | On-demand floating list popup triggered by right-clicking priority/person/tag on any TaskRow; reads from stores directly |
 | ProjectNavigator | components/canvas/ProjectNavigator.tsx | Collapsible overlay panel listing all projects; click to fitView-navigate; toggled with P key |
-| TaskboardPanel | components/taskboard/TaskboardPanel.tsx | Dashboard card for taskboard; sortable drag reorder via dnd-kit |
-| TaskboardNode | components/canvas/TaskboardNode.tsx | Canvas node for taskboard; resizable, closable (clears with confirmation), sortable drag reorder, droppable target for drag-to-add from project lists; always visible on canvas |
+| TaskboardPanel | components/taskboard/TaskboardPanel.tsx | Dashboard card for taskboard; sortable drag reorder via dnd-kit; droppable target for drag-to-add from dashboard lists |
+| TaskboardNode | components/canvas/TaskboardNode.tsx | Canvas node for taskboard; resizable, closable (clears with confirmation), sortable drag reorder, droppable target for drag-to-add from project lists and list insets; always visible on canvas |
 | PlainTextExportPopup | components/overlays/PlainTextExportPopup.tsx | Modal with plain text representation of current list sections; copy-to-clipboard support |
-| DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Follow-up, Assigned, Stale; unfiltered; 2x2 grid layout; collapsible cards |
+| DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Follow-up, Assigned, Stale; unfiltered; 2x2 grid layout; collapsible cards; drag tasks to taskboard via DndContext |
 | scoreTask | views/DashboardView.tsx | Importance scoring: hard deadline (+50), overdue (100+days), due proximity (60-days), priority (High+20, Medium+10) |
 | buildDashboardLists | views/DashboardView.tsx | Builds 4 dashboard lists from all incomplete todos using scoreTask ranking (Mine/Follow-up/Assigned by score, Stale by oldest modifiedAt) |
 | buildExportData | services/export-import.ts | Reads all 12 DB tables in parallel; shared by file-storage, settings export, and backup snapshots |

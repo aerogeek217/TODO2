@@ -6,6 +6,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core'
 import {
@@ -58,6 +59,11 @@ export function TaskboardPanel() {
   const [reorderKey, setReorderKey] = useState(0)
   const [collapsed, setCollapsed] = useState(false)
 
+  const { isOver, setNodeRef: setDropRef } = useDroppable({
+    id: 'dashboard-taskboard-drop',
+    data: { type: 'taskboard' },
+  })
+
   const todoMap = useMemo(() => {
     const map = new Map<number, PersistedTodoItem>()
     for (const t of todos) map.set(t.id, t)
@@ -91,7 +97,7 @@ export function TaskboardPanel() {
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
 
   return (
-    <div className={styles.panel}>
+    <div ref={setDropRef} className={`${styles.panel} ${isOver ? styles.dropTarget : ''}`}>
       <div className={styles.header} onClick={() => setCollapsed(c => !c)}>
         <span className={`${styles.chevron} ${collapsed ? styles.chevronCollapsed : ''}`}>&#9662;</span>
         <span className={styles.headerTitle}>Taskboard</span>
@@ -102,7 +108,7 @@ export function TaskboardPanel() {
           {visibleEntries.length === 0 ? (
             <div className={styles.empty}>
               No tasks queued
-              <span className={styles.dropHint}>Right-click a task to add it</span>
+              <span className={styles.dropHint}>Drag a task here or right-click to add</span>
             </div>
           ) : (
             <DndContext key={reorderKey} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

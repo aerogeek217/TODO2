@@ -93,6 +93,20 @@
   font-size: var(--font-size-meta);
 }
 
+/* ── Drag overlay ── */
+
+.dragOverlay {
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-drag-overlay);
+  padding: 2px 0;
+  min-width: 240px;
+  max-width: 500px;
+  transform: scale(1.03);
+  opacity: 0.95;
+}
+
 /* ── Mobile: stack to single column ── */
 
 @media (max-width: 640px) {
