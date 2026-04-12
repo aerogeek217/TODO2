@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useMemo, memo } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { Priority } from '../../models'
@@ -19,6 +19,36 @@ import { PriorityMenu, getPriorityColor } from '../shared/PriorityMenu'
 import { FollowupIcon } from '../shared/FollowupIcon'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import styles from './TaskRow.module.css'
+
+/** Portal-rendered dropdown anchored below a trigger element */
+function PortalDropdown({ anchorRef, onClickOutside, children }: {
+  anchorRef: React.RefObject<HTMLElement | null>
+  onClickOutside: () => void
+  children: React.ReactNode
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
+
+  useClickOutside(dropdownRef, onClickOutside, true)
+
+  // Continuously track anchor position (handles scroll, canvas pan, etc.)
+  useEffect(() => {
+    let raf: number
+    const tick = () => {
+      const rect = anchorRef.current?.getBoundingClientRect()
+      if (rect) setPos({ top: rect.bottom + 4, left: rect.left })
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [anchorRef])
+
+  return (
+    <div ref={dropdownRef} className={styles.portalDropdown} style={{ top: pos.top, left: pos.left }}>
+      {children}
+    </div>
+  )
+}
 
 interface TaskRowProps {
   todo: PersistedTodoItem
@@ -184,8 +214,11 @@ export const TaskRow = memo(function TaskRow({
           title="Set priority"
           aria-label="Set priority"
         />
-        {showPriorityMenu && !ghost && (
-          <PriorityMenu currentPriority={todo.priority} onSelect={(p) => { handleSetPriority(p); setShowPriorityMenu(false) }} />
+        {showPriorityMenu && !ghost && createPortal(
+          <PortalDropdown anchorRef={priorityMenuRef} onClickOutside={closePriority}>
+            <PriorityMenu currentPriority={todo.priority} onSelect={(p) => { handleSetPriority(p); setShowPriorityMenu(false) }} />
+          </PortalDropdown>,
+          document.body,
         )}
       </div>
 
@@ -287,23 +320,26 @@ export const TaskRow = memo(function TaskRow({
               @
             </button>
           )}
-          {openDropdown === 'people' && (
-            <div className={styles.chipDropdown}>
-              <ChipSelector
-                items={[
-                  ...allPeople.map(p => ({ id: p.id!, name: p.name })),
-                  ...allOrgs.map(o => ({ id: -o.id!, name: o.name, color: o.color })),
-                ]}
-                selectedIds={(() => {
-                  const ids = new Set(assignedPeopleIds)
-                  for (const oid of assignedOrgIds) ids.add(-oid)
-                  return ids
-                })()}
-                onToggle={(id) => id < 0 ? toggleOrg(-id) : togglePerson(id)}
-                onCreate={handleCreatePerson}
-                placeholder="Search people & orgs..."
-              />
-            </div>
+          {openDropdown === 'people' && createPortal(
+            <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
+              <div className={styles.chipDropdown}>
+                <ChipSelector
+                  items={[
+                    ...allPeople.map(p => ({ id: p.id!, name: p.name })),
+                    ...allOrgs.map(o => ({ id: -o.id!, name: o.name, color: o.color })),
+                  ]}
+                  selectedIds={(() => {
+                    const ids = new Set(assignedPeopleIds)
+                    for (const oid of assignedOrgIds) ids.add(-oid)
+                    return ids
+                  })()}
+                  onToggle={(id) => id < 0 ? toggleOrg(-id) : togglePerson(id)}
+                  onCreate={handleCreatePerson}
+                  placeholder="Search people & orgs..."
+                />
+              </div>
+            </PortalDropdown>,
+            document.body,
           )}
         </div>
       )}
@@ -325,16 +361,19 @@ export const TaskRow = memo(function TaskRow({
               #
             </button>
           )}
-          {openDropdown === 'tags' && (
-            <div className={styles.chipDropdown}>
-              <ChipSelector
-                items={allTags.map(t => ({ id: t.id!, name: t.name, color: t.color }))}
-                selectedIds={assignedTagIds}
-                onToggle={(id) => toggleTag(id)}
-                onCreate={handleCreateTag}
-                placeholder="Search tags..."
-              />
-            </div>
+          {openDropdown === 'tags' && createPortal(
+            <PortalDropdown anchorRef={tagsRef} onClickOutside={closeDropdown}>
+              <div className={styles.chipDropdown}>
+                <ChipSelector
+                  items={allTags.map(t => ({ id: t.id!, name: t.name, color: t.color }))}
+                  selectedIds={assignedTagIds}
+                  onToggle={(id) => toggleTag(id)}
+                  onCreate={handleCreateTag}
+                  placeholder="Search tags..."
+                />
+              </div>
+            </PortalDropdown>,
+            document.body,
           )}
         </div>
       )}

@@ -454,9 +454,12 @@
 }
 
 .chipDropdown {
-  composes: menu from '../shared/dropdown.module.css';
-  left: 0;
-  z-index: var(--z-dropdown);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 4px 0;
+  box-shadow: var(--shadow-dropdown);
   min-width: 140px;
 }
 
@@ -622,4 +625,16 @@
 
 .deleteButton:hover {
   color: var(--color-priority-high);
+}
+
+/* Portal-rendered dropdown container — children are static inside */
+.portalDropdown {
+  position: fixed;
+  z-index: var(--z-dropdown);
+}
+
+/* Reset position:absolute from composed dropdown styles inside portals */
+.portalDropdown > div {
+  position: static;
+  margin-top: 0;
 }
