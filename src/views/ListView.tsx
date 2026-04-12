@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -99,11 +99,21 @@ export function buildPeopleSections(
   assignedPeopleMap: Map<number, Person[]>,
   orgs?: Org[],
   assignedOrgsMap?: Map<number, Org[]>,
+  personOrgMap?: Map<number, number[]>,
+  filteredOrgIds?: Set<number> | null,
 ): Section[] {
   const sections: Section[] = []
   const assignedTodoIds = new Set<number>()
 
-  for (const person of people) {
+  // When an org filter is active, only show people who belong to at least one filtered org
+  const visiblePeople = (filteredOrgIds && personOrgMap)
+    ? people.filter((p) => {
+        const memberOrgIds = personOrgMap.get(p.id!) ?? []
+        return memberOrgIds.some((orgId) => filteredOrgIds.has(orgId))
+      })
+    : people
+
+  for (const person of visiblePeople) {
     const personTodos = todos.filter((t) => {
       const assigned = assignedPeopleMap.get(t.id) ?? []
       return assigned.some((p) => p.id === person.id)
@@ -122,8 +132,9 @@ export function buildPeopleSections(
   const unassigned = todos.filter((t) => !assignedTodoIds.has(t.id))
   if (unassigned.length > 0 && orgs && assignedOrgsMap) {
     // Sub-group unassigned-to-person tasks by their direct org assignment
+    const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
     const orgGroupedIds = new Set<number>()
-    for (const org of orgs) {
+    for (const org of visibleOrgs) {
       const orgTodos = unassigned.filter((t) => {
         const todoOrgs = assignedOrgsMap.get(t.id) ?? []
         return todoOrgs.some((o) => o.id === org.id)
@@ -422,7 +433,7 @@ export function ListView() {
       case 'due':
         return buildDueSections(activeTodos)
       case 'people':
-        return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap)
+        return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds)
       case 'tag':
         return buildTagSections(activeTodos, tags, assignedTagsMap)
       case 'project':
@@ -448,12 +459,27 @@ export function ListView() {
 
   // --- Saved views ---
 
+  const applyingViewRef = useRef(false)
+
   const handleApplyView = useCallback((view: { sortBy: ListSortBy; filters: import('../models/saved-view').SavedViewFilters; id: number }) => {
+    applyingViewRef.current = true
     setListSortBy(view.sortBy)
     const runtime = savedFiltersToRuntime(view.filters)
     setAllFilters({ ...useFilterStore.getState().filters, ...runtime })
     setActiveViewId(view.id)
   }, [setListSortBy, setAllFilters, setActiveViewId])
+
+  // Clear saved view highlight when filters or sort-by change externally
+  useEffect(() => {
+    if (applyingViewRef.current) {
+      applyingViewRef.current = false
+      return
+    }
+    const { activeViewId: currentId, setActiveViewId: clearId } = useSavedViewStore.getState()
+    if (currentId !== null) {
+      clearId(null)
+    }
+  }, [filters, listSortBy])
 
   const handleSaveView = useCallback(() => {
     setSaveViewName('')

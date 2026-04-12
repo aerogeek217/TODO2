@@ -1,0 +1,163 @@
+import { useEffect, useState, useCallback } from 'react'
+import { useOrgStore } from '../../stores/org-store'
+import { orgRepository } from '../../data'
+import { generateInitials } from '../../utils/person'
+import type { Org } from '../../models'
+import { DEFAULT_ENTITY_COLOR } from '../../constants'
+import { ColorInput } from '../shared/ColorInput'
+import styles from './EntityEditor.module.css'
+
+interface OrgEditState {
+  id: number
+  name: string
+  initials: string
+  color: string
+}
+
+interface OrgEditorProps {
+  onClose: () => void
+}
+
+export function OrgEditor({ onClose }: OrgEditorProps) {
+  const { orgs, load: loadOrgs, add: addOrg, update: updateOrg, remove: removeOrg } = useOrgStore()
+
+  const [editing, setEditing] = useState<OrgEditState | null>(null)
+  const [editInitialsManual, setEditInitialsManual] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newInitials, setNewInitials] = useState('')
+  const [newInitialsManual, setNewInitialsManual] = useState(false)
+  const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [deleteCount, setDeleteCount] = useState(0)
+
+  useEffect(() => { loadOrgs() }, [loadOrgs])
+
+  const clearState = () => {
+    setEditing(null)
+    setAdding(false)
+    setDeleteId(null)
+  }
+
+  const startEdit = (o: Org) => {
+    clearState()
+    setEditing({ id: o.id!, name: o.name, initials: o.initials || generateInitials(o.name), color: o.color ?? DEFAULT_ENTITY_COLOR })
+    setEditInitialsManual(true)
+  }
+
+  const saveEdit = async () => {
+    if (!editing || !editing.name.trim()) return
+    const initials = editing.initials || generateInitials(editing.name)
+    await updateOrg({ id: editing.id, name: editing.name.trim(), initials, color: editing.color })
+    setEditing(null)
+  }
+
+  const startAdd = () => {
+    clearState()
+    setAdding(true)
+    setNewName('')
+    setNewInitials('')
+    setNewInitialsManual(false)
+    setNewColor(DEFAULT_ENTITY_COLOR)
+  }
+
+  const saveAdd = async () => {
+    if (!newName.trim()) return
+    const initials = newInitials || generateInitials(newName)
+    await addOrg(newName.trim(), newColor, initials)
+    setAdding(false)
+  }
+
+  const startDelete = async (id: number) => {
+    clearState()
+    setDeleteId(id)
+    const count = await orgRepository.getPersonCount(id)
+    setDeleteCount(count)
+  }
+
+  const confirmDelete = async () => {
+    if (deleteId == null) return
+    await removeOrg(deleteId)
+    setDeleteId(null)
+  }
+
+  const handleKeyDown = useCallback((save: () => void, cancel: () => void) => (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') save()
+    if (e.key === 'Escape') cancel()
+  }, [])
+
+  const renderRow = (org: Org) => {
+    if (deleteId === org.id) {
+      return (
+        <div key={org.id} className={styles.deleteConfirm}>
+          {org.color && <div className={styles.colorSwatch} style={{ background: org.color }} />}
+          <div className={styles.deleteMsg}>
+            Delete <strong>{org.name}</strong>?{deleteCount > 0 && ` ${deleteCount} ${deleteCount === 1 ? 'person' : 'people'} will become unaffiliated.`}
+          </div>
+          <button className={styles.deleteBtnConfirm} onClick={confirmDelete}>Delete</button>
+          <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
+        </div>
+      )
+    }
+
+    if (editing && editing.id === org.id) {
+      const ed = editing
+      return (
+        <div key={org.id} className={styles.editRow} onKeyDown={handleKeyDown(saveEdit, () => setEditing(null))}>
+          <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+          <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }) }} placeholder="Org name" autoFocus />
+          <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 3) }) }} placeholder="AB" />
+          <div className={styles.editActions}>
+            <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
+            <button className={styles.cancelBtn} onClick={() => setEditing(null)}>Cancel</button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div key={org.id} className={styles.row}>
+        {org.color ? <div className={styles.colorSwatch} style={{ background: org.color }} onClick={() => startEdit(org)} /> : <div className={styles.colorSwatch} onClick={() => startEdit(org)} />}
+        <span className={styles.nameEditable} onClick={() => startEdit(org)}>{org.name}</span>
+        <span className={styles.initials}>{org.initials || generateInitials(org.name)}</span>
+        <div className={styles.actions}>
+          <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => startDelete(org.id!)} title="Delete">&times;</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className={styles.backdrop} onClick={onClose} />
+      <div className={styles.modal}>
+        <div className={styles.header}>
+          <div className={styles.title}>Organizations</div>
+          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
+        </div>
+
+        <div className={styles.list}>
+          {orgs.length === 0 && !adding && (
+            <div className={styles.empty}>No orgs yet</div>
+          )}
+          {orgs.toSorted((a, b) => a.name.localeCompare(b.name)).map(renderRow)}
+
+          {adding && (
+            <div className={styles.editRow} onKeyDown={handleKeyDown(saveAdd, () => setAdding(false))}>
+              <ColorInput value={newColor} onChange={setNewColor} />
+              <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)) }} placeholder="Org name" autoFocus />
+              <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 3)) }} placeholder="AB" />
+              <div className={styles.editActions}>
+                <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
+                <button className={styles.cancelBtn} onClick={() => setAdding(false)}>Cancel</button>
+              </div>
+            </div>
+          )}
+          {!adding && (
+            <button className={styles.addBtn} onClick={startAdd}>+ Add Org</button>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}

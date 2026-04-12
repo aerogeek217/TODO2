@@ -4,6 +4,7 @@ import { useFileStorageStore, refreshAllStores } from '../stores/file-storage-st
 import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
+import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { buildHierarchy } from '../utils/hierarchy'
 import { Priority } from '../models'
@@ -17,6 +18,7 @@ import { backupRepository, type BackupSummary } from '../data/backup-repository'
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
+import { OrgEditor } from '../components/settings/OrgEditor'
 import { TagEditor } from '../components/settings/TagEditor'
 import { ThemeColorsEditor } from '../components/settings/ThemeColorsEditor'
 import { KeyboardShortcutsModal } from '../components/settings/KeyboardShortcutsModal'
@@ -45,10 +47,12 @@ export function SettingsPage() {
   const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
   const peopleCount = usePersonStore((s) => s.people.length)
+  const orgCount = useOrgStore((s) => s.orgs.length)
   const tagCount = useTagStore((s) => s.tags.length)
   const [exportMsg, setExportMsg] = useState('')
   const importRef = useRef<HTMLInputElement>(null)
   const [showPeopleEditor, setShowPeopleEditor] = useState(false)
+  const [showOrgEditor, setShowOrgEditor] = useState(false)
   const [showTagEditor, setShowTagEditor] = useState(false)
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -62,6 +66,7 @@ export function SettingsPage() {
 
   const isMobile = useIsMobile()
   const loadPeople = usePersonStore((s) => s.load)
+  const loadOrgs = useOrgStore((s) => s.load)
   const loadTags = useTagStore((s) => s.load)
 
   const loadBackups = async () => {
@@ -72,12 +77,13 @@ export function SettingsPage() {
     load()
     loadProjects()
     loadPeople()
+    loadOrgs()
     loadTags()
     loadBackups()
     return () => {
       timerRefs.current.forEach(clearTimeout)
     }
-  }, [load, loadProjects, loadPeople, loadTags])
+  }, [load, loadProjects, loadPeople, loadOrgs, loadTags])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -422,10 +428,13 @@ export function SettingsPage() {
         {/* People & Tags — desktop only */}
         {!isMobile && (
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>People & Tags</div>
+          <div className={styles.sectionTitle}>People, Orgs & Tags</div>
           <div className={styles.buttonRow}>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowPeopleEditor(true)}>
               Manage People{peopleCount > 0 && ` (${peopleCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowOrgEditor(true)}>
+              Manage Orgs{orgCount > 0 && ` (${orgCount})`}
             </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowTagEditor(true)}>
               Manage Tags{tagCount > 0 && ` (${tagCount})`}
@@ -627,6 +636,7 @@ export function SettingsPage() {
       {showThemeColors && <ThemeColorsEditor onClose={() => setShowThemeColors(false)} />}
       {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {showPeopleEditor && <PeopleEditor onClose={() => setShowPeopleEditor(false)} />}
+      {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
     </div>
   )

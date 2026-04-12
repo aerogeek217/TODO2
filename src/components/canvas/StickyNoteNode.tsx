@@ -3,6 +3,7 @@ import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { StickyNote, Person, Tag, Project } from '../../models'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
+import { useUIStore } from '../../stores/ui-store'
 import styles from './StickyNoteNode.module.css'
 
 /** Compute the visual row index and column of the cursor in a textarea value */
@@ -44,7 +45,6 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const [showPalette, setShowPalette] = useState(false)
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [lineHeight, setLineHeight] = useState(0)
   const [lineHeights, setLineHeights] = useState<number[]>([])
   const paletteRef = useRef<HTMLDivElement>(null)
@@ -252,27 +252,24 @@ function StickyNoteNodeInner({ data }: NodeProps & { data: StickyNoteNodeType })
           </span>
         )}
 
-        {confirmingDelete ? (
-          <span className={`${styles.confirmDelete} nopan nodrag`}>
-            <span>Delete?</span>
-            <button className={styles.confirmYes} onClick={() => note.id && onDelete(note.id)}>Yes</button>
-            <button className={styles.confirmNo} onClick={() => setConfirmingDelete(false)}>No</button>
-          </span>
-        ) : (
-          <button
-            className={styles.deleteButton}
-            onClick={() => {
-              if (!note.id) return
-              if (localText.trim() || localTitle.trim()) {
-                setConfirmingDelete(true)
-              } else {
-                onDelete(note.id)
-              }
-            }}
-          >
-            &times;
-          </button>
-        )}
+        <button
+          className={`${styles.deleteButton} nopan nodrag`}
+          onClick={() => {
+            if (!note.id) return
+            if (localText.trim() || localTitle.trim()) {
+              useUIStore.getState().showBulkConfirmation('custom', [note.id], {
+                title: 'Delete note',
+                message: `Delete "${localTitle.trim() || 'Note'}"? This cannot be undone.`,
+                confirmLabel: 'Delete',
+                onConfirm: () => onDelete(note.id!),
+              })
+            } else {
+              onDelete(note.id)
+            }
+          }}
+        >
+          &times;
+        </button>
       </div>
 
       <div className={styles.body}>

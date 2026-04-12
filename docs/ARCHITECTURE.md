@@ -24,7 +24,7 @@ main.tsx (entry point)
 │   ├── task/              → TaskRow, TaskList, TaskEditPopup, MobileTaskRow
 │   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, StickyNoteNode, SortableTaskList, ProjectNavigator, alignment
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
-│   ├── settings/          → PeopleEditor, TagEditor, ThemeColorsEditor, KeyboardShortcutsModal
+│   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, ThemeColorsEditor, KeyboardShortcutsModal
 │   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, FollowupIcon, selection.module.css, dropdown.module.css
 ├── stores/                → Zustand (canvas, todo, project, person, tag, org, list-inset, sticky-note, ui, filter, undo, saved-view)
 ├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, settings, saved-view, sticky-note)
