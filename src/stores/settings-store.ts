@@ -99,7 +99,7 @@ function clearAllThemeOverrides() {
   root.style.removeProperty('--color-accent-dim')
 }
 
-function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
+export function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   if (mode === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   }

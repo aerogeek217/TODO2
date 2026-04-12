@@ -24,6 +24,7 @@ import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, StickyNot
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
+import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import styles from './CanvasView.module.css'
 import './drag-preview.css'
 
@@ -162,6 +163,7 @@ export function CanvasView({
   const isMinimapOpen = useUIStore((s) => s.isMinimapOpen)
   // Track which nodes are currently being dragged by React Flow
   const themeMode = useSettingsStore((s) => s.themeMode)
+  const resolvedTheme = useResolvedTheme()
   const [canvasDotColor, setCanvasDotColor] = useState(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--color-canvas-dot').trim() || '#3a3a3a'
   )
@@ -648,6 +650,15 @@ export function CanvasView({
                 <line x1="3" y1="8" x2="13" y2="8" />
                 <line x1="3" y1="12" x2="13" y2="12" />
               </svg>
+            </button>
+            <button
+              className={styles.mapToolbarButton}
+              onClick={() => useSettingsStore.getState().setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              title={themeMode === 'system'
+                ? `Theme: System (${resolvedTheme}) \u2014 switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'}`
+                : `Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              <span style={{ fontSize: 13, lineHeight: 1 }}>{resolvedTheme === 'dark' ? '☀' : '☾'}</span>
             </button>
             <button
               className={styles.mapToolbarButton}

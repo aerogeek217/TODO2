@@ -125,6 +125,7 @@ main.tsx (entry point)
 | findAlignments, findAlignmentsScoped, findResizeSnap | components/canvas/alignment.ts | Snap-to-edge alignment for dragging/resizing nodes (5px threshold, guide lines) |
 | computeCascadeShifts, CASCADE_GAP_THRESHOLD | components/canvas/cascade-shift.ts | Auto-shift stacked projects when a neighbor's height changes (40px gap threshold, BFS cascade) |
 | useIsMobile | hooks/use-is-mobile.ts | Reactive mobile detection hook (640px breakpoint via matchMedia + useSyncExternalStore) |
+| useResolvedTheme | hooks/use-resolved-theme.ts | Reactive resolved theme hook ('light' \| 'dark'); combines Zustand themeMode with OS prefers-color-scheme via useSyncExternalStore |
 | useKeyboardShortcuts | hooks/use-keyboard-shortcuts.ts | Global keyboard shortcut handler: undo/redo, task navigation (Arrow/Home/End), task actions (Enter/Space/Delete/Insert), movement (Ctrl+Arrow/Tab), chord navigation (G then C/L/A/S), filter focus (F), select all (Ctrl+A), keyboard shortcuts modal (?) |
 | useBulkActions | hooks/use-bulk-actions.ts | Hook wrapping mutations with multi-select awareness; called directly by TaskRow |
 | useTaskEditCallbacks | hooks/use-task-edit-callbacks.ts | Shared TaskEditPopup wiring: onCreate (NLP + metadata), editProps (assignments, actions), entityCreators — used by CanvasPage, DashboardView, ListView, CalendarView |
