@@ -237,10 +237,22 @@ function isOptBool(v: unknown): boolean {
   return v === undefined || isBool(v)
 }
 
+const VALID_COMPLETED_FILTERS = ['all', 'incomplete', 'completed']
+const VALID_ASSIGNED_FILTERS = ['all', 'unassigned', 'assigned']
+const VALID_FOLLOWUP_FILTERS = ['all', 'followup', 'no-followup']
+
+function isOptFilterStr(v: unknown, valid: string[]): boolean {
+  return v === undefined || v === null || (typeof v === 'string' && valid.includes(v))
+}
+
 function checkSavedViewFilters(v: unknown): CheckResult {
   if (!isObj(v)) return 'filters: not an object'
   return checkFields(v, [
     ['priorities', isOptNullableIntArray(v.priorities)],
+    // Accept both new string filters and old boolean fields
+    ['completedFilter', isOptFilterStr(v.completedFilter, VALID_COMPLETED_FILTERS)],
+    ['assignedFilter', isOptFilterStr(v.assignedFilter, VALID_ASSIGNED_FILTERS)],
+    ['followupFilter', isOptFilterStr(v.followupFilter, VALID_FOLLOWUP_FILTERS)],
     ['showCompleted', isOptBool(v.showCompleted)],
     ['showAssigned', isOptBool(v.showAssigned)],
     ['starredOnly', isOptBool(v.starredOnly)],
@@ -428,11 +440,19 @@ function pickStickyNote(v: Record<string, unknown>): StickyNote {
 }
 
 function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] {
+  // Normalize: prefer new string fields, fall back to old booleans
+  const completedFilter = (v.completedFilter as string) ?? ((v.showCompleted as boolean) ? 'all' : 'incomplete')
+  const assignedFilter = (v.assignedFilter as string) ?? ((v.showAssigned as boolean) ? 'all' : 'unassigned')
+  const followupFilter = (v.followupFilter as string) ?? ((v.starredOnly as boolean) ? 'followup' : 'all')
   return {
     priorities: v.priorities as number[] | null,
-    showCompleted: (v.showCompleted as boolean) ?? false,
-    showAssigned: (v.showAssigned as boolean) ?? false,
-    starredOnly: (v.starredOnly as boolean) ?? false,
+    completedFilter,
+    assignedFilter,
+    followupFilter,
+    // Backward compat: dual-write old boolean fields
+    showCompleted: completedFilter !== 'incomplete',
+    showAssigned: assignedFilter !== 'unassigned',
+    starredOnly: followupFilter === 'followup',
     hardDeadlineOnly: (v.hardDeadlineOnly as boolean) ?? false,
     personIds: v.personIds as number[] | null,
     tagIds: v.tagIds as number[] | null,

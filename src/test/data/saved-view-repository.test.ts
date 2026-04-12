@@ -16,6 +16,9 @@ describe('savedViewRepository', () => {
       sortOrder: 0,
       filters: {
         priorities: null,
+        completedFilter: 'incomplete',
+        assignedFilter: 'unassigned',
+        followupFilter: 'all',
         showCompleted: false,
         showAssigned: false,
         starredOnly: false,
@@ -99,6 +102,9 @@ describe('savedViewRepository', () => {
     const id = await savedViewRepository.add(makeView())
     const filters = {
       priorities: [2],
+      completedFilter: 'all',
+      assignedFilter: 'all',
+      followupFilter: 'followup',
       showCompleted: true,
       showAssigned: true,
       starredOnly: true,
@@ -113,6 +119,6 @@ describe('savedViewRepository', () => {
     const views = await savedViewRepository.getAll()
     expect(views[0].filters.priorities).toEqual([2])
     expect(views[0].filters.personIds).toEqual([1, 2])
-    expect(views[0].filters.showCompleted).toBe(true)
+    expect(views[0].filters.completedFilter).toBe('all')
   })
 })

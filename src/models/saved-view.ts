@@ -3,8 +3,14 @@ import type { ListSortBy, DateField } from './app-view'
 /** Serializable snapshot of filter + grouping state */
 export interface SavedViewFilters {
   priorities: number[] | null  // Priority enum values; null = no filter
+  completedFilter?: string
+  assignedFilter?: string
+  followupFilter?: string
+  /** @deprecated kept for backward compat with old app versions */
   showCompleted: boolean
+  /** @deprecated kept for backward compat with old app versions */
   showAssigned: boolean
+  /** @deprecated kept for backward compat with old app versions */
   starredOnly: boolean
   hardDeadlineOnly: boolean
   personIds: number[] | null

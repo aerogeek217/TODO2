@@ -184,6 +184,7 @@
   color: var(--color-followup);
 }
 
+
 .chevron {
   font-size: 9px;
   color: var(--color-text-muted);
@@ -346,6 +347,34 @@
   border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg) translate(-0.5px, -0.5px);
+}
+
+/* ═══ Custom radio ═══ */
+
+.radio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 50%;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.radio.checked {
+  border-color: var(--color-accent);
+}
+
+.radio.checked::after {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 
 /* ═══ Color dots ═══ */

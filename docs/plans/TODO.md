@@ -21,6 +21,7 @@
 
 ## Up Next
 
+- [x] **Tri-state filter dropdowns** — Assigned, Follow up, and Completed filters converted from boolean toggles to 3-option dropdowns (All/Assigned/Unassigned, All/Follow up/No follow up, All/Incomplete/Completed); radio-button dropdown UI on desktop, segmented controls on mobile; backward-compatible saved view serialization with dual-write
 - [ ] **Status badge should tint to match selected status color** — the priority badge in TaskEditPopup changes its text/border/background color based on the selected priority; the status badge should do the same using the selected status's color (inline style with rgba tinting)
 - [ ] **Status: canvas list inset attribute filter** — add status variant to ListInsetAttributeFilter / AttributeFilter for canvas list insets (deferred from initial implementation)
 - [ ] **Status: markdown export** — include status names in markdown export task lines

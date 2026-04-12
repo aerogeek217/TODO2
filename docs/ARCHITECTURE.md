@@ -59,6 +59,9 @@ main.tsx (entry point)
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
 | ListSortBy | models/app-view.ts | Type: priority, due, people, org, tag, project, status |
 | DateField | models/app-view.ts | Type: due, created, modified — used by filter store and saved views |
+| AssignedFilter | models/app-view.ts | Type: all, unassigned, assigned — tri-state filter for task assignment visibility |
+| FollowupFilter | models/app-view.ts | Type: all, followup, no-followup — tri-state filter for follow-up/starred visibility |
+| CompletedFilter | models/app-view.ts | Type: all, incomplete, completed — tri-state filter for completion visibility |
 | ListInset | models/list-inset.ts | Filtered task list widget on canvas (preset: due-this-week, starred, high-priority; or attributeFilter: priority/person/tag/org) |
 | ListInsetAttributeFilter | models/list-inset.ts | Attribute-based filter for list insets: priority, person, tag, or org |
 | StickyNote | models/sticky-note.ts | Free-text note widget on canvas (optional title, text, position, dimensions, optional color defaulting to yellow #FFF3B0, timestamps) |
@@ -102,7 +105,7 @@ main.tsx (entry point)
 | usePersonStore | stores/person-store.ts | People list, CRUD, todo-person assignments, bulk assign/unassign |
 | useOrgStore | stores/org-store.ts | Orgs list, CRUD, assignedOrgsMap, personOrgMap (centralized person↔org membership), todo-org assignments (assign/unassign/bulk with undo) |
 | useTagStore | stores/tag-store.ts | Tags list, CRUD, bulk assign/unassign |
-| useFilterStore | stores/filter-store.ts | Filter criteria (priorities, personIds, tagIds, orgIds, statusIds as null\|Set; showCompleted, showAssigned, starredOnly, hardDeadlineOnly, searchText, dateField (due/created/modified), dateRangeStart/End, dateRangeIncludeNoDue), displayed in TopBar filter bar |
+| useFilterStore | stores/filter-store.ts | Filter criteria (priorities, personIds, tagIds, orgIds, statusIds as null\|Set; completedFilter (all/incomplete/completed), assignedFilter (all/unassigned/assigned), followupFilter (all/followup/no-followup), hardDeadlineOnly, searchText, dateField (due/created/modified), dateRangeStart/End, dateRangeIncludeNoDue), displayed in TopBar filter bar |
 | useUIStore | stores/ui-store.ts | Active view, selected task(s), multi-selection (selectedTodoIds Set, selectionAnchorId, selectionFocusId, focusedTodoId, rangeSelectTodo, selectAll), edit popup mode, parent collapse, bulk confirmation dialog state, inlineCreateAfterId (Insert hotkey), clipboard (clipboardTodoIds, clipboardSourceProjectId, cutTasks, clearClipboard), filteredListPopup (AttributeFilter: priority/person/tag), pendingCanvasTarget (command palette navigation) |
 | useUndoStore | stores/undo-store.ts | Undo/redo stacks (max 50), push/undo/redo/clear, isPerformingUndoRedo guard, beginGroup/endGroup (compound ops), snackbar state with auto-dismiss |
 | useSettingsStore | stores/settings-store.ts | Theme mode (light/dark/system), theme color overrides, defaultProjectId, completedRetentionDays, canvasViewport (single source of truth, debounced persistence); persisted to settings table; only user-customized colors set as inline overrides |

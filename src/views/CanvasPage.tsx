@@ -136,17 +136,17 @@ export function CanvasPage() {
     for (const todo of todos) {
       if (todo.projectId != null) {
         todoById.set(todo.id, todo)
-        // Hide completed tasks when showCompleted is off
-        if (!filters.showCompleted && todo.isCompleted) continue
-        // Hide assigned tasks when showAssigned is off
-        if (!filters.showAssigned && todo.isAssigned) continue
+        if (filters.completedFilter === 'incomplete' && todo.isCompleted) continue
+        if (filters.completedFilter === 'completed' && !todo.isCompleted) continue
+        if (filters.assignedFilter === 'unassigned' && todo.isAssigned) continue
+        if (filters.assignedFilter === 'assigned' && !todo.isAssigned) continue
         const list = map.get(todo.projectId) ?? []
         list.push(todo)
         map.set(todo.projectId, list)
       }
     }
     // Add back assigned parents whose non-assigned children are visible
-    if (!filters.showAssigned) {
+    if (filters.assignedFilter === 'unassigned') {
       for (const [, list] of map) {
         for (const todo of list) {
           if (todo.parentId != null && !map.get(todo.projectId!)?.some(t => t.id === todo.parentId)) {
@@ -164,7 +164,7 @@ export function CanvasPage() {
       list.sort((a, b) => a.sortOrder - b.sortOrder)
     }
     return { todosByProject: map, assignedGhostIds: assignedParentIds }
-  }, [todos, filters.showCompleted, filters.showAssigned])
+  }, [todos, filters.completedFilter, filters.assignedFilter])
 
   // --- DnD (extracted to useCanvasDnD hook) ---
   const dnd = useCanvasDnD({
@@ -182,12 +182,14 @@ export function CanvasPage() {
   const filterGhostIds = useMemo(() => {
     if (!isFilterActive) return undefined
     // Check if any filter besides showCompleted/showAssigned is active
-    const hasNonVisibilityFilter = filters.priorities !== null || filters.starredOnly || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.searchText !== '' || filters.dateRangeStart !== null || filters.dateRangeEnd !== null
+    const hasNonVisibilityFilter = filters.priorities !== null || filters.followupFilter !== 'all' || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.statusIds !== null || filters.searchText !== '' || filters.dateRangeStart !== null || filters.dateRangeEnd !== null
     if (!hasNonVisibilityFilter) return undefined
     const ghost = new Set<number>()
     for (const todo of todos) {
-      if (!filters.showCompleted && todo.isCompleted) continue // already hidden
-      if (!filters.showAssigned && todo.isAssigned) continue // already hidden
+      if (filters.completedFilter === 'incomplete' && todo.isCompleted) continue // already hidden
+      if (filters.completedFilter === 'completed' && !todo.isCompleted) continue // already hidden
+      if (filters.assignedFilter === 'unassigned' && todo.isAssigned) continue // already hidden
+      if (filters.assignedFilter === 'assigned' && !todo.isAssigned) continue // already hidden
       const personIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
       const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])

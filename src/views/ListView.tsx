@@ -438,7 +438,7 @@ export function ListView() {
   const activeTodos = useMemo(() => {
     const filtered = applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
     // When grouped by People, include assigned tasks that pass all other filters
-    if (listSortBy === 'people' && !filters.showAssigned) {
+    if (listSortBy === 'people' && filters.assignedFilter === 'unassigned') {
       const filteredIds = new Set(filtered.map(t => t.id))
       const { matchesFilter } = useFilterStore.getState()
       const assignedExtras = todos.filter(t => {
@@ -712,7 +712,7 @@ export function ListView() {
 
           {totalActive === 0 && (
             <div className={styles.empty}>
-              {filters.priorities !== null || filters.starredOnly || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.searchText || filters.dateRangeStart !== null || filters.dateRangeEnd !== null ? (
+              {filters.priorities !== null || filters.followupFilter !== 'all' || filters.completedFilter !== 'incomplete' || filters.assignedFilter !== 'unassigned' || filters.hardDeadlineOnly || filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null || filters.searchText || filters.dateRangeStart !== null || filters.dateRangeEnd !== null ? (
                 <>
                   No tasks match your current filters.
                   <button className={styles.clearFiltersButton} onClick={() => useFilterStore.getState().clearAll()}>Clear filters</button>

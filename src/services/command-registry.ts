@@ -25,12 +25,12 @@ export interface CommandContext {
   bulkRemove: (ids: number[]) => Promise<void>
   getSelectedIds: () => number[]
   /** Filter actions */
-  toggleStarredOnly: () => void
+  cycleFollowupFilter: () => void
   toggleHardDeadlineOnly: () => void
   setPriorities: (p: Set<Priority> | null) => void
   getPriorities: () => Set<Priority> | null
   clearAllFilters: () => void
-  toggleShowCompleted: () => void
+  cycleCompletedFilter: () => void
   setDateRange: (start: Date | null, end: Date | null) => void
   /** Lazy todo getter (for task search — only called when palette has a query) */
   getTodos: () => PersistedTodoItem[]
@@ -93,12 +93,12 @@ export function createCommands(ctx: CommandContext): Command[] {
     }},
 
     // Filter presets
-    { id: 'filter-starred', name: 'Toggle Follow Up Only', category: 'filter', action: ctx.toggleStarredOnly },
+    { id: 'filter-starred', name: 'Cycle Follow Up Filter', category: 'filter', action: ctx.cycleFollowupFilter },
     { id: 'filter-high', name: 'Toggle High Priority', category: 'filter', action: () => {
       ctx.setPriorities(ctx.getPriorities()?.has(Priority.High) && ctx.getPriorities()?.size === 1 ? null : new Set([Priority.High]))
     }},
     { id: 'filter-hard-deadline', name: 'Toggle Hard Deadlines Only', category: 'filter', action: ctx.toggleHardDeadlineOnly },
-    { id: 'filter-show-completed', name: 'Toggle Show Completed', category: 'filter', action: ctx.toggleShowCompleted },
+    { id: 'filter-show-completed', name: 'Cycle Completed Filter', category: 'filter', action: ctx.cycleCompletedFilter },
     { id: 'filter-clear', name: 'Clear All Filters', category: 'filter', action: ctx.clearAllFilters },
     { id: 'filter-overdue', name: 'Show Overdue Tasks', category: 'filter', action: () => {
       ctx.clearAllFilters()

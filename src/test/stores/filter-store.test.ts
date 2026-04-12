@@ -47,12 +47,36 @@ describe('useFilterStore', () => {
     expect(matchesFilter(makeTodo({ id: 2, priority: Priority.Normal }))).toBe(false)
   })
 
-  it('matchesFilter checks starred', () => {
-    useFilterStore.getState().toggleStarredOnly()
+  it('followupFilter followup shows only starred', () => {
+    useFilterStore.getState().setFollowupFilter('followup')
     const { matchesFilter } = useFilterStore.getState()
 
     expect(matchesFilter(makeTodo({ id: 1, isStarred: true }))).toBe(true)
     expect(matchesFilter(makeTodo({ id: 2, isStarred: false }))).toBe(false)
+  })
+
+  it('followupFilter no-followup hides starred', () => {
+    useFilterStore.getState().setFollowupFilter('no-followup')
+    const { matchesFilter } = useFilterStore.getState()
+
+    expect(matchesFilter(makeTodo({ id: 1, isStarred: true }))).toBe(false)
+    expect(matchesFilter(makeTodo({ id: 2, isStarred: false }))).toBe(true)
+  })
+
+  it('completedFilter completed shows only completed', () => {
+    useFilterStore.getState().setCompletedFilter('completed')
+    const { matchesFilter } = useFilterStore.getState()
+
+    expect(matchesFilter(makeTodo({ id: 1, isCompleted: true }))).toBe(true)
+    expect(matchesFilter(makeTodo({ id: 2, isCompleted: false }))).toBe(false)
+  })
+
+  it('assignedFilter assigned shows only assigned', () => {
+    useFilterStore.getState().setAssignedFilter('assigned')
+    const { matchesFilter } = useFilterStore.getState()
+
+    expect(matchesFilter(makeTodo({ id: 1, isAssigned: true }))).toBe(true)
+    expect(matchesFilter(makeTodo({ id: 2, isAssigned: false }))).toBe(false)
   })
 
   it('matchesFilter checks person assignment', () => {
@@ -100,14 +124,16 @@ describe('useFilterStore', () => {
   it('clearAll resets all filters', () => {
     useFilterStore.getState().setPriorities(new Set([Priority.High]))
     useFilterStore.getState().setTagIds(new Set([1]))
-    useFilterStore.getState().toggleStarredOnly()
+    useFilterStore.getState().setFollowupFilter('followup')
     useFilterStore.getState().clearAll()
 
     const { filters, isActive } = useFilterStore.getState()
     expect(filters.priorities).toBe(null)
     expect(filters.tagIds).toBe(null)
     expect(filters.personIds).toBe(null)
-    expect(filters.starredOnly).toBe(false)
+    expect(filters.followupFilter).toBe('all')
+    expect(filters.completedFilter).toBe('incomplete')
+    expect(filters.assignedFilter).toBe('unassigned')
     expect(isActive).toBe(false)
   })
 

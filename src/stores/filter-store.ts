@@ -1,16 +1,16 @@
 import { create } from 'zustand'
 import { Priority } from '../models'
-import type { TodoItem, PersistedTodoItem, Person, Tag, Org, DateField } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Tag, Org, DateField, AssignedFilter, FollowupFilter, CompletedFilter } from '../models'
 import { startOfDay } from '../utils/date'
 
-export type { DateField }
+export type { DateField, AssignedFilter, FollowupFilter, CompletedFilter }
 
 export interface FilterCriteria {
   /** null = no filter (all shown); Set = only those in set are shown */
   priorities: Set<Priority> | null
-  showCompleted: boolean
-  showAssigned: boolean
-  starredOnly: boolean
+  completedFilter: CompletedFilter
+  assignedFilter: AssignedFilter
+  followupFilter: FollowupFilter
   hardDeadlineOnly: boolean
   /** null = no filter (all shown); Set = only those in set are shown */
   personIds: Set<number> | null
@@ -38,9 +38,11 @@ interface FilterState {
   readonly isActive: boolean
 
   setPriorities: (priorities: Set<Priority> | null) => void
-  toggleShowCompleted: () => void
-  toggleShowAssigned: () => void
-  toggleStarredOnly: () => void
+  setCompletedFilter: (v: CompletedFilter) => void
+  setAssignedFilter: (v: AssignedFilter) => void
+  setFollowupFilter: (v: FollowupFilter) => void
+  cycleCompletedFilter: () => void
+  cycleFollowupFilter: () => void
   toggleHardDeadlineOnly: () => void
   setPersonIds: (personIds: Set<number> | null) => void
   setTagIds: (tagIds: Set<number> | null) => void
@@ -58,9 +60,9 @@ interface FilterState {
 
 const defaultFilters: FilterCriteria = {
   priorities: null,
-  showCompleted: false,
-  showAssigned: false,
-  starredOnly: false,
+  completedFilter: 'incomplete',
+  assignedFilter: 'unassigned',
+  followupFilter: 'all',
   hardDeadlineOnly: false,
   personIds: null,
   tagIds: null,
@@ -74,7 +76,7 @@ const defaultFilters: FilterCriteria = {
 }
 
 function isFilterActive(f: FilterCriteria): boolean {
-  return f.priorities !== null || f.showCompleted || f.showAssigned || f.starredOnly || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
+  return f.priorities !== null || f.completedFilter !== 'incomplete' || f.assignedFilter !== 'unassigned' || f.followupFilter !== 'all' || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
 }
 
 function todoMatchesFilter(
@@ -87,12 +89,15 @@ function todoMatchesFilter(
   skipVisibility?: boolean,
 ): boolean {
   if (!skipVisibility) {
-    if (!filters.showCompleted && todo.isCompleted) return false
-    if (!filters.showAssigned && todo.isAssigned) return false
+    if (filters.completedFilter === 'incomplete' && todo.isCompleted) return false
+    if (filters.completedFilter === 'completed' && !todo.isCompleted) return false
+    if (filters.assignedFilter === 'unassigned' && todo.isAssigned) return false
+    if (filters.assignedFilter === 'assigned' && !todo.isAssigned) return false
   }
   if (filters.priorities !== null && !filters.priorities.has(todo.priority)) return false
   if (filters.searchText && !todo.title.toLowerCase().includes(filters.searchText.toLowerCase())) return false
-  if (filters.starredOnly && !todo.isStarred) return false
+  if (filters.followupFilter === 'followup' && !todo.isStarred) return false
+  if (filters.followupFilter === 'no-followup' && todo.isStarred) return false
   if (filters.hardDeadlineOnly && !todo.isHardDeadline) return false
   if (filters.personIds !== null) {
     const hasAssignment = assignedPersonIds && assignedPersonIds.length > 0
@@ -158,19 +163,28 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...get().filters, priorities })
   },
 
-  toggleShowCompleted() {
-    const { filters } = get()
-    commit(set, { ...filters, showCompleted: !filters.showCompleted })
+  setCompletedFilter(completedFilter: CompletedFilter) {
+    commit(set, { ...get().filters, completedFilter })
   },
 
-  toggleShowAssigned() {
-    const { filters } = get()
-    commit(set, { ...filters, showAssigned: !filters.showAssigned })
+  setAssignedFilter(assignedFilter: AssignedFilter) {
+    commit(set, { ...get().filters, assignedFilter })
   },
 
-  toggleStarredOnly() {
+  setFollowupFilter(followupFilter: FollowupFilter) {
+    commit(set, { ...get().filters, followupFilter })
+  },
+
+  cycleCompletedFilter() {
     const { filters } = get()
-    commit(set, { ...filters, starredOnly: !filters.starredOnly })
+    const next: CompletedFilter = filters.completedFilter === 'incomplete' ? 'all' : filters.completedFilter === 'all' ? 'completed' : 'incomplete'
+    commit(set, { ...filters, completedFilter: next })
+  },
+
+  cycleFollowupFilter() {
+    const { filters } = get()
+    const next: FollowupFilter = filters.followupFilter === 'all' ? 'followup' : filters.followupFilter === 'followup' ? 'no-followup' : 'all'
+    commit(set, { ...filters, followupFilter: next })
   },
 
   toggleHardDeadlineOnly() {

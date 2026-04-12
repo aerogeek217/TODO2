@@ -20,9 +20,13 @@ interface SavedViewState {
 function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
   return {
     priorities: f.priorities ? Array.from(f.priorities) : null,
-    showCompleted: f.showCompleted,
-    showAssigned: f.showAssigned,
-    starredOnly: f.starredOnly,
+    completedFilter: f.completedFilter,
+    assignedFilter: f.assignedFilter,
+    followupFilter: f.followupFilter,
+    // Backward compat: old booleans (lossy for third options)
+    showCompleted: f.completedFilter !== 'incomplete',
+    showAssigned: f.assignedFilter !== 'unassigned',
+    starredOnly: f.followupFilter === 'followup',
     hardDeadlineOnly: f.hardDeadlineOnly,
     personIds: f.personIds ? Array.from(f.personIds) : null,
     tagIds: f.tagIds ? Array.from(f.tagIds) : null,
@@ -38,9 +42,9 @@ function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
 export function savedFiltersToRuntime(s: SavedViewFilters): Partial<FilterCriteria> {
   return {
     priorities: s.priorities ? new Set(s.priorities as Priority[]) : null,
-    showCompleted: s.showCompleted,
-    showAssigned: s.showAssigned,
-    starredOnly: s.starredOnly,
+    completedFilter: (s.completedFilter as FilterCriteria['completedFilter']) ?? (s.showCompleted ? 'all' : 'incomplete'),
+    assignedFilter: (s.assignedFilter as FilterCriteria['assignedFilter']) ?? (s.showAssigned ? 'all' : 'unassigned'),
+    followupFilter: (s.followupFilter as FilterCriteria['followupFilter']) ?? (s.starredOnly ? 'followup' : 'all'),
     hardDeadlineOnly: s.hardDeadlineOnly,
     personIds: s.personIds ? new Set(s.personIds) : null,
     tagIds: s.tagIds ? new Set(s.tagIds) : null,

@@ -6,9 +6,9 @@ import type { FilterCriteria } from '../../stores/filter-store'
 
 const defaultFilters: FilterCriteria = {
   priorities: null,
-  showCompleted: false,
-  showAssigned: false,
-  starredOnly: false,
+  completedFilter: 'incomplete',
+  assignedFilter: 'unassigned',
+  followupFilter: 'all',
   hardDeadlineOnly: false,
   personIds: null,
   tagIds: null,
@@ -65,10 +65,10 @@ describe('useSavedViewStore', () => {
         personIds: new Set([1, 2]),
         tagIds: new Set([10]),
         orgIds: new Set([5]),
-        showCompleted: true,
-        starredOnly: true,
+        completedFilter: 'all',
+        followupFilter: 'followup',
         hardDeadlineOnly: true,
-        showAssigned: true,
+        assignedFilter: 'all',
         dateRangeIncludeNoDue: true,
       }
 
@@ -80,11 +80,15 @@ describe('useSavedViewStore', () => {
       expect(saved.personIds).toEqual(expect.arrayContaining([1, 2]))
       expect(saved.tagIds).toEqual([10])
       expect(saved.orgIds).toEqual([5])
+      expect(saved.completedFilter).toBe('all')
+      expect(saved.followupFilter).toBe('followup')
+      expect(saved.hardDeadlineOnly).toBe(true)
+      expect(saved.assignedFilter).toBe('all')
+      expect(saved.dateRangeIncludeNoDue).toBe(true)
+      // Backward compat booleans are also written
       expect(saved.showCompleted).toBe(true)
       expect(saved.starredOnly).toBe(true)
-      expect(saved.hardDeadlineOnly).toBe(true)
       expect(saved.showAssigned).toBe(true)
-      expect(saved.dateRangeIncludeNoDue).toBe(true)
     })
 
     it('saveCurrentView_withNullSets_storesNullInFilters', async () => {
@@ -197,9 +201,12 @@ describe('savedFiltersToRuntime', () => {
       personIds: [1, 2, 3],
       tagIds: [10, 20],
       orgIds: [5],
+      completedFilter: 'all',
+      assignedFilter: 'all',
+      followupFilter: 'followup',
       showCompleted: true,
       showAssigned: true,
-      starredOnly: false,
+      starredOnly: true,
       hardDeadlineOnly: true,
       dateRangeIncludeNoDue: true,
     }
@@ -210,6 +217,9 @@ describe('savedFiltersToRuntime', () => {
     expect(result.personIds).toEqual(new Set([1, 2, 3]))
     expect(result.tagIds).toEqual(new Set([10, 20]))
     expect(result.orgIds).toEqual(new Set([5]))
+    expect(result.completedFilter).toBe('all')
+    expect(result.assignedFilter).toBe('all')
+    expect(result.followupFilter).toBe('followup')
   })
 
   it('savedFiltersToRuntime_withNullArrays_preservesNulls', () => {
@@ -253,7 +263,7 @@ describe('savedFiltersToRuntime', () => {
     expect(result.dateRangeEnd).toBeNull()
   })
 
-  it('savedFiltersToRuntime_withBooleanFields_copiesBooleanFieldsDirectly', () => {
+  it('savedFiltersToRuntime_withOldBooleans_convertsToNewFilterTypes', () => {
     const saved = {
       priorities: null,
       personIds: null,
@@ -268,11 +278,34 @@ describe('savedFiltersToRuntime', () => {
 
     const result = savedFiltersToRuntime(saved)
 
-    expect(result.showCompleted).toBe(true)
-    expect(result.showAssigned).toBe(true)
-    expect(result.starredOnly).toBe(true)
+    expect(result.completedFilter).toBe('all')
+    expect(result.assignedFilter).toBe('all')
+    expect(result.followupFilter).toBe('followup')
     expect(result.hardDeadlineOnly).toBe(true)
     expect(result.dateRangeIncludeNoDue).toBe(true)
+  })
+
+  it('savedFiltersToRuntime_withNewStringFields_prefersNewOverOld', () => {
+    const saved = {
+      priorities: null,
+      personIds: null,
+      tagIds: null,
+      orgIds: null,
+      completedFilter: 'completed',
+      assignedFilter: 'assigned',
+      followupFilter: 'no-followup',
+      showCompleted: false,
+      showAssigned: false,
+      starredOnly: false,
+      hardDeadlineOnly: false,
+      dateRangeIncludeNoDue: false,
+    }
+
+    const result = savedFiltersToRuntime(saved)
+
+    expect(result.completedFilter).toBe('completed')
+    expect(result.assignedFilter).toBe('assigned')
+    expect(result.followupFilter).toBe('no-followup')
   })
 
   it('savedFiltersToRuntime_withDateField_preservesDateField', () => {

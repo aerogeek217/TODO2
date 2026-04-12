@@ -66,7 +66,7 @@ function EntityFilterList({
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
-  const { filters, isActive, setPriorities, toggleShowCompleted, toggleStarredOnly, toggleHardDeadlineOnly, toggleShowAssigned, setPersonIds, setTagIds, setOrgIds, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setPriorities, setCompletedFilter, setFollowupFilter, setAssignedFilter, toggleHardDeadlineOnly, setPersonIds, setTagIds, setOrgIds, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
@@ -192,9 +192,9 @@ export function FilterSheet() {
             <div className={styles.entityHeader} onClick={() => handleToggleSection('toggles')}>
               <span className={styles.filterLabel}>
                 Show / hide
-                {(filters.hardDeadlineOnly || filters.starredOnly || filters.showCompleted || filters.showAssigned) && (
+                {(filters.hardDeadlineOnly || filters.followupFilter !== 'all' || filters.completedFilter !== 'incomplete' || filters.assignedFilter !== 'unassigned') && (
                   <span className={styles.activeCount}>
-                    {[filters.hardDeadlineOnly, filters.starredOnly, filters.showCompleted, filters.showAssigned].filter(Boolean).length}
+                    {[filters.hardDeadlineOnly, filters.followupFilter !== 'all', filters.completedFilter !== 'incomplete', filters.assignedFilter !== 'unassigned'].filter(Boolean).length}
                   </span>
                 )}
               </span>
@@ -218,41 +218,53 @@ export function FilterSheet() {
                 <div className={styles.filterRow}>
                   <span className={styles.filterLabel}>
                     <span className={styles.filterLabelIcon}>&#x1F5E8;</span>
-                    Follow up only
+                    Follow up
                   </span>
-                  <button
-                    className={`${styles.toggle} ${filters.starredOnly ? styles.toggleActive : ''}`}
-                    onClick={toggleStarredOnly}
-                    role="switch"
-                    aria-checked={filters.starredOnly}
-                    aria-label="Follow up only"
-                  />
+                  <div className={styles.dateFieldSelector}>
+                    {(['all', 'followup', 'no-followup'] as const).map((v) => (
+                      <button
+                        key={v}
+                        className={`${styles.dateFieldOption} ${filters.followupFilter === v ? styles.dateFieldOptionActive : ''}`}
+                        onClick={() => setFollowupFilter(v)}
+                      >
+                        {v === 'all' ? 'All' : v === 'followup' ? 'Yes' : 'No'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className={styles.filterRow}>
                   <span className={styles.filterLabel}>
                     <span className={styles.filterLabelIcon}>✓</span>
-                    Show completed
+                    Completed
                   </span>
-                  <button
-                    className={`${styles.toggle} ${filters.showCompleted ? styles.toggleActive : ''}`}
-                    onClick={toggleShowCompleted}
-                    role="switch"
-                    aria-checked={filters.showCompleted}
-                    aria-label="Show completed"
-                  />
+                  <div className={styles.dateFieldSelector}>
+                    {(['all', 'incomplete', 'completed'] as const).map((v) => (
+                      <button
+                        key={v}
+                        className={`${styles.dateFieldOption} ${filters.completedFilter === v ? styles.dateFieldOptionActive : ''}`}
+                        onClick={() => setCompletedFilter(v)}
+                      >
+                        {v === 'all' ? 'All' : v === 'incomplete' ? 'No' : 'Yes'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className={styles.filterRow}>
                   <span className={styles.filterLabel}>
                     <span className={styles.filterLabelIcon}>👤</span>
-                    Show assigned
+                    Assigned
                   </span>
-                  <button
-                    className={`${styles.toggle} ${filters.showAssigned ? styles.toggleActive : ''}`}
-                    onClick={toggleShowAssigned}
-                    role="switch"
-                    aria-checked={filters.showAssigned}
-                    aria-label="Show assigned"
-                  />
+                  <div className={styles.dateFieldSelector}>
+                    {(['all', 'unassigned', 'assigned'] as const).map((v) => (
+                      <button
+                        key={v}
+                        className={`${styles.dateFieldOption} ${filters.assignedFilter === v ? styles.dateFieldOptionActive : ''}`}
+                        onClick={() => setAssignedFilter(v)}
+                      >
+                        {v === 'all' ? 'All' : v === 'unassigned' ? 'No' : 'Yes'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
