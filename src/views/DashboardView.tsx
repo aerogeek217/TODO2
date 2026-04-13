@@ -292,7 +292,7 @@ export function DashboardView() {
       onDragEnd={handleDragEnd}
     >
       {pageContent}
-      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+      <DragOverlay dropAnimation={null}>
         {activeDragTodo && (
           <div className={styles.dragOverlay}>
             <TaskRow todo={activeDragTodo} compact ghost />

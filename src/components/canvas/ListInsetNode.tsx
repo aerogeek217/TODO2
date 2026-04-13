@@ -31,6 +31,8 @@ export interface ListInsetNodeData {
   onToggleCollapse: (id: number) => void
   onOpenDetail?: (todoId: number) => void
   onResize?: (id: number, width: number, height: number) => void
+  onResizeSnap?: (nodeId: string, newWidth: number) => { width: number; lines: { orientation: 'horizontal' | 'vertical'; position: number; start: number; end: number }[] }
+  onSetAlignmentLines?: (lines: { orientation: 'horizontal' | 'vertical'; position: number; start: number; end: number }[]) => void
 }
 
 type ListInsetNodeType = ListInsetNodeData
@@ -87,7 +89,7 @@ function DraggableInsetRow({ todo, insetId, children }: { todo: PersistedTodoIte
 }
 
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
-  const { inset, allTodos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, onDelete, onToggleCollapse, onOpenDetail, onResize } = data
+  const { inset, allTodos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, onDelete, onToggleCollapse, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
   const headerInfo = getInsetHeaderInfo(inset)
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
@@ -193,19 +195,29 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           const startX = e.clientX
           const startW = inset.width
           const zoom = getZoom()
+          const nodeId = `inset-${inset.id}`
           const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
           const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
 
           const onMouseMove = (ev: MouseEvent) => {
-            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+            let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+            if (onResizeSnap) {
+              const snap = onResizeSnap(nodeId, newW)
+              newW = snap.width
+              onSetAlignmentLines?.(snap.lines)
+            }
             if (insetDiv) {
               insetDiv.style.width = `${newW}px`
             }
           }
 
           const onMouseUp = (ev: MouseEvent) => {
-            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
-            if (inset.id && onResize) onResize(inset.id, newW, inset.height)
+            let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+            if (onResizeSnap) {
+              newW = onResizeSnap(nodeId, newW).width
+            }
+            onSetAlignmentLines?.([])
+            if (inset.id && onResize) onResize(inset.id, Math.round(newW), inset.height)
             cleanup()
           }
 

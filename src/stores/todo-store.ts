@@ -6,6 +6,7 @@ import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
 import { computeNextDueDate } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField } from './store-helpers'
+import { useSettingsStore } from './settings-store'
 
 interface TodoState {
   todos: PersistedTodoItem[]
@@ -62,6 +63,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const { todos } = get()
       const maxSort = todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
       const now = new Date()
+      const defaultStatusId = useSettingsStore.getState().defaultStatusId
       const id = await todoRepository.insert({
         title,
         priority: Priority.Normal,
@@ -72,6 +74,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         sortOrder: maxSort + 1,
         canvasId,
         projectId,
+        ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
       const todo = await todoRepository.getById(id)
       if (todo) {
@@ -89,6 +92,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   async addAt(title: string, projectId: number, canvasId: number, parentId: number | undefined, sortOrder: number) {
     return mutate(set, async () => {
       const now = new Date()
+      const defaultStatusId = useSettingsStore.getState().defaultStatusId
       const id = await todoRepository.insert({
         title,
         priority: Priority.Normal,
@@ -100,6 +104,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         canvasId,
         projectId,
         parentId,
+        ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
       const todo = await todoRepository.getById(id)
       if (todo) {

@@ -98,7 +98,7 @@ function AppShell() {
     Promise.all([ensureDefault(), loadSettings()])
       .then(() => initFileStorage())
       .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), loadTags(), loadOrgs(), useProjectStore.getState().loadAll()]))
+      .then(() => Promise.all([loadPeople(), loadTags(), loadOrgs(), useProjectStore.getState().loadAll(), useStatusStore.getState().load()]))
       .then(async () => {
         // Purge expired completed tasks on startup
         const { completedRetentionDays } = useSettingsStore.getState()

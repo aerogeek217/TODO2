@@ -1,5 +1,6 @@
 import { useRef, useEffect, useMemo } from 'react'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
+import { useClickOutside } from '../../hooks/use-click-outside'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -18,6 +19,7 @@ interface InsertTriggerProps {
 
 export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onContextMenu, onPasteFromClipboard }: InsertTriggerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef('')
 
   const people = usePersonStore((s) => s.people)
@@ -31,6 +33,13 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const acOrgs = useMemo(() => orgsFromStore.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [orgsFromStore])
 
   const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects, orgs: acOrgs })
+
+  useClickOutside(wrapperRef, () => {
+    ac.dismiss()
+    const trimmed = titleRef.current.trim()
+    if (trimmed) onCommit(trimmed)
+    else onCancel()
+  }, editing)
 
   useEffect(() => {
     if (editing) {
@@ -65,7 +74,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
 
   if (editing) {
     return (
-      <div className={styles.inputRow} style={{ position: 'relative' }} onContextMenu={onContextMenu}>
+      <div ref={wrapperRef} className={styles.inputRow} style={{ position: 'relative' }} onContextMenu={onContextMenu}>
         <input
           ref={inputRef}
           autoFocus

@@ -513,7 +513,7 @@ export function CanvasPage() {
       )}
       </DragInsertContext.Provider>
 
-      <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
+      <DragOverlay dropAnimation={null}>
         {dnd.activeDragTodo && (
           <div className={overlayStyles.overlay}>
             <TaskRow

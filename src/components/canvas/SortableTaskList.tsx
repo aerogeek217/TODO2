@@ -285,6 +285,19 @@ export function SortableTaskList({
         </div>
         )
       })}
+      {visibleItems.length === 0 && !isDragActive && onInsertTask && (
+        <InsertTrigger
+          editing={activeInsertAfterId === BEFORE_FIRST}
+          onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
+          onCommit={async (title) => {
+            const newId = await onInsertTask(title, null, undefined)
+            setActiveInsertAfterId(newId)
+          }}
+          onCancel={closeInsert}
+          onContextMenu={(e) => buildPasteMenu(e, null, undefined)}
+          onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(null, undefined); closeInsert() } : undefined}
+        />
+      )}
       {insertAtEnd && !insertBeforeTodoId && insertProjectId === projectId && <div className={styles.dropPreview} />}
       </div>
       {contextMenu && createPortal(

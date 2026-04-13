@@ -219,10 +219,14 @@ export function CanvasView({
     return { x: node.position.x, y: node.position.y, width: w, height: h, nodeId }
   }, [])
 
-  const resizeSnapRef = useRef<(projectId: number, newWidth: number) => { width: number; lines: AlignmentLine[] }>(() => ({ width: 0, lines: [] }))
+  const resizeSnapRef = useRef<(nodeId: string, newWidth: number) => { width: number; lines: AlignmentLine[] }>(() => ({ width: 0, lines: [] }))
 
   const handleResizeSnap = useCallback((projectId: number, newWidth: number) => {
-    return resizeSnapRef.current(projectId, newWidth)
+    return resizeSnapRef.current(String(projectId), newWidth)
+  }, [])
+
+  const handleResizeSnapByNodeId = useCallback((nodeId: string, newWidth: number) => {
+    return resizeSnapRef.current(nodeId, newWidth)
   }, [])
 
   // Build nodes from props data (recomputes when data changes)
@@ -269,6 +273,8 @@ export function CanvasView({
         onToggleCollapse: onToggleCollapseInset ?? (() => {}),
         onOpenDetail,
         onResize: onResizeInset,
+        onResizeSnap: handleResizeSnapByNodeId,
+        onSetAlignmentLines: setAlignmentLines,
       } satisfies ListInsetNodeData,
     }))
 
@@ -320,7 +326,7 @@ export function CanvasView({
     projects, todosByProject, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
     onResizeProject, onSetProjectColor, handleResizeSnap,
-    listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset,
+    listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset, handleResizeSnapByNodeId,
     stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
     allPeople, allTags, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
@@ -373,10 +379,9 @@ export function CanvasView({
   }, [dataNodes])
 
   // Keep resize snap ref current so ProjectNode always gets latest node positions
-  resizeSnapRef.current = (projectId: number, newWidth: number) => {
+  resizeSnapRef.current = (nodeId: string, newWidth: number) => {
     const allNodes = nodes
-    const dragNodeId = String(projectId)
-    const dragNode = allNodes.find(n => n.id === dragNodeId)
+    const dragNode = allNodes.find(n => n.id === nodeId)
     if (!dragNode) return { width: newWidth, lines: [] as AlignmentLine[] }
 
     const dragRect = getNodeAbsoluteRect(dragNode, allNodes, false)
@@ -384,7 +389,7 @@ export function CanvasView({
 
     const otherRects: ScopedRect[] = []
     for (const n of allNodes) {
-      if (n.id === dragNodeId) continue
+      if (n.id === nodeId) continue
       const rect = getNodeAbsoluteRect(n, allNodes, false)
       if (rect) otherRects.push(rect)
     }
