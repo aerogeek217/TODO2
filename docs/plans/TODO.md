@@ -22,12 +22,13 @@ Canvas node improvements and drag-and-drop polish.
 ## Phase 3 — Task Views & Lists
 Task row, detail, and list view improvements.
 
-- [ ] Add isAssigned (delegation flag) toggle to TaskRow — currently only togglable from popup
-- [ ] Lists grouping by People: include orgs first (currently last)
-- [ ] Task detail: sort project selector alphabetically
-- [ ] Plain text export: allow selecting text in popup (currently all or nothing)
-- [ ] Show last modified date on stale tasks (dashboard)
-- [ ] Add text export button to projects (like existing list export)
+- [x] Add isAssigned (delegation flag) toggle to TaskRow — currently only togglable from popup
+- [x] Lists grouping by People: include orgs first (currently last)
+- [x] Task detail: sort project selector alphabetically
+- [x] Plain text export: allow selecting text in popup (currently all or nothing)
+- [x] Show last modified date on stale tasks (dashboard)
+- [x] Add text export button to projects (like existing list export)
+- [x] Fix canvas context menus rendering offset — ProjectNode and CanvasView missing createPortal
 
 ## Phase 4 — Smart Defaults & Filters
 Intelligent behavior and advanced filtering.

@@ -1,13 +1,16 @@
-import { useState, useRef, useEffect, useContext, memo } from 'react'
+import { useState, useRef, useEffect, useContext, useMemo, memo } from 'react'
+import { createPortal } from 'react-dom'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDroppable } from '@dnd-kit/core'
-import type { Project, PersistedTodoItem, Person, Tag } from '../../models'
+import type { Project, PersistedTodoItem, Person, Tag, Status } from '../../models'
 import { SortableTaskList } from './SortableTaskList'
 import { DragInsertContext } from './DragInsertContext'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusStore } from '../../stores/status-store'
 import { buildHierarchy } from '../../utils/hierarchy'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
+import { PlainTextExportPopup } from '../overlays/PlainTextExportPopup'
 import styles from './ProjectNode.module.css'
 
 type SortBy = 'name' | 'priority' | 'due' | 'created'
@@ -66,6 +69,8 @@ type ProjectNodeType = ProjectNodeData
 function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeType }) {
   const { project, todos, assignedPeopleMap, assignedTagsMap, ghostTodoIds, onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail, onResizeProject, onResizeSnap, onSetAlignmentLines, onSetColor, onBringToFront } = data
   const { getZoom } = useReactFlow()
+  const statuses = useStatusStore((s) => s.statuses)
+  const statusMap = useMemo(() => new Map(statuses.map(s => [s.id!, s as Status])), [statuses])
   const { dragExpandedProjectId } = useContext(DragInsertContext)
   const showBody = !project.isCollapsed || dragExpandedProjectId === project.id
   const [newTaskTitle, setNewTaskTitle] = useState('')
@@ -76,6 +81,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   const renameInputRef = useRef<HTMLInputElement>(null)
   const renameTimerRef = useRef<number | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
+  const [showExport, setShowExport] = useState(false)
   const [showSortMenu, setShowSortMenu] = useState(false)
   const [lastSort, setLastSort] = useState<{ by: SortBy; asc: boolean } | null>(null)
   const sortMenuRef = useRef<HTMLDivElement>(null)
@@ -178,6 +184,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
         const items: ContextMenuItem[] = [
           { label: 'Rename', action: () => { setRenameText(project.name); setIsRenaming(true) } },
           { label: project.isCollapsed ? 'Expand' : 'Collapse', action: () => onToggleCollapse(project.id!) },
+          { label: 'Export as text', action: () => setShowExport(true) },
           { separator: true, label: '', action: () => {} },
           { label: 'Delete', action: () => onDeleteProject(project.id!), danger: true },
         ]
@@ -346,13 +353,25 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
         }}
       />
 
-      {ctxMenu && (
+      {ctxMenu && createPortal(
         <CanvasContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
           items={ctxMenu.items}
           onClose={() => setCtxMenu(null)}
-        />
+        />,
+        document.body,
+      )}
+
+      {showExport && createPortal(
+        <PlainTextExportPopup
+          sections={[{ key: `project-${project.id}`, label: project.name, todos }]}
+          assignedPeopleMap={assignedPeopleMap}
+          assignedTagsMap={assignedTagsMap ?? new Map()}
+          statusMap={statusMap}
+          onClose={() => setShowExport(false)}
+        />,
+        document.body,
       )}
     </div>
   )

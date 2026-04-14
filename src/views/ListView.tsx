@@ -116,7 +116,7 @@ export function buildPeopleSections(
   personOrgMap?: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
 ): Section[] {
-  const sections: Section[] = []
+  const personSections: Section[] = []
   const assignedTodoIds = new Set<number>()
 
   // When an org filter is active, only show people who belong to at least one filtered org
@@ -134,7 +134,7 @@ export function buildPeopleSections(
     })
     if (personTodos.length > 0) {
       for (const t of personTodos) assignedTodoIds.add(t.id)
-      sections.push({
+      personSections.push({
         key: `person-${person.id}`,
         label: person.name,
         accentColor: person.color,
@@ -146,6 +146,7 @@ export function buildPeopleSections(
   const unassigned = todos.filter((t) => !assignedTodoIds.has(t.id))
   if (unassigned.length > 0 && orgs && assignedOrgsMap) {
     // Sub-group unassigned-to-person tasks by their direct org assignment
+    const orgSections: Section[] = []
     const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
     const orgGroupedIds = new Set<number>()
     for (const org of visibleOrgs) {
@@ -155,7 +156,7 @@ export function buildPeopleSections(
       })
       if (orgTodos.length > 0) {
         for (const t of orgTodos) orgGroupedIds.add(t.id)
-        sections.push({
+        orgSections.push({
           key: `org-${org.id}`,
           label: org.name,
           accentColor: org.color,
@@ -164,13 +165,11 @@ export function buildPeopleSections(
       }
     }
     const remaining = unassigned.filter((t) => !orgGroupedIds.has(t.id))
-    if (remaining.length > 0) {
-      sections.push({ key: 'unassigned', label: 'Unassigned', todos: remaining })
-    }
+    return [...orgSections, ...personSections, ...(remaining.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: remaining }] : [])]
   } else if (unassigned.length > 0) {
-    sections.push({ key: 'unassigned', label: 'Unassigned', todos: unassigned })
+    return [...personSections, { key: 'unassigned', label: 'Unassigned', todos: unassigned }]
   }
-  return sections
+  return personSections
 }
 
 export function buildTagSections(

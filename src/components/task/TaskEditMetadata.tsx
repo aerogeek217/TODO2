@@ -159,6 +159,7 @@ export function TaskEditMetadata({
                 )}
                 {projects
                   .filter(p => !projectSearch || p.name.toLowerCase().includes(projectSearch.toLowerCase()))
+                  .toSorted((a, b) => a.name.localeCompare(b.name))
                   .map(p => (
                     <button
                       key={p.id}

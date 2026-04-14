@@ -22,7 +22,7 @@ import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { Priority } from '../models'
 import type { PersistedTodoItem } from '../models'
-import { startOfToday, MS_PER_DAY } from '../utils/date'
+import { startOfToday, MS_PER_DAY, formatRelativeTime } from '../utils/date'
 import { TaskboardPanel } from '../components/taskboard/TaskboardPanel'
 import styles from './DashboardView.module.css'
 
@@ -216,8 +216,9 @@ export function DashboardView() {
                     {list.todos.length === 0 ? (
                       <div className={styles.empty}>No tasks</div>
                     ) : (
-                      list.todos.map((todo) => (
-                        !isMobile ? (
+                      list.todos.map((todo) => {
+                        const staleLabel = list.key === 'stale' ? `Modified ${formatRelativeTime(new Date(todo.modifiedAt))}` : undefined
+                        return !isMobile ? (
                           <DashboardDraggableRow key={todo.id} todo={todo} listKey={list.key}>
                             <TaskRow
                               todo={todo}
@@ -225,6 +226,7 @@ export function DashboardView() {
                               assignedTags={assignedTagsMap.get(todo.id)}
                               compact
                               onOpenDetail={handleClick}
+                              extraLabel={staleLabel}
                             />
                           </DashboardDraggableRow>
                         ) : (
@@ -235,9 +237,10 @@ export function DashboardView() {
                             assignedTags={assignedTagsMap.get(todo.id)}
                             compact
                             onOpenDetail={handleClick}
+                            extraLabel={staleLabel}
                           />
                         )
-                      ))
+                      })
                     )}
                   </div>
                 )}

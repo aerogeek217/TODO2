@@ -48,7 +48,7 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  user-select: all;
+  user-select: text;
   min-height: 200px;
   max-height: 60vh;
 }

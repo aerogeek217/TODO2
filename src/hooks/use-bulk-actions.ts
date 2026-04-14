@@ -86,6 +86,18 @@ export function useBulkActions() {
     }
   }, [])
 
+  const toggleAssigned = useCallback((todoId: number) => {
+    const ids = getTargetIds(todoId)
+    const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+    if (!todo) return
+    const targetAssigned = !todo.isAssigned
+    if (ids.length > 1) {
+      useTodoStore.getState().bulkSetAssigned(ids, targetAssigned)
+    } else {
+      useTodoStore.getState().toggleAssigned(todoId)
+    }
+  }, [])
+
   const remove = useCallback((todoId: number) => {
     const ids = getTargetIds(todoId)
     useUIStore.getState().showBulkConfirmation('delete', ids)
@@ -168,6 +180,7 @@ export function useBulkActions() {
   return {
     toggleComplete,
     toggleStar,
+    toggleAssigned,
     remove,
     setPriority,
     setDueDate,

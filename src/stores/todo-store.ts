@@ -21,9 +21,11 @@ interface TodoState {
   update: (todo: PersistedTodoItem) => Promise<void>
   toggleComplete: (id: number) => Promise<void>
   toggleStar: (id: number) => Promise<void>
+  toggleAssigned: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
   bulkSetStarred: (ids: number[], starred: boolean) => Promise<void>
+  bulkSetAssigned: (ids: number[], assigned: boolean) => Promise<void>
   bulkSetPriority: (ids: number[], priority: Priority) => Promise<void>
   bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
   bulkSetDueDate: (ids: number[], date: Date | undefined) => Promise<void>
@@ -238,6 +240,33 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     )
   },
 
+  async toggleAssigned(id: number) {
+    const todo = get().todos.find((t) => t.id === id)
+    if (!todo) return
+    const assigned = !todo.isAssigned
+    const label = assigned ? 'Assign' : 'Unassign'
+    return optimistic(
+      set,
+      () => set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, isAssigned: assigned || undefined, modifiedAt: new Date() } : t
+        ),
+      }),
+      () => todoRepository.toggleAssigned(id, assigned),
+      () => set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, isAssigned: !assigned || undefined } : t
+        ),
+      }),
+      'Failed to toggle assigned',
+      {
+        description: `${label} "${todo.title}"`,
+        redo: () => get().toggleAssigned(id),
+        undo: () => get().toggleAssigned(id),
+      },
+    )
+  },
+
   async remove(id: number) {
     return mutate(set, async () => {
       const todo = get().todos.find((t) => t.id === id)
@@ -399,6 +428,56 @@ export const useTodoStore = create<TodoState>((set, get) => ({
             set({
               todos: get().todos.map((t) =>
                 revertSet.has(t.id) ? { ...t, isStarred: stateMap.get(t.id)!, modifiedAt: new Date() } : t
+              ),
+            })
+          }
+        },
+      },
+    )
+  },
+
+  async bulkSetAssigned(ids: number[], assigned: boolean) {
+    const prevStates = get().todos
+      .filter((t) => ids.includes(t.id))
+      .map((t) => ({ id: t.id, wasAssigned: !!t.isAssigned }))
+    const idSet = new Set(ids)
+
+    return optimistic(
+      set,
+      () => {
+        const now = new Date()
+        set({
+          todos: get().todos.map((t) =>
+            idSet.has(t.id) ? { ...t, isAssigned: assigned || undefined, modifiedAt: now } : t
+          ),
+        })
+      },
+      () => Promise.all(ids.map((id) => todoRepository.toggleAssigned(id, assigned))).then(() => {}),
+      () => {
+        const prevMap = new Map(prevStates.map(s => [s.id, s.wasAssigned]))
+        set({
+          todos: get().todos.map((t) =>
+            prevMap.has(t.id) ? { ...t, isAssigned: prevMap.get(t.id)! || undefined } : t
+          ),
+        })
+      },
+      'Failed to toggle assigned',
+      {
+        description: `${assigned ? 'Assign' : 'Unassign'} ${ids.length} tasks`,
+        redo: () => get().bulkSetAssigned(ids, assigned),
+        undo: async () => {
+          for (const { id, wasAssigned } of prevStates) {
+            if (wasAssigned !== assigned) {
+              await todoRepository.toggleAssigned(id, wasAssigned)
+            }
+          }
+          const revertIds = prevStates.filter(s => s.wasAssigned !== assigned).map(s => s.id)
+          if (revertIds.length > 0) {
+            const revertSet = new Set(revertIds)
+            const stateMap = new Map(prevStates.map(s => [s.id, s.wasAssigned]))
+            set({
+              todos: get().todos.map((t) =>
+                revertSet.has(t.id) ? { ...t, isAssigned: stateMap.get(t.id)! || undefined, modifiedAt: new Date() } : t
               ),
             })
           }

@@ -77,6 +77,8 @@ interface TaskRowProps {
   compact?: boolean
   /** Task is in clipboard (cut) */
   cut?: boolean
+  /** Extra label shown after tags (e.g. "Modified 3d ago") */
+  extraLabel?: string
 }
 
 function formatDueDate(date: Date): { text: string; overdue: boolean; dueToday: boolean; urgent: boolean; approaching: boolean } {
@@ -96,7 +98,7 @@ function formatDueDate(date: Date): { text: string; overdue: boolean; dueToday: 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, assignedTags, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
-  onSelect, onToggleExpand, onOpenDetail, compact, cut,
+  onSelect, onToggleExpand, onOpenDetail, compact, cut, extraLabel,
 }: TaskRowProps) {
   const dateRef = useRef<HTMLInputElement>(null)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
@@ -146,6 +148,7 @@ export const TaskRow = memo(function TaskRow({
   // Ghost rows are non-interactive (drag overlay visuals)
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
   const handleToggleStar = useCallback(() => { if (!ghost) bulk.toggleStar(todo.id) }, [ghost, bulk, todo.id])
+  const handleToggleAssigned = useCallback(() => { if (!ghost) bulk.toggleAssigned(todo.id) }, [ghost, bulk, todo.id])
   const handleDelete = useCallback(() => { if (!ghost) bulk.remove(todo.id) }, [ghost, bulk, todo.id])
   const handleSetPriority = useCallback((p: Priority) => { if (!ghost) bulk.setPriority(todo.id, p) }, [ghost, bulk, todo.id])
   const handleSetDueDate = useCallback((date: Date | undefined) => { if (!ghost) bulk.setDueDate(todo.id, date) }, [ghost, bulk, todo.id])
@@ -469,6 +472,21 @@ export const TaskRow = memo(function TaskRow({
             onChange={(e) => { e.stopPropagation(); handleSetDueDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined) }} />
         </button>
       ) : null}
+
+      {!ghost ? (
+        <button
+          className={`${styles.assignButton} ${todo.isAssigned ? styles.assignActive : styles.assignInactive}`}
+          onClick={(e) => { e.stopPropagation(); handleToggleAssigned() }}
+          aria-label={todo.isAssigned ? 'Unassign task' : 'Assign task'}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="8" cy="5" r="3" />
+            <path d="M2.5 14a5.5 5.5 0 0 1 11 0" />
+          </svg>
+        </button>
+      ) : null}
+
+      {extraLabel && <span className={styles.extraLabel}>{extraLabel}</span>}
 
       <button
         className={`${styles.starButton} ${todo.isStarred ? styles.starred : styles.unstarred}`}
