@@ -2,41 +2,12 @@
 
 ## Intake
 
+## Recently Completed
+- [x] Disable task drag in canvas list inset popup views (followup, due, priority) — taskboard drag preserved
+- [x] Fix green indicator line flickering to end-of-project when cursor passes through 1-2px gap between task rows
+- [x] Fix drop target disagreeing with green indicator line near parent-child boundaries (preview/drop expansion mismatch)
 
-## Phase 1 — Bug Fixes
-Core bugs that break existing functionality.
 
-- [x] Default status not being set on new tasks created from projects — `add`/`addAt` in todo-store don't read `defaultStatusId`
-- [x] No new task button on empty project — InsertTrigger only renders inside the task loop, so empty projects show nothing
-- [x] Clicking off empty new task should clear it (currently stays open)
-- [x] Drag-and-drop shadow animation moves in wrong direction (jumps back to old location)
-- [x] Canvas list views don't snap on width change
-- [x] Status not showing on canvas tasks until visiting Settings — status store not loaded at app startup
-
-## Phase 2 — Canvas Interaction
-Canvas node improvements and drag-and-drop polish.
-
-- [x] Canvas list views: add height adjustor and corner drag handle (enable scrolling)
-- [x] Dragging item from taskboard onto canvas should remove it from taskboard
-
-## Phase 3 — Task Views & Lists
-Task row, detail, and list view improvements.
-
-- [x] Add isAssigned (delegation flag) toggle to TaskRow — currently only togglable from popup
-- [x] Lists grouping by People: include orgs first (currently last)
-- [x] Task detail: sort project selector alphabetically
-- [x] Plain text export: allow selecting text in popup (currently all or nothing)
-- [x] Show last modified date on stale tasks (dashboard)
-- [x] Add text export button to projects (like existing list export)
-- [x] Fix canvas context menus rendering offset — ProjectNode and CanvasView missing createPortal
-
-## Phase 4 — Smart Defaults & Filters
-Intelligent behavior and advanced filtering.
-
-- [x] When adding task, use current filters to infer people, org, tags
-- [x] Org filter: option to only show tasks with org tagged (not people in the org)
-- [x] Button in settings to manually clean up completed tasks (with age selector popup)
-- [x] Fix CalendarView org filter — direct org filtering was broken (missing `assignedOrgsMap`)
 
 ## Unable to Reproduce
 

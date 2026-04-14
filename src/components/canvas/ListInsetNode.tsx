@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
 import { Priority } from '../../models'
 import { useFilterStore } from '../../stores/filter-store'
@@ -73,19 +72,6 @@ function getFilterDescription(inset: ListInset): string {
     }
   }
   return ''
-}
-
-function DraggableInsetRow({ todo, insetId, children }: { todo: PersistedTodoItem; insetId: number; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `inset-${insetId}-${todo.id}`,
-    data: { type: 'task', todo },
-  })
-
-  return (
-    <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.4 : 1 }}>
-      {children}
-    </div>
-  )
 }
 
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
@@ -178,15 +164,14 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           <div className={styles.emptyMessage}>No tasks</div>
         ) : (
           filteredTodos.map(todo => (
-            <DraggableInsetRow key={todo.id} todo={todo} insetId={inset.id!}>
               <TaskRow
+                key={todo.id}
                 todo={todo}
                 assignedPeople={assignedPeopleMap.get(todo.id)}
                 assignedTags={assignedTagsMap?.get(todo.id)}
                 onOpenDetail={onOpenDetail ? () => onOpenDetail(todo.id) : undefined}
                 compact
               />
-            </DraggableInsetRow>
           ))
         )}
       </div>

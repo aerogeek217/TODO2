@@ -49,6 +49,22 @@ export function useCanvasDnD({
   const [insertProjectId, setInsertProjectId] = useState<number | null>(null)
   const [dragGroupIds, setDragGroupIds] = useState<Set<number> | null>(null)
 
+  // Track last valid task-level preview to suppress gap flicker
+  const lastPreviewRef = useRef<{
+    insertTodoId: number | null
+    insertAtEnd: boolean
+    forProjectId: number | null
+    pointerY: number
+  }>({ insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 })
+
+  // Cache the expanded over-context from the last accepted preview so
+  // handleDragEnd uses the same target the green indicator line showed
+  const lastExpandedOverRef = useRef<{
+    overType: 'task' | 'project' | null
+    overTodo: PersistedTodoItem | null
+    overProjectId: number | null
+  } | null>(null)
+
   // Edge panning during drag
   const edgePanRef = useRef<{
     active: boolean
@@ -237,6 +253,8 @@ export function useCanvasDnD({
       const todo = active.data.current?.todo as PersistedTodoItem | undefined
       if (todo) {
         setActiveDragTodo(todo)
+        lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
+        lastExpandedOverRef.current = null
         const sel = useUIStore.getState().selectedTodoIds
         const isMulti = sel.size > 1 && sel.has(todo.id)
 
@@ -288,6 +306,7 @@ export function useCanvasDnD({
         setInsertIndentLevel(0)
         setInsertAtEnd(false)
         setInsertProjectId(null)
+        lastExpandedOverRef.current = null
         return
       }
 
@@ -299,6 +318,7 @@ export function useCanvasDnD({
         setInsertIndentLevel(0)
         setInsertAtEnd(false)
         setInsertProjectId(null)
+        lastExpandedOverRef.current = null
         return
       }
 
@@ -315,6 +335,31 @@ export function useCanvasDnD({
       )
 
       const preview = resolveDropPreview(activeTodo, overType, overTodo, overProjectId, delta, todosByProject)
+
+      // When cursor enters the 1-2px gap between task rows, dnd-kit reports the
+      // project container instead of a task. Suppress the preview update so the
+      // green indicator line doesn't flicker to end-of-list and back.
+      const pointerY = edgePanRef.current.pointerY
+      if (
+        preview.insertAtEnd &&
+        rawOverType !== 'task' &&
+        lastPreviewRef.current.insertTodoId != null &&
+        !lastPreviewRef.current.insertAtEnd &&
+        preview.insertProjectId != null &&
+        preview.insertProjectId === lastPreviewRef.current.forProjectId &&
+        Math.abs(pointerY - lastPreviewRef.current.pointerY) < 20
+      ) {
+        return
+      }
+
+      lastPreviewRef.current = {
+        insertTodoId: preview.insertTodoId,
+        insertAtEnd: preview.insertAtEnd,
+        forProjectId: overTodo?.projectId ?? preview.insertProjectId ?? null,
+        pointerY,
+      }
+      lastExpandedOverRef.current = { overType, overTodo, overProjectId }
+
       setInsertTodoId(preview.insertTodoId)
       setInsertIndentLevel(preview.insertIndentLevel)
       setInsertAtEnd(preview.insertAtEnd)
@@ -362,6 +407,9 @@ export function useCanvasDnD({
       setActiveDragChildren([])
       setMultiDragCount(0)
       setDragExpandedProjectId(null)
+      lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
+      const cachedExpansion = lastExpandedOverRef.current
+      lastExpandedOverRef.current = null
       setInsertTodoId(null)
       setInsertIndentLevel(0)
       setInsertAtEnd(false)
@@ -445,17 +493,26 @@ export function useCanvasDnD({
         return
       }
 
-      const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
-        : overData?.type === 'project' ? 'project'
-        : null
-      const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
-      const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null
-
-      const { overType, overTodo, overProjectId } = expandTargetArea(
-        rawOverType, rawOverTodo, rawOverProjectId,
-        over ? { rect: over.rect ? { top: over.rect.top, height: over.rect.height } : undefined } : null,
-        activeTodo.id,
-      )
+      // Use the cached expansion from the last accepted preview so the drop
+      // matches what the green indicator line showed. Fall back to fresh
+      // expansion only if no preview was computed (e.g. very fast drag).
+      let overType: 'task' | 'project' | null
+      let overTodo: PersistedTodoItem | null
+      let overProjectId: number | null
+      if (cachedExpansion) {
+        ({ overType, overTodo, overProjectId } = cachedExpansion)
+      } else {
+        const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
+          : overData?.type === 'project' ? 'project'
+          : null
+        const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
+        const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null
+        ;({ overType, overTodo, overProjectId } = expandTargetArea(
+          rawOverType, rawOverTodo, rawOverProjectId,
+          over ? { rect: over.rect ? { top: over.rect.top, height: over.rect.height } : undefined } : null,
+          activeTodo.id,
+        ))
+      }
 
       const ctx: DropContext = {
         activeTodo,
