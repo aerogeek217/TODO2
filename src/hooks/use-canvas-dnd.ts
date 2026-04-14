@@ -274,7 +274,7 @@ export function useCanvasDnD({
           const dragSet = new Set([todo.id, ...children.map(c => c.id)])
           multiDragIdsRef.current = dragSet
           setMultiDragCount(dragSet.size)
-          setDragGroupIds(null)
+          setDragGroupIds(new Set(children.map(c => c.id)))
         } else {
           multiDragIdsRef.current = null
           setMultiDragCount(0)

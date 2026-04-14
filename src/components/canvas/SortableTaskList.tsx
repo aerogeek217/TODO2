@@ -107,6 +107,7 @@ export function SortableTaskList({
 }: SortableTaskListProps) {
   const { insertTodoId: insertBeforeTodoId, insertIndentLevel, insertAtEnd, insertProjectId, activeDragTodoId, dragGroupIds } = useContext(DragInsertContext)
   const isDragActive = activeDragTodoId != null
+  const dropCount = isDragActive ? (dragGroupIds?.size ?? 0) + 1 : 1
   const { collapsedParents, toggleCollapseParent, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()
   const hierarchy = useMemo(() => buildHierarchy(todos), [todos])
 
@@ -142,7 +143,13 @@ export function SortableTaskList({
     return items
   }, [hierarchy, collapsedParents])
 
-  const items = visibleItems.map((v) => `todo-${v.todo.id}`)
+  // During drag: hide children of the actively dragged parent (they're in the overlay)
+  const displayItems = useMemo(() => {
+    if (!activeDragTodoId) return visibleItems
+    return visibleItems.filter(item => item.todo.parentId !== activeDragTodoId)
+  }, [visibleItems, activeDragTodoId])
+
+  const items = displayItems.map((v) => `todo-${v.todo.id}`)
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])
@@ -324,13 +331,13 @@ export function SortableTaskList({
   return (
     <SortableContext items={items}>
       <div ref={containerRef} style={isDragActive ? { pointerEvents: 'none' } : undefined}>
-      {visibleItems.map((item, idx) => {
+      {displayItems.map((item, idx) => {
         const isDragging = activeDragTodoId === item.todo.id
         const isSel = !isDragging && selectedTodoIds.has(item.todo.id)
         const isFocused = !isDragging && item.todo.id === focusedTodoId
         const isMultiSelect = selectedTodoIds.size > 1
-        const prevSel = idx > 0 && selectedTodoIds.has(visibleItems[idx - 1].todo.id) && activeDragTodoId !== visibleItems[idx - 1].todo.id
-        const nextSel = idx < visibleItems.length - 1 && selectedTodoIds.has(visibleItems[idx + 1].todo.id) && activeDragTodoId !== visibleItems[idx + 1].todo.id
+        const prevSel = idx > 0 && selectedTodoIds.has(displayItems[idx - 1].todo.id) && activeDragTodoId !== displayItems[idx - 1].todo.id
+        const nextSel = idx < displayItems.length - 1 && selectedTodoIds.has(displayItems[idx + 1].todo.id) && activeDragTodoId !== displayItems[idx + 1].todo.id
         const selCls = isSel
           ? `${styles.sel} ${!prevSel ? styles.selFirst : ''} ${!nextSel ? styles.selLast : ''}`
           : ''
@@ -339,7 +346,9 @@ export function SortableTaskList({
         return (
         <div key={item.todo.id} data-todo-id={item.todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, item.todo.id, item.todo.parentId ?? undefined)}>
           {insertBeforeTodoId === item.todo.id && (
-            <div className={`${styles.dropPreview} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} />
+            dropCount > 1
+              ? <div className={`${styles.dropPreviewGroup} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} style={{ height: `${dropCount * 30}px` }} />
+              : <div className={`${styles.dropPreview} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} />
           )}
           {!isDragActive && onInsertTask && idx === 0 && item.indentLevel === 0 && (
             <InsertTrigger
@@ -388,7 +397,7 @@ export function SortableTaskList({
         </div>
         )
       })}
-      {visibleItems.length === 0 && !isDragActive && onInsertTask && (
+      {displayItems.length === 0 && !isDragActive && onInsertTask && (
         <InsertTrigger
           editing={activeInsertAfterId === BEFORE_FIRST}
           onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
@@ -401,7 +410,11 @@ export function SortableTaskList({
           onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(null, undefined); closeInsert() } : undefined}
         />
       )}
-      {insertAtEnd && !insertBeforeTodoId && insertProjectId === projectId && <div className={styles.dropPreview} />}
+      {insertAtEnd && !insertBeforeTodoId && insertProjectId === projectId && (
+        dropCount > 1
+          ? <div className={styles.dropPreviewGroup} style={{ height: `${dropCount * 30}px` }} />
+          : <div className={styles.dropPreview} />
+      )}
       </div>
       {contextMenu && createPortal(
         <CanvasContextMenu

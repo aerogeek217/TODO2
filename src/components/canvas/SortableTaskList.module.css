@@ -21,6 +21,15 @@
   position: relative;
 }
 
+.dropPreviewGroup {
+  margin: 2px 8px;
+  border: 1px dashed var(--color-accent);
+  border-radius: var(--radius-chip);
+  background: var(--color-accent-bg-subtle);
+  position: relative;
+  transition: margin-left var(--transition-spring);
+}
+
 .dropPreviewChild {
   margin-left: 32px;
 }
