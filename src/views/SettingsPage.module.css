@@ -141,6 +141,20 @@
   border: 1px solid var(--color-border);
 }
 
+.buttonDanger {
+  background: transparent;
+  color: var(--color-priority-high);
+  border: 1px solid var(--color-priority-high);
+}
+
+.buttonDanger:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.buttonDanger:disabled:hover {
+  opacity: 0.4;
+}
 
 .settingRow {
   display: flex;
@@ -368,6 +382,42 @@
 .fileStatus {
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
+}
+
+/* ── Cleanup popup ── */
+
+.cleanupOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+}
+
+.cleanupPopup {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-7);
+  width: 360px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  box-shadow: var(--shadow-popup);
+}
+
+.cleanupTitle {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.cleanupCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
 }
 
 /* ── Mobile overrides ── */

@@ -392,6 +392,37 @@
   opacity: 0.65;
 }
 
+/* ═══ Org filter mode ═══ */
+
+.orgModeToggle {
+  display: flex;
+  gap: 2px;
+  padding: 4px 8px 2px;
+}
+
+.orgModeOption {
+  flex: 1;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 3px 6px;
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.orgModeOption:hover {
+  background: var(--color-surface-high);
+}
+
+.orgModeOptionActive {
+  background: var(--color-accent-dim);
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-dim);
+}
+
 /* ═══ Date range ═══ */
 
 .dateFieldSelector {

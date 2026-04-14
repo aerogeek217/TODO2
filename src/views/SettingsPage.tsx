@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useSettingsStore, type ThemeMode } from '../stores/settings-store'
 import { useFileStorageStore, refreshAllStores } from '../stores/file-storage-store'
 import { useProjectStore } from '../stores/project-store'
@@ -45,6 +45,7 @@ export function SettingsPage() {
   const fileStorage = useFileStorageStore()
   const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
+  const purgeExpiredCompleted = useTodoStore((s) => s.purgeExpiredCompleted)
   const peopleCount = usePersonStore((s) => s.people.length)
   const orgCount = useOrgStore((s) => s.orgs.length)
   const tagCount = useTagStore((s) => s.tags.length)
@@ -65,6 +66,8 @@ export function SettingsPage() {
   const [auditReport, setAuditReport] = useState<AuditReport | null>(null)
   const [auditMsg, setAuditMsg] = useState('')
   const [auditRunning, setAuditRunning] = useState(false)
+  const [showCleanupPopup, setShowCleanupPopup] = useState(false)
+  const [cleanupDays, setCleanupDays] = useState(30)
   const timerRefs = useRef<number[]>([])
   const track = (fn: () => void, ms: number) => {
     timerRefs.current.push(window.setTimeout(fn, ms))
@@ -112,6 +115,20 @@ export function SettingsPage() {
     )
     return { expired: expired.length, expiringThisWeek: expiringThisWeek.length, total: completed.length }
   }, [todos, completedRetentionDays])
+
+  const completedCount = useMemo(() => todos.filter((t) => t.isCompleted).length, [todos])
+
+  const cleanupMatchCount = useMemo(() => {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - cleanupDays)
+    return todos.filter((t) => t.isCompleted && new Date(t.modifiedAt) < cutoff).length
+  }, [todos, cleanupDays])
+
+  const handleCleanup = useCallback(async () => {
+    if (cleanupMatchCount === 0) return
+    await purgeExpiredCompleted(cleanupDays)
+    setShowCleanupPopup(false)
+  }, [cleanupDays, cleanupMatchCount, purgeExpiredCompleted])
 
   const handleExport = async () => {
     const tables = await buildExportData()
@@ -252,6 +269,27 @@ export function SettingsPage() {
       <div className={styles.container}>
         <div className={styles.pageTitle}>Settings</div>
 
+        {/* People & Tags — desktop only */}
+        {!isMobile && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>People, Orgs, Tags & Statuses</div>
+          <div className={styles.buttonRow}>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowPeopleEditor(true)}>
+              Manage People{peopleCount > 0 && ` (${peopleCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowOrgEditor(true)}>
+              Manage Orgs{orgCount > 0 && ` (${orgCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowTagEditor(true)}>
+              Manage Tags{tagCount > 0 && ` (${tagCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowStatusEditor(true)}>
+              Manage Statuses{statusCount > 0 && ` (${statusCount})`}
+            </button>
+          </div>
+        </div>
+        )}
+
         {/* Appearance & Shortcuts */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Appearance</div>
@@ -347,27 +385,14 @@ export function SettingsPage() {
               )}
             </div>
           )}
-        </div>
-        )}
-
-        {/* People & Tags — desktop only */}
-        {!isMobile && (
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>People, Orgs, Tags & Statuses</div>
-          <div className={styles.buttonRow}>
-            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowPeopleEditor(true)}>
-              Manage People{peopleCount > 0 && ` (${peopleCount})`}
-            </button>
-            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowOrgEditor(true)}>
-              Manage Orgs{orgCount > 0 && ` (${orgCount})`}
-            </button>
-            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowTagEditor(true)}>
-              Manage Tags{tagCount > 0 && ` (${tagCount})`}
-            </button>
-            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowStatusEditor(true)}>
-              Manage Statuses{statusCount > 0 && ` (${statusCount})`}
-            </button>
-          </div>
+          <button
+            className={`${styles.button} ${styles.buttonDanger}`}
+            disabled={completedCount === 0}
+            onClick={() => setShowCleanupPopup(true)}
+            style={{ marginTop: 'var(--space-4)' }}
+          >
+            Delete Completed Tasks
+          </button>
         </div>
         )}
 
@@ -636,6 +661,46 @@ export function SettingsPage() {
       {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
       {showStatusEditor && <StatusEditor onClose={() => setShowStatusEditor(false)} />}
+
+      {showCleanupPopup && (
+        <div className={styles.cleanupOverlay} onClick={() => setShowCleanupPopup(false)}>
+          <div className={styles.cleanupPopup} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.cleanupTitle}>Delete Completed Tasks</div>
+            <div className={styles.settingRow}>
+              <span className={styles.settingLabel}>Older than</span>
+              <select
+                className={styles.settingSelect}
+                value={cleanupDays}
+                onChange={(e) => setCleanupDays(Number(e.target.value))}
+              >
+                <option value="0">All completed</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+              </select>
+            </div>
+            <div className={styles.cleanupCount}>
+              {cleanupMatchCount > 0
+                ? `${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''} will be deleted. A backup will be created.`
+                : 'No matching tasks.'}
+            </div>
+            <div className={styles.buttonRow}>
+              <button
+                className={`${styles.button} ${styles.buttonDanger}`}
+                disabled={cleanupMatchCount === 0}
+                onClick={handleCleanup}
+              >
+                Delete {cleanupMatchCount} Task{cleanupMatchCount !== 1 ? 's' : ''}
+              </button>
+              <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowCleanupPopup(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

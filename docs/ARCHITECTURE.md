@@ -62,6 +62,7 @@ main.tsx (entry point)
 | AssignedFilter | models/app-view.ts | Type: all, unassigned, assigned, unassigned-only — task assignment filter; "only" hides on canvas, others ghost |
 | FollowupFilter | models/app-view.ts | Type: all, followup, no-followup — tri-state filter for follow-up/starred visibility |
 | CompletedFilter | models/app-view.ts | Type: all, incomplete, completed, incomplete-only — completion filter; "only" hides on canvas, others ghost |
+| OrgFilterMode | stores/filter-store.ts | Type: include-people, direct-only — org filter mode; include-people matches person-org + direct-org, direct-only matches only direct org assignment |
 | ListInset | models/list-inset.ts | Filtered task list widget on canvas (preset: due-this-week, starred, high-priority; or attributeFilter: priority/person/tag/org) |
 | ListInsetAttributeFilter | models/list-inset.ts | Attribute-based filter for list insets: priority, person, tag, or org |
 | StickyNote | models/sticky-note.ts | Free-text note widget on canvas (optional title, text, position, dimensions, optional color defaulting to yellow #FFF3B0, timestamps) |
@@ -166,6 +167,7 @@ main.tsx (entry point)
 | useFileStorageStore | stores/file-storage-store.ts | File storage connection state and actions; exports refreshAllStores() |
 | generateInitials | utils/person.ts | Generates 1-3 character uppercase initials from a name |
 | toggleItem | utils/filter.ts | Toggle an item in a null-or-Set filter (null = all shown, Set = explicit selection) |
+| getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, tags, orgs, status, priority, starred, assigned) from active filter criteria; strips sentinel 0 values |
 | isValidCssColor | data/import-validation.ts | Validates hex color strings (#rgb or #rrggbb only) |
 | undoable | services/undoable.ts | Helper to register an action as undoable; skips when undo store is mid-undo/redo |
 | task-placement | services/task-placement.ts | Pure functions for task ordering: computeInsertionSort, placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, moveTasksInDirection, findOrphans, normalizeSortOrders, shouldNormalize |

@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoItem, PersistedTodoItem, Person, Tag, Org, RecurrenceType } from '../../models'
-import { Priority } from '../../models'
+import { Priority, AppView } from '../../models'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useUIStore } from '../../stores/ui-store'
+import { useFilterStore } from '../../stores/filter-store'
+import { getFilterDefaults } from '../../utils/filter-defaults'
 import { PriorityMenu, getPriorityLabel } from '../shared/PriorityMenu'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { toDateInputValue } from '../../utils/date'
@@ -71,17 +74,25 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
 
+  // Compute filter defaults once for create mode (views with filter UI only)
+  const filterDefaults = useMemo(() => {
+    if (mode !== 'create') return null
+    const activeView = useUIStore.getState().activeView
+    if (activeView === AppView.Dashboard || activeView === AppView.Settings) return null
+    return getFilterDefaults(useFilterStore.getState().filters)
+  }, [mode])
+
   const [title, setTitle] = useState(todo?.title ?? '')
   const [notes, setNotes] = useState(todo?.notes ?? '')
   const [progress, setProgress] = useState(todo?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(
-    todo?.statusId ?? (mode === 'create' ? (defaultStatusId ?? undefined) : undefined)
+    todo?.statusId ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
   )
   const [dueDate, setDueDate] = useState(toDateInputValue(todo?.dueDate))
   const [isHardDeadline, setIsHardDeadline] = useState(todo?.isHardDeadline ?? false)
-  const [priority, setPriorityState] = useState<Priority>(todo?.priority ?? Priority.Normal)
-  const [isStarred, setIsStarred] = useState(todo?.isStarred ?? false)
-  const [isAssigned, setIsAssigned] = useState(todo?.isAssigned ?? false)
+  const [priority, setPriorityState] = useState<Priority>(todo?.priority ?? filterDefaults?.priority ?? Priority.Normal)
+  const [isStarred, setIsStarred] = useState(todo?.isStarred ?? filterDefaults?.isStarred ?? false)
+  const [isAssigned, setIsAssigned] = useState(todo?.isAssigned ?? filterDefaults?.isAssigned ?? false)
   const [projectId, setProjectId] = useState<number | undefined>(
     todo?.projectId ?? (mode === 'create' ? (defaultProjectId ?? undefined) : undefined)
   )
@@ -89,9 +100,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     todo?.recurrenceRule?.type ?? ''
   )
   // Local state for create mode assignments (no todoId exists yet)
-  const [pendingPersonIds, setPendingPersonIds] = useState<Set<number>>(new Set())
-  const [pendingTagIds, setPendingTagIds] = useState<Set<number>>(new Set())
-  const [pendingOrgIds, setPendingOrgIds] = useState<Set<number>>(new Set())
+  const [pendingPersonIds, setPendingPersonIds] = useState<Set<number>>(() => new Set(filterDefaults?.personIds ?? []))
+  const [pendingTagIds, setPendingTagIds] = useState<Set<number>>(() => new Set(filterDefaults?.tagIds ?? []))
+  const [pendingOrgIds, setPendingOrgIds] = useState<Set<number>>(() => new Set(filterDefaults?.orgIds ?? []))
 
   const effectiveAssignedPeople = mode === 'create'
     ? allPeople.filter(p => pendingPersonIds.has(p.id!))

@@ -262,4 +262,60 @@ describe('useFilterStore', () => {
     useFilterStore.getState().clearAll()
     expect(useFilterStore.getState().filters.dateField).toBe('due')
   })
+
+  it('clearAll resets orgFilterMode to include-people', () => {
+    useFilterStore.getState().setOrgFilterMode('direct-only')
+    useFilterStore.getState().clearAll()
+    expect(useFilterStore.getState().filters.orgFilterMode).toBe('include-people')
+  })
+
+  describe('orgFilterMode direct-only', () => {
+    it('include-people matches person-org and direct-org (default)', () => {
+      useFilterStore.getState().setOrgIds(new Set([10]))
+      const { matchesFilter } = useFilterStore.getState()
+
+      // Person-org match
+      expect(matchesFilter(makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+      // Direct-org match
+      expect(matchesFilter(makeTodo({ id: 2 }), [], [], [], [10])).toBe(true)
+    })
+
+    it('direct-only ignores person-org, matches only direct-org', () => {
+      useFilterStore.getState().setOrgIds(new Set([10]))
+      useFilterStore.getState().setOrgFilterMode('direct-only')
+      const { matchesFilter } = useFilterStore.getState()
+
+      // Person-org only — should be excluded
+      expect(matchesFilter(makeTodo({ id: 1 }), [1], [], [10], [])).toBe(false)
+      // Direct-org match
+      expect(matchesFilter(makeTodo({ id: 2 }), [], [], [], [10])).toBe(true)
+    })
+
+    it('direct-only with task having both person-org and direct-org matches on direct', () => {
+      useFilterStore.getState().setOrgIds(new Set([10]))
+      useFilterStore.getState().setOrgFilterMode('direct-only')
+      const { matchesFilter } = useFilterStore.getState()
+
+      expect(matchesFilter(makeTodo({ id: 1 }), [1], [], [10], [10])).toBe(true)
+    })
+
+    it('direct-only with None (0): no direct org passes', () => {
+      useFilterStore.getState().setOrgIds(new Set([0]))
+      useFilterStore.getState().setOrgFilterMode('direct-only')
+      const { matchesFilter } = useFilterStore.getState()
+
+      // No direct org, but has person-org — should still pass (no direct org = None)
+      expect(matchesFilter(makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+      // No org at all
+      expect(matchesFilter(makeTodo({ id: 2 }), [], [], [], [])).toBe(true)
+    })
+
+    it('undefined orgFilterMode defaults to include-people', () => {
+      useFilterStore.getState().setOrgIds(new Set([10]))
+      // orgFilterMode defaults to include-people
+      const { matchesFilter } = useFilterStore.getState()
+
+      expect(matchesFilter(makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+    })
+  })
 })

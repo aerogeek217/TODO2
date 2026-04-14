@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router'
-import { useFilterStore, type DateField, type AssignedFilter, type FollowupFilter, type CompletedFilter } from '../../stores/filter-store'
+import { useFilterStore, type DateField, type AssignedFilter, type FollowupFilter, type CompletedFilter, type OrgFilterMode } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -357,7 +357,7 @@ function SimpleFilterDropdown<T extends string>({
 }
 
 export function TopBar() {
-  const { filters, isActive, setPriorities, setCompletedFilter, setAssignedFilter, setFollowupFilter, toggleHardDeadlineOnly, setPersonIds, setTagIds, setOrgIds, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setPriorities, setCompletedFilter, setAssignedFilter, setFollowupFilter, toggleHardDeadlineOnly, setPersonIds, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -648,12 +648,25 @@ export function TopBar() {
             searchable
           >
             {(searchText: string) => (
-              <EntityDropdownItems
-                searchText={searchText}
-                entities={orgs}
-                isChecked={isOrgChecked}
-                onToggle={handleOrgToggle}
-              />
+              <>
+                <div className={styles.orgModeToggle}>
+                  {([['include-people', 'People'], ['direct-only', 'Org only']] as [OrgFilterMode, string][]).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      className={`${styles.orgModeOption} ${filters.orgFilterMode === mode ? styles.orgModeOptionActive : ''}`}
+                      onClick={() => setOrgFilterMode(mode)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <EntityDropdownItems
+                  searchText={searchText}
+                  entities={orgs}
+                  isChecked={isOrgChecked}
+                  onToggle={handleOrgToggle}
+                />
+              </>
             )}
           </FilterDropdown>
 

@@ -3,6 +3,8 @@ import { Priority } from '../models'
 import type { TodoItem, PersistedTodoItem, Person, Tag, Org, DateField, AssignedFilter, FollowupFilter, CompletedFilter } from '../models'
 import { startOfDay } from '../utils/date'
 
+export type OrgFilterMode = 'include-people' | 'direct-only'
+
 export type { DateField, AssignedFilter, FollowupFilter, CompletedFilter }
 
 export interface FilterCriteria {
@@ -18,6 +20,8 @@ export interface FilterCriteria {
   tagIds: Set<number> | null
   /** null = no filter; Set = only people in these orgs are shown */
   orgIds: Set<number> | null
+  /** 'include-people' (default) matches person-org + direct-org; 'direct-only' matches only direct org assignment */
+  orgFilterMode: OrgFilterMode
   /** null = no filter; Set = only those statuses shown (0 = no status) */
   statusIds: Set<number> | null
   /** Empty string = no filter; non-empty = case-insensitive substring match on title */
@@ -47,6 +51,7 @@ interface FilterState {
   setPersonIds: (personIds: Set<number> | null) => void
   setTagIds: (tagIds: Set<number> | null) => void
   setOrgIds: (orgIds: Set<number> | null) => void
+  setOrgFilterMode: (mode: OrgFilterMode) => void
   setStatusIds: (statusIds: Set<number> | null) => void
   setSearchText: (text: string) => void
   setDateField: (field: DateField) => void
@@ -67,6 +72,7 @@ const defaultFilters: FilterCriteria = {
   personIds: null,
   tagIds: null,
   orgIds: null,
+  orgFilterMode: 'include-people',
   statusIds: null,
   searchText: '',
   dateField: 'due',
@@ -121,12 +127,13 @@ function todoMatchesFilter(
     } else if (!filters.statusIds.has(todo.statusId!)) return false
   }
   if (filters.orgIds !== null) {
-    const hasPersonOrg = assignedPersonOrgIds && assignedPersonOrgIds.length > 0
+    const directOnly = filters.orgFilterMode === 'direct-only'
+    const hasPersonOrg = !directOnly && assignedPersonOrgIds && assignedPersonOrgIds.length > 0
     const hasDirectOrg = directOrgIds && directOrgIds.length > 0
     if (!hasPersonOrg && !hasDirectOrg) {
       if (!filters.orgIds.has(0)) return false
     } else {
-      const personOrgMatch = assignedPersonOrgIds?.some((orgId) => filters.orgIds!.has(orgId)) ?? false
+      const personOrgMatch = !directOnly && (assignedPersonOrgIds?.some((orgId) => filters.orgIds!.has(orgId)) ?? false)
       const directOrgMatch = directOrgIds?.some((orgId) => filters.orgIds!.has(orgId)) ?? false
       if (!personOrgMatch && !directOrgMatch) return false
     }
@@ -207,6 +214,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setOrgIds(orgIds: Set<number> | null) {
     commit(set, { ...get().filters, orgIds })
+  },
+
+  setOrgFilterMode(orgFilterMode: OrgFilterMode) {
+    commit(set, { ...get().filters, orgFilterMode })
   },
 
   setStatusIds(statusIds: Set<number> | null) {

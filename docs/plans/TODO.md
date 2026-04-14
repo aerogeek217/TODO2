@@ -33,9 +33,10 @@ Task row, detail, and list view improvements.
 ## Phase 4 — Smart Defaults & Filters
 Intelligent behavior and advanced filtering.
 
-- [ ] When adding task, use current filters to infer people, org, tags
-- [ ] Org filter: option to only show tasks with org tagged (not people in the org)
-- [ ] Button in settings to manually clean up tasks older than N days
+- [x] When adding task, use current filters to infer people, org, tags
+- [x] Org filter: option to only show tasks with org tagged (not people in the org)
+- [x] Button in settings to manually clean up completed tasks (with age selector popup)
+- [x] Fix CalendarView org filter — direct org filtering was broken (missing `assignedOrgsMap`)
 
 ## Unable to Reproduce
 

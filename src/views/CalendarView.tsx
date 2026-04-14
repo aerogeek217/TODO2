@@ -90,7 +90,7 @@ export function CalendarView() {
   const { todos, loadAll, update: updateTodo } = useTodoStore()
   const { people, load: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
   const { load: loadTags, assignedTagsMap, loadAssignments: loadTagAssignments } = useTagStore()
-  const { orgs, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const { orgs, personOrgMap, assignedOrgsMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { loadAll: loadAllProjects } = useProjectStore()
   const { openEditPopup } = useUIStore()
   const { filters, applyFilter } = useFilterStore()
@@ -124,8 +124,8 @@ export function CalendarView() {
   }, [people, orgs, loadPersonOrgMap])
 
   const activeTodos = useMemo(() => {
-    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, applyFilter])
+    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter])
 
   const { scheduled, unscheduled } = useMemo(() => {
     const scheduled: PersistedTodoItem[] = []
