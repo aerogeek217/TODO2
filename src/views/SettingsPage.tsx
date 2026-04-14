@@ -68,6 +68,7 @@ export function SettingsPage() {
   const [auditRunning, setAuditRunning] = useState(false)
   const [showCleanupPopup, setShowCleanupPopup] = useState(false)
   const [cleanupDays, setCleanupDays] = useState(30)
+  const [confirmingCleanup, setConfirmingCleanup] = useState(false)
   const timerRefs = useRef<number[]>([])
   const track = (fn: () => void, ms: number) => {
     timerRefs.current.push(window.setTimeout(fn, ms))
@@ -124,11 +125,21 @@ export function SettingsPage() {
     return todos.filter((t) => t.isCompleted && new Date(t.modifiedAt) < cutoff).length
   }, [todos, cleanupDays])
 
+  const closeCleanupPopup = useCallback(() => {
+    setShowCleanupPopup(false)
+    setCleanupDays(30)
+    setConfirmingCleanup(false)
+  }, [])
+
   const handleCleanup = useCallback(async () => {
     if (cleanupMatchCount === 0) return
+    if (!confirmingCleanup) {
+      setConfirmingCleanup(true)
+      return
+    }
     await purgeExpiredCompleted(cleanupDays)
-    setShowCleanupPopup(false)
-  }, [cleanupDays, cleanupMatchCount, purgeExpiredCompleted])
+    closeCleanupPopup()
+  }, [cleanupDays, cleanupMatchCount, confirmingCleanup, purgeExpiredCompleted, closeCleanupPopup])
 
   const handleExport = async () => {
     const tables = await buildExportData()
@@ -671,7 +682,7 @@ export function SettingsPage() {
               <select
                 className={styles.settingSelect}
                 value={cleanupDays}
-                onChange={(e) => setCleanupDays(Number(e.target.value))}
+                onChange={(e) => { setCleanupDays(Number(e.target.value)); setConfirmingCleanup(false) }}
               >
                 <option value="0">All completed</option>
                 <option value="7">7 days</option>
@@ -692,9 +703,11 @@ export function SettingsPage() {
                 disabled={cleanupMatchCount === 0}
                 onClick={handleCleanup}
               >
-                Delete {cleanupMatchCount} Task{cleanupMatchCount !== 1 ? 's' : ''}
+                {confirmingCleanup
+                  ? `Confirm — permanently delete ${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''}`
+                  : `Delete ${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''}`}
               </button>
-              <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowCleanupPopup(false)}>
+              <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={closeCleanupPopup}>
                 Cancel
               </button>
             </div>

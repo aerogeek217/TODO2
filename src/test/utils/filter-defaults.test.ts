@@ -113,6 +113,11 @@ describe('getFilterDefaults', () => {
     expect(result.isAssigned).toBe(false)
   })
 
+  it('assignedFilter unassigned-only does not set isAssigned', () => {
+    const result = getFilterDefaults(makeFilters({ assignedFilter: 'unassigned-only' }))
+    expect(result.isAssigned).toBe(false)
+  })
+
   it('combination of multiple filter types', () => {
     const result = getFilterDefaults(makeFilters({
       personIds: new Set([5, 10]),

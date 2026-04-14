@@ -99,6 +99,51 @@ describe('useTaskboardStore', () => {
     })
   })
 
+  describe('addAt', () => {
+    it('addAt with consecutive sortOrders normalizes to avoid collision', async () => {
+      // Arrange: create entries with consecutive sortOrders (1000, 1001)
+      await db.taskboardEntries.bulkAdd([
+        { todoId: 10, sortOrder: 1000 },
+        { todoId: 20, sortOrder: 1001 },
+      ])
+      await useTaskboardStore.getState().load()
+
+      // Act: insert between them — Math.floor((1000+1001)/2) = 1000, collides with prev
+      await useTaskboardStore.getState().addAt(30, 1)
+
+      // Assert: all three entries exist in correct order
+      const { entries } = useTaskboardStore.getState()
+      expect(entries).toHaveLength(3)
+      expect(entries.map(e => e.todoId)).toEqual([10, 30, 20])
+
+      // Verify sort orders are strictly increasing (normalization happened)
+      expect(entries[0].sortOrder).toBeLessThan(entries[1].sortOrder)
+      expect(entries[1].sortOrder).toBeLessThan(entries[2].sortOrder)
+
+      // Verify database matches
+      const dbEntries = await db.taskboardEntries.orderBy('sortOrder').toArray()
+      expect(dbEntries.map(e => e.todoId)).toEqual([10, 30, 20])
+    })
+
+    it('addAt without collision does not normalize', async () => {
+      // Arrange: entries with wide gap
+      await db.taskboardEntries.bulkAdd([
+        { todoId: 10, sortOrder: 1000 },
+        { todoId: 20, sortOrder: 3000 },
+      ])
+      await useTaskboardStore.getState().load()
+
+      // Act: insert between — midpoint is 2000, no collision
+      await useTaskboardStore.getState().addAt(30, 1)
+
+      const { entries } = useTaskboardStore.getState()
+      expect(entries).toHaveLength(3)
+      expect(entries.map(e => e.todoId)).toEqual([10, 30, 20])
+      // The inserted entry should have sortOrder 2000
+      expect(entries[1].sortOrder).toBe(2000)
+    })
+  })
+
   describe('reorder', () => {
     it('moves an entry from one position to another', async () => {
       await useTaskboardStore.getState().add(1)

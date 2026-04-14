@@ -318,4 +318,68 @@ describe('useFilterStore', () => {
       expect(matchesFilter(makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
     })
   })
+
+  describe('applyFilter integration with direct-only org mode', () => {
+    it('direct-only filters out tasks matching only via person-org', () => {
+      useFilterStore.getState().setOrgIds(new Set([10]))
+      useFilterStore.getState().setOrgFilterMode('direct-only')
+      // Also reset completedFilter/assignedFilter so all tasks pass visibility
+      useFilterStore.getState().setCompletedFilter('all')
+      useFilterStore.getState().setAssignedFilter('all')
+
+      const todos = [
+        makeTodo({ id: 1 }), // person belongs to org 10 but no direct org
+        makeTodo({ id: 2 }), // has direct org 10
+        makeTodo({ id: 3 }), // no org at all
+      ]
+      const assignedPeopleMap = new Map([
+        [1, [{ id: 1, name: 'Alice', initials: 'A', color: '#000' }]],
+      ])
+      const personOrgMap = new Map([[1, [10]]]) // person 1 belongs to org 10
+      const assignedOrgsMap = new Map([
+        [2, [{ id: 10, name: 'Org' }]],
+      ]) as Map<number, { id: number; name: string }[]>
+
+      const result = useFilterStore.getState().applyFilter(
+        todos,
+        assignedPeopleMap as never,
+        undefined,
+        personOrgMap,
+        assignedOrgsMap as never,
+      )
+
+      // Only task 2 (direct org match) should pass; task 1 (person-org only) excluded
+      expect(result.map(t => t.id)).toEqual([2])
+    })
+
+    it('include-people mode includes tasks matching via person-org', () => {
+      useFilterStore.getState().setOrgIds(new Set([10]))
+      useFilterStore.getState().setOrgFilterMode('include-people')
+      useFilterStore.getState().setCompletedFilter('all')
+      useFilterStore.getState().setAssignedFilter('all')
+
+      const todos = [
+        makeTodo({ id: 1 }), // person belongs to org 10
+        makeTodo({ id: 2 }), // has direct org 10
+      ]
+      const assignedPeopleMap = new Map([
+        [1, [{ id: 1, name: 'Alice', initials: 'A', color: '#000' }]],
+      ])
+      const personOrgMap = new Map([[1, [10]]])
+      const assignedOrgsMap = new Map([
+        [2, [{ id: 10, name: 'Org' }]],
+      ]) as Map<number, { id: number; name: string }[]>
+
+      const result = useFilterStore.getState().applyFilter(
+        todos,
+        assignedPeopleMap as never,
+        undefined,
+        personOrgMap,
+        assignedOrgsMap as never,
+      )
+
+      // Both should pass: task 1 via person-org, task 2 via direct org
+      expect(result.map(t => t.id)).toEqual([1, 2])
+    })
+  })
 })

@@ -216,6 +216,56 @@ describe('useSavedViewStore', () => {
   })
 })
 
+describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
+  it('orgFilterMode direct-only survives save and restore roundtrip', async () => {
+    const filters: FilterCriteria = {
+      ...defaultFilters,
+      orgFilterMode: 'direct-only',
+      orgIds: new Set([5]),
+    }
+
+    await useSavedViewStore.getState().saveCurrentView('Org Test', 'priority', filters)
+
+    const { views } = useSavedViewStore.getState()
+    const saved = views[0].filters
+    expect(saved.orgFilterMode).toBe('direct-only')
+
+    const restored = savedFiltersToRuntime(saved)
+    expect(restored.orgFilterMode).toBe('direct-only')
+  })
+
+  it('orgFilterMode include-people survives roundtrip', async () => {
+    const filters: FilterCriteria = {
+      ...defaultFilters,
+      orgFilterMode: 'include-people',
+    }
+
+    await useSavedViewStore.getState().saveCurrentView('Default Org', 'priority', filters)
+
+    const { views } = useSavedViewStore.getState()
+    const restored = savedFiltersToRuntime(views[0].filters)
+    expect(restored.orgFilterMode).toBe('include-people')
+  })
+
+  it('undefined orgFilterMode defaults to include-people on restore', () => {
+    const saved = {
+      priorities: null,
+      personIds: null,
+      tagIds: null,
+      orgIds: null,
+      showCompleted: false,
+      showAssigned: false,
+      starredOnly: false,
+      hardDeadlineOnly: false,
+      dateRangeIncludeNoDue: false,
+      // orgFilterMode intentionally omitted
+    }
+
+    const result = savedFiltersToRuntime(saved)
+    expect(result.orgFilterMode).toBe('include-people')
+  })
+})
+
 describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withArrayValues_convertsArraysToSets', () => {
     const saved = {

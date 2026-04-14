@@ -182,6 +182,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
             className={`${styles.bottomHandle} nopan nodrag`}
             onMouseDown={(e) => {
               e.stopPropagation()
+              resizeCleanupRef.current?.()
               const startY = e.clientY
               const startH = inset.height || 300
               const zoom = getZoom()
@@ -213,6 +214,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
             className={`${styles.cornerHandle} nopan nodrag`}
             onMouseDown={(e) => {
               e.stopPropagation()
+              resizeCleanupRef.current?.()
               const startX = e.clientX
               const startY = e.clientY
               const startW = inset.width
@@ -263,6 +265,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         className={`${styles.resizeHandle} nopan nodrag`}
         onMouseDown={(e) => {
           e.stopPropagation()
+          resizeCleanupRef.current?.()
           const startX = e.clientX
           const startW = inset.width
           const zoom = getZoom()

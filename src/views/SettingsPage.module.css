@@ -147,6 +147,11 @@
   border: 1px solid var(--color-priority-high);
 }
 
+.buttonDanger:hover:not(:disabled) {
+  background: var(--color-priority-high);
+  color: var(--color-bg);
+}
+
 .buttonDanger:disabled {
   opacity: 0.4;
   cursor: default;

@@ -53,7 +53,7 @@ export function savedFiltersToRuntime(s: SavedViewFilters): Partial<FilterCriter
     personIds: s.personIds ? new Set(s.personIds) : null,
     tagIds: s.tagIds ? new Set(s.tagIds) : null,
     orgIds: s.orgIds ? new Set(s.orgIds) : null,
-    orgFilterMode: (s.orgFilterMode === 'direct-only' ? 'direct-only' : 'include-people') as FilterCriteria['orgFilterMode'],
+    orgFilterMode: s.orgFilterMode === 'direct-only' ? 'direct-only' : 'include-people',
     statusIds: s.statusIds ? new Set(s.statusIds) : null,
     dateField: s.dateField ?? 'due',
     dateRangeStart: s.dateRangeStart ? new Date(s.dateRangeStart) : null,

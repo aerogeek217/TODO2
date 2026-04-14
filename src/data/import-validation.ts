@@ -458,7 +458,7 @@ function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] 
     personIds: v.personIds as number[] | null,
     tagIds: v.tagIds as number[] | null,
     orgIds: v.orgIds as number[] | null,
-    ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as string } : {}),
+    ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as SavedView['filters']['orgFilterMode'] } : {}),
     ...(v.statusIds !== undefined ? { statusIds: v.statusIds as number[] | null } : {}),
     dateRangeIncludeNoDue: (v.dateRangeIncludeNoDue as boolean) ?? false,
     ...(v.dateField !== undefined ? { dateField: v.dateField as SavedView['filters']['dateField'] } : {}),

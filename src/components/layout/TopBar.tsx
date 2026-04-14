@@ -636,39 +636,41 @@ export function TopBar() {
             </FilterDropdown>
           )}
 
-          <FilterDropdown
-            label={<><span className={styles.filterIcon}>@</span> Org</>}
-            active={orgsActive || previewEmpty === 'org'}
-            allSelected={!orgsActive && previewEmpty !== 'org'}
-            noneSelected={orgsNone}
-            onSelectAll={() => { setPreviewEmpty(null); setOrgIds(null) }}
-            onDeselectAll={() => { setPreviewEmpty(null); setOrgIds(new Set()) }}
-            onOpen={() => { if (!orgsActive) setPreviewEmpty('org') }}
-            onClose={() => { if (previewEmpty === 'org') setPreviewEmpty(null) }}
-            searchable
-          >
-            {(searchText: string) => (
-              <>
-                <div className={styles.orgModeToggle}>
-                  {([['include-people', 'People'], ['direct-only', 'Org only']] as [OrgFilterMode, string][]).map(([mode, label]) => (
-                    <button
-                      key={mode}
-                      className={`${styles.orgModeOption} ${filters.orgFilterMode === mode ? styles.orgModeOptionActive : ''}`}
-                      onClick={() => setOrgFilterMode(mode)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <EntityDropdownItems
-                  searchText={searchText}
-                  entities={orgs}
-                  isChecked={isOrgChecked}
-                  onToggle={handleOrgToggle}
-                />
-              </>
-            )}
-          </FilterDropdown>
+          {orgs.length > 0 && (
+            <FilterDropdown
+              label={<><span className={styles.filterIcon}>@</span> Org</>}
+              active={orgsActive || previewEmpty === 'org'}
+              allSelected={!orgsActive && previewEmpty !== 'org'}
+              noneSelected={orgsNone}
+              onSelectAll={() => { setPreviewEmpty(null); setOrgIds(null) }}
+              onDeselectAll={() => { setPreviewEmpty(null); setOrgIds(new Set()) }}
+              onOpen={() => { if (!orgsActive) setPreviewEmpty('org') }}
+              onClose={() => { if (previewEmpty === 'org') setPreviewEmpty(null) }}
+              searchable
+            >
+              {(searchText: string) => (
+                <>
+                  <div className={styles.orgModeToggle}>
+                    {([['include-people', 'People'], ['direct-only', 'Org only']] as [OrgFilterMode, string][]).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        className={`${styles.orgModeOption} ${filters.orgFilterMode === mode ? styles.orgModeOptionActive : ''}`}
+                        onClick={() => setOrgFilterMode(mode)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <EntityDropdownItems
+                    searchText={searchText}
+                    entities={orgs}
+                    isChecked={isOrgChecked}
+                    onToggle={handleOrgToggle}
+                  />
+                </>
+              )}
+            </FilterDropdown>
+          )}
 
           <SimpleFilterDropdown<AssignedFilter>
             icon={<svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}

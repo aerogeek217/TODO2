@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { todoRepository } from '../../data/todo-repository'
 
 beforeEach(async () => {
@@ -188,6 +189,99 @@ describe('todoStore', () => {
     await useTodoStore.getState().add('Active task')
     const count = await useTodoStore.getState().purgeExpiredCompleted(30)
     expect(count).toBe(0)
+  })
+
+  describe('toggleAssigned undo/redo', () => {
+    it('toggleAssigned undo restores original state', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      useUndoStore.getState().clear()
+
+      // Task starts unassigned
+      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBeFalsy()
+
+      await useTodoStore.getState().toggleAssigned(id)
+      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBe(true)
+
+      await useUndoStore.getState().undo()
+      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBeFalsy()
+    })
+
+    it('toggleAssigned redo re-applies the toggle', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      useUndoStore.getState().clear()
+
+      await useTodoStore.getState().toggleAssigned(id)
+      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBe(true)
+
+      await useUndoStore.getState().undo()
+      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBeFalsy()
+
+      await useUndoStore.getState().redo()
+      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBe(true)
+    })
+  })
+
+  describe('bulkSetAssigned undo', () => {
+    it('undo restores per-item original assigned state', async () => {
+      const id1 = await useTodoStore.getState().add('Task 1')
+      const id2 = await useTodoStore.getState().add('Task 2')
+      const id3 = await useTodoStore.getState().add('Task 3')
+
+      // Set mixed initial states: id1=assigned, id2=unassigned, id3=assigned
+      await useTodoStore.getState().toggleAssigned(id1)
+      await useTodoStore.getState().toggleAssigned(id3)
+      useUndoStore.getState().clear()
+
+      expect(useTodoStore.getState().todos.find(t => t.id === id1)!.isAssigned).toBe(true)
+      expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isAssigned).toBeFalsy()
+      expect(useTodoStore.getState().todos.find(t => t.id === id3)!.isAssigned).toBe(true)
+
+      // Bulk set all to true
+      await useTodoStore.getState().bulkSetAssigned([id1, id2, id3], true)
+      expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isAssigned).toBe(true)
+
+      // Undo should restore per-item: id1=true, id2=false, id3=true
+      await useUndoStore.getState().undo()
+      expect(useTodoStore.getState().todos.find(t => t.id === id1)!.isAssigned).toBe(true)
+      expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isAssigned).toBeFalsy()
+      expect(useTodoStore.getState().todos.find(t => t.id === id3)!.isAssigned).toBe(true)
+    })
+  })
+
+  describe('defaultStatusId', () => {
+    it('add applies defaultStatusId from settings when set', async () => {
+      useSettingsStore.setState({ defaultStatusId: 7 })
+      const id = await useTodoStore.getState().add('Task with status')
+      const todo = useTodoStore.getState().todos.find(t => t.id === id)
+      expect(todo!.statusId).toBe(7)
+    })
+
+    it('add does not set statusId when defaultStatusId is null', async () => {
+      useSettingsStore.setState({ defaultStatusId: null })
+      const id = await useTodoStore.getState().add('Task without status')
+      const todo = useTodoStore.getState().todos.find(t => t.id === id)
+      expect(todo!.statusId).toBeUndefined()
+    })
+
+    it('addAt applies defaultStatusId from settings when set', async () => {
+      useSettingsStore.setState({ defaultStatusId: 5 })
+      const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
+      const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
+
+      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, undefined, 100)
+      const todo = useTodoStore.getState().todos.find(t => t.id === id)
+      expect(todo!.statusId).toBe(5)
+    })
+
+    it('addAt does not set statusId when defaultStatusId is null', async () => {
+      useSettingsStore.setState({ defaultStatusId: null })
+      const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
+      const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
+
+      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, undefined, 100)
+      const todo = useTodoStore.getState().todos.find(t => t.id === id)
+      expect(todo!.statusId).toBeUndefined()
+    })
   })
 
   describe('optimistic rollback', () => {

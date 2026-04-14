@@ -143,11 +143,15 @@ export function SortableTaskList({
     return items
   }, [hierarchy, collapsedParents])
 
-  // During drag: hide children of the actively dragged parent (they're in the overlay)
+  // During drag: hide children of the actively dragged parent and multi-selected siblings (they're in the overlay)
   const displayItems = useMemo(() => {
     if (!activeDragTodoId) return visibleItems
-    return visibleItems.filter(item => item.todo.parentId !== activeDragTodoId)
-  }, [visibleItems, activeDragTodoId])
+    return visibleItems.filter(item => {
+      if (item.todo.parentId === activeDragTodoId) return false
+      if (dragGroupIds && dragGroupIds.has(item.todo.id)) return false
+      return true
+    })
+  }, [visibleItems, activeDragTodoId, dragGroupIds])
 
   const items = displayItems.map((v) => `todo-${v.todo.id}`)
 

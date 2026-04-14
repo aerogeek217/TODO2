@@ -40,7 +40,7 @@ import { INDENT_PX } from '../constants'
 /** Position-based child detection: is the drag far enough right to be a child? */
 function wantsChildLevel(parentId: number | undefined | null, deltaX: number): boolean {
   const currentOffset = parentId != null ? INDENT_PX : 0
-  // Parent is the default; child requires clear rightward intent (3x indent distance)
+  // Parent is the default; child requires clear rightward intent (1.5x indent distance)
   return (currentOffset + deltaX) > INDENT_PX * 1.5
 }
 
