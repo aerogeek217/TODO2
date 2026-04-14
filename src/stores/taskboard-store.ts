@@ -11,6 +11,7 @@ interface TaskboardState {
 
   load: () => Promise<void>
   add: (todoId: number) => Promise<void>
+  addAt: (todoId: number, atIndex: number) => Promise<void>
   remove: (todoId: number) => Promise<void>
   clear: () => Promise<void>
   has: (todoId: number) => boolean
@@ -46,6 +47,41 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
       undoable(
         'Add to taskboard',
         () => get().add(todoId),
+        async () => {
+          await taskboardRepository.removeByTodoId(todoId)
+          set({ entries: get().entries.filter(e => e.todoId !== todoId) })
+        },
+        true,
+      )
+    }, 'Failed to add to taskboard')
+  },
+
+  async addAt(todoId: number, atIndex: number) {
+    await mutate(set, async () => {
+      const existing = await taskboardRepository.findByTodoId(todoId)
+      if (existing) return
+
+      const current = get().entries
+      let sortOrder: number
+      if (current.length === 0 || atIndex >= current.length) {
+        sortOrder = current.length > 0 ? current[current.length - 1].sortOrder + 1000 : 1000
+      } else if (atIndex <= 0) {
+        sortOrder = current[0].sortOrder - 1000
+      } else {
+        sortOrder = Math.floor((current[atIndex - 1].sortOrder + current[atIndex].sortOrder) / 2)
+      }
+
+      const id = await taskboardRepository.addEntryAt(todoId, sortOrder)
+      const entry = await taskboardRepository.getById(id)
+      if (entry) {
+        const newEntries = [...current]
+        newEntries.splice(Math.max(0, Math.min(atIndex, current.length)), 0, entry)
+        set({ entries: newEntries })
+      }
+
+      undoable(
+        'Add to taskboard',
+        () => get().addAt(todoId, atIndex),
         async () => {
           await taskboardRepository.removeByTodoId(todoId)
           set({ entries: get().entries.filter(e => e.todoId !== todoId) })

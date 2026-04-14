@@ -81,7 +81,7 @@ main.tsx (entry point)
 | orgRepository | data/org-repository.ts | CRUD for Org (cascading delete clears personOrgs + todoOrgs), todo-org assignment queries, person-org many-to-many (getOrgsForPerson, getPersonOrgMap, setPersonOrgs) |
 | listInsetRepository | data/list-inset-repository.ts | CRUD for ListInset (position, resize) |
 | stickyNoteRepository | data/sticky-note-repository.ts | CRUD for StickyNote (position, text, color) |
-| taskboardRepository | data/taskboard-repository.ts | CRUD for TaskboardEntry (add, remove by todoId, reorder) |
+| taskboardRepository | data/taskboard-repository.ts | CRUD for TaskboardEntry (add, addAt with sortOrder, remove by todoId, reorder) |
 | statusRepository | data/status-repository.ts | CRUD for Status (transactional cascade delete clears statusId from todos) |
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | savedViewRepository | data/saved-view-repository.ts | CRUD for SavedView (getAll, add, update, remove) |
@@ -112,7 +112,7 @@ main.tsx (entry point)
 | useListInsetStore | stores/list-inset-store.ts | List inset widgets CRUD, position, addFiltered (attribute-based insets) |
 | useStickyNoteStore | stores/sticky-note-store.ts | Sticky notes CRUD, position, title, text, color (default yellow #FFF3B0) |
 | useStatusStore | stores/status-store.ts | Status definitions: load, add, update, remove (cascade delete clears todos + default setting, with undo), reorder (drag sort with persisted sortOrder) |
-| useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, remove, clear, has, reorder with undo support |
+| useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, addAt (positional insert), remove, clear, has, reorder with undo support |
 | useSavedViewStore | stores/saved-view-store.ts | Saved list views CRUD: save, update (overwrite filters/sortBy), rename, remove, reorder (drag sort with persisted sortOrder), apply (restores filters + grouping) |
 | TaskEditPopup | components/task/TaskEditPopup.tsx | Centered modal for editing/creating tasks; project selector in create/edit mode (replaced TaskDetailPanel + QuickAddPopup) |
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/tags; search input, filtered list, create-new option |

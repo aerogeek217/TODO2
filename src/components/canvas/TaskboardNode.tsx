@@ -1,18 +1,8 @@
-import { memo, useMemo, useCallback, useState, useRef, useEffect } from 'react'
+import { Fragment, memo, useMemo, useCallback, useState, useRef, useEffect } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-  type DragEndEvent,
-} from '@dnd-kit/core'
+import { useDroppable, useDndMonitor } from '@dnd-kit/core'
 import {
   SortableContext,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable'
@@ -52,7 +42,10 @@ function SortableTaskboardEntry({
   ghost?: boolean
   onOpenDetail?: (todoId: number) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entryId })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `tb-${entryId}`,
+    data: { type: 'taskboard-task', todo, entryId },
+  })
   const style = { transform: CSS.Transform.toString(transform), transition }
   const handleRemove = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -72,13 +65,57 @@ function SortableTaskboardEntry({
 
 function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   const { entries, allTodos, assignedPeopleMap, assignedTagsMap, ghostTodoIds, completedFilter, assignedFilter, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
-  const [reorderKey, setReorderKey] = useState(0)
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: 'taskboard-drop',
     data: { type: 'taskboard' },
+  })
+
+  // Track drag state: external drag highlight + insert position indicator
+  const [isExternalDragOver, setIsExternalDragOver] = useState(false)
+  const [tbInsertIndex, setTbInsertIndex] = useState<number | null>(null)
+  useDndMonitor({
+    onDragMove(event) {
+      const activeType = event.active.data.current?.type
+      const overData = event.over?.data.current
+      const overType = overData?.type
+
+      // External drag highlight (not for taskboard-internal reorder)
+      setIsExternalDragOver(activeType !== 'taskboard-task' && (overType === 'taskboard' || overType === 'taskboard-task'))
+
+      // Insert position indicator — only for external drops (SortableContext handles reorder visuals)
+      if (activeType === 'taskboard-task' || (overType !== 'taskboard' && overType !== 'taskboard-task')) {
+        setTbInsertIndex(null)
+        return
+      }
+      if (overType === 'taskboard') {
+        setTbInsertIndex(visibleEntries.length)
+        return
+      }
+
+      // Over a specific entry — determine top/bottom half
+      const overEntryId = overData!.entryId as number
+      const idx = visibleEntries.findIndex(e => e.id === overEntryId)
+      if (idx === -1) { setTbInsertIndex(null); return }
+
+      const overRect = event.over?.rect
+      const translated = event.active.rect.current.translated
+      const initialRect = event.active.rect.current.initial
+      let activeCenter: number | null = null
+      if (translated) activeCenter = translated.top + translated.height / 2
+      else if (initialRect) activeCenter = initialRect.top + initialRect.height / 2 + event.delta.y
+
+      if (activeCenter != null && overRect) {
+        const overCenter = overRect.top + overRect.height / 2
+        setTbInsertIndex(activeCenter > overCenter ? idx + 1 : idx)
+      } else {
+        setTbInsertIndex(idx)
+      }
+    },
+    onDragEnd() { setIsExternalDragOver(false); setTbInsertIndex(null) },
+    onDragCancel() { setIsExternalDragOver(false); setTbInsertIndex(null) },
   })
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
@@ -101,27 +138,10 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     [entries, todoMap, completedFilter, assignedFilter],
   )
 
-  const entryIds = useMemo(() => visibleEntries.map(e => e.id!), [visibleEntries])
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const allEntries = useTaskboardStore.getState().entries
-    const fromIndex = allEntries.findIndex(e => e.id === active.id)
-    const toIndex = allEntries.findIndex(e => e.id === over.id)
-    if (fromIndex !== -1 && toIndex !== -1) {
-      useTaskboardStore.getState().reorder(fromIndex, toIndex)
-      setReorderKey(k => k + 1)
-    }
-  }, [])
+  const entryIds = useMemo(() => visibleEntries.map(e => `tb-${e.id}`), [visibleEntries])
 
   return (
-    <div ref={setDropRef} className={`${styles.node} ${isOver ? styles.dropTarget : ''}`} style={{ width }}>
+    <div ref={setDropRef} className={`${styles.node} ${isOver || isExternalDragOver ? styles.dropTarget : ''}`} style={{ width }}>
       <div className={styles.titleBar}>
         <button className={`${styles.collapseButton} ${isCollapsed ? styles.collapsed : ''}`} onClick={onToggleCollapse}>&#9662;</button>
         <span className={styles.icon}>&#9776;</span>
@@ -134,14 +154,14 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         {visibleEntries.length === 0 ? (
           <div className={styles.emptyMessage}>No tasks queued</div>
         ) : (
-          <DndContext key={reorderKey} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
-              {visibleEntries.map((entry, i) => {
-                const todo = todoMap.get(entry.todoId)
-                if (!todo) return null
-                return (
+          <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
+            {visibleEntries.map((entry, i) => {
+              const todo = todoMap.get(entry.todoId)
+              if (!todo) return null
+              return (
+                <Fragment key={entry.id}>
+                  {tbInsertIndex === i && <div className={styles.dropPreview} />}
                   <SortableTaskboardEntry
-                    key={entry.id}
                     entryId={entry.id!}
                     index={i}
                     todo={todo}
@@ -150,10 +170,11 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                     ghost={ghostTodoIds?.has(todo.id)}
                     onOpenDetail={onOpenDetail}
                   />
-                )
-              })}
-            </SortableContext>
-          </DndContext>
+                </Fragment>
+              )
+            })}
+            {tbInsertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
+          </SortableContext>
         )}
       </div>
 

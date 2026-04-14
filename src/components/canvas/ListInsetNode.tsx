@@ -170,7 +170,10 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
 
       {!inset.isCollapsed && <div className={styles.filterDesc}>{getFilterDescription(inset)}</div>}
 
-      <div className={`${inset.isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}>
+      <div
+        className={`${inset.isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}
+        style={!inset.isCollapsed ? { maxHeight: inset.height || 300 } : undefined}
+      >
         {filteredTodos.length === 0 ? (
           <div className={styles.emptyMessage}>No tasks</div>
         ) : (
@@ -187,6 +190,89 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           ))
         )}
       </div>
+
+      {!inset.isCollapsed && (
+        <>
+          <div
+            className={`${styles.bottomHandle} nopan nodrag`}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              const startY = e.clientY
+              const startH = inset.height || 300
+              const zoom = getZoom()
+              const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+              const bodyEl = insetEl?.querySelector('.' + styles.body) as HTMLElement | null
+
+              const onMouseMove = (ev: MouseEvent) => {
+                const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
+                if (bodyEl) bodyEl.style.maxHeight = `${newH}px`
+              }
+
+              const onMouseUp = (ev: MouseEvent) => {
+                const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
+                if (inset.id && onResize) onResize(inset.id, inset.width, Math.round(newH))
+                cleanup()
+              }
+
+              const cleanup = () => {
+                window.removeEventListener('mousemove', onMouseMove)
+                window.removeEventListener('mouseup', onMouseUp)
+                resizeCleanupRef.current = null
+              }
+              resizeCleanupRef.current = cleanup
+              window.addEventListener('mousemove', onMouseMove)
+              window.addEventListener('mouseup', onMouseUp)
+            }}
+          />
+          <div
+            className={`${styles.cornerHandle} nopan nodrag`}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              const startX = e.clientX
+              const startY = e.clientY
+              const startW = inset.width
+              const startH = inset.height || 300
+              const zoom = getZoom()
+              const nodeId = `inset-${inset.id}`
+              const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+              const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
+              const bodyEl = insetEl?.querySelector('.' + styles.body) as HTMLElement | null
+
+              const onMouseMove = (ev: MouseEvent) => {
+                let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+                const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
+                if (onResizeSnap) {
+                  const snap = onResizeSnap(nodeId, newW)
+                  newW = snap.width
+                  onSetAlignmentLines?.(snap.lines)
+                }
+                if (insetDiv) insetDiv.style.width = `${newW}px`
+                if (bodyEl) bodyEl.style.maxHeight = `${newH}px`
+              }
+
+              const onMouseUp = (ev: MouseEvent) => {
+                let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
+                const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
+                if (onResizeSnap) {
+                  newW = onResizeSnap(nodeId, newW).width
+                }
+                onSetAlignmentLines?.([])
+                if (inset.id && onResize) onResize(inset.id, Math.round(newW), Math.round(newH))
+                cleanup()
+              }
+
+              const cleanup = () => {
+                window.removeEventListener('mousemove', onMouseMove)
+                window.removeEventListener('mouseup', onMouseUp)
+                resizeCleanupRef.current = null
+              }
+              resizeCleanupRef.current = cleanup
+              window.addEventListener('mousemove', onMouseMove)
+              window.addEventListener('mouseup', onMouseUp)
+            }}
+          />
+        </>
+      )}
 
       <div
         className={`${styles.resizeHandle} nopan nodrag`}

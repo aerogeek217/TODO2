@@ -16,8 +16,8 @@ Core bugs that break existing functionality.
 ## Phase 2 — Canvas Interaction
 Canvas node improvements and drag-and-drop polish.
 
-- [ ] Canvas list views: add height adjustor and corner drag handle (enable scrolling)
-- [ ] Dragging item from taskboard onto canvas should remove it from taskboard
+- [x] Canvas list views: add height adjustor and corner drag handle (enable scrolling)
+- [x] Dragging item from taskboard onto canvas should remove it from taskboard
 
 ## Phase 3 — Task Views & Lists
 Task row, detail, and list view improvements.

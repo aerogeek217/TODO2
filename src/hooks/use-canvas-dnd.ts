@@ -294,7 +294,7 @@ export function useCanvasDnD({
       const overData = over?.data.current
 
       // Hovering over taskboard — clear insert preview (taskboard handles its own highlight)
-      if (overData?.type === 'taskboard') {
+      if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
         setInsertTodoId(null)
         setInsertIndentLevel(0)
         setInsertAtEnd(false)
@@ -375,15 +375,72 @@ export function useCanvasDnD({
       const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
       if (!activeTodo) return
 
+      const activeType = active.data.current?.type
       const overData = over?.data.current
 
-      // Dropped onto the taskboard — add task(s) instead of moving
-      if (overData?.type === 'taskboard') {
-        const { add } = useTaskboardStore.getState()
+      // ── Taskboard entry being dragged ──
+      if (activeType === 'taskboard-task') {
+        const activeEntryId = active.data.current?.entryId as number
+
+        if (overData?.type === 'taskboard-task') {
+          // Dropped on another taskboard entry → reorder (SortableContext handles visual)
+          const overEntryId = overData.entryId as number
+          const entries = useTaskboardStore.getState().entries
+          const fromIndex = entries.findIndex(e => e.id === activeEntryId)
+          const toIndex = entries.findIndex(e => e.id === overEntryId)
+          if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+            useTaskboardStore.getState().reorder(fromIndex, toIndex)
+          }
+          return
+        }
+
+        if (overData?.type === 'taskboard') {
+          // Dropped on taskboard zone → move to end
+          const entries = useTaskboardStore.getState().entries
+          const fromIndex = entries.findIndex(e => e.id === activeEntryId)
+          if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
+            useTaskboardStore.getState().reorder(fromIndex, entries.length - 1)
+          }
+          return
+        }
+
+        // Dropped anywhere else → remove from taskboard
+        await useTaskboardStore.getState().remove(activeTodo.id)
+        return
+      }
+
+      // Dropped onto the taskboard — add task(s) at drop position
+      if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
+        const tbState = useTaskboardStore.getState()
+
+        // Determine insert index
+        let targetIndex = tbState.entries.length
+        if (overData?.type === 'taskboard-task') {
+          const overEntryId = overData.entryId as number
+          const idx = tbState.entries.findIndex(e => e.id === overEntryId)
+          if (idx !== -1) {
+            targetIndex = idx
+            const overRect = over?.rect
+            const translated = active.rect.current.translated
+            const initialRect = active.rect.current.initial
+            let activeCenter: number | null = null
+            if (translated) activeCenter = translated.top + translated.height / 2
+            else if (initialRect) activeCenter = initialRect.top + initialRect.height / 2 + delta.y
+            if (activeCenter != null && overRect) {
+              const overCenter = overRect.top + overRect.height / 2
+              if (activeCenter > overCenter) targetIndex++
+            }
+          }
+        }
+
         if (dragIds) {
-          for (const id of dragIds) await add(id)
+          let offset = 0
+          for (const id of dragIds) {
+            await tbState.addAt(id, targetIndex + offset)
+            offset++
+          }
         } else {
-          await add(activeTodo.id)
+          await tbState.addAt(activeTodo.id, targetIndex)
         }
         return
       }

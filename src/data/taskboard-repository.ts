@@ -21,6 +21,10 @@ export const taskboardRepository = {
     return db.taskboardEntries.add({ todoId, sortOrder: maxSort + 1000 })
   },
 
+  async addEntryAt(todoId: number, sortOrder: number): Promise<number> {
+    return db.taskboardEntries.add({ todoId, sortOrder })
+  },
+
   async removeByTodoId(todoId: number): Promise<void> {
     await db.taskboardEntries.where('todoId').equals(todoId).delete()
   },
