@@ -143,8 +143,6 @@ export const TaskRow = memo(function TaskRow({
   const closePriority = useCallback(() => setShowPriorityMenu(false), [])
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
-  useClickOutside(priorityMenuRef, closePriority, showPriorityMenu)
-
   // Ghost rows are non-interactive (drag overlay visuals)
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
   const handleToggleStar = useCallback(() => { if (!ghost) bulk.toggleStar(todo.id) }, [ghost, bulk, todo.id])
