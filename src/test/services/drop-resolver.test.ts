@@ -309,12 +309,12 @@ describe('resolveMultiDrop (via resolveDropTarget with dragIds)', () => {
     const overTodo = makeTodo({ id: 2, projectId: 10 })
     const dragIds = new Set([1, 2])
 
-    // child: currentOffset=24, deltaX=20, 24+20=44 < 72 → does NOT want child → outdent
+    // child: currentOffset=24, deltaX=11, 24+11=35 < 36 → does NOT want child → outdent
     const result = resolveDropTarget(makeCtx({
       activeTodo: active,
       overType: 'task',
       overTodo,
-      delta: { x: 20, y: 5 }, // horizontal
+      delta: { x: 11, y: 5 }, // horizontal
       dragIds,
     }))
     expect(result).toEqual({ type: 'outdent', taskIds: dragIds, projectId: 10 })
