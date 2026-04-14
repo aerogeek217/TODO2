@@ -233,22 +233,27 @@ export function SortableTaskList({
   const lastDraggedIdRef = useRef<number | null>(null)
   const wasDragActiveRef = useRef(false)
 
-  // Track which item is being dragged, and when a drop occurs
-  if (isDragActive && activeDragTodoId != null) {
-    lastDraggedIdRef.current = activeDragTodoId
-  }
-  if (wasDragActiveRef.current && !isDragActive) {
-    dropTimestampRef.current = performance.now()
-  }
-  wasDragActiveRef.current = isDragActive
+  // Track which item is being dragged, and when a drop occurs (in useLayoutEffect to avoid concurrent-mode issues)
+  useLayoutEffect(() => {
+    if (isDragActive && activeDragTodoId != null) {
+      lastDraggedIdRef.current = activeDragTodoId
+    }
+    if (wasDragActiveRef.current && !isDragActive) {
+      dropTimestampRef.current = performance.now()
+    }
+    wasDragActiveRef.current = isDragActive
+  }, [isDragActive, activeDragTodoId])
 
   useLayoutEffect(() => {
     const container = containerRef.current
     if (!container) return
 
-    const orderKey = visibleItems.map(v => v.todo.id).join(',')
+    const orderKey = displayItems.map(v => v.todo.id).join(',')
     const orderChanged = orderKey !== prevOrderRef.current
     const isRecentDrop = performance.now() - dropTimestampRef.current < 500
+
+    // Skip expensive rect measurement when no animation is needed
+    if (!isRecentDrop && !orderChanged) return
 
     // Measure current (new) positions before applying any transforms
     const containerTop = container.getBoundingClientRect().top
@@ -307,6 +312,8 @@ export function SortableTaskList({
           phantom.style.transform = `translate(${phantomDx}px, ${phantomDy}px)`
           phantom.style.opacity = '0'
           phantom.addEventListener('transitionend', () => phantom.remove(), { once: true })
+          // Safety net: remove phantom if transitionend never fires
+          setTimeout(() => { if (phantom.isConnected) phantom.remove() }, 600)
         }
 
         // Other tasks: slide into new positions

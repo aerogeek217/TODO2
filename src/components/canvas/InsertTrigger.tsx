@@ -21,6 +21,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef('')
+  const committedRef = useRef(false)
 
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
@@ -36,6 +37,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
 
   useClickOutside(wrapperRef, () => {
     ac.dismiss()
+    committedRef.current = true
     const trimmed = titleRef.current.trim()
     if (trimmed) onCommit(trimmed)
     else onCancel()
@@ -44,6 +46,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   useEffect(() => {
     if (editing) {
       titleRef.current = ''
+      committedRef.current = false
       inputRef.current?.focus()
     } else {
       ac.dismiss()
@@ -127,6 +130,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
           onBlur={() => {
             // Delay to allow autocomplete click to fire
             setTimeout(() => {
+              if (committedRef.current) return
               if (!ac.state.visible) handleCommit()
               else { ac.dismiss(); handleCommit() }
             }, 150)

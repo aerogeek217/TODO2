@@ -28,7 +28,7 @@ import { DragInsertContext } from '../components/canvas/DragInsertContext'
 import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { parseTaskInput, applyNlpMetadata } from '../services/nlp-task-creator'
-import { getFilterDefaults } from '../utils/filter-defaults'
+import { getFilterDefaults, supplementWithFilterDefaults } from '../utils/filter-defaults'
 import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
 
 export function CanvasPage() {
@@ -225,12 +225,8 @@ export function CanvasPage() {
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
       const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
-      // Supplement with filter defaults where NLP didn't resolve
       const fd = getFilterDefaults(useFilterStore.getState().filters)
-      if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
-      if (resolved.tagIds.length === 0) resolved.tagIds = fd.tagIds
-      if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
-      if (resolved.priority === undefined && fd.priority !== undefined) resolved.priority = fd.priority
+      const { isStarred, isAssigned } = supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
       const id = await addTodo(title || rawTitle, selectedCanvasId, pid)
       await applyNlpMetadata(
@@ -238,6 +234,10 @@ export function CanvasPage() {
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
         updateTodo, assignPerson, assignTag, assignOrg,
       )
+      if (isStarred || isAssigned) {
+        const todo = useTodoStore.getState().todos.find((t) => t.id === id)
+        if (todo) await updateTodo({ ...todo, isStarred: isStarred || todo.isStarred, isAssigned: isAssigned || undefined })
+      }
     },
     [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
   )
@@ -248,12 +248,8 @@ export function CanvasPage() {
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
       const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
-      // Supplement with filter defaults where NLP didn't resolve
       const fd = getFilterDefaults(useFilterStore.getState().filters)
-      if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
-      if (resolved.tagIds.length === 0) resolved.tagIds = fd.tagIds
-      if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
-      if (resolved.priority === undefined && fd.priority !== undefined) resolved.priority = fd.priority
+      const { isStarred, isAssigned } = supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
       const projectTodos = todosByProject.get(pid) ?? []
       const siblings = projectTodos.filter(t =>
@@ -267,6 +263,10 @@ export function CanvasPage() {
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
         updateTodo, assignPerson, assignTag, assignOrg,
       )
+      if (isStarred || isAssigned) {
+        const todo = useTodoStore.getState().todos.find((t) => t.id === id)
+        if (todo) await updateTodo({ ...todo, isStarred: isStarred || todo.isStarred, isAssigned: isAssigned || undefined })
+      }
       return id
     },
     [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
@@ -350,11 +350,7 @@ export function CanvasPage() {
       const fd = getFilterDefaults(useFilterStore.getState().filters)
       for (const line of lines) {
         const { title, resolved } = parseTaskInput(line, people, tags, projects, orgs)
-        // Supplement with filter defaults where NLP didn't resolve
-        if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
-        if (resolved.tagIds.length === 0) resolved.tagIds = fd.tagIds
-        if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
-        if (resolved.priority === undefined && fd.priority !== undefined) resolved.priority = fd.priority
+        const { isStarred, isAssigned } = supplementWithFilterDefaults(resolved, fd)
         let pid = resolved.projectId
         if (!pid) {
           pid = projects[0]?.id
@@ -368,6 +364,10 @@ export function CanvasPage() {
           (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
           updateTodo, assignPerson, assignTag, assignOrg,
         )
+        if (isStarred || isAssigned) {
+          const todo = useTodoStore.getState().todos.find((t) => t.id === id)
+          if (todo) await updateTodo({ ...todo, isStarred: isStarred || todo.isStarred, isAssigned: isAssigned || undefined })
+        }
       }
     },
     [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, projects, orgs, addProject]

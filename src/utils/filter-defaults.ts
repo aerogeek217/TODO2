@@ -1,5 +1,6 @@
 import { Priority } from '../models'
 import type { FilterCriteria } from '../stores/filter-store'
+import type { ResolvedInput } from '../services/nlp-resolver'
 
 export interface FilterDefaults {
   personIds: number[]
@@ -38,4 +39,20 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const isAssigned = filters.assignedFilter === 'assigned'
 
   return { personIds, tagIds, orgIds, statusId, priority, isStarred, isAssigned }
+}
+
+/**
+ * Supplement resolved NLP output with filter-inferred defaults.
+ * Mutates `resolved` in place for person/tag/org/priority fields.
+ * Returns isStarred/isAssigned flags for separate application to the task.
+ */
+export function supplementWithFilterDefaults(
+  resolved: ResolvedInput,
+  fd: FilterDefaults,
+): { isStarred: boolean; isAssigned: boolean } {
+  if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
+  if (resolved.tagIds.length === 0) resolved.tagIds = fd.tagIds
+  if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
+  if (resolved.priority === undefined && fd.priority !== undefined) resolved.priority = fd.priority
+  return { isStarred: fd.isStarred, isAssigned: fd.isAssigned }
 }

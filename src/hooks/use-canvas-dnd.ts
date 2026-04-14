@@ -420,6 +420,8 @@ export function useCanvasDnD({
             phantom.style.transition = 'opacity 180ms ease'
             phantom.style.opacity = '0'
             phantom.addEventListener('transitionend', () => phantom.remove(), { once: true })
+            // Safety net: remove if transitionend never fires
+            setTimeout(() => { if (phantom.isConnected) phantom.remove() }, 300)
           }
         }, 300)
         phantom.dataset.cleanupTimeout = String(tid)
@@ -506,11 +508,7 @@ export function useCanvasDnD({
         }
 
         if (dragIds) {
-          let offset = 0
-          for (const id of dragIds) {
-            await tbState.addAt(id, targetIndex + offset)
-            offset++
-          }
+          await tbState.addMultipleAt([...dragIds], targetIndex)
         } else {
           await tbState.addAt(activeTodo.id, targetIndex)
         }

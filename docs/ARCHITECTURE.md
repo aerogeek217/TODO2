@@ -113,7 +113,7 @@ main.tsx (entry point)
 | useListInsetStore | stores/list-inset-store.ts | List inset widgets CRUD, position, addFiltered (attribute-based insets) |
 | useStickyNoteStore | stores/sticky-note-store.ts | Sticky notes CRUD, position, title, text, color (default yellow #FFF3B0) |
 | useStatusStore | stores/status-store.ts | Status definitions: load, add, update, remove (cascade delete clears todos + default setting, with undo), reorder (drag sort with persisted sortOrder) |
-| useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, addAt (positional insert), remove, clear, has, reorder with undo support |
+| useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, addAt (positional insert with collision renormalization), addMultipleAt (batch insert with even distribution), remove, clear, has, reorder with undo support |
 | useSavedViewStore | stores/saved-view-store.ts | Saved list views CRUD: save, update (overwrite filters/sortBy), rename, remove, reorder (drag sort with persisted sortOrder), apply (restores filters + grouping) |
 | TaskEditPopup | components/task/TaskEditPopup.tsx | Centered modal for editing/creating tasks; project selector in create/edit mode (replaced TaskDetailPanel + QuickAddPopup) |
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/tags; search input, filtered list, create-new option |
@@ -168,6 +168,7 @@ main.tsx (entry point)
 | generateInitials | utils/person.ts | Generates 1-3 character uppercase initials from a name |
 | toggleItem | utils/filter.ts | Toggle an item in a null-or-Set filter (null = all shown, Set = explicit selection) |
 | getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, tags, orgs, status, priority, starred, assigned) from active filter criteria; strips sentinel 0 values |
+| supplementWithFilterDefaults | utils/filter-defaults.ts | Supplement resolved NLP output with filter-inferred defaults (person/tag/org/priority); returns isStarred/isAssigned for separate application |
 | isValidCssColor | data/import-validation.ts | Validates hex color strings (#rgb or #rrggbb only) |
 | undoable | services/undoable.ts | Helper to register an action as undoable; skips when undo store is mid-undo/redo |
 | task-placement | services/task-placement.ts | Pure functions for task ordering: computeInsertionSort, placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, moveTasksInDirection, findOrphans, normalizeSortOrders, shouldNormalize |

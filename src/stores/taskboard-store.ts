@@ -12,6 +12,7 @@ interface TaskboardState {
   load: () => Promise<void>
   add: (todoId: number) => Promise<void>
   addAt: (todoId: number, atIndex: number) => Promise<void>
+  addMultipleAt: (todoIds: number[], atIndex: number) => Promise<void>
   remove: (todoId: number) => Promise<void>
   clear: () => Promise<void>
   has: (todoId: number) => boolean
@@ -61,14 +62,24 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
       const existing = await taskboardRepository.findByTodoId(todoId)
       if (existing) return
 
-      const current = get().entries
+      let current = get().entries
       let sortOrder: number
       if (current.length === 0 || atIndex >= current.length) {
         sortOrder = current.length > 0 ? current[current.length - 1].sortOrder + 1000 : 1000
       } else if (atIndex <= 0) {
         sortOrder = current[0].sortOrder - 1000
       } else {
-        sortOrder = Math.floor((current[atIndex - 1].sortOrder + current[atIndex].sortOrder) / 2)
+        const prev = current[atIndex - 1].sortOrder
+        const next = current[atIndex].sortOrder
+        sortOrder = Math.floor((prev + next) / 2)
+        // Collision: normalize all entries and recalculate
+        if (sortOrder <= prev) {
+          const normalized = current.map((e, i) => ({ ...e, sortOrder: (i + 1) * 1000 }))
+          await taskboardRepository.reorder(normalized.map(e => ({ id: e.id!, sortOrder: e.sortOrder })))
+          current = normalized
+          set({ entries: current })
+          sortOrder = Math.floor((current[atIndex - 1].sortOrder + current[atIndex].sortOrder) / 2)
+        }
       }
 
       const id = await taskboardRepository.addEntryAt(todoId, sortOrder)
@@ -85,6 +96,66 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
         async () => {
           await taskboardRepository.removeByTodoId(todoId)
           set({ entries: get().entries.filter(e => e.todoId !== todoId) })
+        },
+        true,
+      )
+    }, 'Failed to add to taskboard')
+  },
+
+  async addMultipleAt(todoIds: number[], atIndex: number) {
+    await mutate(set, async () => {
+      // Filter out already-existing entries
+      const newIds: number[] = []
+      for (const id of todoIds) {
+        if (!await taskboardRepository.findByTodoId(id)) newIds.push(id)
+      }
+      if (newIds.length === 0) return
+
+      let current = get().entries
+      const count = newIds.length
+
+      // Normalize existing entries to ensure sufficient sortOrder gaps
+      if (current.length > 0) {
+        const normalized = current.map((e, i) => ({ ...e, sortOrder: (i + 1) * 1000 }))
+        await taskboardRepository.reorder(normalized.map(e => ({ id: e.id!, sortOrder: e.sortOrder })))
+        current = normalized
+      }
+
+      // Compute sortOrder bounds at the insertion point
+      let low: number, high: number
+      if (current.length === 0) {
+        low = 0; high = (count + 1) * 1000
+      } else if (atIndex >= current.length) {
+        low = current[current.length - 1].sortOrder
+        high = low + (count + 1) * 1000
+      } else if (atIndex <= 0) {
+        high = current[0].sortOrder
+        low = high - (count + 1) * 1000
+      } else {
+        low = current[atIndex - 1].sortOrder
+        high = current[atIndex].sortOrder
+      }
+
+      // Distribute sortOrders evenly in the gap
+      const step = Math.floor((high - low) / (count + 1))
+      const newEntries: TaskboardEntry[] = []
+      for (let i = 0; i < newIds.length; i++) {
+        const sortOrder = low + step * (i + 1)
+        const id = await taskboardRepository.addEntryAt(newIds[i], sortOrder)
+        const entry = await taskboardRepository.getById(id)
+        if (entry) newEntries.push(entry)
+      }
+
+      const updatedEntries = [...current]
+      updatedEntries.splice(Math.max(0, Math.min(atIndex, current.length)), 0, ...newEntries)
+      set({ entries: updatedEntries })
+
+      undoable(
+        `Add ${newIds.length} to taskboard`,
+        () => get().addMultipleAt(todoIds, atIndex),
+        async () => {
+          for (const todoId of newIds) await taskboardRepository.removeByTodoId(todoId)
+          set({ entries: get().entries.filter(e => !newIds.includes(e.todoId)) })
         },
         true,
       )
