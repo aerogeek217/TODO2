@@ -18,6 +18,7 @@ import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { getFlatVisualOrder } from '../utils/hierarchy'
+import { lastOverlayRect } from '../components/canvas/DragInsertContext'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -401,6 +402,29 @@ export function useCanvasDnD({
       if (pointerListenerRef.current) {
         window.removeEventListener('pointermove', pointerListenerRef.current)
         pointerListenerRef.current = null
+      }
+
+      // Clone overlay as a phantom before it unmounts (for animated drop transition)
+      document.querySelector('[data-drop-phantom]')?.remove()  // clean up stale
+      const overlayEl = document.querySelector<HTMLElement>('[data-drag-overlay]')
+      if (overlayEl) {
+        const rect = overlayEl.getBoundingClientRect()
+        lastOverlayRect.current = rect
+        const phantom = overlayEl.cloneNode(true) as HTMLElement
+        phantom.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;transform:none;margin:0;z-index:10000;pointer-events:none;will-change:transform,opacity`
+        phantom.setAttribute('data-drop-phantom', '')
+        document.body.appendChild(phantom)
+        // Fallback: fade out if FLIP doesn't claim it within 300ms
+        const tid = setTimeout(() => {
+          if (phantom.isConnected) {
+            phantom.style.transition = 'opacity 180ms ease'
+            phantom.style.opacity = '0'
+            phantom.addEventListener('transitionend', () => phantom.remove(), { once: true })
+          }
+        }, 300)
+        phantom.dataset.cleanupTimeout = String(tid)
+      } else {
+        lastOverlayRect.current = null
       }
 
       setActiveDragTodo(null)

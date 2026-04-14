@@ -534,7 +534,7 @@ export function CanvasPage() {
 
       <DragOverlay dropAnimation={null}>
         {dnd.activeDragTodo && (
-          <div className={overlayStyles.overlay}>
+          <div className={overlayStyles.overlay} data-drag-overlay>
             <TaskRow
               todo={dnd.activeDragTodo}
               ghost

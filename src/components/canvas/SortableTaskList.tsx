@@ -1,4 +1,4 @@
-import { useMemo, useContext, useState, useCallback, useEffect, useRef } from 'react'
+import { useMemo, useContext, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   SortableContext,
@@ -218,9 +218,112 @@ export function SortableTaskList({
 
   const clipboardSet = useMemo(() => new Set(clipboardTodoIds), [clipboardTodoIds])
 
+  // ── FLIP animation: animate tasks to new positions after a drop ──
+  const containerRef = useRef<HTMLDivElement>(null)
+  const prevRectsRef = useRef<Map<number, number>>(new Map())  // todoId → relative top
+  const prevOrderRef = useRef<string>('')
+  const dropTimestampRef = useRef(0)
+  const lastDraggedIdRef = useRef<number | null>(null)
+  const wasDragActiveRef = useRef(false)
+
+  // Track which item is being dragged, and when a drop occurs
+  if (isDragActive && activeDragTodoId != null) {
+    lastDraggedIdRef.current = activeDragTodoId
+  }
+  if (wasDragActiveRef.current && !isDragActive) {
+    dropTimestampRef.current = performance.now()
+  }
+  wasDragActiveRef.current = isDragActive
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const orderKey = visibleItems.map(v => v.todo.id).join(',')
+    const orderChanged = orderKey !== prevOrderRef.current
+    const isRecentDrop = performance.now() - dropTimestampRef.current < 500
+
+    // Measure current (new) positions before applying any transforms
+    const containerTop = container.getBoundingClientRect().top
+    const newRects = new Map<number, number>()
+    container.querySelectorAll<HTMLElement>('[data-todo-id]').forEach(el => {
+      const id = Number(el.dataset.todoId)
+      if (!isNaN(id)) newRects.set(id, el.getBoundingClientRect().top - containerTop)
+    })
+
+    // Animate on drop when order actually changed
+    if (isRecentDrop && orderChanged && prevRectsRef.current.size > 0) {
+      dropTimestampRef.current = 0  // consume — don't re-animate
+      const draggedId = lastDraggedIdRef.current
+      const phantom = document.querySelector<HTMLElement>('[data-drop-phantom]')
+      const animating: HTMLElement[] = []
+      let phantomDx = 0, phantomDy = 0
+      let phantomTargetFound = false
+
+      // Compute scale for coordinate space conversion (React Flow viewport may be zoomed)
+      const scale = container.offsetHeight > 0
+        ? container.getBoundingClientRect().height / container.offsetHeight
+        : 1
+
+      container.querySelectorAll<HTMLElement>('[data-todo-id]').forEach(el => {
+        const id = Number(el.dataset.todoId)
+
+        if (id === draggedId) {
+          if (phantom) {
+            // Compute phantom → list-item delta for the slide animation
+            const elRect = el.getBoundingClientRect()
+            const phantomRect = phantom.getBoundingClientRect()
+            phantomDx = elRect.left - phantomRect.left
+            phantomDy = elRect.top - phantomRect.top
+            phantomTargetFound = true
+          }
+          return
+        }
+
+        // Other tasks: FLIP from previous position to new position
+        const prevTop = prevRectsRef.current.get(id)
+        const newTop = newRects.get(id)
+        if (prevTop == null || newTop == null) return
+        const dy = (prevTop - newTop) / scale
+        if (Math.abs(dy) > 1) {
+          el.style.transform = `translateY(${dy}px)`
+          animating.push(el)
+        }
+      })
+
+      requestAnimationFrame(() => {
+        // Phantom: slide to target position + fade out (only if this container has the dropped task)
+        if (phantom && phantomTargetFound) {
+          const tid = phantom.dataset.cleanupTimeout
+          if (tid) clearTimeout(Number(tid))
+          phantom.style.transition = 'transform var(--transition-spring), opacity var(--transition-spring)'
+          phantom.style.transform = `translate(${phantomDx}px, ${phantomDy}px)`
+          phantom.style.opacity = '0'
+          phantom.addEventListener('transitionend', () => phantom.remove(), { once: true })
+        }
+
+        // Other tasks: slide into new positions
+        for (const el of animating) {
+          el.style.transition = 'transform var(--transition-spring)'
+          el.style.transform = ''
+        }
+        if (animating.length > 0) {
+          const onEnd = () => {
+            for (const el of animating) el.style.transition = ''
+          }
+          animating[0]?.addEventListener('transitionend', onEnd, { once: true })
+        }
+      })
+    }
+
+    // Save current state for next comparison
+    prevRectsRef.current = newRects
+    prevOrderRef.current = orderKey
+  })
+
   return (
     <SortableContext items={items}>
-      <div style={isDragActive ? { pointerEvents: 'none' } : undefined}>
+      <div ref={containerRef} style={isDragActive ? { pointerEvents: 'none' } : undefined}>
       {visibleItems.map((item, idx) => {
         const isDragging = activeDragTodoId === item.todo.id
         const isSel = !isDragging && selectedTodoIds.has(item.todo.id)
@@ -234,7 +337,7 @@ export function SortableTaskList({
         const showFocused = isFocused && !(isSel && isMultiSelect)
         const cls = `${selCls} ${showFocused ? styles.focused : ''}`.trim() || undefined
         return (
-        <div key={item.todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, item.todo.id, item.todo.parentId ?? undefined)}>
+        <div key={item.todo.id} data-todo-id={item.todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, item.todo.id, item.todo.parentId ?? undefined)}>
           {insertBeforeTodoId === item.todo.id && (
             <div className={`${styles.dropPreview} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} />
           )}

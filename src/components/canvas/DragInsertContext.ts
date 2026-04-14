@@ -1,5 +1,8 @@
 import { createContext } from 'react'
 
+/** Mutable ref capturing the DragOverlay's last screen rect before it unmounts on drop. */
+export const lastOverlayRect: { current: DOMRect | null } = { current: null }
+
 export interface DragInsertState {
   insertTodoId: number | null
   insertIndentLevel: number  // 0 = root, 1 = child
