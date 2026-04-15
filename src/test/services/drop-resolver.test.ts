@@ -567,6 +567,27 @@ describe('resolveDropPreview', () => {
     })
   })
 
+  it('cross-project, over child target → indent level 1 (H3 fix)', () => {
+    const active = makeTodo({ id: 1, projectId: 10 })
+    const parent = makeTodo({ id: 4, projectId: 20, sortOrder: 1 })
+    const overTodo = makeTodo({ id: 5, projectId: 20, parentId: 4, sortOrder: 2 })
+
+    const result = resolveDropPreview(
+      active,
+      'task',
+      overTodo,
+      null,
+      { x: 0, y: 50 },
+      new Map([[20, [parent, overTodo]]]),
+    )
+    expect(result).toEqual({
+      insertTodoId: 5,
+      insertIndentLevel: 1,
+      insertAtEnd: false,
+      insertProjectId: null,
+    })
+  })
+
   it('child intent blocked by own children → indent level 0', () => {
     const active = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
     const ownChild = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 2 })

@@ -673,6 +673,62 @@ describe('moveTasksInDirection', () => {
       expect(mutations).toHaveLength(0)
     })
 
+    it('moveTasksInDirection_nonContiguousUp_preservesAllTasks', () => {
+      // Arrange — visual order: A, B, C, D, E; selected = {B, D}
+      const todos = [
+        makeTodo({ id: 1, sortOrder: 1, projectId: 10 }), // A
+        makeTodo({ id: 2, sortOrder: 2, projectId: 10 }), // B
+        makeTodo({ id: 3, sortOrder: 3, projectId: 10 }), // C (gap)
+        makeTodo({ id: 4, sortOrder: 4, projectId: 10 }), // D
+        makeTodo({ id: 5, sortOrder: 5, projectId: 10 }), // E
+      ]
+
+      // Act
+      const mutations = moveTasksInDirection(todos, new Set([2, 4]), 'up')
+
+      // Assert: all 5 tasks should have unique sort orders (no collisions)
+      const orders = todos.map(t => resolvedOrder(todos, mutations, t.id))
+      const unique = new Set(orders)
+      expect(unique.size).toBe(5)
+
+      // B and D should be before A; C should be after A
+      const ordA = resolvedOrder(todos, mutations, 1)
+      const ordB = resolvedOrder(todos, mutations, 2)
+      const ordC = resolvedOrder(todos, mutations, 3)
+      const ordD = resolvedOrder(todos, mutations, 4)
+      expect(ordB).toBeLessThan(ordA)
+      expect(ordD).toBeLessThan(ordA)
+      expect(ordC).toBeGreaterThan(ordA)
+    })
+
+    it('moveTasksInDirection_nonContiguousDown_preservesAllTasks', () => {
+      // Arrange — visual order: A, B, C, D, E; selected = {B, D}
+      const todos = [
+        makeTodo({ id: 1, sortOrder: 1, projectId: 10 }), // A
+        makeTodo({ id: 2, sortOrder: 2, projectId: 10 }), // B
+        makeTodo({ id: 3, sortOrder: 3, projectId: 10 }), // C (gap)
+        makeTodo({ id: 4, sortOrder: 4, projectId: 10 }), // D
+        makeTodo({ id: 5, sortOrder: 5, projectId: 10 }), // E
+      ]
+
+      // Act
+      const mutations = moveTasksInDirection(todos, new Set([2, 4]), 'down')
+
+      // Assert: all 5 tasks should have unique sort orders (no collisions)
+      const orders = todos.map(t => resolvedOrder(todos, mutations, t.id))
+      const unique = new Set(orders)
+      expect(unique.size).toBe(5)
+
+      // B and D should be after E; C should be before E
+      const ordB = resolvedOrder(todos, mutations, 2)
+      const ordC = resolvedOrder(todos, mutations, 3)
+      const ordD = resolvedOrder(todos, mutations, 4)
+      const ordE = resolvedOrder(todos, mutations, 5)
+      expect(ordB).toBeGreaterThan(ordE)
+      expect(ordD).toBeGreaterThan(ordE)
+      expect(ordC).toBeLessThan(ordE)
+    })
+
     it('moveTasksInDirection_lastTwoTasksMovedDown_returnsEmpty', () => {
       // Arrange
       const todos = [

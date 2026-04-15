@@ -297,7 +297,7 @@ export function moveTasksInDirection(
       const parentIdx = flat.findIndex(t => t.id === above.parentId)
       if (parentIdx !== -1) targetIdx = parentIdx
     }
-    // Build new order: items before target, selected items, target group, rest
+    // Build new order: items before target, selected items, target group, gap, rest
     const targetGroup: PersistedTodoItem[] = []
     for (let i = targetIdx; i < firstIdx; i++) {
       if (!expandedIds.has(flat[i].id)) targetGroup.push(flat[i])
@@ -305,7 +305,12 @@ export function moveTasksInDirection(
     const selected = flat.filter(t => expandedIds.has(t.id))
     const before = flat.slice(0, targetIdx).filter(t => !expandedIds.has(t.id))
     const after = flat.slice(lastIdx + 1).filter(t => !expandedIds.has(t.id))
-    const newOrder = [...before, ...selected, ...targetGroup, ...after]
+    // Non-selected tasks between first and last selected indices
+    const gap: PersistedTodoItem[] = []
+    for (let i = firstIdx; i <= lastIdx; i++) {
+      if (!expandedIds.has(flat[i].id)) gap.push(flat[i])
+    }
+    const newOrder = [...before, ...selected, ...targetGroup, ...gap, ...after]
     return buildReorderMutations(newOrder)
   } else {
     if (lastIdx >= flat.length - 1) return []
@@ -319,7 +324,7 @@ export function moveTasksInDirection(
       const lastChildIdx = flat.findIndex(t => t.id === lastChild.id)
       if (lastChildIdx !== -1) targetEndIdx = lastChildIdx
     }
-    // Build new order: items before selected, target group, selected items, rest
+    // Build new order: items before selected, gap, target group, selected items, rest
     const targetGroup: PersistedTodoItem[] = []
     for (let i = lastIdx + 1; i <= targetEndIdx; i++) {
       if (!expandedIds.has(flat[i].id)) targetGroup.push(flat[i])
@@ -327,7 +332,12 @@ export function moveTasksInDirection(
     const selected = flat.filter(t => expandedIds.has(t.id))
     const before = flat.slice(0, firstIdx).filter(t => !expandedIds.has(t.id))
     const after = flat.slice(targetEndIdx + 1).filter(t => !expandedIds.has(t.id))
-    const newOrder = [...before, ...targetGroup, ...selected, ...after]
+    // Non-selected tasks between first and last selected indices
+    const gap: PersistedTodoItem[] = []
+    for (let i = firstIdx; i <= lastIdx; i++) {
+      if (!expandedIds.has(flat[i].id)) gap.push(flat[i])
+    }
+    const newOrder = [...before, ...gap, ...targetGroup, ...selected, ...after]
     return buildReorderMutations(newOrder)
   }
 }

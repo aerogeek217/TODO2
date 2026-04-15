@@ -247,6 +247,30 @@ export function useCanvasDnD({
     [todosByProject]
   )
 
+  const resetDragState = useCallback(() => {
+    stopEdgePan()
+    if (pointerListenerRef.current) {
+      window.removeEventListener('pointermove', pointerListenerRef.current)
+      pointerListenerRef.current = null
+    }
+    setActiveDragTodo(null)
+    setActiveDragChildren([])
+    setMultiDragCount(0)
+    setDragExpandedProjectId(null)
+    setInsertTodoId(null)
+    setInsertIndentLevel(0)
+    setInsertAtEnd(false)
+    setInsertProjectId(null)
+    setDragGroupIds(null)
+    lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
+    lastExpandedOverRef.current = null
+    multiDragIdsRef.current = null
+  }, [stopEdgePan])
+
+  const handleDragCancel = useCallback(() => {
+    resetDragState()
+  }, [resetDragState])
+
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const { active } = event
@@ -264,9 +288,16 @@ export function useCanvasDnD({
         setActiveDragChildren(children)
 
         if (isMulti) {
-          multiDragIdsRef.current = new Set(sel)
-          setMultiDragCount(sel.size)
-          const groupIds = new Set(sel)
+          const dragSet = new Set(sel)
+          // Include children of selected parents
+          for (const id of sel) {
+            for (const t of todos) {
+              if (t.parentId === id) dragSet.add(t.id)
+            }
+          }
+          multiDragIdsRef.current = dragSet
+          setMultiDragCount(dragSet.size)
+          const groupIds = new Set(dragSet)
           groupIds.delete(todo.id)
           setDragGroupIds(groupIds)
         } else if (children.length > 0) {
@@ -396,12 +427,9 @@ export function useCanvasDnD({
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
-      // Stop edge panning and pointer tracking
-      stopEdgePan()
-      if (pointerListenerRef.current) {
-        window.removeEventListener('pointermove', pointerListenerRef.current)
-        pointerListenerRef.current = null
-      }
+      // Cache values needed for drop execution before resetting state
+      const cachedExpansion = lastExpandedOverRef.current
+      const dragIds = multiDragIdsRef.current
 
       // Clone overlay as a phantom before it unmounts (for animated drop transition)
       document.querySelector('[data-drop-phantom]')?.remove()  // clean up stale
@@ -425,22 +453,10 @@ export function useCanvasDnD({
         phantom.dataset.cleanupTimeout = String(tid)
       }
 
-      setActiveDragTodo(null)
-      setActiveDragChildren([])
-      setMultiDragCount(0)
-      setDragExpandedProjectId(null)
-      lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
-      const cachedExpansion = lastExpandedOverRef.current
-      lastExpandedOverRef.current = null
-      setInsertTodoId(null)
-      setInsertIndentLevel(0)
-      setInsertAtEnd(false)
-      setInsertProjectId(null)
-      setDragGroupIds(null)
+      // Reset all drag state (edge pan, pointer tracking, UI state, refs)
+      resetDragState()
 
       const { active, over, delta } = event
-      const dragIds = multiDragIdsRef.current
-      multiDragIdsRef.current = null
 
       const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
       if (!activeTodo) return
@@ -547,7 +563,7 @@ export function useCanvasDnD({
 
       await executeDrop(ctx)
     },
-    [todosByProject, selectedCanvasId, executeDrop, stopEdgePan, expandTargetArea, rfInstanceRef]
+    [todosByProject, selectedCanvasId, executeDrop, resetDragState, expandTargetArea, rfInstanceRef]
   )
 
   return {
@@ -556,6 +572,7 @@ export function useCanvasDnD({
     handleDragMove,
     handleDragOver,
     handleDragEnd,
+    handleDragCancel,
     // State
     activeDragTodo,
     activeDragChildren,

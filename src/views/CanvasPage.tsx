@@ -488,6 +488,7 @@ export function CanvasPage() {
       onDragMove={dnd.handleDragMove}
       onDragOver={dnd.handleDragOver}
       onDragEnd={dnd.handleDragEnd}
+      onDragCancel={dnd.handleDragCancel}
     >
       <DragInsertContext.Provider value={{ insertTodoId: dnd.insertTodoId, insertIndentLevel: dnd.insertIndentLevel, insertAtEnd: dnd.insertAtEnd, insertProjectId: dnd.insertProjectId, activeDragTodoId: dnd.activeDragTodo?.id ?? null, dragExpandedProjectId: dnd.dragExpandedProjectId, dragGroupIds: dnd.dragGroupIds }}>
       <CanvasView

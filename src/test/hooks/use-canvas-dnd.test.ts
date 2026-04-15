@@ -246,6 +246,123 @@ describe('useCanvasDnD — handleDragEnd state reset', () => {
   })
 })
 
+// ─── handleDragCancel — state reset (C1 fix) ────────────────────────
+
+describe('useCanvasDnD — handleDragCancel (C1 fix)', () => {
+  it('resets all drag state on cancel', () => {
+    const options = makeOptions()
+    const { result } = renderHook(() => useCanvasDnD(options))
+
+    // Start drag
+    act(() => {
+      result.current.handleDragStart(makeDragStartEvent(todo1) as any)
+    })
+    expect(result.current.activeDragTodo).not.toBeNull()
+
+    // Cancel drag
+    act(() => {
+      result.current.handleDragCancel()
+    })
+
+    expect(result.current.activeDragTodo).toBeNull()
+    expect(result.current.activeDragChildren).toEqual([])
+    expect(result.current.multiDragCount).toBe(0)
+    expect(result.current.dragExpandedProjectId).toBeNull()
+    expect(result.current.insertTodoId).toBeNull()
+    expect(result.current.insertIndentLevel).toBe(0)
+    expect(result.current.insertAtEnd).toBe(false)
+    expect(result.current.insertProjectId).toBeNull()
+    expect(result.current.dragGroupIds).toBeNull()
+  })
+
+  it('cleans up edge pan pointer listener on cancel', () => {
+    const removeSpy = vi.spyOn(window, 'removeEventListener')
+    const options = makeOptions()
+    const { result } = renderHook(() => useCanvasDnD(options))
+
+    // Start drag (installs pointermove listener)
+    act(() => {
+      result.current.handleDragStart(makeDragStartEvent(todo1) as any)
+    })
+
+    // Cancel drag (should remove pointermove listener)
+    act(() => {
+      result.current.handleDragCancel()
+    })
+
+    const removals = removeSpy.mock.calls.filter(([type]) => type === 'pointermove')
+    expect(removals.length).toBeGreaterThan(0)
+  })
+
+  it('does not execute drop on cancel', () => {
+    const applyMutations = vi.fn()
+    const options = makeOptions({ applyMutations })
+    const { result } = renderHook(() => useCanvasDnD(options))
+
+    // Start drag
+    act(() => {
+      result.current.handleDragStart(makeDragStartEvent(todo1) as any)
+    })
+
+    // Cancel drag
+    act(() => {
+      result.current.handleDragCancel()
+    })
+
+    expect(applyMutations).not.toHaveBeenCalled()
+  })
+})
+
+// ─── handleDragStart — multi-select child inclusion (H1 fix) ────────
+
+describe('useCanvasDnD — multi-select includes children (H1 fix)', () => {
+  it('includes children of selected parents in multi-drag set', () => {
+    const parent1 = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
+    const child1a = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 2 })
+    const parent2 = makeTodo({ id: 2, projectId: 10, sortOrder: 3 })
+    const todosWithChildren = [parent1, child1a, parent2]
+
+    useUIStore.setState({ selectedTodoIds: new Set([1, 2]) })
+
+    const options = makeOptions({
+      todos: todosWithChildren,
+      todosByProject: new Map([[10, todosWithChildren]]),
+    })
+    const { result } = renderHook(() => useCanvasDnD(options))
+
+    act(() => {
+      result.current.handleDragStart(makeDragStartEvent(parent1) as any)
+    })
+
+    // multiDragCount should include children: parent1 + child1a + parent2 = 3
+    expect(result.current.multiDragCount).toBe(3)
+    // dragGroupIds should include all except the active drag todo
+    expect(result.current.dragGroupIds).toEqual(new Set([2, 3]))
+  })
+
+  it('does not duplicate children already in selection', () => {
+    const parent1 = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
+    const child1a = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 2 })
+    const todosWithChildren = [parent1, child1a]
+
+    // Both parent and child explicitly selected
+    useUIStore.setState({ selectedTodoIds: new Set([1, 3]) })
+
+    const options = makeOptions({
+      todos: todosWithChildren,
+      todosByProject: new Map([[10, todosWithChildren]]),
+    })
+    const { result } = renderHook(() => useCanvasDnD(options))
+
+    act(() => {
+      result.current.handleDragStart(makeDragStartEvent(parent1) as any)
+    })
+
+    // Should still be 2 (no duplicates)
+    expect(result.current.multiDragCount).toBe(2)
+  })
+})
+
 // ─── handleDragOver — project expansion ──────────────────────────────
 
 describe('useCanvasDnD — handleDragOver', () => {

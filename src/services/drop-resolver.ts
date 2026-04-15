@@ -348,8 +348,8 @@ export function resolveDropPreview(
       : (targetIsChild ? 1 : 0)
     return { insertTodoId: showTodoId ?? null, insertIndentLevel: level, insertAtEnd: false, insertProjectId: null }
   } else if (resolvedOver) {
-    // Cross-project
-    return { insertTodoId: resolvedOver.id ?? null, insertIndentLevel: 0, insertAtEnd: false, insertProjectId: null }
+    // Cross-project — show indent matching where the drop will land
+    return { insertTodoId: resolvedOver.id ?? null, insertIndentLevel: resolvedOver.parentId != null ? 1 : 0, insertAtEnd: false, insertProjectId: null }
   }
 
   // No target (cursor on canvas) — show end-of-list if close to source project, else clear

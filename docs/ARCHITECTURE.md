@@ -139,7 +139,7 @@ main.tsx (entry point)
 | useKeyboardShortcuts | hooks/use-keyboard-shortcuts.ts | Global keyboard shortcut handler: undo/redo, task navigation (Arrow/Home/End), task actions (Enter/Space/Delete/Insert), movement (Ctrl+Arrow/Tab), chord navigation (G then C/L/A/S), filter focus (F), select all (Ctrl+A), keyboard shortcuts modal (?) |
 | useBulkActions | hooks/use-bulk-actions.ts | Hook wrapping mutations with multi-select awareness; called directly by TaskRow |
 | useTaskEditCallbacks | hooks/use-task-edit-callbacks.ts | Shared TaskEditPopup wiring: onCreate (NLP + metadata), editProps (assignments, actions), entityCreators — used by CanvasPage, DashboardView, ListView, CalendarView |
-| useCanvasDnD | hooks/use-canvas-dnd.ts | DnD state, edge panning, drag handlers, drop execution — extracted from CanvasPage |
+| useCanvasDnD | hooks/use-canvas-dnd.ts | DnD state, edge panning, drag handlers (including handleDragCancel), drop execution; shared resetDragState cleans up on Escape/focus-loss — extracted from CanvasPage |
 | useInlineEdit | hooks/use-inline-edit.ts | Inline title editing: state, focus, save/cancel, 250ms click-to-edit timer |
 | useClickOutside | hooks/use-click-outside.ts | Click-outside detection hook for closing dropdowns/menus |
 | INDENT_PX, TASK_ROW_PADDING_LEFT | constants.ts | Shared UI constants for task indentation |
