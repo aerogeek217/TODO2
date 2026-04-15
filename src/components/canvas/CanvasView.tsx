@@ -209,8 +209,10 @@ export function CanvasView({
   }, [themeMode])
 
   const draggingIds = useRef(new Set<string>())
-  // Preserve final positions of just-dropped nodes until the store catches up
-  const droppedPositions = useRef(new Map<string, { x: number; y: number }>())
+  // Preserve final positions of just-dropped nodes until the store catches up.
+  // `setAt` is a monotonic timestamp; the sync effect drops stale overrides after
+  // DROPPED_POSITION_TTL_MS so rounding-induced near-misses can't wedge forever.
+  const droppedPositions = useRef(new Map<string, { x: number; y: number; setAt: number }>())
   // Track measured heights for cascade shift detection
   const prevHeightsRef = useRef(new Map<string, number>())
   const cascadingRef = useRef(false)
@@ -416,6 +418,8 @@ export function CanvasView({
     setNodes(current => {
       // Build map of local state to preserve (drag positions, selection, z-index)
       const preserve = new Map<string, { position?: { x: number; y: number }; selected?: boolean; zIndex?: number }>()
+      const DROPPED_POSITION_TTL_MS = 2000
+      const now = performance.now()
       for (const node of current) {
         const entry: { position?: { x: number; y: number }; selected?: boolean; zIndex?: number } = {}
         if (draggingIds.current.has(node.id)) entry.position = node.position
@@ -423,11 +427,16 @@ export function CanvasView({
         const dropped = droppedPositions.current.get(node.id)
         if (dropped) {
           const dataNode = dataNodes.find(n => n.id === node.id)
+          const isStale = now - dropped.setAt > DROPPED_POSITION_TTL_MS
           if (dataNode && Math.abs(dataNode.position.x - dropped.x) < 1 && Math.abs(dataNode.position.y - dropped.y) < 1) {
             // Store has caught up — stop preserving
             droppedPositions.current.delete(node.id)
+          } else if (isStale) {
+            // Override has been held past TTL — rounding or an upstream overwrite prevented
+            // convergence, so release it rather than wedge the node at the stale coords.
+            droppedPositions.current.delete(node.id)
           } else {
-            entry.position = dropped
+            entry.position = { x: dropped.x, y: dropped.y }
           }
         }
         if (node.selected) entry.selected = true
@@ -476,7 +485,7 @@ export function CanvasView({
             draggingIds.current.delete(change.id)
             if (change.position) {
               // Remember final position so the sync effect preserves it until the store updates
-              droppedPositions.current.set(change.id, { ...change.position })
+              droppedPositions.current.set(change.id, { ...change.position, setAt: performance.now() })
               const id = change.id
               if (id === TASKBOARD_NODE_ID) {
                 onTaskboardDragStop?.(change.position.x, change.position.y)
@@ -611,7 +620,7 @@ export function CanvasView({
       // but debounce the store update to avoid re-render chains that steal input focus.
       if (cascadePersist.length > 0) {
         for (const { nodeId, x, y } of cascadePersist) {
-          droppedPositions.current.set(nodeId, { x, y })
+          droppedPositions.current.set(nodeId, { x, y, setAt: performance.now() })
         }
         // Debounce store persistence — if another cascade fires within 300ms
         // (e.g. InsertTrigger opening then closing), only the final positions are written.
@@ -656,16 +665,14 @@ export function CanvasView({
     e.preventDefault()
 
     const items: ContextMenuItem[] = []
-    if (onAddProject && rfInstanceRef.current) {
-      const pos = rfInstanceRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    const pos = rfInstanceRef.current?.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    if (onAddProject && pos) {
       items.push({ label: 'New Project', action: () => onAddProject(pos.x, pos.y) })
     }
-    if (onAddStickyNote && rfInstanceRef.current) {
-      const pos = rfInstanceRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    if (onAddStickyNote && pos) {
       items.push({ label: 'New Sticky Note', action: () => onAddStickyNote(pos.x, pos.y) })
     }
-    if (onAddListInset && rfInstanceRef.current) {
-      const pos = rfInstanceRef.current.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    if (onAddListInset && pos) {
       items.push({ separator: true, label: '', action: () => {} })
       items.push({ label: 'List: Due This Week', action: () => onAddListInset('due-this-week', pos.x, pos.y) })
       items.push({ label: 'List: Follow Up', action: () => onAddListInset('starred', pos.x, pos.y) })

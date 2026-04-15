@@ -1,6 +1,6 @@
 import { Fragment, memo, useMemo, useCallback, useState, useRef, useEffect } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import { useDroppable, useDndMonitor } from '@dnd-kit/core'
+import { useDroppable, useDndMonitor, type DragMoveEvent } from '@dnd-kit/core'
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -76,47 +76,6 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   // Track drag state: external drag highlight + insert position indicator
   const [isExternalDragOver, setIsExternalDragOver] = useState(false)
   const [tbInsertIndex, setTbInsertIndex] = useState<number | null>(null)
-  useDndMonitor({
-    onDragMove(event) {
-      const activeType = event.active.data.current?.type
-      const overData = event.over?.data.current
-      const overType = overData?.type
-
-      // External drag highlight (not for taskboard-internal reorder)
-      setIsExternalDragOver(activeType !== 'taskboard-task' && (overType === 'taskboard' || overType === 'taskboard-task'))
-
-      // Insert position indicator — only for external drops (SortableContext handles reorder visuals)
-      if (activeType === 'taskboard-task' || (overType !== 'taskboard' && overType !== 'taskboard-task')) {
-        setTbInsertIndex(null)
-        return
-      }
-      if (overType === 'taskboard') {
-        setTbInsertIndex(visibleEntries.length)
-        return
-      }
-
-      // Over a specific entry — determine top/bottom half
-      const overEntryId = overData!.entryId as number
-      const idx = visibleEntries.findIndex(e => e.id === overEntryId)
-      if (idx === -1) { setTbInsertIndex(null); return }
-
-      const overRect = event.over?.rect
-      const translated = event.active.rect.current.translated
-      const initialRect = event.active.rect.current.initial
-      let activeCenter: number | null = null
-      if (translated) activeCenter = translated.top + translated.height / 2
-      else if (initialRect) activeCenter = initialRect.top + initialRect.height / 2 + event.delta.y
-
-      if (activeCenter != null && overRect) {
-        const overCenter = overRect.top + overRect.height / 2
-        setTbInsertIndex(activeCenter > overCenter ? idx + 1 : idx)
-      } else {
-        setTbInsertIndex(idx)
-      }
-    },
-    onDragEnd() { setIsExternalDragOver(false); setTbInsertIndex(null) },
-    onDragCancel() { setIsExternalDragOver(false); setTbInsertIndex(null) },
-  })
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
@@ -137,6 +96,55 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     }),
     [entries, todoMap, completedFilter, assignedFilter],
   )
+
+  const onDragMove = useCallback((event: DragMoveEvent) => {
+    const activeType = event.active.data.current?.type
+    const overData = event.over?.data.current
+    const overType = overData?.type
+
+    // External drag highlight (not for taskboard-internal reorder)
+    setIsExternalDragOver(activeType !== 'taskboard-task' && (overType === 'taskboard' || overType === 'taskboard-task'))
+
+    // Insert position indicator — only for external drops (SortableContext handles reorder visuals)
+    if (activeType === 'taskboard-task' || (overType !== 'taskboard' && overType !== 'taskboard-task')) {
+      setTbInsertIndex(null)
+      return
+    }
+    if (overType === 'taskboard') {
+      setTbInsertIndex(visibleEntries.length)
+      return
+    }
+
+    // Over a specific entry — determine top/bottom half
+    const overEntryId = overData!.entryId as number
+    const idx = visibleEntries.findIndex(e => e.id === overEntryId)
+    if (idx === -1) { setTbInsertIndex(null); return }
+
+    const overRect = event.over?.rect
+    const translated = event.active.rect.current.translated
+    const initialRect = event.active.rect.current.initial
+    let activeCenter: number | null = null
+    if (translated) activeCenter = translated.top + translated.height / 2
+    else if (initialRect) activeCenter = initialRect.top + initialRect.height / 2 + event.delta.y
+
+    if (activeCenter != null && overRect) {
+      const overCenter = overRect.top + overRect.height / 2
+      setTbInsertIndex(activeCenter > overCenter ? idx + 1 : idx)
+    } else {
+      setTbInsertIndex(idx)
+    }
+  }, [visibleEntries])
+
+  const onDragClear = useCallback(() => {
+    setIsExternalDragOver(false)
+    setTbInsertIndex(null)
+  }, [])
+
+  const dndListeners = useMemo(
+    () => ({ onDragMove, onDragEnd: onDragClear, onDragCancel: onDragClear }),
+    [onDragMove, onDragClear],
+  )
+  useDndMonitor(dndListeners)
 
   const entryIds = useMemo(() => visibleEntries.map(e => `tb-${e.id}`), [visibleEntries])
 

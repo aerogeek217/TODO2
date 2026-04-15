@@ -8,7 +8,7 @@ import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import { buildHierarchy } from '../../utils/hierarchy'
-import { DragInsertContext } from './DragInsertContext'
+import { DragInsertContext, DragPreviewContext } from './DragInsertContext'
 import { InsertTrigger } from './InsertTrigger'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { pasteTasksAt } from '../../services/clipboard'
@@ -108,7 +108,8 @@ export function SortableTaskList({
   onOpenDetail,
   onInsertTask,
 }: SortableTaskListProps) {
-  const { insertTodoId: insertBeforeTodoId, insertIndentLevel, insertAtEnd, insertProjectId, activeDragTodoId, dragGroupIds } = useContext(DragInsertContext)
+  const { activeDragTodoId, dragGroupIds } = useContext(DragInsertContext)
+  const { insertTodoId: insertBeforeTodoId, insertIndentLevel, insertAtEnd, insertProjectId } = useContext(DragPreviewContext)
   const isDragActive = activeDragTodoId != null
   const dropCount = isDragActive ? (dragGroupIds?.size ?? 0) + 1 : 1
   const { collapsedParents, toggleCollapseParent, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()

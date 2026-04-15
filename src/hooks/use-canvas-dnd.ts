@@ -73,6 +73,9 @@ export function useCanvasDnD({
     animId: number | null
   }>({ active: false, pointerX: 0, pointerY: 0, animId: null })
   const pointerListenerRef = useRef<((e: PointerEvent) => void) | null>(null)
+  // Pending phantom-cleanup setTimeouts, tracked so we can cancel them on re-drag
+  // (isConnected guards already prevent visible impact; this is code hygiene).
+  const phantomTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set())
 
   // Pointer sensor with distance constraint to avoid conflicting with React Flow pan
   const sensors = useSensors(
@@ -129,9 +132,12 @@ export function useCanvasDnD({
 
   // Cleanup edge pan on unmount
   useEffect(() => {
+    const pending = phantomTimeoutsRef.current
     return () => {
       if (pointerListenerRef.current) window.removeEventListener('pointermove', pointerListenerRef.current)
       stopEdgePan()
+      for (const tid of pending) clearTimeout(tid)
+      pending.clear()
     }
   }, [stopEdgePan])
 
@@ -244,8 +250,11 @@ export function useCanvasDnD({
         return { overType, overTodo, overProjectId }
       }
       const origPid = overTodo.projectId!
+      const dragIds = multiDragIdsRef.current
       for (let i = idx + 1; i < flat.length; i++) {
         if (flat[i].parentId != null && collapsed.has(flat[i].parentId!)) continue
+        if (flat[i].id === activeTodoId) continue
+        if (dragIds && dragIds.has(flat[i].id)) continue
         return { overType: 'task' as const, overTodo: flat[i], overProjectId }
       }
       return { overType: 'project' as const, overTodo: null, overProjectId: origPid }
@@ -437,6 +446,11 @@ export function useCanvasDnD({
       const cachedExpansion = lastExpandedOverRef.current
       const dragIds = multiDragIdsRef.current
 
+      // Cancel any pending phantom-cleanup timers from a previous drag before
+      // spawning fresh ones. Stale phantoms are also removed from the DOM below.
+      for (const tid of phantomTimeoutsRef.current) clearTimeout(tid)
+      phantomTimeoutsRef.current.clear()
+
       // Clone overlay as a phantom before it unmounts (for animated drop transition)
       document.querySelector('[data-drop-phantom]')?.remove()  // clean up stale
       const prefersReducedMotion = typeof window !== 'undefined'
@@ -449,16 +463,21 @@ export function useCanvasDnD({
         phantom.setAttribute('data-drop-phantom', '')
         document.body.appendChild(phantom)
         // Fallback: fade out if FLIP doesn't claim it within 300ms
-        const tid = setTimeout(() => {
+        const tidOuter = setTimeout(() => {
+          phantomTimeoutsRef.current.delete(tidOuter)
           if (phantom.isConnected) {
             phantom.style.transition = 'opacity 180ms ease'
             phantom.style.opacity = '0'
             phantom.addEventListener('transitionend', () => phantom.remove(), { once: true })
             // Safety net: remove if transitionend never fires
-            setTimeout(() => { if (phantom.isConnected) phantom.remove() }, 300)
+            const tidInner = setTimeout(() => {
+              phantomTimeoutsRef.current.delete(tidInner)
+              if (phantom.isConnected) phantom.remove()
+            }, 300)
+            phantomTimeoutsRef.current.add(tidInner)
           }
         }, 300)
-        phantom.dataset.cleanupTimeout = String(tid)
+        phantomTimeoutsRef.current.add(tidOuter)
       }
 
       // Reset all drag state (edge pan, pointer tracking, UI state, refs)

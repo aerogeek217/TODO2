@@ -24,7 +24,7 @@ import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import type { PersistedTodoItem } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
-import { DragInsertContext } from '../components/canvas/DragInsertContext'
+import { DragInsertContext, DragPreviewContext } from '../components/canvas/DragInsertContext'
 import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { parseTaskInput, applyNlpMetadata } from '../services/nlp-task-creator'
@@ -500,6 +500,24 @@ export function CanvasPage() {
     localStorage.setItem('taskboardSize', JSON.stringify({ w, h }))
   }, [])
 
+  const dragInsertValue = useMemo(
+    () => ({
+      activeDragTodoId: dnd.activeDragTodo?.id ?? null,
+      dragExpandedProjectId: dnd.dragExpandedProjectId,
+      dragGroupIds: dnd.dragGroupIds,
+    }),
+    [dnd.activeDragTodo?.id, dnd.dragExpandedProjectId, dnd.dragGroupIds],
+  )
+  const dragPreviewValue = useMemo(
+    () => ({
+      insertTodoId: dnd.insertTodoId,
+      insertIndentLevel: dnd.insertIndentLevel,
+      insertAtEnd: dnd.insertAtEnd,
+      insertProjectId: dnd.insertProjectId,
+    }),
+    [dnd.insertTodoId, dnd.insertIndentLevel, dnd.insertAtEnd, dnd.insertProjectId],
+  )
+
   return (
     <DndContext
       sensors={dnd.sensors}
@@ -511,7 +529,8 @@ export function CanvasPage() {
       onDragEnd={dnd.handleDragEnd}
       onDragCancel={dnd.handleDragCancel}
     >
-      <DragInsertContext.Provider value={{ insertTodoId: dnd.insertTodoId, insertIndentLevel: dnd.insertIndentLevel, insertAtEnd: dnd.insertAtEnd, insertProjectId: dnd.insertProjectId, activeDragTodoId: dnd.activeDragTodo?.id ?? null, dragExpandedProjectId: dnd.dragExpandedProjectId, dragGroupIds: dnd.dragGroupIds }}>
+      <DragInsertContext.Provider value={dragInsertValue}>
+      <DragPreviewContext.Provider value={dragPreviewValue}>
       <CanvasView
         projects={projects}
         todosByProject={todosByProject}
@@ -552,6 +571,7 @@ export function CanvasPage() {
           rfInstance={rfInstanceRef.current}
         />
       )}
+      </DragPreviewContext.Provider>
       </DragInsertContext.Provider>
 
       <DragOverlay dropAnimation={null}>

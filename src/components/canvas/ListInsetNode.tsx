@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
 import { Priority } from '../../models'
@@ -84,6 +84,24 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   // Clean up resize listeners on unmount
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
+  // Re-compute date-sensitive filters (e.g. due-this-week) across midnight.
+  // Date-only presets bin todos relative to "today", which changes at midnight;
+  // without this tick the memo would stale for presets left open overnight.
+  const [dayKey, setDayKey] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+  })
+  useEffect(() => {
+    if (inset.preset !== 'due-this-week') return
+    const now = new Date()
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
+    const timer = setTimeout(() => {
+      const d = new Date()
+      setDayKey(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
+    }, Math.max(1000, nextMidnight - now.getTime() + 50))
+    return () => clearTimeout(timer)
+  }, [inset.preset, dayKey])
+
   const filteredTodos = useMemo(() => {
     // Apply global filters first
     const globalFiltered = applyFilter(allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
@@ -132,7 +150,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       }
       return a.sortOrder - b.sortOrder
     })
-  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter])
+  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter, dayKey])
 
   return (
     <div className={styles.inset} style={{ width: inset.width }}>

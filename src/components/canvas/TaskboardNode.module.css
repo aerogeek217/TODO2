@@ -160,7 +160,7 @@
 .resizeHandle {
   position: absolute;
   top: 0;
-  right: -4px;
+  right: 0;
   width: 8px;
   height: 100%;
   cursor: ew-resize;

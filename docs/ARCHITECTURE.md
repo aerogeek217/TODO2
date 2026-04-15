@@ -123,7 +123,8 @@ main.tsx (entry point)
 | ErrorBoundary | components/shared/ErrorBoundary.tsx | Generic React error boundary (class component, documented exception); catches render errors, shows scoped fallback with "Try again" / "Reload"; wired at App level and around Canvas route |
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people, tags, and orgs |
 | FileSyncBanner | components/layout/FileSyncBanner.tsx | Dismissible banner suggesting file sync when no file handle saved; dismissal persisted in localStorage |
-| DragInsertContext | components/canvas/DragInsertContext.ts | React context for drag insertion state (insertTodoId, insertIndentLevel, insertAtEnd, insertProjectId, activeDragTodoId, dragExpandedProjectId) |
+| DragInsertContext | components/canvas/DragInsertContext.ts | React context for stable per-drag state (activeDragTodoId, dragExpandedProjectId, dragGroupIds); consumed by CanvasView + ProjectNode |
+| DragPreviewContext | components/canvas/DragInsertContext.ts | React context for rapidly-changing drag preview (insertTodoId, insertIndentLevel, insertAtEnd, insertProjectId); consumed only by SortableTaskList so CanvasView/ProjectNode don't re-render on every drag-move tick |
 | InsertTrigger | components/canvas/InsertTrigger.tsx | Controlled "+" button between tasks for inline task creation; editing state lifted to SortableTaskList for Enter-chaining (new task opens next trigger) |
 | MS_PER_DAY, startOfDay, startOfToday, isSameDay, formatDate, formatRelativeTime, toDateInputValue | utils/date.ts | Centralized date utilities: day normalization, formatting, constants |
 | TaskEditHeader | components/task/TaskEditHeader.tsx | Title input + NLP autocomplete + star + close (extracted from TaskEditPopup) |
