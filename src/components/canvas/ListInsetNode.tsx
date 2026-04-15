@@ -1,11 +1,47 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
+import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
 import { Priority } from '../../models'
 import { useFilterStore } from '../../stores/filter-store'
 import { TaskRow } from '../task/TaskRow'
 import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './ListInsetNode.module.css'
+
+export function DraggableTaskRow({
+  todo,
+  assignedPeople,
+  assignedTags,
+  onOpenDetail,
+}: {
+  todo: PersistedTodoItem
+  assignedPeople?: Person[]
+  assignedTags?: Tag[]
+  onOpenDetail?: (todoId: number) => void
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `inset-todo-${todo.id}`,
+    data: { type: 'task', todo },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-inset-todo-id={todo.id}
+      style={{ outline: 'none', opacity: isDragging ? 0 : undefined }}
+      {...attributes}
+      {...listeners}
+    >
+      <TaskRow
+        todo={todo}
+        assignedPeople={assignedPeople}
+        assignedTags={assignedTags}
+        onOpenDetail={onOpenDetail ? () => onOpenDetail(todo.id) : undefined}
+        compact
+      />
+    </div>
+  )
+}
 
 const PRESET_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
   'due-this-week': { icon: '\u{1F4C5}', label: 'Due & Overdue' },
@@ -182,13 +218,12 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           <div className={styles.emptyMessage}>No tasks</div>
         ) : (
           filteredTodos.map(todo => (
-              <TaskRow
+              <DraggableTaskRow
                 key={todo.id}
                 todo={todo}
                 assignedPeople={assignedPeopleMap.get(todo.id)}
                 assignedTags={assignedTagsMap?.get(todo.id)}
-                onOpenDetail={onOpenDetail ? () => onOpenDetail(todo.id) : undefined}
-                compact
+                onOpenDetail={onOpenDetail}
               />
           ))
         )}
