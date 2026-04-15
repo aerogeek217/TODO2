@@ -154,59 +154,64 @@ export function useCanvasDnD({
       useUndoStore.getState().beginGroup()
 
       try {
-      switch (resolution.type) {
-        case 'place': {
-          const task = todos.find(t => t.id === resolution.taskId)
-          if (!task) break
-          const projectTodos = todosByProject.get(resolution.target.projectId) ?? []
-          const mutations = placeTaskAt(projectTodos, task, resolution.target)
-          await applyMutations(mutations)
-          await normalizeProject(resolution.target.projectId)
-          break
-        }
+        switch (resolution.type) {
+          case 'place': {
+            const task = todos.find(t => t.id === resolution.taskId)
+            if (!task) break
+            const projectTodos = todosByProject.get(resolution.target.projectId) ?? []
+            const mutations = placeTaskAt(projectTodos, task, resolution.target)
+            await applyMutations(mutations)
+            await normalizeProject(resolution.target.projectId)
+            break
+          }
 
-        case 'place-multi': {
-          const mutations = placeMultipleAt(todos, resolution.taskIds, resolution.target)
-          await applyMutations(mutations)
-          await normalizeProject(resolution.target.projectId)
-          break
-        }
+          case 'place-multi': {
+            const mutations = placeMultipleAt(todos, resolution.taskIds, resolution.target)
+            await applyMutations(mutations)
+            await normalizeProject(resolution.target.projectId)
+            break
+          }
 
-        case 'indent': {
-          const projectTodos = todosByProject.get(resolution.projectId) ?? []
-          const mutations = indentTasks(projectTodos, resolution.taskIds)
-          if (mutations.length > 0) await applyMutations(mutations)
-          await normalizeProject(resolution.projectId)
-          break
-        }
+          case 'indent': {
+            const projectTodos = todosByProject.get(resolution.projectId) ?? []
+            const mutations = indentTasks(projectTodos, resolution.taskIds)
+            if (mutations.length > 0) await applyMutations(mutations)
+            await normalizeProject(resolution.projectId)
+            break
+          }
 
-        case 'outdent': {
-          const projectTodos = todosByProject.get(resolution.projectId) ?? []
-          const mutations = outdentTasks(projectTodos, resolution.taskIds)
-          if (mutations.length > 0) await applyMutations(mutations)
-          await normalizeProject(resolution.projectId)
-          break
-        }
+          case 'outdent': {
+            const projectTodos = todosByProject.get(resolution.projectId) ?? []
+            const mutations = outdentTasks(projectTodos, resolution.taskIds)
+            if (mutations.length > 0) await applyMutations(mutations)
+            await normalizeProject(resolution.projectId)
+            break
+          }
 
-        case 'create-project': {
-          if (!selectedCanvasId) break
-          const projectId = await addProject('New Project', selectedCanvasId, resolution.position.x, resolution.position.y)
-          const taskIds = resolution.taskIds
-          const target = { projectId, parentId: undefined as number | undefined, beforeTodoId: null }
-          if (taskIds.size === 1) {
-            const task = todos.find(t => t.id === Array.from(taskIds)[0])
-            if (task) {
-              const projectTodos = todosByProject.get(projectId) ?? []
-              const mutations = placeTaskAt(projectTodos, task, target)
+          case 'create-project': {
+            if (!selectedCanvasId) break
+            const projectId = await addProject('New Project', selectedCanvasId, resolution.position.x, resolution.position.y)
+            const taskIds = resolution.taskIds
+            const target = { projectId, parentId: undefined as number | undefined, beforeTodoId: null }
+            if (taskIds.size === 1) {
+              const task = todos.find(t => t.id === Array.from(taskIds)[0])
+              if (task) {
+                const projectTodos = todosByProject.get(projectId) ?? []
+                const mutations = placeTaskAt(projectTodos, task, target)
+                await applyMutations(mutations)
+              }
+            } else {
+              const mutations = placeMultipleAt(todos, taskIds, target)
               await applyMutations(mutations)
             }
-          } else {
-            const mutations = placeMultipleAt(todos, taskIds, target)
-            await applyMutations(mutations)
+            break
           }
-          break
         }
-      }
+      } catch (e) {
+        // Catch mid-drop failures so they don't become unhandled rejections.
+        // Per-call optimistic rollback already restores state; the finally block
+        // below closes the undo group with whatever successful entries accumulated.
+        console.error('Drop execution failed:', e)
       } finally {
         useUndoStore.getState().endGroup(`Move task`)
       }

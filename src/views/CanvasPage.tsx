@@ -130,8 +130,15 @@ export function CanvasPage() {
     useUIStore.getState().setPendingCanvasTarget(null)
   }, [pendingTarget])
 
-  // Canvas only hides tasks for "only" filter variants; other values ghost instead
+  // Canvas only hides tasks for "only" filter variants; other values ghost instead.
+  //
+  // Per-project array stabilization: when only one project's todos change (the
+  // common case — editing a single task), unaffected projects keep the same
+  // array reference. This lets downstream useMemo + React.memo short-circuit
+  // for nodes whose data truly didn't change (see CanvasView dataNodes cache).
+  const prevTodosByProjectRef = useRef<Map<number, PersistedTodoItem[]>>(new Map())
   const todosByProject = useMemo(() => {
+    const prev = prevTodosByProjectRef.current
     const map = new Map<number, PersistedTodoItem[]>()
     for (const todo of todos) {
       if (todo.projectId == null) continue
@@ -141,10 +148,24 @@ export function CanvasPage() {
       list.push(todo)
       map.set(todo.projectId, list)
     }
-    for (const [, list] of map) {
+    // Sort each bucket and reuse prior array reference when content is identical
+    // (same todos in same order, by reference equality).
+    const stable = new Map<number, PersistedTodoItem[]>()
+    for (const [pid, list] of map) {
       list.sort((a, b) => a.sortOrder - b.sortOrder)
+      const prevList = prev.get(pid)
+      if (
+        prevList &&
+        prevList.length === list.length &&
+        prevList.every((t, i) => t === list[i])
+      ) {
+        stable.set(pid, prevList)
+      } else {
+        stable.set(pid, list)
+      }
     }
-    return map
+    prevTodosByProjectRef.current = stable
+    return stable
   }, [todos, filters.completedFilter, filters.assignedFilter])
 
   // --- DnD (extracted to useCanvasDnD hook) ---

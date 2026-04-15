@@ -60,6 +60,27 @@ const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
 const TASKBOARD_NODE_ID = 'taskboard'
 
+/** Stable no-op used as a fallback for optional callback props so that omitted
+ *  handlers don't produce a fresh function reference each render. */
+const NOOP = () => {}
+
+/**
+ * Shallow-equal two objects. Returns true iff they have the same keys with
+ * reference-equal values. Used to stabilize node `data` references so that
+ * React.memo on canvas nodes short-circuits when nothing relevant changed.
+ */
+function shallowEqualObject(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  if (a === b) return true
+  const aKeys = Object.keys(a)
+  const bKeys = Object.keys(b)
+  if (aKeys.length !== bKeys.length) return false
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false
+    if (a[key] !== b[key]) return false
+  }
+  return true
+}
+
 const nodeTypes: NodeTypes = {
   project: ProjectNode as unknown as NodeTypes[string],
   listInset: ListInsetNode as unknown as NodeTypes[string],
@@ -230,81 +251,117 @@ export function CanvasView({
     return resizeSnapRef.current(nodeId, newWidth)
   }, [])
 
+  // Per-node data reference cache. When a node's newly-built data object is
+  // shallow-equal to its prior build, we reuse the prior reference so React.memo
+  // on ProjectNode/ListInsetNode/StickyNoteNode/TaskboardNode can short-circuit.
+  // Without this, any single-project change (new `todosByProject` Map reference)
+  // produces fresh `data` objects for *every* node, forcing all nodes to re-render.
+  const nodeDataCacheRef = useRef(new Map<string, Record<string, unknown>>())
+
+  // Stable per-project onBringToFront functions so the closure doesn't produce a
+  // new reference every render (which would defeat the data cache).
+  const bringToFrontFnsRef = useRef(new Map<string, () => void>())
+  const getBringToFrontFn = useCallback((id: string) => {
+    const cache = bringToFrontFnsRef.current
+    let fn = cache.get(id)
+    if (!fn) {
+      fn = () => bringToFrontRef.current(id)
+      cache.set(id, fn)
+    }
+    return fn
+  }, [])
+
   // Build nodes from props data (recomputes when data changes)
   const dataNodes: Node[] = useMemo(() => {
+    const prevCache = nodeDataCacheRef.current
+    const nextCache = new Map<string, Record<string, unknown>>()
+    const stabilize = <T extends Record<string, unknown>>(id: string, data: T): T => {
+      const prior = prevCache.get(id)
+      const stable = (prior && shallowEqualObject(prior, data) ? (prior as T) : data)
+      nextCache.set(id, stable)
+      return stable
+    }
+
     const projectNodes: Node[] = projects.map((project) => {
-      const node: Node = {
-        id: String(project.id),
+      const id = String(project.id)
+      const data: ProjectNodeData = {
+        project,
+        todos: todosByProject.get(project.id!) ?? [],
+        assignedPeopleMap,
+        assignedTagsMap,
+        ghostTodoIds,
+        onAddTask,
+        onInsertTask,
+        onDeleteProject,
+        onRenameProject,
+        onToggleCollapse,
+        onOpenDetail,
+        onResizeProject,
+        onResizeSnap: handleResizeSnap,
+        onSetAlignmentLines: setAlignmentLines,
+        onSetColor: onSetProjectColor,
+        onBringToFront: getBringToFrontFn(id),
+      }
+      return {
+        id,
         type: 'project',
         position: { x: project.positionX, y: project.positionY },
-        data: {
-          project,
-          todos: todosByProject.get(project.id!) ?? [],
-          assignedPeopleMap,
-          assignedTagsMap,
-          ghostTodoIds,
-          onAddTask,
-          onInsertTask,
-          onDeleteProject,
-          onRenameProject,
-          onToggleCollapse,
-          onOpenDetail,
-          onResizeProject,
-          onResizeSnap: handleResizeSnap,
-          onSetAlignmentLines: setAlignmentLines,
-          onSetColor: onSetProjectColor,
-          onBringToFront: () => bringToFrontRef.current(String(project.id)),
-        } satisfies ProjectNodeData,
+        data: stabilize(id, data as unknown as Record<string, unknown>),
       }
-      return node
     })
 
-    const insetNodes: Node[] = (listInsets ?? []).map((inset) => ({
-      id: `${INSET_PREFIX}${inset.id}`,
-      type: 'listInset',
-      position: { x: inset.x, y: inset.y },
-      data: {
+    const insetNodes: Node[] = (listInsets ?? []).map((inset) => {
+      const id = `${INSET_PREFIX}${inset.id}`
+      const data: ListInsetNodeData = {
         inset,
         allTodos: allTodos ?? [],
         assignedPeopleMap,
         assignedTagsMap,
         assignedOrgsMap,
         personOrgMap,
-        onDelete: onDeleteInset ?? (() => {}),
-        onToggleCollapse: onToggleCollapseInset ?? (() => {}),
+        onDelete: onDeleteInset ?? NOOP,
+        onToggleCollapse: onToggleCollapseInset ?? NOOP,
         onOpenDetail,
         onResize: onResizeInset,
         onResizeSnap: handleResizeSnapByNodeId,
         onSetAlignmentLines: setAlignmentLines,
-      } satisfies ListInsetNodeData,
-    }))
+      }
+      return {
+        id,
+        type: 'listInset',
+        position: { x: inset.x, y: inset.y },
+        data: stabilize(id, data as unknown as Record<string, unknown>),
+      }
+    })
 
-    const noteNodes: Node[] = (stickyNotes ?? []).map((note) => ({
-      id: `${NOTE_PREFIX}${note.id}`,
-      type: 'stickyNote',
-      position: { x: note.x, y: note.y },
-      zIndex: 10,
-      data: {
+    const noteNodes: Node[] = (stickyNotes ?? []).map((note) => {
+      const id = `${NOTE_PREFIX}${note.id}`
+      const data: StickyNoteNodeData = {
         note,
-        onDelete: onDeleteNote ?? (() => {}),
-        onUpdateText: onUpdateNoteText ?? (() => {}),
-        onUpdateTitle: onUpdateNoteTitle ?? (() => {}),
-        onUpdateColor: onUpdateNoteColor ?? (() => {}),
+        onDelete: onDeleteNote ?? NOOP,
+        onUpdateText: onUpdateNoteText ?? NOOP,
+        onUpdateTitle: onUpdateNoteTitle ?? NOOP,
+        onUpdateColor: onUpdateNoteColor ?? NOOP,
         onResize: onResizeNote,
         onConvertLines: onConvertNoteLines,
         people: allPeople,
         tags: allTags,
         projects,
         orgs: allOrgs,
-      } satisfies StickyNoteNodeData,
-    }))
+      }
+      return {
+        id,
+        type: 'stickyNote',
+        position: { x: note.x, y: note.y },
+        zIndex: 10,
+        data: stabilize(id, data as unknown as Record<string, unknown>),
+      }
+    })
 
     const showTaskboard = (taskboardEntries && taskboardEntries.length > 0) || activeDragTodoId != null
-    const tbNode: Node[] = showTaskboard ? [{
-      id: TASKBOARD_NODE_ID,
-      type: 'taskboard',
-      position: taskboardPosition ?? { x: -400, y: 0 },
-      data: {
+    const tbNode: Node[] = []
+    if (showTaskboard) {
+      const data: TaskboardNodeData = {
         entries: taskboardEntries ?? [],
         allTodos: allTodos ?? [],
         assignedPeopleMap,
@@ -314,19 +371,26 @@ export function CanvasView({
         assignedFilter,
         onOpenDetail,
         isCollapsed: isTaskboardCollapsed ?? false,
-        onToggleCollapse: onToggleTaskboardCollapse ?? (() => {}),
-        onClose: onCloseTaskboard ?? (() => {}),
+        onToggleCollapse: onToggleTaskboardCollapse ?? NOOP,
+        onClose: onCloseTaskboard ?? NOOP,
         width: taskboardWidth ?? 320,
         height: taskboardHeight ?? 400,
         onResize: onResizeTaskboard,
-      } satisfies TaskboardNodeData,
-    }] : []
+      }
+      tbNode.push({
+        id: TASKBOARD_NODE_ID,
+        type: 'taskboard',
+        position: taskboardPosition ?? { x: -400, y: 0 },
+        data: stabilize(TASKBOARD_NODE_ID, data as unknown as Record<string, unknown>),
+      })
+    }
 
+    nodeDataCacheRef.current = nextCache
     return [...projectNodes, ...insetNodes, ...noteNodes, ...tbNode]
   }, [
     projects, todosByProject, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
-    onResizeProject, onSetProjectColor, handleResizeSnap,
+    onResizeProject, onSetProjectColor, handleResizeSnap, getBringToFrontFn,
     listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset, handleResizeSnapByNodeId,
     stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
     allPeople, allTags, allOrgs,
@@ -450,7 +514,11 @@ export function CanvasView({
         }
       }
 
-      // Capture cascade persist data from inside setNodes (updater runs synchronously)
+      // Captured from the updater (runs synchronously for React 18 setState calls
+      // outside transitions); applied after setNodes returns so the updater stays
+      // side-effect free (React purity contract).
+      // null = don't change alignment lines (preserves multi-drag behavior).
+      let newAlignmentLines: AlignmentLine[] | null = null
       let cascadePersist: Array<{ nodeId: string; x: number; y: number }> = []
 
       // Apply snapping during drag, cascade shifts when idle
@@ -459,7 +527,7 @@ export function CanvasView({
 
         if (!hasActiveDrag || draggingIds.current.size > 1) {
           if (draggingIds.current.size === 0) {
-            setAlignmentLines([])
+            newAlignmentLines = []
 
             // Cascade shift: when no drag is active and project heights changed
             if (dimChanges.length > 0) {
@@ -521,7 +589,7 @@ export function CanvasView({
         }
 
         const snap = findAlignmentsScoped(dragRect, otherRects)
-        setAlignmentLines(snap.lines)
+        newAlignmentLines = snap.lines
 
         // Apply snapped position
         if (snap.x !== dragRect.x || snap.y !== dragRect.y) {
@@ -532,6 +600,12 @@ export function CanvasView({
 
         return updated
       })
+
+      // Apply alignment lines after setNodes — keeps the updater pure (no
+      // setState calls from inside a state updater).
+      if (newAlignmentLines !== null) {
+        setAlignmentLines(newAlignmentLines)
+      }
 
       // Persist cascade shifts: apply droppedPositions immediately (visual),
       // but debounce the store update to avoid re-render chains that steal input focus.
@@ -552,11 +626,14 @@ export function CanvasView({
           }
           pendingCascadeRef.current = null
           cascadeTimerRef.current = null
+          // Release cascade guard only after the debounced persistence runs — keeps
+          // dimension-change cascade detection suppressed for the whole 300ms window
+          // so in-flight height changes don't trigger a second cascade mid-debounce.
+          queueMicrotask(() => { cascadingRef.current = false })
         }, 300)
-        queueMicrotask(() => { cascadingRef.current = false })
       }
     },
-    [onNodeDragStop, getNodeAbsoluteRect, onCascadeShift]
+    [onNodeDragStop, onTaskboardDragStop, onInsetDragStop, onNoteDragStop, getNodeAbsoluteRect, onCascadeShift]
   )
 
   const handleInit = useCallback((instance: ReactFlowInstance) => {

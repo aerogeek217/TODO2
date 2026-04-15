@@ -3,9 +3,9 @@ import { resolveDropTarget, resolveDropPreview } from '../../services/drop-resol
 import type { DropContext } from '../../services/drop-resolver'
 import { makeTodo } from '../helpers'
 
-// INDENT_PX = 24, so wantsChildLevel threshold = 24 * 3 = 72
-// For root (parentId undefined): currentOffset=0, need deltaX > 72
-// For child (parentId set): currentOffset=24, need deltaX > 48
+// INDENT_PX = 24, so wantsChildLevel threshold = 24 * 1.5 = 36
+// For root (parentId undefined): need deltaX > 36 (drag right) to become child
+// For child (parentId set): need deltaX <= -36 (drag left) to become root
 // isHorizontalDrag: abs(x) > abs(y)*2 AND abs(y) < 20
 
 function makeCtx(overrides: Partial<DropContext>): DropContext {
@@ -90,7 +90,7 @@ describe('resolveDropTarget — single drag', () => {
       activeTodo: active,
       overType: 'project',
       overProjectId: 10,
-      delta: { x: 80, y: 0 }, // root: deltaX=80 > 72 → wantsChild
+      delta: { x: 80, y: 0 }, // root: deltaX=80 > 36 → wantsChild
       todosByProject,
     }))
     expect(result).toEqual({
@@ -223,19 +223,19 @@ describe('resolveDropTarget — single drag', () => {
     expect(result).toEqual({ type: 'noop' })
   })
 
-  it('self-drop promoting child→root → beforeTodoId is next root', () => {
+  it('self-drop promoting child→root (leftward drag) → beforeTodoId is next root', () => {
     const parent = makeTodo({ id: 2, projectId: 10, sortOrder: 1 })
     const active = makeTodo({ id: 1, projectId: 10, parentId: 2, sortOrder: 2 })
     const nextRoot = makeTodo({ id: 3, projectId: 10, sortOrder: 3 })
     const todosByProject = new Map([[10, [parent, active, nextRoot]]])
 
-    // Self-drop: overTodo = activeTodo, not horizontal, delta.x small so no child intent
+    // Self-drop with leftward drag past -36 threshold → outdent to root
     // activeTodo.parentId=2, targetParentId=undefined → promoting
     const result = resolveDropTarget(makeCtx({
       activeTodo: active,
       overType: 'task',
       overTodo: active,
-      delta: { x: 0, y: 5 },
+      delta: { x: -40, y: 5 },
       todosByProject,
     }))
     expect(result).toEqual({
@@ -245,12 +245,30 @@ describe('resolveDropTarget — single drag', () => {
     })
   })
 
+  it('self-drop child with small/no horizontal drag → noop (stays child)', () => {
+    // Regression guard for the threshold-asymmetry fix — previously a
+    // child self-drop with deltaX=0 would outdent to root. Now staying at
+    // the same indent level is a noop.
+    const parent = makeTodo({ id: 2, projectId: 10, sortOrder: 1 })
+    const active = makeTodo({ id: 1, projectId: 10, parentId: 2, sortOrder: 2 })
+    const todosByProject = new Map([[10, [parent, active]]])
+
+    const result = resolveDropTarget(makeCtx({
+      activeTodo: active,
+      overType: 'task',
+      overTodo: active,
+      delta: { x: 0, y: 5 },
+      todosByProject,
+    }))
+    expect(result).toEqual({ type: 'noop' })
+  })
+
   it('self-drop demoting root→child → parentId set', () => {
     const parentAbove = makeTodo({ id: 2, projectId: 10, sortOrder: 1 })
     const active = makeTodo({ id: 1, projectId: 10, sortOrder: 2 })
     const todosByProject = new Map([[10, [parentAbove, active]]])
 
-    // Self-drop with child intent: deltaX=80 > 72 for root
+    // Self-drop with child intent: deltaX=80 > 36 for root
     const result = resolveDropTarget(makeCtx({
       activeTodo: active,
       overType: 'task',
@@ -298,7 +316,7 @@ describe('resolveMultiDrop (via resolveDropTarget with dragIds)', () => {
       activeTodo: active,
       overType: 'task',
       overTodo,
-      delta: { x: 100, y: 5 }, // horizontal, deltaX=100>72 for root
+      delta: { x: 100, y: 5 }, // horizontal, deltaX=100 > 36 for root
       dragIds,
     }))
     expect(result).toEqual({ type: 'indent', taskIds: dragIds, projectId: 10 })
@@ -309,15 +327,33 @@ describe('resolveMultiDrop (via resolveDropTarget with dragIds)', () => {
     const overTodo = makeTodo({ id: 2, projectId: 10 })
     const dragIds = new Set([1, 2])
 
-    // child: currentOffset=24, deltaX=11, 24+11=35 < 36 → does NOT want child → outdent
+    // child + deltaX=-40 ≤ -36 → does NOT want child → outdent
     const result = resolveDropTarget(makeCtx({
       activeTodo: active,
       overType: 'task',
       overTodo,
-      delta: { x: 11, y: 5 }, // horizontal
+      delta: { x: -40, y: 5 }, // horizontal leftward
       dragIds,
     }))
     expect(result).toEqual({ type: 'outdent', taskIds: dragIds, projectId: 10 })
+  })
+
+  it('horizontal same-project, child + small rightward drag → noop (stays child)', () => {
+    // Regression guard: previously (absolute-position model) a small rightward
+    // drag on a child task could trigger outdent. The fix makes threshold
+    // symmetric — outdent requires deltaX ≤ -36.
+    const active = makeTodo({ id: 1, projectId: 10, parentId: 5 })
+    const overTodo = makeTodo({ id: 2, projectId: 10 })
+    const dragIds = new Set([1, 2])
+
+    const result = resolveDropTarget(makeCtx({
+      activeTodo: active,
+      overType: 'task',
+      overTodo,
+      delta: { x: 11, y: 5 },
+      dragIds,
+    }))
+    expect(result).toEqual({ type: 'noop' })
   })
 
   it('horizontal same-project, already at target level → noop', () => {
@@ -330,7 +366,7 @@ describe('resolveMultiDrop (via resolveDropTarget with dragIds)', () => {
       activeTodo: active,
       overType: 'task',
       overTodo,
-      delta: { x: 30, y: 5 }, // horizontal, deltaX=30 < 72 → doesn't want child, already root
+      delta: { x: 30, y: 5 }, // horizontal, deltaX=30 < 36 → doesn't want child, already root
       dragIds,
     }))
     expect(result).toEqual({ type: 'noop' })

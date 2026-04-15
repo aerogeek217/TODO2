@@ -37,11 +37,26 @@ export interface PreviewResult {
 
 import { INDENT_PX } from '../constants'
 
-/** Position-based child detection: is the drag far enough right to be a child? */
+/**
+ * Intent-based child detection: is the drag intent to land at child level?
+ *
+ * Symmetric across directions — both root→child and child→root require the same
+ * amount of horizontal drag (1.5 × INDENT_PX = 36px) to change level:
+ *   - Root (parentId=null): needs deltaX > 36 (drag right) to become child
+ *   - Child (parentId!=null): needs deltaX <= -36 (drag left) to become root;
+ *     any smaller horizontal movement keeps it as a child.
+ *
+ * Previously this computed `(currentOffset + deltaX) > INDENT_PX * 1.5` (absolute
+ * position model), which made a child need only 12px of rightward drag to "stay"
+ * child and flipped to outdent with tiny rightward drag — producing surprising
+ * outdents when users barely moved a child task.
+ */
 function wantsChildLevel(parentId: number | undefined | null, deltaX: number): boolean {
-  const currentOffset = parentId != null ? INDENT_PX : 0
-  // Parent is the default; child requires clear rightward intent (1.5x indent distance)
-  return (currentOffset + deltaX) > INDENT_PX * 1.5
+  const threshold = INDENT_PX * 1.5
+  if (parentId != null) {
+    return deltaX > -threshold
+  }
+  return deltaX > threshold
 }
 
 function isHorizontalDrag(delta: { x: number; y: number }): boolean {
