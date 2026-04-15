@@ -182,6 +182,9 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       }
     }).sort((a, b) => {
       if (inset.preset === 'due-this-week' && a.dueDate && b.dueDate) {
+        const aHard = a.isHardDeadline ? 1 : 0
+        const bHard = b.isHardDeadline ? 1 : 0
+        if (aHard !== bHard) return bHard - aHard
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
       }
       return a.sortOrder - b.sortOrder
