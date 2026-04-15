@@ -20,10 +20,13 @@ export function buildChildMap(todos: PersistedTodoItem[]): Map<number, Persisted
 /**
  * Groups a flat todo list into parent/child hierarchy (max 2 levels).
  * Returns an ordered list of { parent, children } entries.
- * Root todos (no parentId) appear as parents sorted by sortOrder.
+ * Root todos (no parentId) appear as parents sorted by sortOrder (or by `rootComparator` if provided).
  * Orphaned children (whose parent is not in the list) are promoted to root level.
  */
-export function buildHierarchy(todos: PersistedTodoItem[]) {
+export function buildHierarchy(
+  todos: PersistedTodoItem[],
+  rootComparator: (a: PersistedTodoItem, b: PersistedTodoItem) => number = bySortOrder,
+) {
   const byId = new Map<number, PersistedTodoItem>()
   const childrenOf = new Map<number, PersistedTodoItem[]>()
   const roots: PersistedTodoItem[] = []
@@ -53,7 +56,7 @@ export function buildHierarchy(todos: PersistedTodoItem[]) {
     }
   }
 
-  roots.sort(bySortOrder)
+  roots.sort(rootComparator)
 
   for (const [, children] of childrenOf) {
     children.sort(bySortOrder)

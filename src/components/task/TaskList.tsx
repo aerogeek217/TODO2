@@ -17,6 +17,8 @@ interface TaskListProps {
   sectionKey?: string
   /** Index in the flat visual list where the drop indicator should appear, or undefined to hide */
   dropIndicatorIndex?: number
+  /** Optional comparator to order root todos (defaults to sortOrder) */
+  rootComparator?: (a: PersistedTodoItem, b: PersistedTodoItem) => number
   onOpenDetail?: (todoId: number) => void
 }
 
@@ -58,6 +60,7 @@ export function TaskList({
   draggable,
   sectionKey,
   dropIndicatorIndex,
+  rootComparator,
   onOpenDetail,
 }: TaskListProps) {
   const { collapsedParents, toggleCollapseParent, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
@@ -65,7 +68,7 @@ export function TaskList({
   const RowComponent = isMobile ? MobileTaskRow : TaskRow
 
   const clipboardSet = useMemo(() => new Set(clipboardTodoIds), [clipboardTodoIds])
-  const hierarchy = useMemo(() => buildHierarchy(todos), [todos])
+  const hierarchy = useMemo(() => buildHierarchy(todos, rootComparator), [todos, rootComparator])
 
   // Flatten hierarchy into a visible list so each row is a direct sibling (for CSS selection rectangle)
   const flatItems: { todo: PersistedTodoItem; assignedPeople?: Person[]; indentLevel: number; hasChildren: boolean; isExpanded: boolean }[] = []

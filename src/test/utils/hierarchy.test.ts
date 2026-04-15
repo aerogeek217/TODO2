@@ -102,6 +102,17 @@ describe('buildHierarchy', () => {
     expect(result[1].parent.id).toBe(1)
   })
 
+  it('honors a custom root comparator when provided', () => {
+    const todos = [
+      makeTodo({ id: 1, sortOrder: 1 }),
+      makeTodo({ id: 2, sortOrder: 2 }),
+      makeTodo({ id: 3, sortOrder: 3 }),
+    ]
+    const byIdDesc = (a: { id: number }, b: { id: number }) => b.id - a.id
+    const result = buildHierarchy(todos, byIdDesc)
+    expect(result.map((r) => r.parent.id)).toEqual([3, 2, 1])
+  })
+
   it('promotes orphaned children (parent not in list) to root', () => {
     const todos = [
       makeTodo({ id: 2, parentId: 99, sortOrder: 1 }), // parentId 99 not in list

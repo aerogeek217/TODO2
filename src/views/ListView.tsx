@@ -75,6 +75,15 @@ export function buildPrioritySections(todos: PersistedTodoItem[]): Section[] {
   return sections
 }
 
+export const byHardDeadlineThenDate = (a: PersistedTodoItem, b: PersistedTodoItem) => {
+  const aHard = a.isHardDeadline ? 1 : 0
+  const bHard = b.isHardDeadline ? 1 : 0
+  if (aHard !== bHard) return bHard - aHard
+  const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
+  const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+  return aDate - bDate
+}
+
 export function buildDueSections(todos: PersistedTodoItem[]): Section[] {
   const today = startOfToday()
   const tomorrow = new Date(today.getTime() + MS_PER_DAY)
@@ -98,14 +107,6 @@ export function buildDueSections(todos: PersistedTodoItem[]): Section[] {
     }
   }
 
-  const byHardDeadlineThenDate = (a: PersistedTodoItem, b: PersistedTodoItem) => {
-    const aHard = a.isHardDeadline ? 1 : 0
-    const bHard = b.isHardDeadline ? 1 : 0
-    if (aHard !== bHard) return bHard - aHard
-    const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
-    const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
-    return aDate - bDate
-  }
   overdue.sort(byHardDeadlineThenDate)
   dueToday.sort(byHardDeadlineThenDate)
   thisWeek.sort(byHardDeadlineThenDate)
@@ -930,6 +931,7 @@ export function ListView() {
                       draggable={isDndEnabled}
                       sectionKey={section.key}
                       dropIndicatorIndex={dropIdx}
+                      rootComparator={listSortBy === 'due' ? byHardDeadlineThenDate : undefined}
                       onOpenDetail={handleClick}
                     />
                   </div>
