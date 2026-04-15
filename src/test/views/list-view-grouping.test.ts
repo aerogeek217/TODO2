@@ -76,6 +76,24 @@ describe('buildDueSections', () => {
     expect(sections[3].todos).toHaveLength(1) // later
     expect(sections[4].todos).toHaveLength(1) // no due date
   })
+
+  it('sorts hard deadlines ahead of soft deadlines within a section, then by due date', () => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const inTwoDays = new Date(today.getTime() + 2 * 86400000)
+    const inThreeDays = new Date(today.getTime() + 3 * 86400000)
+    const inFourDays = new Date(today.getTime() + 4 * 86400000)
+
+    const todos = [
+      makeTodo({ id: 1, dueDate: inTwoDays }), // soft, earliest
+      makeTodo({ id: 2, dueDate: inFourDays, isHardDeadline: true }), // hard, latest
+      makeTodo({ id: 3, dueDate: inThreeDays, isHardDeadline: true }), // hard, middle
+      makeTodo({ id: 4, dueDate: inFourDays }), // soft, latest
+    ]
+    const sections = buildDueSections(todos)
+    const week = sections.find((s) => s.key === 'week')!
+    expect(week.todos.map((t) => t.id)).toEqual([3, 2, 1, 4])
+  })
 })
 
 describe('buildPeopleSections', () => {

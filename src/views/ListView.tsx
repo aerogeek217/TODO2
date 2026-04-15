@@ -98,6 +98,19 @@ export function buildDueSections(todos: PersistedTodoItem[]): Section[] {
     }
   }
 
+  const byHardDeadlineThenDate = (a: PersistedTodoItem, b: PersistedTodoItem) => {
+    const aHard = a.isHardDeadline ? 1 : 0
+    const bHard = b.isHardDeadline ? 1 : 0
+    if (aHard !== bHard) return bHard - aHard
+    const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
+    const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+    return aDate - bDate
+  }
+  overdue.sort(byHardDeadlineThenDate)
+  dueToday.sort(byHardDeadlineThenDate)
+  thisWeek.sort(byHardDeadlineThenDate)
+  later.sort(byHardDeadlineThenDate)
+
   const sections: Section[] = []
   if (overdue.length > 0) sections.push({ key: 'overdue', label: 'Overdue', accentColor: 'var(--color-priority-high)', todos: overdue })
   if (dueToday.length > 0) sections.push({ key: 'today', label: 'Today', accentColor: 'var(--color-priority-medium)', todos: dueToday })
