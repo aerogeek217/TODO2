@@ -96,6 +96,9 @@ function SortableTaskRow({
 /** Sentinel id for the "before first item" InsertTrigger. */
 const BEFORE_FIRST = -1
 
+/** Matches .dragPlaceholder (28px height + 2px vertical margin) in SortableTaskList.module.css */
+const ROW_HEIGHT_PX = 30
+
 export function SortableTaskList({
   projectId,
   todos,
@@ -259,16 +262,20 @@ export function SortableTaskList({
     // Skip expensive rect measurement when no animation is needed
     if (!isRecentDrop && !orderChanged) return
 
-    // Measure current (new) positions before applying any transforms
+    // Measure current (new) positions before applying any transforms.
+    // :scope > avoids TaskRow's inner data-todo-id (we only measure the wrapper).
     const containerTop = container.getBoundingClientRect().top
     const newRects = new Map<number, number>()
-    container.querySelectorAll<HTMLElement>('[data-todo-id]').forEach(el => {
+    container.querySelectorAll<HTMLElement>(':scope > [data-todo-id]').forEach(el => {
       const id = Number(el.dataset.todoId)
       if (!isNaN(id)) newRects.set(id, el.getBoundingClientRect().top - containerTop)
     })
 
+    const prefersReducedMotion = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
     // Animate on drop when order actually changed
-    if (isRecentDrop && orderChanged && prevRectsRef.current.size > 0) {
+    if (isRecentDrop && orderChanged && prevRectsRef.current.size > 0 && !prefersReducedMotion) {
       dropTimestampRef.current = 0  // consume — don't re-animate
       const draggedId = lastDraggedIdRef.current
       const phantom = document.querySelector<HTMLElement>('[data-drop-phantom]')
@@ -281,7 +288,7 @@ export function SortableTaskList({
         ? container.getBoundingClientRect().height / container.offsetHeight
         : 1
 
-      container.querySelectorAll<HTMLElement>('[data-todo-id]').forEach(el => {
+      container.querySelectorAll<HTMLElement>(':scope > [data-todo-id]').forEach(el => {
         const id = Number(el.dataset.todoId)
 
         if (id === draggedId) {
@@ -330,8 +337,14 @@ export function SortableTaskList({
             for (const el of animating) el.style.transition = ''
           }
           animating[0]?.addEventListener('transitionend', onEnd, { once: true })
+          // Safety net: if animating[0] unmounts before transitionend, clear transitions on the rest anyway
+          setTimeout(onEnd, 600)
         }
       })
+    } else if (isRecentDrop && orderChanged && prefersReducedMotion) {
+      // Reduced motion: skip animation, remove phantom immediately
+      dropTimestampRef.current = 0
+      document.querySelector<HTMLElement>('[data-drop-phantom]')?.remove()
     }
 
     // Save current state for next comparison
@@ -358,7 +371,7 @@ export function SortableTaskList({
         <div key={item.todo.id} data-todo-id={item.todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, item.todo.id, item.todo.parentId ?? undefined)}>
           {insertBeforeTodoId === item.todo.id && (
             dropCount > 1
-              ? <div className={`${styles.dropPreviewGroup} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} style={{ height: `${dropCount * 30}px` }} />
+              ? <div className={`${styles.dropPreviewGroup} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} style={{ height: `${dropCount * ROW_HEIGHT_PX}px` }} />
               : <div className={`${styles.dropPreview} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} />
           )}
           {!isDragActive && onInsertTask && idx === 0 && item.indentLevel === 0 && (
@@ -367,7 +380,8 @@ export function SortableTaskList({
               onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
               onCommit={async (title) => {
                 const newId = await onInsertTask(title, item.todo.id, undefined)
-                setActiveInsertAfterId(newId)
+                // Route through ui-store so the useEffect above waits for the new todo to appear in `todos` before opening its trigger
+                useUIStore.getState().triggerInlineCreate(newId)
               }}
               onCancel={closeInsert}
               onContextMenu={(e) => buildPasteMenu(e, item.todo.id, undefined)}
@@ -397,7 +411,7 @@ export function SortableTaskList({
                 onActivate={() => setActiveInsertAfterId(item.todo.id)}
                 onCommit={async (title) => {
                   const newId = await onInsertTask(title, beforeId, parentId)
-                  setActiveInsertAfterId(newId)
+                  useUIStore.getState().triggerInlineCreate(newId)
                 }}
                 onCancel={closeInsert}
                 onContextMenu={(e) => buildPasteMenu(e, beforeId, parentId)}
@@ -414,7 +428,7 @@ export function SortableTaskList({
           onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
           onCommit={async (title) => {
             const newId = await onInsertTask(title, null, undefined)
-            setActiveInsertAfterId(newId)
+            useUIStore.getState().triggerInlineCreate(newId)
           }}
           onCancel={closeInsert}
           onContextMenu={(e) => buildPasteMenu(e, null, undefined)}
@@ -423,7 +437,7 @@ export function SortableTaskList({
       )}
       {insertAtEnd && !insertBeforeTodoId && insertProjectId === projectId && (
         dropCount > 1
-          ? <div className={styles.dropPreviewGroup} style={{ height: `${dropCount * 30}px` }} />
+          ? <div className={styles.dropPreviewGroup} style={{ height: `${dropCount * ROW_HEIGHT_PX}px` }} />
           : <div className={styles.dropPreview} />
       )}
       </div>

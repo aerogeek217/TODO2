@@ -111,7 +111,8 @@ export function useCanvasDnD({
 
       if (dx !== 0 || dy !== 0) {
         const vp = rf.getViewport()
-        rf.setViewport({ x: vp.x + dx, y: vp.y + dy, zoom: vp.zoom })
+        // Scale screen-pixel pan by zoom so canvas-unit traversal feels consistent across zoom levels
+        rf.setViewport({ x: vp.x + dx * vp.zoom, y: vp.y + dy * vp.zoom, zoom: vp.zoom })
       }
       edgePanRef.current.animId = requestAnimationFrame(loop)
     }
@@ -438,7 +439,9 @@ export function useCanvasDnD({
 
       // Clone overlay as a phantom before it unmounts (for animated drop transition)
       document.querySelector('[data-drop-phantom]')?.remove()  // clean up stale
-      const overlayEl = document.querySelector<HTMLElement>('[data-drag-overlay]')
+      const prefersReducedMotion = typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      const overlayEl = prefersReducedMotion ? null : document.querySelector<HTMLElement>('[data-drag-overlay]')
       if (overlayEl) {
         const rect = overlayEl.getBoundingClientRect()
         const phantom = overlayEl.cloneNode(true) as HTMLElement

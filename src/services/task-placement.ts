@@ -236,7 +236,7 @@ export function outdentTasks(
     // Find sortOrder after the parent's group (parent + its remaining children)
     const parentChildren = childMap.get(parentId) ?? []
     const remaining = [parent, ...parentChildren].filter(t => !promotingIds.has(t.id))
-    const maxGroupSort = remaining.reduce((max, t) => Math.max(max, t.sortOrder), 0)
+    const maxGroupSort = remaining.reduce((max, t) => Math.max(max, t.sortOrder), -Infinity)
 
     // Find the next root after parent to compute midpoint
     const parentRootIdx = roots.findIndex(r => r.id === parentId)

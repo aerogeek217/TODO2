@@ -280,30 +280,34 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
         ref={setDropRef}
         className={`${showBody ? styles.nodeBody : styles.collapsedBody} nopan nodrag nowheel`}
       >
-        <div className={styles.taskList}>
-          <SortableTaskList
-            projectId={project.id!}
-            todos={todos}
-            assignedPeopleMap={assignedPeopleMap}
-            assignedTagsMap={assignedTagsMap}
-            ghostTodoIds={ghostTodoIds}
-            onOpenDetail={onOpenDetail}
-            onInsertTask={onInsertTask ? (title, beforeId, parentId) => onInsertTask(title, project.id!, beforeId, parentId) : undefined}
-          />
-        </div>
+        {showBody && (
+          <>
+            <div className={styles.taskList}>
+              <SortableTaskList
+                projectId={project.id!}
+                todos={todos}
+                assignedPeopleMap={assignedPeopleMap}
+                assignedTagsMap={assignedTagsMap}
+                ghostTodoIds={ghostTodoIds}
+                onOpenDetail={onOpenDetail}
+                onInsertTask={onInsertTask ? (title, beforeId, parentId) => onInsertTask(title, project.id!, beforeId, parentId) : undefined}
+              />
+            </div>
 
-        {showAddInput && (
-          <div className={styles.addTaskRow}>
-            <input
-              ref={addInputRef}
-              className={styles.addTaskInput}
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              onKeyDown={handleAddKeyDown}
-              onBlur={handleAddBlur}
-              placeholder="New task title..."
-            />
-          </div>
+            {showAddInput && (
+              <div className={styles.addTaskRow}>
+                <input
+                  ref={addInputRef}
+                  className={styles.addTaskInput}
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={handleAddKeyDown}
+                  onBlur={handleAddBlur}
+                  placeholder="New task title..."
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
