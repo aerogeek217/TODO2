@@ -101,7 +101,7 @@ main.tsx (entry point)
 | captureAssignments, captureAssignmentsBulk | stores/store-helpers.ts | Capture person/tag/org assignment IDs for todo undo |
 | bulkUpdateField | stores/store-helpers.ts | Generic bulk field update with undo for todo store |
 | useCanvasStore | stores/canvas-store.ts | Single canvas: ensureDefault (create if needed), selectedCanvasId |
-| useTodoStore | stores/todo-store.ts | Todo list, CRUD, filtering, bulk operations (bulkSetCompleted, bulkSetStarred, bulkSetAssigned, bulkSetPriority, bulkSetDueDate, bulkRemove), applyMutations (batch placement writes), addAt (positioned insertion with sortOrder/parentId), duplicate (copy task with assignments), purgeExpiredCompleted (with backup snapshot) |
+| useTodoStore | stores/todo-store.ts | Todo list, CRUD, filtering, bulk operations (bulkSetCompleted, bulkSetStarred, bulkSetAssigned, bulkSetPriority, bulkSetDueDate, bulkSetProject, bulkRemove), applyMutations (batch placement writes), addAt (positioned insertion with sortOrder/parentId), duplicate (copy task with assignments), purgeExpiredCompleted (with backup snapshot) |
 | useProjectStore | stores/project-store.ts | Projects for current canvas |
 | usePersonStore | stores/person-store.ts | People list, CRUD, todo-person assignments, bulk assign/unassign |
 | useOrgStore | stores/org-store.ts | Orgs list, CRUD, assignedOrgsMap, personOrgMap (centralized person↔org membership), todo-org assignments (assign/unassign/bulk with undo) |
@@ -119,6 +119,8 @@ main.tsx (entry point)
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/tags; search input, filtered list, create-new option |
 | PriorityMenu | components/shared/PriorityMenu.tsx | Shared priority picker dropdown (High/Medium/Normal with colored dots); also exports getPriorityColor and getPriorityLabel helpers |
 | ColorInput | components/shared/ColorInput.tsx | Shared color picker: native swatch + editable hex text input with validation, 3-digit expansion, auto-# prefix, blur revert |
+| ProjectPicker | components/shared/ProjectPicker.tsx | Shared project search + list UI (with "No project" option); self-contained search state |
+| ProjectPickerPopup | components/overlays/ProjectPickerPopup.tsx | Portal-rendered positioned popup wrapping `ProjectPicker`; closes on outside-click / Escape; used by TaskRow right-click "Move to project…" |
 | FollowupIcon | components/shared/FollowupIcon.tsx | SVG chat bubble icon for follow-up toggle (filled/outline variants via `filled` prop) |
 | ErrorBoundary | components/shared/ErrorBoundary.tsx | Generic React error boundary (class component, documented exception); catches render errors, shows scoped fallback with "Try again" / "Reload"; wired at App level and around Canvas route |
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people, tags, and orgs |

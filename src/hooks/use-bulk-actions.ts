@@ -123,6 +123,16 @@ export function useBulkActions() {
     }
   }, [])
 
+  const setProject = useCallback((todoId: number, projectId: number | undefined) => {
+    const ids = getTargetIds(todoId)
+    if (ids.length > 1) {
+      useTodoStore.getState().bulkSetProject(ids, projectId)
+    } else {
+      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+      if (todo) useTodoStore.getState().update({ ...todo, projectId })
+    }
+  }, [])
+
   const quickAssignPerson = useCallback((todoId: number, personId: number) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
@@ -184,6 +194,7 @@ export function useBulkActions() {
     remove,
     setPriority,
     setDueDate,
+    setProject,
     quickAssignPerson,
     quickUnassignPerson,
     quickAssignTag,

@@ -9,6 +9,7 @@ import { useOrgStore } from '../../stores/org-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useProjectStore } from '../../stores/project-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
@@ -19,6 +20,7 @@ import { ChipSelector } from '../shared/ChipSelector'
 import { PriorityMenu, getPriorityColor } from '../shared/PriorityMenu'
 import { FollowupIcon } from '../shared/FollowupIcon'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
+import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import styles from './TaskRow.module.css'
 
 /** Portal-rendered dropdown anchored below a trigger element */
@@ -105,6 +107,7 @@ export const TaskRow = memo(function TaskRow({
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
+  const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
   const priorityMenuRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
@@ -114,6 +117,7 @@ export const TaskRow = memo(function TaskRow({
   const allPeople = usePersonStore((s) => s.people)
   const allTags = useTagStore((s) => s.tags)
   const allOrgs = useOrgStore((s) => s.orgs)
+  const projects = useProjectStore((s) => s.projects)
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
   const statuses = useStatusStore((s) => s.statuses)
@@ -506,8 +510,24 @@ export const TaskRow = memo(function TaskRow({
             contextMenu.onBoard
               ? { label: 'Remove from Taskboard', action: () => useTaskboardStore.getState().remove(todo.id) }
               : { label: 'Add to Taskboard', action: () => useTaskboardStore.getState().add(todo.id) },
+            {
+              label: 'Move to project…',
+              action: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
+            },
           ]}
           onClose={() => setContextMenu(null)}
+        />,
+        document.body,
+      )}
+
+      {projectPicker && createPortal(
+        <ProjectPickerPopup
+          x={projectPicker.x}
+          y={projectPicker.y}
+          projectId={todo.projectId}
+          projects={projects}
+          onSelect={(id) => bulk.setProject(todo.id, id)}
+          onClose={() => setProjectPicker(null)}
         />,
         document.body,
       )}

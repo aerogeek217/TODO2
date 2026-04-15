@@ -29,6 +29,7 @@ interface TodoState {
   bulkSetPriority: (ids: number[], priority: Priority) => Promise<void>
   bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
   bulkSetDueDate: (ids: number[], date: Date | undefined) => Promise<void>
+  bulkSetProject: (ids: number[], projectId: number | undefined) => Promise<void>
   bulkRemove: (ids: number[]) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
   applyMutations: (mutations: TaskMutation[]) => Promise<void>
@@ -496,6 +497,10 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
   async bulkSetDueDate(ids: number[], date: Date | undefined) {
     await bulkUpdateField(ids, 'dueDate', date, `Set due date on ${ids.length} tasks`, get, set)
+  },
+
+  async bulkSetProject(ids: number[], projectId: number | undefined) {
+    await bulkUpdateField(ids, 'projectId', projectId, `Move ${ids.length} tasks to project`, get, set)
   },
 
   async bulkRemove(ids: number[]) {

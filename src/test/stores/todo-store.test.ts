@@ -123,6 +123,19 @@ describe('todoStore', () => {
     expect(useTodoStore.getState().todos.find(t => t.id === id1)!.dueDate).toBeUndefined()
   })
 
+  it('bulkSetProject moves multiple todos to a project and clears it', async () => {
+    const id1 = await useTodoStore.getState().add('Task 1')
+    const id2 = await useTodoStore.getState().add('Task 2')
+
+    await useTodoStore.getState().bulkSetProject([id1, id2], 42)
+    expect(useTodoStore.getState().todos.find(t => t.id === id1)!.projectId).toBe(42)
+    expect(useTodoStore.getState().todos.find(t => t.id === id2)!.projectId).toBe(42)
+
+    await useTodoStore.getState().bulkSetProject([id1], undefined)
+    expect(useTodoStore.getState().todos.find(t => t.id === id1)!.projectId).toBeUndefined()
+    expect(useTodoStore.getState().todos.find(t => t.id === id2)!.projectId).toBe(42)
+  })
+
   it('bulkRemove removes multiple todos from store and DB', async () => {
     const id1 = await useTodoStore.getState().add('Task 1')
     const id2 = await useTodoStore.getState().add('Task 2')
