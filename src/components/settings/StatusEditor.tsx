@@ -67,6 +67,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
   const [nameError, setNameError] = useState('')
+  const [searchText, setSearchText] = useState('')
 
   useEffect(() => { load() }, [load])
 
@@ -140,7 +141,12 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     () => [...statuses].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     [statuses],
   )
-  const sortedIds = useMemo(() => sorted.map(s => s.id!), [sorted])
+  const visible = useMemo(() => {
+    const q = searchText.trim().toLowerCase()
+    if (q === '') return sorted
+    return sorted.filter(s => s.name.toLowerCase().includes(q))
+  }, [sorted, searchText])
+  const visibleIds = useMemo(() => visible.map(s => s.id!), [visible])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -166,13 +172,24 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           <button className={styles.closeBtn} onClick={onClose}>&times;</button>
         </div>
 
+        <input
+          type="text"
+          className={styles.searchInput}
+          placeholder="Search statuses..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+
         <div className={styles.list}>
           {sorted.length === 0 && !adding && (
             <div className={styles.empty}>No statuses yet</div>
           )}
+          {sorted.length > 0 && visible.length === 0 && (
+            <div className={styles.empty}>No matching statuses</div>
+          )}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
-              {sorted.map((s) => {
+            <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
+              {visible.map((s) => {
                 if (deleteId === s.id) {
                   return (
                     <div key={s.id} className={styles.deleteConfirm}>

@@ -24,6 +24,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
+  const [searchText, setSearchText] = useState('')
 
   useEffect(() => { load() }, [load])
 
@@ -88,11 +89,28 @@ export function TagEditor({ onClose }: TagEditorProps) {
           <button className={styles.closeBtn} onClick={onClose}>&times;</button>
         </div>
 
+        <input
+          type="text"
+          className={styles.searchInput}
+          placeholder="Search tags..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+
         <div className={styles.list}>
           {tags.length === 0 && !adding && (
             <div className={styles.empty}>No tags yet</div>
           )}
-          {tags.toSorted((a, b) => a.name.localeCompare(b.name)).map((t) => {
+          {(() => {
+            const q = searchText.trim().toLowerCase()
+            const filtered = q === ''
+              ? tags
+              : tags.filter((t) => t.name.toLowerCase().includes(q))
+            const sorted = filtered.toSorted((a, b) => a.name.localeCompare(b.name))
+            if (tags.length > 0 && sorted.length === 0) {
+              return <div className={styles.empty}>No matching tags</div>
+            }
+            return sorted.map((t) => {
             if (deleteId === t.id) {
               return (
                 <div key={t.id} className={styles.deleteConfirm}>
@@ -135,7 +153,8 @@ export function TagEditor({ onClose }: TagEditorProps) {
                 </div>
               </div>
             )
-          })}
+          })
+          })()}
         </div>
 
         {adding ? (

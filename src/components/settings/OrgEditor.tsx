@@ -30,6 +30,7 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
+  const [searchText, setSearchText] = useState('')
 
   useEffect(() => { loadOrgs() }, [loadOrgs])
 
@@ -136,11 +137,37 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
           <button className={styles.closeBtn} onClick={onClose}>&times;</button>
         </div>
 
+        <input
+          type="text"
+          className={styles.searchInput}
+          placeholder="Search organizations..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+
         <div className={styles.list}>
-          {orgs.length === 0 && !adding && (
-            <div className={styles.empty}>No orgs yet</div>
-          )}
-          {orgs.toSorted((a, b) => a.name.localeCompare(b.name)).map(renderRow)}
+          {(() => {
+            const q = searchText.trim().toLowerCase()
+            const filtered = q === ''
+              ? orgs
+              : orgs.filter((o) => {
+                  if (o.name.toLowerCase().includes(q)) return true
+                  if (o.initials && o.initials.toLowerCase().includes(q)) return true
+                  return false
+                })
+            const sorted = filtered.toSorted((a, b) => a.name.localeCompare(b.name))
+            return (
+              <>
+                {orgs.length === 0 && !adding && (
+                  <div className={styles.empty}>No orgs yet</div>
+                )}
+                {orgs.length > 0 && sorted.length === 0 && (
+                  <div className={styles.empty}>No matching orgs</div>
+                )}
+                {sorted.map(renderRow)}
+              </>
+            )
+          })()}
 
           {adding && (
             <div className={styles.editRow} onKeyDown={handleKeyDown(saveAdd, () => setAdding(false))}>

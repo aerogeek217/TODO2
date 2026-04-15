@@ -44,6 +44,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const [newOrgIds, setNewOrgIds] = useState<number[]>([])
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
+  const [searchText, setSearchText] = useState('')
 
   // Org dropdown for person edit/add
   const [showOrgDropdown, setShowOrgDropdown] = useState<'edit' | 'add' | null>(null)
@@ -205,12 +206,40 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
           <button className={styles.closeBtn} onClick={onClose}>&times;</button>
         </div>
 
+        <input
+          type="text"
+          className={styles.searchInput}
+          placeholder="Search people..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+
         <div className={styles.list}>
-          {/* People section */}
-          {people.length === 0 && !adding && (
-            <div className={styles.empty}>No people yet</div>
-          )}
-          {people.toSorted((a, b) => a.name.localeCompare(b.name)).map(renderPersonRow)}
+          {(() => {
+            const q = searchText.trim().toLowerCase()
+            const filtered = q === ''
+              ? people
+              : people.filter((p) => {
+                  if (p.name.toLowerCase().includes(q)) return true
+                  if (p.initials.toLowerCase().includes(q)) return true
+                  const orgIds = personOrgMap.get(p.id!)
+                  if (orgIds && orgIds.some((id) => orgs.find((o) => o.id === id)?.name.toLowerCase().includes(q))) return true
+                  return false
+                })
+            const sorted = filtered.toSorted((a, b) => a.name.localeCompare(b.name))
+
+            return (
+              <>
+                {people.length === 0 && !adding && (
+                  <div className={styles.empty}>No people yet</div>
+                )}
+                {people.length > 0 && sorted.length === 0 && (
+                  <div className={styles.empty}>No matching people</div>
+                )}
+                {sorted.map(renderPersonRow)}
+              </>
+            )
+          })()}
 
           {adding && (
             <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => setAdding(false))}>

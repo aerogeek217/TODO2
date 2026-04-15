@@ -393,6 +393,29 @@
   padding: 8px 10px;
 }
 
+/* Search filter */
+.searchInput {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  font-family: inherit;
+  padding: 5px 10px;
+  outline: none;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent);
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-muted);
+}
+
 /* Touch device overrides */
 @media (hover: none) {
   .actions {
