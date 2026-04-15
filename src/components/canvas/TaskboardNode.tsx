@@ -150,7 +150,10 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         <button className={styles.closeButton} onClick={onClose}>&times;</button>
       </div>
 
-      <div className={`${isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}>
+      <div
+        className={`${isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}
+        style={!isCollapsed ? { maxHeight: height || 400 } : undefined}
+      >
         {visibleEntries.length === 0 ? (
           <div className={styles.emptyMessage}>No tasks queued</div>
         ) : (

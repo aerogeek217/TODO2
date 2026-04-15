@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
 
@@ -82,5 +82,52 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'defaultProjectId', value: '10' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().defaultProjectId).toBe(10)
+  })
+})
+
+describe('useSettingsStore.setCanvasViewport debouncing', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    useSettingsStore.setState({ canvasViewport: null })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('debounces Zustand set across rapid calls', () => {
+    const store = useSettingsStore.getState()
+    store.setCanvasViewport({ x: 10, y: 20, zoom: 1 })
+    store.setCanvasViewport({ x: 11, y: 21, zoom: 1 })
+    store.setCanvasViewport({ x: 12, y: 22, zoom: 1 })
+
+    // Before debounce fires, state is still null
+    expect(useSettingsStore.getState().canvasViewport).toBeNull()
+
+    vi.advanceTimersByTime(150)
+
+    // Only the final value lands in the store
+    expect(useSettingsStore.getState().canvasViewport).toEqual({ x: 12, y: 22, zoom: 1 })
+  })
+
+  it('coalesces 60 per-second calls into a single Zustand update', () => {
+    const store = useSettingsStore.getState()
+    const spy = vi.spyOn(useSettingsStore, 'setState')
+
+    // Simulate a one-second pan at 60fps
+    for (let i = 0; i < 60; i++) {
+      store.setCanvasViewport({ x: i, y: 0, zoom: 1 })
+      vi.advanceTimersByTime(16) // ~60fps
+    }
+
+    // Flush the debounce
+    vi.advanceTimersByTime(150)
+
+    // Instead of 60 setState calls, we should have very few — with 150ms
+    // trailing debounce over 16ms frames, only the final flush runs.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(1)
+    expect(useSettingsStore.getState().canvasViewport).toEqual({ x: 59, y: 0, zoom: 1 })
+
+    spy.mockRestore()
   })
 })

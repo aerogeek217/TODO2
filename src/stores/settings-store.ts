@@ -138,7 +138,8 @@ function isValidRetentionDays(n: number): boolean {
 
 /** Track which color keys have user-customized values in IndexedDB */
 let customizedColorKeys = new Set<string>()
-let vpDebounceTimer: ReturnType<typeof setTimeout> | undefined
+let vpPersistTimer: ReturnType<typeof setTimeout> | undefined
+let vpSetTimer: ReturnType<typeof setTimeout> | undefined
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: { ...defaultColors },
@@ -247,9 +248,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setCanvasViewport(vp: CanvasViewport) {
-    set({ canvasViewport: vp })
-    if (vpDebounceTimer) clearTimeout(vpDebounceTimer)
-    vpDebounceTimer = setTimeout(() => {
+    // Debounce the Zustand write — React Flow fires onViewportChange ~60/sec
+    // during pan/zoom. Subscribers (CanvasView) re-render on every set(), which
+    // is wasteful since the value is only read as defaultViewport on mount.
+    // 150ms trailing debounce collapses the re-render storm to a handful while
+    // keeping getState() callers (App.createStickyNote, FilteredListPopup) close
+    // to current — the viewport has almost always settled before these fire.
+    if (vpSetTimer) clearTimeout(vpSetTimer)
+    vpSetTimer = setTimeout(() => {
+      set({ canvasViewport: vp })
+      vpSetTimer = undefined
+    }, 150)
+
+    if (vpPersistTimer) clearTimeout(vpPersistTimer)
+    vpPersistTimer = setTimeout(() => {
       settingsRepository.put('canvasViewport', JSON.stringify(vp))
     }, 500)
   },

@@ -120,6 +120,7 @@ main.tsx (entry point)
 | PriorityMenu | components/shared/PriorityMenu.tsx | Shared priority picker dropdown (High/Medium/Normal with colored dots); also exports getPriorityColor and getPriorityLabel helpers |
 | ColorInput | components/shared/ColorInput.tsx | Shared color picker: native swatch + editable hex text input with validation, 3-digit expansion, auto-# prefix, blur revert |
 | FollowupIcon | components/shared/FollowupIcon.tsx | SVG chat bubble icon for follow-up toggle (filled/outline variants via `filled` prop) |
+| ErrorBoundary | components/shared/ErrorBoundary.tsx | Generic React error boundary (class component, documented exception); catches render errors, shows scoped fallback with "Try again" / "Reload"; wired at App level and around Canvas route |
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people, tags, and orgs |
 | FileSyncBanner | components/layout/FileSyncBanner.tsx | Dismissible banner suggesting file sync when no file handle saved; dismissal persisted in localStorage |
 | DragInsertContext | components/canvas/DragInsertContext.ts | React context for drag insertion state (insertTodoId, insertIndentLevel, insertAtEnd, insertProjectId, activeDragTodoId, dragExpandedProjectId) |

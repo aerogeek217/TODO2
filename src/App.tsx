@@ -26,6 +26,7 @@ import { backupScheduler } from './services/backup-scheduler'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
+import { ErrorBoundary } from './components/shared/ErrorBoundary'
 const CanvasPage = lazy(() => import('./views/CanvasPage').then(m => ({ default: m.CanvasPage })))
 const DashboardView = lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })))
 const ListView = lazy(() => import('./views/ListView').then(m => ({ default: m.ListView })))
@@ -244,7 +245,11 @@ function AppShell() {
         <div className={styles.content}>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={isMobile ? <Navigate to="/dashboard" replace /> : <CanvasPage />} />
+            <Route path="/" element={isMobile ? <Navigate to="/dashboard" replace /> : (
+              <ErrorBoundary scope="Canvas">
+                <CanvasPage />
+              </ErrorBoundary>
+            )} />
             <Route path="/dashboard" element={<DashboardView />} />
             <Route path="/list" element={<ListView />} />
             <Route path="/calendar" element={isMobile ? <Navigate to="/dashboard" replace /> : <CalendarView />} />
@@ -284,8 +289,10 @@ function AppShell() {
 
 export default function App() {
   return (
-    <HashRouter>
-      <AppShell />
-    </HashRouter>
+    <ErrorBoundary scope="App">
+      <HashRouter>
+        <AppShell />
+      </HashRouter>
+    </ErrorBoundary>
   )
 }
