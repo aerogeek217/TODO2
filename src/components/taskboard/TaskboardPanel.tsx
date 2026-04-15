@@ -20,8 +20,6 @@ import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
-import { useOrgStore } from '../../stores/org-store'
-import { useFilterStore, computeFilterPersonOrgIds } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import type { PersistedTodoItem } from '../../models'
@@ -57,8 +55,6 @@ export function TaskboardPanel() {
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const { assignedOrgsMap, personOrgMap } = useOrgStore()
-  const { filters, matchesFilter } = useFilterStore()
   const { openEditPopup } = useUIStore()
   const [reorderKey, setReorderKey] = useState(0)
   const [collapsed, setCollapsed] = useState(false)
@@ -74,22 +70,9 @@ export function TaskboardPanel() {
     return map
   }, [todos])
 
-  const filterPersonOrgIds = useMemo(
-    () => computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap),
-    [filters.personIds, filters.personFilterMode, personOrgMap],
-  )
-
   const visibleEntries = useMemo(
-    () => entries.filter(e => {
-      const t = todoMap.get(e.todoId)
-      if (!t) return false
-      const personIds = (assignedPeopleMap.get(t.id) ?? []).map(p => p.id!)
-      const tagIds = (assignedTagsMap.get(t.id) ?? []).map(tg => tg.id!)
-      const pOrgIds = personIds.flatMap(pid => personOrgMap.get(pid) ?? [])
-      const dOrgIds = (assignedOrgsMap.get(t.id) ?? []).map(o => o.id!)
-      return matchesFilter(t, personIds, tagIds, pOrgIds, dOrgIds, undefined, filterPersonOrgIds)
-    }),
-    [entries, todoMap, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter, filterPersonOrgIds],
+    () => entries.filter(e => todoMap.has(e.todoId)),
+    [entries, todoMap],
   )
 
   const entryIds = useMemo(() => visibleEntries.map(e => e.id!), [visibleEntries])
