@@ -183,8 +183,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
           {todo.notes && (
             <span className={styles.notesIcon}>
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M2 2.5h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 3v-11a1 1 0 0 1 1-1Z" />
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
+                <path d="M9.5 1.5V5H13" />
+                <path d="M5 8h6M5 11h4" />
               </svg>
             </span>
           )}
