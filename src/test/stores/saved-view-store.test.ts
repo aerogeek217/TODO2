@@ -11,6 +11,7 @@ const defaultFilters: FilterCriteria = {
   followupFilter: 'all',
   hardDeadlineOnly: false,
   personIds: null,
+  personFilterMode: 'include-orgs',
   tagIds: null,
   orgIds: null,
   orgFilterMode: 'include-people',
@@ -263,6 +264,56 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
 
     const result = savedFiltersToRuntime(saved)
     expect(result.orgFilterMode).toBe('include-people')
+  })
+})
+
+describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
+  it('personFilterMode direct-only survives save and restore roundtrip', async () => {
+    const filters: FilterCriteria = {
+      ...defaultFilters,
+      personFilterMode: 'direct-only',
+      personIds: new Set([5]),
+    }
+
+    await useSavedViewStore.getState().saveCurrentView('Person Test', 'priority', filters)
+
+    const { views } = useSavedViewStore.getState()
+    const saved = views[0].filters
+    expect(saved.personFilterMode).toBe('direct-only')
+
+    const restored = savedFiltersToRuntime(saved)
+    expect(restored.personFilterMode).toBe('direct-only')
+  })
+
+  it('personFilterMode include-orgs survives roundtrip', async () => {
+    const filters: FilterCriteria = {
+      ...defaultFilters,
+      personFilterMode: 'include-orgs',
+    }
+
+    await useSavedViewStore.getState().saveCurrentView('Default Person', 'priority', filters)
+
+    const { views } = useSavedViewStore.getState()
+    const restored = savedFiltersToRuntime(views[0].filters)
+    expect(restored.personFilterMode).toBe('include-orgs')
+  })
+
+  it('undefined personFilterMode defaults to include-orgs on restore', () => {
+    const saved = {
+      priorities: null,
+      personIds: null,
+      tagIds: null,
+      orgIds: null,
+      showCompleted: false,
+      showAssigned: false,
+      starredOnly: false,
+      hardDeadlineOnly: false,
+      dateRangeIncludeNoDue: false,
+      // personFilterMode intentionally omitted
+    }
+
+    const result = savedFiltersToRuntime(saved)
+    expect(result.personFilterMode).toBe('include-orgs')
   })
 })
 

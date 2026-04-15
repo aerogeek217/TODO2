@@ -11,6 +11,7 @@ function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
     followupFilter: 'all',
     hardDeadlineOnly: false,
     personIds: null,
+    personFilterMode: 'include-orgs',
     tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',

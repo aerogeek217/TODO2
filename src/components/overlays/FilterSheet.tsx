@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useLocation } from 'react-router'
-import { useFilterStore, type DateField, type OrgFilterMode } from '../../stores/filter-store'
+import { useFilterStore, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -66,7 +66,7 @@ function EntityFilterList({
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
-  const { filters, isActive, setPriorities, setCompletedFilter, setFollowupFilter, setAssignedFilter, toggleHardDeadlineOnly, setPersonIds, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setPriorities, setCompletedFilter, setFollowupFilter, setAssignedFilter, toggleHardDeadlineOnly, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
@@ -343,15 +343,28 @@ export function FilterSheet() {
                 <span className={`${styles.entityChevron} ${openSection === 'people' ? styles.entityChevronOpen : ''}`}>▸</span>
               </div>
               {openSection === 'people' && (
-                <EntityFilterList
-                  entities={people}
-                  filterIds={filters.personIds}
-                  onToggle={togglePerson}
-                  noneLabel="Unassigned"
-                  searchPlaceholder="Search people..."
-                  searchText={entitySearch}
-                  onSearchChange={setEntitySearch}
-                />
+                <>
+                  <div className={styles.dateFieldSelector}>
+                    {([['include-orgs', 'Orgs'], ['direct-only', 'People only']] as [PersonFilterMode, string][]).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        className={`${styles.dateFieldOption} ${filters.personFilterMode === mode ? styles.dateFieldOptionActive : ''}`}
+                        onClick={() => setPersonFilterMode(mode)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <EntityFilterList
+                    entities={people}
+                    filterIds={filters.personIds}
+                    onToggle={togglePerson}
+                    noneLabel="Unassigned"
+                    searchPlaceholder="Search people..."
+                    searchText={entitySearch}
+                    onSearchChange={setEntitySearch}
+                  />
+                </>
               )}
             </div>
           )}

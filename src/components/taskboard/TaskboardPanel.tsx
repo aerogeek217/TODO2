@@ -21,7 +21,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
-import { useFilterStore } from '../../stores/filter-store'
+import { useFilterStore, computeFilterPersonOrgIds } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import type { PersistedTodoItem } from '../../models'
@@ -74,6 +74,11 @@ export function TaskboardPanel() {
     return map
   }, [todos])
 
+  const filterPersonOrgIds = useMemo(
+    () => computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap),
+    [filters.personIds, filters.personFilterMode, personOrgMap],
+  )
+
   const visibleEntries = useMemo(
     () => entries.filter(e => {
       const t = todoMap.get(e.todoId)
@@ -82,9 +87,9 @@ export function TaskboardPanel() {
       const tagIds = (assignedTagsMap.get(t.id) ?? []).map(tg => tg.id!)
       const pOrgIds = personIds.flatMap(pid => personOrgMap.get(pid) ?? [])
       const dOrgIds = (assignedOrgsMap.get(t.id) ?? []).map(o => o.id!)
-      return matchesFilter(t, personIds, tagIds, pOrgIds, dOrgIds)
+      return matchesFilter(t, personIds, tagIds, pOrgIds, dOrgIds, undefined, filterPersonOrgIds)
     }),
-    [entries, todoMap, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter],
+    [entries, todoMap, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter, filterPersonOrgIds],
   )
 
   const entryIds = useMemo(() => visibleEntries.map(e => e.id!), [visibleEntries])

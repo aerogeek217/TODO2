@@ -14,6 +14,7 @@ export interface SavedViewFilters {
   starredOnly: boolean
   hardDeadlineOnly: boolean
   personIds: number[] | null
+  personFilterMode?: 'include-orgs' | 'direct-only'
   tagIds: number[] | null
   orgIds: number[] | null
   orgFilterMode?: 'include-people' | 'direct-only'

@@ -11,7 +11,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
-import { useFilterStore } from '../stores/filter-store'
+import { useFilterStore, computeFilterPersonOrgIds } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useStickyNoteStore } from '../stores/sticky-note-store'
@@ -190,6 +190,7 @@ export function CanvasPage() {
       filters.completedFilter === 'incomplete' || filters.completedFilter === 'completed' ||
       filters.assignedFilter === 'unassigned' || filters.assignedFilter === 'assigned'
     if (!hasGhostFilter) return undefined
+    const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
     const ghost = new Set<number>()
     for (const todo of todos) {
       if (todo.projectId == null) continue
@@ -208,7 +209,7 @@ export function CanvasPage() {
         const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
         const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])
         const dOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
-        if (!matchesFilter(todo, personIds, tagIds, pOrgIds, dOrgIds, true)) {
+        if (!matchesFilter(todo, personIds, tagIds, pOrgIds, dOrgIds, true, filterPersonOrgIds)) {
           isGhost = true
         }
       }
