@@ -17,7 +17,7 @@ import { useUndoStore } from '../stores/undo-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
-import { getFlatVisualOrder } from '../utils/hierarchy'
+import { getFlatVisualOrder, bySortOrder } from '../utils/hierarchy'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -299,7 +299,7 @@ export function useCanvasDnD({
 
         // Find children of the dragged task
         const children = todos.filter(t => t.parentId === todo.id)
-          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .sort(bySortOrder)
         setActiveDragChildren(children)
 
         if (isMulti) {

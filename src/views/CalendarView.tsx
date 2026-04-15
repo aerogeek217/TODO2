@@ -14,6 +14,7 @@ import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
 import { generateRecurringInstances } from '../services/recurrence'
+import { byHardDeadlineThenDate } from './ListView'
 import styles from './CalendarView.module.css'
 
 /** A calendar entry: either a real task or a virtual recurring instance. */
@@ -187,6 +188,9 @@ export function CalendarView() {
           addEntry(instDay, t, true)
         }
       }
+    }
+    for (const [, arr] of map) {
+      arr.sort((a, b) => byHardDeadlineThenDate(a.todo, b.todo))
     }
     return map
   }, [scheduled, days])

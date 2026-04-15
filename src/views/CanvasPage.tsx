@@ -26,6 +26,7 @@ import type { PersistedTodoItem } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
 import { DragInsertContext, DragPreviewContext } from '../components/canvas/DragInsertContext'
 import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
+import { bySortOrder } from '../utils/hierarchy'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { parseTaskInput, applyNlpMetadata } from '../services/nlp-task-creator'
 import { getFilterDefaults, supplementWithFilterDefaults } from '../utils/filter-defaults'
@@ -152,7 +153,7 @@ export function CanvasPage() {
     // (same todos in same order, by reference equality).
     const stable = new Map<number, PersistedTodoItem[]>()
     for (const [pid, list] of map) {
-      list.sort((a, b) => a.sortOrder - b.sortOrder)
+      list.sort(bySortOrder)
       const prevList = prev.get(pid)
       if (
         prevList &&
@@ -276,7 +277,7 @@ export function CanvasPage() {
       const projectTodos = todosByProject.get(pid) ?? []
       const siblings = projectTodos.filter(t =>
         parentId ? t.parentId === parentId : t.parentId == null
-      ).sort((a, b) => a.sortOrder - b.sortOrder)
+      ).sort(bySortOrder)
       const { computeInsertionSort } = await import('../services/task-placement')
       const sortOrder = computeInsertionSort(siblings, beforeTodoId)
       const id = await addTodoAt(title || rawTitle, pid, selectedCanvasId, parentId, sortOrder)

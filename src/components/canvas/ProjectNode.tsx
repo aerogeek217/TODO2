@@ -15,7 +15,7 @@ import styles from './ProjectNode.module.css'
 
 type SortBy = 'name' | 'priority' | 'due' | 'created'
 
-function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean): PersistedTodoItem[] {
+export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean): PersistedTodoItem[] {
   const compareFn = (a: PersistedTodoItem, b: PersistedTodoItem): number => {
     const dir = asc ? 1 : -1
     switch (sortBy) {
@@ -33,14 +33,14 @@ function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boole
     }
   }
 
-  // Sort parents, children follow their parent
-  const hierarchy = buildHierarchy(todos)
-  const sorted = [...hierarchy].sort((a, b) => compareFn(a.parent, b.parent))
+  // buildHierarchy sorts both roots and children with the comparator (since
+  // hierarchy.ts:62 propagates it), so children naturally stay grouped under
+  // their parent and follow the same sort key.
+  const hierarchy = buildHierarchy(todos, compareFn)
   const result: PersistedTodoItem[] = []
-  for (const { parent, children } of sorted) {
+  for (const { parent, children } of hierarchy) {
     result.push(parent)
-    const sortedChildren = [...children].sort(compareFn)
-    result.push(...sortedChildren)
+    result.push(...children)
   }
   return result
 }

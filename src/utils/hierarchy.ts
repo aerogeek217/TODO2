@@ -1,7 +1,12 @@
 import type { TodoItem, PersistedTodoItem } from '../models'
 
-/** Sort comparator for sortOrder */
-export const bySortOrder = (a: TodoItem, b: TodoItem) => a.sortOrder - b.sortOrder
+/**
+ * Sort comparator for sortOrder, with id as a stable tiebreaker.
+ * Id fallback of 0 is safe: persisted todos always have ids, and pre-insert
+ * todos sharing sortOrder will keep the caller's insertion order (both sides get 0).
+ */
+export const bySortOrder = (a: TodoItem, b: TodoItem) =>
+  (a.sortOrder - b.sortOrder) || ((a.id ?? 0) - (b.id ?? 0))
 
 /** Build a map of parentId → sorted children */
 export function buildChildMap(todos: PersistedTodoItem[]): Map<number, PersistedTodoItem[]> {
@@ -59,7 +64,7 @@ export function buildHierarchy(
   roots.sort(rootComparator)
 
   for (const [, children] of childrenOf) {
-    children.sort(bySortOrder)
+    children.sort(rootComparator)
   }
 
   return roots.map((parent) => ({

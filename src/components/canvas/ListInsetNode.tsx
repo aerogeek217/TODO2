@@ -6,6 +6,7 @@ import { Priority } from '../../models'
 import { useFilterStore } from '../../stores/filter-store'
 import { TaskRow } from '../task/TaskRow'
 import { FollowupIcon } from '../shared/FollowupIcon'
+import { bySortOrder } from '../../utils/hierarchy'
 import styles from './ListInsetNode.module.css'
 
 export function DraggableTaskRow({
@@ -187,7 +188,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         if (aHard !== bHard) return bHard - aHard
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
       }
-      return a.sortOrder - b.sortOrder
+      return bySortOrder(a, b)
     })
   }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter, dayKey])
 

@@ -33,7 +33,9 @@ const TOP_N = 10
  * Higher score = more important = should appear first.
  *
  * Weighting:
- *  - Hard deadline tasks get a large boost
+ *  - Hard deadline tasks always outrank soft deadlines (+500 bump puts hard
+ *    above the max soft score of ~465 from being 365+ days overdue). This
+ *    matches the List view's "hard first within a bucket" semantics.
  *  - Due date proximity: closer due dates score higher
  *  - Priority: High=2, Medium=1, Normal=0 adds a bonus
  */
@@ -58,8 +60,8 @@ export function scoreTask(todo: PersistedTodoItem, now: number): number {
     }
   }
 
-  // Hard deadline boost
-  if (todo.isHardDeadline) score += 50
+  // Hard deadline boost — large enough to always outrank soft scores
+  if (todo.isHardDeadline) score += 500
 
   return score
 }

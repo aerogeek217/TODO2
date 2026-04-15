@@ -11,6 +11,7 @@ import { useListInsetStore } from '../../stores/list-inset-store'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { TaskRow } from '../task/TaskRow'
+import { bySortOrder } from '../../utils/hierarchy'
 import styles from './FilteredListPopup.module.css'
 
 const PRIORITY_LABELS: Record<Priority, string> = {
@@ -128,7 +129,7 @@ export function FilteredListPopup() {
           return assigned?.some(o => o.id === filter.orgId) ?? false
         }
       }
-    }).sort((a, b) => a.sortOrder - b.sortOrder)
+    }).sort(bySortOrder)
   }, [popup, todos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap])
 
   const pos = useMemo(() => {

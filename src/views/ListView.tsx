@@ -41,7 +41,7 @@ import { createPortal } from 'react-dom'
 import { Priority } from '../models'
 import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy } from '../models'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
-import { buildHierarchy } from '../utils/hierarchy'
+import { buildHierarchy, bySortOrder } from '../utils/hierarchy'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import styles from './ListView.module.css'
 
@@ -75,13 +75,17 @@ export function buildPrioritySections(todos: PersistedTodoItem[]): Section[] {
   return sections
 }
 
+/**
+ * Sort hard deadlines ahead of soft deadlines, then preserve user's manual
+ * `sortOrder` within each bucket. Intentionally drops dueDate sorting here —
+ * `buildDueSections` already buckets by date range (overdue / today / week /
+ * later), so within a bucket the user's drag-to-reorder wins.
+ */
 export const byHardDeadlineThenDate = (a: PersistedTodoItem, b: PersistedTodoItem) => {
   const aHard = a.isHardDeadline ? 1 : 0
   const bHard = b.isHardDeadline ? 1 : 0
   if (aHard !== bHard) return bHard - aHard
-  const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
-  const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
-  return aDate - bDate
+  return bySortOrder(a, b)
 }
 
 export function buildDueSections(todos: PersistedTodoItem[]): Section[] {

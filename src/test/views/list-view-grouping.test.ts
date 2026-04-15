@@ -8,6 +8,7 @@ import {
   buildTagSections,
   buildProjectSections,
   addGhostParents,
+  byHardDeadlineThenDate,
 } from '../../views/ListView'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
@@ -77,22 +78,78 @@ describe('buildDueSections', () => {
     expect(sections[4].todos).toHaveLength(1) // no due date
   })
 
-  it('sorts hard deadlines ahead of soft deadlines within a section, then by due date', () => {
+  it('sorts hard deadlines ahead of soft deadlines within a section, then by user sortOrder', () => {
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const inTwoDays = new Date(today.getTime() + 2 * 86400000)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const inFourDays = new Date(today.getTime() + 4 * 86400000)
 
+    // Within the week bucket: two hard, two soft. User dragged id=2 above id=3 (sortOrder 5 vs 10).
     const todos = [
-      makeTodo({ id: 1, dueDate: inTwoDays }), // soft, earliest
-      makeTodo({ id: 2, dueDate: inFourDays, isHardDeadline: true }), // hard, latest
-      makeTodo({ id: 3, dueDate: inThreeDays, isHardDeadline: true }), // hard, middle
-      makeTodo({ id: 4, dueDate: inFourDays }), // soft, latest
+      makeTodo({ id: 1, dueDate: inThreeDays, sortOrder: 30 }), // soft
+      makeTodo({ id: 2, dueDate: inFourDays, isHardDeadline: true, sortOrder: 5 }),
+      makeTodo({ id: 3, dueDate: inThreeDays, isHardDeadline: true, sortOrder: 10 }),
+      makeTodo({ id: 4, dueDate: inFourDays, sortOrder: 20 }), // soft
     ]
     const sections = buildDueSections(todos)
     const week = sections.find((s) => s.key === 'week')!
-    expect(week.todos.map((t) => t.id)).toEqual([3, 2, 1, 4])
+    // Hard bucket first (2, 3) ordered by sortOrder (5 < 10); soft bucket (4, 1) ordered by sortOrder (20 < 30).
+    expect(week.todos.map((t) => t.id)).toEqual([2, 3, 4, 1])
+  })
+
+  it('preserves user-dragged sortOrder within a hard-deadline bucket (no date snap-back)', () => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const inThreeDays = new Date(today.getTime() + 3 * 86400000)
+    const inFourDays = new Date(today.getTime() + 4 * 86400000)
+
+    // User dragged a later-dated hard task above an earlier-dated one.
+    const todos = [
+      makeTodo({ id: 1, dueDate: inThreeDays, isHardDeadline: true, sortOrder: 20 }),
+      makeTodo({ id: 2, dueDate: inFourDays, isHardDeadline: true, sortOrder: 10 }),
+    ]
+    const sections = buildDueSections(todos)
+    const week = sections.find((s) => s.key === 'week')!
+    expect(week.todos.map((t) => t.id)).toEqual([2, 1])
+  })
+})
+
+describe('byHardDeadlineThenDate', () => {
+  it('puts hard deadlines first regardless of date', () => {
+    const earlier = new Date(2026, 3, 1)
+    const later = new Date(2026, 3, 10)
+    const soft = makeTodo({ id: 1, dueDate: earlier, sortOrder: 1 })
+    const hard = makeTodo({ id: 2, dueDate: later, isHardDeadline: true, sortOrder: 2 })
+    expect(byHardDeadlineThenDate(hard, soft)).toBeLessThan(0)
+    expect(byHardDeadlineThenDate(soft, hard)).toBeGreaterThan(0)
+  })
+
+  it('sorts within hard-deadline bucket by sortOrder (user drag wins over date)', () => {
+    const earlier = new Date(2026, 3, 1)
+    const later = new Date(2026, 3, 10)
+    // Earlier-dated task has larger sortOrder — user dragged later-dated above it.
+    const earlyHigh = makeTodo({ id: 1, dueDate: earlier, isHardDeadline: true, sortOrder: 20 })
+    const lateLow = makeTodo({ id: 2, dueDate: later, isHardDeadline: true, sortOrder: 10 })
+    expect(byHardDeadlineThenDate(lateLow, earlyHigh)).toBeLessThan(0)
+  })
+
+  it('falls back to id when sortOrder and hard-deadline are equal', () => {
+    const due = new Date(2026, 3, 1)
+    const a = makeTodo({ id: 1, dueDate: due, sortOrder: 5 })
+    const b = makeTodo({ id: 2, dueDate: due, sortOrder: 5 })
+    expect(byHardDeadlineThenDate(a, b)).toBeLessThan(0)
+    expect(byHardDeadlineThenDate(b, a)).toBeGreaterThan(0)
+  })
+
+  it('is deterministic across shuffled input', () => {
+    const due = new Date(2026, 3, 1)
+    const todos = [
+      makeTodo({ id: 3, dueDate: due, sortOrder: 3 }),
+      makeTodo({ id: 1, dueDate: due, sortOrder: 1 }),
+      makeTodo({ id: 2, dueDate: due, sortOrder: 2 }),
+    ]
+    const sorted = [...todos].sort(byHardDeadlineThenDate)
+    expect(sorted.map((t) => t.id)).toEqual([1, 2, 3])
   })
 })
 

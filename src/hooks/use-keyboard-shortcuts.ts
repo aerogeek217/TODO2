@@ -4,6 +4,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { indentTasks, outdentTasks, moveTasksInDirection } from '../services/task-placement'
 import { pasteTasksAt } from '../services/clipboard'
+import { bySortOrder } from '../utils/hierarchy'
 
 interface KeyboardShortcutOptions {
   openCreatePopup: () => void
@@ -143,7 +144,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
           if (focusedTodo && focusedTodo.projectId != null) {
             const projectTodos = todos
               .filter(t => t.projectId === focusedTodo.projectId && (focusedTodo.parentId == null ? t.parentId == null : t.parentId === focusedTodo.parentId))
-              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .sort(bySortOrder)
             const focusedIdx = projectTodos.findIndex(t => t.id === focusedTodo.id)
             const beforeTodo = focusedIdx < projectTodos.length - 1 ? projectTodos[focusedIdx + 1] : null
             await pasteTasksAt({
@@ -291,7 +292,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
           if (!firstTask) return
           const projectTodos = todos
             .filter(t => t.projectId === firstTask.projectId)
-            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .sort(bySortOrder)
           const mutations = moveTasksInDirection(projectTodos, ids, direction)
           if (mutations.length > 0) {
             await applyMutations(mutations)
@@ -352,7 +353,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
         if (!firstTask) return
         const projectTodos = todos
           .filter(t => t.projectId === firstTask.projectId)
-          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .sort(bySortOrder)
         const mutations = e.shiftKey
           ? outdentTasks(projectTodos, ids)
           : indentTasks(projectTodos, ids)
@@ -372,7 +373,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
           if (!firstTask) return
           const projectTodos = todos
             .filter(t => t.projectId === firstTask.projectId)
-            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .sort(bySortOrder)
           const mutations = e.key === ']'
             ? indentTasks(projectTodos, ids)
             : outdentTasks(projectTodos, ids)

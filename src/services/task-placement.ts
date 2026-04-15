@@ -105,7 +105,7 @@ export function placeMultipleAt(
   const selected = allTodos.filter(t => taskIds.has(t.id))
     .sort((a, b) => {
       if (a.projectId !== b.projectId) return (a.projectId ?? 0) - (b.projectId ?? 0)
-      return a.sortOrder - b.sortOrder
+      return bySortOrder(a, b)
     })
 
   // Compute base sortOrder and step size

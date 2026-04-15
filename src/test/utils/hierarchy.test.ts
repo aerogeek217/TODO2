@@ -23,10 +23,21 @@ describe('bySortOrder', () => {
     expect(sorted.map((t) => t.id)).toEqual([2, 3, 1])
   })
 
-  it('returns 0 for equal sortOrders', () => {
+  it('breaks ties by id when sortOrders are equal', () => {
     const a = makeTodo({ id: 1, sortOrder: 5 })
     const b = makeTodo({ id: 2, sortOrder: 5 })
-    expect(bySortOrder(a, b)).toBe(0)
+    expect(bySortOrder(a, b)).toBeLessThan(0)
+    expect(bySortOrder(b, a)).toBeGreaterThan(0)
+  })
+
+  it('produces stable order across shuffled equal-sortOrder inputs', () => {
+    const todos = [
+      makeTodo({ id: 3, sortOrder: 5 }),
+      makeTodo({ id: 1, sortOrder: 5 }),
+      makeTodo({ id: 2, sortOrder: 5 }),
+    ]
+    const sorted = [...todos].sort(bySortOrder)
+    expect(sorted.map((t) => t.id)).toEqual([1, 2, 3])
   })
 
   it('returns negative when a comes before b', () => {
@@ -111,6 +122,17 @@ describe('buildHierarchy', () => {
     const byIdDesc = (a: { id: number }, b: { id: number }) => b.id - a.id
     const result = buildHierarchy(todos, byIdDesc)
     expect(result.map((r) => r.parent.id)).toEqual([3, 2, 1])
+  })
+
+  it('applies the custom comparator to children as well as roots', () => {
+    const todos = [
+      makeTodo({ id: 1, sortOrder: 1 }),
+      makeTodo({ id: 2, parentId: 1, sortOrder: 10 }),
+      makeTodo({ id: 3, parentId: 1, sortOrder: 20 }),
+    ]
+    const bySortDesc = (a: PersistedTodoItem, b: PersistedTodoItem) => b.sortOrder - a.sortOrder
+    const result = buildHierarchy(todos, bySortDesc)
+    expect(result[0].children.map((c) => c.id)).toEqual([3, 2])
   })
 
   it('promotes orphaned children (parent not in list) to root', () => {

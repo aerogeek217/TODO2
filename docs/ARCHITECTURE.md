@@ -134,9 +134,10 @@ main.tsx (entry point)
 | TaskEditHeader | components/task/TaskEditHeader.tsx | Title input + NLP autocomplete + star + close (extracted from TaskEditPopup) |
 | TaskEditMetadata | components/task/TaskEditMetadata.tsx | Due date, recurrence, project, people/orgs, tags sections (extracted from TaskEditPopup) |
 | TaskEditFooter | components/task/TaskEditFooter.tsx | Edit/create mode footer with timestamps, actions (extracted from TaskEditPopup) |
-| bySortOrder | utils/hierarchy.ts | Shared sort comparator for sortOrder fields |
+| bySortOrder | utils/hierarchy.ts | Shared sort comparator: sortOrder ascending, with id as a stable tiebreaker so equal-sortOrder tasks render in deterministic order |
+| byHardDeadlineThenDate | views/ListView.tsx | Sort comparator: hard-deadline bucket first (hard tasks before soft), then by user `sortOrder` within bucket (drag-to-reorder persists), then by id. Date is intentionally NOT sorted within a bucket — `buildDueSections` already partitions by date range |
 | buildChildMap | utils/hierarchy.ts | Builds parentId → sorted children map from flat todo list |
-| buildHierarchy | utils/hierarchy.ts | Groups flat todo list into parent/child hierarchy (max 2 levels), sorts roots by sortOrder by default or a custom `rootComparator` when supplied (used by ListView due-sort); promotes grandchildren to root ancestor to prevent invisible tasks |
+| buildHierarchy | utils/hierarchy.ts | Groups flat todo list into parent/child hierarchy (max 2 levels), sorts roots and children by sortOrder by default or by a custom `rootComparator` when supplied (used by ListView due-sort and ProjectNode attribute sort); promotes grandchildren to root ancestor to prevent invisible tasks |
 | getFlatVisualOrder | utils/hierarchy.ts | Returns todos in visual display order (parent, children, parent, children, ...) |
 | findAlignments, findAlignmentsScoped, findResizeSnap | components/canvas/alignment.ts | Snap-to-edge alignment for dragging/resizing nodes (5px threshold, guide lines) |
 | computeCascadeShifts, CASCADE_GAP_THRESHOLD | components/canvas/cascade-shift.ts | Auto-shift stacked projects when a neighbor's height changes (40px gap threshold, BFS cascade) |

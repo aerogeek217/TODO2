@@ -39,9 +39,22 @@ describe('scoreTask', () => {
     expect(scoreTask(todo, now)).toBe(10)
   })
 
-  it('adds 50 for hard deadline', () => {
+  it('adds 500 for hard deadline so it always outranks soft', () => {
     const todo = makeTodo({ id: 1, isHardDeadline: true })
-    expect(scoreTask(todo, now)).toBe(50)
+    expect(scoreTask(todo, now)).toBe(500)
+  })
+
+  it('hard-deadline-future task outranks soft-deadline-overdue', () => {
+    const hardFuture = makeTodo({
+      id: 1,
+      dueDate: new Date(now + 365 * MS_PER_DAY),
+      isHardDeadline: true,
+    })
+    const softOverdue = makeTodo({
+      id: 2,
+      dueDate: new Date(now - 365 * MS_PER_DAY),
+    })
+    expect(scoreTask(hardFuture, now)).toBeGreaterThan(scoreTask(softOverdue, now))
   })
 
   it('scores overdue tasks with 100 + days overdue', () => {
@@ -72,8 +85,8 @@ describe('scoreTask', () => {
   it('combines priority, due date, and hard deadline', () => {
     const dueDate = new Date(now + 5 * MS_PER_DAY)
     const todo = makeTodo({ id: 1, priority: Priority.High, dueDate, isHardDeadline: true })
-    // 20 (high) + 55 (60-5 due) + 50 (hard deadline) = 125
-    expect(scoreTask(todo, now)).toBe(125)
+    // 20 (high) + 55 (60-5 due) + 500 (hard deadline) = 575
+    expect(scoreTask(todo, now)).toBe(575)
   })
 })
 
