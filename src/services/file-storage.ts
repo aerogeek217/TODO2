@@ -92,7 +92,7 @@ class FileStorageService {
         this._needsPermission = false
         this._error = null
         await this.loadFromFile()
-        this.installHooks()
+        if (this.handle) this.installHooks()
       } else {
         this._error = 'Permission denied'
       }
@@ -111,7 +111,7 @@ class FileStorageService {
       this._needsPermission = false
       await saveFileHandle(handle)
       await this.loadFromFile()
-      this.installHooks()
+      if (this.handle) this.installHooks()
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') return // user cancelled
       this._error = 'Failed to open file'
@@ -196,6 +196,7 @@ class FileStorageService {
         const confirmed = await this.migrationConfirmListener(legacyInfo)
         if (!confirmed) {
           this.suppressSync = false
+          await this.disconnect()
           return
         }
       }
