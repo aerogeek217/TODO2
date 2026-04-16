@@ -15,14 +15,6 @@ export const todoRepository = {
     return db.todos.where('canvasId').equals(canvasId).sortBy('sortOrder') as Promise<PersistedTodoItem[]>
   },
 
-  async getStarred(): Promise<PersistedTodoItem[]> {
-    return db.todos
-      .where('isStarred')
-      .equals(1)
-      .filter((t) => !t.isCompleted)
-      .sortBy('sortOrder') as Promise<PersistedTodoItem[]>
-  },
-
   async getDueToday(): Promise<PersistedTodoItem[]> {
     const today = startOfToday()
     const tomorrow = new Date(today)

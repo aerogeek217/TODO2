@@ -3,6 +3,8 @@ export interface Status {
   name: string
   color: string
   sortOrder: number
+  icon?: string
+  hideByDefault?: boolean
 }
 
 /** Status with guaranteed id (post-insert from DB) */

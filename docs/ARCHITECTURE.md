@@ -27,7 +27,7 @@ main.tsx (entry point)
 │   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node with sortable reorder)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
 │   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, StatusEditor, ThemeColorsEditor, KeyboardShortcutsModal
-│   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, FollowupIcon, selection.module.css, dropdown.module.css
+│   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, FollowupIcon, StatusIcon, selection.module.css, dropdown.module.css
 ├── stores/                → Zustand (canvas, todo, project, person, tag, org, status, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view, settings, file-storage)
 ├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, status, settings, saved-view, sticky-note)
 ├── models/                → TypeScript interfaces
@@ -53,7 +53,7 @@ main.tsx (entry point)
 | TodoTag | models/todo-tag.ts | Many-to-many join: todo ↔ tag |
 | TodoPerson | models/todo-person.ts | Many-to-many join: todo ↔ person |
 | TodoOrg | models/todo-org.ts | Many-to-many join: todo ↔ org (direct org assignment) |
-| Status | models/status.ts | User-defined workflow state with name, color, and sortOrder |
+| Status | models/status.ts | User-defined workflow state with name, color, sortOrder, optional `icon` (key from StatusIcon registry), and optional `hideByDefault` (excluded from default filter when true) |
 | PersistedStatus | models/status.ts | Status with guaranteed id (post-insert) |
 | Priority | models/priority.ts | Enum: Normal, Medium, High |
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
@@ -71,7 +71,9 @@ main.tsx (entry point)
 | TaskboardEntry | models/taskboard-entry.ts | Ordered task queue entry (todoId, sortOrder) for next-up work tracking |
 | Backup | models/backup.ts | Auto-snapshot record: trigger type, serialized data, size |
 | SavedView | models/saved-view.ts | Named saved list view: sortBy + serializable filter snapshot (including dateRangeStart/End) |
-| Todo2Database | data/database.ts | Dexie DB class with schema (v16 base + v17/v18/v19 incremental; v1-v15 collapsed) |
+| Todo2Database | data/database.ts | Dexie DB class with schema (v16 base + v17/v18/v19 incremental + v20 unified status; v1-v15 collapsed) |
+| runV20Migration | data/database.ts | v20 upgrade: seeds Assigned/Follow-up statuses, backfills `statusId` from `isStarred`/`isAssigned`, deletes retired `starred` list insets |
+| ensureSeededStatuses | data/database.ts | Idempotent seeder for Assigned/Follow-up status rows; settings-pointer-as-truth (`seededAssignedStatusId`/`seededFollowupStatusId`); used by v20 migration and restore |
 | ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks |
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
@@ -124,6 +126,7 @@ main.tsx (entry point)
 | ProjectPicker | components/shared/ProjectPicker.tsx | Shared project search + list UI (with "No project" option); self-contained search state |
 | ProjectPickerPopup | components/overlays/ProjectPickerPopup.tsx | Portal-rendered positioned popup wrapping `ProjectPicker`; closes on outside-click / Escape; used by TaskRow right-click "Move to project…" |
 | FollowupIcon | components/shared/FollowupIcon.tsx | SVG chat bubble icon for follow-up toggle (filled/outline variants via `filled` prop) |
+| StatusIcon | components/shared/StatusIcon.tsx | Inline SVG icon registry for statuses (`person`, `message-bubble`); returns null for unknown/missing icon (caller renders color dot fallback) |
 | ErrorBoundary | components/shared/ErrorBoundary.tsx | Generic React error boundary (class component, documented exception); catches render errors, shows scoped fallback with "Try again" / "Reload"; wired at App level and around Canvas route |
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people, tags, and orgs |
 | FileSyncBanner | components/layout/FileSyncBanner.tsx | Dismissible banner suggesting file sync when no file handle saved; dismissal persisted in localStorage |

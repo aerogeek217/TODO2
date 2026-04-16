@@ -1,5 +1,6 @@
 import { Priority } from '../models/priority'
 import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
+import { STATUS_ICON_KEYS } from '../components/shared/StatusIcon'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -122,12 +123,18 @@ function checkTodo(v: unknown): CheckResult {
   ])
 }
 
+function isOptStatusIcon(v: unknown): boolean {
+  return v === undefined || v === null || (typeof v === 'string' && (STATUS_ICON_KEYS as readonly string[]).includes(v))
+}
+
 function checkStatus(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
     ['name', isStr(v.name, 200)],
     ['color', isValidCssColor(v.color)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
+    ['icon', isOptStatusIcon(v.icon)],
+    ['hideByDefault', isOptBool(v.hideByDefault)],
   ])
 }
 
@@ -306,7 +313,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'completedRetentionDays', 'canvasViewport']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'canvasViewport']
 
 function isValidSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
@@ -324,9 +331,9 @@ function checkSetting(v: unknown): CheckResult {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : 'value (defaultProjectId must be numeric)'
   }
-  if (v.key === 'defaultStatusId') {
+  if (v.key === 'defaultStatusId' || v.key === 'seededAssignedStatusId' || v.key === 'seededFollowupStatusId') {
     const n = Number(v.value)
-    return Number.isFinite(n) ? true : 'value (defaultStatusId must be numeric)'
+    return Number.isFinite(n) ? true : `value (${v.key} must be numeric)`
   }
   if (v.key === 'completedRetentionDays') {
     const n = Number(v.value)
@@ -370,7 +377,11 @@ function pickTodo(v: Record<string, unknown>): TodoItem {
 }
 
 function pickStatus(v: Record<string, unknown>): Status {
-  return { id: v.id as number | undefined, name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number }
+  return {
+    id: v.id as number | undefined, name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
+    ...(v.icon != null ? { icon: v.icon as string } : {}),
+    ...(v.hideByDefault != null ? { hideByDefault: v.hideByDefault as boolean } : {}),
+  }
 }
 
 function pickPerson(v: Record<string, unknown>): Person {

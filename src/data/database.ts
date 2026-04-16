@@ -1,4 +1,4 @@
-import Dexie, { type Table } from 'dexie'
+import Dexie, { type Table, type Transaction } from 'dexie'
 import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
 
 export interface SettingRow {
@@ -60,10 +60,93 @@ export class Todo2Database extends Dexie {
       statuses: '++id, sortOrder',
       todos: '++id, projectId, canvasId, parentId, priority, isCompleted, isStarred, dueDate, sortOrder, statusId',
     })
+
+    // v20: unify Status — drop isStarred index; seed Assigned/Followup statuses;
+    // fold isStarred/isAssigned into statusId; delete retired 'starred' list-inset preset.
+    this.version(20).stores({
+      todos: '++id, projectId, canvasId, parentId, priority, isCompleted, dueDate, sortOrder, statusId',
+      statuses: '++id, sortOrder',
+      listInsets: '++id, canvasId',
+      settings: 'key',
+    }).upgrade(async (tx) => {
+      await runV20Migration(tx)
+    })
   }
 }
 
 export const db = new Todo2Database()
+
+export async function runV20Migration(tx: Transaction): Promise<void> {
+  const statusesTable = tx.table<Status>('statuses')
+  const todosTable = tx.table('todos')
+  const listInsetsTable = tx.table<ListInset>('listInsets')
+  const settingsTable = tx.table<SettingRow>('settings')
+
+  const { assignedId, followupId } = await ensureSeededStatuses(statusesTable, settingsTable)
+
+  await todosTable.toCollection().modify((todo: Record<string, unknown>) => {
+    const existingStatusId = todo.statusId as number | undefined
+    let nextStatusId: number | undefined = existingStatusId
+    if (todo.isStarred) nextStatusId = followupId
+    else if (todo.isAssigned) nextStatusId = assignedId
+    if (nextStatusId !== existingStatusId) todo.statusId = nextStatusId
+    delete todo.isStarred
+    delete todo.isAssigned
+  })
+
+  const starredInsets = await listInsetsTable.filter(li => li.preset === 'starred').toArray()
+  if (starredInsets.length > 0) {
+    await listInsetsTable.bulkDelete(starredInsets.map(li => li.id!))
+    console.info(`v20 migration: removed ${starredInsets.length} starred list inset(s)`)
+  }
+}
+
+export async function ensureSeededStatuses(
+  statusesTable: Table<Status, number>,
+  settingsTable: Table<SettingRow, string>,
+): Promise<{ assignedId: number; followupId: number }> {
+  const [assignedSetting, followupSetting] = await Promise.all([
+    settingsTable.get('seededAssignedStatusId'),
+    settingsTable.get('seededFollowupStatusId'),
+  ])
+
+  const seededAssignedId = assignedSetting ? Number(assignedSetting.value) : null
+  const seededFollowupId = followupSetting ? Number(followupSetting.value) : null
+
+  const existingAssigned = seededAssignedId != null
+    ? await statusesTable.get(seededAssignedId)
+    : undefined
+  const existingFollowup = seededFollowupId != null
+    ? await statusesTable.get(seededFollowupId)
+    : undefined
+
+  const all = await statusesTable.toArray()
+  const maxSort = all.reduce((m, s) => Math.max(m, s.sortOrder), -1)
+  let nextSort = maxSort
+
+  let assignedId = existingAssigned?.id
+  if (assignedId == null) {
+    nextSort += 1
+    assignedId = (await statusesTable.add({
+      name: 'Assigned', color: '#537FE7', sortOrder: nextSort,
+      icon: 'person', hideByDefault: true,
+    } as Status)) as number
+  }
+
+  let followupId = existingFollowup?.id
+  if (followupId == null) {
+    nextSort += 1
+    followupId = (await statusesTable.add({
+      name: 'Follow-up', color: '#F5A623', sortOrder: nextSort,
+      icon: 'message-bubble', hideByDefault: false,
+    } as Status)) as number
+  }
+
+  await settingsTable.put({ key: 'seededAssignedStatusId', value: String(assignedId) })
+  await settingsTable.put({ key: 'seededFollowupStatusId', value: String(followupId) })
+
+  return { assignedId, followupId }
+}
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
 export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries, db.statuses] as const

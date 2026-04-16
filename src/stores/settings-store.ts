@@ -28,6 +28,8 @@ interface SettingsState {
   themeMode: ThemeMode
   defaultProjectId: number | null
   defaultStatusId: number | null
+  seededAssignedStatusId: number | null
+  seededFollowupStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   canvasViewport: CanvasViewport | null
 
@@ -146,6 +148,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   themeMode: 'dark' as ThemeMode,
   defaultProjectId: null,
   defaultStatusId: null,
+  seededAssignedStatusId: null,
+  seededFollowupStatusId: null,
   completedRetentionDays: null,
   canvasViewport: null,
 
@@ -156,6 +160,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const customKeys = new Set<string>()
       let defaultProjectId: number | null = null
       let defaultStatusId: number | null = null
+      let seededAssignedStatusId: number | null = null
+      let seededFollowupStatusId: number | null = null
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
       let canvasViewport: CanvasViewport | null = null
@@ -170,6 +176,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           defaultProjectId = row.value ? Number(row.value) : null
         } else if (row.key === 'defaultStatusId') {
           defaultStatusId = row.value ? Number(row.value) : null
+        } else if (row.key === 'seededAssignedStatusId') {
+          seededAssignedStatusId = row.value ? Number(row.value) : null
+        } else if (row.key === 'seededFollowupStatusId') {
+          seededFollowupStatusId = row.value ? Number(row.value) : null
         } else if (row.key === 'completedRetentionDays') {
           const parsed = row.value ? Number(row.value) : null
           completedRetentionDays = parsed != null && isValidRetentionDays(parsed) ? parsed : null
@@ -185,7 +195,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultProjectId, defaultStatusId, completedRetentionDays, themeMode, canvasViewport })
+      set({ colors, defaultProjectId, defaultStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, canvasViewport })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)

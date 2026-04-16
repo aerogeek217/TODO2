@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Status } from '../models'
-import { db, statusRepository } from '../data'
+import { db, statusRepository, settingsRepository } from '../data'
 import { loadWithState, optimistic } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
@@ -58,7 +58,10 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     // Capture affected todos and default setting before deletion
     const affectedTodoIds = await db.todos.where('statusId').equals(id).primaryKeys()
     const { useSettingsStore } = await import('./settings-store')
-    const wasDefault = useSettingsStore.getState().defaultStatusId === id
+    const settingsState = useSettingsStore.getState()
+    const wasDefault = settingsState.defaultStatusId === id
+    const wasSeededAssigned = settingsState.seededAssignedStatusId === id
+    const wasSeededFollowup = settingsState.seededFollowupStatusId === id
 
     await statusRepository.delete(id)
     set({ statuses: get().statuses.filter(s => s.id !== id) })
@@ -73,9 +76,16 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       })
     }
 
-    // Clear default if it was pointing to this status
     if (wasDefault) {
       await useSettingsStore.getState().setDefaultStatusId(null)
+    }
+    if (wasSeededAssigned) {
+      await settingsRepository.delete('seededAssignedStatusId')
+      useSettingsStore.setState({ seededAssignedStatusId: null })
+    }
+    if (wasSeededFollowup) {
+      await settingsRepository.delete('seededFollowupStatusId')
+      useSettingsStore.setState({ seededFollowupStatusId: null })
     }
 
     if (status) {
@@ -93,9 +103,16 @@ export const useStatusStore = create<StatusState>((set, get) => ({
               }
             })
           }
-          // Restore default if it was set
           if (wasDefault) {
             await useSettingsStore.getState().setDefaultStatusId(id)
+          }
+          if (wasSeededAssigned) {
+            await settingsRepository.put('seededAssignedStatusId', String(id))
+            useSettingsStore.setState({ seededAssignedStatusId: id })
+          }
+          if (wasSeededFollowup) {
+            await settingsRepository.put('seededFollowupStatusId', String(id))
+            useSettingsStore.setState({ seededFollowupStatusId: id })
           }
           await get().load()
           // Reload todo store to reflect restored statusIds
