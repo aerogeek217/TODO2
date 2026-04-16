@@ -1,6 +1,6 @@
 export const STATUS_ICON_KEYS = [
   'person', 'message-bubble', 'circle', 'star', 'stop-sign', 'exclamation',
-  'clock', 'check', 'question', 'flag', 'eye', 'bookmark', 'snooze',
+  'clock', 'check', 'question', 'flag', 'eye', 'bookmark', 'snooze', 'arrow',
 ] as const
 export type StatusIconKey = (typeof STATUS_ICON_KEYS)[number]
 
@@ -90,6 +90,12 @@ export function StatusIcon({ icon, filled }: { icon?: string; filled?: boolean }
       return (
         <Svg filled={filled} strokeOnly>
           <path d="M5 5h6L5 11h6" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+        </Svg>
+      )
+    case 'arrow':
+      return (
+        <Svg filled={filled} strokeOnly>
+          <path d="M3 8h10M9 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
         </Svg>
       )
     default:

@@ -132,10 +132,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           }}
           aria-label={status ? `Status: ${status.name}` : 'Set status'}
         >
-          {status?.icon ? (
-            <StatusIcon icon={status.icon} filled />
-          ) : status ? (
-            <span className={styles.statusBadgeDot} style={{ background: status.color }} />
+          {status ? (
+            <StatusIcon icon={status.icon || 'circle'} filled />
           ) : (
             <span className={styles.statusDotEmpty} />
           )}

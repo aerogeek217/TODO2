@@ -674,7 +674,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 1.5px solid var(--color-border);
+  border: 1.5px solid var(--color-text-muted);
   display: inline-block;
   opacity: 0;
   transition: opacity 0.15s;

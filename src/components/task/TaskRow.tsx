@@ -19,7 +19,7 @@ import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { PriorityMenu, getPriorityColor } from '../shared/PriorityMenu'
 import { StatusIcon } from '../shared/StatusIcon'
-import { useSettingsStore } from '../../stores/settings-store'
+
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import styles from './TaskRow.module.css'
@@ -126,7 +126,7 @@ export const TaskRow = memo(function TaskRow({
     if (!todo.statusId) return undefined
     return statuses.find(st => st.id === todo.statusId)
   }, [todo.statusId, statuses])
-  const quickStatusId = useSettingsStore((s) => s.quickStatusId)
+
 
   // Bulk-aware mutation callbacks
   const bulk = useBulkActions()
@@ -451,18 +451,12 @@ export const TaskRow = memo(function TaskRow({
             style={status ? { color: status.color } : undefined}
             onClick={(e) => {
               e.stopPropagation()
-              if (!todo.statusId && quickStatusId != null) {
-                useTodoStore.getState().update({ ...todo, statusId: quickStatusId, modifiedAt: new Date() })
-              } else {
-                setShowStatusMenu(v => !v)
-              }
+              setShowStatusMenu(v => !v)
             }}
             aria-label={status ? `Status: ${status.name}` : 'Set status'}
           >
-            {status?.icon ? (
-              <StatusIcon icon={status.icon} filled />
-            ) : status ? (
-              <span className={styles.statusBadgeDot} style={{ background: status.color }} />
+            {status ? (
+              <StatusIcon icon={status.icon || 'circle'} filled />
             ) : (
               <span className={styles.statusDotEmpty} />
             )}
@@ -483,11 +477,7 @@ export const TaskRow = memo(function TaskRow({
                     className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
                     onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: s.id, modifiedAt: new Date() }); setShowStatusMenu(false) }}
                   >
-                    {s.icon ? (
-                      <span style={{ color: s.color }}><StatusIcon icon={s.icon} filled /></span>
-                    ) : (
-                      <span className={styles.statusOptionDot} style={{ background: s.color }} />
-                    )}
+                    <span style={{ color: s.color }}><StatusIcon icon={s.icon || 'circle'} filled /></span>
                     {s.name}
                   </button>
                 ))}

@@ -53,7 +53,7 @@ main.tsx (entry point)
 | TodoTag | models/todo-tag.ts | Many-to-many join: todo ↔ tag |
 | TodoPerson | models/todo-person.ts | Many-to-many join: todo ↔ person |
 | TodoOrg | models/todo-org.ts | Many-to-many join: todo ↔ org (direct org assignment) |
-| Status | models/status.ts | User-defined workflow state with name, color, sortOrder, optional `icon` (key from StatusIcon registry), and optional `hideByDefault` (excluded from default filter when true) |
+| Status | models/status.ts | User-defined workflow state with name, color, sortOrder, `icon` (key from StatusIcon registry, default 'circle'), and optional `hideByDefault` (excluded from default filter when true) |
 | PersistedStatus | models/status.ts | Status with guaranteed id (post-insert) |
 | Priority | models/priority.ts | Enum: Normal, Medium, High |
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
@@ -122,7 +122,7 @@ main.tsx (entry point)
 | ColorInput | components/shared/ColorInput.tsx | Shared color picker: native swatch + editable hex text input with validation, 3-digit expansion, auto-# prefix, blur revert |
 | ProjectPicker | components/shared/ProjectPicker.tsx | Shared project search + list UI (with "No project" option); self-contained search state |
 | ProjectPickerPopup | components/overlays/ProjectPickerPopup.tsx | Portal-rendered positioned popup wrapping `ProjectPicker`; closes on outside-click / Escape; used by TaskRow right-click "Move to project…" |
-| StatusIcon | components/shared/StatusIcon.tsx | Inline SVG icon registry for statuses (13 icons: person, message-bubble, circle, star, stop-sign, exclamation, clock, check, question, flag, eye, bookmark, snooze); returns null for unknown/missing icon (caller renders color dot fallback) |
+| StatusIcon | components/shared/StatusIcon.tsx | Inline SVG icon registry for statuses (14 icons: person, message-bubble, circle, star, stop-sign, exclamation, clock, check, question, flag, eye, bookmark, snooze, arrow); returns null for unknown/missing icon (callers default to 'circle') |
 | ErrorBoundary | components/shared/ErrorBoundary.tsx | Generic React error boundary (class component, documented exception); catches render errors, shows scoped fallback with "Try again" / "Reload"; wired at App level and around Canvas route |
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people, tags, and orgs |
 | FileSyncBanner | components/layout/FileSyncBanner.tsx | Dismissible banner suggesting file sync when no file handle saved; dismissal persisted in localStorage |

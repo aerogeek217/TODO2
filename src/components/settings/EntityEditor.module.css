@@ -416,6 +416,109 @@
   color: var(--color-text-muted);
 }
 
+/* Icon picker */
+.iconPickerWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.iconPickerBtn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+}
+
+.iconPickerBtn:hover {
+  border-color: var(--color-text-muted);
+}
+
+.iconPickerEmpty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+.iconPickerGrid {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  z-index: var(--z-dialog);
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  padding: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-modal);
+}
+
+.iconPickerCell {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0;
+  color: var(--color-text-secondary);
+}
+
+.iconPickerCell:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+}
+
+.iconPickerCellActive {
+  background: var(--color-accent-alpha);
+  border-color: var(--color-accent);
+}
+
+/* Hidden toggle in edit row */
+.hiddenToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.hiddenToggle input {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Hidden label in row */
+.hiddenLabel {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* Icon preview in row */
+.iconPreview {
+  flex-shrink: 0;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
 /* Touch device overrides */
 @media (hover: none) {
   .actions {

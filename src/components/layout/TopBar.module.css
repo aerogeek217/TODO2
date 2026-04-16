@@ -387,6 +387,13 @@
   flex-shrink: 0;
 }
 
+.dotIcon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
 .noneLabel {
   font-style: italic;
   opacity: 0.65;

@@ -11,6 +11,7 @@ import { useFileStorageStore } from '../../stores/file-storage-store'
 import { Priority } from '../../models'
 import { startOfToday } from '../../utils/date'
 import { toggleItem } from '../../utils/filter'
+import { StatusIcon } from '../shared/StatusIcon'
 import styles from './TopBar.module.css'
 
 const ALL_PRIORITIES = [Priority.High, Priority.Medium, Priority.Normal]
@@ -269,7 +270,7 @@ function EntityDropdownItems({
   showDot = true,
 }: {
   searchText: string
-  entities: { id?: number; name: string; color?: string }[]
+  entities: { id?: number; name: string; color?: string; icon?: string }[]
   isChecked: (id: number) => boolean
   onToggle: (id: number) => void
   namePrefix?: string
@@ -289,7 +290,11 @@ function EntityDropdownItems({
       {filtered.map(entity => (
         <label key={entity.id} className={styles.dropdownItem} onClick={() => onToggle(entity.id!)}>
           <span className={`${styles.check} ${isChecked(entity.id!) ? styles.checked : ''}`} />
-          {showDot && entity.color && <span className={styles.dot} style={{ background: entity.color }} />}
+          {entity.icon ? (
+            <span className={styles.dotIcon} style={{ color: entity.color }}><StatusIcon icon={entity.icon} filled /></span>
+          ) : showDot && entity.color ? (
+            <span className={styles.dot} style={{ background: entity.color }} />
+          ) : null}
           {namePrefix}{entity.name}
         </label>
       ))}
@@ -513,49 +518,6 @@ export function TopBar() {
             ))}
           </FilterDropdown>
 
-          {statuses.length > 0 && (
-            <FilterDropdown
-              label={<><span className={styles.filterIcon}>&#x25C9;</span> Status</>}
-              active={statusActive || previewEmpty === 'status'}
-              allSelected={!statusActive && previewEmpty !== 'status'}
-              noneSelected={statusNone}
-              onSelectAll={() => { setPreviewEmpty(null); setStatusIds(null) }}
-              onDeselectAll={() => { setPreviewEmpty(null); setStatusIds(new Set()) }}
-              onOpen={() => { if (!statusActive) setPreviewEmpty('status') }}
-              onClose={() => { if (previewEmpty === 'status') setPreviewEmpty(null) }}
-              searchable
-            >
-              {(searchText: string) => (
-                <EntityDropdownItems
-                  searchText={searchText}
-                  entities={statuses.map(s => s.hideByDefault ? { ...s, name: `${s.name} (hidden)` } : s)}
-                  isChecked={isStatusChecked}
-                  onToggle={handleStatusToggle}
-                />
-              )}
-            </FilterDropdown>
-          )}
-
-          <DateRangeDropdown
-            active={dateRangeActive}
-            dateField={filters.dateField}
-            startDate={filters.dateRangeStart}
-            endDate={filters.dateRangeEnd}
-            includeNoDue={filters.dateRangeIncludeNoDue}
-            onChangeDateField={setDateField}
-            onChangeRange={setDateRange}
-            onChangeIncludeNoDue={setDateRangeIncludeNoDue}
-          />
-
-          <button
-            className={`${styles.filterChip} ${filters.hardDeadlineOnly ? styles.filterChipActive : ''}`}
-            onClick={toggleHardDeadlineOnly}
-            role="switch"
-            aria-checked={filters.hardDeadlineOnly}
-          >
-            <span className={styles.filterIcon}>⚑</span> Deadlines
-          </button>
-
           {people.length > 0 && (
             <FilterDropdown
               label={<><span className={styles.filterIcon}>@</span> People</>}
@@ -653,13 +615,60 @@ export function TopBar() {
             </FilterDropdown>
           )}
 
+          <DateRangeDropdown
+            active={dateRangeActive}
+            dateField={filters.dateField}
+            startDate={filters.dateRangeStart}
+            endDate={filters.dateRangeEnd}
+            includeNoDue={filters.dateRangeIncludeNoDue}
+            onChangeDateField={setDateField}
+            onChangeRange={setDateRange}
+            onChangeIncludeNoDue={setDateRangeIncludeNoDue}
+          />
+
+          <button
+            className={`${styles.filterChip} ${filters.hardDeadlineOnly ? styles.filterChipActive : ''}`}
+            onClick={toggleHardDeadlineOnly}
+            role="switch"
+            aria-checked={filters.hardDeadlineOnly}
+          >
+            <span className={styles.filterIcon}>⚑</span> Deadlines
+          </button>
+
+          {statuses.length > 0 && (
+            <FilterDropdown
+              label={<><span className={styles.filterIcon}>&#x25C9;</span> Status</>}
+              active={statusActive || previewEmpty === 'status'}
+              allSelected={!statusActive && previewEmpty !== 'status'}
+              noneSelected={statusNone}
+              onSelectAll={() => { setPreviewEmpty(null); setStatusIds(null) }}
+              onDeselectAll={() => { setPreviewEmpty(null); setStatusIds(new Set()) }}
+              onOpen={() => { if (!statusActive) setPreviewEmpty('status') }}
+              onClose={() => { if (previewEmpty === 'status') setPreviewEmpty(null) }}
+              searchable
+            >
+              {(searchText: string) => (
+                <EntityDropdownItems
+                  searchText={searchText}
+                  entities={statuses.map(s => s.hideByDefault ? { ...s, name: `${s.name} (hidden)` } : s)}
+                  isChecked={isStatusChecked}
+                  onToggle={handleStatusToggle}
+                />
+              )}
+            </FilterDropdown>
+          )}
+
           <button
             className={`${styles.filterChip} ${filters.showHiddenStatuses ? styles.filterChipActive : ''}`}
             onClick={() => setShowHiddenStatuses(!filters.showHiddenStatuses)}
             role="switch"
             aria-checked={filters.showHiddenStatuses}
           >
-            Show hidden
+            <svg className={styles.filterIcon} width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2C5 2 3 4.5 3 7v4c0 .5-.3 1-.7 1.3-.3.2-.3.7.2.7h1.3c.3 0 .5.3.4.6-.2.4.1.9.5.9s.6-.3.9-.6c.2-.2.5-.4.9-.4s.7.2.9.4c.3.3.5.6.9.6s.7-.5.5-.9c-.1-.3.1-.6.4-.6h1.3c.5 0 .5-.5.2-.7-.4-.2-.7-.8-.7-1.3V7c0-2.5-2-5-5-5z" />
+              <circle cx="6.5" cy="7" r="1" />
+              <circle cx="9.5" cy="7" r="1" />
+            </svg> Show hidden
           </button>
 
           <button
@@ -668,7 +677,7 @@ export function TopBar() {
             role="switch"
             aria-checked={filters.showCompleted}
           >
-            <span className={styles.filterIcon}>✓</span> Completed
+            <span className={styles.filterIcon}>✓</span> Show completed
           </button>
 
       {isActive && (

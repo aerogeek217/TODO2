@@ -8,6 +8,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { PriorityMenu, getPriorityLabel } from '../shared/PriorityMenu'
+import { StatusIcon } from '../shared/StatusIcon'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { toDateInputValue } from '../../utils/date'
 import { makeRecurrenceRule } from '../../services/recurrence'
@@ -490,7 +491,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 onClick={() => setShowStatusMenu((v) => !v)}
               >
                 {statusId ? (
-                  <><span className={styles.statusBadgeDot} style={{ background: statuses.find(s => s.id === statusId)?.color }} />{statuses.find(s => s.id === statusId)?.name ?? 'Status'}</>
+                  <><span style={{ color: statuses.find(s => s.id === statusId)?.color }}><StatusIcon icon={statuses.find(s => s.id === statusId)?.icon || 'circle'} filled /></span> {statuses.find(s => s.id === statusId)?.name ?? 'Status'}</>
                 ) : (
                   'Status'
                 )}
@@ -507,7 +508,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                       if (isEdit && todo) props.onUpdate({ ...todo, statusId: undefined, modifiedAt: new Date() })
                     }}
                   >
-                    <span className={styles.statusBadgeDot} style={{ background: 'var(--color-text-muted)' }} />
+                    <span style={{ color: 'var(--color-text-muted)' }}><StatusIcon icon="circle" /></span>
                     No Status
                   </button>
                   {statuses.map(s => (
@@ -521,7 +522,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                         if (isEdit && todo) props.onUpdate({ ...todo, statusId: s.id, modifiedAt: new Date() })
                       }}
                     >
-                      <span className={styles.statusBadgeDot} style={{ background: s.color }} />
+                      <span style={{ color: s.color }}><StatusIcon icon={s.icon || 'circle'} filled /></span>
                       {s.name}
                     </button>
                   ))}

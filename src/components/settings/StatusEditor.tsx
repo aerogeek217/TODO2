@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -20,16 +20,62 @@ import { statusRepository } from '../../data'
 import type { Status } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
+import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
 import styles from './EntityEditor.module.css'
 
 interface EditState {
   id: number
   name: string
   color: string
+  icon?: string
+  hideByDefault?: boolean
 }
 
 interface StatusEditorProps {
   onClose: () => void
+}
+
+function IconPicker({ value, onChange, color }: { value?: string; onChange: (icon?: string) => void; color: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [open])
+
+  return (
+    <div ref={ref} className={styles.iconPickerWrap}>
+      <button
+        type="button"
+        className={styles.iconPickerBtn}
+        style={{ color }}
+        onClick={() => setOpen(!open)}
+        title={value ? `Icon: ${value}` : 'No icon — click to pick'}
+      >
+        <StatusIcon icon={value || 'circle'} />
+      </button>
+      {open && (
+        <div className={styles.iconPickerGrid}>
+          {STATUS_ICON_KEYS.map(key => (
+            <button
+              key={key}
+              className={`${styles.iconPickerCell} ${(value || 'circle') === key ? styles.iconPickerCellActive : ''}`}
+              style={{ color }}
+              onClick={() => { onChange(key); setOpen(false) }}
+              title={key}
+            >
+              <StatusIcon icon={key} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SortableStatusRow({ status, onEdit, onDelete }: {
@@ -50,7 +96,11 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
         </svg>
       </span>
       <div className={styles.colorSwatch} style={{ background: status.color }} onClick={() => onEdit(status)} />
+      <span className={styles.iconPreview} style={{ color: status.color }} onClick={() => onEdit(status)}>
+        <StatusIcon icon={status.icon || 'circle'} />
+      </span>
       <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
+      {status.hideByDefault && <span className={styles.hiddenLabel}>(hidden)</span>}
       <div className={styles.actions}>
         <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} title="Delete">&times;</button>
       </div>
@@ -64,6 +114,8 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
+  const [newIcon, setNewIcon] = useState<string | undefined>(undefined)
+  const [newHidden, setNewHidden] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
   const [nameError, setNameError] = useState('')
@@ -72,7 +124,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   useEffect(() => { load() }, [load])
 
   const startEdit = (s: Status) => {
-    setEditing({ id: s.id!, name: s.name, color: s.color })
+    setEditing({ id: s.id!, name: s.name, color: s.color, icon: s.icon, hideByDefault: s.hideByDefault })
     setAdding(false)
     setDeleteId(null)
     setNameError('')
@@ -83,7 +135,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     const existing = statuses.find(s => s.id === editing.id)
     if (!existing) return
     try {
-      await update({ ...existing, name: editing.name.trim(), color: editing.color })
+      await update({ ...existing, name: editing.name.trim(), color: editing.color, icon: editing.icon, hideByDefault: editing.hideByDefault })
       setEditing(null)
       setNameError('')
     } catch (e) {
@@ -98,15 +150,19 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     setNameError('')
     setNewName('')
     setNewColor(DEFAULT_ENTITY_COLOR)
+    setNewIcon(undefined)
+    setNewHidden(false)
   }
 
   const saveAdd = async () => {
     if (!newName.trim()) return
     try {
-      await add(newName.trim(), newColor)
+      await add(newName.trim(), newColor, newIcon, newHidden || undefined)
       setAdding(false)
       setNewName('')
       setNewColor(DEFAULT_ENTITY_COLOR)
+      setNewIcon(undefined)
+      setNewHidden(false)
       setNameError('')
     } catch (e) {
       setNameError((e as Error).message)
@@ -209,6 +265,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                     <div key={s.id}>
                       <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
                         <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+                        <IconPicker value={ed.icon} onChange={(icon) => setEditing({ ...ed, icon })} color={ed.color} />
                         <input
                           className={styles.editInput}
                           value={ed.name}
@@ -216,6 +273,10 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                           placeholder="Status name"
                           autoFocus
                         />
+                        <label className={styles.hiddenToggle} title="Hidden statuses are excluded from default filters">
+                          <input type="checkbox" checked={ed.hideByDefault ?? false} onChange={(e) => setEditing({ ...ed, hideByDefault: e.target.checked || undefined })} />
+                          Hidden
+                        </label>
                         <div className={styles.editActions}>
                           <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
                           <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
@@ -243,6 +304,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
               <ColorInput value={newColor} onChange={setNewColor} />
+              <IconPicker value={newIcon} onChange={setNewIcon} color={newColor} />
               <input
                 className={styles.editInput}
                 value={newName}
@@ -250,6 +312,10 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                 placeholder="Status name"
                 autoFocus
               />
+              <label className={styles.hiddenToggle} title="Hidden statuses are excluded from default filters">
+                <input type="checkbox" checked={newHidden} onChange={(e) => setNewHidden(e.target.checked)} />
+                Hidden
+              </label>
               <div className={styles.editActions}>
                 <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
                 <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>

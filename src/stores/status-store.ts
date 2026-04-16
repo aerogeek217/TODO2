@@ -11,7 +11,7 @@ interface StatusState {
   error: string | null
 
   load: () => Promise<void>
-  add: (name: string, color?: string) => Promise<number>
+  add: (name: string, color?: string, icon?: string, hideByDefault?: boolean) => Promise<number>
   update: (status: Status) => Promise<void>
   remove: (id: number) => Promise<void>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
@@ -27,14 +27,15 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     if (statuses) set({ statuses })
   },
 
-  async add(name: string, color = DEFAULT_ENTITY_COLOR) {
+  async add(name: string, color = DEFAULT_ENTITY_COLOR, icon = 'circle', hideByDefault?: boolean) {
     const { statuses } = get()
     if (statuses.some(s => s.name.toLowerCase() === name.toLowerCase())) {
       throw new Error(`Status "${name}" already exists`)
     }
     const maxSort = statuses.reduce((max, s) => Math.max(max, s.sortOrder), 0)
-    const id = await statusRepository.insert({ name, color, sortOrder: maxSort + 1 })
-    set({ statuses: [...statuses, { id, name, color, sortOrder: maxSort + 1 }] })
+    const entry: Status = { name, color, sortOrder: maxSort + 1, icon, ...(hideByDefault ? { hideByDefault } : {}) }
+    const id = await statusRepository.insert(entry)
+    set({ statuses: [...statuses, { ...entry, id }] })
     return id
   },
 
