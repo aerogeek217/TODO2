@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { savedViewRepository } from '../data/saved-view-repository'
 import { db } from '../data/database'
-import type { PersistedSavedView, SavedViewFilters, ListSortBy } from '../models'
+import type { PersistedSavedView, SavedViewFilters, ListSortBy, Status } from '../models'
 import type { FilterCriteria } from './filter-store'
 import { Priority } from '../models'
 
@@ -39,40 +39,89 @@ function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
   }
 }
 
-export function savedFiltersToRuntime(s: SavedViewFilters): Partial<FilterCriteria> {
-  // Backward compat: old saved views have completedFilter/assignedFilter strings
-  // but not the new boolean fields. Detect by checking for legacy string fields.
-  const hasLegacyFormat = s.completedFilter !== undefined || s.assignedFilter !== undefined
+export function savedFiltersToRuntime(
+  s: SavedViewFilters,
+  seededAssignedId: number | null = null,
+  seededFollowupId: number | null = null,
+  allStatuses: Status[] = [],
+): { runtime: Partial<FilterCriteria>; losses: string[] } {
+  const losses: string[] = []
+  const hasLegacyFormat = s.completedFilter !== undefined || s.assignedFilter !== undefined || s.followupFilter !== undefined || s.starredOnly !== undefined
+
   let showCompleted: boolean
   let showHiddenStatuses: boolean
+  let statusIds: Set<number> | null = s.statusIds ? new Set(s.statusIds) : null
+
   if (hasLegacyFormat) {
-    // Old format: derive booleans from legacy string filters
+    // Completed filter translation
     const cf = s.completedFilter as string | undefined
-    showCompleted = cf === 'all' || cf === 'completed'
+    showCompleted = cf === 'all' || cf === 'completed' || (cf === undefined && s.showCompleted === true)
+
+    // Assigned filter translation
     const af = s.assignedFilter as string | undefined
-    showHiddenStatuses = af === 'all' || af === 'assigned'
+    showHiddenStatuses = false
+    if (af === 'all') {
+      showHiddenStatuses = true
+    } else if (af === 'assigned') {
+      if (seededAssignedId != null) {
+        statusIds = new Set([seededAssignedId])
+        showHiddenStatuses = true
+      } else {
+        losses.push("'assigned' filter: seeded Assigned status was deleted")
+      }
+    } else if (af === 'unassigned') {
+      if (seededAssignedId != null) {
+        const inverseIds = allStatuses.filter(st => st.id != null && st.id !== seededAssignedId).map(st => st.id!)
+        statusIds = new Set([...inverseIds, 0])
+      } else {
+        losses.push("'unassigned' filter: seeded Assigned status was deleted")
+      }
+    }
+    // af === 'unassigned-only' or undefined or showAssigned===false → defaults (statusIds=null, showHiddenStatuses=false)
+
+    // Follow-up / starredOnly filter translation (may further constrain statusIds)
+    const ff = s.followupFilter as string | undefined
+    const isStarredFilter = ff === 'followup' || s.starredOnly === true
+    const isNoFollowupFilter = ff === 'no-followup'
+
+    if (isStarredFilter) {
+      if (seededFollowupId != null) {
+        statusIds = new Set([seededFollowupId])
+      } else {
+        losses.push("'followup' filter: seeded Follow-up status was deleted")
+      }
+    } else if (isNoFollowupFilter) {
+      if (seededFollowupId != null) {
+        const inverseIds = allStatuses.filter(st => st.id != null && st.id !== seededFollowupId).map(st => st.id!)
+        statusIds = new Set([...inverseIds, 0])
+      } else {
+        losses.push("'no-followup' filter: seeded Follow-up status was deleted")
+      }
+    }
   } else {
-    // New format: use directly
     showCompleted = s.showCompleted
     showHiddenStatuses = s.showHiddenStatuses
   }
 
   return {
-    priorities: s.priorities ? new Set(s.priorities as Priority[]) : null,
-    showCompleted,
-    showHiddenStatuses,
-    hardDeadlineOnly: s.hardDeadlineOnly,
-    personIds: s.personIds ? new Set(s.personIds) : null,
-    personFilterMode: s.personFilterMode === 'direct-only' ? 'direct-only' : 'include-orgs',
-    tagIds: s.tagIds ? new Set(s.tagIds) : null,
-    orgIds: s.orgIds ? new Set(s.orgIds) : null,
-    orgFilterMode: s.orgFilterMode === 'direct-only' ? 'direct-only' : 'include-people',
-    statusIds: s.statusIds ? new Set(s.statusIds) : null,
-    dateField: s.dateField ?? 'due',
-    dateRangeStart: s.dateRangeStart ? new Date(s.dateRangeStart) : null,
-    dateRangeEnd: s.dateRangeEnd ? new Date(s.dateRangeEnd) : null,
-    dateRangeIncludeNoDue: s.dateRangeIncludeNoDue,
-    searchText: '',
+    runtime: {
+      priorities: s.priorities ? new Set(s.priorities as Priority[]) : null,
+      showCompleted,
+      showHiddenStatuses,
+      hardDeadlineOnly: s.hardDeadlineOnly,
+      personIds: s.personIds ? new Set(s.personIds) : null,
+      personFilterMode: s.personFilterMode === 'direct-only' ? 'direct-only' : 'include-orgs',
+      tagIds: s.tagIds ? new Set(s.tagIds) : null,
+      orgIds: s.orgIds ? new Set(s.orgIds) : null,
+      orgFilterMode: s.orgFilterMode === 'direct-only' ? 'direct-only' : 'include-people',
+      statusIds,
+      dateField: s.dateField ?? 'due',
+      dateRangeStart: s.dateRangeStart ? new Date(s.dateRangeStart) : null,
+      dateRangeEnd: s.dateRangeEnd ? new Date(s.dateRangeEnd) : null,
+      dateRangeIncludeNoDue: s.dateRangeIncludeNoDue,
+      searchText: '',
+    },
+    losses,
   }
 }
 

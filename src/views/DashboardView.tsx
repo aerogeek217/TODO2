@@ -15,7 +15,6 @@ import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
 import { useStatusStore } from '../stores/status-store'
-import { useSettingsStore } from '../stores/settings-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useIsMobile } from '../hooks/use-is-mobile'
@@ -78,48 +77,28 @@ export interface DashboardList {
 export function buildDashboardLists(
   todos: PersistedTodoItem[],
   statuses: Status[],
-  seededFollowupStatusId: number | null,
-  seededAssignedStatusId: number | null,
 ): DashboardList[] {
   const now = startOfToday().getTime()
   const incomplete = todos.filter((t) => !t.isCompleted)
 
-  // Build set of hideByDefault status IDs for Mine filter
   const hiddenStatusIds = new Set(
     statuses.filter((s) => s.hideByDefault).map((s) => s.id!)
   )
 
-  // Score and sort by importance (descending)
   const scored = incomplete.map((t) => ({ todo: t, score: scoreTask(t, now) }))
   scored.sort((a, b) => b.score - a.score)
 
-  // Mine: tasks whose status is undefined or not hideByDefault
   const mine = scored
     .filter(({ todo }) => todo.statusId == null || !hiddenStatusIds.has(todo.statusId))
     .slice(0, TOP_N)
     .map(({ todo }) => todo)
 
-  // Follow-up: tasks with seeded follow-up status
-  const followup = scored
-    .filter(({ todo }) => seededFollowupStatusId != null && todo.statusId === seededFollowupStatusId)
-    .slice(0, TOP_N)
-    .map(({ todo }) => todo)
-
-  // Assigned: tasks with seeded assigned status
-  const assigned = scored
-    .filter(({ todo }) => seededAssignedStatusId != null && todo.statusId === seededAssignedStatusId)
-    .slice(0, TOP_N)
-    .map(({ todo }) => todo)
-
-  // Stale: oldest by modifiedAt
   const stale = [...incomplete]
     .sort((a, b) => new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime())
     .slice(0, TOP_N)
 
   return [
-    { key: 'mine', label: 'Mine', description: 'Not assigned, not follow-up', todos: mine },
-    { key: 'followup', label: 'Follow-up', description: 'Awaiting response', todos: followup },
-    { key: 'assigned', label: 'Assigned', description: 'Delegated to others', todos: assigned },
+    { key: 'mine', label: 'Mine', description: 'Top ranked incomplete', todos: mine },
     { key: 'stale', label: 'Stale', description: 'Oldest by last modified', todos: stale },
   ]
 }
@@ -152,7 +131,6 @@ export function DashboardView() {
   const { load: loadOrgs, loadAssignments: loadOrgAssignments } = useOrgStore()
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
-  const { seededFollowupStatusId, seededAssignedStatusId } = useSettingsStore()
   const { load: loadTaskboard } = useTaskboardStore()
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
@@ -195,8 +173,8 @@ export function DashboardView() {
   }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
 
   const lists = useMemo(
-    () => buildDashboardLists(todos, statuses, seededFollowupStatusId, seededAssignedStatusId),
-    [todos, statuses, seededFollowupStatusId, seededAssignedStatusId],
+    () => buildDashboardLists(todos, statuses),
+    [todos, statuses],
   )
 
   const handleClick = useCallback((todoId: number) => {

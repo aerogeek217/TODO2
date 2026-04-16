@@ -159,9 +159,12 @@ describe('restoreFromImportData', () => {
       await restoreFromImportData(data)
 
       const statuses = await db.statuses.toArray()
-      expect(statuses).toHaveLength(2)
-      expect(statuses.map(s => s.name)).toContain('Open')
-      expect(statuses.map(s => s.name)).toContain('Closed')
+      const names = statuses.map(s => s.name)
+      expect(names).toContain('Open')
+      expect(names).toContain('Closed')
+      // ensureSeededStatuses also adds Assigned + Follow-up
+      expect(names).toContain('Assigned')
+      expect(names).toContain('Follow-up')
     })
 
     it('restoreFromImportData_withExistingStatuses_replacesWithImported', async () => {
@@ -172,9 +175,10 @@ describe('restoreFromImportData', () => {
       }))
 
       const statuses = await db.statuses.toArray()
-      expect(statuses).toHaveLength(1)
-      expect(statuses[0].name).toBe('New Status')
-      expect(statuses[0].id).toBe(5)
+      const names = statuses.map(s => s.name)
+      expect(names).toContain('New Status')
+      expect(names).not.toContain('Old Status')
+      expect(statuses.find(s => s.id === 5)!.name).toBe('New Status')
     })
 
     it('restoreFromImportData_withEmptyOptionalTables_leavesThemEmpty', async () => {
@@ -213,6 +217,145 @@ describe('restoreFromImportData', () => {
       const todos = await db.todos.toArray()
       expect(todos).toHaveLength(1)
       expect(todos[0].title).toBe('Restored Task')
+    })
+  })
+
+  describe('legacy translation', () => {
+    it('translates isStarred=true to seeded follow-up statusId', async () => {
+      const data = makeImportData({
+        todos: [
+          { id: 1, title: 'Starred', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: true } as any,
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const settings = await db.settings.toArray()
+      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
+      const todo = await db.todos.get(1)
+      expect(todo!.statusId).toBe(followupId)
+      expect((todo as any).isStarred).toBeUndefined()
+    })
+
+    it('translates isAssigned=true to seeded assigned statusId', async () => {
+      const data = makeImportData({
+        todos: [
+          { id: 1, title: 'Assigned', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isAssigned: true } as any,
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const settings = await db.settings.toArray()
+      const assignedId = Number(settings.find(s => s.key === 'seededAssignedStatusId')!.value)
+      const todo = await db.todos.get(1)
+      expect(todo!.statusId).toBe(assignedId)
+      expect((todo as any).isAssigned).toBeUndefined()
+    })
+
+    it('star wins over assigned per Q4 precedence', async () => {
+      const data = makeImportData({
+        todos: [
+          { id: 1, title: 'Both', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: true, isAssigned: true } as any,
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const settings = await db.settings.toArray()
+      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
+      const todo = await db.todos.get(1)
+      expect(todo!.statusId).toBe(followupId)
+    })
+
+    it('preserves existing statusId when no legacy flags', async () => {
+      const data = makeImportData({
+        statuses: [{ id: 50, name: 'Custom', color: '#abc123', sortOrder: 0 }],
+        todos: [
+          { id: 1, title: 'Has status', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, statusId: 50 },
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const todo = await db.todos.get(1)
+      expect(todo!.statusId).toBe(50)
+    })
+
+    it('strips legacy fields even when both are false', async () => {
+      const data = makeImportData({
+        todos: [
+          { id: 1, title: 'Clean', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: false, isAssigned: false } as any,
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const todo = await db.todos.get(1)
+      expect((todo as any).isStarred).toBeUndefined()
+      expect((todo as any).isAssigned).toBeUndefined()
+      expect(todo!.statusId).toBeUndefined()
+    })
+
+    it('auto-seeds statuses when import has none', async () => {
+      const data = makeImportData({ statuses: [] })
+
+      await restoreFromImportData(data)
+
+      const statuses = await db.statuses.toArray()
+      const names = statuses.map(s => s.name)
+      expect(names).toContain('Assigned')
+      expect(names).toContain('Follow-up')
+
+      const settings = await db.settings.toArray()
+      expect(settings.find(s => s.key === 'seededAssignedStatusId')).toBeDefined()
+      expect(settings.find(s => s.key === 'seededFollowupStatusId')).toBeDefined()
+    })
+
+    it('v20 round-trip: preserves seeded statuses from import', async () => {
+      const data = makeImportData({
+        statuses: [
+          { id: 10, name: 'Delegated', color: '#537FE7', sortOrder: 0, icon: 'person', hideByDefault: true },
+          { id: 11, name: 'Follow-up', color: '#F5A623', sortOrder: 1, icon: 'message-bubble', hideByDefault: false },
+        ],
+        settings: [
+          { key: 'seededAssignedStatusId', value: '10' },
+          { key: 'seededFollowupStatusId', value: '11' },
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const settings = await db.settings.toArray()
+      const assignedId = Number(settings.find(s => s.key === 'seededAssignedStatusId')!.value)
+      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
+      expect(assignedId).toBe(10)
+      expect(followupId).toBe(11)
+
+      const statuses = await db.statuses.toArray()
+      expect(statuses.find(s => s.id === 10)!.name).toBe('Delegated')
+    })
+
+    it('handles import with only one seeded status present', async () => {
+      const data = makeImportData({
+        statuses: [
+          { id: 10, name: 'Assigned', color: '#537FE7', sortOrder: 0, icon: 'person', hideByDefault: true },
+        ],
+        settings: [
+          { key: 'seededAssignedStatusId', value: '10' },
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const settings = await db.settings.toArray()
+      const assignedId = Number(settings.find(s => s.key === 'seededAssignedStatusId')!.value)
+      expect(assignedId).toBe(10)
+      // Follow-up was auto-seeded
+      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
+      expect(followupId).toBeGreaterThan(0)
+      const followupStatus = await db.statuses.get(followupId)
+      expect(followupStatus!.name).toBe('Follow-up')
     })
   })
 })

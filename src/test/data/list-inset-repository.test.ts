@@ -24,7 +24,7 @@ describe('listInsetRepository', () => {
 
   it('insert and retrieve by canvas', async () => {
     await listInsetRepository.insert(makeInset())
-    await listInsetRepository.insert(makeInset({ name: 'Starred', preset: 'starred', canvasId: 2 }))
+    await listInsetRepository.insert(makeInset({ name: 'High Priority', preset: 'high-priority', canvasId: 2 }))
 
     const insets = await listInsetRepository.getByCanvas(1)
     expect(insets).toHaveLength(1)
@@ -65,7 +65,7 @@ describe('listInsetRepository', () => {
 
   it('deleteByCanvas removes all for a canvas', async () => {
     await listInsetRepository.insert(makeInset())
-    await listInsetRepository.insert(makeInset({ name: 'Starred', preset: 'starred' }))
+    await listInsetRepository.insert(makeInset({ name: 'High Priority', preset: 'high-priority' }))
     await listInsetRepository.insert(makeInset({ canvasId: 2 }))
 
     await listInsetRepository.deleteByCanvas(1)

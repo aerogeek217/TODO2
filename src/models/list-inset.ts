@@ -1,4 +1,4 @@
-export type ListInsetPreset = 'due-this-week' | 'starred' | 'high-priority'
+export type ListInsetPreset = 'due-this-week' | 'high-priority'
 
 export type ListInsetAttributeFilter =
   | { type: 'priority'; priority: number }

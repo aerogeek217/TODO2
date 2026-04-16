@@ -25,6 +25,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useProjectStore } from '../stores/project-store'
 import { useOrgStore } from '../stores/org-store'
 import { useStatusStore } from '../stores/status-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore } from '../stores/filter-store'
 import { useSavedViewStore, savedFiltersToRuntime } from '../stores/saved-view-store'
@@ -639,7 +640,9 @@ export function ListView() {
   const handleApplyView = useCallback((view: { sortBy: ListSortBy; filters: import('../models/saved-view').SavedViewFilters; id: number }) => {
     applyingViewRef.current = true
     setListSortBy(view.sortBy)
-    const runtime = savedFiltersToRuntime(view.filters)
+    const { seededAssignedStatusId, seededFollowupStatusId } = useSettingsStore.getState()
+    const allStatuses = useStatusStore.getState().statuses
+    const { runtime } = savedFiltersToRuntime(view.filters, seededAssignedStatusId, seededFollowupStatusId, allStatuses)
     setAllFilters({ ...useFilterStore.getState().filters, ...runtime })
     setActiveViewId(view.id)
   }, [setListSortBy, setAllFilters, setActiveViewId])

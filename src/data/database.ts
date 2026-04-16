@@ -94,7 +94,7 @@ export async function runV20Migration(tx: Transaction): Promise<void> {
     delete todo.isAssigned
   })
 
-  const starredInsets = await listInsetsTable.filter(li => li.preset === 'starred').toArray()
+  const starredInsets = await listInsetsTable.filter(li => (li as any).preset === 'starred').toArray()
   if (starredInsets.length > 0) {
     await listInsetsTable.bulkDelete(starredInsets.map(li => li.id!))
     console.info(`v20 migration: removed ${starredInsets.length} starred list inset(s)`)

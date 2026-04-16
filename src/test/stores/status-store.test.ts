@@ -140,7 +140,7 @@ describe('useStatusStore', () => {
       const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
       const todoId = await db.todos.add({
         title: 'Task', priority: Priority.Normal, isCompleted: false,
-        isStarred: false, sortOrder: 0, createdAt: now, modifiedAt: now,
+        sortOrder: 0, createdAt: now, modifiedAt: now,
         canvasId, statusId,
       } as any)
 

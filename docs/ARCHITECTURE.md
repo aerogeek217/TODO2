@@ -16,7 +16,7 @@ main.tsx (entry point)
 ├── styles/tokens.css      → CSS custom properties (design system: dark/light themes via [data-theme], tint scale, shadows, radii, z-index, spacing, typography)
 ├── views/                 → Route-level pages
 │   ├── CanvasPage         → components/canvas/, stores
-│   ├── DashboardView      → Top 10 lists (Mine/Follow-up/Assigned/Stale) ranked by importance score + Taskboard (Follow-up/Assigned use seeded statusId matching)
+│   ├── DashboardView      → Top 10 lists (Mine/Stale) ranked by importance score + Taskboard; Mine excludes hideByDefault statuses
 │   ├── ListView           → Unified list with sort-by grouping (Priority/Due/People/Tag/Project), saved views, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Compact hub: theme toggle (light/dark/system), manage buttons open modals; task defaults (project, status), database location, import/export
@@ -91,7 +91,7 @@ main.tsx (entry point)
 | auditData | data/audit.ts | Scan all tables for orphaned join rows and dangling foreign keys; returns AuditReport with issues and cleanup metadata |
 | cleanupIssues | data/audit.ts | Atomic cleanup of all audit issues (delete orphans, clear dangling FKs) in single transaction |
 | validateImportData | data/import-validation.ts | Schema validation for JSON import (all models, color sanitization, size limits, SavedView filter validation, setting key allowlist) |
-| restoreFromImportData | data/restore.ts | Shared clear-all-tables + bulk-add from ImportData; used by backup restore, file import, and settings import |
+| restoreFromImportData | data/restore.ts | Clear-all-tables + bulk-add from ImportData + auto-seed statuses via `ensureSeededStatuses` + translate legacy `isStarred`/`isAssigned` todo booleans per Q4 precedence; used by backup restore, file import, and settings import |
 | parseAndRestore | data/restore.ts | Parse JSON string, validate, and restore all data tables; used by backup restore |
 | createAssignmentActions | stores/assignment-helpers.ts | Factory for assign/unassign/bulk/load actions shared by tag, person, org stores |
 | loadWithState | stores/store-helpers.ts | Loading/error state boilerplate for store data fetching |
@@ -163,11 +163,11 @@ main.tsx (entry point)
 | TaskboardPanel | components/taskboard/TaskboardPanel.tsx | Dashboard card for taskboard; sortable drag reorder via dnd-kit; droppable target for drag-to-add from dashboard lists |
 | TaskboardNode | components/canvas/TaskboardNode.tsx | Canvas node for taskboard; resizable, closable (clears with confirmation), sortable drag reorder, droppable target for drag-to-add from project lists and list insets; always visible on canvas |
 | PlainTextExportPopup | components/overlays/PlainTextExportPopup.tsx | Modal with plain text representation of current list sections; copy-to-clipboard support |
-| DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Follow-up, Assigned, Stale; unfiltered; 2x2 grid layout; collapsible cards; drag tasks to taskboard via DndContext |
-| scoreTask | views/DashboardView.tsx | Importance scoring: hard deadline (+50), overdue (100+days), due proximity (60-days), priority (High+20, Medium+10) |
-| buildDashboardLists | views/DashboardView.tsx | Builds 4 dashboard lists from all incomplete todos using scoreTask ranking (Mine = status not hideByDefault, Follow-up/Assigned matched by seeded statusIds, Stale by oldest modifiedAt) |
+| DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Stale; 2-column grid layout; collapsible cards; drag tasks to taskboard via DndContext |
+| scoreTask | views/DashboardView.tsx | Importance scoring: hard deadline (+500), overdue (100+days), due proximity (60-days), priority (High+20, Medium+10) |
+| buildDashboardLists | views/DashboardView.tsx | Builds 2 dashboard lists from all incomplete todos using scoreTask ranking (Mine = status not hideByDefault, Stale by oldest modifiedAt) |
 | buildExportData | services/export-import.ts | Reads all 12 DB tables in parallel; shared by file-storage, settings export, and backup snapshots |
-| buildMarkdownExport | services/export-import.ts | Builds markdown representation of all tasks grouped by project; uses buildExportData |
+| buildMarkdownExport | services/export-import.ts | Builds markdown representation of all tasks grouped by project; shows `[status.name]` for meaningful statuses (icon or hideByDefault); uses buildExportData |
 | fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh |
 | backupScheduler | services/backup-scheduler.ts | Auto-snapshot every 24h, pre-destructive snapshots, prune to 10 max; started in App.tsx |
 | useFileStorageStore | stores/file-storage-store.ts | File storage connection state and actions; exports refreshAllStores() |

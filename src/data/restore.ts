@@ -1,5 +1,5 @@
 import type { Table } from 'dexie'
-import { db } from './database'
+import { db, ensureSeededStatuses } from './database'
 import type { ImportData } from './import-validation'
 import { validateImportData } from './import-validation'
 
@@ -23,7 +23,7 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.statuses, key: 'statuses' },
 ]
 
-/** Clear all data tables and bulk-add from validated import data. Must be called inside a transaction or will create its own. */
+/** Clear all data tables and bulk-add from validated import data, then auto-seed statuses and translate legacy todo booleans. */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
   const tables = TABLE_KEY_PAIRS.map(p => p.table)
   await db.transaction('rw', tables, async () => {
@@ -33,6 +33,21 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       const rows = v[key]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (rows?.length) await (table as any).bulkAdd(rows)
+    }
+
+    const { assignedId, followupId } = await ensureSeededStatuses(db.statuses, db.settings)
+
+    let translated = 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.todos.toCollection().modify((todo: any) => {
+      if (todo.isStarred === true) { todo.statusId = followupId; translated++ }
+      else if (todo.isAssigned === true) { todo.statusId = assignedId; translated++ }
+      delete todo.isStarred
+      delete todo.isAssigned
+    })
+
+    if (translated > 0) {
+      console.info(`Restore: translated ${translated} legacy starred/assigned task(s) to seeded statuses`)
     }
   })
 }

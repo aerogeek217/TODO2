@@ -451,23 +451,16 @@ function pickStickyNote(v: Record<string, unknown>): StickyNote {
 }
 
 function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] {
-  // Handle legacy imports: derive new booleans from old string filters
-  const hasLegacy = v.completedFilter !== undefined || v.assignedFilter !== undefined
-  let showCompleted: boolean
-  let showHiddenStatuses: boolean
-  if (hasLegacy) {
-    const cf = v.completedFilter as string | undefined
-    showCompleted = cf === 'all' || cf === 'completed'
-    const af = v.assignedFilter as string | undefined
-    showHiddenStatuses = af === 'all' || af === 'assigned'
-  } else {
-    showCompleted = (v.showCompleted as boolean) ?? false
-    showHiddenStatuses = (v.showHiddenStatuses as boolean) ?? false
-  }
   return {
     priorities: v.priorities as number[] | null,
-    showCompleted,
-    showHiddenStatuses,
+    showCompleted: (v.showCompleted as boolean) ?? false,
+    showHiddenStatuses: (v.showHiddenStatuses as boolean) ?? false,
+    // Legacy fields — preserved for savedFiltersToRuntime translation at load time
+    ...(v.completedFilter !== undefined ? { completedFilter: v.completedFilter as string } : {}),
+    ...(v.assignedFilter !== undefined ? { assignedFilter: v.assignedFilter as string } : {}),
+    ...(v.followupFilter !== undefined ? { followupFilter: v.followupFilter as string } : {}),
+    ...(v.showAssigned !== undefined ? { showAssigned: v.showAssigned as boolean } : {}),
+    ...(v.starredOnly !== undefined ? { starredOnly: v.starredOnly as boolean } : {}),
     hardDeadlineOnly: (v.hardDeadlineOnly as boolean) ?? false,
     personIds: v.personIds as number[] | null,
     ...(v.personFilterMode !== undefined ? { personFilterMode: v.personFilterMode as SavedView['filters']['personFilterMode'] } : {}),

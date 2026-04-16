@@ -224,7 +224,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
     const saved = views[0].filters
     expect(saved.orgFilterMode).toBe('direct-only')
 
-    const restored = savedFiltersToRuntime(saved)
+    const { runtime: restored } = savedFiltersToRuntime(saved)
     expect(restored.orgFilterMode).toBe('direct-only')
   })
 
@@ -237,7 +237,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
     await useSavedViewStore.getState().saveCurrentView('Default Org', 'priority', filters)
 
     const { views } = useSavedViewStore.getState()
-    const restored = savedFiltersToRuntime(views[0].filters)
+    const { runtime: restored } = savedFiltersToRuntime(views[0].filters)
     expect(restored.orgFilterMode).toBe('include-people')
   })
 
@@ -254,7 +254,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
       // orgFilterMode intentionally omitted
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
     expect(result.orgFilterMode).toBe('include-people')
   })
 })
@@ -273,7 +273,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
     const saved = views[0].filters
     expect(saved.personFilterMode).toBe('direct-only')
 
-    const restored = savedFiltersToRuntime(saved)
+    const { runtime: restored } = savedFiltersToRuntime(saved)
     expect(restored.personFilterMode).toBe('direct-only')
   })
 
@@ -286,7 +286,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
     await useSavedViewStore.getState().saveCurrentView('Default Person', 'priority', filters)
 
     const { views } = useSavedViewStore.getState()
-    const restored = savedFiltersToRuntime(views[0].filters)
+    const { runtime: restored } = savedFiltersToRuntime(views[0].filters)
     expect(restored.personFilterMode).toBe('include-orgs')
   })
 
@@ -303,7 +303,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
       // personFilterMode intentionally omitted
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
     expect(result.personFilterMode).toBe('include-orgs')
   })
 })
@@ -321,7 +321,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: true,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.priorities).toEqual(new Set([Priority.High, Priority.Medium]))
     expect(result.personIds).toEqual(new Set([1, 2, 3]))
@@ -343,7 +343,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: false,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.priorities).toBeNull()
     expect(result.personIds).toBeNull()
@@ -363,7 +363,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: false,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.searchText).toBe('')
     expect(result.dateRangeStart).toBeNull()
@@ -384,7 +384,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: true,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.showCompleted).toBe(true)
     expect(result.showHiddenStatuses).toBe(true)
@@ -406,7 +406,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: false,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.showCompleted).toBe(false)
     expect(result.showHiddenStatuses).toBe(false)
@@ -425,7 +425,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: false,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
     expect(result.statusIds).toEqual(new Set([1, 2, 3]))
   })
 
@@ -441,7 +441,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: false,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
     expect(result.statusIds).toBeNull()
   })
 
@@ -458,7 +458,7 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: false,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
     expect(result.dateField).toBe('modified')
   })
 
@@ -474,7 +474,144 @@ describe('savedFiltersToRuntime', () => {
       dateRangeIncludeNoDue: false,
     }
 
-    const result = savedFiltersToRuntime(saved)
+    const { runtime: result } = savedFiltersToRuntime(saved)
     expect(result.dateField).toBe('due')
+  })
+})
+
+describe('savedFiltersToRuntime legacy translation with seeded IDs', () => {
+  const FOLLOWUP_ID = 100
+  const ASSIGNED_ID = 101
+  const allStatuses = [
+    { id: FOLLOWUP_ID, name: 'Follow-up', color: '#F5A623', sortOrder: 0 },
+    { id: ASSIGNED_ID, name: 'Assigned', color: '#537FE7', sortOrder: 1 },
+    { id: 200, name: 'In Progress', color: '#00ff00', sortOrder: 2 },
+  ]
+
+  const baseSaved = {
+    priorities: null,
+    personIds: null,
+    tagIds: null,
+    orgIds: null,
+    showCompleted: false,
+    showHiddenStatuses: false,
+    hardDeadlineOnly: false,
+    dateRangeIncludeNoDue: false,
+  }
+
+  it('starredOnly=true translates to followup statusId', () => {
+    const { runtime, losses } = savedFiltersToRuntime(
+      { ...baseSaved, starredOnly: true },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.statusIds).toEqual(new Set([FOLLOWUP_ID]))
+    expect(losses).toHaveLength(0)
+  })
+
+  it('followupFilter=followup translates to followup statusId', () => {
+    const { runtime } = savedFiltersToRuntime(
+      { ...baseSaved, followupFilter: 'followup' },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.statusIds).toEqual(new Set([FOLLOWUP_ID]))
+  })
+
+  it('assignedFilter=assigned translates to assigned statusId + showHiddenStatuses', () => {
+    const { runtime } = savedFiltersToRuntime(
+      { ...baseSaved, assignedFilter: 'assigned' },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.statusIds).toEqual(new Set([ASSIGNED_ID]))
+    expect(runtime.showHiddenStatuses).toBe(true)
+  })
+
+  it('assignedFilter=unassigned builds inverse set excluding assigned', () => {
+    const { runtime } = savedFiltersToRuntime(
+      { ...baseSaved, assignedFilter: 'unassigned' },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.statusIds).toEqual(new Set([FOLLOWUP_ID, 200, 0]))
+    expect(runtime.statusIds!.has(ASSIGNED_ID)).toBe(false)
+  })
+
+  it('followupFilter=no-followup builds inverse set excluding followup', () => {
+    const { runtime } = savedFiltersToRuntime(
+      { ...baseSaved, followupFilter: 'no-followup' },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.statusIds).toEqual(new Set([ASSIGNED_ID, 200, 0]))
+    expect(runtime.statusIds!.has(FOLLOWUP_ID)).toBe(false)
+  })
+
+  it('null seeded IDs produce losses for followup filter', () => {
+    const { runtime, losses } = savedFiltersToRuntime(
+      { ...baseSaved, followupFilter: 'followup' },
+      null, null, allStatuses,
+    )
+    expect(losses).toHaveLength(1)
+    expect(losses[0]).toContain('Follow-up status was deleted')
+    expect(runtime.statusIds).toBeNull()
+  })
+
+  it('null seeded IDs produce losses for assigned filter', () => {
+    const { losses } = savedFiltersToRuntime(
+      { ...baseSaved, assignedFilter: 'assigned' },
+      null, FOLLOWUP_ID, allStatuses,
+    )
+    expect(losses).toHaveLength(1)
+    expect(losses[0]).toContain('Assigned status was deleted')
+  })
+
+  it('v20 saved view (no legacy fields) passes through unchanged', () => {
+    const { runtime, losses } = savedFiltersToRuntime(
+      { ...baseSaved, showCompleted: true, showHiddenStatuses: true, statusIds: [1, 2] },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.showCompleted).toBe(true)
+    expect(runtime.showHiddenStatuses).toBe(true)
+    expect(runtime.statusIds).toEqual(new Set([1, 2]))
+    expect(losses).toHaveLength(0)
+  })
+
+  it('completedFilter=all translates to showCompleted=true', () => {
+    const { runtime } = savedFiltersToRuntime(
+      { ...baseSaved, completedFilter: 'all' },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.showCompleted).toBe(true)
+  })
+
+  it('completedFilter=incomplete translates to showCompleted=false', () => {
+    const { runtime } = savedFiltersToRuntime(
+      { ...baseSaved, completedFilter: 'incomplete' },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.showCompleted).toBe(false)
+  })
+
+  it('assignedFilter=unassigned-only maps to defaults', () => {
+    const { runtime } = savedFiltersToRuntime(
+      { ...baseSaved, assignedFilter: 'unassigned-only' },
+      ASSIGNED_ID, FOLLOWUP_ID, allStatuses,
+    )
+    expect(runtime.statusIds).toBeNull()
+    expect(runtime.showHiddenStatuses).toBe(false)
+  })
+
+  it('filtersToSerializable writes only new fields', async () => {
+    const filters: FilterCriteria = {
+      ...defaultFilters,
+      showCompleted: true,
+      showHiddenStatuses: true,
+    }
+    await useSavedViewStore.getState().saveCurrentView('V20 View', 'priority', filters)
+    const { views } = useSavedViewStore.getState()
+    const saved = views[0].filters
+    expect(saved.showCompleted).toBe(true)
+    expect(saved.showHiddenStatuses).toBe(true)
+    expect(saved.completedFilter).toBeUndefined()
+    expect(saved.assignedFilter).toBeUndefined()
+    expect(saved.followupFilter).toBeUndefined()
+    expect(saved.starredOnly).toBeUndefined()
   })
 })
