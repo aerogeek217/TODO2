@@ -8,8 +8,6 @@ export interface TodoItem {
   progress?: string
   priority: Priority
   isCompleted: boolean
-  isStarred: boolean
-  isAssigned?: boolean
   dueDate?: Date
   isHardDeadline?: boolean
   recurrenceRule?: RecurrenceRule

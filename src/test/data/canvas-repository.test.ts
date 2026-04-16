@@ -60,7 +60,6 @@ describe('canvasRepository', () => {
       title: 'Task',
       priority: Priority.Normal,
       isCompleted: false,
-      isStarred: false,
       createdAt: now,
       modifiedAt: now,
       sortOrder: 0,

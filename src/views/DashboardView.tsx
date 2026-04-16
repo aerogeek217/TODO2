@@ -14,6 +14,8 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
+import { useStatusStore } from '../stores/status-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useIsMobile } from '../hooks/use-is-mobile'
@@ -21,7 +23,7 @@ import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { Priority } from '../models'
-import type { PersistedTodoItem } from '../models'
+import type { PersistedTodoItem, Status } from '../models'
 import { startOfToday, MS_PER_DAY, formatRelativeTime } from '../utils/date'
 import { TaskboardPanel } from '../components/taskboard/TaskboardPanel'
 import styles from './DashboardView.module.css'
@@ -73,29 +75,39 @@ export interface DashboardList {
   todos: PersistedTodoItem[]
 }
 
-export function buildDashboardLists(todos: PersistedTodoItem[]): DashboardList[] {
+export function buildDashboardLists(
+  todos: PersistedTodoItem[],
+  statuses: Status[],
+  seededFollowupStatusId: number | null,
+  seededAssignedStatusId: number | null,
+): DashboardList[] {
   const now = startOfToday().getTime()
   const incomplete = todos.filter((t) => !t.isCompleted)
+
+  // Build set of hideByDefault status IDs for Mine filter
+  const hiddenStatusIds = new Set(
+    statuses.filter((s) => s.hideByDefault).map((s) => s.id!)
+  )
 
   // Score and sort by importance (descending)
   const scored = incomplete.map((t) => ({ todo: t, score: scoreTask(t, now) }))
   scored.sort((a, b) => b.score - a.score)
 
-  // Mine: not assigned and not starred (follow-up)
+  // Mine: tasks whose status is undefined or not hideByDefault
   const mine = scored
-    .filter(({ todo }) => !todo.isAssigned && !todo.isStarred)
+    .filter(({ todo }) => todo.statusId == null || !hiddenStatusIds.has(todo.statusId))
     .slice(0, TOP_N)
     .map(({ todo }) => todo)
 
-  // Follow-up: starred tasks
+  // Follow-up: tasks with seeded follow-up status
   const followup = scored
-    .filter(({ todo }) => todo.isStarred)
+    .filter(({ todo }) => seededFollowupStatusId != null && todo.statusId === seededFollowupStatusId)
     .slice(0, TOP_N)
     .map(({ todo }) => todo)
 
-  // Assigned: tasks with isAssigned flag
+  // Assigned: tasks with seeded assigned status
   const assigned = scored
-    .filter(({ todo }) => todo.isAssigned)
+    .filter(({ todo }) => seededAssignedStatusId != null && todo.statusId === seededAssignedStatusId)
     .slice(0, TOP_N)
     .map(({ todo }) => todo)
 
@@ -139,6 +151,8 @@ export function DashboardView() {
   const { assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments } = useTagStore()
   const { load: loadOrgs, loadAssignments: loadOrgAssignments } = useOrgStore()
   const { openEditPopup } = useUIStore()
+  const { statuses, load: loadStatuses } = useStatusStore()
+  const { seededFollowupStatusId, seededAssignedStatusId } = useSettingsStore()
   const { load: loadTaskboard } = useTaskboardStore()
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
@@ -167,8 +181,9 @@ export function DashboardView() {
     loadPeople()
     loadTags()
     loadOrgs()
+    loadStatuses()
     loadTaskboard()
-  }, [loadAll, loadPeople, loadTags, loadOrgs, loadTaskboard])
+  }, [loadAll, loadPeople, loadTags, loadOrgs, loadStatuses, loadTaskboard])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
@@ -179,7 +194,10 @@ export function DashboardView() {
     }
   }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
 
-  const lists = useMemo(() => buildDashboardLists(todos), [todos])
+  const lists = useMemo(
+    () => buildDashboardLists(todos, statuses, seededFollowupStatusId, seededAssignedStatusId),
+    [todos, statuses, seededFollowupStatusId, seededAssignedStatusId],
+  )
 
   const handleClick = useCallback((todoId: number) => {
     openEditPopup(todoId)

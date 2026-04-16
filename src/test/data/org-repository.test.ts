@@ -37,7 +37,7 @@ describe('orgRepository', () => {
     const personId = (await db.people.add({ name: 'Alice', initials: 'A', color: '#000' })) as number
     await orgRepository.assignPersonToOrg(personId, orgId)
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await orgRepository.assignOrg(todoId, orgId)
@@ -107,11 +107,11 @@ describe('orgRepository', () => {
     const org1 = await orgRepository.insert({ name: 'Eng' })
     const org2 = await orgRepository.insert({ name: 'Design' })
     const t1 = (await db.todos.add({
-      title: 'Task 1', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task 1', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     const t2 = (await db.todos.add({
-      title: 'Task 2', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task 2', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 2,
     })) as number
 
@@ -132,7 +132,7 @@ describe('orgRepository', () => {
   it('assignOrg creates todoOrg link; idempotent on duplicate', async () => {
     const orgId = await orgRepository.insert({ name: 'Eng' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
@@ -145,7 +145,7 @@ describe('orgRepository', () => {
   it('unassignOrg removes todoOrg link', async () => {
     const orgId = await orgRepository.insert({ name: 'Eng' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await orgRepository.assignOrg(todoId, orgId)

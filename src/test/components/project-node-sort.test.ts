@@ -8,7 +8,6 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
     title: `Task ${overrides.id}`,
     priority: Priority.Normal,
     isCompleted: false,
-    isStarred: false,
     createdAt: new Date(2026, 3, 1),
     modifiedAt: new Date(),
     sortOrder: overrides.id,

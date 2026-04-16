@@ -10,7 +10,7 @@ beforeEach(async () => {
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
-    title, priority: 0, isCompleted: false, isStarred: false,
+    title, priority: 0, isCompleted: false,
     createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
   })) as number
 }

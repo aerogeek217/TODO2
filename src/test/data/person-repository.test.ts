@@ -36,7 +36,7 @@ describe('personRepository', () => {
   it('delete removes person AND todoPeople join entries', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, personId)
@@ -51,7 +51,7 @@ describe('personRepository', () => {
     const p1 = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
     const p2 = await personRepository.insert({ name: 'Bob', initials: 'B', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, p1)
@@ -65,7 +65,7 @@ describe('personRepository', () => {
   it('assignPerson creates link; idempotent on duplicate', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
@@ -78,7 +78,7 @@ describe('personRepository', () => {
   it('unassignPerson removes link', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
@@ -92,7 +92,7 @@ describe('personRepository', () => {
     const p1 = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
     const p2 = await personRepository.insert({ name: 'Bob', initials: 'B', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await personRepository.assignPerson(todoId, p1)
@@ -106,11 +106,11 @@ describe('personRepository', () => {
   it('getTodoIdsForPerson returns linked todo ids', async () => {
     const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
     const t1 = (await db.todos.add({
-      title: 'Task 1', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task 1', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     const t2 = (await db.todos.add({
-      title: 'Task 2', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task 2', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 2,
     })) as number
 

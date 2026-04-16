@@ -4,8 +4,8 @@ import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
 import { Priority } from '../../models'
 import { useFilterStore } from '../../stores/filter-store'
+import { useStatusStore } from '../../stores/status-store'
 import { TaskRow } from '../task/TaskRow'
-import { FollowupIcon } from '../shared/FollowupIcon'
 import { bySortOrder } from '../../utils/hierarchy'
 import styles from './ListInsetNode.module.css'
 
@@ -46,7 +46,6 @@ export function DraggableTaskRow({
 
 const PRESET_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
   'due-this-week': { icon: '\u{1F4C5}', label: 'Due & Overdue' },
-  'starred': { icon: <FollowupIcon filled />, label: 'Follow up' },
   'high-priority': { icon: '\u{1F534}', label: 'High Priority' },
 }
 
@@ -96,7 +95,6 @@ function getFilterDescription(inset: ListInset): string {
   if (inset.preset) {
     switch (inset.preset) {
       case 'due-this-week': return 'Tasks due within 7 days or overdue'
-      case 'starred': return 'Tasks marked for follow-up'
       case 'high-priority': return 'Tasks with high priority'
     }
   }
@@ -117,6 +115,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const { filters, applyFilter } = useFilterStore()
+  const statuses = useStatusStore((s) => s.statuses)
 
   // Clean up resize listeners on unmount
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
@@ -141,7 +140,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
 
   const filteredTodos = useMemo(() => {
     // Apply global filters first
-    const globalFiltered = applyFilter(allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
+    const globalFiltered = applyFilter(allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
 
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -174,8 +173,6 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           if (!todo.dueDate) return false
           const due = new Date(todo.dueDate)
           return due <= weekEnd
-        case 'starred':
-          return todo.isStarred
         case 'high-priority':
           return todo.priority === Priority.High
         default:
@@ -190,7 +187,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       }
       return bySortOrder(a, b)
     })
-  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter, dayKey])
+  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter, statuses, dayKey])
 
   return (
     <div className={styles.inset} style={{ width: inset.width }}>

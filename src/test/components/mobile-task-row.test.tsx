@@ -6,14 +6,13 @@ import { Priority } from '../../models'
 import { makeTodo, makePerson, makeTag, makeOrg } from '../helpers'
 
 const mockToggleComplete = vi.fn()
-const mockToggleStar = vi.fn()
 vi.mock('../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     toggleComplete: mockToggleComplete,
-    toggleStar: mockToggleStar,
     remove: vi.fn(),
     setPriority: vi.fn(),
     setDueDate: vi.fn(),
+    setProject: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
     quickAssignTag: vi.fn(),
@@ -64,14 +63,9 @@ describe('MobileTaskRow', () => {
       expect(screen.getByRole('checkbox', { name: 'Toggle complete' })).toBeChecked()
     })
 
-    it('shows filled icon when follow up is active', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, isStarred: true })} />)
-      expect(screen.getByLabelText('Toggle follow up')).toBeInTheDocument()
-    })
-
-    it('shows outline icon when follow up is inactive', () => {
+    it('shows status button with "Set status" label when no status', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.getByLabelText('Toggle follow up')).toBeInTheDocument()
+      expect(screen.getByLabelText('Set status')).toBeInTheDocument()
     })
 
     it('renders detail chevron button', () => {
@@ -231,12 +225,6 @@ describe('MobileTaskRow', () => {
       expect(mockToggleComplete).toHaveBeenCalledWith(5)
     })
 
-    it('calls toggleStar on star click', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 5 })} />)
-      fireEvent.click(screen.getByLabelText('Toggle follow up'))
-      expect(mockToggleStar).toHaveBeenCalledWith(5)
-    })
-
     it('chevron click does not trigger row onSelect', () => {
       const onSelect = vi.fn()
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} onSelect={onSelect} />)
@@ -254,11 +242,6 @@ describe('MobileTaskRow', () => {
       expect(mockToggleComplete).not.toHaveBeenCalled()
     })
 
-    it('does not call toggleStar', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
-      fireEvent.click(screen.getByLabelText('Toggle follow up'))
-      expect(mockToggleStar).not.toHaveBeenCalled()
-    })
   })
 
   // ── Expand toggle and indent ──────────────────────────────────────

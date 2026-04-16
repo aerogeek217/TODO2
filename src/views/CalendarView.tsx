@@ -6,6 +6,7 @@ import { useOrgStore } from '../stores/org-store'
 import { useProjectStore } from '../stores/project-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore } from '../stores/filter-store'
+import { useStatusStore } from '../stores/status-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
@@ -95,6 +96,7 @@ export function CalendarView() {
   const { loadAll: loadAllProjects } = useProjectStore()
   const { openEditPopup } = useUIStore()
   const { filters, applyFilter } = useFilterStore()
+  const { statuses } = useStatusStore()
   const taskEdit = useTaskEditCallbacks()
 
   const [viewMode, setViewMode] = useState<ViewMode>('month')
@@ -125,8 +127,8 @@ export function CalendarView() {
   }, [people, orgs, loadPersonOrgMap])
 
   const activeTodos = useMemo(() => {
-    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter])
+    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter, statuses])
 
   const { scheduled, unscheduled } = useMemo(() => {
     const scheduled: PersistedTodoItem[] = []
@@ -352,7 +354,6 @@ export function CalendarView() {
                       {pColor && (
                         <span className={styles.priorityDot} style={{ background: pColor }} />
                       )}
-                      {todo.isStarred && <span className={styles.starIndicator}>&#x1F5E8;</span>}
                       {todo.isHardDeadline && <span className={styles.hardDeadlineFlag}>&#9873;</span>}
                       {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
                       <span className={styles.taskTitle}>{todo.title}</span>

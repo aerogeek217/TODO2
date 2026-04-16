@@ -35,7 +35,7 @@ describe('tagRepository', () => {
   it('delete removes tag AND todoTags join entries', async () => {
     const tagId = await tagRepository.insert({ name: 'urgent', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await tagRepository.addTagToTodo(todoId, tagId)
@@ -50,7 +50,7 @@ describe('tagRepository', () => {
     const t1 = await tagRepository.insert({ name: 'urgent', color: '#000' })
     const t2 = await tagRepository.insert({ name: 'backend', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await tagRepository.addTagToTodo(todoId, t1)
@@ -64,7 +64,7 @@ describe('tagRepository', () => {
   it('addTagToTodo creates link; idempotent', async () => {
     const tagId = await tagRepository.insert({ name: 'urgent', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
 
@@ -77,7 +77,7 @@ describe('tagRepository', () => {
   it('removeTagFromTodo removes link', async () => {
     const tagId = await tagRepository.insert({ name: 'urgent', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await tagRepository.addTagToTodo(todoId, tagId)
@@ -91,7 +91,7 @@ describe('tagRepository', () => {
     const t1 = await tagRepository.insert({ name: 'urgent', color: '#000' })
     const t2 = await tagRepository.insert({ name: 'backend', color: '#000' })
     const todoId = (await db.todos.add({
-      title: 'Task', priority: 0, isCompleted: false, isStarred: false,
+      title: 'Task', priority: 0, isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
     })) as number
     await tagRepository.addTagToTodo(todoId, t1)

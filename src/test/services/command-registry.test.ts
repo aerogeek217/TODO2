@@ -10,17 +10,16 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     openQuickAdd: vi.fn(),
     selectionCount: 0,
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
-    bulkSetStarred: vi.fn().mockResolvedValue(undefined),
     bulkSetPriority: vi.fn().mockResolvedValue(undefined),
     bulkSetStatus: vi.fn().mockResolvedValue(undefined),
     bulkRemove: vi.fn().mockResolvedValue(undefined),
     getSelectedIds: vi.fn().mockReturnValue([]),
-    cycleFollowupFilter: vi.fn(),
     toggleHardDeadlineOnly: vi.fn(),
     setPriorities: vi.fn(),
     getPriorities: vi.fn().mockReturnValue(null),
     clearAllFilters: vi.fn(),
-    cycleCompletedFilter: vi.fn(),
+    setShowCompleted: vi.fn(),
+    getShowCompleted: vi.fn().mockReturnValue(false),
     setDateRange: vi.fn(),
     getTodos: () => [],
     getProjects: () => [],
@@ -104,8 +103,6 @@ describe('createCommands — bulk actions with selectionCount > 0', () => {
     const bulkIds = commands.filter(c => c.category === 'bulk').map(c => c.id)
     expect(bulkIds).toContain('bulk-complete')
     expect(bulkIds).toContain('bulk-uncomplete')
-    expect(bulkIds).toContain('bulk-star')
-    expect(bulkIds).toContain('bulk-unstar')
     expect(bulkIds).toContain('bulk-priority-high')
     expect(bulkIds).toContain('bulk-priority-medium')
     expect(bulkIds).toContain('bulk-priority-normal')

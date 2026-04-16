@@ -4,7 +4,9 @@ import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { getPriorityColor } from '../shared/PriorityMenu'
-import { FollowupIcon } from '../shared/FollowupIcon'
+import { StatusIcon } from '../shared/StatusIcon'
+import { useSettingsStore } from '../../stores/settings-store'
+import { useTodoStore } from '../../stores/todo-store'
 import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
@@ -51,10 +53,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     if (!ghost) bulk.toggleComplete(todo.id)
   }, [ghost, bulk, todo.id])
 
-  const handleToggleStar = useCallback(() => {
-    if (!ghost) bulk.toggleStar(todo.id)
-  }, [ghost, bulk, todo.id])
-
   const handleChevronTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     onOpenDetail?.(todo.id)
@@ -65,10 +63,11 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     onSelect?.(todo.id, { shift: false, ctrl: false })
   }, [onSelect, todo.id])
 
-  const statusColor = useStatusStore((s) => {
+  const status = useStatusStore((s) => {
     if (!todo.statusId) return undefined
-    return s.statuses.find(st => st.id === todo.statusId)?.color
+    return s.statuses.find(st => st.id === todo.statusId)
   })
+  const quickStatusId = useSettingsStore((s) => s.quickStatusId)
 
   // Metadata for line 2
   const people = assignedPeople ?? []
@@ -77,7 +76,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${todo.isAssigned ? styles.assigned : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${isSelected ? styles.selected : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${isSelected ? styles.selected : ''}`}
       style={indentLevel > 0 ? { paddingLeft: `${4 + indentLevel * 16}px` } : undefined}
       data-todo-id={todo.id}
       role="button"
@@ -114,18 +113,32 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           </button>
         )}
 
-        {statusColor && <span className={styles.statusDot} style={{ background: statusColor }} />}
-
         <span className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}
         </span>
 
         <button
-          className={`${styles.starButton} ${todo.isStarred ? styles.starActive : ''}`}
-          onClick={(e) => { e.stopPropagation(); handleToggleStar() }}
-          aria-label="Toggle follow up"
+          className={styles.statusButton}
+          style={status ? { color: status.color } : undefined}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!ghost) {
+              if (!todo.statusId && quickStatusId != null) {
+                useTodoStore.getState().update({ ...todo, statusId: quickStatusId, modifiedAt: new Date() })
+              } else if (todo.statusId) {
+                useTodoStore.getState().update({ ...todo, statusId: undefined, modifiedAt: new Date() })
+              }
+            }
+          }}
+          aria-label={status ? `Status: ${status.name}` : 'Set status'}
         >
-          <FollowupIcon filled={todo.isStarred} />
+          {status?.icon ? (
+            <StatusIcon icon={status.icon} filled />
+          ) : status ? (
+            <span className={styles.statusBadgeDot} style={{ background: status.color }} />
+          ) : (
+            <span className={styles.statusDotEmpty} />
+          )}
         </button>
 
         <button className={styles.chevron} onClick={handleChevronTap} aria-label="Open task details">

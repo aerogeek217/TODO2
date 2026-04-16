@@ -8,7 +8,6 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
     title: 'Test',
     priority: Priority.Normal,
     isCompleted: false,
-    isStarred: false,
     createdAt: new Date(),
     modifiedAt: new Date(),
     sortOrder: 0,
@@ -47,36 +46,36 @@ describe('useFilterStore', () => {
     expect(matchesFilter(makeTodo({ id: 2, priority: Priority.Normal }))).toBe(false)
   })
 
-  it('followupFilter followup shows only starred', () => {
-    useFilterStore.getState().setFollowupFilter('followup')
+  it('showCompleted false hides completed tasks', () => {
+    // Default is showCompleted: false
     const { matchesFilter } = useFilterStore.getState()
 
-    expect(matchesFilter(makeTodo({ id: 1, isStarred: true }))).toBe(true)
-    expect(matchesFilter(makeTodo({ id: 2, isStarred: false }))).toBe(false)
+    expect(matchesFilter(makeTodo({ id: 1, isCompleted: true }))).toBe(false)
+    expect(matchesFilter(makeTodo({ id: 2, isCompleted: false }))).toBe(true)
   })
 
-  it('followupFilter no-followup hides starred', () => {
-    useFilterStore.getState().setFollowupFilter('no-followup')
-    const { matchesFilter } = useFilterStore.getState()
-
-    expect(matchesFilter(makeTodo({ id: 1, isStarred: true }))).toBe(false)
-    expect(matchesFilter(makeTodo({ id: 2, isStarred: false }))).toBe(true)
-  })
-
-  it('completedFilter completed shows only completed', () => {
-    useFilterStore.getState().setCompletedFilter('completed')
+  it('showCompleted true shows completed tasks', () => {
+    useFilterStore.getState().setShowCompleted(true)
     const { matchesFilter } = useFilterStore.getState()
 
     expect(matchesFilter(makeTodo({ id: 1, isCompleted: true }))).toBe(true)
-    expect(matchesFilter(makeTodo({ id: 2, isCompleted: false }))).toBe(false)
+    expect(matchesFilter(makeTodo({ id: 2, isCompleted: false }))).toBe(true)
   })
 
-  it('assignedFilter assigned shows only assigned', () => {
-    useFilterStore.getState().setAssignedFilter('assigned')
+  it('showHiddenStatuses false hides tasks with hideByDefault statuses', () => {
+    const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
     const { matchesFilter } = useFilterStore.getState()
 
-    expect(matchesFilter(makeTodo({ id: 1, isAssigned: true }))).toBe(true)
-    expect(matchesFilter(makeTodo({ id: 2, isAssigned: false }))).toBe(false)
+    expect(matchesFilter(makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, undefined, statuses)).toBe(false)
+    expect(matchesFilter(makeTodo({ id: 2 }), undefined, undefined, undefined, undefined, undefined, statuses)).toBe(true)
+  })
+
+  it('showHiddenStatuses true shows tasks with hideByDefault statuses', () => {
+    useFilterStore.getState().setShowHiddenStatuses(true)
+    const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
+    const { matchesFilter } = useFilterStore.getState()
+
+    expect(matchesFilter(makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, undefined, statuses)).toBe(true)
   })
 
   it('matchesFilter checks person assignment', () => {
@@ -124,16 +123,15 @@ describe('useFilterStore', () => {
   it('clearAll resets all filters', () => {
     useFilterStore.getState().setPriorities(new Set([Priority.High]))
     useFilterStore.getState().setTagIds(new Set([1]))
-    useFilterStore.getState().setFollowupFilter('followup')
+    useFilterStore.getState().setShowCompleted(true)
     useFilterStore.getState().clearAll()
 
     const { filters, isActive } = useFilterStore.getState()
     expect(filters.priorities).toBe(null)
     expect(filters.tagIds).toBe(null)
     expect(filters.personIds).toBe(null)
-    expect(filters.followupFilter).toBe('all')
-    expect(filters.completedFilter).toBe('incomplete-only')
-    expect(filters.assignedFilter).toBe('unassigned-only')
+    expect(filters.showCompleted).toBe(false)
+    expect(filters.showHiddenStatuses).toBe(false)
     expect(isActive).toBe(false)
   })
 
@@ -323,9 +321,7 @@ describe('useFilterStore', () => {
     it('direct-only filters out tasks matching only via person-org', () => {
       useFilterStore.getState().setOrgIds(new Set([10]))
       useFilterStore.getState().setOrgFilterMode('direct-only')
-      // Also reset completedFilter/assignedFilter so all tasks pass visibility
-      useFilterStore.getState().setCompletedFilter('all')
-      useFilterStore.getState().setAssignedFilter('all')
+      useFilterStore.getState().setShowCompleted(true)
 
       const todos = [
         makeTodo({ id: 1 }), // person belongs to org 10 but no direct org
@@ -355,8 +351,7 @@ describe('useFilterStore', () => {
     it('include-people mode includes tasks matching via person-org', () => {
       useFilterStore.getState().setOrgIds(new Set([10]))
       useFilterStore.getState().setOrgFilterMode('include-people')
-      useFilterStore.getState().setCompletedFilter('all')
-      useFilterStore.getState().setAssignedFilter('all')
+      useFilterStore.getState().setShowCompleted(true)
 
       const todos = [
         makeTodo({ id: 1 }), // person belongs to org 10
@@ -398,9 +393,9 @@ describe('useFilterStore', () => {
       const { matchesFilter } = useFilterStore.getState()
       // Person 5 belongs to org 10; task has direct org 10 but no direct person
       const filterPersonOrgIds = new Set([10])
-      expect(matchesFilter(makeTodo({ id: 1 }), [], [], [], [10], undefined, filterPersonOrgIds)).toBe(true)
+      expect(matchesFilter(makeTodo({ id: 1 }), [], [], [], [10], filterPersonOrgIds)).toBe(true)
       // Task with unrelated org is excluded
-      expect(matchesFilter(makeTodo({ id: 2 }), [], [], [], [20], undefined, filterPersonOrgIds)).toBe(false)
+      expect(matchesFilter(makeTodo({ id: 2 }), [], [], [], [20], filterPersonOrgIds)).toBe(false)
     })
 
     it('direct-only ignores filter-person-org expansion', () => {
@@ -409,8 +404,8 @@ describe('useFilterStore', () => {
       const { matchesFilter } = useFilterStore.getState()
       const filterPersonOrgIds = new Set([10])
       // Even with filterPersonOrgIds supplied, direct-only only matches direct person
-      expect(matchesFilter(makeTodo({ id: 1 }), [], [], [], [10], undefined, filterPersonOrgIds)).toBe(false)
-      expect(matchesFilter(makeTodo({ id: 2 }), [5], [], [], [], undefined, filterPersonOrgIds)).toBe(true)
+      expect(matchesFilter(makeTodo({ id: 1 }), [], [], [], [10], filterPersonOrgIds)).toBe(false)
+      expect(matchesFilter(makeTodo({ id: 2 }), [5], [], [], [], filterPersonOrgIds)).toBe(true)
     })
 
     it('clearAll resets personFilterMode to include-orgs', () => {
@@ -423,8 +418,7 @@ describe('useFilterStore', () => {
   describe('applyFilter integration with personFilterMode', () => {
     it('include-orgs includes tasks with org matching filter-person membership', () => {
       useFilterStore.getState().setPersonIds(new Set([5]))
-      useFilterStore.getState().setCompletedFilter('all')
-      useFilterStore.getState().setAssignedFilter('all')
+      useFilterStore.getState().setShowCompleted(true)
 
       const todos = [
         makeTodo({ id: 1 }), // no direct person, has direct org 10 (person 5's org)
@@ -454,8 +448,7 @@ describe('useFilterStore', () => {
     it('direct-only excludes tasks matching only via filter-person org', () => {
       useFilterStore.getState().setPersonIds(new Set([5]))
       useFilterStore.getState().setPersonFilterMode('direct-only')
-      useFilterStore.getState().setCompletedFilter('all')
-      useFilterStore.getState().setAssignedFilter('all')
+      useFilterStore.getState().setShowCompleted(true)
 
       const todos = [
         makeTodo({ id: 1 }), // no direct person, direct org 10

@@ -108,9 +108,7 @@ function checkTodo(v: unknown): CheckResult {
     ['progress', isOptStr(v.progress, 500)],
     ['priority', typeof v.priority === 'number' && [Priority.Normal, Priority.Medium, Priority.High].includes(v.priority)],
     ['isCompleted', isBool(v.isCompleted)],
-    ['isStarred', isBool(v.isStarred)],
     ['dueDate', isOptDateLike(v.dueDate)],
-    ['isAssigned', v.isAssigned === undefined || v.isAssigned === null || isBool(v.isAssigned)],
     ['isHardDeadline', v.isHardDeadline === undefined || v.isHardDeadline === null || isBool(v.isHardDeadline)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
     ['createdAt', isDateLike(v.createdAt)],
@@ -256,11 +254,12 @@ function checkSavedViewFilters(v: unknown): CheckResult {
   if (!isObj(v)) return 'filters: not an object'
   return checkFields(v, [
     ['priorities', isOptNullableIntArray(v.priorities)],
-    // Accept both new string filters and old boolean fields
+    ['showCompleted', isOptBool(v.showCompleted)],
+    ['showHiddenStatuses', isOptBool(v.showHiddenStatuses)],
+    // Legacy fields — accepted for backward compat
     ['completedFilter', isOptFilterStr(v.completedFilter, VALID_COMPLETED_FILTERS)],
     ['assignedFilter', isOptFilterStr(v.assignedFilter, VALID_ASSIGNED_FILTERS)],
     ['followupFilter', isOptFilterStr(v.followupFilter, VALID_FOLLOWUP_FILTERS)],
-    ['showCompleted', isOptBool(v.showCompleted)],
     ['showAssigned', isOptBool(v.showAssigned)],
     ['starredOnly', isOptBool(v.starredOnly)],
     ['hardDeadlineOnly', isOptBool(v.hardDeadlineOnly)],
@@ -313,7 +312,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'canvasViewport']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'canvasViewport']
 
 function isValidSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
@@ -331,7 +330,7 @@ function checkSetting(v: unknown): CheckResult {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : 'value (defaultProjectId must be numeric)'
   }
-  if (v.key === 'defaultStatusId' || v.key === 'seededAssignedStatusId' || v.key === 'seededFollowupStatusId') {
+  if (v.key === 'defaultStatusId' || v.key === 'quickStatusId' || v.key === 'seededAssignedStatusId' || v.key === 'seededFollowupStatusId') {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : `value (${v.key} must be numeric)`
   }
@@ -361,12 +360,11 @@ function pickProject(v: Record<string, unknown>): Project {
 function pickTodo(v: Record<string, unknown>): TodoItem {
   return {
     id: v.id as number | undefined, title: v.title as string, priority: v.priority as number,
-    isCompleted: v.isCompleted as boolean, isStarred: v.isStarred as boolean,
+    isCompleted: v.isCompleted as boolean,
     createdAt: v.createdAt as Date, modifiedAt: v.modifiedAt as Date, sortOrder: v.sortOrder as number,
     ...(v.notes != null ? { notes: v.notes as string } : {}),
     ...(v.progress != null ? { progress: v.progress as string } : {}),
     ...(v.dueDate != null ? { dueDate: v.dueDate as Date } : {}),
-    ...(v.isAssigned != null ? { isAssigned: v.isAssigned as boolean } : {}),
     ...(v.isHardDeadline != null ? { isHardDeadline: v.isHardDeadline as boolean } : {}),
     ...(v.recurrenceRule != null ? { recurrenceRule: v.recurrenceRule as RecurrenceRule } : {}),
     ...(v.projectId != null ? { projectId: v.projectId as number } : {}),
@@ -453,19 +451,23 @@ function pickStickyNote(v: Record<string, unknown>): StickyNote {
 }
 
 function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] {
-  // Normalize: prefer new string fields, fall back to old booleans
-  const completedFilter = (v.completedFilter as string) ?? ((v.showCompleted as boolean) ? 'all' : 'incomplete-only')
-  const assignedFilter = (v.assignedFilter as string) ?? ((v.showAssigned as boolean) ? 'all' : 'unassigned-only')
-  const followupFilter = (v.followupFilter as string) ?? ((v.starredOnly as boolean) ? 'followup' : 'all')
+  // Handle legacy imports: derive new booleans from old string filters
+  const hasLegacy = v.completedFilter !== undefined || v.assignedFilter !== undefined
+  let showCompleted: boolean
+  let showHiddenStatuses: boolean
+  if (hasLegacy) {
+    const cf = v.completedFilter as string | undefined
+    showCompleted = cf === 'all' || cf === 'completed'
+    const af = v.assignedFilter as string | undefined
+    showHiddenStatuses = af === 'all' || af === 'assigned'
+  } else {
+    showCompleted = (v.showCompleted as boolean) ?? false
+    showHiddenStatuses = (v.showHiddenStatuses as boolean) ?? false
+  }
   return {
     priorities: v.priorities as number[] | null,
-    completedFilter,
-    assignedFilter,
-    followupFilter,
-    // Backward compat: dual-write old boolean fields
-    showCompleted: completedFilter !== 'incomplete' && completedFilter !== 'incomplete-only',
-    showAssigned: assignedFilter !== 'unassigned' && assignedFilter !== 'unassigned-only',
-    starredOnly: followupFilter === 'followup',
+    showCompleted,
+    showHiddenStatuses,
     hardDeadlineOnly: (v.hardDeadlineOnly as boolean) ?? false,
     personIds: v.personIds as number[] | null,
     ...(v.personFilterMode !== undefined ? { personFilterMode: v.personFilterMode as SavedView['filters']['personFilterMode'] } : {}),

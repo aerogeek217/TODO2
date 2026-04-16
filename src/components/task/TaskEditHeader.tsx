@@ -1,29 +1,26 @@
 import type { AutocompleteState, AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
-import { FollowupIcon } from '../shared/FollowupIcon'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditHeaderProps {
   isEdit: boolean
   isCompleted?: boolean
   title: string
-  isStarred: boolean
   mode: 'edit' | 'create'
   titleRef: React.RefObject<HTMLInputElement | null>
   onToggleComplete: () => void
   onTitleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onTitleBlur: () => void
   onTitleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  onToggleStar: () => void
   onClose: () => void
   acState: AutocompleteState
   onAcSelect: (item: AutocompleteItem) => void
 }
 
 export function TaskEditHeader({
-  isEdit, isCompleted, title, isStarred, mode, titleRef,
+  isEdit, isCompleted, title, mode, titleRef,
   onToggleComplete, onTitleChange, onTitleBlur, onTitleKeyDown,
-  onToggleStar, onClose, acState, onAcSelect,
+  onClose, acState, onAcSelect,
 }: TaskEditHeaderProps) {
   return (
     <div className={styles.header}>
@@ -48,13 +45,6 @@ export function TaskEditHeader({
         />
         <NlpAutocomplete state={acState} onSelect={onAcSelect} />
       </div>
-      <button
-        className={`${styles.starButton} ${isStarred ? styles.starActive : ''}`}
-        onClick={onToggleStar}
-        aria-label={isStarred ? 'Remove follow up' : 'Follow up'}
-      >
-        <FollowupIcon filled={isStarred} />
-      </button>
       <button className={styles.closeButton} onClick={onClose} aria-label="Close">
         ×
       </button>

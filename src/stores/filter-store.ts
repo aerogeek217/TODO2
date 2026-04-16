@@ -1,19 +1,18 @@
 import { create } from 'zustand'
 import { Priority } from '../models'
-import type { TodoItem, PersistedTodoItem, Person, Tag, Org, DateField, AssignedFilter, FollowupFilter, CompletedFilter } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Tag, Org, Status, DateField } from '../models'
 import { startOfDay } from '../utils/date'
 
 export type OrgFilterMode = 'include-people' | 'direct-only'
 export type PersonFilterMode = 'include-orgs' | 'direct-only'
 
-export type { DateField, AssignedFilter, FollowupFilter, CompletedFilter }
+export type { DateField }
 
 export interface FilterCriteria {
   /** null = no filter (all shown); Set = only those in set are shown */
   priorities: Set<Priority> | null
-  completedFilter: CompletedFilter
-  assignedFilter: AssignedFilter
-  followupFilter: FollowupFilter
+  showCompleted: boolean
+  showHiddenStatuses: boolean
   hardDeadlineOnly: boolean
   /** null = no filter (all shown); Set = only those in set are shown */
   personIds: Set<number> | null
@@ -45,11 +44,8 @@ interface FilterState {
   readonly isActive: boolean
 
   setPriorities: (priorities: Set<Priority> | null) => void
-  setCompletedFilter: (v: CompletedFilter) => void
-  setAssignedFilter: (v: AssignedFilter) => void
-  setFollowupFilter: (v: FollowupFilter) => void
-  cycleCompletedFilter: () => void
-  cycleFollowupFilter: () => void
+  setShowCompleted: (show: boolean) => void
+  setShowHiddenStatuses: (show: boolean) => void
   toggleHardDeadlineOnly: () => void
   setPersonIds: (personIds: Set<number> | null) => void
   setPersonFilterMode: (mode: PersonFilterMode) => void
@@ -63,15 +59,14 @@ interface FilterState {
   setDateRangeIncludeNoDue: (include: boolean) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
-  applyFilter: (todos: PersistedTodoItem[], assignedPeopleMap?: Map<number, Person[]>, assignedTagsMap?: Map<number, Tag[]>, personOrgMap?: Map<number, number[]>, assignedOrgsMap?: Map<number, Org[]>) => PersistedTodoItem[]
-  matchesFilter: (todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], skipVisibility?: boolean, filterPersonOrgIds?: Set<number>) => boolean
+  applyFilter: (todos: PersistedTodoItem[], assignedPeopleMap?: Map<number, Person[]>, assignedTagsMap?: Map<number, Tag[]>, personOrgMap?: Map<number, number[]>, assignedOrgsMap?: Map<number, Org[]>, statuses?: Status[]) => PersistedTodoItem[]
+  matchesFilter: (todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], filterPersonOrgIds?: Set<number>, statuses?: Status[]) => boolean
 }
 
 const defaultFilters: FilterCriteria = {
   priorities: null,
-  completedFilter: 'incomplete-only',
-  assignedFilter: 'unassigned-only',
-  followupFilter: 'all',
+  showCompleted: false,
+  showHiddenStatuses: false,
   hardDeadlineOnly: false,
   personIds: null,
   personFilterMode: 'include-orgs',
@@ -87,7 +82,7 @@ const defaultFilters: FilterCriteria = {
 }
 
 function isFilterActive(f: FilterCriteria): boolean {
-  return f.priorities !== null || f.completedFilter !== 'incomplete-only' || f.assignedFilter !== 'unassigned-only' || f.followupFilter !== 'all' || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
+  return f.priorities !== null || f.showCompleted || f.showHiddenStatuses || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
 }
 
 export function computeFilterPersonOrgIds(
@@ -111,22 +106,25 @@ function todoMatchesFilter(
   assignedTagIds?: number[],
   assignedPersonOrgIds?: number[],
   directOrgIds?: number[],
-  skipVisibility?: boolean,
   filterPersonOrgIds?: Set<number>,
+  statuses?: Status[],
 ): boolean {
-  // "only" variants always hide (canvas + lists); regular variants hide only in lists (skipVisibility=false)
-  if (filters.completedFilter === 'incomplete-only' && todo.isCompleted) return false
-  if (filters.assignedFilter === 'unassigned-only' && todo.isAssigned) return false
-  if (!skipVisibility) {
-    if (filters.completedFilter === 'incomplete' && todo.isCompleted) return false
-    if (filters.completedFilter === 'completed' && !todo.isCompleted) return false
-    if (filters.assignedFilter === 'unassigned' && todo.isAssigned) return false
-    if (filters.assignedFilter === 'assigned' && !todo.isAssigned) return false
+  if (todo.isCompleted && !filters.showCompleted) return false
+
+  if (filters.statusIds !== null) {
+    const hasStatus = todo.statusId != null
+    if (!hasStatus) {
+      if (!filters.statusIds.has(0)) return false
+    } else if (!filters.statusIds.has(todo.statusId!)) return false
+  } else {
+    if (todo.statusId != null && !filters.showHiddenStatuses) {
+      const status = statuses?.find(s => s.id === todo.statusId)
+      if (status?.hideByDefault) return false
+    }
   }
+
   if (filters.priorities !== null && !filters.priorities.has(todo.priority)) return false
   if (filters.searchText && !todo.title.toLowerCase().includes(filters.searchText.toLowerCase())) return false
-  if (filters.followupFilter === 'followup' && !todo.isStarred) return false
-  if (filters.followupFilter === 'no-followup' && todo.isStarred) return false
   if (filters.hardDeadlineOnly && !todo.isHardDeadline) return false
   if (filters.personIds !== null) {
     const hasPerson = !!assignedPersonIds && assignedPersonIds.length > 0
@@ -142,12 +140,6 @@ function todoMatchesFilter(
     if (!hasAssignment) {
       if (!filters.tagIds.has(0)) return false
     } else if (!assignedTagIds.some((id) => filters.tagIds!.has(id))) return false
-  }
-  if (filters.statusIds !== null) {
-    const hasStatus = todo.statusId != null
-    if (!hasStatus) {
-      if (!filters.statusIds.has(0)) return false
-    } else if (!filters.statusIds.has(todo.statusId!)) return false
   }
   if (filters.orgIds !== null) {
     const directOnly = filters.orgFilterMode === 'direct-only'
@@ -166,7 +158,6 @@ function todoMatchesFilter(
       : filters.dateField === 'created' ? todo.createdAt
       : todo.modifiedAt
     if (!rawDate) {
-      // Only dueDate can be absent; created/modified are always set
       if (!filters.dateRangeIncludeNoDue) return false
     } else {
       const d = startOfDay(new Date(rawDate))
@@ -196,30 +187,12 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...get().filters, priorities })
   },
 
-  setCompletedFilter(completedFilter: CompletedFilter) {
-    commit(set, { ...get().filters, completedFilter })
+  setShowCompleted(showCompleted: boolean) {
+    commit(set, { ...get().filters, showCompleted })
   },
 
-  setAssignedFilter(assignedFilter: AssignedFilter) {
-    commit(set, { ...get().filters, assignedFilter })
-  },
-
-  setFollowupFilter(followupFilter: FollowupFilter) {
-    commit(set, { ...get().filters, followupFilter })
-  },
-
-  cycleCompletedFilter() {
-    const { filters } = get()
-    const cycle: CompletedFilter[] = ['incomplete', 'all', 'completed', 'incomplete-only']
-    const idx = cycle.indexOf(filters.completedFilter)
-    const next = cycle[(idx + 1) % cycle.length]
-    commit(set, { ...filters, completedFilter: next })
-  },
-
-  cycleFollowupFilter() {
-    const { filters } = get()
-    const next: FollowupFilter = filters.followupFilter === 'all' ? 'followup' : filters.followupFilter === 'followup' ? 'no-followup' : 'all'
-    commit(set, { ...filters, followupFilter: next })
+  setShowHiddenStatuses(showHiddenStatuses: boolean) {
+    commit(set, { ...get().filters, showHiddenStatuses })
   },
 
   toggleHardDeadlineOnly() {
@@ -275,7 +248,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     set({ filters: { ...defaultFilters }, isActive: false })
   },
 
-  applyFilter(todos: PersistedTodoItem[], assignedPeopleMap?: Map<number, Person[]>, assignedTagsMap?: Map<number, Tag[]>, personOrgMap?: Map<number, number[]>, assignedOrgsMap?: Map<number, Org[]>): PersistedTodoItem[] {
+  applyFilter(todos: PersistedTodoItem[], assignedPeopleMap?: Map<number, Person[]>, assignedTagsMap?: Map<number, Tag[]>, personOrgMap?: Map<number, number[]>, assignedOrgsMap?: Map<number, Org[]>, statuses?: Status[]): PersistedTodoItem[] {
     const { filters } = get()
     const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
     return todos.filter((t) => {
@@ -284,11 +257,11 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       const tagIds = (assignedTagsMap?.get(t.id) ?? []).map((tg) => tg.id!)
       const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
       const directOrgIds = (assignedOrgsMap?.get(t.id) ?? []).map((o) => o.id!)
-      return todoMatchesFilter(t, filters, personIds, tagIds, personOrgIds, directOrgIds, undefined, filterPersonOrgIds)
+      return todoMatchesFilter(t, filters, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses)
     })
   },
 
-  matchesFilter(todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], skipVisibility?: boolean, filterPersonOrgIds?: Set<number>): boolean {
-    return todoMatchesFilter(todo, get().filters, assignedPersonIds, assignedTagIds, assignedPersonOrgIds, directOrgIds, skipVisibility, filterPersonOrgIds)
+  matchesFilter(todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], filterPersonOrgIds?: Set<number>, statuses?: Status[]): boolean {
+    return todoMatchesFilter(todo, get().filters, assignedPersonIds, assignedTagIds, assignedPersonOrgIds, directOrgIds, filterPersonOrgIds, statuses)
   },
 }))

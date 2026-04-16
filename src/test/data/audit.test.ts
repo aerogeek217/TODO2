@@ -15,7 +15,6 @@ function makeTodo(overrides: Partial<import('../../models').TodoItem> = {}) {
     title: 'Test todo',
     priority: Priority.Normal,
     isCompleted: false,
-    isStarred: false,
     createdAt: now,
     modifiedAt: now,
     sortOrder: 0,

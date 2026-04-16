@@ -237,12 +237,6 @@
   margin-top: 1px;
 }
 
-.starIndicator {
-  color: var(--color-followup);
-  font-size: 10px;
-  flex-shrink: 0;
-}
-
 .hardDeadlineFlag {
   color: var(--color-priority-high);
   font-size: 10px;

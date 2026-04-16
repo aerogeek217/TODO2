@@ -65,12 +65,11 @@ export async function buildMarkdownExport(): Promise<string> {
 
   const formatTodoLine = (todo: PersistedTodoItem, indent: string) => {
     const check = todo.isCompleted ? '[x]' : '[ ]'
-    const star = todo.isStarred ? ' [F/U]' : ''
     const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
     const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
     const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
     const statusStr = status ? ` [${status}]` : ''
-    return `${indent}- ${check} ${todo.title}${star}${pri}${statusStr}${due}`
+    return `${indent}- ${check} ${todo.title}${pri}${statusStr}${due}`
   }
 
   const collectDetails = (todo: PersistedTodoItem) => {

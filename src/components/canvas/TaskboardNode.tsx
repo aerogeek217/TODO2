@@ -18,8 +18,8 @@ export interface TaskboardNodeData {
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap?: Map<number, Tag[]>
   ghostTodoIds?: Set<number>
-  completedFilter?: string
-  assignedFilter?: string
+  showCompleted?: boolean
+  showHiddenStatuses?: boolean
   onOpenDetail?: (todoId: number) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
@@ -64,7 +64,7 @@ function SortableTaskboardEntry({
 }
 
 function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
-  const { entries, allTodos, assignedPeopleMap, assignedTagsMap, ghostTodoIds, completedFilter, assignedFilter, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
+  const { entries, allTodos, assignedPeopleMap, assignedTagsMap, ghostTodoIds, showCompleted, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
@@ -89,12 +89,10 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     () => entries.filter(e => {
       const t = todoMap.get(e.todoId)
       if (!t) return false
-      if (completedFilter === 'incomplete-only' && t.isCompleted) return false
-      if (completedFilter === 'completed' && !t.isCompleted) return false
-      if (assignedFilter === 'unassigned-only' && t.isAssigned) return false
+      if (!showCompleted && t.isCompleted) return false
       return true
     }),
-    [entries, todoMap, completedFilter, assignedFilter],
+    [entries, todoMap, showCompleted],
   )
 
   const onDragMove = useCallback((event: DragMoveEvent) => {

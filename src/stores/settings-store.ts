@@ -28,6 +28,7 @@ interface SettingsState {
   themeMode: ThemeMode
   defaultProjectId: number | null
   defaultStatusId: number | null
+  quickStatusId: number | null
   seededAssignedStatusId: number | null
   seededFollowupStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
@@ -39,6 +40,7 @@ interface SettingsState {
   setThemeMode: (mode: ThemeMode) => Promise<void>
   setDefaultProjectId: (id: number | null) => Promise<void>
   setDefaultStatusId: (id: number | null) => Promise<void>
+  setQuickStatusId: (id: number | null) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setCanvasViewport: (vp: CanvasViewport) => void
 }
@@ -148,6 +150,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   themeMode: 'dark' as ThemeMode,
   defaultProjectId: null,
   defaultStatusId: null,
+  quickStatusId: null,
   seededAssignedStatusId: null,
   seededFollowupStatusId: null,
   completedRetentionDays: null,
@@ -160,6 +163,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const customKeys = new Set<string>()
       let defaultProjectId: number | null = null
       let defaultStatusId: number | null = null
+      let quickStatusId: number | null = null
       let seededAssignedStatusId: number | null = null
       let seededFollowupStatusId: number | null = null
       let completedRetentionDays: number | null = null
@@ -176,6 +180,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           defaultProjectId = row.value ? Number(row.value) : null
         } else if (row.key === 'defaultStatusId') {
           defaultStatusId = row.value ? Number(row.value) : null
+        } else if (row.key === 'quickStatusId') {
+          quickStatusId = row.value ? Number(row.value) : null
         } else if (row.key === 'seededAssignedStatusId') {
           seededAssignedStatusId = row.value ? Number(row.value) : null
         } else if (row.key === 'seededFollowupStatusId') {
@@ -195,7 +201,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultProjectId, defaultStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, canvasViewport })
+      if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, canvasViewport })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -244,6 +251,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await settingsRepository.put('defaultStatusId', String(id))
     }
     set({ defaultStatusId: id })
+  },
+
+  async setQuickStatusId(id: number | null) {
+    if (id == null) {
+      await settingsRepository.delete('quickStatusId')
+    } else {
+      await settingsRepository.put('quickStatusId', String(id))
+    }
+    set({ quickStatusId: id })
   },
 
   async setCompletedRetentionDays(days: number | null) {

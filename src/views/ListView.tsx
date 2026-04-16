@@ -594,8 +594,8 @@ export function ListView() {
   }, [people, orgs, loadPersonOrgMap])
 
   const activeTodos = useMemo(() => {
-    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter])
+    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter, statuses])
 
   const sections = useMemo(() => {
     switch (listSortBy) {

@@ -6,9 +6,8 @@ import type { FilterCriteria } from '../../stores/filter-store'
 function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
   return {
     priorities: null,
-    completedFilter: 'incomplete-only',
-    assignedFilter: 'unassigned-only',
-    followupFilter: 'all',
+    showCompleted: false,
+    showHiddenStatuses: false,
     hardDeadlineOnly: false,
     personIds: null,
     personFilterMode: 'include-orgs',
@@ -33,8 +32,6 @@ describe('getFilterDefaults', () => {
     expect(result.orgIds).toEqual([])
     expect(result.statusId).toBeUndefined()
     expect(result.priority).toBeUndefined()
-    expect(result.isStarred).toBe(false)
-    expect(result.isAssigned).toBe(false)
   })
 
   it('returns single person filter', () => {
@@ -94,47 +91,18 @@ describe('getFilterDefaults', () => {
     expect(result.statusId).toBeUndefined()
   })
 
-  it('followupFilter followup sets isStarred true', () => {
-    const result = getFilterDefaults(makeFilters({ followupFilter: 'followup' }))
-    expect(result.isStarred).toBe(true)
-  })
-
-  it('followupFilter no-followup does not set isStarred', () => {
-    const result = getFilterDefaults(makeFilters({ followupFilter: 'no-followup' }))
-    expect(result.isStarred).toBe(false)
-  })
-
-  it('assignedFilter assigned sets isAssigned true', () => {
-    const result = getFilterDefaults(makeFilters({ assignedFilter: 'assigned' }))
-    expect(result.isAssigned).toBe(true)
-  })
-
-  it('assignedFilter unassigned does not set isAssigned', () => {
-    const result = getFilterDefaults(makeFilters({ assignedFilter: 'unassigned' }))
-    expect(result.isAssigned).toBe(false)
-  })
-
-  it('assignedFilter unassigned-only does not set isAssigned', () => {
-    const result = getFilterDefaults(makeFilters({ assignedFilter: 'unassigned-only' }))
-    expect(result.isAssigned).toBe(false)
-  })
-
   it('combination of multiple filter types', () => {
     const result = getFilterDefaults(makeFilters({
       personIds: new Set([5, 10]),
       tagIds: new Set([20]),
       orgIds: new Set([0, 30]),
       priorities: new Set([Priority.High]),
-      followupFilter: 'followup',
-      assignedFilter: 'assigned',
       statusIds: new Set([7]),
     }))
     expect(result.personIds).toHaveLength(2)
     expect(result.tagIds).toEqual([20])
     expect(result.orgIds).toEqual([30])
     expect(result.priority).toBe(Priority.High)
-    expect(result.isStarred).toBe(true)
-    expect(result.isAssigned).toBe(true)
     expect(result.statusId).toBe(7)
   })
 })

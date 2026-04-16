@@ -11,7 +11,7 @@ function makeCanvas(overrides = {}) {
 function makeTodo(overrides = {}) {
   return {
     id: 1, title: 'Task', priority: Priority.Normal,
-    isCompleted: false, isStarred: false,
+    isCompleted: false,
     createdAt: now, modifiedAt: now, sortOrder: 0,
     ...overrides,
   }

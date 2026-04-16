@@ -11,6 +11,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
+import { useStatusStore } from '../stores/status-store'
 import { useFilterStore, computeFilterPersonOrgIds } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
@@ -40,6 +41,7 @@ export function CanvasPage() {
   const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag } = useTagStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap, assignOrg } = useOrgStore()
   const { openEditPopup, showBulkConfirmation } = useUIStore()
+  const { statuses } = useStatusStore()
   const taskEdit = useTaskEditCallbacks()
   const { filters, matchesFilter } = useFilterStore()
   const { insets, loadByCanvas: loadInsets, add: addInset, update: updateInset, updatePosition: updateInsetPosition, remove: removeInset } = useListInsetStore()
@@ -143,8 +145,11 @@ export function CanvasPage() {
     const map = new Map<number, PersistedTodoItem[]>()
     for (const todo of todos) {
       if (todo.projectId == null) continue
-      if (filters.completedFilter === 'incomplete-only' && todo.isCompleted) continue
-      if (filters.assignedFilter === 'unassigned-only' && todo.isAssigned) continue
+      if (!filters.showCompleted && todo.isCompleted) continue
+      if (!filters.showHiddenStatuses) {
+        const s = statuses.find(x => x.id === todo.statusId)
+        if (s?.hideByDefault) continue
+      }
       const list = map.get(todo.projectId) ?? []
       list.push(todo)
       map.set(todo.projectId, list)
@@ -167,7 +172,7 @@ export function CanvasPage() {
     }
     prevTodosByProjectRef.current = stable
     return stable
-  }, [todos, filters.completedFilter, filters.assignedFilter])
+  }, [todos, filters.showCompleted, filters.showHiddenStatuses, statuses])
 
   // --- DnD (extracted to useCanvasDnD hook) ---
   const dnd = useCanvasDnD({
@@ -184,40 +189,31 @@ export function CanvasPage() {
   // "only" variants hide tasks entirely (handled in todosByProject); regular variants ghost here
   const filterGhostIds = useMemo(() => {
     const hasGhostFilter =
-      filters.priorities !== null || filters.followupFilter !== 'all' || filters.hardDeadlineOnly ||
+      filters.priorities !== null || filters.hardDeadlineOnly ||
       filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null ||
       filters.statusIds !== null || filters.searchText !== '' ||
-      filters.dateRangeStart !== null || filters.dateRangeEnd !== null ||
-      filters.completedFilter === 'incomplete' || filters.completedFilter === 'completed' ||
-      filters.assignedFilter === 'unassigned' || filters.assignedFilter === 'assigned'
+      filters.dateRangeStart !== null || filters.dateRangeEnd !== null
     if (!hasGhostFilter) return undefined
     const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
     const ghost = new Set<number>()
     for (const todo of todos) {
       if (todo.projectId == null) continue
-      // Skip tasks already hidden by "only" variants
-      if (filters.completedFilter === 'incomplete-only' && todo.isCompleted) continue
-      if (filters.assignedFilter === 'unassigned-only' && todo.isAssigned) continue
-      // Ghost completed/assigned based on regular filter values
-      let isGhost = false
-      if (filters.completedFilter === 'incomplete' && todo.isCompleted) isGhost = true
-      else if (filters.completedFilter === 'completed' && !todo.isCompleted) isGhost = true
-      if (filters.assignedFilter === 'unassigned' && todo.isAssigned) isGhost = true
-      else if (filters.assignedFilter === 'assigned' && !todo.isAssigned) isGhost = true
-      // Ghost based on other filters (skipVisibility=true skips completed/assigned checks)
-      if (!isGhost) {
-        const personIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
-        const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
-        const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])
-        const dOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
-        if (!matchesFilter(todo, personIds, tagIds, pOrgIds, dOrgIds, true, filterPersonOrgIds)) {
-          isGhost = true
-        }
+      // Skip tasks already hidden by todosByProject
+      if (!filters.showCompleted && todo.isCompleted) continue
+      if (!filters.showHiddenStatuses) {
+        const s = statuses.find(x => x.id === todo.statusId)
+        if (s?.hideByDefault) continue
       }
-      if (isGhost) ghost.add(todo.id)
+      const personIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
+      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
+      const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])
+      const dOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
+      if (!matchesFilter(todo, personIds, tagIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses)) {
+        ghost.add(todo.id)
+      }
     }
     return ghost.size > 0 ? ghost : undefined
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter])
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter, statuses])
 
   // Merge filter ghosts and drag-child ghosts
   const ghostTodoIds = useMemo(() => {
@@ -249,7 +245,7 @@ export function CanvasPage() {
       const currentProjects = useProjectStore.getState().projects
       const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
       const fd = getFilterDefaults(useFilterStore.getState().filters)
-      const { isStarred, isAssigned } = supplementWithFilterDefaults(resolved, fd)
+      supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
       const id = await addTodo(title || rawTitle, selectedCanvasId, pid)
       await applyNlpMetadata(
@@ -257,10 +253,6 @@ export function CanvasPage() {
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
         updateTodo, assignPerson, assignTag, assignOrg,
       )
-      if (isStarred || isAssigned) {
-        const todo = useTodoStore.getState().todos.find((t) => t.id === id)
-        if (todo) await updateTodo({ ...todo, isStarred: isStarred || todo.isStarred, isAssigned: isAssigned || undefined })
-      }
     },
     [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
   )
@@ -272,7 +264,7 @@ export function CanvasPage() {
       const currentProjects = useProjectStore.getState().projects
       const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
       const fd = getFilterDefaults(useFilterStore.getState().filters)
-      const { isStarred, isAssigned } = supplementWithFilterDefaults(resolved, fd)
+      supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
       const projectTodos = todosByProject.get(pid) ?? []
       const siblings = projectTodos.filter(t =>
@@ -286,10 +278,6 @@ export function CanvasPage() {
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
         updateTodo, assignPerson, assignTag, assignOrg,
       )
-      if (isStarred || isAssigned) {
-        const todo = useTodoStore.getState().todos.find((t) => t.id === id)
-        if (todo) await updateTodo({ ...todo, isStarred: isStarred || todo.isStarred, isAssigned: isAssigned || undefined })
-      }
       return id
     },
     [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
@@ -373,7 +361,7 @@ export function CanvasPage() {
       const fd = getFilterDefaults(useFilterStore.getState().filters)
       for (const line of lines) {
         const { title, resolved } = parseTaskInput(line, people, tags, projects, orgs)
-        const { isStarred, isAssigned } = supplementWithFilterDefaults(resolved, fd)
+        supplementWithFilterDefaults(resolved, fd)
         let pid = resolved.projectId
         if (!pid) {
           pid = projects[0]?.id
@@ -387,10 +375,6 @@ export function CanvasPage() {
           (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
           updateTodo, assignPerson, assignTag, assignOrg,
         )
-        if (isStarred || isAssigned) {
-          const todo = useTodoStore.getState().todos.find((t) => t.id === id)
-          if (todo) await updateTodo({ ...todo, isStarred: isStarred || todo.isStarred, isAssigned: isAssigned || undefined })
-        }
       }
     },
     [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, projects, orgs, addProject]
@@ -563,8 +547,8 @@ export function CanvasPage() {
         taskboardHeight={taskboardSize.h}
         onResizeTaskboard={handleResizeTaskboard}
         onCascadeShift={handleCascadeShift}
-        completedFilter={filters.completedFilter}
-        assignedFilter={filters.assignedFilter}
+        showCompleted={filters.showCompleted}
+        showHiddenStatuses={filters.showHiddenStatuses}
       />
       {isProjectNavigatorOpen && (
         <ProjectNavigator

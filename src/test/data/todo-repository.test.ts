@@ -14,7 +14,6 @@ function makeTodo(overrides: Partial<import('../../models').TodoItem> = {}) {
     title: 'Test todo',
     priority: Priority.Normal,
     isCompleted: false,
-    isStarred: false,
     createdAt: now,
     modifiedAt: now,
     sortOrder: 0,
@@ -64,14 +63,6 @@ describe('todoRepository', () => {
 
     const todo = await todoRepository.getById(id)
     expect(todo!.isCompleted).toBe(true)
-  })
-
-  it('toggleStar toggles isStarred', async () => {
-    const id = await todoRepository.insert(makeTodo())
-    await todoRepository.toggleStar(id, true)
-
-    const todo = await todoRepository.getById(id)
-    expect(todo!.isStarred).toBe(true)
   })
 
   it('update modifies all fields', async () => {

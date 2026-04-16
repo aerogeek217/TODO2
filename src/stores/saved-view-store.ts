@@ -23,13 +23,8 @@ interface SavedViewState {
 function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
   return {
     priorities: f.priorities ? Array.from(f.priorities) : null,
-    completedFilter: f.completedFilter,
-    assignedFilter: f.assignedFilter,
-    followupFilter: f.followupFilter,
-    // Backward compat: old booleans (lossy for third options)
-    showCompleted: f.completedFilter !== 'incomplete' && f.completedFilter !== 'incomplete-only',
-    showAssigned: f.assignedFilter !== 'unassigned' && f.assignedFilter !== 'unassigned-only',
-    starredOnly: f.followupFilter === 'followup',
+    showCompleted: f.showCompleted,
+    showHiddenStatuses: f.showHiddenStatuses,
     hardDeadlineOnly: f.hardDeadlineOnly,
     personIds: f.personIds ? Array.from(f.personIds) : null,
     personFilterMode: f.personFilterMode,
@@ -45,11 +40,27 @@ function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
 }
 
 export function savedFiltersToRuntime(s: SavedViewFilters): Partial<FilterCriteria> {
+  // Backward compat: old saved views have completedFilter/assignedFilter strings
+  // but not the new boolean fields. Detect by checking for legacy string fields.
+  const hasLegacyFormat = s.completedFilter !== undefined || s.assignedFilter !== undefined
+  let showCompleted: boolean
+  let showHiddenStatuses: boolean
+  if (hasLegacyFormat) {
+    // Old format: derive booleans from legacy string filters
+    const cf = s.completedFilter as string | undefined
+    showCompleted = cf === 'all' || cf === 'completed'
+    const af = s.assignedFilter as string | undefined
+    showHiddenStatuses = af === 'all' || af === 'assigned'
+  } else {
+    // New format: use directly
+    showCompleted = s.showCompleted
+    showHiddenStatuses = s.showHiddenStatuses
+  }
+
   return {
     priorities: s.priorities ? new Set(s.priorities as Priority[]) : null,
-    completedFilter: (s.completedFilter as FilterCriteria['completedFilter']) ?? (s.showCompleted ? 'all' : 'incomplete-only'),
-    assignedFilter: (s.assignedFilter as FilterCriteria['assignedFilter']) ?? (s.showAssigned ? 'all' : 'unassigned-only'),
-    followupFilter: (s.followupFilter as FilterCriteria['followupFilter']) ?? (s.starredOnly ? 'followup' : 'all'),
+    showCompleted,
+    showHiddenStatuses,
     hardDeadlineOnly: s.hardDeadlineOnly,
     personIds: s.personIds ? new Set(s.personIds) : null,
     personFilterMode: s.personFilterMode === 'direct-only' ? 'direct-only' : 'include-orgs',

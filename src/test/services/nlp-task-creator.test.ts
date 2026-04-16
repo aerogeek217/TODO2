@@ -66,7 +66,6 @@ describe('applyNlpMetadata', () => {
       title: 'Test task',
       priority: Priority.Normal,
       isCompleted: false,
-      isStarred: false,
       createdAt: new Date(),
       modifiedAt: new Date(),
       sortOrder: 1,

@@ -7,7 +7,6 @@ export function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number })
     title: `Task ${overrides.id}`,
     priority: Priority.Normal,
     isCompleted: false,
-    isStarred: false,
     createdAt: new Date(),
     modifiedAt: new Date(),
     sortOrder: overrides.id,

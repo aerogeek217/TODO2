@@ -40,7 +40,6 @@ interface EditModeProps extends TaskEditPopupBaseProps {
   todo: PersistedTodoItem
   onUpdate: (todo: PersistedTodoItem) => void
   onToggleComplete: () => void
-  onToggleStar: () => void
   onDelete: () => void
   onDuplicate?: () => void
   onCreate?: never
@@ -51,7 +50,6 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   todo?: never
   onUpdate?: never
   onToggleComplete?: never
-  onToggleStar?: never
   onDelete?: never
   onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], tagIds: number[], orgIds: number[] }) => Promise<number>
 }
@@ -91,8 +89,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [dueDate, setDueDate] = useState(toDateInputValue(todo?.dueDate))
   const [isHardDeadline, setIsHardDeadline] = useState(todo?.isHardDeadline ?? false)
   const [priority, setPriorityState] = useState<Priority>(todo?.priority ?? filterDefaults?.priority ?? Priority.Normal)
-  const [isStarred, setIsStarred] = useState(todo?.isStarred ?? filterDefaults?.isStarred ?? false)
-  const [isAssigned, setIsAssigned] = useState(todo?.isAssigned ?? filterDefaults?.isAssigned ?? false)
   const [projectId, setProjectId] = useState<number | undefined>(
     todo?.projectId ?? (mode === 'create' ? (defaultProjectId ?? undefined) : undefined)
   )
@@ -153,19 +149,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       setDueDate(toDateInputValue(todo.dueDate))
       setIsHardDeadline(todo.isHardDeadline ?? false)
       setPriorityState(todo.priority)
-      setIsStarred(todo.isStarred)
-      setIsAssigned(todo.isAssigned ?? false)
       setRecurrenceType(todo.recurrenceRule?.type ?? '')
     }
-  }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.statusId, todo?.projectId, todo?.dueDate, todo?.isHardDeadline, todo?.priority, todo?.isStarred, todo?.isAssigned, todo?.recurrenceRule?.type])
-
-  // Auto-clear isAssigned when all people and orgs are removed
-  useEffect(() => {
-    if (isAssigned && effectiveAssignedPeople.length === 0 && effectiveAssignedOrgs.length === 0) {
-      setIsAssigned(false)
-      if (isEdit && todo) props.onUpdate({ ...todo, isAssigned: undefined })
-    }
-  }, [effectiveAssignedPeople.length, effectiveAssignedOrgs.length])
+  }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.statusId, todo?.projectId, todo?.dueDate, todo?.isHardDeadline, todo?.priority, todo?.recurrenceRule?.type])
 
   // Track whether mousedown started on the backdrop itself.
   // Prevents closing when user selects text inside and drags outside.
@@ -203,13 +189,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       statusId,
       dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
       isHardDeadline: isHardDeadline || undefined,
-      isAssigned: isAssigned || undefined,
       recurrenceRule: dueDate ? buildRule() : undefined,
       priority,
-      isStarred,
       ...overrides,
     })
-  }, [isEdit, todo, title, notes, progress, statusId, dueDate, isHardDeadline, isAssigned, recurrenceType, priority, isStarred, props.onUpdate])
+  }, [isEdit, todo, title, notes, progress, statusId, dueDate, isHardDeadline, recurrenceType, priority, props.onUpdate])
 
   const handleTitleBlur = () => { if (isEdit) saveEdit() }
 
@@ -323,12 +307,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
-  const handleToggleStar = () => {
-    const next = !isStarred
-    setIsStarred(next)
-    if (isEdit) props.onToggleStar()
-  }
-
   const handleToggleComplete = () => {
     if (isEdit) props.onToggleComplete()
   }
@@ -344,8 +322,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       isHardDeadline: isHardDeadline || undefined,
       recurrenceRule: dueDate && recurrenceType ? makeRecurrenceRule(recurrenceType, new Date(dueDate + 'T00:00:00')) : undefined,
       priority,
-      isStarred,
-      isAssigned: isAssigned || undefined,
       projectId,
     }, {
       personIds: [...pendingPersonIds],
@@ -354,12 +330,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     })
     void newTodoId
     onClose()
-  }
-
-  const handleToggleAssigned = () => {
-    const next = !isAssigned
-    setIsAssigned(next)
-    saveEdit({ isAssigned: next || undefined })
   }
 
   const handleCreatePerson = onCreatePerson ? async (name: string) => {
@@ -489,14 +459,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           isEdit={isEdit}
           isCompleted={todo?.isCompleted}
           title={title}
-          isStarred={isStarred}
           mode={mode}
           titleRef={titleRef}
           onToggleComplete={handleToggleComplete}
           onTitleChange={handleTitleChange}
           onTitleBlur={handleTitleBlur}
           onTitleKeyDown={handleTitleKeyDown}
-          onToggleStar={handleToggleStar}
           onClose={onClose}
           acState={ac.state}
           onAcSelect={handleAcSelect}
@@ -586,12 +554,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             assignedPeopleIds={assignedPeopleIds}
             assignedOrgIds={assignedOrgIds}
             isEdit={isEdit}
-            isAssigned={isAssigned}
             peopleRef={peopleRef}
             orgsRef={orgsRef}
             onTogglePerson={togglePerson}
             onToggleOrg={toggleOrg}
-            onToggleAssigned={handleToggleAssigned}
             onCreatePerson={handleCreatePerson}
             assignedTags={effectiveAssignedTags}
             allTags={allTags}

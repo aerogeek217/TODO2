@@ -3,15 +3,18 @@ import type { ListSortBy, DateField } from './app-view'
 /** Serializable snapshot of filter + grouping state */
 export interface SavedViewFilters {
   priorities: number[] | null  // Priority enum values; null = no filter
-  completedFilter?: string
-  assignedFilter?: string
-  followupFilter?: string
-  /** @deprecated kept for backward compat with old app versions */
   showCompleted: boolean
-  /** @deprecated kept for backward compat with old app versions */
-  showAssigned: boolean
-  /** @deprecated kept for backward compat with old app versions */
-  starredOnly: boolean
+  showHiddenStatuses: boolean
+  /** @deprecated v1 legacy — kept for reading old saved views */
+  completedFilter?: string
+  /** @deprecated v1 legacy — kept for reading old saved views */
+  assignedFilter?: string
+  /** @deprecated v1 legacy — kept for reading old saved views */
+  followupFilter?: string
+  /** @deprecated v1 legacy — kept for reading old saved views */
+  showAssigned?: boolean
+  /** @deprecated v1 legacy — kept for reading old saved views */
+  starredOnly?: boolean
   hardDeadlineOnly: boolean
   personIds: number[] | null
   personFilterMode?: 'include-orgs' | 'direct-only'

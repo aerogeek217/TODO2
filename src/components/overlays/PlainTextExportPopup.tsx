@@ -20,15 +20,13 @@ interface PlainTextExportPopupProps {
 
 function formatTodoLine(todo: PersistedTodoItem, indent: string, people: Person[], tags: Tag[], statusMap: Map<number, Status>): string {
   const check = todo.isCompleted ? '[x]' : '[ ]'
-  const star = todo.isStarred ? ' [F/U]' : ''
   const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
   const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
-  const assigned = todo.isAssigned ? ' [ASSIGNED]' : ''
   const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
   const statusStr = status ? ` [${status.name}]` : ''
   const peopleStr = people.length > 0 ? ` @${people.map(p => p.name).join(', @')}` : ''
   const tagStr = tags.length > 0 ? ` #${tags.map(t => t.name).join(', #')}` : ''
-  return `${indent}${check} ${todo.title}${star}${pri}${statusStr}${due}${assigned}${peopleStr}${tagStr}`
+  return `${indent}${check} ${todo.title}${pri}${statusStr}${due}${peopleStr}${tagStr}`
 }
 
 function generatePlainText(

@@ -29,12 +29,10 @@ interface TaskEditMetadataProps {
   assignedPeopleIds: Set<number>
   assignedOrgIds: Set<number>
   isEdit: boolean
-  isAssigned: boolean
   peopleRef: React.RefObject<HTMLDivElement | null>
   orgsRef: React.RefObject<HTMLDivElement | null>
   onTogglePerson: (id: number) => void
   onToggleOrg: (id: number) => void
-  onToggleAssigned: () => void
   onCreatePerson?: (name: string) => Promise<void>
 
   // Tags
@@ -61,8 +59,8 @@ export function TaskEditMetadata({
   projectId, projects, projectSearch, projectRef, projectSearchRef,
   onProjectSelect, onProjectSearchChange,
   assignedPeople, assignedOrgs, allPeople, allOrgs,
-  assignedPeopleIds, assignedOrgIds, isEdit, isAssigned,
-  peopleRef, orgsRef, onTogglePerson, onToggleOrg, onToggleAssigned, onCreatePerson,
+  assignedPeopleIds, assignedOrgIds, isEdit,
+  peopleRef, orgsRef, onTogglePerson, onToggleOrg, onCreatePerson,
   assignedTags, allTags, assignedTagIds, tagsRef, onToggleTag, onAssignTag, onCreateTag,
   openDropdown, setOpenDropdown,
   todo, onUpdate,
@@ -206,14 +204,6 @@ export function TaskEditMetadata({
             onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
             + Add
           </button>
-          {(assignedPeople.length > 0 || assignedOrgs.length > 0) && (
-            <button
-              className={`${styles.assignedToggle} ${isAssigned ? styles.assignedToggleActive : ''}`}
-              onClick={onToggleAssigned}
-            >
-              {isAssigned ? 'Assigned' : 'Assign'}
-            </button>
-          )}
           {openDropdown === 'people' && (
             <div className={styles.chipDropdown} ref={orgsRef}>
               <ChipSelector

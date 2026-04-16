@@ -66,7 +66,7 @@ function EntityFilterList({
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
-  const { filters, isActive, setPriorities, setCompletedFilter, setFollowupFilter, setAssignedFilter, toggleHardDeadlineOnly, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setPriorities, setShowCompleted, setShowHiddenStatuses, toggleHardDeadlineOnly, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
@@ -192,9 +192,9 @@ export function FilterSheet() {
             <div className={styles.entityHeader} onClick={() => handleToggleSection('toggles')}>
               <span className={styles.filterLabel}>
                 Show / hide
-                {(filters.hardDeadlineOnly || filters.followupFilter !== 'all' || (filters.completedFilter !== 'incomplete' && filters.completedFilter !== 'incomplete-only') || (filters.assignedFilter !== 'unassigned' && filters.assignedFilter !== 'unassigned-only')) && (
+                {(filters.hardDeadlineOnly || filters.showCompleted || filters.showHiddenStatuses) && (
                   <span className={styles.activeCount}>
-                    {[filters.hardDeadlineOnly, filters.followupFilter !== 'all', filters.completedFilter !== 'incomplete' && filters.completedFilter !== 'incomplete-only', filters.assignedFilter !== 'unassigned' && filters.assignedFilter !== 'unassigned-only'].filter(Boolean).length}
+                    {[filters.hardDeadlineOnly, filters.showCompleted, filters.showHiddenStatuses].filter(Boolean).length}
                   </span>
                 )}
               </span>
@@ -217,54 +217,29 @@ export function FilterSheet() {
                 </div>
                 <div className={styles.filterRow}>
                   <span className={styles.filterLabel}>
-                    <span className={styles.filterLabelIcon}>&#x1F5E8;</span>
-                    Follow up
+                    <span className={styles.filterLabelIcon}>👁</span>
+                    Show hidden
                   </span>
-                  <div className={styles.dateFieldSelector}>
-                    {(['all', 'followup', 'no-followup'] as const).map((v) => (
-                      <button
-                        key={v}
-                        className={`${styles.dateFieldOption} ${filters.followupFilter === v ? styles.dateFieldOptionActive : ''}`}
-                        onClick={() => setFollowupFilter(v)}
-                      >
-                        {v === 'all' ? 'All' : v === 'followup' ? 'Yes' : 'No'}
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    className={`${styles.toggle} ${filters.showHiddenStatuses ? styles.toggleActive : ''}`}
+                    onClick={() => setShowHiddenStatuses(!filters.showHiddenStatuses)}
+                    role="switch"
+                    aria-checked={filters.showHiddenStatuses}
+                    aria-label="Show hidden statuses"
+                  />
                 </div>
                 <div className={styles.filterRow}>
                   <span className={styles.filterLabel}>
                     <span className={styles.filterLabelIcon}>✓</span>
                     Completed
                   </span>
-                  <div className={styles.dateFieldSelector}>
-                    {(['all', 'incomplete', 'completed', 'incomplete-only'] as const).map((v) => (
-                      <button
-                        key={v}
-                        className={`${styles.dateFieldOption} ${filters.completedFilter === v ? styles.dateFieldOptionActive : ''}`}
-                        onClick={() => setCompletedFilter(v)}
-                      >
-                        {v === 'all' ? 'All' : v === 'incomplete' ? 'No' : v === 'completed' ? 'Yes' : 'No only'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className={styles.filterRow}>
-                  <span className={styles.filterLabel}>
-                    <span className={styles.filterLabelIcon}>👤</span>
-                    Assigned
-                  </span>
-                  <div className={styles.dateFieldSelector}>
-                    {(['all', 'unassigned', 'assigned', 'unassigned-only'] as const).map((v) => (
-                      <button
-                        key={v}
-                        className={`${styles.dateFieldOption} ${filters.assignedFilter === v ? styles.dateFieldOptionActive : ''}`}
-                        onClick={() => setAssignedFilter(v)}
-                      >
-                        {v === 'all' ? 'All' : v === 'unassigned' ? 'No' : v === 'assigned' ? 'Yes' : 'No only'}
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    className={`${styles.toggle} ${filters.showCompleted ? styles.toggleActive : ''}`}
+                    onClick={() => setShowCompleted(!filters.showCompleted)}
+                    role="switch"
+                    aria-checked={filters.showCompleted}
+                    aria-label="Show completed"
+                  />
                 </div>
               </div>
             )}
@@ -442,7 +417,7 @@ export function FilterSheet() {
               </div>
               {openSection === 'status' && (
                 <EntityFilterList
-                  entities={statuses}
+                  entities={statuses.map(s => ({ ...s, name: s.hideByDefault ? `${s.name} (hidden)` : s.name }))}
                   filterIds={filters.statusIds}
                   onToggle={toggleStatus}
                   noneLabel="No status"

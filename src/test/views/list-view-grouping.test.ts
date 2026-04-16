@@ -16,7 +16,6 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
     title: 'Test',
     priority: Priority.Normal,
     isCompleted: false,
-    isStarred: false,
     createdAt: new Date(),
     modifiedAt: new Date(),
     sortOrder: 0,

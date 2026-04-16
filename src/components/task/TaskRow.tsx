@@ -18,7 +18,8 @@ import { toDateInputValue } from '../../utils/date'
 import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { PriorityMenu, getPriorityColor } from '../shared/PriorityMenu'
-import { FollowupIcon } from '../shared/FollowupIcon'
+import { StatusIcon } from '../shared/StatusIcon'
+import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import styles from './TaskRow.module.css'
@@ -121,10 +122,11 @@ export const TaskRow = memo(function TaskRow({
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
   const statuses = useStatusStore((s) => s.statuses)
-  const statusColor = useMemo(() => {
+  const status = useMemo(() => {
     if (!todo.statusId) return undefined
-    return statuses.find(st => st.id === todo.statusId)?.color
+    return statuses.find(st => st.id === todo.statusId)
   }, [todo.statusId, statuses])
+  const quickStatusId = useSettingsStore((s) => s.quickStatusId)
 
   // Bulk-aware mutation callbacks
   const bulk = useBulkActions()
@@ -149,8 +151,6 @@ export const TaskRow = memo(function TaskRow({
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
   // Ghost rows are non-interactive (drag overlay visuals)
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
-  const handleToggleStar = useCallback(() => { if (!ghost) bulk.toggleStar(todo.id) }, [ghost, bulk, todo.id])
-  const handleToggleAssigned = useCallback(() => { if (!ghost) bulk.toggleAssigned(todo.id) }, [ghost, bulk, todo.id])
   const handleDelete = useCallback(() => { if (!ghost) bulk.remove(todo.id) }, [ghost, bulk, todo.id])
   const handleSetPriority = useCallback((p: Priority) => { if (!ghost) bulk.setPriority(todo.id, p) }, [ghost, bulk, todo.id])
   const handleSetDueDate = useCallback((date: Date | undefined) => { if (!ghost) bulk.setDueDate(todo.id, date) }, [ghost, bulk, todo.id])
@@ -192,7 +192,7 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${todo.isAssigned ? styles.assigned : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showPriorityMenu || showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showPriorityMenu || showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
       style={indentLevel > 0 ? { paddingLeft: `${TASK_ROW_PADDING_LEFT + indentLevel * INDENT_PX}px` } : undefined}
       data-todo-id={todo.id}
       onClick={(e) => { e.stopPropagation(); onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }) }}
@@ -253,41 +253,6 @@ export const TaskRow = memo(function TaskRow({
           onClick={(e) => e.stopPropagation()}
           aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
         />
-      )}
-
-      {statuses.length > 0 && (
-        <div ref={statusRef} className={styles.statusWrapper}>
-          <button
-            className={styles.statusDot}
-            style={statusColor ? { background: statusColor } : { background: 'var(--color-text-muted)', opacity: 0.3 }}
-            onClick={(e) => { e.stopPropagation(); if (!ghost) setShowStatusMenu(v => !v) }}
-            title="Set status"
-          />
-          {showStatusMenu && !ghost && createPortal(
-            <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
-              <div className={styles.statusMenu}>
-                <button
-                  className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
-                  onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: undefined, modifiedAt: new Date() }); setShowStatusMenu(false) }}
-                >
-                  <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
-                  No Status
-                </button>
-                {statuses.map(s => (
-                  <button
-                    key={s.id}
-                    className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
-                    onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: s.id, modifiedAt: new Date() }); setShowStatusMenu(false) }}
-                  >
-                    <span className={styles.statusOptionDot} style={{ background: s.color }} />
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            </PortalDropdown>,
-            document.body,
-          )}
-        </div>
       )}
 
       {edit.isEditing ? (
@@ -477,28 +442,61 @@ export const TaskRow = memo(function TaskRow({
         </button>
       ) : null}
 
-      {!ghost ? (
-        <button
-          className={`${styles.assignButton} ${todo.isAssigned ? styles.assignActive : styles.assignInactive}`}
-          onClick={(e) => { e.stopPropagation(); handleToggleAssigned() }}
-          aria-label={todo.isAssigned ? 'Unassign task' : 'Assign task'}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="8" cy="5" r="3" />
-            <path d="M2.5 14a5.5 5.5 0 0 1 11 0" />
-          </svg>
-        </button>
-      ) : null}
-
       {extraLabel && <span className={styles.extraLabel}>{extraLabel}</span>}
 
-      <button
-        className={`${styles.starButton} ${todo.isStarred ? styles.starred : styles.unstarred}`}
-        onClick={(e) => { e.stopPropagation(); handleToggleStar() }}
-        aria-label={todo.isStarred ? 'Remove follow up' : 'Follow up'}
-      >
-        <FollowupIcon filled={todo.isStarred} />
-      </button>
+      {!ghost && (
+        <div ref={statusRef} className={styles.statusWrapper}>
+          <button
+            className={styles.statusButton}
+            style={status ? { color: status.color } : undefined}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!todo.statusId && quickStatusId != null) {
+                useTodoStore.getState().update({ ...todo, statusId: quickStatusId, modifiedAt: new Date() })
+              } else {
+                setShowStatusMenu(v => !v)
+              }
+            }}
+            aria-label={status ? `Status: ${status.name}` : 'Set status'}
+          >
+            {status?.icon ? (
+              <StatusIcon icon={status.icon} filled />
+            ) : status ? (
+              <span className={styles.statusBadgeDot} style={{ background: status.color }} />
+            ) : (
+              <span className={styles.statusDotEmpty} />
+            )}
+          </button>
+          {showStatusMenu && createPortal(
+            <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
+              <div className={styles.statusMenu}>
+                <button
+                  className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
+                  onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: undefined, modifiedAt: new Date() }); setShowStatusMenu(false) }}
+                >
+                  <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
+                  No Status
+                </button>
+                {statuses.map(s => (
+                  <button
+                    key={s.id}
+                    className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
+                    onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: s.id, modifiedAt: new Date() }); setShowStatusMenu(false) }}
+                  >
+                    {s.icon ? (
+                      <span style={{ color: s.color }}><StatusIcon icon={s.icon} filled /></span>
+                    ) : (
+                      <span className={styles.statusOptionDot} style={{ background: s.color }} />
+                    )}
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </PortalDropdown>,
+            document.body,
+          )}
+        </div>
+      )}
 
       <button className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete() }} aria-label="Delete task">
         ×

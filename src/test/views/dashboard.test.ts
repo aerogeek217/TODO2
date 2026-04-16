@@ -1,8 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { scoreTask, buildDashboardLists } from '../../views/DashboardView'
 import { Priority } from '../../models'
-import type { PersistedTodoItem } from '../../models'
+import type { PersistedTodoItem, Status } from '../../models'
 import { MS_PER_DAY } from '../../utils/date'
+
+// Seeded status IDs used across dashboard tests
+const FOLLOWUP_STATUS_ID = 100
+const ASSIGNED_STATUS_ID = 101
+
+const seededStatuses: Status[] = [
+  { id: FOLLOWUP_STATUS_ID, name: 'Follow-up', color: '#F5A623', sortOrder: 0, icon: 'message-bubble', hideByDefault: false },
+  { id: ASSIGNED_STATUS_ID, name: 'Assigned', color: '#537FE7', sortOrder: 1, icon: 'person', hideByDefault: true },
+]
 
 /** Helper to create a minimal PersistedTodoItem with defaults */
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
@@ -10,8 +19,6 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
     title: `Task ${overrides.id}`,
     canvasId: 1,
     isCompleted: false,
-    isStarred: false,
-    isAssigned: false,
     isHardDeadline: false,
     priority: Priority.Normal,
     sortOrder: overrides.id * 1000,
@@ -95,13 +102,13 @@ describe('buildDashboardLists', () => {
   const today = new Date('2026-04-12T00:00:00')
 
   it('returns 4 lists with correct keys', () => {
-    const lists = buildDashboardLists([])
+    const lists = buildDashboardLists([], seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     expect(lists).toHaveLength(4)
     expect(lists.map(l => l.key)).toEqual(['mine', 'followup', 'assigned', 'stale'])
   })
 
   it('returns empty lists when no todos', () => {
-    const lists = buildDashboardLists([])
+    const lists = buildDashboardLists([], seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     for (const list of lists) {
       expect(list.todos).toHaveLength(0)
     }
@@ -110,33 +117,33 @@ describe('buildDashboardLists', () => {
   it('excludes completed tasks from all lists', () => {
     const todos = [
       makeTodo({ id: 1, isCompleted: true }),
-      makeTodo({ id: 2, isCompleted: true, isStarred: true }),
+      makeTodo({ id: 2, isCompleted: true, statusId: FOLLOWUP_STATUS_ID }),
     ]
-    const lists = buildDashboardLists(todos)
+    const lists = buildDashboardLists(todos, seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     for (const list of lists) {
       expect(list.todos).toHaveLength(0)
     }
   })
 
-  it('puts non-assigned, non-starred tasks in "mine"', () => {
+  it('puts tasks with no hideByDefault status in "mine"', () => {
     const todo = makeTodo({ id: 1 })
-    const lists = buildDashboardLists([todo])
+    const lists = buildDashboardLists([todo], seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     const mine = lists.find(l => l.key === 'mine')!
     expect(mine.todos).toHaveLength(1)
     expect(mine.todos[0].id).toBe(1)
   })
 
-  it('puts starred tasks in "followup"', () => {
-    const todo = makeTodo({ id: 1, isStarred: true })
-    const lists = buildDashboardLists([todo])
+  it('puts follow-up status tasks in "followup"', () => {
+    const todo = makeTodo({ id: 1, statusId: FOLLOWUP_STATUS_ID })
+    const lists = buildDashboardLists([todo], seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     const followup = lists.find(l => l.key === 'followup')!
     expect(followup.todos).toHaveLength(1)
     expect(followup.todos[0].id).toBe(1)
   })
 
-  it('puts assigned tasks in "assigned"', () => {
-    const todo = makeTodo({ id: 1, isAssigned: true })
-    const lists = buildDashboardLists([todo])
+  it('puts assigned status tasks in "assigned"', () => {
+    const todo = makeTodo({ id: 1, statusId: ASSIGNED_STATUS_ID })
+    const lists = buildDashboardLists([todo], seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     const assigned = lists.find(l => l.key === 'assigned')!
     expect(assigned.todos).toHaveLength(1)
     expect(assigned.todos[0].id).toBe(1)
@@ -148,7 +155,7 @@ describe('buildDashboardLists', () => {
       makeTodo({ id: 2, modifiedAt: new Date('2026-04-01T00:00:00Z') }),
       makeTodo({ id: 3, modifiedAt: new Date('2026-04-12T00:00:00Z') }),
     ]
-    const lists = buildDashboardLists(todos)
+    const lists = buildDashboardLists(todos, seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     const stale = lists.find(l => l.key === 'stale')!
     expect(stale.todos.map(t => t.id)).toEqual([2, 1, 3])
   })
@@ -157,7 +164,7 @@ describe('buildDashboardLists', () => {
     const todos = Array.from({ length: 15 }, (_, i) =>
       makeTodo({ id: i + 1, modifiedAt: new Date(today.getTime() - i * MS_PER_DAY) })
     )
-    const lists = buildDashboardLists(todos)
+    const lists = buildDashboardLists(todos, seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     const mine = lists.find(l => l.key === 'mine')!
     const stale = lists.find(l => l.key === 'stale')!
     expect(mine.todos.length).toBeLessThanOrEqual(10)
@@ -170,25 +177,24 @@ describe('buildDashboardLists', () => {
       makeTodo({ id: 2, priority: Priority.High }),
       makeTodo({ id: 3, priority: Priority.Medium }),
     ]
-    const lists = buildDashboardLists(todos)
+    const lists = buildDashboardLists(todos, seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     const mine = lists.find(l => l.key === 'mine')!
     expect(mine.todos.map(t => t.id)).toEqual([2, 3, 1])
   })
 
   it('a task can appear in both assigned and stale', () => {
-    const todo = makeTodo({ id: 1, isAssigned: true, modifiedAt: new Date('2020-01-01T00:00:00Z') })
-    const lists = buildDashboardLists([todo])
+    const todo = makeTodo({ id: 1, statusId: ASSIGNED_STATUS_ID, modifiedAt: new Date('2020-01-01T00:00:00Z') })
+    const lists = buildDashboardLists([todo], seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     const assigned = lists.find(l => l.key === 'assigned')!
     const stale = lists.find(l => l.key === 'stale')!
     expect(assigned.todos).toHaveLength(1)
     expect(stale.todos).toHaveLength(1)
   })
 
-  it('a starred+assigned task appears in followup and assigned but not mine', () => {
-    const todo = makeTodo({ id: 1, isStarred: true, isAssigned: true })
-    const lists = buildDashboardLists([todo])
+  it('assigned-status task does not appear in mine (hideByDefault)', () => {
+    const todo = makeTodo({ id: 1, statusId: ASSIGNED_STATUS_ID })
+    const lists = buildDashboardLists([todo], seededStatuses, FOLLOWUP_STATUS_ID, ASSIGNED_STATUS_ID)
     expect(lists.find(l => l.key === 'mine')!.todos).toHaveLength(0)
-    expect(lists.find(l => l.key === 'followup')!.todos).toHaveLength(1)
     expect(lists.find(l => l.key === 'assigned')!.todos).toHaveLength(1)
   })
 })

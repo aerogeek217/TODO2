@@ -58,7 +58,7 @@ describe('v20 migration', () => {
     const existingStatusId = await db.statuses.add({ name: 'InProgress', color: '#00FF00', sortOrder: 0 } as Status)
     const todoId = await db.todos.add(makeTodo({
       id: 1, canvasId, isStarred: true, isAssigned: true, statusId: existingStatusId,
-    }))
+    } as any))
 
     await runMigration()
     const { followupId } = await getSeededIds()
@@ -70,7 +70,7 @@ describe('v20 migration', () => {
     const existingStatusId = await db.statuses.add({ name: 'InProgress', color: '#00FF00', sortOrder: 0 } as Status)
     const todoId = await db.todos.add(makeTodo({
       id: 1, canvasId, isStarred: false, isAssigned: true, statusId: existingStatusId,
-    }))
+    } as any))
 
     await runMigration()
     const { assignedId } = await getSeededIds()
@@ -82,7 +82,7 @@ describe('v20 migration', () => {
     const existingStatusId = await db.statuses.add({ name: 'InProgress', color: '#00FF00', sortOrder: 0 } as Status)
     const todoId = await db.todos.add(makeTodo({
       id: 1, canvasId, isStarred: false, isAssigned: false, statusId: existingStatusId,
-    }))
+    } as any))
 
     await runMigration()
     const todo = await db.todos.get(todoId)
@@ -92,7 +92,7 @@ describe('v20 migration', () => {
   it('unflagged task keeps undefined statusId after migration', async () => {
     const todoId = await db.todos.add(makeTodo({
       id: 1, canvasId, isStarred: false, isAssigned: false,
-    }))
+    } as any))
 
     await runMigration()
     const todo = await db.todos.get(todoId)
@@ -100,9 +100,9 @@ describe('v20 migration', () => {
   })
 
   it('strips isStarred and isAssigned fields from all migrated rows', async () => {
-    await db.todos.add(makeTodo({ id: 1, canvasId, isStarred: true }))
-    await db.todos.add(makeTodo({ id: 2, canvasId, isAssigned: true }))
-    await db.todos.add(makeTodo({ id: 3, canvasId, isStarred: false }))
+    await db.todos.add(makeTodo({ id: 1, canvasId, isStarred: true } as any))
+    await db.todos.add(makeTodo({ id: 2, canvasId, isAssigned: true } as any))
+    await db.todos.add(makeTodo({ id: 3, canvasId, isStarred: false } as any))
 
     await runMigration()
     const todos = await db.todos.toArray()
@@ -179,7 +179,7 @@ describe('v20 migration', () => {
   it('preserves dangling statusId pointing at nonexistent status', async () => {
     const todoId = await db.todos.add(makeTodo({
       id: 1, canvasId, isStarred: false, isAssigned: false, statusId: 999,
-    }))
+    } as any))
 
     await runMigration()
     const todo = await db.todos.get(todoId)
@@ -187,7 +187,7 @@ describe('v20 migration', () => {
   })
 
   it('completes without transaction errors when all touched tables have data', async () => {
-    await db.todos.add(makeTodo({ id: 1, canvasId, isStarred: true }))
+    await db.todos.add(makeTodo({ id: 1, canvasId, isStarred: true } as any))
     await db.listInsets.add({
       name: 'Starred', preset: 'starred', canvasId,
       x: 0, y: 0, width: 300, height: 400, isCollapsed: false,

@@ -55,14 +55,6 @@ export const todoRepository = {
     await db.todos.update(id, { isCompleted: completed, modifiedAt: new Date() })
   },
 
-  async toggleStar(id: number, starred: boolean): Promise<void> {
-    await db.todos.update(id, { isStarred: starred, modifiedAt: new Date() })
-  },
-
-  async toggleAssigned(id: number, assigned: boolean): Promise<void> {
-    await db.todos.update(id, { isAssigned: assigned || undefined, modifiedAt: new Date() })
-  },
-
   async restore(todo: PersistedTodoItem): Promise<void> {
     await db.todos.put(todo)
   },

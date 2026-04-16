@@ -39,11 +39,11 @@ describe('restoreFromImportData', () => {
     it('restoreFromImportData_withExistingTodos_removesOldTodosAndAddsNew', async () => {
       // Arrange — seed old data
       await db.todos.bulkAdd([
-        { title: 'Old Task', priority: Priority.Normal, isCompleted: false, isStarred: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+        { title: 'Old Task', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
       ])
       const newData = makeImportData({
         todos: [
-          { id: 10, title: 'New Task', priority: Priority.High, isCompleted: false, isStarred: false, sortOrder: 1, createdAt: now, modifiedAt: now },
+          { id: 10, title: 'New Task', priority: Priority.High, isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now },
         ],
       })
 
@@ -132,7 +132,7 @@ describe('restoreFromImportData', () => {
       // Arrange
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Task', priority: Priority.Normal, isCompleted: false, isStarred: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, title: 'Task', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
         people: [{ id: 1, name: 'Alice', initials: 'AL', color: '#537FE7' }],
         tags: [{ id: 1, name: 'bug', color: '#ff0000' }],
@@ -198,7 +198,7 @@ describe('restoreFromImportData', () => {
       const data = makeImportData({
         canvases: [{ id: 1, name: 'Restored', sortOrder: 0, createdAt: now }],
         todos: [
-          { id: 1, title: 'Restored Task', priority: Priority.Normal, isCompleted: false, isStarred: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, title: 'Restored Task', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
       })
 

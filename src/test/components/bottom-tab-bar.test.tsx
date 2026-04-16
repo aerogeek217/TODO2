@@ -154,7 +154,7 @@ describe('BottomTabBar', () => {
     })
 
     it('shows filter dot when filters are active', () => {
-      useFilterStore.getState().setFollowupFilter('followup')
+      useFilterStore.getState().setPriorities(new Set([1]))
       renderTabBar()
       const filtersTab = screen.getByText('Filters').closest('button')!
       const svg = filtersTab.querySelector('svg')!

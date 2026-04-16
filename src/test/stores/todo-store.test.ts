@@ -31,12 +31,6 @@ describe('todoStore', () => {
     expect(useTodoStore.getState().todos[0].isCompleted).toBe(false)
   })
 
-  it('toggleStar flips isStarred', async () => {
-    const id = await useTodoStore.getState().add('Task')
-    await useTodoStore.getState().toggleStar(id)
-    expect(useTodoStore.getState().todos[0].isStarred).toBe(true)
-  })
-
   it('remove deletes a todo from store and DB', async () => {
     const id = await useTodoStore.getState().add('Task')
     await useTodoStore.getState().remove(id)
@@ -85,19 +79,6 @@ describe('todoStore', () => {
     expect(todos.find(t => t.id === id1)!.isCompleted).toBe(true)
     expect(todos.find(t => t.id === id2)!.isCompleted).toBe(true)
     expect(todos.find(t => t.id === id3)!.isCompleted).toBe(false)
-  })
-
-  it('bulkSetStarred stars/unstars multiple todos', async () => {
-    const id1 = await useTodoStore.getState().add('Task 1')
-    const id2 = await useTodoStore.getState().add('Task 2')
-
-    await useTodoStore.getState().bulkSetStarred([id1, id2], true)
-    expect(useTodoStore.getState().todos.find(t => t.id === id1)!.isStarred).toBe(true)
-    expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isStarred).toBe(true)
-
-    await useTodoStore.getState().bulkSetStarred([id1], false)
-    expect(useTodoStore.getState().todos.find(t => t.id === id1)!.isStarred).toBe(false)
-    expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isStarred).toBe(true)
   })
 
   it('bulkSetPriority sets priority on multiple todos', async () => {
@@ -204,63 +185,6 @@ describe('todoStore', () => {
     expect(count).toBe(0)
   })
 
-  describe('toggleAssigned undo/redo', () => {
-    it('toggleAssigned undo restores original state', async () => {
-      const id = await useTodoStore.getState().add('Task')
-      useUndoStore.getState().clear()
-
-      // Task starts unassigned
-      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBeFalsy()
-
-      await useTodoStore.getState().toggleAssigned(id)
-      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBe(true)
-
-      await useUndoStore.getState().undo()
-      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBeFalsy()
-    })
-
-    it('toggleAssigned redo re-applies the toggle', async () => {
-      const id = await useTodoStore.getState().add('Task')
-      useUndoStore.getState().clear()
-
-      await useTodoStore.getState().toggleAssigned(id)
-      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBe(true)
-
-      await useUndoStore.getState().undo()
-      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBeFalsy()
-
-      await useUndoStore.getState().redo()
-      expect(useTodoStore.getState().todos.find(t => t.id === id)!.isAssigned).toBe(true)
-    })
-  })
-
-  describe('bulkSetAssigned undo', () => {
-    it('undo restores per-item original assigned state', async () => {
-      const id1 = await useTodoStore.getState().add('Task 1')
-      const id2 = await useTodoStore.getState().add('Task 2')
-      const id3 = await useTodoStore.getState().add('Task 3')
-
-      // Set mixed initial states: id1=assigned, id2=unassigned, id3=assigned
-      await useTodoStore.getState().toggleAssigned(id1)
-      await useTodoStore.getState().toggleAssigned(id3)
-      useUndoStore.getState().clear()
-
-      expect(useTodoStore.getState().todos.find(t => t.id === id1)!.isAssigned).toBe(true)
-      expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isAssigned).toBeFalsy()
-      expect(useTodoStore.getState().todos.find(t => t.id === id3)!.isAssigned).toBe(true)
-
-      // Bulk set all to true
-      await useTodoStore.getState().bulkSetAssigned([id1, id2, id3], true)
-      expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isAssigned).toBe(true)
-
-      // Undo should restore per-item: id1=true, id2=false, id3=true
-      await useUndoStore.getState().undo()
-      expect(useTodoStore.getState().todos.find(t => t.id === id1)!.isAssigned).toBe(true)
-      expect(useTodoStore.getState().todos.find(t => t.id === id2)!.isAssigned).toBeFalsy()
-      expect(useTodoStore.getState().todos.find(t => t.id === id3)!.isAssigned).toBe(true)
-    })
-  })
-
   describe('defaultStatusId', () => {
     it('add applies defaultStatusId from settings when set', async () => {
       useSettingsStore.setState({ defaultStatusId: 7 })
@@ -298,22 +222,6 @@ describe('todoStore', () => {
   })
 
   describe('optimistic rollback', () => {
-    it('toggleStar_dbRejects_revertsIsStarredToFalse', async () => {
-      // Arrange
-      const id = await useTodoStore.getState().add('Task')
-      const spy = vi.spyOn(todoRepository, 'toggleStar').mockRejectedValueOnce(new Error('DB error'))
-
-      // Act
-      await expect(useTodoStore.getState().toggleStar(id)).rejects.toThrow('DB error')
-
-      // Assert
-      const todo = useTodoStore.getState().todos.find((t) => t.id === id)
-      expect(todo!.isStarred).toBe(false)
-      expect(useTodoStore.getState().error).toBeTruthy()
-
-      spy.mockRestore()
-    })
-
     it('toggleComplete_dbRejects_revertsIsCompletedToFalse', async () => {
       // Arrange
       const id = await useTodoStore.getState().add('Task')
@@ -347,20 +255,5 @@ describe('todoStore', () => {
       spy.mockRestore()
     })
 
-    it('toggleStar_dbRejects_doesNotPushToUndoStack', async () => {
-      // Arrange
-      const id = await useTodoStore.getState().add('Task')
-      // Clear the undo entry pushed by add() so only toggleStar's result matters
-      useUndoStore.getState().clear()
-      const spy = vi.spyOn(todoRepository, 'toggleStar').mockRejectedValueOnce(new Error('DB error'))
-
-      // Act
-      await expect(useTodoStore.getState().toggleStar(id)).rejects.toThrow()
-
-      // Assert
-      expect(useUndoStore.getState().undoStack).toHaveLength(0)
-
-      spy.mockRestore()
-    })
   })
 })

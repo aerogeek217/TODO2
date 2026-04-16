@@ -119,32 +119,26 @@ describe('FilterSheet', () => {
       expect(toggle).toHaveAttribute('aria-checked', 'true')
     })
 
-    it('sets follow up filter via segmented control', () => {
+    it('toggles show completed filter', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Show / hide'))
-      // The Follow up row has Yes/No/All buttons; click "Yes" to set followup
-      const followupRow = screen.getByText('Follow up').closest('div')!
-      const yesBtn = followupRow.querySelectorAll('button')[1] // [All, Yes, No] -> index 1
-      fireEvent.click(yesBtn)
-      expect(useFilterStore.getState().filters.followupFilter).toBe('followup')
+      const toggle = screen.getByRole('switch', { name: 'Show completed' })
+      expect(toggle).toHaveAttribute('aria-checked', 'false')
+
+      fireEvent.click(toggle)
+      expect(useFilterStore.getState().filters.showCompleted).toBe(true)
+      expect(toggle).toHaveAttribute('aria-checked', 'true')
     })
 
-    it('sets completed filter via segmented control', () => {
+    it('toggles show hidden statuses filter', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Show / hide'))
-      const completedRow = screen.getByText('Completed').closest('div')!
-      const yesBtn = completedRow.querySelectorAll('button')[2] // [All, No, Yes] -> index 2
-      fireEvent.click(yesBtn)
-      expect(useFilterStore.getState().filters.completedFilter).toBe('completed')
-    })
+      const toggle = screen.getByRole('switch', { name: 'Show hidden statuses' })
+      expect(toggle).toHaveAttribute('aria-checked', 'false')
 
-    it('sets assigned filter via segmented control', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Show / hide'))
-      const assignedRow = screen.getByText('Assigned').closest('div')!
-      const yesBtn = assignedRow.querySelectorAll('button')[2] // [All, No, Yes] -> index 2
-      fireEvent.click(yesBtn)
-      expect(useFilterStore.getState().filters.assignedFilter).toBe('assigned')
+      fireEvent.click(toggle)
+      expect(useFilterStore.getState().filters.showHiddenStatuses).toBe(true)
+      expect(toggle).toHaveAttribute('aria-checked', 'true')
     })
   })
 

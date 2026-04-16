@@ -6,9 +6,8 @@ import type { FilterCriteria } from '../../stores/filter-store'
 
 const defaultFilters: FilterCriteria = {
   priorities: null,
-  completedFilter: 'incomplete',
-  assignedFilter: 'unassigned',
-  followupFilter: 'all',
+  showCompleted: false,
+  showHiddenStatuses: false,
   hardDeadlineOnly: false,
   personIds: null,
   personFilterMode: 'include-orgs',
@@ -32,7 +31,7 @@ beforeEach(async () => {
 describe('useSavedViewStore', () => {
   describe('load', () => {
     it('load_withViewsInDB_fetchesAllViewsIntoState', async () => {
-      await db.savedViews.add({ name: 'My View', sortBy: 'priority', filters: { priorities: null, showCompleted: false, showAssigned: false, starredOnly: false, hardDeadlineOnly: false, personIds: null, tagIds: null, orgIds: null, dateRangeIncludeNoDue: false }, sortOrder: 1 })
+      await db.savedViews.add({ name: 'My View', sortBy: 'priority', filters: { priorities: null, showCompleted: false, showHiddenStatuses: false, hardDeadlineOnly: false, personIds: null, tagIds: null, orgIds: null, dateRangeIncludeNoDue: false }, sortOrder: 1 })
 
       await useSavedViewStore.getState().load()
 
@@ -67,10 +66,9 @@ describe('useSavedViewStore', () => {
         personIds: new Set([1, 2]),
         tagIds: new Set([10]),
         orgIds: new Set([5]),
-        completedFilter: 'all',
-        followupFilter: 'followup',
+        showCompleted: true,
+        showHiddenStatuses: true,
         hardDeadlineOnly: true,
-        assignedFilter: 'all',
         dateRangeIncludeNoDue: true,
       }
 
@@ -82,15 +80,10 @@ describe('useSavedViewStore', () => {
       expect(saved.personIds).toEqual(expect.arrayContaining([1, 2]))
       expect(saved.tagIds).toEqual([10])
       expect(saved.orgIds).toEqual([5])
-      expect(saved.completedFilter).toBe('all')
-      expect(saved.followupFilter).toBe('followup')
-      expect(saved.hardDeadlineOnly).toBe(true)
-      expect(saved.assignedFilter).toBe('all')
-      expect(saved.dateRangeIncludeNoDue).toBe(true)
-      // Backward compat booleans are also written
       expect(saved.showCompleted).toBe(true)
-      expect(saved.starredOnly).toBe(true)
-      expect(saved.showAssigned).toBe(true)
+      expect(saved.showHiddenStatuses).toBe(true)
+      expect(saved.hardDeadlineOnly).toBe(true)
+      expect(saved.dateRangeIncludeNoDue).toBe(true)
     })
 
     it('saveCurrentView_withNullSets_storesNullInFilters', async () => {
@@ -255,8 +248,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
       tagIds: null,
       orgIds: null,
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
       // orgFilterMode intentionally omitted
@@ -305,8 +297,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
       tagIds: null,
       orgIds: null,
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
       // personFilterMode intentionally omitted
@@ -324,12 +315,8 @@ describe('savedFiltersToRuntime', () => {
       personIds: [1, 2, 3],
       tagIds: [10, 20],
       orgIds: [5],
-      completedFilter: 'all',
-      assignedFilter: 'all',
-      followupFilter: 'followup',
       showCompleted: true,
-      showAssigned: true,
-      starredOnly: true,
+      showHiddenStatuses: true,
       hardDeadlineOnly: true,
       dateRangeIncludeNoDue: true,
     }
@@ -340,9 +327,8 @@ describe('savedFiltersToRuntime', () => {
     expect(result.personIds).toEqual(new Set([1, 2, 3]))
     expect(result.tagIds).toEqual(new Set([10, 20]))
     expect(result.orgIds).toEqual(new Set([5]))
-    expect(result.completedFilter).toBe('all')
-    expect(result.assignedFilter).toBe('all')
-    expect(result.followupFilter).toBe('followup')
+    expect(result.showCompleted).toBe(true)
+    expect(result.showHiddenStatuses).toBe(true)
   })
 
   it('savedFiltersToRuntime_withNullArrays_preservesNulls', () => {
@@ -352,8 +338,7 @@ describe('savedFiltersToRuntime', () => {
       tagIds: null,
       orgIds: null,
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
     }
@@ -373,8 +358,7 @@ describe('savedFiltersToRuntime', () => {
       tagIds: null,
       orgIds: null,
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
     }
@@ -386,49 +370,46 @@ describe('savedFiltersToRuntime', () => {
     expect(result.dateRangeEnd).toBeNull()
   })
 
-  it('savedFiltersToRuntime_withOldBooleans_convertsToNewFilterTypes', () => {
+  it('savedFiltersToRuntime_withLegacyCompletedFilter_derivesShowCompleted', () => {
     const saved = {
       priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
-      showCompleted: true,
-      showAssigned: true,
-      starredOnly: true,
+      completedFilter: 'all',
+      assignedFilter: 'all',
+      showCompleted: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: true,
       dateRangeIncludeNoDue: true,
     }
 
     const result = savedFiltersToRuntime(saved)
 
-    expect(result.completedFilter).toBe('all')
-    expect(result.assignedFilter).toBe('all')
-    expect(result.followupFilter).toBe('followup')
+    expect(result.showCompleted).toBe(true)
+    expect(result.showHiddenStatuses).toBe(true)
     expect(result.hardDeadlineOnly).toBe(true)
     expect(result.dateRangeIncludeNoDue).toBe(true)
   })
 
-  it('savedFiltersToRuntime_withNewStringFields_prefersNewOverOld', () => {
+  it('savedFiltersToRuntime_withLegacyIncompleteFilter_derivesShowCompletedFalse', () => {
     const saved = {
       priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
-      completedFilter: 'completed',
-      assignedFilter: 'assigned',
-      followupFilter: 'no-followup',
+      completedFilter: 'incomplete',
+      assignedFilter: 'unassigned',
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
     }
 
     const result = savedFiltersToRuntime(saved)
 
-    expect(result.completedFilter).toBe('completed')
-    expect(result.assignedFilter).toBe('assigned')
-    expect(result.followupFilter).toBe('no-followup')
+    expect(result.showCompleted).toBe(false)
+    expect(result.showHiddenStatuses).toBe(false)
   })
 
   it('savedFiltersToRuntime_withStatusIds_convertsArrayToSet', () => {
@@ -439,8 +420,7 @@ describe('savedFiltersToRuntime', () => {
       orgIds: null,
       statusIds: [1, 2, 3],
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
     }
@@ -456,8 +436,7 @@ describe('savedFiltersToRuntime', () => {
       tagIds: null,
       orgIds: null,
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
     }
@@ -473,8 +452,7 @@ describe('savedFiltersToRuntime', () => {
       tagIds: null,
       orgIds: null,
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateField: 'modified' as const,
       dateRangeIncludeNoDue: false,
@@ -491,8 +469,7 @@ describe('savedFiltersToRuntime', () => {
       tagIds: null,
       orgIds: null,
       showCompleted: false,
-      showAssigned: false,
-      starredOnly: false,
+      showHiddenStatuses: false,
       hardDeadlineOnly: false,
       dateRangeIncludeNoDue: false,
     }

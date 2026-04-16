@@ -22,11 +22,6 @@
   opacity: 0.5;
 }
 
-.assigned {
-  border-left: 2px solid var(--color-assigned-border);
-  background: var(--color-assigned-bg);
-}
-
 .ghost {
   opacity: 0.4;
 }
@@ -135,10 +130,10 @@
   color: var(--color-text-completed);
 }
 
-.starButton {
+.statusButton {
   background: none;
   border: none;
-  color: var(--color-text-muted);
+  color: var(--color-border-muted);
   font-size: 18px;
   padding: 4px;
   cursor: pointer;
@@ -151,8 +146,19 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.starActive {
-  color: var(--color-followup);
+.statusBadgeDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.statusDotEmpty {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  display: inline-block;
 }
 
 .chevron {

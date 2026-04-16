@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router'
-import { useFilterStore, type DateField, type AssignedFilter, type FollowupFilter, type CompletedFilter, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
+import { useFilterStore, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -9,7 +9,6 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { Priority } from '../../models'
-import { FollowupIcon } from '../shared/FollowupIcon'
 import { startOfToday } from '../../utils/date'
 import { toggleItem } from '../../utils/filter'
 import styles from './TopBar.module.css'
@@ -301,63 +300,9 @@ function EntityDropdownItems({
   )
 }
 
-function SimpleFilterDropdown<T extends string>({
-  icon,
-  value,
-  options,
-  defaultValue,
-  onChange,
-}: {
-  icon: React.ReactNode
-  value: T
-  options: { value: T; label: string }[]
-  defaultValue: T
-  onChange: (v: T) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const isActive = value !== defaultValue
-  const currentLabel = options.find((o) => o.value === value)?.label ?? ''
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
-
-  return (
-    <div className={styles.dropdownWrapper} ref={ref}>
-      <button
-        className={`${styles.filterChip} ${isActive ? styles.filterChipActive : ''}`}
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-      >
-        {icon}{' '}{currentLabel}
-        <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}>&#9662;</span>
-      </button>
-      {open && (
-        <div className={styles.dropdownPanel}>
-          {options.map((opt) => (
-            <label
-              key={opt.value}
-              className={styles.dropdownItem}
-              onClick={() => { onChange(opt.value); setOpen(false) }}
-            >
-              <span className={`${styles.radio} ${value === opt.value ? styles.checked : ''}`} />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function TopBar() {
-  const { filters, isActive, setPriorities, setCompletedFilter, setAssignedFilter, setFollowupFilter, toggleHardDeadlineOnly, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setPriorities, setShowCompleted, setShowHiddenStatuses, toggleHardDeadlineOnly, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -526,7 +471,7 @@ export function TopBar() {
             {miniListResults.map((todo) => (
               <button
                 key={todo.id}
-                className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''} ${todo.isAssigned ? styles.miniListItemAssigned : ''}`}
+                className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}
                 onMouseDown={(e) => {
                   e.preventDefault()
                   openEditPopup(todo.id)
@@ -583,7 +528,7 @@ export function TopBar() {
               {(searchText: string) => (
                 <EntityDropdownItems
                   searchText={searchText}
-                  entities={statuses}
+                  entities={statuses.map(s => s.hideByDefault ? { ...s, name: `${s.name} (hidden)` } : s)}
                   isChecked={isStatusChecked}
                   onToggle={handleStatusToggle}
                 />
@@ -685,19 +630,6 @@ export function TopBar() {
             </FilterDropdown>
           )}
 
-          <SimpleFilterDropdown<AssignedFilter>
-            icon={<svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-            value={filters.assignedFilter}
-            defaultValue="unassigned-only"
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'unassigned', label: 'Unassigned' },
-              { value: 'assigned', label: 'Assigned' },
-              { value: 'unassigned-only', label: 'Unassigned only' },
-            ]}
-            onChange={setAssignedFilter}
-          />
-
           {tags.length > 0 && (
             <FilterDropdown
               label={<><span className={styles.filterIcon}>#</span> Tags</>}
@@ -721,29 +653,23 @@ export function TopBar() {
             </FilterDropdown>
           )}
 
-          <SimpleFilterDropdown<FollowupFilter>
-            icon={<span className={styles.filterIcon}><FollowupIcon filled={filters.followupFilter === 'followup'} /></span>}
-            value={filters.followupFilter}
-            defaultValue="all"
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'followup', label: 'Follow up' },
-              { value: 'no-followup', label: 'No follow up' },
-            ]}
-            onChange={setFollowupFilter}
-          />
-          <SimpleFilterDropdown<CompletedFilter>
-            icon={<span className={styles.filterIcon}>✓</span>}
-            value={filters.completedFilter}
-            defaultValue="incomplete-only"
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'incomplete', label: 'Incomplete' },
-              { value: 'completed', label: 'Completed' },
-              { value: 'incomplete-only', label: 'Incomplete only' },
-            ]}
-            onChange={setCompletedFilter}
-          />
+          <button
+            className={`${styles.filterChip} ${filters.showHiddenStatuses ? styles.filterChipActive : ''}`}
+            onClick={() => setShowHiddenStatuses(!filters.showHiddenStatuses)}
+            role="switch"
+            aria-checked={filters.showHiddenStatuses}
+          >
+            Show hidden
+          </button>
+
+          <button
+            className={`${styles.filterChip} ${filters.showCompleted ? styles.filterChipActive : ''}`}
+            onClick={() => setShowCompleted(!filters.showCompleted)}
+            role="switch"
+            aria-checked={filters.showCompleted}
+          >
+            <span className={styles.filterIcon}>✓</span> Completed
+          </button>
 
       {isActive && (
         <button className={styles.clearFilters} onClick={() => { clearAll(); setPreviewEmpty(null) }} title="Clear all filters">
