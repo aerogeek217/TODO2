@@ -4,6 +4,8 @@ import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-valida
 import { restoreFromImportData } from '../data/restore'
 import { buildExportData } from './export-import'
 import { backupScheduler } from './backup-scheduler'
+import { detectLegacyFormat } from './migration-check'
+import type { LegacyImportInfo } from './migration-check'
 
 export type FileStorageStatus = {
   isConnected: boolean
@@ -15,6 +17,7 @@ export type FileStorageStatus = {
 
 type StatusListener = (status: FileStorageStatus) => void
 type AfterImportListener = () => Promise<void>
+type MigrationConfirmListener = (info: LegacyImportInfo) => Promise<boolean>
 
 const FILE_TYPES = [{ description: 'TODO2 Database', accept: { 'application/json': ['.json'] } }]
 const DEBOUNCE_MS = 500
@@ -28,6 +31,7 @@ class FileStorageService {
   private hookCleanups: Array<() => void> = []
   private listener: StatusListener | null = null
   private afterImportListener: AfterImportListener | null = null
+  private migrationConfirmListener: MigrationConfirmListener | null = null
   private _lastSavedAt: Date | null = null
   private _error: string | null = null
   private _needsPermission = false
@@ -52,6 +56,10 @@ class FileStorageService {
 
   onAfterImport(listener: AfterImportListener) {
     this.afterImportListener = listener
+  }
+
+  onConfirmMigration(listener: MigrationConfirmListener) {
+    this.migrationConfirmListener = listener
   }
 
   private notify() {
@@ -181,6 +189,15 @@ class FileStorageService {
         this.suppressSync = false
         this.notify()
         return
+      }
+
+      const legacyInfo = detectLegacyFormat(parsed)
+      if (legacyInfo && this.migrationConfirmListener) {
+        const confirmed = await this.migrationConfirmListener(legacyInfo)
+        if (!confirmed) {
+          this.suppressSync = false
+          return
+        }
       }
 
       await backupScheduler.snapshotBeforeDestructive().catch(() => {})

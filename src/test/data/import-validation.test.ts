@@ -326,11 +326,23 @@ describe('validateImportData', () => {
     const result = validateImportData(validData({
       listInsets: [
         { id: 1, name: 'Dual Inset', canvasId: 1, x: 0, y: 0, width: 320, height: 300, isCollapsed: false,
-          preset: 'starred',
+          preset: 'due-this-week',
           attributeFilter: { type: 'tag', tagId: 2, tagName: 'urgent', tagColor: '#ff0000' } },
       ],
     }))
     expect(result.ok).toBe(true)
+  })
+
+  it('legacy starred list insets pass validation but are stripped from result', () => {
+    const result = validateImportData(validData({
+      listInsets: [
+        { id: 1, name: 'Starred', canvasId: 1, x: 0, y: 0, width: 320, height: 300, isCollapsed: false, preset: 'starred' },
+        { id: 2, name: 'Due', canvasId: 1, x: 0, y: 0, width: 320, height: 300, isCollapsed: false, preset: 'due-this-week' },
+      ],
+    }))
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.data.listInsets).toHaveLength(1)
+    expect(result.ok && result.data.listInsets[0].preset).toBe('due-this-week')
   })
 
   it('valid status object passes validation', () => {

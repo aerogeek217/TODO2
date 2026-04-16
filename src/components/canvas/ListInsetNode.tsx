@@ -74,7 +74,7 @@ type ListInsetNodeType = ListInsetNodeData
 
 function getInsetHeaderInfo(inset: ListInset): { icon: React.ReactNode; label: string } {
   if (inset.preset) {
-    return PRESET_CONFIG[inset.preset]
+    return PRESET_CONFIG[inset.preset] ?? { icon: '\u{1F4CB}', label: inset.preset }
   }
   if (inset.attributeFilter) {
     switch (inset.attributeFilter.type) {

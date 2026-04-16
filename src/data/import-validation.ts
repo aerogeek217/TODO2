@@ -163,7 +163,8 @@ function checkTag(v: unknown): CheckResult {
   ])
 }
 
-const VALID_PRESETS = ['due-this-week', 'starred', 'high-priority']
+const VALID_PRESETS = ['due-this-week', 'high-priority']
+const LEGACY_PRESETS = ['starred']
 
 const VALID_ATTR_FILTER_TYPES = ['priority', 'person', 'tag', 'org']
 
@@ -186,7 +187,7 @@ function checkListInset(v: unknown): CheckResult {
   if (!hasPreset && !hasAttrFilter) return 'preset or attributeFilter required'
   return checkFields(v, [
     ['name', isStr(v.name, 200)],
-    ['preset', !hasPreset || (typeof v.preset === 'string' && VALID_PRESETS.includes(v.preset))],
+    ['preset', !hasPreset || (typeof v.preset === 'string' && (VALID_PRESETS.includes(v.preset) || LEGACY_PRESETS.includes(v.preset)))],
     ['attributeFilter', !hasAttrFilter || isValidAttributeFilter(v.attributeFilter)],
     ['canvasId', isFiniteNum(v.canvasId)],
     ['x', isFiniteNum(v.x)],
@@ -371,7 +372,9 @@ function pickTodo(v: Record<string, unknown>): TodoItem {
     ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
     ...(v.parentId != null ? { parentId: v.parentId as number } : {}),
     ...(v.statusId != null ? { statusId: v.statusId as number } : {}),
-  }
+    ...(v.isStarred != null ? { isStarred: v.isStarred } : {}),
+    ...(v.isAssigned != null ? { isAssigned: v.isAssigned } : {}),
+  } as TodoItem
 }
 
 function pickStatus(v: Record<string, unknown>): Status {
@@ -598,7 +601,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       todos: ((raw.todos ?? []) as Record<string, unknown>[]).map(pickTodo),
       people: ((raw.people ?? []) as Record<string, unknown>[]).map(pickPerson),
       tags: ((raw.tags ?? []) as Record<string, unknown>[]).map(pickTag),
-      listInsets: ((raw.listInsets ?? []) as Record<string, unknown>[]).map(pickListInset),
+      listInsets: ((raw.listInsets ?? []) as Record<string, unknown>[]).map(pickListInset).filter(li => !li.preset || !LEGACY_PRESETS.includes(li.preset)),
       todoTags: ((raw.todoTags ?? []) as Record<string, unknown>[]).map(pickTodoTag),
       todoPeople: ((raw.todoPeople ?? []) as Record<string, unknown>[]).map(pickTodoPerson),
       todoOrgs: ((raw.todoOrgs ?? []) as Record<string, unknown>[]).map(pickTodoOrg),

@@ -14,6 +14,7 @@ import { useTaskboardStore } from './taskboard-store'
 import { useStatusStore } from './status-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
+import type { LegacyImportInfo } from '../services/migration-check'
 
 async function refreshAllStores() {
   useUndoStore.getState().clear()
@@ -47,14 +48,19 @@ async function refreshAllStores() {
   }
 }
 
+let migrationResolve: ((confirmed: boolean) => void) | null = null
+
 interface FileStorageState extends FileStorageStatus {
   isSupported: boolean
   isLoading: boolean
+  pendingMigration: LegacyImportInfo | null
   initialize: () => Promise<void>
   openFile: () => Promise<void>
   createFile: () => Promise<void>
   disconnect: () => Promise<void>
   reconnect: () => Promise<void>
+  confirmMigration: () => void
+  cancelMigration: () => void
 }
 
 export const useFileStorageStore = create<FileStorageState>((set) => {
@@ -62,6 +68,13 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
   fileStorageService.onStatusChange((status) => set(status))
   // Refresh all Zustand stores after a file import
   fileStorageService.onAfterImport(refreshAllStores)
+  // Handle migration confirmation requests from the service
+  fileStorageService.onConfirmMigration((info) => {
+    return new Promise<boolean>((resolve) => {
+      migrationResolve = resolve
+      set({ pendingMigration: info })
+    })
+  })
 
   return {
     // Initial state
@@ -72,6 +85,7 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
     error: null,
     isSupported: fileStorageService.isSupported,
     isLoading: false,
+    pendingMigration: null,
 
     initialize: async () => {
       set({ isLoading: true })
@@ -119,6 +133,18 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
       } finally {
         set({ isLoading: false })
       }
+    },
+
+    confirmMigration: () => {
+      migrationResolve?.(true)
+      migrationResolve = null
+      set({ pendingMigration: null })
+    },
+
+    cancelMigration: () => {
+      migrationResolve?.(false)
+      migrationResolve = null
+      set({ pendingMigration: null })
     },
   }
 })

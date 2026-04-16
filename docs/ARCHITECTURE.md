@@ -168,9 +168,13 @@ main.tsx (entry point)
 | buildDashboardLists | views/DashboardView.tsx | Builds 2 dashboard lists from all incomplete todos using scoreTask ranking (Mine = status not hideByDefault, Stale by oldest modifiedAt) |
 | buildExportData | services/export-import.ts | Reads all 12 DB tables in parallel; shared by file-storage, settings export, and backup snapshots |
 | buildMarkdownExport | services/export-import.ts | Builds markdown representation of all tasks grouped by project; shows `[status.name]` for meaningful statuses (icon or hideByDefault); uses buildExportData |
-| fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh |
+| fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh; `onConfirmMigration` callback pauses import of legacy-format files pending user confirmation |
 | backupScheduler | services/backup-scheduler.ts | Auto-snapshot every 24h, pre-destructive snapshots, prune to 10 max; started in App.tsx |
-| useFileStorageStore | stores/file-storage-store.ts | File storage connection state and actions; exports refreshAllStores() |
+| checkMigrationNeeded | services/migration-check.ts | Checks IndexedDB version via `indexedDB.databases()` before Dexie opens; returns `MigrationInfo` if data-modifying upgrade is pending |
+| detectLegacyFormat | services/migration-check.ts | Inspects raw parsed JSON for legacy fields (`isStarred`/`isAssigned` booleans, `starred` list insets); returns `LegacyImportInfo` with counts and human-readable descriptions |
+| exportCurrentDatabase | services/migration-check.ts | Reads all tables from raw IndexedDB at a specified version (without triggering Dexie upgrade); returns JSON string |
+| MigrationDialog | components/overlays/MigrationDialog.tsx | Confirmation dialog for data migrations; `schema-upgrade` mode (full-screen, Dexie upgrade) and `legacy-import` mode (overlay modal, file/import); export backup button + apply/cancel |
+| useFileStorageStore | stores/file-storage-store.ts | File storage connection state and actions; `pendingMigration` / `confirmMigration` / `cancelMigration` for legacy-import confirmation; exports refreshAllStores() |
 | generateInitials | utils/person.ts | Generates 1-3 character uppercase initials from a name |
 | toggleItem | utils/filter.ts | Toggle an item in a null-or-Set filter (null = all shown, Set = explicit selection) |
 | getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, tags, orgs, status, priority) from active filter criteria; strips sentinel 0 values |

@@ -23,6 +23,9 @@ import { useStatusStore } from './stores/status-store'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
+import { checkMigrationNeeded } from './services/migration-check'
+import type { MigrationInfo } from './services/migration-check'
+import { MigrationDialog } from './components/overlays/MigrationDialog'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
@@ -287,11 +290,54 @@ function AppShell() {
 }
 
 export default function App() {
+  const [migrationInfo, setMigrationInfo] = useState<MigrationInfo | null>(null)
+  const [migrationChecked, setMigrationChecked] = useState(false)
+
+  useEffect(() => {
+    checkMigrationNeeded()
+      .then(info => {
+        setMigrationInfo(info)
+        setMigrationChecked(true)
+      })
+      .catch(() => setMigrationChecked(true))
+  }, [])
+
+  if (!migrationChecked) {
+    return (
+      <div className={styles.initLoading}>
+        <div className={styles.spinner} />
+        Loading…
+      </div>
+    )
+  }
+
+  if (migrationInfo) {
+    return <MigrationDialog mode="schema-upgrade" info={migrationInfo} onProceed={() => setMigrationInfo(null)} />
+  }
+
   return (
     <ErrorBoundary scope="App">
       <HashRouter>
         <AppShell />
       </HashRouter>
+      <FileMigrationOverlay />
     </ErrorBoundary>
+  )
+}
+
+function FileMigrationOverlay() {
+  const pending = useFileStorageStore((s) => s.pendingMigration)
+  const confirm = useFileStorageStore((s) => s.confirmMigration)
+  const cancel = useFileStorageStore((s) => s.cancelMigration)
+
+  if (!pending) return null
+
+  return (
+    <MigrationDialog
+      mode="legacy-import"
+      info={pending}
+      onProceed={confirm}
+      onCancel={cancel}
+    />
   )
 }

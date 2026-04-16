@@ -7,7 +7,11 @@ import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
+import type { ImportData } from '../data/import-validation'
 import { restoreFromImportData } from '../data/restore'
+import { detectLegacyFormat } from '../services/migration-check'
+import type { LegacyImportInfo } from '../services/migration-check'
+import { MigrationDialog } from '../components/overlays/MigrationDialog'
 import { auditData, cleanupIssues, type AuditReport } from '../data/audit'
 import { buildExportData, buildMarkdownExport } from '../services/export-import'
 import { backupScheduler } from '../services/backup-scheduler'
@@ -69,6 +73,7 @@ export function SettingsPage() {
   const [showCleanupPopup, setShowCleanupPopup] = useState(false)
   const [cleanupDays, setCleanupDays] = useState(30)
   const [confirmingCleanup, setConfirmingCleanup] = useState(false)
+  const [pendingMigration, setPendingMigration] = useState<{ info: LegacyImportInfo; action: () => Promise<void> } | null>(null)
   const timerRefs = useRef<number[]>([])
   const track = (fn: () => void, ms: number) => {
     timerRefs.current.push(window.setTimeout(fn, ms))
@@ -208,6 +213,14 @@ export function SettingsPage() {
     if (importRef.current) importRef.current.value = ''
   }
 
+  const executeImport = async (data: ImportData) => {
+    await backupScheduler.snapshotBeforeDestructive().catch(() => {})
+    await restoreFromImportData(data)
+    await refreshAllStores()
+    setExportMsg('Imported successfully!')
+    track(() => setExportMsg(''), 4000)
+  }
+
   const doImport = async (file: File) => {
     try {
       if (file.size > MAX_IMPORT_SIZE_BYTES) {
@@ -226,12 +239,16 @@ export function SettingsPage() {
         return
       }
 
-      await backupScheduler.snapshotBeforeDestructive().catch(() => {})
-      await restoreFromImportData(result.data)
+      const legacyInfo = detectLegacyFormat(parsed)
+      if (legacyInfo) {
+        setPendingMigration({
+          info: legacyInfo,
+          action: () => executeImport(result.data),
+        })
+        return
+      }
 
-      await refreshAllStores()
-      setExportMsg('Imported successfully!')
-      track(() => setExportMsg(''), 4000)
+      await executeImport(result.data)
     } catch (err) {
       const detail = err instanceof SyntaxError ? err.message : 'invalid file'
       setExportMsg(`Import failed — ${detail}`)
@@ -601,6 +618,23 @@ export function SettingsPage() {
                           className={styles.backupBtn}
                           onClick={async () => {
                             setConfirmRestoreId(null)
+                            const backup = await backupRepository.getSnapshot(b.id)
+                            if (!backup) { setBackupMsg('Backup not found'); track(() => setBackupMsg(''), 3000); return }
+                            let parsed: unknown
+                            try { parsed = JSON.parse(backup.data) } catch { parsed = null }
+                            const legacyInfo = parsed ? detectLegacyFormat(parsed) : null
+                            if (legacyInfo) {
+                              setPendingMigration({
+                                info: legacyInfo,
+                                action: async () => {
+                                  const result = await backupRepository.restoreSnapshot(b.id)
+                                  if (result.ok) { await refreshAllStores(); setBackupMsg('Restored successfully!') }
+                                  else { setBackupMsg(`Restore failed: ${result.error}`) }
+                                  track(() => setBackupMsg(''), 3000)
+                                },
+                              })
+                              return
+                            }
                             const result = await backupRepository.restoreSnapshot(b.id)
                             if (result.ok) {
                               await refreshAllStores()
@@ -713,6 +747,19 @@ export function SettingsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingMigration && (
+        <MigrationDialog
+          mode="legacy-import"
+          info={pendingMigration.info}
+          onProceed={async () => {
+            const action = pendingMigration.action
+            setPendingMigration(null)
+            await action()
+          }}
+          onCancel={() => setPendingMigration(null)}
+        />
       )}
     </div>
   )
