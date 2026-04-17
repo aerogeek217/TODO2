@@ -39,10 +39,10 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopup'
 import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
 import { createPortal } from 'react-dom'
-import { Priority } from '../models'
 import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy } from '../models'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
-import { buildHierarchy, bySortOrder } from '../utils/hierarchy'
+import { effectiveDate } from '../utils/effective-date'
+import { buildHierarchy } from '../utils/hierarchy'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import styles from './ListView.module.css'
 
@@ -55,42 +55,15 @@ interface Section {
 
 const sortByOptions: { value: ListSortBy; label: string }[] = [
   { value: 'project', label: 'Project' },
-  { value: 'priority', label: 'Priority' },
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
   { value: 'org', label: 'Org' },
   { value: 'tag', label: 'Tag' },
-  { value: 'due', label: 'Due Date' },
+  { value: 'date', label: 'Date' },
 ]
 
 
-export function buildPrioritySections(todos: PersistedTodoItem[]): Section[] {
-  const sections: Section[] = []
-  const high = todos.filter((t) => t.priority === Priority.High)
-  const medium = todos.filter((t) => t.priority === Priority.Medium)
-  const normal = todos.filter((t) => t.priority === Priority.Normal)
-
-  if (high.length > 0) sections.push({ key: 'high', label: 'High', accentColor: 'var(--color-priority-high)', todos: high })
-  if (medium.length > 0) sections.push({ key: 'medium', label: 'Medium', accentColor: 'var(--color-priority-medium)', todos: medium })
-  if (normal.length > 0) sections.push({ key: 'normal', label: 'Normal', todos: normal })
-  return sections
-}
-
-/**
- * Sort hard deadlines ahead of soft deadlines, then preserve user's manual
- * `sortOrder` within each bucket. Intentionally drops dueDate sorting here —
- * `buildDueSections` already buckets by date range (overdue / today / week /
- * later), so within a bucket the user's drag-to-reorder wins.
- */
-export const byHardDeadlineThenDate = (a: PersistedTodoItem, b: PersistedTodoItem) => {
-  const aHard = a.isHardDeadline ? 1 : 0
-  const bHard = b.isHardDeadline ? 1 : 0
-  if (aHard !== bHard) return bHard - aHard
-  return bySortOrder(a, b)
-}
-
-export function buildDueSections(todos: PersistedTodoItem[]): Section[] {
-  const today = startOfToday()
+export function buildDateSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
   const tomorrow = new Date(today.getTime() + MS_PER_DAY)
   const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
 
@@ -98,31 +71,23 @@ export function buildDueSections(todos: PersistedTodoItem[]): Section[] {
   const dueToday: PersistedTodoItem[] = []
   const thisWeek: PersistedTodoItem[] = []
   const later: PersistedTodoItem[] = []
-  const noDue: PersistedTodoItem[] = []
+  const noDate: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    if (!t.dueDate) {
-      noDue.push(t)
-    } else {
-      const d = new Date(t.dueDate)
-      if (d < today) overdue.push(t)
-      else if (d < tomorrow) dueToday.push(t)
-      else if (d < weekEnd) thisWeek.push(t)
-      else later.push(t)
-    }
+    const d = effectiveDate(t, today)
+    if (!d) { noDate.push(t); continue }
+    if (d < today) overdue.push(t)
+    else if (d < tomorrow) dueToday.push(t)
+    else if (d < weekEnd) thisWeek.push(t)
+    else later.push(t)
   }
 
-  overdue.sort(byHardDeadlineThenDate)
-  dueToday.sort(byHardDeadlineThenDate)
-  thisWeek.sort(byHardDeadlineThenDate)
-  later.sort(byHardDeadlineThenDate)
-
   const sections: Section[] = []
-  if (overdue.length > 0) sections.push({ key: 'overdue', label: 'Overdue', accentColor: 'var(--color-priority-high)', todos: overdue })
-  if (dueToday.length > 0) sections.push({ key: 'today', label: 'Today', accentColor: 'var(--color-priority-medium)', todos: dueToday })
+  if (overdue.length > 0) sections.push({ key: 'overdue', label: 'Overdue', accentColor: 'var(--color-danger)', todos: overdue })
+  if (dueToday.length > 0) sections.push({ key: 'today', label: 'Today', accentColor: 'var(--color-accent)', todos: dueToday })
   if (thisWeek.length > 0) sections.push({ key: 'week', label: 'This Week', accentColor: 'var(--color-accent)', todos: thisWeek })
   if (later.length > 0) sections.push({ key: 'later', label: 'Later', todos: later })
-  if (noDue.length > 0) sections.push({ key: 'none', label: 'No Due Date', todos: noDue })
+  if (noDate.length > 0) sections.push({ key: 'none', label: 'No Date', todos: noDate })
   return sections
 }
 
@@ -439,13 +404,6 @@ function DroppableSection({
 
 // --- Helpers to parse section keys ---
 
-function parseSectionPriority(key: string): Priority | null {
-  if (key === 'high') return Priority.High
-  if (key === 'medium') return Priority.Medium
-  if (key === 'normal') return Priority.Normal
-  return null
-}
-
 function parseSectionPersonId(key: string): number | null {
   if (key.startsWith('person-')) return Number(key.slice(7))
   return null
@@ -604,10 +562,8 @@ export function ListView() {
 
   const sections = useMemo(() => {
     switch (listSortBy) {
-      case 'priority':
-        return buildPrioritySections(activeTodos)
-      case 'due':
-        return buildDueSections(activeTodos)
+      case 'date':
+        return buildDateSections(activeTodos)
       case 'people':
         return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds)
       case 'tag':
@@ -751,15 +707,7 @@ export function ListView() {
     const children = todos.filter(t => t.parentId === todo.id)
     const now = new Date()
 
-    if (listSortBy === 'priority') {
-      const newPriority = parseSectionPriority(toKey)
-      if (newPriority != null) {
-        updateTodo({ ...todo, priority: newPriority, modifiedAt: now })
-        for (const child of children) {
-          updateTodo({ ...child, priority: newPriority, modifiedAt: now })
-        }
-      }
-    } else if (listSortBy === 'project') {
+    if (listSortBy === 'project') {
       const newProjectId = parseSectionProjectId(toKey)
       if (newProjectId !== null && newProjectId !== todo.projectId) {
         updateTodo({ ...todo, projectId: newProjectId, modifiedAt: now })
@@ -784,7 +732,7 @@ export function ListView() {
         }
       }
     }
-    // 'due' — no reassignment (ambiguous target dates)
+    // 'date' — no reassignment (ambiguous target dates)
   }, [listSortBy, todos, sectionLabelMap, updateTodo])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -832,7 +780,7 @@ export function ListView() {
     setPendingReassign(null)
   }, [])
 
-  const isDndEnabled = !isMobile && listSortBy !== 'due'
+  const isDndEnabled = !isMobile && listSortBy !== 'date'
   const totalActive = activeTodos.length
 
   const pageContent = (
@@ -942,7 +890,7 @@ export function ListView() {
                       draggable={isDndEnabled}
                       sectionKey={section.key}
                       dropIndicatorIndex={dropIdx}
-                      rootComparator={listSortBy === 'due' ? byHardDeadlineThenDate : undefined}
+                      /* rootComparator omitted — within-bucket order is user sortOrder (buildHierarchy default) */
                       onOpenDetail={handleClick}
                     />
                   </div>

@@ -59,8 +59,8 @@ main.tsx (entry point)
 | PersistedStatus | models/status.ts | Status with guaranteed id (post-insert) |
 | Priority | models/priority.ts | Enum: Normal, Medium, High |
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
-| ListSortBy | models/app-view.ts | Type: priority, due, people, org, tag, project, status |
-| DateField | models/app-view.ts | Type: due, created, modified — used by filter store and saved views |
+| ListSortBy | models/app-view.ts | Type: date, people, org, tag, project, status. `'date'` groups by `effectiveDate` buckets (Overdue/Today/This Week/Later/No Date) |
+| DateField | models/app-view.ts | Type: date, created, modified — used by filter store and saved views. `'date'` filters on `effectiveDate` |
 | OrgFilterMode | stores/filter-store.ts | Type: include-people, direct-only — org filter mode; include-people matches person-org + direct-org, direct-only matches only direct org assignment |
 | PersonFilterMode | stores/filter-store.ts | Type: include-orgs, direct-only — person filter mode; include-orgs also matches tasks with directly-assigned orgs the filter person belongs to, direct-only matches only direct person assignment |
 | computeFilterPersonOrgIds | stores/filter-store.ts | Helper: precomputes the set of orgs that filter persons belong to, for include-orgs person-filter matching (returns undefined when not applicable) |
@@ -112,7 +112,7 @@ main.tsx (entry point)
 | usePersonStore | stores/person-store.ts | People list, CRUD, todo-person assignments, bulk assign/unassign |
 | useOrgStore | stores/org-store.ts | Orgs list, CRUD, assignedOrgsMap, personOrgMap (centralized person↔org membership), todo-org assignments (assign/unassign/bulk with undo) |
 | useTagStore | stores/tag-store.ts | Tags list, CRUD, bulk assign/unassign |
-| useFilterStore | stores/filter-store.ts | Filter criteria (priorities, personIds, tagIds, orgIds, statusIds as null\|Set; showCompleted boolean, showHiddenStatuses boolean (overrides hideByDefault exclusion), hardDeadlineOnly, searchText, dateField (due/created/modified), dateRangeStart/End, dateRangeIncludeNoDue; personFilterMode (include-orgs/direct-only), orgFilterMode (include-people/direct-only)); `matchesFilter` accepts `statuses[]` for hideByDefault exclusion; displayed in TopBar filter bar |
+| useFilterStore | stores/filter-store.ts | Filter criteria (personIds, tagIds, orgIds, statusIds as null\|Set; showCompleted boolean, showHiddenStatuses boolean (overrides hideByDefault exclusion), searchText, dateField (date/created/modified — `'date'` reads `effectiveDate`), dateRangeStart/End, dateRangeIncludeNoDate; personFilterMode (include-orgs/direct-only), orgFilterMode (include-people/direct-only)); `matchesFilter`/`applyFilter` accept `statuses[]` for hideByDefault exclusion and optional `today` for fuzzy-scheduled resolution; displayed in TopBar filter bar |
 | useUIStore | stores/ui-store.ts | Active view, selected task(s), multi-selection (selectedTodoIds Set, selectionAnchorId, selectionFocusId, focusedTodoId, rangeSelectTodo, selectAll), edit popup mode, parent collapse, bulk confirmation dialog state, inlineCreateAfterId (Insert hotkey), clipboard (clipboardTodoIds, clipboardSourceProjectId, cutTasks, clearClipboard), filteredListPopup (AttributeFilter: priority/person/tag), pendingCanvasTarget (command palette navigation) |
 | useUndoStore | stores/undo-store.ts | Undo/redo stacks (max 50), push/undo/redo/clear, isPerformingUndoRedo guard, beginGroup/endGroup (compound ops), snackbar state with auto-dismiss |
 | useSettingsStore | stores/settings-store.ts | Theme mode (light/dark/system), theme color overrides, defaultProjectId, defaultStatusId, quickStatusId (one-click status toggle, defaults to seeded Follow-up), seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, canvasViewport (single source of truth, debounced persistence); persisted to settings table; only user-customized colors set as inline overrides |
@@ -141,7 +141,7 @@ main.tsx (entry point)
 | TaskEditMetadata | components/task/TaskEditMetadata.tsx | Due date, recurrence, project, people/orgs, tags sections (extracted from TaskEditPopup) |
 | TaskEditFooter | components/task/TaskEditFooter.tsx | Edit/create mode footer with timestamps, actions (extracted from TaskEditPopup) |
 | bySortOrder | utils/hierarchy.ts | Shared sort comparator: sortOrder ascending, with id as a stable tiebreaker so equal-sortOrder tasks render in deterministic order |
-| byHardDeadlineThenDate | views/ListView.tsx | Sort comparator: hard-deadline bucket first (hard tasks before soft), then by user `sortOrder` within bucket (drag-to-reorder persists), then by id. Date is intentionally NOT sorted within a bucket — `buildDueSections` already partitions by date range |
+| buildDateSections | views/ListView.tsx | Buckets todos by `effectiveDate(todo, today)` into Overdue / Today / This Week / Later / No Date sections. Within a bucket order is `sortOrder` (no hard-deadline split — removed with unified scheduling) |
 | buildChildMap | utils/hierarchy.ts | Builds parentId → sorted children map from flat todo list |
 | buildHierarchy | utils/hierarchy.ts | Groups flat todo list into parent/child hierarchy (max 2 levels), sorts roots and children by sortOrder by default or by a custom `rootComparator` when supplied (used by ListView due-sort and ProjectNode attribute sort); promotes grandchildren to root ancestor to prevent invisible tasks |
 | getFlatVisualOrder | utils/hierarchy.ts | Returns todos in visual display order (parent, children, parent, children, ...) |
@@ -184,8 +184,8 @@ main.tsx (entry point)
 | useFileStorageStore | stores/file-storage-store.ts | File storage connection state and actions; `pendingMigration` / `confirmMigration` / `cancelMigration` for legacy-import confirmation; exports refreshAllStores() |
 | generateInitials | utils/person.ts | Generates 1-3 character uppercase initials from a name |
 | toggleItem | utils/filter.ts | Toggle an item in a null-or-Set filter (null = all shown, Set = explicit selection) |
-| getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, tags, orgs, status, priority) from active filter criteria; strips sentinel 0 values |
-| supplementWithFilterDefaults | utils/filter-defaults.ts | Supplement resolved NLP output with filter-inferred defaults (person/tag/org/priority); mutates resolved in place (void return) |
+| getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, tags, orgs, status) from active filter criteria; strips sentinel 0 values |
+| supplementWithFilterDefaults | utils/filter-defaults.ts | Supplement resolved NLP output with filter-inferred defaults (person/tag/org); mutates resolved in place (void return) |
 | isValidCssColor | data/import-validation.ts | Validates hex color strings (#rgb or #rrggbb only) |
 | undoable | services/undoable.ts | Helper to register an action as undoable; skips when undo store is mid-undo/redo |
 | task-placement | services/task-placement.ts | Pure functions for task ordering: computeInsertionSort, placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, moveTasksInDirection, findOrphans, normalizeSortOrders, shouldNormalize |

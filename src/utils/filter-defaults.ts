@@ -1,4 +1,3 @@
-import { Priority } from '../models'
 import type { FilterCriteria } from '../stores/filter-store'
 import type { ResolvedInput } from '../services/nlp-resolver'
 
@@ -7,7 +6,6 @@ export interface FilterDefaults {
   tagIds: number[]
   orgIds: number[]
   statusId: number | undefined
-  priority: Priority | undefined
 }
 
 /**
@@ -25,18 +23,12 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) statusId = only
   }
 
-  let priority: Priority | undefined
-  if (filters.priorities && filters.priorities.size === 1) {
-    const [only] = filters.priorities
-    priority = only
-  }
-
-  return { personIds, tagIds, orgIds, statusId, priority }
+  return { personIds, tagIds, orgIds, statusId }
 }
 
 /**
  * Supplement resolved NLP output with filter-inferred defaults.
- * Mutates `resolved` in place for person/tag/org/priority fields.
+ * Mutates `resolved` in place for person/tag/org fields.
  */
 export function supplementWithFilterDefaults(
   resolved: ResolvedInput,
@@ -45,5 +37,4 @@ export function supplementWithFilterDefaults(
   if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
   if (resolved.tagIds.length === 0) resolved.tagIds = fd.tagIds
   if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
-  if (resolved.priority === undefined && fd.priority !== undefined) resolved.priority = fd.priority
 }

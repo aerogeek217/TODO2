@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { Priority } from '../models'
 import type { TodoItem, PersistedTodoItem, Person, Tag, Org, Status, DateField } from '../models'
-import { startOfDay } from '../utils/date'
+import { startOfDay, startOfToday } from '../utils/date'
+import { effectiveDate } from '../utils/effective-date'
 
 export type OrgFilterMode = 'include-people' | 'direct-only'
 export type PersonFilterMode = 'include-orgs' | 'direct-only'
@@ -9,11 +9,8 @@ export type PersonFilterMode = 'include-orgs' | 'direct-only'
 export type { DateField }
 
 export interface FilterCriteria {
-  /** null = no filter (all shown); Set = only those in set are shown */
-  priorities: Set<Priority> | null
   showCompleted: boolean
   showHiddenStatuses: boolean
-  hardDeadlineOnly: boolean
   /** null = no filter (all shown); Set = only those in set are shown */
   personIds: Set<number> | null
   /** 'include-orgs' (default) also matches tasks with orgs the filter person belongs to; 'direct-only' matches only direct person assignment */
@@ -28,14 +25,19 @@ export interface FilterCriteria {
   statusIds: Set<number> | null
   /** Empty string = no filter; non-empty = case-insensitive substring match on title */
   searchText: string
-  /** Which date field to filter on: due, created, or modified */
+  /**
+   * Which date field drives the date range filter:
+   *   'date'     → effectiveDate(todo, today)
+   *   'created'  → todo.createdAt
+   *   'modified' → todo.modifiedAt
+   */
   dateField: DateField
   /** null = no filter; Date = only show tasks with date on or after this date */
   dateRangeStart: Date | null
   /** null = open-ended; Date = only show tasks with date on or before this date */
   dateRangeEnd: Date | null
-  /** When true and dateField is 'due', tasks with no dueDate are included in date range filter results */
-  dateRangeIncludeNoDue: boolean
+  /** When true AND dateField === 'date', tasks with no effectiveDate (neither scheduledDate nor dueDate) are included in date-range results. */
+  dateRangeIncludeNoDate: boolean
 }
 
 interface FilterState {
@@ -43,10 +45,8 @@ interface FilterState {
   /** Derived: true when any filter is active. Use useFilterStore(s => s.isActive) or getState().isActive. */
   readonly isActive: boolean
 
-  setPriorities: (priorities: Set<Priority> | null) => void
   setShowCompleted: (show: boolean) => void
   setShowHiddenStatuses: (show: boolean) => void
-  toggleHardDeadlineOnly: () => void
   setPersonIds: (personIds: Set<number> | null) => void
   setPersonFilterMode: (mode: PersonFilterMode) => void
   setTagIds: (tagIds: Set<number> | null) => void
@@ -56,18 +56,33 @@ interface FilterState {
   setSearchText: (text: string) => void
   setDateField: (field: DateField) => void
   setDateRange: (start: Date | null, end: Date | null) => void
-  setDateRangeIncludeNoDue: (include: boolean) => void
+  setDateRangeIncludeNoDate: (include: boolean) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
-  applyFilter: (todos: PersistedTodoItem[], assignedPeopleMap?: Map<number, Person[]>, assignedTagsMap?: Map<number, Tag[]>, personOrgMap?: Map<number, number[]>, assignedOrgsMap?: Map<number, Org[]>, statuses?: Status[]) => PersistedTodoItem[]
-  matchesFilter: (todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], filterPersonOrgIds?: Set<number>, statuses?: Status[]) => boolean
+  applyFilter: (
+    todos: PersistedTodoItem[],
+    assignedPeopleMap?: Map<number, Person[]>,
+    assignedTagsMap?: Map<number, Tag[]>,
+    personOrgMap?: Map<number, number[]>,
+    assignedOrgsMap?: Map<number, Org[]>,
+    statuses?: Status[],
+    today?: Date,
+  ) => PersistedTodoItem[]
+  matchesFilter: (
+    todo: TodoItem,
+    assignedPersonIds?: number[],
+    assignedTagIds?: number[],
+    assignedPersonOrgIds?: number[],
+    directOrgIds?: number[],
+    filterPersonOrgIds?: Set<number>,
+    statuses?: Status[],
+    today?: Date,
+  ) => boolean
 }
 
 const defaultFilters: FilterCriteria = {
-  priorities: null,
   showCompleted: false,
   showHiddenStatuses: false,
-  hardDeadlineOnly: false,
   personIds: null,
   personFilterMode: 'include-orgs',
   tagIds: null,
@@ -75,14 +90,24 @@ const defaultFilters: FilterCriteria = {
   orgFilterMode: 'include-people',
   statusIds: null,
   searchText: '',
-  dateField: 'due',
+  dateField: 'date',
   dateRangeStart: null,
   dateRangeEnd: null,
-  dateRangeIncludeNoDue: false,
+  dateRangeIncludeNoDate: false,
 }
 
 function isFilterActive(f: FilterCriteria): boolean {
-  return f.priorities !== null || f.showCompleted || f.showHiddenStatuses || f.hardDeadlineOnly || f.personIds !== null || f.tagIds !== null || f.orgIds !== null || f.statusIds !== null || f.searchText !== '' || f.dateRangeStart !== null || f.dateRangeEnd !== null
+  return (
+    f.showCompleted ||
+    f.showHiddenStatuses ||
+    f.personIds !== null ||
+    f.tagIds !== null ||
+    f.orgIds !== null ||
+    f.statusIds !== null ||
+    f.searchText !== '' ||
+    f.dateRangeStart !== null ||
+    f.dateRangeEnd !== null
+  )
 }
 
 export function computeFilterPersonOrgIds(
@@ -108,6 +133,7 @@ function todoMatchesFilter(
   directOrgIds?: number[],
   filterPersonOrgIds?: Set<number>,
   statuses?: Status[],
+  today: Date = startOfToday(),
 ): boolean {
   if (todo.isCompleted && !filters.showCompleted) return false
 
@@ -123,9 +149,8 @@ function todoMatchesFilter(
     }
   }
 
-  if (filters.priorities !== null && !filters.priorities.has(todo.priority)) return false
   if (filters.searchText && !todo.title.toLowerCase().includes(filters.searchText.toLowerCase())) return false
-  if (filters.hardDeadlineOnly && !todo.isHardDeadline) return false
+
   if (filters.personIds !== null) {
     const hasPerson = !!assignedPersonIds && assignedPersonIds.length > 0
     const directPersonMatch = hasPerson && assignedPersonIds!.some((id) => filters.personIds!.has(id))
@@ -154,11 +179,17 @@ function todoMatchesFilter(
     }
   }
   if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
-    const rawDate = filters.dateField === 'due' ? todo.dueDate
-      : filters.dateField === 'created' ? todo.createdAt
-      : todo.modifiedAt
+    let rawDate: Date | null
+    if (filters.dateField === 'date') {
+      rawDate = effectiveDate(todo, today)
+    } else if (filters.dateField === 'created') {
+      rawDate = todo.createdAt
+    } else {
+      rawDate = todo.modifiedAt
+    }
+
     if (!rawDate) {
-      if (!filters.dateRangeIncludeNoDue) return false
+      if (!(filters.dateField === 'date' && filters.dateRangeIncludeNoDate)) return false
     } else {
       const d = startOfDay(new Date(rawDate))
       if (filters.dateRangeStart !== null) {
@@ -183,21 +214,12 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   filters: { ...defaultFilters },
   isActive: false,
 
-  setPriorities(priorities: Set<Priority> | null) {
-    commit(set, { ...get().filters, priorities })
-  },
-
   setShowCompleted(showCompleted: boolean) {
     commit(set, { ...get().filters, showCompleted })
   },
 
   setShowHiddenStatuses(showHiddenStatuses: boolean) {
     commit(set, { ...get().filters, showHiddenStatuses })
-  },
-
-  toggleHardDeadlineOnly() {
-    const { filters } = get()
-    commit(set, { ...filters, hardDeadlineOnly: !filters.hardDeadlineOnly })
   },
 
   setPersonIds(personIds: Set<number> | null) {
@@ -236,8 +258,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...get().filters, dateRangeStart, dateRangeEnd })
   },
 
-  setDateRangeIncludeNoDue(dateRangeIncludeNoDue: boolean) {
-    commit(set, { ...get().filters, dateRangeIncludeNoDue })
+  setDateRangeIncludeNoDate(dateRangeIncludeNoDate: boolean) {
+    commit(set, { ...get().filters, dateRangeIncludeNoDate })
   },
 
   setAllFilters(filters: FilterCriteria) {
@@ -248,7 +270,15 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     set({ filters: { ...defaultFilters }, isActive: false })
   },
 
-  applyFilter(todos: PersistedTodoItem[], assignedPeopleMap?: Map<number, Person[]>, assignedTagsMap?: Map<number, Tag[]>, personOrgMap?: Map<number, number[]>, assignedOrgsMap?: Map<number, Org[]>, statuses?: Status[]): PersistedTodoItem[] {
+  applyFilter(
+    todos: PersistedTodoItem[],
+    assignedPeopleMap?: Map<number, Person[]>,
+    assignedTagsMap?: Map<number, Tag[]>,
+    personOrgMap?: Map<number, number[]>,
+    assignedOrgsMap?: Map<number, Org[]>,
+    statuses?: Status[],
+    today: Date = startOfToday(),
+  ): PersistedTodoItem[] {
     const { filters } = get()
     const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
     return todos.filter((t) => {
@@ -257,11 +287,20 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       const tagIds = (assignedTagsMap?.get(t.id) ?? []).map((tg) => tg.id!)
       const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
       const directOrgIds = (assignedOrgsMap?.get(t.id) ?? []).map((o) => o.id!)
-      return todoMatchesFilter(t, filters, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses)
+      return todoMatchesFilter(t, filters, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
     })
   },
 
-  matchesFilter(todo: TodoItem, assignedPersonIds?: number[], assignedTagIds?: number[], assignedPersonOrgIds?: number[], directOrgIds?: number[], filterPersonOrgIds?: Set<number>, statuses?: Status[]): boolean {
-    return todoMatchesFilter(todo, get().filters, assignedPersonIds, assignedTagIds, assignedPersonOrgIds, directOrgIds, filterPersonOrgIds, statuses)
+  matchesFilter(
+    todo: TodoItem,
+    assignedPersonIds?: number[],
+    assignedTagIds?: number[],
+    assignedPersonOrgIds?: number[],
+    directOrgIds?: number[],
+    filterPersonOrgIds?: Set<number>,
+    statuses?: Status[],
+    today: Date = startOfToday(),
+  ): boolean {
+    return todoMatchesFilter(todo, get().filters, assignedPersonIds, assignedTagIds, assignedPersonOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
   },
 }))

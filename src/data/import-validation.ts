@@ -265,8 +265,11 @@ function checkPersonOrg(v: unknown): CheckResult {
   ])
 }
 
-const VALID_SORT_BY = ['priority', 'due', 'people', 'tag', 'project', 'org', 'status']
-const VALID_DATE_FIELDS = ['due', 'created', 'modified']
+// Accept BOTH legacy ('priority', 'due') and new ('date') values so pre-v21
+// saved views pass validation. Phase 5's savedFiltersToRuntime translates
+// legacy → runtime at load time.
+const VALID_SORT_BY = ['date', 'due', 'priority', 'people', 'tag', 'project', 'org', 'status']
+const VALID_DATE_FIELDS = ['date', 'due', 'created', 'modified']
 
 function isOptNullableIntArray(v: unknown): boolean {
   if (v === undefined || v === null) return true
