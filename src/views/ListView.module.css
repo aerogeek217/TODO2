@@ -113,7 +113,7 @@
 }
 
 .savedViewRemove:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .savedViewRenameInput {
@@ -303,7 +303,7 @@
 
 .personOverdue {
   font-size: var(--font-size-meta);
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .personTasks {

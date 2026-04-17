@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useStatusStore } from '../../stores/status-store'
 import { useUndoStore } from '../../stores/undo-store'
-import { Priority } from '../../models/priority'
 
 const now = new Date()
 
@@ -139,7 +138,7 @@ describe('useStatusStore', () => {
 
       const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
       const todoId = await db.todos.add({
-        title: 'Task', priority: Priority.Normal, isCompleted: false,
+        title: 'Task', isCompleted: false,
         sortOrder: 0, createdAt: now, modifiedAt: now,
         canvasId, statusId,
       } as any)

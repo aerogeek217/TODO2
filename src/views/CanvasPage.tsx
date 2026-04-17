@@ -392,10 +392,9 @@ export function CanvasPage() {
     async (preset: string, x: number, y: number) => {
       if (!selectedCanvasId) return
       const names: Record<string, string> = {
-        'due-this-week': 'Due This Week',
-        'high-priority': 'High Priority',
+        'due-this-week': 'Due & Overdue',
       }
-      await addInset(names[preset] || preset, preset as 'due-this-week' | 'high-priority', selectedCanvasId, x, y)
+      await addInset(names[preset] || preset, preset as 'due-this-week', selectedCanvasId, x, y)
     },
     [selectedCanvasId, addInset]
   )

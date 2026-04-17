@@ -1,14 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useSavedViewStore, savedFiltersToRuntime } from '../../stores/saved-view-store'
-import { Priority } from '../../models'
 import type { FilterCriteria } from '../../stores/filter-store'
 
 const defaultFilters: FilterCriteria = {
-  priorities: null,
   showCompleted: false,
   showHiddenStatuses: false,
-  hardDeadlineOnly: false,
   personIds: null,
   personFilterMode: 'include-orgs',
   tagIds: null,
@@ -16,10 +13,10 @@ const defaultFilters: FilterCriteria = {
   orgFilterMode: 'include-people',
   statusIds: null,
   searchText: '',
-  dateField: 'due',
+  dateField: 'date',
   dateRangeStart: null,
   dateRangeEnd: null,
-  dateRangeIncludeNoDue: false,
+  dateRangeIncludeNoDate: false,
 }
 
 beforeEach(async () => {
@@ -31,14 +28,26 @@ beforeEach(async () => {
 describe('useSavedViewStore', () => {
   describe('load', () => {
     it('load_withViewsInDB_fetchesAllViewsIntoState', async () => {
-      await db.savedViews.add({ name: 'My View', sortBy: 'priority', filters: { priorities: null, showCompleted: false, showHiddenStatuses: false, hardDeadlineOnly: false, personIds: null, tagIds: null, orgIds: null, dateRangeIncludeNoDue: false }, sortOrder: 1 })
+      await db.savedViews.add({
+        name: 'My View',
+        sortBy: 'date',
+        filters: {
+          showCompleted: false,
+          showHiddenStatuses: false,
+          personIds: null,
+          tagIds: null,
+          orgIds: null,
+          dateRangeIncludeNoDate: false,
+        },
+        sortOrder: 1,
+      })
 
       await useSavedViewStore.getState().load()
 
       const { views } = useSavedViewStore.getState()
       expect(views).toHaveLength(1)
       expect(views[0].name).toBe('My View')
-      expect(views[0].sortBy).toBe('priority')
+      expect(views[0].sortBy).toBe('date')
     })
 
     it('load_withEmptyDB_setsEmptyViewsArray', async () => {
@@ -50,48 +59,43 @@ describe('useSavedViewStore', () => {
 
   describe('saveCurrentView', () => {
     it('saveCurrentView_withBasicFilters_createsViewAndSetsActiveViewId', async () => {
-      await useSavedViewStore.getState().saveCurrentView('Work', 'due', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Work', 'date', defaultFilters)
 
       const { views, activeViewId } = useSavedViewStore.getState()
       expect(views).toHaveLength(1)
       expect(views[0].name).toBe('Work')
-      expect(views[0].sortBy).toBe('due')
+      expect(views[0].sortBy).toBe('date')
       expect(activeViewId).toBe(views[0].id)
     })
 
     it('saveCurrentView_withSetFilters_serializesSetsToArrays', async () => {
       const filters: FilterCriteria = {
         ...defaultFilters,
-        priorities: new Set([Priority.High, Priority.Medium]),
         personIds: new Set([1, 2]),
         tagIds: new Set([10]),
         orgIds: new Set([5]),
         showCompleted: true,
         showHiddenStatuses: true,
-        hardDeadlineOnly: true,
-        dateRangeIncludeNoDue: true,
+        dateRangeIncludeNoDate: true,
       }
 
       await useSavedViewStore.getState().saveCurrentView('Complex', 'tag', filters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
-      expect(saved.priorities).toEqual(expect.arrayContaining([Priority.High, Priority.Medium]))
       expect(saved.personIds).toEqual(expect.arrayContaining([1, 2]))
       expect(saved.tagIds).toEqual([10])
       expect(saved.orgIds).toEqual([5])
       expect(saved.showCompleted).toBe(true)
       expect(saved.showHiddenStatuses).toBe(true)
-      expect(saved.hardDeadlineOnly).toBe(true)
-      expect(saved.dateRangeIncludeNoDue).toBe(true)
+      expect(saved.dateRangeIncludeNoDate).toBe(true)
     })
 
     it('saveCurrentView_withNullSets_storesNullInFilters', async () => {
-      await useSavedViewStore.getState().saveCurrentView('Minimal', 'priority', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Minimal', 'date', defaultFilters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
-      expect(saved.priorities).toBeNull()
       expect(saved.personIds).toBeNull()
       expect(saved.tagIds).toBeNull()
       expect(saved.orgIds).toBeNull()
@@ -111,7 +115,7 @@ describe('useSavedViewStore', () => {
     })
 
     it('saveCurrentView_withNullStatusIds_omitsStatusIdsField', async () => {
-      await useSavedViewStore.getState().saveCurrentView('No Status', 'priority', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('No Status', 'date', defaultFilters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
@@ -119,8 +123,8 @@ describe('useSavedViewStore', () => {
     })
 
     it('saveCurrentView_withExistingViews_setsSortOrderIncrementally', async () => {
-      await useSavedViewStore.getState().saveCurrentView('First', 'priority', defaultFilters)
-      await useSavedViewStore.getState().saveCurrentView('Second', 'due', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('First', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Second', 'date', defaultFilters)
       await useSavedViewStore.getState().saveCurrentView('Third', 'people', defaultFilters)
 
       const { views } = useSavedViewStore.getState()
@@ -140,7 +144,7 @@ describe('useSavedViewStore', () => {
 
   describe('renameView', () => {
     it('renameView_withExistingView_updatesNameInStateAndDB', async () => {
-      await useSavedViewStore.getState().saveCurrentView('Old Name', 'priority', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Old Name', 'date', defaultFilters)
       const id = useSavedViewStore.getState().views[0].id
 
       await useSavedViewStore.getState().renameView(id, 'New Name')
@@ -151,8 +155,8 @@ describe('useSavedViewStore', () => {
     })
 
     it('renameView_withMultipleViews_onlyRenamesTargetView', async () => {
-      await useSavedViewStore.getState().saveCurrentView('View A', 'priority', defaultFilters)
-      await useSavedViewStore.getState().saveCurrentView('View B', 'due', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View A', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View B', 'date', defaultFilters)
       const { views } = useSavedViewStore.getState()
       const idA = views[0].id
 
@@ -166,7 +170,7 @@ describe('useSavedViewStore', () => {
 
   describe('removeView', () => {
     it('removeView_withMatchingActiveViewId_deletesViewAndClearsActiveViewId', async () => {
-      await useSavedViewStore.getState().saveCurrentView('To Delete', 'priority', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('To Delete', 'date', defaultFilters)
       const id = useSavedViewStore.getState().activeViewId!
 
       await useSavedViewStore.getState().removeView(id)
@@ -179,8 +183,8 @@ describe('useSavedViewStore', () => {
     })
 
     it('removeView_withDifferentActiveViewId_preservesActiveViewId', async () => {
-      await useSavedViewStore.getState().saveCurrentView('View 1', 'priority', defaultFilters)
-      await useSavedViewStore.getState().saveCurrentView('View 2', 'due', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View 1', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View 2', 'date', defaultFilters)
       const { views } = useSavedViewStore.getState()
       const idToKeep = views[0].id
       const idToRemove = views[1].id
@@ -218,7 +222,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
       orgIds: new Set([5]),
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Org Test', 'priority', filters)
+    await useSavedViewStore.getState().saveCurrentView('Org Test', 'date', filters)
 
     const { views } = useSavedViewStore.getState()
     const saved = views[0].filters
@@ -234,7 +238,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
       orgFilterMode: 'include-people',
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Default Org', 'priority', filters)
+    await useSavedViewStore.getState().saveCurrentView('Default Org', 'date', filters)
 
     const { views } = useSavedViewStore.getState()
     const { runtime: restored } = savedFiltersToRuntime(views[0].filters)
@@ -243,15 +247,12 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
 
   it('undefined orgFilterMode defaults to include-people on restore', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
-      // orgFilterMode intentionally omitted
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
@@ -267,7 +268,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
       personIds: new Set([5]),
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Person Test', 'priority', filters)
+    await useSavedViewStore.getState().saveCurrentView('Person Test', 'date', filters)
 
     const { views } = useSavedViewStore.getState()
     const saved = views[0].filters
@@ -283,7 +284,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
       personFilterMode: 'include-orgs',
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Default Person', 'priority', filters)
+    await useSavedViewStore.getState().saveCurrentView('Default Person', 'date', filters)
 
     const { views } = useSavedViewStore.getState()
     const { runtime: restored } = savedFiltersToRuntime(views[0].filters)
@@ -292,15 +293,12 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
 
   it('undefined personFilterMode defaults to include-orgs on restore', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
-      // personFilterMode intentionally omitted
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
@@ -311,19 +309,16 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
 describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withArrayValues_convertsArraysToSets', () => {
     const saved = {
-      priorities: [Priority.High, Priority.Medium],
       personIds: [1, 2, 3],
       tagIds: [10, 20],
       orgIds: [5],
       showCompleted: true,
       showHiddenStatuses: true,
-      hardDeadlineOnly: true,
-      dateRangeIncludeNoDue: true,
+      dateRangeIncludeNoDate: true,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
 
-    expect(result.priorities).toEqual(new Set([Priority.High, Priority.Medium]))
     expect(result.personIds).toEqual(new Set([1, 2, 3]))
     expect(result.tagIds).toEqual(new Set([10, 20]))
     expect(result.orgIds).toEqual(new Set([5]))
@@ -333,19 +328,16 @@ describe('savedFiltersToRuntime', () => {
 
   it('savedFiltersToRuntime_withNullArrays_preservesNulls', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
 
-    expect(result.priorities).toBeNull()
     expect(result.personIds).toBeNull()
     expect(result.tagIds).toBeNull()
     expect(result.orgIds).toBeNull()
@@ -353,14 +345,12 @@ describe('savedFiltersToRuntime', () => {
 
   it('savedFiltersToRuntime_withAnyInput_resetsTransientFields', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
@@ -372,7 +362,6 @@ describe('savedFiltersToRuntime', () => {
 
   it('savedFiltersToRuntime_withLegacyCompletedFilter_derivesShowCompleted', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
@@ -380,21 +369,18 @@ describe('savedFiltersToRuntime', () => {
       assignedFilter: 'all',
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: true,
-      dateRangeIncludeNoDue: true,
+      dateRangeIncludeNoDate: true,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.showCompleted).toBe(true)
     expect(result.showHiddenStatuses).toBe(true)
-    expect(result.hardDeadlineOnly).toBe(true)
-    expect(result.dateRangeIncludeNoDue).toBe(true)
+    expect(result.dateRangeIncludeNoDate).toBe(true)
   })
 
   it('savedFiltersToRuntime_withLegacyIncompleteFilter_derivesShowCompletedFalse', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
@@ -402,8 +388,7 @@ describe('savedFiltersToRuntime', () => {
       assignedFilter: 'unassigned',
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
@@ -414,15 +399,13 @@ describe('savedFiltersToRuntime', () => {
 
   it('savedFiltersToRuntime_withStatusIds_convertsArrayToSet', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       statusIds: [1, 2, 3],
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
@@ -431,14 +414,12 @@ describe('savedFiltersToRuntime', () => {
 
   it('savedFiltersToRuntime_withNoStatusIds_returnsNull', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
@@ -447,35 +428,47 @@ describe('savedFiltersToRuntime', () => {
 
   it('savedFiltersToRuntime_withDateField_preservesDateField', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
       dateField: 'modified' as const,
-      dateRangeIncludeNoDue: false,
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
     expect(result.dateField).toBe('modified')
   })
 
-  it('savedFiltersToRuntime_withoutDateField_defaultsToDue', () => {
+  it('savedFiltersToRuntime_withoutDateField_defaultsToDate', () => {
     const saved = {
-      priorities: null,
       personIds: null,
       tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
-      hardDeadlineOnly: false,
-      dateRangeIncludeNoDue: false,
+      dateRangeIncludeNoDate: false,
     }
 
     const { runtime: result } = savedFiltersToRuntime(saved)
-    expect(result.dateField).toBe('due')
+    expect(result.dateField).toBe('date')
+  })
+
+  it('legacy dateField=due translates to date', () => {
+    const saved = {
+      personIds: null,
+      tagIds: null,
+      orgIds: null,
+      showCompleted: false,
+      showHiddenStatuses: false,
+      dateField: 'due',
+      dateRangeIncludeNoDue: true,
+    } as any
+
+    const { runtime: result } = savedFiltersToRuntime(saved)
+    expect(result.dateField).toBe('date')
+    expect(result.dateRangeIncludeNoDate).toBe(true)
   })
 })
 
@@ -489,14 +482,12 @@ describe('savedFiltersToRuntime legacy translation with seeded IDs', () => {
   ]
 
   const baseSaved = {
-    priorities: null,
     personIds: null,
     tagIds: null,
     orgIds: null,
     showCompleted: false,
     showHiddenStatuses: false,
-    hardDeadlineOnly: false,
-    dateRangeIncludeNoDue: false,
+    dateRangeIncludeNoDate: false,
   }
 
   it('starredOnly=true translates to followup statusId', () => {
@@ -604,7 +595,7 @@ describe('savedFiltersToRuntime legacy translation with seeded IDs', () => {
       showCompleted: true,
       showHiddenStatuses: true,
     }
-    await useSavedViewStore.getState().saveCurrentView('V20 View', 'priority', filters)
+    await useSavedViewStore.getState().saveCurrentView('V20 View', 'date', filters)
     const { views } = useSavedViewStore.getState()
     const saved = views[0].filters
     expect(saved.showCompleted).toBe(true)

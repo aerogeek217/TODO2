@@ -15,8 +15,8 @@ describe('useListInsetStore', () => {
       // Arrange
       await db.listInsets.bulkAdd([
         { name: 'This Week', preset: 'due-this-week', canvasId: 1, x: 0, y: 0, width: 280, height: 300, isCollapsed: false },
-        { name: 'High Priority', preset: 'high-priority', canvasId: 1, x: 300, y: 0, width: 280, height: 300, isCollapsed: false },
-        { name: 'Other Canvas', preset: 'high-priority', canvasId: 99, x: 0, y: 0, width: 280, height: 300, isCollapsed: false },
+        { name: 'High Priority', preset: 'due-this-week', canvasId: 1, x: 300, y: 0, width: 280, height: 300, isCollapsed: false },
+        { name: 'Other Canvas', preset: 'due-this-week', canvasId: 99, x: 0, y: 0, width: 280, height: 300, isCollapsed: false },
       ])
 
       // Act
@@ -50,7 +50,7 @@ describe('useListInsetStore', () => {
   describe('add', () => {
     it('add_withValidArgs_createsInsetWithDefaultDimensions', async () => {
       // Act
-      const id = await useListInsetStore.getState().add('My Inset', 'high-priority', 1, 100, 200)
+      const id = await useListInsetStore.getState().add('My Inset', 'due-this-week', 1, 100, 200)
 
       // Assert
       const { insets } = useListInsetStore.getState()
@@ -58,7 +58,7 @@ describe('useListInsetStore', () => {
       const inset = insets[0]
       expect(inset.id).toBe(id)
       expect(inset.name).toBe('My Inset')
-      expect(inset.preset).toBe('high-priority')
+      expect(inset.preset).toBe('due-this-week')
       expect(inset.canvasId).toBe(1)
       expect(inset.x).toBe(100)
       expect(inset.y).toBe(200)
@@ -69,19 +69,19 @@ describe('useListInsetStore', () => {
 
     it('add_withValidArgs_persistsInsetToDatabase', async () => {
       // Act
-      const id = await useListInsetStore.getState().add('Persisted', 'high-priority', 5, 0, 0)
+      const id = await useListInsetStore.getState().add('Persisted', 'due-this-week', 5, 0, 0)
 
       // Assert
       const row = await db.listInsets.get(id)
       expect(row).toBeDefined()
       expect(row!.name).toBe('Persisted')
-      expect(row!.preset).toBe('high-priority')
+      expect(row!.preset).toBe('due-this-week')
       expect(row!.canvasId).toBe(5)
     })
 
     it('add_multipleInsets_appendsAllToState', async () => {
       // Act
-      await useListInsetStore.getState().add('First', 'high-priority', 1, 0, 0)
+      await useListInsetStore.getState().add('First', 'due-this-week', 1, 0, 0)
       await useListInsetStore.getState().add('Second', 'due-this-week', 1, 300, 0)
 
       // Assert
@@ -92,7 +92,7 @@ describe('useListInsetStore', () => {
   describe('update', () => {
     it('update_existingInset_updatesStateAndDatabase', async () => {
       // Arrange
-      const id = await useListInsetStore.getState().add('Original', 'high-priority', 1, 0, 0)
+      const id = await useListInsetStore.getState().add('Original', 'due-this-week', 1, 0, 0)
       const insets = useListInsetStore.getState().insets
       const original = insets.find((i) => i.id === id)!
 
@@ -114,8 +114,8 @@ describe('useListInsetStore', () => {
 
     it('update_existingInset_doesNotAffectOtherInsets', async () => {
       // Arrange
-      const id1 = await useListInsetStore.getState().add('First', 'high-priority', 1, 0, 0)
-      const id2 = await useListInsetStore.getState().add('Second', 'high-priority', 1, 300, 0)
+      const id1 = await useListInsetStore.getState().add('First', 'due-this-week', 1, 0, 0)
+      const id2 = await useListInsetStore.getState().add('Second', 'due-this-week', 1, 300, 0)
       const target = useListInsetStore.getState().insets.find((i) => i.id === id1)!
 
       // Act
@@ -130,7 +130,7 @@ describe('useListInsetStore', () => {
   describe('updatePosition', () => {
     it('updatePosition_existingInset_updatesXYInStateAndDatabase', async () => {
       // Arrange
-      const id = await useListInsetStore.getState().add('Moveable', 'high-priority', 1, 0, 0)
+      const id = await useListInsetStore.getState().add('Moveable', 'due-this-week', 1, 0, 0)
 
       // Act
       await useListInsetStore.getState().updatePosition(id, 150, 250)
@@ -148,7 +148,7 @@ describe('useListInsetStore', () => {
 
     it('updatePosition_existingInset_preservesOtherFields', async () => {
       // Arrange
-      const id = await useListInsetStore.getState().add('Moveable', 'high-priority', 1, 0, 0)
+      const id = await useListInsetStore.getState().add('Moveable', 'due-this-week', 1, 0, 0)
 
       // Act
       await useListInsetStore.getState().updatePosition(id, 50, 75)
@@ -156,7 +156,7 @@ describe('useListInsetStore', () => {
       // Assert non-position fields are unchanged
       const found = useListInsetStore.getState().insets.find((i) => i.id === id)
       expect(found!.name).toBe('Moveable')
-      expect(found!.preset).toBe('high-priority')
+      expect(found!.preset).toBe('due-this-week')
       expect(found!.width).toBe(280)
       expect(found!.height).toBe(300)
     })
@@ -165,7 +165,7 @@ describe('useListInsetStore', () => {
   describe('remove', () => {
     it('remove_existingInset_removesFromStateAndDatabase', async () => {
       // Arrange
-      const id = await useListInsetStore.getState().add('To Delete', 'high-priority', 1, 0, 0)
+      const id = await useListInsetStore.getState().add('To Delete', 'due-this-week', 1, 0, 0)
 
       // Act
       await useListInsetStore.getState().remove(id)
@@ -180,8 +180,8 @@ describe('useListInsetStore', () => {
 
     it('remove_oneOfMultipleInsets_onlyRemovesTarget', async () => {
       // Arrange
-      const id1 = await useListInsetStore.getState().add('Keep', 'high-priority', 1, 0, 0)
-      const id2 = await useListInsetStore.getState().add('Delete', 'high-priority', 1, 300, 0)
+      const id1 = await useListInsetStore.getState().add('Keep', 'due-this-week', 1, 0, 0)
+      const id2 = await useListInsetStore.getState().add('Delete', 'due-this-week', 1, 300, 0)
 
       // Act
       await useListInsetStore.getState().remove(id2)
@@ -258,7 +258,7 @@ describe('useListInsetStore', () => {
   describe('optimistic rollback', () => {
     it('updatePosition_dbRejects_revertsPositionToOriginal', async () => {
       // Arrange
-      const id = await useListInsetStore.getState().add('Moveable', 'high-priority', 1, 50, 75)
+      const id = await useListInsetStore.getState().add('Moveable', 'due-this-week', 1, 50, 75)
       const spy = vi.spyOn(listInsetRepository, 'updatePosition').mockRejectedValueOnce(new Error('DB error'))
 
       // Act

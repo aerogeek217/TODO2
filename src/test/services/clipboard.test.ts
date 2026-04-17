@@ -23,7 +23,7 @@ const UI_RESET = {
   editPopupMode: null as null,
   bulkConfirmation: null,
   collapsedParents: new Set<number>(),
-  listSortBy: 'priority' as const,
+  listSortBy: 'date' as const,
   inlineCreateAfterId: null,
   clipboardTodoIds: [] as number[],
   clipboardSourceProjectId: null,

@@ -31,7 +31,7 @@
 }
 
 .itemDanger:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .separator {

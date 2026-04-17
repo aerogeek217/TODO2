@@ -181,7 +181,7 @@
 }
 
 .deleteProject:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .taskList {

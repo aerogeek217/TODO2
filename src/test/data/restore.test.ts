@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { restoreFromImportData } from '../../data/restore'
 import type { ImportData } from '../../data/import-validation'
-import { Priority } from '../../models/priority'
 
 const now = new Date()
 
@@ -25,6 +24,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     stickyNotes: [],
     taskboardEntries: [],
     statuses: [],
+    listDefinitions: [],
     ...overrides,
   }
 }
@@ -39,11 +39,11 @@ describe('restoreFromImportData', () => {
     it('restoreFromImportData_withExistingTodos_removesOldTodosAndAddsNew', async () => {
       // Arrange — seed old data
       await db.todos.bulkAdd([
-        { title: 'Old Task', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+        { title: 'Old Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
       ])
       const newData = makeImportData({
         todos: [
-          { id: 10, title: 'New Task', priority: Priority.High, isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now },
+          { id: 10, title: 'New Task', isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now },
         ],
       })
 
@@ -132,7 +132,7 @@ describe('restoreFromImportData', () => {
       // Arrange
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Task', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, title: 'Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
         people: [{ id: 1, name: 'Alice', initials: 'AL', color: '#537FE7' }],
         tags: [{ id: 1, name: 'bug', color: '#ff0000' }],
@@ -202,7 +202,7 @@ describe('restoreFromImportData', () => {
       const data = makeImportData({
         canvases: [{ id: 1, name: 'Restored', sortOrder: 0, createdAt: now }],
         todos: [
-          { id: 1, title: 'Restored Task', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+          { id: 1, title: 'Restored Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
       })
 
@@ -224,7 +224,7 @@ describe('restoreFromImportData', () => {
     it('translates isStarred=true to seeded follow-up statusId', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Starred', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: true } as any,
+          { id: 1, title: 'Starred', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: true } as any,
         ],
       })
 
@@ -240,7 +240,7 @@ describe('restoreFromImportData', () => {
     it('translates isAssigned=true to seeded assigned statusId', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Assigned', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isAssigned: true } as any,
+          { id: 1, title: 'Assigned', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isAssigned: true } as any,
         ],
       })
 
@@ -256,7 +256,7 @@ describe('restoreFromImportData', () => {
     it('star wins over assigned per Q4 precedence', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Both', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: true, isAssigned: true } as any,
+          { id: 1, title: 'Both', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: true, isAssigned: true } as any,
         ],
       })
 
@@ -272,7 +272,7 @@ describe('restoreFromImportData', () => {
       const data = makeImportData({
         statuses: [{ id: 50, name: 'Custom', color: '#abc123', sortOrder: 0 }],
         todos: [
-          { id: 1, title: 'Has status', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, statusId: 50 },
+          { id: 1, title: 'Has status', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, statusId: 50 },
         ],
       })
 
@@ -285,7 +285,7 @@ describe('restoreFromImportData', () => {
     it('strips legacy fields even when both are false', async () => {
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Clean', priority: Priority.Normal, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: false, isAssigned: false } as any,
+          { id: 1, title: 'Clean', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, isStarred: false, isAssigned: false } as any,
         ],
       })
 

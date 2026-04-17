@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { validateImportData, isValidCssColor } from '../../data/import-validation'
-import { Priority } from '../../models/priority'
 
 const now = new Date().toISOString()
 
@@ -10,7 +9,7 @@ function makeCanvas(overrides = {}) {
 
 function makeTodo(overrides = {}) {
   return {
-    id: 1, title: 'Task', priority: Priority.Normal,
+    id: 1, title: 'Task',
     isCompleted: false,
     createdAt: now, modifiedAt: now, sortOrder: 0,
     ...overrides,

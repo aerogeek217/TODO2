@@ -410,19 +410,19 @@
 }
 
 .dueDateToday {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
   background: rgba(238, 125, 119, 0.12);
   box-shadow: 0 0 8px rgba(238, 125, 119, 0.3);
 }
 
 .dueDateUrgent {
-  color: var(--color-priority-medium);
+  color: var(--color-warning);
   background: rgba(245, 166, 35, 0.12);
   box-shadow: 0 0 8px rgba(245, 166, 35, 0.25);
 }
 
 .dueDateApproaching {
-  color: var(--color-priority-medium);
+  color: var(--color-warning);
   background: rgba(245, 166, 35, 0.07);
   box-shadow: 0 0 4px rgba(245, 166, 35, 0.15);
 }
@@ -453,11 +453,11 @@
 }
 
 .deadlineFlagActive {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .deadlineFlagActive:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .hiddenDateInput {
@@ -756,7 +756,7 @@
 }
 
 .deleteButton:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 /* Portal-rendered dropdown container — children are static inside */

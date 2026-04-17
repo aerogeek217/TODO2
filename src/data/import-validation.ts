@@ -1,4 +1,3 @@
-import { Priority } from '../models/priority'
 import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
 import type { ListDefinition, ListMembership, ListSort, ListGrouping, SeededListKey } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
@@ -116,10 +115,10 @@ function checkTodo(v: unknown): CheckResult {
     ['title', isStr(v.title, 500)],
     ['notes', isOptStr(v.notes, 50000)],
     ['progress', isOptStr(v.progress, 500)],
-    // priority is legacy-optional: pre-v21 has a number, v21+ omits. Restore strips the field.
+    // priority is legacy-optional: pre-v21 has a number (0/1/2), v21+ omits. Restore strips the field.
     ['priority',
       v.priority === undefined || v.priority === null
-      || (typeof v.priority === 'number' && [Priority.Normal, Priority.Medium, Priority.High].includes(v.priority))
+      || (typeof v.priority === 'number' && [0, 1, 2].includes(v.priority))
     ],
     ['isCompleted', isBool(v.isCompleted)],
     ['scheduledDate', isOptScheduledValue(v.scheduledDate)],
@@ -202,8 +201,9 @@ function checkTag(v: unknown): CheckResult {
   ])
 }
 
-const VALID_PRESETS = ['due-this-week', 'high-priority']
-const LEGACY_PRESETS = ['starred']
+const VALID_PRESETS = ['due-this-week']
+// Legacy preset names accepted for pre-v21 imports; dropped at restore time.
+const LEGACY_PRESETS = ['starred', 'high-priority']
 
 const VALID_ATTR_FILTER_TYPES = ['priority', 'person', 'tag', 'org']
 
@@ -451,7 +451,10 @@ function pickTag(v: Record<string, unknown>): Tag {
 
 function pickAttributeFilter(f: Record<string, unknown>): ListInset['attributeFilter'] {
   switch (f.type) {
-    case 'priority': return { type: 'priority', priority: f.priority as number }
+    // 'priority' is a retired v20 attribute; the inset row is dropped before
+    // write in restore, so accepting it here is a no-op. Return undefined so
+    // the inset picker drops the filter cleanly if a caller ever surfaces one.
+    case 'priority': return undefined
     case 'person': return { type: 'person', personId: f.personId as number, personName: f.personName as string }
     case 'tag': return { type: 'tag', tagId: f.tagId as number, tagName: f.tagName as string, ...(f.tagColor != null ? { tagColor: f.tagColor as string } : {}) }
     case 'org': return { type: 'org', orgId: f.orgId as number, orgName: f.orgName as string, ...(f.orgColor != null ? { orgColor: f.orgColor as string } : {}) }

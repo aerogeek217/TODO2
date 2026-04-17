@@ -7,7 +7,6 @@ import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
-import { Priority } from '../../models'
 import { makePerson, makeTag, makeOrg } from '../helpers'
 
 const alice = makePerson({ id: 1, name: 'Alice' })
@@ -81,44 +80,9 @@ describe('FilterSheet', () => {
     })
   })
 
-  // ── Priority section ──────────────────────────────────────────────
-
-  describe('priority', () => {
-    it('opens priority section and shows buttons', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Priority'))
-      expect(screen.getByText('High')).toBeInTheDocument()
-      expect(screen.getByText('Med')).toBeInTheDocument()
-      expect(screen.getByText('Normal')).toBeInTheDocument()
-    })
-
-    it('toggling High deselects it (creates a set without High)', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Priority'))
-      fireEvent.click(screen.getByText('High'))
-
-      const { priorities } = useFilterStore.getState().filters
-      expect(priorities).not.toBeNull()
-      expect(priorities!.has(Priority.High)).toBe(false)
-      expect(priorities!.has(Priority.Medium)).toBe(true)
-      expect(priorities!.has(Priority.Normal)).toBe(true)
-    })
-  })
-
   // ── Toggle filters ────────────────────────────────────────────────
 
   describe('toggle filters', () => {
-    it('toggles hard deadline filter', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Show / hide'))
-      const toggle = screen.getByRole('switch', { name: 'Hard deadlines only' })
-      expect(toggle).toHaveAttribute('aria-checked', 'false')
-
-      fireEvent.click(toggle)
-      expect(useFilterStore.getState().filters.hardDeadlineOnly).toBe(true)
-      expect(toggle).toHaveAttribute('aria-checked', 'true')
-    })
-
     it('toggles show completed filter', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Show / hide'))
@@ -161,19 +125,6 @@ describe('FilterSheet', () => {
       const { dateRangeStart } = useFilterStore.getState().filters
       expect(dateRangeStart).not.toBeNull()
       expect(dateRangeStart!.toISOString().slice(0, 10)).toBe('2026-04-01')
-    })
-
-    it('shows include-no-due toggle for due date field (default)', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      expect(screen.getByRole('switch', { name: 'Include no due date' })).toBeInTheDocument()
-    })
-
-    it('hides include-no-due toggle when date field is not due', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      fireEvent.click(screen.getByText('Modified'))
-      expect(screen.queryByRole('switch', { name: 'Include no due date' })).not.toBeInTheDocument()
     })
   })
 
@@ -234,30 +185,6 @@ describe('FilterSheet', () => {
     })
   })
 
-  // ── Accordion ─────────────────────────────────────────────────────
-
-  describe('accordion', () => {
-    it('only one section is open at a time', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Priority'))
-      expect(screen.getByText('High')).toBeInTheDocument()
-
-      // Opening another section closes priority
-      fireEvent.click(screen.getByText('Show / hide'))
-      expect(screen.queryByText('High')).not.toBeInTheDocument()
-      expect(screen.getByRole('switch', { name: 'Hard deadlines only' })).toBeInTheDocument()
-    })
-
-    it('clicking the same section header closes it', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Priority'))
-      expect(screen.getByText('High')).toBeInTheDocument()
-
-      fireEvent.click(screen.getByText('Priority'))
-      expect(screen.queryByText('High')).not.toBeInTheDocument()
-    })
-  })
-
   // ── Clear all ─────────────────────────────────────────────────────
 
   describe('clear all', () => {
@@ -268,9 +195,8 @@ describe('FilterSheet', () => {
 
     it('clears filters and closes sheet', () => {
       renderSheet()
-      // Activate a filter
-      fireEvent.click(screen.getByText('Priority'))
-      fireEvent.click(screen.getByText('High'))
+      // Activate a filter — search text
+      fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'x' } })
       expect(useFilterStore.getState().isActive).toBe(true)
 
       fireEvent.click(screen.getByText('Clear all filters'))

@@ -1,7 +1,6 @@
-export type ListInsetPreset = 'due-this-week' | 'high-priority'
+export type ListInsetPreset = 'due-this-week'
 
 export type ListInsetAttributeFilter =
-  | { type: 'priority'; priority: number }
   | { type: 'person'; personId: number; personName: string }
   | { type: 'tag'; tagId: number; tagName: string; tagColor?: string }
   | { type: 'org'; orgId: number; orgName: string; orgColor?: string }

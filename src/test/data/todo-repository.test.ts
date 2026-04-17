@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
-import { Priority } from '../../models/priority'
 
 beforeEach(async () => {
   await db.delete()
@@ -12,7 +11,6 @@ function makeTodo(overrides: Partial<import('../../models').TodoItem> = {}) {
   const now = new Date()
   return {
     title: 'Test todo',
-    priority: Priority.Normal,
     isCompleted: false,
     createdAt: now,
     modifiedAt: now,
@@ -69,12 +67,12 @@ describe('todoRepository', () => {
     const id = await todoRepository.insert(makeTodo({ title: 'Original' }))
     const todo = await todoRepository.getById(id)
     todo!.title = 'Updated'
-    todo!.priority = Priority.High
+    todo!.notes = 'note body'
     await todoRepository.update(todo!)
 
     const updated = await todoRepository.getById(id)
     expect(updated!.title).toBe('Updated')
-    expect(updated!.priority).toBe(Priority.High)
+    expect(updated!.notes).toBe('note body')
   })
 
   it('delete removes a todo', async () => {

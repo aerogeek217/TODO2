@@ -1,7 +1,8 @@
 import { db } from '../data/database'
-import { Priority } from '../models'
 import type { PersistedTodoItem } from '../models'
 import { buildHierarchy } from '../utils/hierarchy'
+import { scheduledLabel } from '../utils/effective-date'
+import { startOfToday } from '../utils/date'
 
 /**
  * Reads all database tables and returns a plain object suitable for
@@ -62,14 +63,15 @@ export async function buildMarkdownExport(): Promise<string> {
 
   const lines: string[] = ['# TODOs', '']
   const details: string[] = []
+  const today = startOfToday()
 
   const formatTodoLine = (todo: PersistedTodoItem, indent: string) => {
     const check = todo.isCompleted ? '[x]' : '[ ]'
-    const pri = todo.priority === Priority.High ? ' [HIGH]' : todo.priority === Priority.Medium ? ' [MED]' : ''
-    const due = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
+    const sched = todo.scheduledDate ? ` (sched: ${scheduledLabel(todo.scheduledDate, today)})` : ''
+    const deadline = todo.dueDate ? ` (deadline ${new Date(todo.dueDate).toLocaleDateString()})` : ''
     const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
     const statusStr = status && (status.icon || status.hideByDefault) ? ` [${status.name}]` : ''
-    return `${indent}- ${check} ${todo.title}${pri}${statusStr}${due}`
+    return `${indent}- ${check} ${todo.title}${statusStr}${sched}${deadline}`
   }
 
   const collectDetails = (todo: PersistedTodoItem) => {

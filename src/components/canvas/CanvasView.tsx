@@ -674,8 +674,7 @@ export function CanvasView({
     }
     if (onAddListInset && pos) {
       items.push({ separator: true, label: '', action: () => {} })
-      items.push({ label: 'List: Due This Week', action: () => onAddListInset('due-this-week', pos.x, pos.y) })
-      items.push({ label: 'List: High Priority', action: () => onAddListInset('high-priority', pos.x, pos.y) })
+      items.push({ label: 'List: Due & Overdue', action: () => onAddListInset('due-this-week', pos.x, pos.y) })
     }
     if (items.length > 0) {
       setContextMenu({ x: e.clientX, y: e.clientY, items })

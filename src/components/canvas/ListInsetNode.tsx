@@ -2,11 +2,12 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
-import { Priority } from '../../models'
 import { useFilterStore } from '../../stores/filter-store'
 import { useStatusStore } from '../../stores/status-store'
 import { TaskRow } from '../task/TaskRow'
 import { bySortOrder } from '../../utils/hierarchy'
+import { effectiveDate } from '../../utils/effective-date'
+import { startOfToday, MS_PER_DAY } from '../../utils/date'
 import styles from './ListInsetNode.module.css'
 
 export function DraggableTaskRow({
@@ -44,15 +45,10 @@ export function DraggableTaskRow({
   )
 }
 
+// Label kept for backwards familiarity. Membership is now effectiveDate <=
+// today + 7 days (matches scheduled + deadline both). Subtitle clarifies.
 const PRESET_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
   'due-this-week': { icon: '\u{1F4C5}', label: 'Due & Overdue' },
-  'high-priority': { icon: '\u{1F534}', label: 'High Priority' },
-}
-
-const PRIORITY_LABELS: Record<number, string> = {
-  [Priority.High]: 'High Priority',
-  [Priority.Medium]: 'Medium Priority',
-  [Priority.Normal]: 'Normal Priority',
 }
 
 export interface ListInsetNodeData {
@@ -78,8 +74,6 @@ function getInsetHeaderInfo(inset: ListInset): { icon: React.ReactNode; label: s
   }
   if (inset.attributeFilter) {
     switch (inset.attributeFilter.type) {
-      case 'priority':
-        return { icon: '\u25CF', label: PRIORITY_LABELS[inset.attributeFilter.priority] || 'Priority' }
       case 'person':
         return { icon: '@', label: inset.attributeFilter.personName }
       case 'tag':
@@ -94,13 +88,11 @@ function getInsetHeaderInfo(inset: ListInset): { icon: React.ReactNode; label: s
 function getFilterDescription(inset: ListInset): string {
   if (inset.preset) {
     switch (inset.preset) {
-      case 'due-this-week': return 'Tasks due within 7 days or overdue'
-      case 'high-priority': return 'Tasks with high priority'
+      case 'due-this-week': return 'Tasks scheduled or deadlined within 7 days, plus overdue'
     }
   }
   if (inset.attributeFilter) {
     switch (inset.attributeFilter.type) {
-      case 'priority': return `Tasks with ${(PRIORITY_LABELS[inset.attributeFilter.priority] || 'priority').toLowerCase()}`
       case 'person': return `Tasks assigned to ${inset.attributeFilter.personName}`
       case 'tag': return `Tasks tagged ${inset.attributeFilter.tagName}`
       case 'org': return `Tasks assigned to ${inset.attributeFilter.orgName}`
@@ -142,17 +134,13 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
     // Apply global filters first
     const globalFiltered = applyFilter(allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
 
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const weekEnd = new Date(today)
-    weekEnd.setDate(weekEnd.getDate() + 7)
+    const today = startOfToday()
+    const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
 
     return globalFiltered.filter(todo => {
       // Attribute-based filter
       if (inset.attributeFilter) {
         switch (inset.attributeFilter.type) {
-          case 'priority':
-            return todo.priority === inset.attributeFilter.priority
           case 'person': {
             const assigned = assignedPeopleMap.get(todo.id)
             return assigned?.some(p => p.id === (inset.attributeFilter as { personId: number }).personId) ?? false
@@ -169,21 +157,19 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       }
       // Preset-based filter
       switch (inset.preset) {
-        case 'due-this-week':
-          if (!todo.dueDate) return false
-          const due = new Date(todo.dueDate)
-          return due <= weekEnd
-        case 'high-priority':
-          return todo.priority === Priority.High
+        case 'due-this-week': {
+          const ed = effectiveDate(todo, today)
+          if (!ed) return false
+          return ed <= weekEnd
+        }
         default:
           return false
       }
     }).sort((a, b) => {
-      if (inset.preset === 'due-this-week' && a.dueDate && b.dueDate) {
-        const aHard = a.isHardDeadline ? 1 : 0
-        const bHard = b.isHardDeadline ? 1 : 0
-        if (aHard !== bHard) return bHard - aHard
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      if (inset.preset === 'due-this-week') {
+        const ae = effectiveDate(a, today)
+        const be = effectiveDate(b, today)
+        if (ae && be && ae.getTime() !== be.getTime()) return ae.getTime() - be.getTime()
       }
       return bySortOrder(a, b)
     })

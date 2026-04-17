@@ -7,8 +7,8 @@ const colorLabels: Record<keyof ThemeColors, string> = {
   accent: 'Accent',
   canvasBg: 'Canvas Background',
   surface: 'Surface',
-  priorityHigh: 'Priority High',
-  priorityMedium: 'Priority Medium',
+  danger: 'Danger accent',
+  warning: 'Warning accent',
   star: 'Follow up',
 }
 

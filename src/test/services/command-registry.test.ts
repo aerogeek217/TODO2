@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createCommands, searchDynamicCommands } from '../../services/command-registry'
 import type { CommandContext } from '../../services/command-registry'
-import { Priority } from '../../models'
 import { makeTodo, makeProject } from '../helpers'
 
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
@@ -10,13 +9,9 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     openQuickAdd: vi.fn(),
     selectionCount: 0,
     bulkSetCompleted: vi.fn().mockResolvedValue(undefined),
-    bulkSetPriority: vi.fn().mockResolvedValue(undefined),
     bulkSetStatus: vi.fn().mockResolvedValue(undefined),
     bulkRemove: vi.fn().mockResolvedValue(undefined),
     getSelectedIds: vi.fn().mockReturnValue([]),
-    toggleHardDeadlineOnly: vi.fn(),
-    setPriorities: vi.fn(),
-    getPriorities: vi.fn().mockReturnValue(null),
     clearAllFilters: vi.fn(),
     setShowCompleted: vi.fn(),
     getShowCompleted: vi.fn().mockReturnValue(false),
@@ -97,15 +92,12 @@ describe('createCommands — navigation commands', () => {
 // ─── Bulk actions ─────────────────────────────────────────────────────────────
 
 describe('createCommands — bulk actions with selectionCount > 0', () => {
-  it('createCommands_selectionCountOne_includesBulkCommands', () => {
+  it('createCommands_selectionCountOne_includesCompleteAndDelete', () => {
     const ctx = makeContext({ selectionCount: 1, getSelectedIds: vi.fn().mockReturnValue([42]) })
     const commands = createCommands(ctx)
     const bulkIds = commands.filter(c => c.category === 'bulk').map(c => c.id)
     expect(bulkIds).toContain('bulk-complete')
     expect(bulkIds).toContain('bulk-uncomplete')
-    expect(bulkIds).toContain('bulk-priority-high')
-    expect(bulkIds).toContain('bulk-priority-medium')
-    expect(bulkIds).toContain('bulk-priority-normal')
     expect(bulkIds).toContain('bulk-delete')
   })
 
@@ -164,18 +156,6 @@ describe('createCommands — bulk actions with selectionCount > 0', () => {
     cmd.action()
     expect(ctx.bulkRemove).toHaveBeenCalledWith(selectedIds)
   })
-
-  it('createCommands_bulkPriorityHigh_actionCallsBulkSetPriorityHigh', () => {
-    const selectedIds = [3]
-    const ctx = makeContext({
-      selectionCount: 1,
-      getSelectedIds: vi.fn().mockReturnValue(selectedIds),
-    })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'bulk-priority-high')!
-    cmd.action()
-    expect(ctx.bulkSetPriority).toHaveBeenCalledWith(selectedIds, Priority.High)
-  })
 })
 
 // ─── focus-filter command ─────────────────────────────────────────────────────
@@ -222,77 +202,6 @@ describe('createCommands — focus-filter command', () => {
 
     // Should not throw even when the element is missing
     expect(() => cmd.action()).not.toThrow()
-  })
-})
-
-// ─── filter-high command ──────────────────────────────────────────────────────
-
-describe('createCommands — filter-high command', () => {
-  it('createCommands_filterHigh_commandExists', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    expect(commands.some(c => c.id === 'filter-high')).toBe(true)
-  })
-
-  it('createCommands_filterHighNotActive_setsHighPriorityFilter', () => {
-    // Arrange: no active priority filter
-    const ctx = makeContext({ getPriorities: vi.fn().mockReturnValue(null) })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'filter-high')!
-
-    // Act
-    cmd.action()
-
-    // Assert: sets High priority
-    expect(ctx.setPriorities).toHaveBeenCalledWith(new Set([Priority.High]))
-  })
-
-  it('createCommands_filterHighAlreadyHighOnly_clearsFilter', () => {
-    // Arrange: already filtering by High only
-    const highOnlySet = new Set([Priority.High])
-    const ctx = makeContext({
-      getPriorities: vi.fn().mockReturnValue(highOnlySet),
-    })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'filter-high')!
-
-    // Act
-    cmd.action()
-
-    // Assert: clears the filter (sets null)
-    expect(ctx.setPriorities).toHaveBeenCalledWith(null)
-  })
-
-  it('createCommands_filterHighWithMultiplePriorities_setsHighPriorityFilter', () => {
-    // Arrange: filtering by High + Medium (not High-only)
-    const multiSet = new Set([Priority.High, Priority.Medium])
-    const ctx = makeContext({
-      getPriorities: vi.fn().mockReturnValue(multiSet),
-    })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'filter-high')!
-
-    // Act
-    cmd.action()
-
-    // Assert: replaces with High-only (since it wasn't High-only before)
-    expect(ctx.setPriorities).toHaveBeenCalledWith(new Set([Priority.High]))
-  })
-
-  it('createCommands_filterHighWithMediumOnly_setsHighPriorityFilter', () => {
-    // Arrange: filtering by Medium only (not High)
-    const mediumOnlySet = new Set([Priority.Medium])
-    const ctx = makeContext({
-      getPriorities: vi.fn().mockReturnValue(mediumOnlySet),
-    })
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'filter-high')!
-
-    // Act
-    cmd.action()
-
-    // Assert: sets High priority filter
-    expect(ctx.setPriorities).toHaveBeenCalledWith(new Set([Priority.High]))
   })
 })
 

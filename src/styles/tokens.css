@@ -73,9 +73,9 @@
   --color-accent: #7ec4bc;
   --color-accent-dim: #4f9a91;
 
-  /* Priority */
-  --color-priority-high: #ee7d77;
-  --color-priority-medium: #f5a623;
+  /* Danger / warning accents */
+  --color-danger: #ee7d77;
+  --color-warning: #f5a623;
   --color-followup: #f5c842;
 
   /* Overdue / special dates */
@@ -176,9 +176,9 @@
   --color-accent: #3a9e93;
   --color-accent-dim: #2d7d74;
 
-  /* Priority — deepened for readability */
-  --color-priority-high: #d94a43;
-  --color-priority-medium: #d08a12;
+  /* Danger / warning — deepened for readability */
+  --color-danger: #d94a43;
+  --color-warning: #d08a12;
   --color-followup: #c09a15;
 
   /* Overdue */

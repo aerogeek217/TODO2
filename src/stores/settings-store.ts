@@ -9,8 +9,8 @@ export interface ThemeColors {
   accent: string
   canvasBg: string
   surface: string
-  priorityHigh: string
-  priorityMedium: string
+  danger: string
+  warning: string
   star: string
 }
 
@@ -18,8 +18,8 @@ const defaultColors: ThemeColors = {
   accent: '#a2cfcb',
   canvasBg: '#0e0e0e',
   surface: '#191a1a',
-  priorityHigh: '#ee7d77',
-  priorityMedium: '#f5a623',
+  danger: '#ee7d77',
+  warning: '#f5a623',
   star: '#f5c842',
 }
 
@@ -72,8 +72,8 @@ const colorVarMap: Record<keyof ThemeColors, string> = {
   accent: '--color-accent',
   canvasBg: '--color-canvas-bg',
   surface: '--color-surface',
-  priorityHigh: '--color-priority-high',
-  priorityMedium: '--color-priority-medium',
+  danger: '--color-danger',
+  warning: '--color-warning',
   star: '--color-followup',
 }
 

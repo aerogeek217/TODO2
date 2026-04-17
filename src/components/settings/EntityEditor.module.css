@@ -191,7 +191,7 @@
 }
 
 .iconBtnDanger:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 /* Inline edit mode */
@@ -293,7 +293,7 @@
   padding: 6px 10px;
   background: var(--color-surface-high);
   border-radius: var(--radius-card);
-  border: 1px solid var(--color-priority-high);
+  border: 1px solid var(--color-danger);
 }
 
 .deleteMsg {
@@ -303,7 +303,7 @@
 }
 
 .deleteBtnConfirm {
-  background: var(--color-priority-high);
+  background: var(--color-danger);
   color: #fff;
   border: none;
   border-radius: var(--radius-chip);
@@ -383,7 +383,7 @@
 
 .errorHint {
   font-size: var(--font-size-meta);
-  color: var(--color-priority-high);
+  color: var(--color-danger);
   padding: 2px 10px 0;
 }
 

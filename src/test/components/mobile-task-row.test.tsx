@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
 import { useOrgStore } from '../../stores/org-store'
-import { Priority } from '../../models'
 import { makeTodo, makePerson, makeTag, makeOrg } from '../helpers'
 
 const mockToggleComplete = vi.fn()
@@ -10,9 +9,10 @@ vi.mock('../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     toggleComplete: mockToggleComplete,
     remove: vi.fn(),
-    setPriority: vi.fn(),
-    setDueDate: vi.fn(),
+    setScheduled: vi.fn(),
+    setDeadline: vi.fn(),
     setProject: vi.fn(),
+    setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
     quickAssignTag: vi.fn(),
@@ -25,11 +25,6 @@ vi.mock('../../hooks/use-bulk-actions', () => ({
 /** The row is the element with data-todo-id (avoids matching child buttons) */
 function getRow(): HTMLElement {
   return document.querySelector('[data-todo-id]') as HTMLElement
-}
-
-/** Priority strip is the first child inside the primary row */
-function getPriorityStrip(): HTMLElement {
-  return getRow().firstElementChild!.firstElementChild! as HTMLElement
 }
 
 describe('MobileTaskRow', () => {
@@ -79,52 +74,28 @@ describe('MobileTaskRow', () => {
     })
   })
 
-  // ── Priority display ──────────────────────────────────────────────
+  // ── Date chips ────────────────────────────────────────────────────
 
-  describe('priority', () => {
-    it('applies high priority color as inline style', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, priority: Priority.High })} />)
-      expect(getPriorityStrip()).toHaveStyle({ background: 'var(--color-priority-high)' })
-    })
-
-    it('applies medium priority color as inline style', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, priority: Priority.Medium })} />)
-      expect(getPriorityStrip()).toHaveStyle({ background: 'var(--color-priority-medium)' })
-    })
-
-    it('applies no inline style for normal priority', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, priority: Priority.Normal })} />)
-      expect(getPriorityStrip().getAttribute('style')).toBeNull()
-    })
-  })
-
-  // ── Due date formatting ───────────────────────────────────────────
-
-  describe('due date', () => {
-    it('shows "Today" for due today', () => {
+  describe('date chips', () => {
+    it('shows deadline chip with formatted date', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11) })} />)
+      expect(screen.getByText(/Apr 11, 2026/)).toBeInTheDocument()
+    })
+
+    it('shows scheduled chip label for fuzzy token', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />)
       expect(screen.getByText('Today')).toBeInTheDocument()
     })
 
-    it('shows "Tomorrow" for due tomorrow', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 12) })} />)
-      expect(screen.getByText('Tomorrow')).toBeInTheDocument()
-    })
-
-    it('shows overdue text for past dates', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 9) })} />)
-      expect(screen.getByText('2d overdue')).toBeInTheDocument()
-    })
-
-    it('renders no due chip when dueDate is undefined', () => {
+    it('renders no date chip when neither scheduled nor due is set', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
+      expect(screen.queryByText(/Apr/)).not.toBeInTheDocument()
       expect(screen.queryByText('Today')).not.toBeInTheDocument()
-      expect(screen.queryByText(/overdue/)).not.toBeInTheDocument()
     })
 
-    it('shows recurrence indicator when recurrenceRule is set', () => {
+    it('shows recurrence indicator inside deadline chip when recurrenceRule is set', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
-      const chip = screen.getByText(/Today/)
+      const chip = screen.getByText(/Apr 11, 2026/)
       expect(chip.textContent).toContain('\u21bb')
     })
   })
@@ -172,11 +143,6 @@ describe('MobileTaskRow', () => {
       useOrgStore.setState({ assignedOrgsMap: new Map([[1, [makeOrg({ id: 5, name: 'Acme' })]]]) })
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.getByText('Acme')).toBeInTheDocument()
-    })
-
-    it('shows hard deadline flag icon', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, isHardDeadline: true, dueDate: new Date(2026, 3, 11) })} />)
-      expect(screen.getByTitle('Hard deadline')).toBeInTheDocument()
     })
 
     it('shows progress text and bar', () => {

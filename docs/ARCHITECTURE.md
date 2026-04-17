@@ -17,7 +17,7 @@ main.tsx (entry point)
 ├── views/                 → Route-level pages
 │   ├── CanvasPage         → components/canvas/, stores
 │   ├── DashboardView      → Renders seeded `listDefinitions` rows (Today/Upcoming/Deadlines/Someday) via `services/dashboard-lists`; per-list grouping (relative-effective / relative-deadline) + Taskboard; shares `showCompleted` / `showHiddenStatuses` toggles, ignores other filter-bar fields
-│   ├── ListView           → Unified list with sort-by grouping (Priority/Due/People/Tag/Project), saved views, plain text export
+│   ├── ListView           → Unified list with sort-by grouping (Date/People/Tag/Project/Status/Org), saved views, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Compact hub: theme toggle (light/dark/system), manage buttons open modals; task defaults (project, status), database location, import/export
 ├── components/
@@ -27,7 +27,7 @@ main.tsx (entry point)
 │   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node with sortable reorder)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
 │   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, StatusEditor, ThemeColorsEditor, KeyboardShortcutsModal
-│   └── shared/            → Chip, SectionHeader, ChipSelector, PriorityMenu, ColorInput, StatusIcon, selection.module.css, dropdown.module.css
+│   └── shared/            → Chip, SectionHeader, ChipSelector, ColorInput, StatusIcon, selection.module.css, dropdown.module.css
 ├── stores/                → Zustand (canvas, todo, project, person, tag, org, status, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view, settings, file-storage)
 ├── data/                  → Dexie repositories (todo, project, canvas, person, tag, org, status, settings, saved-view, sticky-note)
 ├── models/                → TypeScript interfaces
@@ -57,7 +57,6 @@ main.tsx (entry point)
 | TodoOrg | models/todo-org.ts | Many-to-many join: todo ↔ org (direct org assignment) |
 | Status | models/status.ts | User-defined workflow state with name, color, sortOrder, `icon` (key from StatusIcon registry, default 'circle'), and optional `hideByDefault` (excluded from default filter when true) |
 | PersistedStatus | models/status.ts | Status with guaranteed id (post-insert) |
-| Priority | models/priority.ts | Enum: Normal, Medium, High |
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
 | ListSortBy | models/app-view.ts | Type: date, people, org, tag, project, status. `'date'` groups by `effectiveDate` buckets (Overdue/Today/This Week/Later/No Date) |
 | DateField | models/app-view.ts | Type: date, created, modified — used by filter store and saved views. `'date'` filters on `effectiveDate` |
@@ -126,7 +125,6 @@ main.tsx (entry point)
 | resolveFuzzy, resolveScheduled, effectiveDate, isScheduledExpired, scheduledLabel, scheduledValuesEqual | utils/effective-date.ts | Unified scheduling helpers: resolve `ScheduledValue` fuzzy tokens to concrete end-of-window dates, compute `min(scheduled, deadline)`, label chips, structural equality for ScheduledValue. Every sort/filter/group consumer reads `effectiveDate` |
 | TaskEditPopup | components/task/TaskEditPopup.tsx | Centered modal for editing/creating tasks; project selector in create/edit mode (replaced TaskDetailPanel + QuickAddPopup) |
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/tags; search input, filtered list, create-new option |
-| PriorityMenu | components/shared/PriorityMenu.tsx | Shared priority picker dropdown (High/Medium/Normal with colored dots); also exports getPriorityColor and getPriorityLabel helpers |
 | ColorInput | components/shared/ColorInput.tsx | Shared color picker: native swatch + editable hex text input with validation, 3-digit expansion, auto-# prefix, blur revert |
 | ProjectPicker | components/shared/ProjectPicker.tsx | Shared project search + list UI (with "No project" option); self-contained search state |
 | ProjectPickerPopup | components/overlays/ProjectPickerPopup.tsx | Portal-rendered positioned popup wrapping `ProjectPicker`; closes on outside-click / Escape; used by TaskRow right-click "Move to project…" |
@@ -207,7 +205,7 @@ main.tsx (entry point)
 1. **App startup**: Dexie opens IndexedDB, `useCanvasStore.ensureDefault()` creates default canvas if needed, then `fileStorageService.initialize()` reconnects to a saved file handle (if any) and loads file data into IndexedDB. Settings store loads theme mode and applies `data-theme` attribute to `<html>` (light/dark/system); only user-customized color overrides are applied as inline styles. If `completedRetentionDays` is configured, expired completed tasks are purged. `backupScheduler.start()` begins periodic auto-snapshots.
 2. **Normal use**: User manages todos via UI, Zustand stores call repository methods, Dexie persists to IndexedDB. If file storage is connected, Dexie hooks debounce-save all changes to the JSON file on disk
 3. **Canvas**: Single canvas only (selector removed); `useCanvasStore.ensureDefault()` creates/selects it at startup
-4. **View switching**: Sidebar icon buttons navigate between Canvas, Dashboard, List, Calendar, and Settings views via React Router; Dashboard shows unfiltered Top 10 lists; List view groups all todos by a user-selected sort-by attribute (Priority, Due, People, Tag, Project)
+4. **View switching**: Sidebar icon buttons navigate between Canvas, Dashboard, List, Calendar, and Settings views via React Router; Dashboard reads seeded `listDefinitions` (Today/Upcoming/Deadlines/Someday); List view groups all todos by a user-selected sort-by attribute (Date, People, Tag, Project, Status, Org)
 5. **Person assignment**: Many-to-many via `todoPeople` join table; `usePersonStore` maintains an `assignedPeopleMap` cache for efficient lookups
 6. **Person-org membership**: Many-to-many via `personOrgs` join table; a person can belong to multiple orgs
 
@@ -215,7 +213,7 @@ main.tsx (entry point)
 
 | Directory | Contents | Key Files |
 |-----------|----------|-----------|
-| src/models/ | TypeScript interfaces + enums | todo-item.ts, project.ts, canvas.ts, person.ts, tag.ts, todo-tag.ts, todo-person.ts, priority.ts (deprecated; removed in Commit C), app-view.ts, scheduled-value.ts, list-definition.ts |
+| src/models/ | TypeScript interfaces + enums | todo-item.ts, project.ts, canvas.ts, person.ts, tag.ts, todo-tag.ts, todo-person.ts, app-view.ts, scheduled-value.ts, list-definition.ts |
 | src/data/ | Persistence layer (Dexie/IndexedDB) | database.ts, todo-repository.ts, project-repository.ts, canvas-repository.ts, list-inset-repository.ts, person-repository.ts, tag-repository.ts, status-repository.ts, settings-repository.ts, list-definition-repository.ts, backup-repository.ts, import-validation.ts |
 | src/stores/ | Zustand state management | todo-store.ts, canvas-store.ts, project-store.ts, list-inset-store.ts, person-store.ts, tag-store.ts, status-store.ts, list-definition-store.ts, ui-store.ts, filter-store.ts, file-storage-store.ts, undo-store.ts |
 | src/styles/ | CSS design tokens | tokens.css |

@@ -13,7 +13,7 @@ beforeEach(() => {
     editPopupMode: null,
     bulkConfirmation: null,
     collapsedParents: new Set(),
-    listSortBy: 'priority',
+    listSortBy: 'date',
     inlineCreateAfterId: null,
     clipboardTodoIds: [],
     clipboardSourceProjectId: null,
@@ -143,8 +143,8 @@ describe('useUIStore', () => {
   })
 
   it('setListSortBy changes sort', () => {
-    useUIStore.getState().setListSortBy('due')
-    expect(useUIStore.getState().listSortBy).toBe('due')
+    useUIStore.getState().setListSortBy('date')
+    expect(useUIStore.getState().listSortBy).toBe('date')
 
     useUIStore.getState().setListSortBy('tag')
     expect(useUIStore.getState().listSortBy).toBe('tag')

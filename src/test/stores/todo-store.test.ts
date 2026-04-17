@@ -81,26 +81,16 @@ describe('todoStore', () => {
     expect(todos.find(t => t.id === id3)!.isCompleted).toBe(false)
   })
 
-  it('bulkSetPriority sets priority on multiple todos', async () => {
-    const { Priority } = await import('../../models')
-    const id1 = await useTodoStore.getState().add('Task 1')
-    const id2 = await useTodoStore.getState().add('Task 2')
-
-    await useTodoStore.getState().bulkSetPriority([id1, id2], Priority.High)
-    expect(useTodoStore.getState().todos.find(t => t.id === id1)!.priority).toBe(Priority.High)
-    expect(useTodoStore.getState().todos.find(t => t.id === id2)!.priority).toBe(Priority.High)
-  })
-
-  it('bulkSetDueDate sets date and clears date', async () => {
+  it('bulkSetDeadline sets date and clears date', async () => {
     const id1 = await useTodoStore.getState().add('Task 1')
     const id2 = await useTodoStore.getState().add('Task 2')
     const date = new Date('2026-06-15')
 
-    await useTodoStore.getState().bulkSetDueDate([id1, id2], date)
+    await useTodoStore.getState().bulkSetDeadline([id1, id2], date)
     expect(useTodoStore.getState().todos.find(t => t.id === id1)!.dueDate).toEqual(date)
     expect(useTodoStore.getState().todos.find(t => t.id === id2)!.dueDate).toEqual(date)
 
-    await useTodoStore.getState().bulkSetDueDate([id1], undefined)
+    await useTodoStore.getState().bulkSetDeadline([id1], null)
     expect(useTodoStore.getState().todos.find(t => t.id === id1)!.dueDate).toBeUndefined()
   })
 

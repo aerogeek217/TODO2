@@ -1,14 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { getFilterDefaults } from '../../utils/filter-defaults'
-import { Priority } from '../../models'
 import type { FilterCriteria } from '../../stores/filter-store'
 
 function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
   return {
-    priorities: null,
     showCompleted: false,
     showHiddenStatuses: false,
-    hardDeadlineOnly: false,
     personIds: null,
     personFilterMode: 'include-orgs',
     tagIds: null,
@@ -16,10 +13,10 @@ function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
     orgFilterMode: 'include-people',
     statusIds: null,
     searchText: '',
-    dateField: 'due',
+    dateField: 'date',
     dateRangeStart: null,
     dateRangeEnd: null,
-    dateRangeIncludeNoDue: false,
+    dateRangeIncludeNoDate: false,
     ...overrides,
   }
 }
@@ -31,7 +28,6 @@ describe('getFilterDefaults', () => {
     expect(result.tagIds).toEqual([])
     expect(result.orgIds).toEqual([])
     expect(result.statusId).toBeUndefined()
-    expect(result.priority).toBeUndefined()
   })
 
   it('returns single person filter', () => {
@@ -66,16 +62,6 @@ describe('getFilterDefaults', () => {
     expect(result.personIds).toEqual([])
   })
 
-  it('single priority returns that priority', () => {
-    const result = getFilterDefaults(makeFilters({ priorities: new Set([Priority.High]) }))
-    expect(result.priority).toBe(Priority.High)
-  })
-
-  it('multiple priorities returns undefined', () => {
-    const result = getFilterDefaults(makeFilters({ priorities: new Set([Priority.High, Priority.Medium]) }))
-    expect(result.priority).toBeUndefined()
-  })
-
   it('single status returns that status', () => {
     const result = getFilterDefaults(makeFilters({ statusIds: new Set([3]) }))
     expect(result.statusId).toBe(3)
@@ -96,13 +82,11 @@ describe('getFilterDefaults', () => {
       personIds: new Set([5, 10]),
       tagIds: new Set([20]),
       orgIds: new Set([0, 30]),
-      priorities: new Set([Priority.High]),
       statusIds: new Set([7]),
     }))
     expect(result.personIds).toHaveLength(2)
     expect(result.tagIds).toEqual([20])
     expect(result.orgIds).toEqual([30])
-    expect(result.priority).toBe(Priority.High)
     expect(result.statusId).toBe(7)
   })
 })

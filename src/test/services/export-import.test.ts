@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { buildExportData } from '../../services/export-import'
 import { db } from '../../data/database'
 import { resetDb, makeTodo, makePerson, makeTag, makeProject, makeOrg } from '../helpers'
-import { Priority } from '../../models'
 
 beforeEach(async () => {
   await resetDb()
@@ -62,7 +61,7 @@ describe('buildExportData', () => {
   it('reads all tables in parallel', async () => {
     // Add multiple items to verify parallel reads don't interfere
     for (let i = 1; i <= 5; i++) {
-      await db.todos.add(makeTodo({ id: i, priority: Priority.High }))
+      await db.todos.add(makeTodo({ id: i, dueDate: new Date('2026-04-15') }))
     }
     for (let i = 1; i <= 3; i++) {
       await db.people.add(makePerson({ id: i }))

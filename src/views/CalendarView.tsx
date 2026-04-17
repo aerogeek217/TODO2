@@ -10,12 +10,12 @@ import { useStatusStore } from '../stores/status-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
-import { Priority } from '../models'
 import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
+import { effectiveDate, scheduledLabel, isScheduledExpired } from '../utils/effective-date'
 import { generateRecurringInstances } from '../services/recurrence'
-import { byHardDeadlineThenDate } from './ListView'
+import { StatusIcon } from '../components/shared/StatusIcon'
 import styles from './CalendarView.module.css'
 
 /** A calendar entry: either a real task or a virtual recurring instance. */
@@ -82,12 +82,6 @@ function formatWeekRange(days: Date[]): string {
   return `${first.toLocaleDateString('en-US', { month: 'long' })} ${first.getDate()} - ${last.getDate()}, ${first.getFullYear()}`
 }
 
-function priorityColor(p: Priority): string | undefined {
-  if (p === Priority.High) return 'var(--color-priority-high)'
-  if (p === Priority.Medium) return 'var(--color-priority-medium)'
-  return undefined
-}
-
 export function CalendarView() {
   const { todos, loadAll, update: updateTodo } = useTodoStore()
   const { people, load: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
@@ -130,17 +124,17 @@ export function CalendarView() {
     return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
   }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter, statuses])
 
+  const [today, setToday] = useState(() => startOfDay(new Date()))
+
   const { scheduled, unscheduled } = useMemo(() => {
     const scheduled: PersistedTodoItem[] = []
     const unscheduled: PersistedTodoItem[] = []
     for (const t of activeTodos) {
-      if (t.dueDate) scheduled.push(t)
+      if (effectiveDate(t, today)) scheduled.push(t)
       else unscheduled.push(t)
     }
     return { scheduled, unscheduled }
-  }, [activeTodos])
-
-  const [today, setToday] = useState(() => startOfDay(new Date()))
+  }, [activeTodos, today])
 
   // Refresh "today" when the page becomes visible (e.g. after midnight)
   useEffect(() => {
@@ -177,25 +171,33 @@ export function CalendarView() {
     const rangeEnd = days.length > 0 ? new Date(startOfDay(days[days.length - 1]).getTime() + MS_PER_DAY) : new Date()
 
     for (const t of scheduled) {
-      const dueDay = startOfDay(new Date(t.dueDate!))
-      addEntry(dueDay, t, false)
+      const ed = effectiveDate(t, today)
+      if (!ed) continue
+      const primaryDay = startOfDay(ed)
+      addEntry(primaryDay, t, false)
 
-      // Generate virtual future instances for recurring tasks
-      if (t.recurrenceRule) {
-        const instances = generateRecurringInstances(new Date(t.dueDate!), t.recurrenceRule, rangeStart, rangeEnd)
+      // Generate virtual future instances for recurring tasks (recurrence is
+      // always deadline-anchored per Q16, so a rule without dueDate can't exist).
+      if (t.recurrenceRule && t.dueDate) {
+        const instances = generateRecurringInstances(new Date(t.dueDate), t.recurrenceRule, rangeStart, rangeEnd)
         for (const instanceDate of instances) {
           const instDay = startOfDay(instanceDate)
-          // Skip if it's the same day as the real due date (already added)
-          if (instDay.getTime() === dueDay.getTime()) continue
+          // Skip if it's the same day as the primary pill (already added)
+          if (instDay.getTime() === primaryDay.getTime()) continue
           addEntry(instDay, t, true)
         }
       }
     }
     for (const [, arr] of map) {
-      arr.sort((a, b) => byHardDeadlineThenDate(a.todo, b.todo))
+      arr.sort((a, b) => {
+        const ae = effectiveDate(a.todo, today)
+        const be = effectiveDate(b.todo, today)
+        if (ae && be && ae.getTime() !== be.getTime()) return ae.getTime() - be.getTime()
+        return a.todo.sortOrder - b.todo.sortOrder
+      })
     }
     return map
-  }, [scheduled, days])
+  }, [scheduled, days, today])
 
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
 
@@ -249,16 +251,30 @@ export function CalendarView() {
     const todo = todos.find((t) => t.id === todoId)
     if (!todo) return
 
-    const newDue = new Date(targetDate)
-    // Preserve time if original had a time, otherwise set to noon
-    if (todo.dueDate) {
-      const orig = new Date(todo.dueDate)
-      newDue.setHours(orig.getHours(), orig.getMinutes(), orig.getSeconds())
+    const newDate = new Date(targetDate)
+    // Preserve the time component from the field being updated, else default to noon
+    const timeSource = todo.scheduledDate?.kind === 'date'
+      ? new Date(todo.scheduledDate.value)
+      : todo.dueDate
+        ? new Date(todo.dueDate)
+        : null
+    if (timeSource) {
+      newDate.setHours(timeSource.getHours(), timeSource.getMinutes(), timeSource.getSeconds())
     } else {
-      newDue.setHours(12, 0, 0, 0)
+      newDate.setHours(12, 0, 0, 0)
     }
 
-    updateTodo({ ...todo, dueDate: newDue, modifiedAt: new Date() })
+    if (todo.scheduledDate) {
+      // Dragging a scheduled task always commits to a precise date — the user's
+      // fuzzy choice was deliberate, but picking a specific day is an override.
+      updateTodo({
+        ...todo,
+        scheduledDate: { kind: 'date', value: newDate },
+        modifiedAt: new Date(),
+      })
+    } else {
+      updateTodo({ ...todo, dueDate: newDate, modifiedAt: new Date() })
+    }
   }, [todos, updateTodo])
 
   const isWeek = viewMode === 'week'
@@ -331,7 +347,6 @@ export function CalendarView() {
                 </div>
 
                 {visibleEntries.map(({ todo, isVirtual, displayKey }) => {
-                  const pColor = priorityColor(todo.priority)
                   const assigned = assignedPeopleMap.get(todo.id)
                   const initials = assigned?.map((p) => p.initials || generateInitials(p.name)).join(', ')
 
@@ -343,18 +358,31 @@ export function CalendarView() {
                         isWeek && styles.weekTaskItem,
                         todo.isCompleted && styles.taskItemCompleted,
                         isVirtual && styles.taskItemVirtual,
-                        todo.priority === Priority.High && styles.taskItemHigh,
-                        todo.priority === Priority.Medium && styles.taskItemMedium,
                       ].filter(Boolean).join(' ')}
                       onClick={(e) => handleTaskClick(e, todo.id)}
                       draggable={!isVirtual}
                       onDragStart={(e) => !isVirtual && handleDragStart(e, todo.id)}
                       title={isVirtual ? `Recurring instance — click to edit parent task "${todo.title}"` : undefined}
                     >
-                      {pColor && (
-                        <span className={styles.priorityDot} style={{ background: pColor }} />
+                      {todo.scheduledDate && (
+                        <span
+                          className={styles.scheduledMarker}
+                          title={`Scheduled: ${scheduledLabel(todo.scheduledDate, today)}`}
+                          aria-label="Scheduled"
+                        >
+                          <StatusIcon icon="calendar" />
+                          {isScheduledExpired(todo, today) && <span className={styles.markerExpired} />}
+                        </span>
                       )}
-                      {todo.isHardDeadline && <span className={styles.hardDeadlineFlag}>&#9873;</span>}
+                      {todo.dueDate && (
+                        <span
+                          className={styles.deadlineMarker}
+                          title={`Deadline: ${new Date(todo.dueDate).toLocaleDateString()}`}
+                          aria-label="Deadline"
+                        >
+                          <StatusIcon icon="clock" />
+                        </span>
+                      )}
                       {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
                       <span className={styles.taskTitle}>{todo.title}</span>
                       {initials && <span className={styles.taskInitials}>{initials}</span>}
@@ -381,21 +409,17 @@ export function CalendarView() {
             </button>
             {showUnscheduled && (
               <div className={styles.unscheduledList}>
-                {unscheduled.map((todo) => {
-                  const pColor = priorityColor(todo.priority)
-                  return (
-                    <div
-                      key={todo.id}
-                      className={styles.unscheduledItem}
-                      onClick={(e) => handleTaskClick(e, todo.id)}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, todo.id)}
-                    >
-                      {pColor && <span className={styles.priorityDot} style={{ background: pColor }} />}
-                      {todo.title}
-                    </div>
-                  )
-                })}
+                {unscheduled.map((todo) => (
+                  <div
+                    key={todo.id}
+                    className={styles.unscheduledItem}
+                    onClick={(e) => handleTaskClick(e, todo.id)}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, todo.id)}
+                  >
+                    {todo.title}
+                  </div>
+                ))}
               </div>
             )}
           </div>

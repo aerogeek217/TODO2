@@ -1,12 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { Priority } from '../../models'
 import type { PersistedTodoItem } from '../../models'
 import { sortProjectTasks } from '../../components/canvas/ProjectNode'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
   return {
     title: `Task ${overrides.id}`,
-    priority: Priority.Normal,
     isCompleted: false,
     createdAt: new Date(2026, 3, 1),
     modifiedAt: new Date(),
@@ -16,7 +14,7 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
 }
 
 describe('sortProjectTasks', () => {
-  it('keeps children grouped under their parent after sorting by due date', () => {
+  it('keeps children grouped under their parent after sorting by date', () => {
     const earlier = new Date(2026, 3, 1)
     const later = new Date(2026, 3, 10)
     const todos = [
@@ -26,7 +24,7 @@ describe('sortProjectTasks', () => {
       makeTodo({ id: 4, title: 'Early parent', dueDate: earlier }),
       makeTodo({ id: 5, title: 'Early child', parentId: 4, dueDate: later }),
     ]
-    const sorted = sortProjectTasks(todos, 'due', true)
+    const sorted = sortProjectTasks(todos, 'date', true)
     // Early parent (id 4) comes first with its child, then Late parent (id 1) with its children.
     // Within Late parent's children, child A (earlier date) comes before child B (later date).
     expect(sorted.map((t) => t.id)).toEqual([4, 5, 1, 2, 3])

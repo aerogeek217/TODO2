@@ -1,55 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { parseInput } from '../../services/natural-language-parser'
-import { Priority } from '../../models'
 
 describe('natural-language-parser', () => {
   it('extracts a plain title with no tokens', () => {
     const result = parseInput('Buy groceries')
     expect(result.title).toBe('Buy groceries')
     expect(result.tokens).toHaveLength(0)
-    expect(result.priority).toBeUndefined()
-  })
-
-  it('extracts !high priority', () => {
-    const result = parseInput('Fix login bug !high')
-    expect(result.title).toBe('Fix login bug')
-    expect(result.priority).toBe(Priority.High)
-    expect(result.tokens).toHaveLength(1)
-    expect(result.tokens[0].type).toBe('priority')
-  })
-
-  it('extracts !medium priority', () => {
-    const result = parseInput('Review PR !medium')
-    expect(result.priority).toBe(Priority.Medium)
-  })
-
-  it('extracts !med as medium priority', () => {
-    const result = parseInput('Update docs !med')
-    expect(result.priority).toBe(Priority.Medium)
-  })
-
-  it('extracts p1 as high priority', () => {
-    const result = parseInput('Fix login bug p1')
-    expect(result.title).toBe('Fix login bug')
-    expect(result.priority).toBe(Priority.High)
-  })
-
-  it('extracts p2 as medium priority', () => {
-    const result = parseInput('Review PR p2')
-    expect(result.title).toBe('Review PR')
-    expect(result.priority).toBe(Priority.Medium)
-  })
-
-  it('extracts p3 as normal priority', () => {
-    const result = parseInput('Update docs p3')
-    expect(result.title).toBe('Update docs')
-    expect(result.priority).toBe(Priority.Normal)
-  })
-
-  it('does not match p1 inside a word', () => {
-    const result = parseInput('Fix map1 rendering')
-    expect(result.title).toBe('Fix map1 rendering')
-    expect(result.priority).toBeUndefined()
+    expect(result.scheduledDate).toBeUndefined()
   })
 
   it('extracts @person', () => {
@@ -77,47 +34,37 @@ describe('natural-language-parser', () => {
     expect(result.tags).toEqual(['bugs', 'urgent'])
   })
 
-  it('extracts tomorrow as date', () => {
+  it('extracts tomorrow as fuzzy scheduled token', () => {
     const result = parseInput('Submit report tomorrow')
     expect(result.title).toBe('Submit report')
-    expect(result.dueDate).toBeDefined()
-    const expected = new Date()
-    expected.setDate(expected.getDate() + 1)
-    expected.setHours(0, 0, 0, 0)
-    expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
+    expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
   })
 
-  it('extracts today as date', () => {
+  it('extracts today as fuzzy scheduled token', () => {
     const result = parseInput('Call dentist today')
-    expect(result.dueDate).toBeDefined()
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    expect(result.dueDate!.toDateString()).toBe(today.toDateString())
+    expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
   })
 
-  it('parses a complex input with all token types', () => {
-    const result = parseInput('Review PR #142 tomorrow !high @Mike #bugs')
+  it('parses a complex input with date + tag + person', () => {
+    const result = parseInput('Review PR #142 tomorrow @Mike #bugs')
     expect(result.title).toBe('Review PR #142')
-    expect(result.priority).toBe(Priority.High)
     expect(result.persons).toEqual(['Mike'])
     expect(result.tags).toEqual(['bugs'])
-    expect(result.dueDate).toBeDefined()
+    expect(result.scheduledDate).toBeDefined()
   })
 
-  it('parses combined input: title + date + tag + person + priority', () => {
-    const result = parseInput('Buy groceries tomorrow #shopping @john p1')
+  it('parses combined input: title + date + tag + person', () => {
+    const result = parseInput('Buy groceries tomorrow #shopping @john')
     expect(result.title).toBe('Buy groceries')
-    expect(result.priority).toBe(Priority.High)
     expect(result.persons).toEqual(['john'])
     expect(result.tags).toEqual(['shopping'])
-    expect(result.dueDate).toBeDefined()
+    expect(result.scheduledDate).toBeDefined()
   })
 
   it('handles input with only tokens', () => {
-    const result = parseInput('!high @Sarah tomorrow')
-    expect(result.priority).toBe(Priority.High)
+    const result = parseInput('@Sarah tomorrow')
     expect(result.persons).toEqual(['Sarah'])
-    expect(result.dueDate).toBeDefined()
+    expect(result.scheduledDate).toBeDefined()
   })
 
   it('handles empty input', () => {
@@ -126,18 +73,23 @@ describe('natural-language-parser', () => {
     expect(result.tokens).toHaveLength(0)
   })
 
-  it('extracts day name as date', () => {
+  it('extracts day name as precise scheduled date', () => {
     const result = parseInput('Meeting friday')
     expect(result.title).toBe('Meeting')
-    expect(result.dueDate).toBeDefined()
-    expect(result.dueDate!.getDay()).toBe(5) // Friday
+    expect(result.scheduledDate).toBeDefined()
+    expect(result.scheduledDate!.kind).toBe('date')
+    if (result.scheduledDate!.kind === 'date') {
+      expect(result.scheduledDate!.value.getDay()).toBe(5) // Friday
+    }
   })
 
-  it('extracts "next monday" as date', () => {
+  it('extracts "next monday" as precise scheduled date', () => {
     const result = parseInput('Sprint planning next monday')
     expect(result.title).toBe('Sprint planning')
-    expect(result.dueDate).toBeDefined()
-    expect(result.dueDate!.getDay()).toBe(1) // Monday
+    expect(result.scheduledDate).toBeDefined()
+    if (result.scheduledDate!.kind === 'date') {
+      expect(result.scheduledDate!.value.getDay()).toBe(1)
+    }
   })
 
   it('preserves numeric # references in title', () => {
@@ -166,11 +118,10 @@ describe('natural-language-parser', () => {
   })
 
   it('parses /project with other tokens', () => {
-    const result = parseInput('Fix bug /Backend @Mike p1')
+    const result = parseInput('Fix bug /Backend @Mike')
     expect(result.title).toBe('Fix bug')
     expect(result.projects).toEqual(['Backend'])
     expect(result.persons).toEqual(['Mike'])
-    expect(result.priority).toBe(Priority.High)
   })
 
   it('extracts #tag before /project without consuming the project', () => {
@@ -197,47 +148,41 @@ describe('natural-language-parser', () => {
   it('person @friday is not also parsed as a date', () => {
     const result = parseInput('Ask @friday about the report')
     expect(result.persons).toEqual(['friday'])
-    expect(result.dueDate).toBeUndefined()
+    expect(result.scheduledDate).toBeUndefined()
     expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
   })
 
   it('tag #monday is not also parsed as a date', () => {
     const result = parseInput('Review #monday items')
     expect(result.tags).toEqual(['monday'])
-    expect(result.dueDate).toBeUndefined()
+    expect(result.scheduledDate).toBeUndefined()
     expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
   })
 
   it('project /tomorrow is not also parsed as a date', () => {
     const result = parseInput('Check /tomorrow tasks')
     expect(result.projects).toEqual(['tomorrow'])
-    expect(result.dueDate).toBeUndefined()
+    expect(result.scheduledDate).toBeUndefined()
     expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
   })
 
   it('person and separate date do not conflict when non-overlapping', () => {
     const result = parseInput('Ask @Mike about tomorrow')
     expect(result.persons).toEqual(['Mike'])
-    expect(result.dueDate).toBeDefined()
-  })
-
-  it('bang priority and short priority at different positions both parse but first wins', () => {
-    const result = parseInput('Fix !high bug p2')
-    expect(result.priority).toBe(Priority.High)
-    // Both tokens exist (non-overlapping), but first priority wins in resolution
-    expect(result.tokens.filter(t => t.type === 'priority')).toHaveLength(2)
+    expect(result.scheduledDate).toBeDefined()
   })
 
   it('bare day name on same day resolves to next week, not today', () => {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const todayName = dayNames[new Date().getDay()]
     const result = parseInput(`Task ${todayName}`)
-    expect(result.dueDate).toBeDefined()
-    // Should be 7 days from now, not today
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const expected = new Date(today)
-    expected.setDate(expected.getDate() + 7)
-    expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
+    expect(result.scheduledDate).toBeDefined()
+    if (result.scheduledDate!.kind === 'date') {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const expected = new Date(today)
+      expected.setDate(expected.getDate() + 7)
+      expect(result.scheduledDate!.value.toDateString()).toBe(expected.toDateString())
+    }
   })
 })

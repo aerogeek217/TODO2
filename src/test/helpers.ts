@@ -1,4 +1,3 @@
-import { Priority } from '../models'
 import type { PersistedTodoItem, Person, Tag, Project, Org, ScheduledValue } from '../models'
 import { db } from '../data/database'
 
@@ -7,8 +6,6 @@ export function makeTodo(
 ): PersistedTodoItem {
   return {
     title: `Task ${overrides.id}`,
-    // Legacy default retained for validator compatibility; removed in Commit B.
-    priority: Priority.Normal,
     isCompleted: false,
     createdAt: new Date(),
     modifiedAt: new Date(),

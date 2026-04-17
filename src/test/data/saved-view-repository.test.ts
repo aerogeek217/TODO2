@@ -12,17 +12,15 @@ describe('savedViewRepository', () => {
   function makeView(overrides: Partial<SavedView> = {}): SavedView {
     return {
       name: 'My View',
-      sortBy: 'priority',
+      sortBy: 'date',
       sortOrder: 0,
       filters: {
-        priorities: null,
         showCompleted: false,
         showHiddenStatuses: false,
-        hardDeadlineOnly: false,
         personIds: null,
         tagIds: null,
         orgIds: null,
-        dateRangeIncludeNoDue: false,
+        dateRangeIncludeNoDate: false,
       },
       ...overrides,
     }
@@ -34,11 +32,11 @@ describe('savedViewRepository', () => {
   })
 
   it('add_andGetAll_returnsInsertedView', async () => {
-    await savedViewRepository.add(makeView({ name: 'Work', sortBy: 'due' }))
+    await savedViewRepository.add(makeView({ name: 'Work', sortBy: 'date' }))
     const views = await savedViewRepository.getAll()
     expect(views).toHaveLength(1)
     expect(views[0].name).toBe('Work')
-    expect(views[0].sortBy).toBe('due')
+    expect(views[0].sortBy).toBe('date')
   })
 
   it('add_returnsNumericId', async () => {
@@ -57,7 +55,7 @@ describe('savedViewRepository', () => {
   })
 
   it('update_modifiesNameAndSortBy', async () => {
-    const id = await savedViewRepository.add(makeView({ name: 'Old Name', sortBy: 'priority' }))
+    const id = await savedViewRepository.add(makeView({ name: 'Old Name', sortBy: 'date' }))
     await savedViewRepository.update(id, { name: 'New Name', sortBy: 'tag' })
 
     const views = await savedViewRepository.getAll()
@@ -66,11 +64,11 @@ describe('savedViewRepository', () => {
   })
 
   it('update_partialChanges_doesNotAffectOtherFields', async () => {
-    const id = await savedViewRepository.add(makeView({ name: 'Keep Me', sortBy: 'due', sortOrder: 5 }))
+    const id = await savedViewRepository.add(makeView({ name: 'Keep Me', sortBy: 'date', sortOrder: 5 }))
     await savedViewRepository.update(id, { name: 'Renamed' })
 
     const views = await savedViewRepository.getAll()
-    expect(views[0].sortBy).toBe('due')
+    expect(views[0].sortBy).toBe('date')
     expect(views[0].sortOrder).toBe(5)
   })
 
@@ -97,19 +95,16 @@ describe('savedViewRepository', () => {
   it('update_withFiltersSnapshot_persistsFilters', async () => {
     const id = await savedViewRepository.add(makeView())
     const filters = {
-      priorities: [2],
       showCompleted: true,
       showHiddenStatuses: true,
-      hardDeadlineOnly: false,
       personIds: [1, 2],
       tagIds: null,
       orgIds: null,
-      dateRangeIncludeNoDue: true,
+      dateRangeIncludeNoDate: true,
     }
     await savedViewRepository.update(id, { filters })
 
     const views = await savedViewRepository.getAll()
-    expect(views[0].filters.priorities).toEqual([2])
     expect(views[0].filters.personIds).toEqual([1, 2])
     expect(views[0].filters.showCompleted).toBe(true)
   })

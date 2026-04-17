@@ -86,7 +86,7 @@
 }
 
 .closeButton:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .body {
@@ -154,7 +154,7 @@
 }
 
 .removeBtn:hover {
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .resizeHandle {

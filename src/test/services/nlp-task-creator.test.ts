@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import { parseTaskInput, applyNlpMetadata } from '../../services/nlp-task-creator'
-import { Priority } from '../../models'
 import type { Person, Tag, Project, PersistedTodoItem } from '../../models'
 
 const people: Person[] = [
@@ -20,7 +19,7 @@ const projects: Project[] = [
 
 describe('parseTaskInput', () => {
   it('returns cleaned title with metadata tokens removed', () => {
-    const result = parseTaskInput('Fix bug @Alice #urgent p1', people, tags)
+    const result = parseTaskInput('Fix bug @Alice #urgent', people, tags)
     expect(result.title).toBe('Fix bug')
   })
 
@@ -34,17 +33,11 @@ describe('parseTaskInput', () => {
     expect(result.resolved.tagIds).toEqual([1, 2])
   })
 
-  it('returns priority when p1/p2/p3 present', () => {
-    const result = parseTaskInput('Task p1', people, tags)
-    expect(result.resolved.priority).toBe(Priority.High)
-  })
-
   it('returns empty resolved when no metadata tokens', () => {
     const result = parseTaskInput('Just a plain task', people, tags)
     expect(result.resolved.personIds).toEqual([])
     expect(result.resolved.tagIds).toEqual([])
-    expect(result.resolved.priority).toBeUndefined()
-    expect(result.resolved.dueDate).toBeUndefined()
+    expect(result.resolved.scheduledDate).toBeUndefined()
   })
 
   it('resolves /project when projects provided', () => {
@@ -60,33 +53,30 @@ describe('parseTaskInput', () => {
 })
 
 describe('applyNlpMetadata', () => {
-  function makeTodo(): PersistedTodoItem {
+  function makeTodo(overrides: Partial<PersistedTodoItem> = {}): PersistedTodoItem {
     return {
       id: 1,
       title: 'Test task',
-      priority: Priority.Normal,
       isCompleted: false,
       createdAt: new Date(),
       modifiedAt: new Date(),
       sortOrder: 1,
+      ...overrides,
     }
   }
 
-  it('calls updateTodo with priority/dueDate/recurrenceRule when present', async () => {
+  it('calls updateTodo with scheduledDate when present', async () => {
     const todo = makeTodo()
     const getTodo = vi.fn().mockReturnValue(todo)
     const updateTodo = vi.fn()
     const assignPerson = vi.fn()
     const assignTag = vi.fn()
 
-    const dueDate = new Date('2026-03-15')
     await applyNlpMetadata(
       1,
       {
         title: 'Test task',
-        priority: Priority.High,
-        dueDate,
-        recurrence: 'weekly',
+        scheduledDate: { kind: 'fuzzy', token: 'tomorrow' },
         personIds: [],
         tagIds: [],
         orgIds: [],
@@ -103,12 +93,40 @@ describe('applyNlpMetadata', () => {
 
     expect(updateTodo).toHaveBeenCalledOnce()
     const updated = updateTodo.mock.calls[0][0]
-    expect(updated.priority).toBe(Priority.High)
-    expect(updated.dueDate).toEqual(dueDate)
-    expect(updated.recurrenceRule).toEqual({ type: 'weekly' })
+    expect(updated.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
   })
 
-  it('skips updateTodo when no priority/dueDate/recurrence', async () => {
+  it('applies recurrence only when the todo has a deadline', async () => {
+    const deadline = new Date('2026-03-15')
+    const todo = makeTodo({ dueDate: deadline })
+    const getTodo = vi.fn().mockReturnValue(todo)
+    const updateTodo = vi.fn()
+
+    await applyNlpMetadata(
+      1,
+      {
+        title: 'Test task',
+        recurrence: 'weekly',
+        personIds: [],
+        tagIds: [],
+        orgIds: [],
+        unmatchedPersons: [],
+        unmatchedTags: [],
+        unmatchedOrgs: [],
+        unmatchedProjects: [],
+      },
+      getTodo,
+      updateTodo,
+      vi.fn(),
+      vi.fn(),
+    )
+
+    expect(updateTodo).toHaveBeenCalledOnce()
+    const updated = updateTodo.mock.calls[0][0]
+    expect(updated.recurrenceRule?.type).toBe('weekly')
+  })
+
+  it('skips updateTodo when no scheduledDate/recurrence', async () => {
     const updateTodo = vi.fn()
     const assignPerson = vi.fn()
     const assignTag = vi.fn()

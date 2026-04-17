@@ -100,7 +100,7 @@
 .exportError {
   margin-top: 8px;
   font-size: var(--font-size-meta);
-  color: var(--color-priority-high);
+  color: var(--color-danger);
 }
 
 .actions {

@@ -1,12 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { Priority } from '../../models'
 import type { PersistedTodoItem } from '../../models'
 import { bySortOrder, buildChildMap, buildHierarchy, getFlatVisualOrder } from '../../utils/hierarchy'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
   return {
     title: `Task ${overrides.id}`,
-    priority: Priority.Normal,
     isCompleted: false,
     createdAt: new Date(),
     modifiedAt: new Date(),

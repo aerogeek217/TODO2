@@ -3,7 +3,6 @@ import { db } from '../../data/database'
 import { canvasRepository } from '../../data/canvas-repository'
 import { projectRepository } from '../../data/project-repository'
 import { todoRepository } from '../../data/todo-repository'
-import { Priority } from '../../models/priority'
 
 beforeEach(async () => {
   await db.delete()
@@ -58,7 +57,6 @@ describe('canvasRepository', () => {
     const now = new Date()
     await todoRepository.insert({
       title: 'Task',
-      priority: Priority.Normal,
       isCompleted: false,
       createdAt: now,
       modifiedAt: now,

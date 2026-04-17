@@ -9,23 +9,26 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useStatusStore } from '../../stores/status-store'
 import { buildHierarchy } from '../../utils/hierarchy'
+import { effectiveDate } from '../../utils/effective-date'
+import { startOfToday } from '../../utils/date'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { PlainTextExportPopup } from '../overlays/PlainTextExportPopup'
 import styles from './ProjectNode.module.css'
 
-type SortBy = 'name' | 'priority' | 'due' | 'created'
+type SortBy = 'name' | 'date' | 'created'
 
 export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean): PersistedTodoItem[] {
+  const today = startOfToday()
   const compareFn = (a: PersistedTodoItem, b: PersistedTodoItem): number => {
     const dir = asc ? 1 : -1
     switch (sortBy) {
       case 'name':
         return a.title.localeCompare(b.title) * dir
-      case 'priority':
-        return (b.priority - a.priority) * dir
-      case 'due': {
-        const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
-        const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+      case 'date': {
+        const ae = effectiveDate(a, today)
+        const be = effectiveDate(b, today)
+        const aTime = ae ? ae.getTime() : Infinity
+        const bTime = be ? be.getTime() : Infinity
         return (aTime - bTime) * dir
       }
       case 'created':
@@ -245,7 +248,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
             </button>
             {showSortMenu && (
               <div className={styles.sortMenu}>
-                {([['name', 'Name'], ['priority', 'Priority'], ['due', 'Due date'], ['created', 'Created']] as const).map(([key, label]) => (
+                {([['name', 'Name'], ['date', 'Date'], ['created', 'Created']] as const).map(([key, label]) => (
                   <button key={key} className={`${styles.sortOption} ${lastSort?.by === key ? styles.sortOptionActive : ''}`} onClick={(e) => { e.stopPropagation(); handleSort(key) }}>
                     {label}
                     {lastSort?.by === key && <span className={styles.sortArrow}>{lastSort.asc ? '↑' : '↓'}</span>}

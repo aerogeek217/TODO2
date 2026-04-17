@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { resolveInput } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
-import { Priority } from '../../models'
 import type { Person, Tag, Project, Org } from '../../models'
 
 const people: Person[] = [
@@ -88,20 +87,18 @@ describe('nlp-resolver', () => {
     expect(result.personIds).toEqual([3])
   })
 
-  it('preserves priority and dueDate from parsed input', () => {
-    const parsed = parseInput('Task p1 tomorrow')
+  it('preserves scheduledDate from parsed input', () => {
+    const parsed = parseInput('Task tomorrow')
     const result = resolveInput(parsed, people, tags)
-    expect(result.priority).toBe(Priority.High)
-    expect(result.dueDate).toBeDefined()
+    expect(result.scheduledDate).toBeDefined()
     expect(result.title).toBe('Task')
   })
 
   it('handles combined input with all token types', () => {
-    const parsed = parseInput('Buy groceries tomorrow #shopping @John p1')
+    const parsed = parseInput('Buy groceries tomorrow #shopping @John')
     const result = resolveInput(parsed, people, tags)
     expect(result.title).toBe('Buy groceries')
-    expect(result.priority).toBe(Priority.High)
-    expect(result.dueDate).toBeDefined()
+    expect(result.scheduledDate).toBeDefined()
     expect(result.personIds).toEqual([1])
     expect(result.tagIds).toEqual([10])
   })
@@ -133,12 +130,11 @@ describe('nlp-resolver', () => {
   })
 
   it('resolves project alongside people and tags', () => {
-    const parsed = parseInput('Fix bug /Backend @Mike #urgent p1')
+    const parsed = parseInput('Fix bug /Backend @Mike #urgent')
     const result = resolveInput(parsed, people, tags, projects)
     expect(result.projectId).toBe(100)
     expect(result.personIds).toEqual([3])
     expect(result.tagIds).toEqual([11])
-    expect(result.priority).toBe(Priority.High)
     expect(result.title).toBe('Fix bug')
   })
 

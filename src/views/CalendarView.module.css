@@ -128,7 +128,7 @@
 }
 
 .dayCellOverdue {
-  background: rgba(238, 125, 119, 0.05);
+  background: color-mix(in srgb, var(--color-danger) 5%, transparent);
 }
 
 .dayCellDragOver {
@@ -176,14 +176,6 @@
   background: var(--color-accent-bg-light);
 }
 
-.taskItemHigh {
-  border-left: 3px solid var(--color-priority-high);
-}
-
-.taskItemMedium {
-  border-left: 3px solid var(--color-priority-medium);
-}
-
 .taskItemCompleted {
   color: var(--color-text-completed);
   text-decoration: line-through;
@@ -204,11 +196,33 @@
   opacity: 0.4;
 }
 
-.priorityDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+.scheduledMarker {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-accent);
+  margin-right: 2px;
   flex-shrink: 0;
+  position: relative;
+}
+.scheduledMarker svg { width: 10px; height: 10px; }
+
+.deadlineMarker {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-danger);
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+.deadlineMarker svg { width: 10px; height: 10px; }
+
+.markerExpired {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-danger);
 }
 
 .taskTitle {
@@ -235,12 +249,6 @@
   align-items: center;
   gap: 4px;
   margin-top: 1px;
-}
-
-.hardDeadlineFlag {
-  color: var(--color-priority-high);
-  font-size: 10px;
-  flex-shrink: 0;
 }
 
 /* Unscheduled section */

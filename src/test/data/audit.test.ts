@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { auditData, cleanupIssues } from '../../data/audit'
-import { Priority } from '../../models/priority'
 
 beforeEach(async () => {
   await db.delete()
@@ -13,7 +12,6 @@ const now = new Date()
 function makeTodo(overrides: Partial<import('../../models').TodoItem> = {}) {
   return {
     title: 'Test todo',
-    priority: Priority.Normal,
     isCompleted: false,
     createdAt: now,
     modifiedAt: now,

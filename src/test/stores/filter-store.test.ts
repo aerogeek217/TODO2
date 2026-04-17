@@ -1,12 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useFilterStore } from '../../stores/filter-store'
-import { Priority } from '../../models'
 import type { PersistedTodoItem } from '../../models'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
   return {
     title: 'Test',
-    priority: Priority.Normal,
     isCompleted: false,
     createdAt: new Date(),
     modifiedAt: new Date(),
@@ -20,32 +18,6 @@ beforeEach(() => {
 })
 
 describe('useFilterStore', () => {
-  it('setPriorities filters by priority', () => {
-    useFilterStore.getState().setPriorities(new Set([Priority.High]))
-    expect(useFilterStore.getState().isActive).toBe(true)
-
-    const { matchesFilter } = useFilterStore.getState()
-    expect(matchesFilter(makeTodo({ id: 1, priority: Priority.High }))).toBe(true)
-    expect(matchesFilter(makeTodo({ id: 2, priority: Priority.Normal }))).toBe(false)
-  })
-
-  it('null priorities means no filter', () => {
-    useFilterStore.getState().setPriorities(null)
-    const { matchesFilter } = useFilterStore.getState()
-
-    expect(matchesFilter(makeTodo({ id: 1, priority: Priority.High }))).toBe(true)
-    expect(matchesFilter(makeTodo({ id: 2, priority: Priority.Normal }))).toBe(true)
-    expect(useFilterStore.getState().isActive).toBe(false)
-  })
-
-  it('empty set priorities matches nothing', () => {
-    useFilterStore.getState().setPriorities(new Set())
-    const { matchesFilter } = useFilterStore.getState()
-
-    expect(matchesFilter(makeTodo({ id: 1, priority: Priority.High }))).toBe(false)
-    expect(matchesFilter(makeTodo({ id: 2, priority: Priority.Normal }))).toBe(false)
-  })
-
   it('showCompleted false hides completed tasks', () => {
     // Default is showCompleted: false
     const { matchesFilter } = useFilterStore.getState()
@@ -121,13 +93,11 @@ describe('useFilterStore', () => {
   })
 
   it('clearAll resets all filters', () => {
-    useFilterStore.getState().setPriorities(new Set([Priority.High]))
     useFilterStore.getState().setTagIds(new Set([1]))
     useFilterStore.getState().setShowCompleted(true)
     useFilterStore.getState().clearAll()
 
     const { filters, isActive } = useFilterStore.getState()
-    expect(filters.priorities).toBe(null)
     expect(filters.tagIds).toBe(null)
     expect(filters.personIds).toBe(null)
     expect(filters.showCompleted).toBe(false)
@@ -206,8 +176,8 @@ describe('useFilterStore', () => {
     expect(matchesFilter(makeTodo({ id: 2 }))).toBe(true)
   })
 
-  it('dateField defaults to due', () => {
-    expect(useFilterStore.getState().filters.dateField).toBe('due')
+  it('dateField defaults to date', () => {
+    expect(useFilterStore.getState().filters.dateField).toBe('date')
   })
 
   it('setDateField changes the date field', () => {
@@ -218,13 +188,13 @@ describe('useFilterStore', () => {
     expect(useFilterStore.getState().filters.dateField).toBe('modified')
   })
 
-  it('date range filters by dueDate when dateField is due', () => {
+  it('date range filters by effectiveDate when dateField is date', () => {
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
     const { matchesFilter } = useFilterStore.getState()
 
     expect(matchesFilter(makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
     expect(matchesFilter(makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
-    // No due date excluded by default
+    // No date excluded by default
     expect(matchesFilter(makeTodo({ id: 3 }))).toBe(false)
   })
 
@@ -246,19 +216,19 @@ describe('useFilterStore', () => {
     expect(matchesFilter(makeTodo({ id: 2, modifiedAt: new Date('2025-05-15') }))).toBe(false)
   })
 
-  it('includeNoDue works with due dateField', () => {
+  it('includeNoDate works with date dateField', () => {
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-    useFilterStore.getState().setDateRangeIncludeNoDue(true)
+    useFilterStore.getState().setDateRangeIncludeNoDate(true)
     const { matchesFilter } = useFilterStore.getState()
 
-    // No due date included
+    // No date included
     expect(matchesFilter(makeTodo({ id: 1 }))).toBe(true)
   })
 
-  it('clearAll resets dateField to due', () => {
+  it('clearAll resets dateField to date', () => {
     useFilterStore.getState().setDateField('modified')
     useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.dateField).toBe('due')
+    expect(useFilterStore.getState().filters.dateField).toBe('date')
   })
 
   it('clearAll resets orgFilterMode to include-people', () => {
