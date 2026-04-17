@@ -16,7 +16,7 @@ main.tsx (entry point)
 ├── styles/tokens.css      → CSS custom properties (design system: dark/light themes via [data-theme], tint scale, shadows, radii, z-index, spacing, typography)
 ├── views/                 → Route-level pages
 │   ├── CanvasPage         → components/canvas/, stores
-│   ├── DashboardView      → Top 10 lists (Mine/Stale) ranked by importance score + Taskboard; Mine excludes hideByDefault statuses
+│   ├── DashboardView      → Renders seeded `listDefinitions` rows (Today/Upcoming/Deadlines/Someday) via `services/dashboard-lists`; per-list grouping (relative-effective / relative-deadline) + Taskboard; shares `showCompleted` / `showHiddenStatuses` toggles, ignores other filter-bar fields
 │   ├── ListView           → Unified list with sort-by grouping (Priority/Due/People/Tag/Project), saved views, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Compact hub: theme toggle (light/dark/system), manage buttons open modals; task defaults (project, status), database location, import/export
@@ -172,9 +172,8 @@ main.tsx (entry point)
 | TaskboardPanel | components/taskboard/TaskboardPanel.tsx | Dashboard card for taskboard; sortable drag reorder via dnd-kit; droppable target for drag-to-add from dashboard lists |
 | TaskboardNode | components/canvas/TaskboardNode.tsx | Canvas node for taskboard; resizable, closable (clears with confirmation), sortable drag reorder, droppable target for drag-to-add from project lists and list insets; always visible on canvas |
 | PlainTextExportPopup | components/overlays/PlainTextExportPopup.tsx | Modal with plain text representation of current list sections; copy-to-clipboard support |
-| DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Stale; 2-column grid layout; collapsible cards; drag tasks to taskboard via DndContext |
-| scoreTask | views/DashboardView.tsx | Importance scoring: hard deadline (+500), overdue (100+days), due proximity (60-days), priority (High+20, Medium+10) |
-| buildDashboardLists | views/DashboardView.tsx | Builds 2 dashboard lists from all incomplete todos using scoreTask ranking; both lists exclude hideByDefault statuses unless `showHiddenStatuses` is true |
+| DashboardView | views/DashboardView.tsx | Renders seeded `listDefinitions` via `buildDashboardLists`; 2-column grid of `DashboardListCard`s; collapsible cards; drag tasks to taskboard via DndContext; empty-state fallback when no definitions |
+| buildDashboardLists, interpretMembership, interpretSort, interpretGrouping, WARNING_WINDOW_DAYS | services/dashboard-lists.ts | Pure interpreter over `ListDefinition`. Membership kinds: today (≤ today OR deadline within WARNING_WINDOW_DAYS=3), upcoming (has date, not in today), deadlines (has `dueDate`, intentional overlap with today), someday (no dates). Sort kinds: effective-date-asc (expired-fuzzy first), deadline-asc, sort-order. Grouping kinds: none, relative-effective, relative-deadline (empty buckets dropped). Applies `showCompleted` + `showHiddenStatuses` gates. |
 | buildExportData | services/export-import.ts | Reads all 12 DB tables in parallel; shared by file-storage, settings export, and backup snapshots |
 | buildMarkdownExport | services/export-import.ts | Builds markdown representation of all tasks grouped by project; shows `[status.name]` for meaningful statuses (icon or hideByDefault); uses buildExportData |
 | fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh; `onConfirmMigration` callback pauses import of legacy-format files pending user confirmation |
@@ -222,7 +221,7 @@ main.tsx (entry point)
 | src/views/ | Route-level page components | CanvasPage.tsx, ListView.tsx, SettingsPage.tsx |
 | src/components/ | Reusable UI components | layout/, task/, canvas/, overlays/, settings/, shared/ |
 | src/hooks/ | Custom React hooks | use-task-edit-callbacks.ts, use-keyboard-shortcuts.ts, use-bulk-actions.ts, use-canvas-dnd.ts, use-inline-edit.ts, use-click-outside.ts, use-is-mobile.ts, use-nlp-autocomplete.ts |
-| src/services/ | Non-UI logic | natural-language-parser.ts, command-registry.ts, file-storage.ts, file-handle-idb.ts, task-placement.ts, drop-resolver.ts, undoable.ts, clipboard.ts, recurrence.ts, export-import.ts, backup-scheduler.ts |
+| src/services/ | Non-UI logic | natural-language-parser.ts, command-registry.ts, file-storage.ts, file-handle-idb.ts, task-placement.ts, drop-resolver.ts, undoable.ts, clipboard.ts, recurrence.ts, export-import.ts, backup-scheduler.ts, dashboard-lists.ts |
 | src/utils/ | Shared pure utilities | hierarchy.ts (bySortOrder, buildChildMap, buildHierarchy, getFlatVisualOrder), date.ts (startOfDay, startOfToday, isSameDay, formatDate, formatRelativeTime, toDateInputValue, MS_PER_DAY), effective-date.ts (resolveFuzzy, resolveScheduled, effectiveDate, isScheduledExpired, scheduledLabel) |
 | src/test/ | Vitest tests | data/, stores/, services/, hooks/, components/ |
 
