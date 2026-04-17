@@ -17,98 +17,17 @@ import { useUIStore } from '../stores/ui-store'
 import { useFilterStore } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
+import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
-import { Priority } from '../models'
-import type { PersistedTodoItem, Status } from '../models'
-import { startOfToday, MS_PER_DAY, formatRelativeTime } from '../utils/date'
+import type { PersistedTodoItem, Person, Tag } from '../models'
+import { startOfToday } from '../utils/date'
+import { buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
 import { TaskboardPanel } from '../components/taskboard/TaskboardPanel'
 import styles from './DashboardView.module.css'
-
-const TOP_N = 10
-
-/**
- * Score a task for importance ranking.
- * Higher score = more important = should appear first.
- *
- * Weighting:
- *  - Hard deadline tasks always outrank soft deadlines (+500 bump puts hard
- *    above the max soft score of ~465 from being 365+ days overdue). This
- *    matches the List view's "hard first within a bucket" semantics.
- *  - Due date proximity: closer due dates score higher
- *  - Priority: High=2, Medium=1, Normal=0 adds a bonus
- */
-export function scoreTask(todo: PersistedTodoItem, now: number): number {
-  let score = 0
-
-  // Priority bonus
-  if (todo.priority === Priority.High) score += 20
-  else if (todo.priority === Priority.Medium) score += 10
-
-  // Due date proximity (closer = higher score)
-  if (todo.dueDate) {
-    const dueTime = new Date(todo.dueDate).getTime()
-    const daysUntilDue = (dueTime - now) / MS_PER_DAY
-
-    // Overdue tasks get the highest due-date score
-    if (daysUntilDue < 0) {
-      score += 100 + Math.min(Math.abs(daysUntilDue), 365)
-    } else {
-      // Due soon = high score, due far away = low score
-      score += Math.max(0, 60 - daysUntilDue)
-    }
-  }
-
-  // Hard deadline boost — large enough to always outrank soft scores
-  if (todo.isHardDeadline) score += 500
-
-  return score
-}
-
-export interface DashboardList {
-  key: string
-  label: string
-  description: string
-  todos: PersistedTodoItem[]
-}
-
-export function buildDashboardLists(
-  todos: PersistedTodoItem[],
-  statuses: Status[],
-  showHiddenStatuses = false,
-): DashboardList[] {
-  const now = startOfToday().getTime()
-  const incomplete = todos.filter((t) => !t.isCompleted)
-
-  const hiddenStatusIds = !showHiddenStatuses
-    ? new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!))
-    : new Set<number>()
-
-  const isVisible = (todo: PersistedTodoItem) =>
-    todo.statusId == null || !hiddenStatusIds.has(todo.statusId)
-
-  const scored = incomplete
-    .filter(isVisible)
-    .map((t) => ({ todo: t, score: scoreTask(t, now) }))
-  scored.sort((a, b) => b.score - a.score)
-
-  const mine = scored
-    .slice(0, TOP_N)
-    .map(({ todo }) => todo)
-
-  const stale = [...incomplete]
-    .filter(isVisible)
-    .sort((a, b) => new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime())
-    .slice(0, TOP_N)
-
-  return [
-    { key: 'mine', label: 'Mine', description: 'Top ranked incomplete', todos: mine },
-    { key: 'stale', label: 'Stale', description: 'Oldest by last modified', todos: stale },
-  ]
-}
 
 function DashboardDraggableRow({
   todo,
@@ -131,6 +50,79 @@ function DashboardDraggableRow({
   )
 }
 
+function renderRow(
+  todo: PersistedTodoItem,
+  listKey: string,
+  isMobile: boolean,
+  onOpenDetail: (todoId: number) => void,
+  assignedPeopleMap: Map<number, Person[]>,
+  assignedTagsMap: Map<number, Tag[]>,
+) {
+  const row = (
+    <TaskRow
+      todo={todo}
+      assignedPeople={assignedPeopleMap.get(todo.id)}
+      assignedTags={assignedTagsMap.get(todo.id)}
+      compact
+      onOpenDetail={onOpenDetail}
+    />
+  )
+  if (isMobile) return <div key={todo.id}>{row}</div>
+  return (
+    <DashboardDraggableRow key={todo.id} todo={todo} listKey={listKey}>
+      {row}
+    </DashboardDraggableRow>
+  )
+}
+
+function DashboardListCard({
+  list,
+  collapsed,
+  onToggleCollapse,
+  onOpenDetail,
+  assignedPeopleMap,
+  assignedTagsMap,
+  isMobile,
+}: {
+  list: DashboardList
+  collapsed: boolean
+  onToggleCollapse: (key: string) => void
+  onOpenDetail: (todoId: number) => void
+  assignedPeopleMap: Map<number, Person[]>
+  assignedTagsMap: Map<number, Tag[]>
+  isMobile: boolean
+}) {
+  return (
+    <div className={`${styles.card} ${styles.listCard}`} data-list-key={list.key}>
+      <div className={styles.cardHeader} onClick={() => onToggleCollapse(list.key)}>
+        <span className={`${styles.chevron} ${collapsed ? styles.chevronCollapsed : ''}`}>&#9662;</span>
+        <span className={styles.cardTitle}>{list.label}</span>
+        <span className={styles.cardCount}>{list.todos.length}</span>
+      </div>
+      {!collapsed && (
+        <div className={styles.cardBody}>
+          {list.todos.length === 0 ? (
+            <div className={styles.empty}>No tasks</div>
+          ) : list.groups !== undefined ? (
+            list.groups.map((group) => (
+              <div key={group.key} className={styles.group}>
+                <div className={styles.groupLabel}>{group.label}</div>
+                {group.todos.map((todo) =>
+                  renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
+                )}
+              </div>
+            ))
+          ) : (
+            list.todos.map((todo) =>
+              renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
+            )
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function DashboardView() {
   const { todos, loadAll } = useTodoStore()
   const { assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments } = usePersonStore()
@@ -139,7 +131,9 @@ export function DashboardView() {
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
   const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
+  const showCompleted = useFilterStore((s) => s.filters.showCompleted)
   const { load: loadTaskboard } = useTaskboardStore()
+  const { listDefinitions, load: loadDefinitions } = useListDefinitionStore()
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -169,7 +163,8 @@ export function DashboardView() {
     loadOrgs()
     loadStatuses()
     loadTaskboard()
-  }, [loadAll, loadPeople, loadTags, loadOrgs, loadStatuses, loadTaskboard])
+    loadDefinitions()
+  }, [loadAll, loadPeople, loadTags, loadOrgs, loadStatuses, loadTaskboard, loadDefinitions])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
@@ -180,10 +175,18 @@ export function DashboardView() {
     }
   }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
 
-  const lists = useMemo(
-    () => buildDashboardLists(todos, statuses, showHiddenStatuses),
-    [todos, statuses, showHiddenStatuses],
-  )
+  const lists = useMemo<DashboardList[]>(() => {
+    const today = startOfToday()
+    const hiddenStatusIds = new Set(
+      statuses.filter((s) => s.hideByDefault).map((s) => s.id!),
+    )
+    return buildDashboardLists(listDefinitions, todos, {
+      today,
+      hiddenStatusIds,
+      showHiddenStatuses,
+      showCompleted,
+    })
+  }, [listDefinitions, todos, statuses, showHiddenStatuses, showCompleted])
 
   const handleClick = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -199,60 +202,32 @@ export function DashboardView() {
         <div className={styles.container}>
           <div className={styles.pageHeader}>
             <div className={styles.pageTitle}>Dashboard</div>
-            <div className={styles.pageSubtitle}>Top 10 by importance</div>
           </div>
 
           <div className={styles.taskboardSection}>
             <TaskboardPanel />
           </div>
 
-          <div className={styles.grid}>
-            {lists.map((list) => (
-              <div key={list.key} className={styles.card}>
-                <div
-                  className={styles.cardHeader}
-                  onClick={() => toggleSection(list.key)}
-                >
-                  <span className={`${styles.chevron} ${collapsed[list.key] ? styles.chevronCollapsed : ''}`}>&#9662;</span>
-                  <span className={styles.cardTitle}>{list.label}</span>
-                  <span className={styles.cardCount}>{list.todos.length}</span>
-                </div>
-                {!collapsed[list.key] && (
-                  <div className={styles.cardBody}>
-                    {list.todos.length === 0 ? (
-                      <div className={styles.empty}>No tasks</div>
-                    ) : (
-                      list.todos.map((todo) => {
-                        const staleLabel = list.key === 'stale' ? `Modified ${formatRelativeTime(new Date(todo.modifiedAt))}` : undefined
-                        return !isMobile ? (
-                          <DashboardDraggableRow key={todo.id} todo={todo} listKey={list.key}>
-                            <TaskRow
-                              todo={todo}
-                              assignedPeople={assignedPeopleMap.get(todo.id)}
-                              assignedTags={assignedTagsMap.get(todo.id)}
-                              compact
-                              onOpenDetail={handleClick}
-                              extraLabel={staleLabel}
-                            />
-                          </DashboardDraggableRow>
-                        ) : (
-                          <TaskRow
-                            key={todo.id}
-                            todo={todo}
-                            assignedPeople={assignedPeopleMap.get(todo.id)}
-                            assignedTags={assignedTagsMap.get(todo.id)}
-                            compact
-                            onOpenDetail={handleClick}
-                            extraLabel={staleLabel}
-                          />
-                        )
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          {listDefinitions.length === 0 ? (
+            <div className={styles.emptyState}>
+              No dashboard lists. Reset by reloading.
+            </div>
+          ) : (
+            <div className={styles.grid}>
+              {lists.map((list) => (
+                <DashboardListCard
+                  key={list.key}
+                  list={list}
+                  collapsed={!!collapsed[list.key]}
+                  onToggleCollapse={toggleSection}
+                  onOpenDetail={handleClick}
+                  assignedPeopleMap={assignedPeopleMap}
+                  assignedTagsMap={assignedTagsMap}
+                  isMobile={isMobile}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (

@@ -22,11 +22,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.pageSubtitle {
-  font-size: var(--font-size-nav);
-  color: var(--color-text-secondary);
-}
-
 .taskboardSection {
   margin-bottom: 16px;
 }
@@ -43,6 +38,34 @@
   border-radius: var(--radius-card);
   overflow: hidden;
   min-height: 0;
+}
+
+.listCard {
+  /* Per-list overrides can target [data-list-key="today"] etc. */
+}
+
+.group {
+  padding: 8px 0;
+}
+
+.group + .group {
+  border-top: 1px solid var(--color-border);
+}
+
+.groupLabel {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 4px 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: var(--font-weight-semibold);
+}
+
+.emptyState {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
 }
 
 .cardHeader {
