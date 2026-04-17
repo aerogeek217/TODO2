@@ -177,6 +177,12 @@ export async function ensureSeededStatuses(
 export type TranslateV21Outcome = 'to-deadline' | 'to-scheduled' | 'dropped-flag' | 'noop'
 
 export function translateTodoV20ToV21(todo: Record<string, unknown>): TranslateV21Outcome {
+  // A v21 row has neither `priority` nor `isHardDeadline` keys — skip translation
+  // so round-trip imports of already-migrated data don't re-interpret a bare
+  // `dueDate` as a soft-due and move it into `scheduledDate`.
+  const isPostV21 = !('priority' in todo) && !('isHardDeadline' in todo)
+  if (isPostV21) return 'noop'
+
   const hasRec = todo.recurrenceRule != null
   const hard = todo.isHardDeadline === true
   const hasDue = todo.dueDate != null

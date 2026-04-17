@@ -670,7 +670,12 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       todos: ((raw.todos ?? []) as Record<string, unknown>[]).map(pickTodo),
       people: ((raw.people ?? []) as Record<string, unknown>[]).map(pickPerson),
       tags: ((raw.tags ?? []) as Record<string, unknown>[]).map(pickTag),
-      listInsets: ((raw.listInsets ?? []) as Record<string, unknown>[]).map(pickListInset).filter(li => !li.preset || !LEGACY_PRESETS.includes(li.preset)),
+      listInsets: ((raw.listInsets ?? []) as Record<string, unknown>[])
+        .map(pickListInset)
+        // Drop legacy-preset insets AND insets whose attributeFilter was stripped
+        // (e.g. retired `type: 'priority'`) leaving them filterless.
+        .filter(li => !(li.preset && LEGACY_PRESETS.includes(li.preset)))
+        .filter(li => li.preset != null || li.attributeFilter != null),
       todoTags: ((raw.todoTags ?? []) as Record<string, unknown>[]).map(pickTodoTag),
       todoPeople: ((raw.todoPeople ?? []) as Record<string, unknown>[]).map(pickTodoPerson),
       todoOrgs: ((raw.todoOrgs ?? []) as Record<string, unknown>[]).map(pickTodoOrg),
