@@ -1,17 +1,20 @@
 import { Priority } from '../models'
-import type { PersistedTodoItem, Person, Tag, Project, Org } from '../models'
+import type { PersistedTodoItem, Person, Tag, Project, Org, ScheduledValue } from '../models'
 import { db } from '../data/database'
 
-export function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
+export function makeTodo(
+  overrides: Partial<PersistedTodoItem> & { id: number; scheduledDate?: ScheduledValue },
+): PersistedTodoItem {
   return {
     title: `Task ${overrides.id}`,
+    // Legacy default retained for validator compatibility; removed in Commit B.
     priority: Priority.Normal,
     isCompleted: false,
     createdAt: new Date(),
     modifiedAt: new Date(),
     sortOrder: overrides.id,
     ...overrides,
-  }
+  } as PersistedTodoItem
 }
 
 export function makePerson(overrides: Partial<Person> & { id: number }): Person & { id: number } {

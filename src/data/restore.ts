@@ -21,6 +21,7 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.stickyNotes, key: 'stickyNotes' },
   { table: db.taskboardEntries, key: 'taskboardEntries' },
   { table: db.statuses, key: 'statuses' },
+  { table: db.listDefinitions, key: 'listDefinitions' },
 ]
 
 /** Clear all data tables and bulk-add from validated import data, then auto-seed statuses and translate legacy todo booleans. */

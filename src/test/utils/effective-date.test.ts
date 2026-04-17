@@ -1,0 +1,253 @@
+import { describe, it, expect } from 'vitest'
+import {
+  resolveFuzzy,
+  resolveScheduled,
+  effectiveDate,
+  isScheduledExpired,
+  scheduledLabel,
+} from '../../utils/effective-date'
+import { startOfDay, MS_PER_DAY } from '../../utils/date'
+
+function d(iso: string): Date {
+  return new Date(iso + 'T12:00:00')
+}
+
+describe('resolveFuzzy', () => {
+  it('resolves today to today at midnight', () => {
+    const today = d('2026-04-16')
+    const result = resolveFuzzy('today', today)
+    expect(result.getTime()).toBe(startOfDay(today).getTime())
+  })
+
+  it('resolves tomorrow to today + 1 day', () => {
+    const today = d('2026-04-16')
+    const result = resolveFuzzy('tomorrow', today)
+    const expected = startOfDay(new Date(startOfDay(today).getTime() + MS_PER_DAY))
+    expect(result.getTime()).toBe(expected.getTime())
+  })
+
+  it('resolves this-week on Thursday to Sunday of the same week', () => {
+    const thursday = d('2026-04-16')
+    const result = resolveFuzzy('this-week', thursday)
+    expect(result.getFullYear()).toBe(2026)
+    expect(result.getMonth()).toBe(3)
+    expect(result.getDate()).toBe(19)
+    expect(result.getDay()).toBe(0)
+  })
+
+  it('resolves this-week on Sunday to the same Sunday', () => {
+    const sunday = d('2026-04-19')
+    const result = resolveFuzzy('this-week', sunday)
+    expect(result.getDate()).toBe(19)
+    expect(result.getDay()).toBe(0)
+  })
+
+  it('resolves this-week on Monday to upcoming Sunday', () => {
+    const monday = d('2026-04-13')
+    const result = resolveFuzzy('this-week', monday)
+    expect(result.getDate()).toBe(19)
+  })
+
+  it('resolves next-week to Sunday of the week after the upcoming Sunday', () => {
+    const thursday = d('2026-04-16')
+    const result = resolveFuzzy('next-week', thursday)
+    expect(result.getDate()).toBe(26)
+    expect(result.getDay()).toBe(0)
+  })
+
+  it('resolves this-month to the last day of the current month', () => {
+    const result = resolveFuzzy('this-month', d('2026-04-16'))
+    expect(result.getMonth()).toBe(3)
+    expect(result.getDate()).toBe(30)
+  })
+
+  it('resolves this-month on the last day to the same day', () => {
+    const result = resolveFuzzy('this-month', d('2026-04-30'))
+    expect(result.getMonth()).toBe(3)
+    expect(result.getDate()).toBe(30)
+  })
+
+  it('resolves this-month on leap-year Feb 15 to Feb 29', () => {
+    const result = resolveFuzzy('this-month', d('2028-02-15'))
+    expect(result.getFullYear()).toBe(2028)
+    expect(result.getMonth()).toBe(1)
+    expect(result.getDate()).toBe(29)
+  })
+
+  it('resolves this-month on non-leap Feb 15 to Feb 28', () => {
+    const result = resolveFuzzy('this-month', d('2027-02-15'))
+    expect(result.getMonth()).toBe(1)
+    expect(result.getDate()).toBe(28)
+  })
+
+  it('resolves next-month on Jan 31 to Feb 28 (non-leap)', () => {
+    const result = resolveFuzzy('next-month', d('2026-01-31'))
+    expect(result.getMonth()).toBe(1)
+    expect(result.getDate()).toBe(28)
+  })
+
+  it('resolves next-month on Dec 15 to Jan 31 of the following year', () => {
+    const result = resolveFuzzy('next-month', d('2026-12-15'))
+    expect(result.getFullYear()).toBe(2027)
+    expect(result.getMonth()).toBe(0)
+    expect(result.getDate()).toBe(31)
+  })
+})
+
+describe('resolveScheduled', () => {
+  const today = d('2026-04-16')
+
+  it('returns null for undefined input', () => {
+    expect(resolveScheduled(undefined, today)).toBeNull()
+  })
+
+  it('resolves a precise date to its start-of-day', () => {
+    const value = new Date(2026, 3, 20, 10, 30)
+    const result = resolveScheduled({ kind: 'date', value }, today)
+    expect(result).not.toBeNull()
+    expect(result!.getHours()).toBe(0)
+    expect(result!.getDate()).toBe(20)
+  })
+
+  it('resolves a fuzzy token via resolveFuzzy', () => {
+    const result = resolveScheduled({ kind: 'fuzzy', token: 'tomorrow' }, today)
+    expect(result).not.toBeNull()
+    expect(result!.getDate()).toBe(17)
+  })
+})
+
+describe('effectiveDate', () => {
+  const today = d('2026-04-16')
+
+  it('returns scheduled when earlier than deadline', () => {
+    const result = effectiveDate({
+      scheduledDate: { kind: 'date', value: new Date(2026, 3, 18) },
+      dueDate: new Date(2026, 3, 20),
+    }, today)
+    expect(result!.getDate()).toBe(18)
+  })
+
+  it('returns deadline when earlier than scheduled', () => {
+    const result = effectiveDate({
+      scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) },
+      dueDate: new Date(2026, 3, 20),
+    }, today)
+    expect(result!.getDate()).toBe(20)
+  })
+
+  it('returns scheduled when only scheduled is set (precise)', () => {
+    const result = effectiveDate({
+      scheduledDate: { kind: 'date', value: new Date(2026, 3, 22) },
+    }, today)
+    expect(result!.getDate()).toBe(22)
+  })
+
+  it('returns resolved fuzzy when only fuzzy scheduled is set', () => {
+    const result = effectiveDate({
+      scheduledDate: { kind: 'fuzzy', token: 'this-week' },
+    }, today)
+    expect(result!.getDate()).toBe(19)
+  })
+
+  it('returns deadline when only deadline is set', () => {
+    const result = effectiveDate({ dueDate: new Date(2026, 3, 24) }, today)
+    expect(result!.getDate()).toBe(24)
+  })
+
+  it('returns null when neither is set', () => {
+    expect(effectiveDate({}, today)).toBeNull()
+  })
+})
+
+describe('isScheduledExpired', () => {
+  // Fuzzy tokens re-resolve against the current `today` each evaluation, so
+  // windows containing or following today never precede it. With no stored
+  // "set-at" date on ScheduledValue (by design in Phase 1), the function is
+  // effectively a placeholder that only fires for contrived edge cases where
+  // resolveFuzzy returns a date < today (e.g., none of the current tokens).
+  const today = d('2026-04-20')
+
+  it('returns false for precise scheduled in the past', () => {
+    const result = isScheduledExpired({
+      scheduledDate: { kind: 'date', value: new Date(2026, 3, 1) },
+    }, today)
+    expect(result).toBe(false)
+  })
+
+  it('returns false for fuzzy this-week (always resolves to upcoming Sunday)', () => {
+    const mondayAfter = d('2026-04-27')
+    const result = isScheduledExpired(
+      { scheduledDate: { kind: 'fuzzy', token: 'this-week' } },
+      mondayAfter,
+    )
+    expect(result).toBe(false)
+  })
+
+  it('returns false for fuzzy today evaluated on a later day (re-resolves forward)', () => {
+    const result = isScheduledExpired(
+      { scheduledDate: { kind: 'fuzzy', token: 'today' } },
+      d('2026-04-17'),
+    )
+    expect(result).toBe(false)
+  })
+
+  it('returns false for fuzzy tomorrow evaluated on the same day', () => {
+    const result = isScheduledExpired(
+      { scheduledDate: { kind: 'fuzzy', token: 'tomorrow' } },
+      d('2026-04-16'),
+    )
+    expect(result).toBe(false)
+  })
+
+  it('returns false when no scheduled', () => {
+    expect(isScheduledExpired({}, today)).toBe(false)
+  })
+})
+
+describe('scheduledLabel', () => {
+  const today = d('2026-04-16')
+
+  it('labels fuzzy today', () => {
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'today' }, today)).toBe('Today')
+  })
+
+  it('labels fuzzy this-week', () => {
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'this-week' }, today)).toBe('This week')
+  })
+
+  it('labels fuzzy next-month', () => {
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'next-month' }, today)).toBe('Next month')
+  })
+
+  it('labels precise today as Today', () => {
+    const result = scheduledLabel(
+      { kind: 'date', value: new Date(2026, 3, 16) },
+      today,
+    )
+    expect(result).toBe('Today')
+  })
+
+  it('labels precise tomorrow as Tomorrow', () => {
+    const result = scheduledLabel(
+      { kind: 'date', value: new Date(2026, 3, 17) },
+      today,
+    )
+    expect(result).toBe('Tomorrow')
+  })
+
+  it('labels precise yesterday as Yesterday', () => {
+    const result = scheduledLabel(
+      { kind: 'date', value: new Date(2026, 3, 15) },
+      today,
+    )
+    expect(result).toBe('Yesterday')
+  })
+
+  it('labels precise dates beyond tomorrow as Mon DD', () => {
+    const result = scheduledLabel(
+      { kind: 'date', value: new Date(2026, 3, 21) },
+      today,
+    )
+    expect(result).toBe('Apr 21')
+  })
+})

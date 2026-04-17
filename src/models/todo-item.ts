@@ -1,15 +1,15 @@
-import { Priority } from './priority'
 import type { RecurrenceRule } from './recurrence'
+import type { ScheduledValue } from './scheduled-value'
 
 export interface TodoItem {
   id?: number
   title: string
   notes?: string
   progress?: string
-  priority: Priority
   isCompleted: boolean
+  scheduledDate?: ScheduledValue
+  /** Deadline — UI label is "Deadline". */
   dueDate?: Date
-  isHardDeadline?: boolean
   recurrenceRule?: RecurrenceRule
   createdAt: Date
   modifiedAt: Date

@@ -1,5 +1,6 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
 import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
+import type { ListDefinition } from '../models/list-definition'
 
 export interface SettingRow {
   key: string
@@ -24,6 +25,7 @@ export class Todo2Database extends Dexie {
   stickyNotes!: Table<StickyNote, number>
   taskboardEntries!: Table<TaskboardEntry, number>
   statuses!: Table<Status, number>
+  listDefinitions!: Table<ListDefinition, number>
 
   constructor() {
     super('todo2')
@@ -70,6 +72,17 @@ export class Todo2Database extends Dexie {
       settings: 'key',
     }).upgrade(async (tx) => {
       await runV20Migration(tx)
+    })
+
+    // v21: unify scheduling — drop priority + isHardDeadline, add scheduledDate,
+    // seed listDefinitions (Today / Upcoming / Deadlines / Someday), and remove
+    // retired 'high-priority' / priority-attribute list insets.
+    this.version(21).stores({
+      todos: '++id, projectId, canvasId, parentId, isCompleted, dueDate, sortOrder, statusId',
+      listInsets: '++id, canvasId',
+      listDefinitions: '++id, sortOrder',
+    }).upgrade(async (tx) => {
+      await runV21Migration(tx)
     })
   }
 }
@@ -148,5 +161,121 @@ export async function ensureSeededStatuses(
   return { assignedId, followupId }
 }
 
+/**
+ * v21 upgrade: rewrite todo rows into scheduled/deadline model, delete retired
+ * priority list insets, seed listDefinitions. Per-row rules per plan Q2.
+ */
+export async function runV21Migration(tx: Transaction): Promise<void> {
+  const todosTable = tx.table('todos')
+  const listInsetsTable = tx.table<ListInset>('listInsets')
+  const listDefinitionsTable = tx.table<ListDefinition>('listDefinitions')
+
+  // 1) Seed listDefinitions (idempotent by seededKey).
+  await ensureSeededListDefinitions(listDefinitionsTable)
+
+  // 2) Per-row Q2 rules:
+  //   (a) recurrenceRule != null         → keep dueDate (recurrence forces deadline)
+  //   (b) isHardDeadline === true && due → keep dueDate
+  //   (c) isHardDeadline === true && !due→ tautology; drop flag
+  //   (d) due && !hard && !recurrence    → move dueDate into scheduledDate
+  //   (e) otherwise                      → no-op
+  //   Always strip priority + isHardDeadline afterward.
+  let toDeadlineCount = 0
+  let toScheduledCount = 0
+  let droppedFlagCount = 0
+
+  await todosTable.toCollection().modify((todo: Record<string, unknown>) => {
+    const hasRec = todo.recurrenceRule != null
+    const hard = todo.isHardDeadline === true
+    const hasDue = todo.dueDate != null
+
+    if (hasRec && hasDue) {
+      toDeadlineCount++
+    } else if (hard && hasDue) {
+      toDeadlineCount++
+    } else if (hard && !hasDue) {
+      droppedFlagCount++
+    } else if (hasDue && !hard && !hasRec) {
+      todo.scheduledDate = { kind: 'date', value: todo.dueDate as Date }
+      delete todo.dueDate
+      toScheduledCount++
+    }
+
+    delete todo.priority
+    delete todo.isHardDeadline
+  })
+
+  // 3) Delete list insets tied to retired priority concepts.
+  const badPresetInsets = await listInsetsTable
+    .filter(li => (li as unknown as Record<string, unknown>).preset === 'high-priority')
+    .toArray()
+  const badAttrInsets = await listInsetsTable
+    .filter(li => {
+      const af = (li as unknown as Record<string, unknown>).attributeFilter as Record<string, unknown> | undefined
+      return af?.type === 'priority'
+    })
+    .toArray()
+  const toDelete = [...badPresetInsets, ...badAttrInsets]
+  if (toDelete.length > 0) {
+    await listInsetsTable.bulkDelete(toDelete.map(li => li.id!))
+    console.info(`v21 migration: removed ${toDelete.length} priority list inset(s)`)
+  }
+
+  console.info(
+    `v21 migration: ${toScheduledCount} todos re-bucketed to scheduled, ` +
+    `${toDeadlineCount} kept as deadline (recurrence or hard), ` +
+    `${droppedFlagCount} hard-deadline flags dropped (no date)`,
+  )
+}
+
+/** Idempotent seeder for Today/Upcoming/Deadlines/Someday list definitions. */
+export async function ensureSeededListDefinitions(
+  table: Table<ListDefinition, number>,
+): Promise<void> {
+  const existing = await table.toArray()
+  const haveKeys = new Set(existing.map(d => d.seededKey).filter(Boolean) as string[])
+
+  const seeds: Omit<ListDefinition, 'id'>[] = [
+    {
+      name: 'Today',
+      sortOrder: 0,
+      seededKey: 'today',
+      membership: { kind: 'today' },
+      sort: { kind: 'effective-date-asc' },
+      grouping: { kind: 'none' },
+    },
+    {
+      name: 'Upcoming',
+      sortOrder: 1,
+      seededKey: 'upcoming',
+      membership: { kind: 'upcoming' },
+      sort: { kind: 'effective-date-asc' },
+      grouping: { kind: 'relative-effective' },
+    },
+    {
+      name: 'Deadlines',
+      sortOrder: 2,
+      seededKey: 'deadlines',
+      membership: { kind: 'deadlines' },
+      sort: { kind: 'deadline-asc' },
+      grouping: { kind: 'relative-deadline' },
+    },
+    {
+      name: 'Someday',
+      sortOrder: 3,
+      seededKey: 'someday',
+      membership: { kind: 'someday' },
+      sort: { kind: 'sort-order' },
+      grouping: { kind: 'none' },
+    },
+  ]
+
+  for (const seed of seeds) {
+    if (!haveKeys.has(seed.seededKey!)) {
+      await table.add(seed as ListDefinition)
+    }
+  }
+}
+
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries, db.statuses] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries, db.statuses, db.listDefinitions] as const

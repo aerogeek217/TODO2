@@ -42,7 +42,9 @@ main.tsx (entry point)
 |-------------|----------|---------|
 | Canvas | models/canvas.ts | Named spatial workspace |
 | Project | models/project.ts | Positioned group of tasks on a canvas (optional color) |
-| TodoItem | models/todo-item.ts | Core todo entry (id optional, pre-insert); includes optional `progress`, `statusId`, `isHardDeadline`, and `recurrenceRule` fields |
+| TodoItem | models/todo-item.ts | Core todo entry (id optional, pre-insert); includes optional `progress`, `statusId`, `scheduledDate` (ScheduledValue), `dueDate` (deadline), and `recurrenceRule` fields. Unified-scheduling v21: `priority` and `isHardDeadline` removed. |
+| ScheduledValue | models/scheduled-value.ts | Discriminated union for `scheduledDate`: `{kind:'date', value:Date}` or `{kind:'fuzzy', token: FuzzyToken}` where FuzzyToken ∈ today/tomorrow/this-week/next-week/this-month/next-month |
+| ListDefinition | models/list-definition.ts | Dashboard list definition: name, sortOrder, membership (today/upcoming/deadlines/someday), sort, grouping, optional seededKey marker |
 | RecurrenceRule | models/recurrence.ts | Recurrence pattern: type (daily/weekly/biweekly/monthly/quarterly/yearly), optional originalDayOfMonth to prevent drift |
 | PersistedTodoItem | models/todo-item.ts | TodoItem with guaranteed id (post-insert) |
 | Person | models/person.ts | Assignable person with name, initials, color |
@@ -68,10 +70,12 @@ main.tsx (entry point)
 | TaskboardEntry | models/taskboard-entry.ts | Ordered task queue entry (todoId, sortOrder) for next-up work tracking |
 | Backup | models/backup.ts | Auto-snapshot record: trigger type, serialized data, size |
 | SavedView | models/saved-view.ts | Named saved list view: sortBy + serializable filter snapshot (including dateRangeStart/End) |
-| Todo2Database | data/database.ts | Dexie DB class with schema (v16 base + v17/v18/v19 incremental + v20 unified status; v1-v15 collapsed) |
+| Todo2Database | data/database.ts | Dexie DB class with schema (v16 base + v17/v18/v19 incremental + v20 unified status + v21 unified scheduling; v1-v15 collapsed) |
 | runV20Migration | data/database.ts | v20 upgrade: seeds Assigned/Follow-up statuses, backfills `statusId` from `isStarred`/`isAssigned`, deletes retired `starred` list insets |
 | ensureSeededStatuses | data/database.ts | Idempotent seeder for Assigned/Follow-up status rows; settings-pointer-as-truth (`seededAssignedStatusId`/`seededFollowupStatusId`); used by v20 migration and restore |
-| ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks |
+| runV21Migration | data/database.ts | v21 upgrade: folds `priority`/`dueDate`/`isHardDeadline`/`recurrenceRule` into `scheduledDate`+`dueDate` per Q2 precedence, deletes `high-priority` / priority-`attributeFilter` list insets, seeds four `listDefinitions` rows |
+| ensureSeededListDefinitions | data/database.ts | Idempotent seeder for Today / Upcoming / Deadlines / Someday list-definition rows; keyed by `seededKey`; used by v21 migration and restore |
+| ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks. Includes `listDefinitions` (v21). |
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
 | buildAssignmentMap | data/join-helpers.ts | Generic join table → entity map builder (Map\<linkId, Entity[]\>) |
@@ -87,6 +91,7 @@ main.tsx (entry point)
 | statusRepository | data/status-repository.ts | CRUD for Status (transactional cascade delete clears statusId from todos) |
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | savedViewRepository | data/saved-view-repository.ts | CRUD for SavedView (getAll, add, update, remove) |
+| listDefinitionRepository | data/list-definition-repository.ts | CRUD for ListDefinition (getAll ordered by sortOrder, reorder) |
 | backupRepository | data/backup-repository.ts | Snapshot CRUD: createSnapshot, listSnapshots (lightweight), restoreSnapshot (validates + imports), pruneSnapshots |
 | auditData | data/audit.ts | Scan all tables for orphaned join rows, dangling foreign keys, and unplaced canvas tasks (canvasId set but no projectId); returns AuditReport with issues and cleanup metadata |
 | cleanupIssues | data/audit.ts | Atomic cleanup of all audit issues (delete orphans, clear dangling FKs) in single transaction |
@@ -116,6 +121,8 @@ main.tsx (entry point)
 | useStatusStore | stores/status-store.ts | Status definitions: load, add, update, remove (cascade delete clears todos + default setting, with undo), reorder (drag sort with persisted sortOrder) |
 | useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, addAt (positional insert with collision renormalization), addMultipleAt (batch insert with even distribution), remove, clear, has, reorder with undo support |
 | useSavedViewStore | stores/saved-view-store.ts | Saved list views CRUD: save, update (overwrite filters/sortBy), rename, remove, reorder (drag sort with persisted sortOrder), apply (restores filters + grouping) |
+| useListDefinitionStore | stores/list-definition-store.ts | Load-only store for dashboard list definitions (sorted by sortOrder); no mutation actions in v21 (builder UI is a later plan) |
+| resolveFuzzy, resolveScheduled, effectiveDate, isScheduledExpired, scheduledLabel | utils/effective-date.ts | Unified scheduling helpers: resolve `ScheduledValue` fuzzy tokens to concrete end-of-window dates, compute `min(scheduled, deadline)`, label chips. Every sort/filter/group consumer reads `effectiveDate` |
 | TaskEditPopup | components/task/TaskEditPopup.tsx | Centered modal for editing/creating tasks; project selector in create/edit mode (replaced TaskDetailPanel + QuickAddPopup) |
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/tags; search input, filtered list, create-new option |
 | PriorityMenu | components/shared/PriorityMenu.tsx | Shared priority picker dropdown (High/Medium/Normal with colored dots); also exports getPriorityColor and getPriorityLabel helpers |
@@ -206,15 +213,15 @@ main.tsx (entry point)
 
 | Directory | Contents | Key Files |
 |-----------|----------|-----------|
-| src/models/ | TypeScript interfaces + enums | todo-item.ts, project.ts, canvas.ts, person.ts, tag.ts, todo-tag.ts, todo-person.ts, priority.ts, app-view.ts |
-| src/data/ | Persistence layer (Dexie/IndexedDB) | database.ts, todo-repository.ts, project-repository.ts, canvas-repository.ts, list-inset-repository.ts, person-repository.ts, tag-repository.ts, status-repository.ts, settings-repository.ts, backup-repository.ts, import-validation.ts |
-| src/stores/ | Zustand state management | todo-store.ts, canvas-store.ts, project-store.ts, list-inset-store.ts, person-store.ts, tag-store.ts, status-store.ts, ui-store.ts, filter-store.ts, file-storage-store.ts, undo-store.ts |
+| src/models/ | TypeScript interfaces + enums | todo-item.ts, project.ts, canvas.ts, person.ts, tag.ts, todo-tag.ts, todo-person.ts, priority.ts (deprecated; removed in Commit C), app-view.ts, scheduled-value.ts, list-definition.ts |
+| src/data/ | Persistence layer (Dexie/IndexedDB) | database.ts, todo-repository.ts, project-repository.ts, canvas-repository.ts, list-inset-repository.ts, person-repository.ts, tag-repository.ts, status-repository.ts, settings-repository.ts, list-definition-repository.ts, backup-repository.ts, import-validation.ts |
+| src/stores/ | Zustand state management | todo-store.ts, canvas-store.ts, project-store.ts, list-inset-store.ts, person-store.ts, tag-store.ts, status-store.ts, list-definition-store.ts, ui-store.ts, filter-store.ts, file-storage-store.ts, undo-store.ts |
 | src/styles/ | CSS design tokens | tokens.css |
 | src/views/ | Route-level page components | CanvasPage.tsx, ListView.tsx, SettingsPage.tsx |
 | src/components/ | Reusable UI components | layout/, task/, canvas/, overlays/, settings/, shared/ |
 | src/hooks/ | Custom React hooks | use-task-edit-callbacks.ts, use-keyboard-shortcuts.ts, use-bulk-actions.ts, use-canvas-dnd.ts, use-inline-edit.ts, use-click-outside.ts, use-is-mobile.ts, use-nlp-autocomplete.ts |
 | src/services/ | Non-UI logic | natural-language-parser.ts, command-registry.ts, file-storage.ts, file-handle-idb.ts, task-placement.ts, drop-resolver.ts, undoable.ts, clipboard.ts, recurrence.ts, export-import.ts, backup-scheduler.ts |
-| src/utils/ | Shared pure utilities | hierarchy.ts (bySortOrder, buildChildMap, buildHierarchy, getFlatVisualOrder), date.ts (startOfDay, startOfToday, isSameDay, formatDate, formatRelativeTime, toDateInputValue, MS_PER_DAY) |
+| src/utils/ | Shared pure utilities | hierarchy.ts (bySortOrder, buildChildMap, buildHierarchy, getFlatVisualOrder), date.ts (startOfDay, startOfToday, isSameDay, formatDate, formatRelativeTime, toDateInputValue, MS_PER_DAY), effective-date.ts (resolveFuzzy, resolveScheduled, effectiveDate, isScheduledExpired, scheduledLabel) |
 | src/test/ | Vitest tests | data/, stores/, services/, hooks/, components/ |
 
 ---

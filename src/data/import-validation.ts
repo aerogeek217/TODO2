@@ -1,5 +1,7 @@
 import { Priority } from '../models/priority'
 import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
+import type { ListDefinition, ListMembership, ListSort, ListGrouping, SeededListKey } from '../models/list-definition'
+import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { STATUS_ICON_KEYS } from '../components/shared/StatusIcon'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -100,6 +102,14 @@ function checkProject(v: unknown): CheckResult {
   ])
 }
 
+function isOptScheduledValue(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (!isObj(v)) return false
+  if (v.kind === 'date') return isDateLike(v.value)
+  if (v.kind === 'fuzzy') return typeof v.token === 'string' && (FUZZY_TOKENS as readonly string[]).includes(v.token)
+  return false
+}
+
 function checkTodo(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -108,6 +118,7 @@ function checkTodo(v: unknown): CheckResult {
     ['progress', isOptStr(v.progress, 500)],
     ['priority', typeof v.priority === 'number' && [Priority.Normal, Priority.Medium, Priority.High].includes(v.priority)],
     ['isCompleted', isBool(v.isCompleted)],
+    ['scheduledDate', isOptScheduledValue(v.scheduledDate)],
     ['dueDate', isOptDateLike(v.dueDate)],
     ['isHardDeadline', v.isHardDeadline === undefined || v.isHardDeadline === null || isBool(v.isHardDeadline)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
@@ -118,6 +129,30 @@ function checkTodo(v: unknown): CheckResult {
     ['parentId', isOptNum(v.parentId)],
     ['statusId', isOptNum(v.statusId)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
+  ])
+}
+
+const VALID_LIST_MEMBERSHIP_KINDS = ['today', 'upcoming', 'deadlines', 'someday']
+const VALID_LIST_SORT_KINDS = ['effective-date-asc', 'deadline-asc', 'sort-order']
+const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadline']
+const VALID_SEEDED_LIST_KEYS = ['today', 'upcoming', 'deadlines', 'someday']
+
+function checkListDefinition(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  const membership = v.membership
+  const sort = v.sort
+  const grouping = v.grouping
+  return checkFields(v, [
+    ['name', isStr(v.name, 200)],
+    ['sortOrder', isFiniteNum(v.sortOrder)],
+    ['membership', isObj(membership) && typeof membership.kind === 'string'
+      && VALID_LIST_MEMBERSHIP_KINDS.includes(membership.kind)],
+    ['sort', isObj(sort) && typeof sort.kind === 'string'
+      && VALID_LIST_SORT_KINDS.includes(sort.kind)],
+    ['grouping', isObj(grouping) && typeof grouping.kind === 'string'
+      && VALID_LIST_GROUPING_KINDS.includes(grouping.kind)],
+    ['seededKey', v.seededKey === undefined || v.seededKey === null
+      || (typeof v.seededKey === 'string' && VALID_SEEDED_LIST_KEYS.includes(v.seededKey))],
   ])
 }
 
@@ -496,6 +531,18 @@ function pickSetting(v: Record<string, unknown>): SettingRow {
   return { key: v.key as string, value: v.value as string }
 }
 
+function pickListDefinition(v: Record<string, unknown>): ListDefinition {
+  return {
+    id: v.id as number | undefined,
+    name: v.name as string,
+    sortOrder: v.sortOrder as number,
+    membership: v.membership as ListMembership,
+    sort: v.sort as ListSort,
+    grouping: v.grouping as ListGrouping,
+    ...(v.seededKey != null ? { seededKey: v.seededKey as SeededListKey } : {}),
+  }
+}
+
 // --- Main validation ---
 
 export const MAX_IMPORT_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
@@ -520,6 +567,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'stickyNotes', check: checkStickyNote },
   { key: 'taskboardEntries', check: checkTaskboardEntry },
   { key: 'statuses', check: checkStatus },
+  { key: 'listDefinitions', check: checkListDefinition },
 ]
 
 export interface ImportData {
@@ -539,6 +587,7 @@ export interface ImportData {
   stickyNotes: StickyNote[]
   taskboardEntries: TaskboardEntry[]
   statuses: Status[]
+  listDefinitions: ListDefinition[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -612,6 +661,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       stickyNotes: ((raw.stickyNotes ?? []) as Record<string, unknown>[]).map(pickStickyNote),
       taskboardEntries: ((raw.taskboardEntries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
       statuses: ((raw.statuses ?? []) as Record<string, unknown>[]).map(pickStatus),
+      listDefinitions: ((raw.listDefinitions ?? []) as Record<string, unknown>[]).map(pickListDefinition),
     },
   }
 }
