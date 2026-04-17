@@ -1,9 +1,23 @@
 import { create } from 'zustand'
 import { savedViewRepository } from '../data/saved-view-repository'
 import { db } from '../data/database'
-import type { PersistedSavedView, SavedViewFilters, ListSortBy, Status } from '../models'
+import type { PersistedSavedView, SavedViewFilters, ListSortBy, DateField, Status } from '../models'
 import type { FilterCriteria } from './filter-store'
-import { Priority } from '../models'
+
+/**
+ * Translate a persisted saved-view sortBy value into the current ListSortBy.
+ * - 'priority' → 'date' (Q12). Silent; effectiveDate makes this meaningful.
+ * - 'due' → 'date' (Q11). Rename from Phase 2.
+ * Unknown values fall back to 'date'.
+ */
+export function translateSortBy(sortBy: string): ListSortBy {
+  if (sortBy === 'priority' || sortBy === 'due') return 'date'
+  if (sortBy === 'date' || sortBy === 'people' || sortBy === 'tag'
+      || sortBy === 'project' || sortBy === 'org' || sortBy === 'status') {
+    return sortBy
+  }
+  return 'date'
+}
 
 interface SavedViewState {
   views: PersistedSavedView[]
@@ -22,10 +36,8 @@ interface SavedViewState {
 
 function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
   return {
-    priorities: f.priorities ? Array.from(f.priorities) : null,
     showCompleted: f.showCompleted,
     showHiddenStatuses: f.showHiddenStatuses,
-    hardDeadlineOnly: f.hardDeadlineOnly,
     personIds: f.personIds ? Array.from(f.personIds) : null,
     personFilterMode: f.personFilterMode,
     tagIds: f.tagIds ? Array.from(f.tagIds) : null,
@@ -35,7 +47,7 @@ function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
     dateField: f.dateField,
     dateRangeStart: f.dateRangeStart ? f.dateRangeStart.toISOString() : null,
     dateRangeEnd: f.dateRangeEnd ? f.dateRangeEnd.toISOString() : null,
-    dateRangeIncludeNoDue: f.dateRangeIncludeNoDue,
+    dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
   }
 }
 
@@ -103,22 +115,39 @@ export function savedFiltersToRuntime(
     showHiddenStatuses = s.showHiddenStatuses
   }
 
+  // v20→v21 translation — silent per Q13 (no losses pushed).
+  //
+  // (a) dateField: 'due' → 'date'. Stored value 'due' predates Phase 2's rename.
+  //     Undefined defaults to 'date'.
+  const dateFieldRaw = s.dateField as string | undefined
+  const dateField: DateField =
+    dateFieldRaw === 'created' ? 'created'
+    : dateFieldRaw === 'modified' ? 'modified'
+    : 'date'
+
+  // (b) dateRangeIncludeNoDue → dateRangeIncludeNoDate. Read either key.
+  const dateRangeIncludeNoDate = typeof s.dateRangeIncludeNoDate === 'boolean'
+    ? s.dateRangeIncludeNoDate
+    : typeof s.dateRangeIncludeNoDue === 'boolean'
+      ? s.dateRangeIncludeNoDue
+      : false
+
+  // (c) priorities, (d) hardDeadlineOnly: dropped. Filter interface no longer carries them.
+
   return {
     runtime: {
-      priorities: s.priorities ? new Set(s.priorities as Priority[]) : null,
       showCompleted,
       showHiddenStatuses,
-      hardDeadlineOnly: s.hardDeadlineOnly,
       personIds: s.personIds ? new Set(s.personIds) : null,
       personFilterMode: s.personFilterMode === 'direct-only' ? 'direct-only' : 'include-orgs',
       tagIds: s.tagIds ? new Set(s.tagIds) : null,
       orgIds: s.orgIds ? new Set(s.orgIds) : null,
       orgFilterMode: s.orgFilterMode === 'direct-only' ? 'direct-only' : 'include-people',
       statusIds,
-      dateField: s.dateField ?? 'due',
+      dateField,
       dateRangeStart: s.dateRangeStart ? new Date(s.dateRangeStart) : null,
       dateRangeEnd: s.dateRangeEnd ? new Date(s.dateRangeEnd) : null,
-      dateRangeIncludeNoDue: s.dateRangeIncludeNoDue,
+      dateRangeIncludeNoDate,
       searchText: '',
     },
     losses,

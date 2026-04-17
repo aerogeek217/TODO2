@@ -74,6 +74,7 @@ main.tsx (entry point)
 | runV20Migration | data/database.ts | v20 upgrade: seeds Assigned/Follow-up statuses, backfills `statusId` from `isStarred`/`isAssigned`, deletes retired `starred` list insets |
 | ensureSeededStatuses | data/database.ts | Idempotent seeder for Assigned/Follow-up status rows; settings-pointer-as-truth (`seededAssignedStatusId`/`seededFollowupStatusId`); used by v20 migration and restore |
 | runV21Migration | data/database.ts | v21 upgrade: folds `priority`/`dueDate`/`isHardDeadline`/`recurrenceRule` into `scheduledDate`+`dueDate` per Q2 precedence, deletes `high-priority` / priority-`attributeFilter` list insets, seeds four `listDefinitions` rows |
+| translateTodoV20ToV21 | data/database.ts | Per-todo Q2 precedence helper (in-place mutation, returns outcome); strips `priority`/`isHardDeadline`; shared by `runV21Migration` and `restoreFromImportData`; idempotent on post-v21 rows |
 | ensureSeededListDefinitions | data/database.ts | Idempotent seeder for Today / Upcoming / Deadlines / Someday list-definition rows; keyed by `seededKey`; used by v21 migration and restore |
 | ALL_DATA_TABLES | data/database.ts | Canonical list of all data tables (excludes backups); used by restore, file-storage hooks. Includes `listDefinitions` (v21). |
 | createRepository | data/create-repository.ts | Factory for shared CRUD operations (getAll, getById, insert, update, remove); extended per-repo |
@@ -96,7 +97,7 @@ main.tsx (entry point)
 | auditData | data/audit.ts | Scan all tables for orphaned join rows, dangling foreign keys, and unplaced canvas tasks (canvasId set but no projectId); returns AuditReport with issues and cleanup metadata |
 | cleanupIssues | data/audit.ts | Atomic cleanup of all audit issues (delete orphans, clear dangling FKs) in single transaction |
 | validateImportData | data/import-validation.ts | Schema validation for JSON import (all models, color sanitization, size limits, SavedView filter validation, setting key allowlist) |
-| restoreFromImportData | data/restore.ts | Clear-all-tables + bulk-add from ImportData + auto-seed statuses via `ensureSeededStatuses` + translate legacy `isStarred`/`isAssigned` todo booleans per Q4 precedence; used by backup restore, file import, and settings import |
+| restoreFromImportData | data/restore.ts | Clear-all-tables + bulk-add from ImportData + auto-seed statuses + auto-seed listDefinitions + v19→v20 `isStarred`/`isAssigned` translation + v20→v21 `translateTodoV20ToV21` per row + priority list-inset deletion; used by backup restore, file import, and settings import |
 | parseAndRestore | data/restore.ts | Parse JSON string, validate, and restore all data tables; used by backup restore |
 | createAssignmentActions | stores/assignment-helpers.ts | Factory for assign/unassign/bulk/load actions shared by tag, person, org stores |
 | loadWithState | stores/store-helpers.ts | Loading/error state boilerplate for store data fetching |
@@ -120,7 +121,7 @@ main.tsx (entry point)
 | useStickyNoteStore | stores/sticky-note-store.ts | Sticky notes CRUD, position, title, text, color (default yellow #FFF3B0) |
 | useStatusStore | stores/status-store.ts | Status definitions: load, add, update, remove (cascade delete clears todos + default setting, with undo), reorder (drag sort with persisted sortOrder) |
 | useTaskboardStore | stores/taskboard-store.ts | Taskboard entries: load, add, addAt (positional insert with collision renormalization), addMultipleAt (batch insert with even distribution), remove, clear, has, reorder with undo support |
-| useSavedViewStore | stores/saved-view-store.ts | Saved list views CRUD: save, update (overwrite filters/sortBy), rename, remove, reorder (drag sort with persisted sortOrder), apply (restores filters + grouping) |
+| useSavedViewStore | stores/saved-view-store.ts | Saved list views CRUD: save, update (overwrite filters/sortBy), rename, remove, reorder (drag sort with persisted sortOrder), apply (restores filters + grouping). Exports `savedFiltersToRuntime` (v19→v20 status + v20→v21 scheduling translation, silent per Q13) and `translateSortBy` (`'priority'`/`'due'` → `'date'`) |
 | useListDefinitionStore | stores/list-definition-store.ts | Load-only store for dashboard list definitions (sorted by sortOrder); no mutation actions in v21 (builder UI is a later plan) |
 | resolveFuzzy, resolveScheduled, effectiveDate, isScheduledExpired, scheduledLabel, scheduledValuesEqual | utils/effective-date.ts | Unified scheduling helpers: resolve `ScheduledValue` fuzzy tokens to concrete end-of-window dates, compute `min(scheduled, deadline)`, label chips, structural equality for ScheduledValue. Every sort/filter/group consumer reads `effectiveDate` |
 | TaskEditPopup | components/task/TaskEditPopup.tsx | Centered modal for editing/creating tasks; project selector in create/edit mode (replaced TaskDetailPanel + QuickAddPopup) |
@@ -179,7 +180,7 @@ main.tsx (entry point)
 | fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh; `onConfirmMigration` callback pauses import of legacy-format files pending user confirmation |
 | backupScheduler | services/backup-scheduler.ts | Auto-snapshot every 24h, pre-destructive snapshots, prune to 10 max; started in App.tsx |
 | checkMigrationNeeded | services/migration-check.ts | Checks IndexedDB version via `indexedDB.databases()` before Dexie opens; converts IDB version (Dexie multiplies by 10) to Dexie version for comparison; returns `MigrationInfo` if data-modifying upgrade is pending |
-| detectLegacyFormat | services/migration-check.ts | Inspects raw parsed JSON for legacy fields (`isStarred`/`isAssigned` booleans, `starred` list insets); returns `LegacyImportInfo` with counts and human-readable descriptions |
+| detectLegacyFormat | services/migration-check.ts | Inspects raw parsed JSON for legacy fields (v19→v20: `isStarred`/`isAssigned` booleans, `starred` list insets; v20→v21: `priority`/`isHardDeadline` todo fields, `high-priority`/priority-`attributeFilter` list insets); returns `LegacyImportInfo` with per-category counts and human-readable descriptions |
 | exportCurrentDatabase | services/migration-check.ts | Reads all tables from raw IndexedDB at a specified version (without triggering Dexie upgrade); returns JSON string |
 | MigrationDialog | components/overlays/MigrationDialog.tsx | Confirmation dialog for data migrations; `schema-upgrade` mode (full-screen, Dexie upgrade) and `legacy-import` mode (overlay modal, file/import); export backup button + apply/cancel |
 | useFileStorageStore | stores/file-storage-store.ts | File storage connection state and actions; `pendingMigration` / `confirmMigration` / `cancelMigration` for legacy-import confirmation; exports refreshAllStores() |

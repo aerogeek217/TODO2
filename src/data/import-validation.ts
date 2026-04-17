@@ -116,7 +116,11 @@ function checkTodo(v: unknown): CheckResult {
     ['title', isStr(v.title, 500)],
     ['notes', isOptStr(v.notes, 50000)],
     ['progress', isOptStr(v.progress, 500)],
-    ['priority', typeof v.priority === 'number' && [Priority.Normal, Priority.Medium, Priority.High].includes(v.priority)],
+    // priority is legacy-optional: pre-v21 has a number, v21+ omits. Restore strips the field.
+    ['priority',
+      v.priority === undefined || v.priority === null
+      || (typeof v.priority === 'number' && [Priority.Normal, Priority.Medium, Priority.High].includes(v.priority))
+    ],
     ['isCompleted', isBool(v.isCompleted)],
     ['scheduledDate', isOptScheduledValue(v.scheduledDate)],
     ['dueDate', isOptDateLike(v.dueDate)],
@@ -292,16 +296,20 @@ function isOptFilterStr(v: unknown, valid: string[]): boolean {
 function checkSavedViewFilters(v: unknown): CheckResult {
   if (!isObj(v)) return 'filters: not an object'
   return checkFields(v, [
-    ['priorities', isOptNullableIntArray(v.priorities)],
+    ['priorities', isOptNullableIntArray(v.priorities)],               // v20→v21 legacy (ignored at runtime)
     ['showCompleted', isOptBool(v.showCompleted)],
     ['showHiddenStatuses', isOptBool(v.showHiddenStatuses)],
-    // Legacy fields — accepted for backward compat
+    // v19→v20 legacy — accepted for backward compat
     ['completedFilter', isOptFilterStr(v.completedFilter, VALID_COMPLETED_FILTERS)],
     ['assignedFilter', isOptFilterStr(v.assignedFilter, VALID_ASSIGNED_FILTERS)],
     ['followupFilter', isOptFilterStr(v.followupFilter, VALID_FOLLOWUP_FILTERS)],
     ['showAssigned', isOptBool(v.showAssigned)],
     ['starredOnly', isOptBool(v.starredOnly)],
+    // v20→v21 legacy — accepted at validation, dropped at runtime
     ['hardDeadlineOnly', isOptBool(v.hardDeadlineOnly)],
+    ['dateRangeIncludeNoDue', isOptBool(v.dateRangeIncludeNoDue)],
+    // v21 new
+    ['dateRangeIncludeNoDate', isOptBool(v.dateRangeIncludeNoDate)],
     ['personIds', isOptNullableIntArray(v.personIds)],
     ['personFilterMode', isOptFilterStr(v.personFilterMode, ['include-orgs', 'direct-only'])],
     ['tagIds', isOptNullableIntArray(v.tagIds)],
@@ -311,7 +319,6 @@ function checkSavedViewFilters(v: unknown): CheckResult {
     ['dateField', v.dateField === undefined || (typeof v.dateField === 'string' && VALID_DATE_FIELDS.includes(v.dateField))],
     ['dateRangeStart', isOptDateLike(v.dateRangeStart)],
     ['dateRangeEnd', isOptDateLike(v.dateRangeEnd)],
-    ['dateRangeIncludeNoDue', isOptBool(v.dateRangeIncludeNoDue)],
   ])
 }
 
@@ -398,18 +405,21 @@ function pickProject(v: Record<string, unknown>): Project {
 
 function pickTodo(v: Record<string, unknown>): TodoItem {
   return {
-    id: v.id as number | undefined, title: v.title as string, priority: v.priority as number,
+    id: v.id as number | undefined, title: v.title as string,
     isCompleted: v.isCompleted as boolean,
     createdAt: v.createdAt as Date, modifiedAt: v.modifiedAt as Date, sortOrder: v.sortOrder as number,
     ...(v.notes != null ? { notes: v.notes as string } : {}),
     ...(v.progress != null ? { progress: v.progress as string } : {}),
+    ...(v.scheduledDate != null ? { scheduledDate: v.scheduledDate as TodoItem['scheduledDate'] } : {}),
     ...(v.dueDate != null ? { dueDate: v.dueDate as Date } : {}),
-    ...(v.isHardDeadline != null ? { isHardDeadline: v.isHardDeadline as boolean } : {}),
     ...(v.recurrenceRule != null ? { recurrenceRule: v.recurrenceRule as RecurrenceRule } : {}),
     ...(v.projectId != null ? { projectId: v.projectId as number } : {}),
     ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
     ...(v.parentId != null ? { parentId: v.parentId as number } : {}),
     ...(v.statusId != null ? { statusId: v.statusId as number } : {}),
+    // Legacy fields preserved so restore can translate them. Post-restore translation deletes them.
+    ...(v.priority != null ? { priority: v.priority } : {}),
+    ...(v.isHardDeadline != null ? { isHardDeadline: v.isHardDeadline } : {}),
     ...(v.isStarred != null ? { isStarred: v.isStarred } : {}),
     ...(v.isAssigned != null ? { isAssigned: v.isAssigned } : {}),
   } as TodoItem
@@ -493,23 +503,27 @@ function pickStickyNote(v: Record<string, unknown>): StickyNote {
 
 function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] {
   return {
-    priorities: v.priorities as number[] | null,
+    // Legacy + new coexist in the parsed structure. Translation at runtime.
+    ...(v.priorities !== undefined ? { priorities: v.priorities as number[] | null } : {}),
     showCompleted: (v.showCompleted as boolean) ?? false,
     showHiddenStatuses: (v.showHiddenStatuses as boolean) ?? false,
-    // Legacy fields — preserved for savedFiltersToRuntime translation at load time
+    // v19→v20 legacy — preserved for savedFiltersToRuntime translation at load time
     ...(v.completedFilter !== undefined ? { completedFilter: v.completedFilter as string } : {}),
     ...(v.assignedFilter !== undefined ? { assignedFilter: v.assignedFilter as string } : {}),
     ...(v.followupFilter !== undefined ? { followupFilter: v.followupFilter as string } : {}),
     ...(v.showAssigned !== undefined ? { showAssigned: v.showAssigned as boolean } : {}),
     ...(v.starredOnly !== undefined ? { starredOnly: v.starredOnly as boolean } : {}),
-    hardDeadlineOnly: (v.hardDeadlineOnly as boolean) ?? false,
+    // v20→v21 legacy — preserved for translation
+    ...(v.hardDeadlineOnly !== undefined ? { hardDeadlineOnly: v.hardDeadlineOnly as boolean } : {}),
+    ...(v.dateRangeIncludeNoDue !== undefined ? { dateRangeIncludeNoDue: v.dateRangeIncludeNoDue as boolean } : {}),
+    // v21 new — required; fall through to false when absent
+    dateRangeIncludeNoDate: (v.dateRangeIncludeNoDate as boolean) ?? false,
     personIds: v.personIds as number[] | null,
     ...(v.personFilterMode !== undefined ? { personFilterMode: v.personFilterMode as SavedView['filters']['personFilterMode'] } : {}),
     tagIds: v.tagIds as number[] | null,
     orgIds: v.orgIds as number[] | null,
     ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as SavedView['filters']['orgFilterMode'] } : {}),
     ...(v.statusIds !== undefined ? { statusIds: v.statusIds as number[] | null } : {}),
-    dateRangeIncludeNoDue: (v.dateRangeIncludeNoDue as boolean) ?? false,
     ...(v.dateField !== undefined ? { dateField: v.dateField as SavedView['filters']['dateField'] } : {}),
     ...(v.dateRangeStart !== undefined ? { dateRangeStart: v.dateRangeStart as string | null } : {}),
     ...(v.dateRangeEnd !== undefined ? { dateRangeEnd: v.dateRangeEnd as string | null } : {}),

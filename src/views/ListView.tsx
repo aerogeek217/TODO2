@@ -28,7 +28,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore } from '../stores/filter-store'
-import { useSavedViewStore, savedFiltersToRuntime } from '../stores/saved-view-store'
+import { useSavedViewStore, savedFiltersToRuntime, translateSortBy } from '../stores/saved-view-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskList } from '../components/task/TaskList'
 import { TaskRow } from '../components/task/TaskRow'
@@ -599,7 +599,7 @@ export function ListView() {
 
   const handleApplyView = useCallback((view: { sortBy: ListSortBy; filters: import('../models/saved-view').SavedViewFilters; id: number }) => {
     applyingViewRef.current = true
-    setListSortBy(view.sortBy)
+    setListSortBy(translateSortBy(view.sortBy))
     const { seededAssignedStatusId, seededFollowupStatusId } = useSettingsStore.getState()
     const allStatuses = useStatusStore.getState().statuses
     const { runtime } = savedFiltersToRuntime(view.filters, seededAssignedStatusId, seededFollowupStatusId, allStatuses)

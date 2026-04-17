@@ -162,6 +162,44 @@ export async function ensureSeededStatuses(
 }
 
 /**
+ * v20→v21 per-todo translation. Mutates in place. Strips `priority` and
+ * `isHardDeadline` keys regardless of branch.
+ *
+ * Q2 precedence (applied top-down):
+ *   (a) recurrenceRule != null            → 'to-deadline' (keep dueDate; recurrence forces deadline)
+ *   (b) isHardDeadline === true && dueDate→ 'to-deadline' (keep dueDate)
+ *   (c) isHardDeadline === true && !dueDate → 'dropped-flag' (tautology; no date set)
+ *   (d) dueDate && !isHardDeadline && no recurrence → 'to-scheduled' (move dueDate into scheduledDate)
+ *   (e) else                              → 'noop' (no date change)
+ *
+ * Post-translation, both legacy keys are removed. Idempotent on a post-v21 row.
+ */
+export type TranslateV21Outcome = 'to-deadline' | 'to-scheduled' | 'dropped-flag' | 'noop'
+
+export function translateTodoV20ToV21(todo: Record<string, unknown>): TranslateV21Outcome {
+  const hasRec = todo.recurrenceRule != null
+  const hard = todo.isHardDeadline === true
+  const hasDue = todo.dueDate != null
+
+  let outcome: TranslateV21Outcome = 'noop'
+  if (hasRec && hasDue) {
+    outcome = 'to-deadline'
+  } else if (hard && hasDue) {
+    outcome = 'to-deadline'
+  } else if (hard && !hasDue) {
+    outcome = 'dropped-flag'
+  } else if (hasDue && !hard && !hasRec) {
+    todo.scheduledDate = { kind: 'date', value: todo.dueDate as Date }
+    delete todo.dueDate
+    outcome = 'to-scheduled'
+  }
+
+  delete todo.priority
+  delete todo.isHardDeadline
+  return outcome
+}
+
+/**
  * v21 upgrade: rewrite todo rows into scheduled/deadline model, delete retired
  * priority list insets, seed listDefinitions. Per-row rules per plan Q2.
  */
@@ -173,36 +211,16 @@ export async function runV21Migration(tx: Transaction): Promise<void> {
   // 1) Seed listDefinitions (idempotent by seededKey).
   await ensureSeededListDefinitions(listDefinitionsTable)
 
-  // 2) Per-row Q2 rules:
-  //   (a) recurrenceRule != null         → keep dueDate (recurrence forces deadline)
-  //   (b) isHardDeadline === true && due → keep dueDate
-  //   (c) isHardDeadline === true && !due→ tautology; drop flag
-  //   (d) due && !hard && !recurrence    → move dueDate into scheduledDate
-  //   (e) otherwise                      → no-op
-  //   Always strip priority + isHardDeadline afterward.
+  // 2) Per-row Q2 rules. See translateTodoV20ToV21 for the precedence table.
   let toDeadlineCount = 0
   let toScheduledCount = 0
   let droppedFlagCount = 0
 
   await todosTable.toCollection().modify((todo: Record<string, unknown>) => {
-    const hasRec = todo.recurrenceRule != null
-    const hard = todo.isHardDeadline === true
-    const hasDue = todo.dueDate != null
-
-    if (hasRec && hasDue) {
-      toDeadlineCount++
-    } else if (hard && hasDue) {
-      toDeadlineCount++
-    } else if (hard && !hasDue) {
-      droppedFlagCount++
-    } else if (hasDue && !hard && !hasRec) {
-      todo.scheduledDate = { kind: 'date', value: todo.dueDate as Date }
-      delete todo.dueDate
-      toScheduledCount++
-    }
-
-    delete todo.priority
-    delete todo.isHardDeadline
+    const outcome = translateTodoV20ToV21(todo)
+    if (outcome === 'to-scheduled') toScheduledCount++
+    else if (outcome === 'to-deadline') toDeadlineCount++
+    else if (outcome === 'dropped-flag') droppedFlagCount++
   })
 
   // 3) Delete list insets tied to retired priority concepts.
