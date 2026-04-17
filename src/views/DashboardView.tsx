@@ -14,6 +14,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
+import { useFilterStore } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -77,23 +78,29 @@ export interface DashboardList {
 export function buildDashboardLists(
   todos: PersistedTodoItem[],
   statuses: Status[],
+  showHiddenStatuses = false,
 ): DashboardList[] {
   const now = startOfToday().getTime()
   const incomplete = todos.filter((t) => !t.isCompleted)
 
-  const hiddenStatusIds = new Set(
-    statuses.filter((s) => s.hideByDefault).map((s) => s.id!)
-  )
+  const hiddenStatusIds = !showHiddenStatuses
+    ? new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!))
+    : new Set<number>()
 
-  const scored = incomplete.map((t) => ({ todo: t, score: scoreTask(t, now) }))
+  const isVisible = (todo: PersistedTodoItem) =>
+    todo.statusId == null || !hiddenStatusIds.has(todo.statusId)
+
+  const scored = incomplete
+    .filter(isVisible)
+    .map((t) => ({ todo: t, score: scoreTask(t, now) }))
   scored.sort((a, b) => b.score - a.score)
 
   const mine = scored
-    .filter(({ todo }) => todo.statusId == null || !hiddenStatusIds.has(todo.statusId))
     .slice(0, TOP_N)
     .map(({ todo }) => todo)
 
   const stale = [...incomplete]
+    .filter(isVisible)
     .sort((a, b) => new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime())
     .slice(0, TOP_N)
 
@@ -131,6 +138,7 @@ export function DashboardView() {
   const { load: loadOrgs, loadAssignments: loadOrgAssignments } = useOrgStore()
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
+  const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
   const { load: loadTaskboard } = useTaskboardStore()
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
@@ -173,8 +181,8 @@ export function DashboardView() {
   }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
 
   const lists = useMemo(
-    () => buildDashboardLists(todos, statuses),
-    [todos, statuses],
+    () => buildDashboardLists(todos, statuses, showHiddenStatuses),
+    [todos, statuses, showHiddenStatuses],
   )
 
   const handleClick = useCallback((todoId: number) => {

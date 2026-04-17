@@ -99,6 +99,16 @@ export function useBulkActions() {
     }
   }, [])
 
+  const setStatus = useCallback((todoId: number, statusId: number | undefined) => {
+    const ids = getTargetIds(todoId)
+    if (ids.length > 1) {
+      useTodoStore.getState().bulkSetStatus(ids, statusId)
+    } else {
+      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+      if (todo) useTodoStore.getState().update({ ...todo, statusId, modifiedAt: new Date() })
+    }
+  }, [])
+
   const setProject = useCallback((todoId: number, projectId: number | undefined) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
@@ -167,6 +177,7 @@ export function useBulkActions() {
     toggleComplete,
     remove,
     setPriority,
+    setStatus,
     setDueDate,
     setProject,
     quickAssignPerson,

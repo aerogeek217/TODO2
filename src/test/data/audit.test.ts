@@ -204,12 +204,23 @@ describe('auditData', () => {
     expect(report.totalOrphans).toBeGreaterThanOrEqual(4)
   })
 
-  it('ignores todos with null/undefined projectId and parentId', async () => {
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.todos.add(makeTodo({ canvasId }) as any) // no projectId, no parentId
+  it('treats null projectId without canvasId as valid (no issue)', async () => {
+    await db.todos.add(makeTodo({}) as any) // no canvasId, no projectId
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(0)
+  })
+
+  it('detects unplaced tasks (canvasId set but no projectId)', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    await db.todos.add(makeTodo({ canvasId }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.description.includes('not assigned to any project'))!
+    expect(issue).toBeDefined()
+    expect(issue.count).toBe(1)
+    expect(issue.fix).toBe('clear-field')
+    expect(issue.field).toBe('canvasId')
   })
 })
 
@@ -301,8 +312,8 @@ describe('cleanupIssues', () => {
     await db.todoOrgs.add({ todoId: 999, orgId: 888 })
     await db.personOrgs.add({ personId: 999, orgId: 888 })
     await db.taskboardEntries.add({ todoId: 999, sortOrder: 0 })
-    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-    await db.todos.add(makeTodo({ canvasId, projectId: 777, parentId: 666 }) as any)
+    // No canvasId so clearing dangling projectId won't create a new unplaced-task issue
+    await db.todos.add(makeTodo({ projectId: 777, parentId: 666 }) as any)
 
     const report = await auditData()
     expect(report.totalOrphans).toBeGreaterThan(0)

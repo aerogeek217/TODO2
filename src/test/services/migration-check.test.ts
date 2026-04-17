@@ -28,14 +28,16 @@ describe('checkMigrationNeeded', () => {
   })
 
   it('returns null when database is at current version', async () => {
-    await createRawDb(20, (db) => {
+    // Dexie v20 = IDB v200
+    await createRawDb(200, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
     expect(await checkMigrationNeeded()).toBeNull()
   })
 
   it('returns migration info when data migration is pending', async () => {
-    await createRawDb(19, (db) => {
+    // Dexie v19 = IDB v190
+    await createRawDb(190, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
 
@@ -48,7 +50,8 @@ describe('checkMigrationNeeded', () => {
   })
 
   it('detects migration from much older versions', async () => {
-    await createRawDb(16, (db) => {
+    // Dexie v16 = IDB v160
+    await createRawDb(160, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
 
@@ -62,7 +65,8 @@ describe('checkMigrationNeeded', () => {
 
 describe('exportCurrentDatabase', () => {
   it('exports all table data as JSON', async () => {
-    await createRawDb(19, (db) => {
+    // Dexie v19 = IDB v190; exportCurrentDatabase takes Dexie version
+    await createRawDb(190, (db) => {
       const store = db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
       store.add({ title: 'Test Task', priority: 0 })
     })
@@ -74,7 +78,7 @@ describe('exportCurrentDatabase', () => {
   })
 
   it('exports multiple tables', async () => {
-    await createRawDb(19, (db) => {
+    await createRawDb(190, (db) => {
       const todos = db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
       todos.add({ title: 'Task 1' })
       const projects = db.createObjectStore('projects', { keyPath: 'id', autoIncrement: true })
@@ -88,7 +92,7 @@ describe('exportCurrentDatabase', () => {
   })
 
   it('returns empty object for database with no tables', async () => {
-    await createRawDb(1)
+    await createRawDb(10)
 
     const json = await exportCurrentDatabase(1)
     expect(JSON.parse(json)).toEqual({})

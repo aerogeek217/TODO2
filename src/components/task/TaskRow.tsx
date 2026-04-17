@@ -466,7 +466,7 @@ export const TaskRow = memo(function TaskRow({
               <div className={styles.statusMenu}>
                 <button
                   className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
-                  onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: undefined, modifiedAt: new Date() }); setShowStatusMenu(false) }}
+                  onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, undefined); setShowStatusMenu(false) }}
                 >
                   <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
                   No Status
@@ -475,7 +475,7 @@ export const TaskRow = memo(function TaskRow({
                   <button
                     key={s.id}
                     className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
-                    onClick={(e) => { e.stopPropagation(); useTodoStore.getState().update({ ...todo, statusId: s.id, modifiedAt: new Date() }); setShowStatusMenu(false) }}
+                    onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, s.id); setShowStatusMenu(false) }}
                   >
                     <span style={{ color: s.color }}><StatusIcon icon={s.icon || 'circle'} filled /></span>
                     {s.name}

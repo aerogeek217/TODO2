@@ -173,9 +173,16 @@ describe('buildDashboardLists', () => {
     expect(mine.todos.map(t => t.id)).toEqual([2, 3, 1])
   })
 
-  it('hideByDefault tasks still appear in stale', () => {
+  it('excludes hideByDefault-status tasks from stale by default', () => {
     const todo = makeTodo({ id: 1, statusId: 101, modifiedAt: new Date('2020-01-01T00:00:00Z') })
     const lists = buildDashboardLists([todo], seededStatuses)
+    expect(lists.find(l => l.key === 'stale')!.todos).toHaveLength(0)
+  })
+
+  it('includes hideByDefault tasks in both lists when showHiddenStatuses is true', () => {
+    const todo = makeTodo({ id: 1, statusId: 101, modifiedAt: new Date('2020-01-01T00:00:00Z') })
+    const lists = buildDashboardLists([todo], seededStatuses, true)
+    expect(lists.find(l => l.key === 'mine')!.todos).toHaveLength(1)
     expect(lists.find(l => l.key === 'stale')!.todos).toHaveLength(1)
   })
 })

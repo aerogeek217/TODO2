@@ -214,6 +214,22 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
+  // --- Unplaced tasks: on a canvas but not in any project (invisible in canvas view) ---
+
+  const unplacedTasks = todos.filter(
+    (t) => t.canvasId != null && t.projectId == null,
+  )
+  if (unplacedTasks.length > 0) {
+    issues.push({
+      table: 'todos',
+      description: 'Tasks not assigned to any project (invisible on canvas)',
+      count: unplacedTasks.length,
+      ids: unplacedTasks.map((t) => t.id!),
+      fix: 'clear-field',
+      field: 'canvasId',
+    })
+  }
+
   return {
     issues,
     totalOrphans: issues.reduce((sum, i) => sum + i.count, 0),

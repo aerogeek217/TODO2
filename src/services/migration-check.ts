@@ -1,4 +1,6 @@
 const CURRENT_DB_VERSION = 20
+// Dexie multiplies version numbers by 10 for the native IDB version
+const CURRENT_IDB_VERSION = CURRENT_DB_VERSION * 10
 
 export interface PendingMigration {
   version: number
@@ -32,13 +34,15 @@ export async function checkMigrationNeeded(): Promise<MigrationInfo | null> {
     const databases = await indexedDB.databases()
     const existing = databases.find(d => d.name === 'todo2')
 
-    if (!existing?.version || existing.version >= CURRENT_DB_VERSION) return null
+    if (!existing?.version || existing.version >= CURRENT_IDB_VERSION) return null
 
-    const pending = DATA_MIGRATIONS.filter(m => m.version > existing.version!)
+    // Convert IDB version back to Dexie version for migration filtering
+    const dexieVersion = Math.floor(existing.version / 10)
+    const pending = DATA_MIGRATIONS.filter(m => m.version > dexieVersion)
     if (pending.length === 0) return null
 
     return {
-      currentVersion: existing.version,
+      currentVersion: dexieVersion,
       targetVersion: CURRENT_DB_VERSION,
       migrations: pending,
     }
@@ -77,9 +81,9 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
   return { starredCount, assignedCount, starredInsetCount, descriptions }
 }
 
-export async function exportCurrentDatabase(currentVersion: number): Promise<string> {
+export async function exportCurrentDatabase(dexieVersion: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('todo2', currentVersion)
+    const request = indexedDB.open('todo2', dexieVersion * 10)
 
     request.onsuccess = () => {
       const idb = request.result

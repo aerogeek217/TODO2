@@ -6,10 +6,17 @@ import { useOrgStore } from '../stores/org-store'
 import { useProjectStore } from '../stores/project-store'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useUIStore } from '../stores/ui-store'
-import type { TodoItem } from '../models'
+import type { TodoItem, PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { parseTaskInput } from '../services/nlp-task-creator'
 import { makeRecurrenceRule } from '../services/recurrence'
+
+/** Return the IDs of other multi-selected tasks (excluding the primary edit target). */
+function getOtherSelectedIds(primaryId: number): number[] {
+  const { selectedTodoIds } = useUIStore.getState()
+  if (selectedTodoIds.size <= 1) return []
+  return [...selectedTodoIds].filter(id => id !== primaryId)
+}
 
 /**
  * Shared callbacks for TaskEditPopup wiring.
@@ -60,28 +67,63 @@ export function useTaskEditCallbacks() {
     return id
   }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, addProject, people, tags, projects, orgs])
 
+  /** Wrap onUpdate to propagate bulk-applicable field changes to other selected tasks. */
+  const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {
+    // Snapshot store state BEFORE the optimistic update modifies it
+    const current = useTodoStore.getState().todos.find(t => t.id === updated.id)
+
+    updateTodo(updated)
+
+    const otherIds = getOtherSelectedIds(updated.id)
+    if (otherIds.length === 0 || !current) return
+
+    const store = useTodoStore.getState()
+    if (updated.priority !== current.priority)
+      store.bulkSetPriority(otherIds, updated.priority)
+    if (updated.statusId !== current.statusId)
+      store.bulkSetStatus(otherIds, updated.statusId)
+    if (updated.dueDate?.getTime() !== current.dueDate?.getTime())
+      store.bulkSetDueDate(otherIds, updated.dueDate)
+    if (updated.projectId !== current.projectId)
+      store.bulkSetProject(otherIds, updated.projectId)
+  }, [updateTodo])
+
   const editProps = useMemo(() => {
     if (!selectedTodo) return null
+
+    const bulkAssign = (
+      singleFn: (todoId: number, entityId: number) => void,
+      bulkFn: (ids: number[], entityId: number) => void,
+    ) => (entityId: number) => {
+      if (!selectedTodoId) return
+      singleFn(selectedTodoId, entityId)
+      const otherIds = getOtherSelectedIds(selectedTodoId)
+      if (otherIds.length > 0) bulkFn(otherIds, entityId)
+    }
+
     return {
       todo: selectedTodo,
       assignedPeople: assignedPeopleMap.get(selectedTodo.id) ?? [],
       assignedTags: assignedTagsMap.get(selectedTodo.id) ?? [],
       assignedOrgs: assignedOrgsMap.get(selectedTodo.id) ?? [],
-      onUpdate: updateTodo,
+      onUpdate: bulkAwareUpdate,
       onToggleComplete: () => useTodoStore.getState().toggleComplete(selectedTodo.id),
-      onDelete: () => useUIStore.getState().showBulkConfirmation('delete', [selectedTodo.id]),
+      onDelete: () => {
+        const ids = getOtherSelectedIds(selectedTodo.id)
+        useUIStore.getState().showBulkConfirmation('delete', [selectedTodo.id, ...ids])
+      },
       onDuplicate: async () => {
         const newId = await useTodoStore.getState().duplicate(selectedTodo.id)
         if (newId) { closeEditPopup(); openEditPopup(newId) }
       },
-      onAssignPerson: (personId: number) => { if (selectedTodoId) assignPerson(selectedTodoId, personId) },
-      onUnassignPerson: (personId: number) => { if (selectedTodoId) unassignPerson(selectedTodoId, personId) },
-      onAssignTag: (tagId: number) => { if (selectedTodoId) assignTag(selectedTodoId, tagId) },
-      onUnassignTag: (tagId: number) => { if (selectedTodoId) unassignTag(selectedTodoId, tagId) },
-      onAssignOrg: (orgId: number) => { if (selectedTodoId) assignOrg(selectedTodoId, orgId) },
-      onUnassignOrg: (orgId: number) => { if (selectedTodoId) unassignOrg(selectedTodoId, orgId) },
+      onAssignPerson: bulkAssign(assignPerson, usePersonStore.getState().bulkAssignPerson),
+      onUnassignPerson: bulkAssign(unassignPerson, usePersonStore.getState().bulkUnassignPerson),
+      onAssignTag: bulkAssign(assignTag, useTagStore.getState().bulkAssignTag),
+      onUnassignTag: bulkAssign(unassignTag, useTagStore.getState().bulkUnassignTag),
+      onAssignOrg: bulkAssign(assignOrg, useOrgStore.getState().bulkAssignOrg),
+      onUnassignOrg: bulkAssign(unassignOrg, useOrgStore.getState().bulkUnassignOrg),
     }
-  }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, updateTodo, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignTag, unassignTag, assignOrg, unassignOrg])
+  }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignTag, unassignTag, assignOrg, unassignOrg])
 
   const entityCreators = useMemo(() => ({
     onCreatePerson: (name: string) => {

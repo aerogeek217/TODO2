@@ -88,7 +88,7 @@ main.tsx (entry point)
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | savedViewRepository | data/saved-view-repository.ts | CRUD for SavedView (getAll, add, update, remove) |
 | backupRepository | data/backup-repository.ts | Snapshot CRUD: createSnapshot, listSnapshots (lightweight), restoreSnapshot (validates + imports), pruneSnapshots |
-| auditData | data/audit.ts | Scan all tables for orphaned join rows and dangling foreign keys; returns AuditReport with issues and cleanup metadata |
+| auditData | data/audit.ts | Scan all tables for orphaned join rows, dangling foreign keys, and unplaced canvas tasks (canvasId set but no projectId); returns AuditReport with issues and cleanup metadata |
 | cleanupIssues | data/audit.ts | Atomic cleanup of all audit issues (delete orphans, clear dangling FKs) in single transaction |
 | validateImportData | data/import-validation.ts | Schema validation for JSON import (all models, color sanitization, size limits, SavedView filter validation, setting key allowlist) |
 | restoreFromImportData | data/restore.ts | Clear-all-tables + bulk-add from ImportData + auto-seed statuses via `ensureSeededStatuses` + translate legacy `isStarred`/`isAssigned` todo booleans per Q4 precedence; used by backup restore, file import, and settings import |
@@ -165,12 +165,12 @@ main.tsx (entry point)
 | PlainTextExportPopup | components/overlays/PlainTextExportPopup.tsx | Modal with plain text representation of current list sections; copy-to-clipboard support |
 | DashboardView | views/DashboardView.tsx | Top 10 lists view: Mine, Stale; 2-column grid layout; collapsible cards; drag tasks to taskboard via DndContext |
 | scoreTask | views/DashboardView.tsx | Importance scoring: hard deadline (+500), overdue (100+days), due proximity (60-days), priority (High+20, Medium+10) |
-| buildDashboardLists | views/DashboardView.tsx | Builds 2 dashboard lists from all incomplete todos using scoreTask ranking (Mine = status not hideByDefault, Stale by oldest modifiedAt) |
+| buildDashboardLists | views/DashboardView.tsx | Builds 2 dashboard lists from all incomplete todos using scoreTask ranking; both lists exclude hideByDefault statuses unless `showHiddenStatuses` is true |
 | buildExportData | services/export-import.ts | Reads all 12 DB tables in parallel; shared by file-storage, settings export, and backup snapshots |
 | buildMarkdownExport | services/export-import.ts | Builds markdown representation of all tasks grouped by project; shows `[status.name]` for meaningful statuses (icon or hideByDefault); uses buildExportData |
 | fileStorageService | services/file-storage.ts | File System Access API sync (file ↔ IndexedDB); uses onAfterImport callback for store refresh; `onConfirmMigration` callback pauses import of legacy-format files pending user confirmation |
 | backupScheduler | services/backup-scheduler.ts | Auto-snapshot every 24h, pre-destructive snapshots, prune to 10 max; started in App.tsx |
-| checkMigrationNeeded | services/migration-check.ts | Checks IndexedDB version via `indexedDB.databases()` before Dexie opens; returns `MigrationInfo` if data-modifying upgrade is pending |
+| checkMigrationNeeded | services/migration-check.ts | Checks IndexedDB version via `indexedDB.databases()` before Dexie opens; converts IDB version (Dexie multiplies by 10) to Dexie version for comparison; returns `MigrationInfo` if data-modifying upgrade is pending |
 | detectLegacyFormat | services/migration-check.ts | Inspects raw parsed JSON for legacy fields (`isStarred`/`isAssigned` booleans, `starred` list insets); returns `LegacyImportInfo` with counts and human-readable descriptions |
 | exportCurrentDatabase | services/migration-check.ts | Reads all tables from raw IndexedDB at a specified version (without triggering Dexie upgrade); returns JSON string |
 | MigrationDialog | components/overlays/MigrationDialog.tsx | Confirmation dialog for data migrations; `schema-upgrade` mode (full-screen, Dexie upgrade) and `legacy-import` mode (overlay modal, file/import); export backup button + apply/cancel |
