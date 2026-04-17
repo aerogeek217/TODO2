@@ -29,7 +29,7 @@
 
 .card {
   width: 600px;
-  max-height: 72vh;
+  max-height: 82vh;
   background: linear-gradient(
     168deg,
     var(--color-card-glass-from) 0%,
@@ -759,7 +759,7 @@
 
 .notesTextarea {
   width: 100%;
-  min-height: 80px;
+  min-height: 160px;
   background: var(--color-inset-light);
   color: var(--color-text-primary);
   border: 1px solid var(--color-tint-5);

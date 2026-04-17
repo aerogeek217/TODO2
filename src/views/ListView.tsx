@@ -135,8 +135,9 @@ export function buildPeopleSections(
   personOrgMap?: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
 ): Section[] {
+  const orgSections: Section[] = []
   const personSections: Section[] = []
-  const assignedTodoIds = new Set<number>()
+  const orgClaimedIds = new Set<number>()
 
   // When an org filter is active, only show people who belong to at least one filtered org
   const visiblePeople = (filteredOrgIds && personOrgMap)
@@ -146,13 +147,36 @@ export function buildPeopleSections(
       })
     : people
 
+  // 1. Tasks with direct org assignment go into org sections first
+  if (orgs && assignedOrgsMap) {
+    const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
+    for (const org of visibleOrgs) {
+      const orgTodos = todos.filter((t) => {
+        const todoOrgs = assignedOrgsMap.get(t.id) ?? []
+        return todoOrgs.some((o) => o.id === org.id)
+      })
+      if (orgTodos.length > 0) {
+        for (const t of orgTodos) orgClaimedIds.add(t.id)
+        orgSections.push({
+          key: `org-${org.id}`,
+          label: org.name,
+          accentColor: org.color,
+          todos: orgTodos,
+        })
+      }
+    }
+  }
+
+  // 2. Remaining tasks (no direct org) grouped by person
+  const personClaimedIds = new Set<number>()
   for (const person of visiblePeople) {
     const personTodos = todos.filter((t) => {
+      if (orgClaimedIds.has(t.id)) return false
       const assigned = assignedPeopleMap.get(t.id) ?? []
       return assigned.some((p) => p.id === person.id)
     })
     if (personTodos.length > 0) {
-      for (const t of personTodos) assignedTodoIds.add(t.id)
+      for (const t of personTodos) personClaimedIds.add(t.id)
       personSections.push({
         key: `person-${person.id}`,
         label: person.name,
@@ -162,33 +186,13 @@ export function buildPeopleSections(
     }
   }
 
-  const unassigned = todos.filter((t) => !assignedTodoIds.has(t.id))
-  if (unassigned.length > 0 && orgs && assignedOrgsMap) {
-    // Sub-group unassigned-to-person tasks by their direct org assignment
-    const orgSections: Section[] = []
-    const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
-    const orgGroupedIds = new Set<number>()
-    for (const org of visibleOrgs) {
-      const orgTodos = unassigned.filter((t) => {
-        const todoOrgs = assignedOrgsMap.get(t.id) ?? []
-        return todoOrgs.some((o) => o.id === org.id)
-      })
-      if (orgTodos.length > 0) {
-        for (const t of orgTodos) orgGroupedIds.add(t.id)
-        orgSections.push({
-          key: `org-${org.id}`,
-          label: org.name,
-          accentColor: org.color,
-          todos: orgTodos,
-        })
-      }
-    }
-    const remaining = unassigned.filter((t) => !orgGroupedIds.has(t.id))
-    return [...orgSections, ...personSections, ...(remaining.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: remaining }] : [])]
-  } else if (unassigned.length > 0) {
-    return [...personSections, { key: 'unassigned', label: 'Unassigned', todos: unassigned }]
-  }
-  return personSections
+  // 3. Unassigned: neither org-assigned nor person-assigned
+  const remaining = todos.filter((t) => !orgClaimedIds.has(t.id) && !personClaimedIds.has(t.id))
+  return [
+    ...orgSections,
+    ...personSections,
+    ...(remaining.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: remaining }] : []),
+  ]
 }
 
 export function buildTagSections(
