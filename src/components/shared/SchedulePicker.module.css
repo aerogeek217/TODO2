@@ -1,0 +1,104 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.triggerChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.triggerChip:hover {
+  background: var(--color-surface-high);
+}
+
+.triggerChipActive {
+  background: var(--color-accent-bg-medium);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.triggerChipExpired {
+  border-color: var(--color-overdue);
+  color: var(--color-overdue);
+  background: var(--color-overdue-bg);
+}
+
+.triggerLabel {
+  white-space: nowrap;
+}
+
+.expiredMarker {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-overdue);
+  margin-left: var(--space-1);
+}
+
+.menu {
+  composes: menu from './dropdown.module.css';
+  z-index: var(--z-dropdown);
+  min-width: 240px;
+  padding: var(--space-2);
+}
+
+.primaryRow,
+.secondaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.secondaryRow {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.optionChip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.optionChip:hover {
+  background: var(--color-surface-high);
+}
+
+.optionChipSmall {
+  font-size: calc(var(--font-size-meta) * 0.92);
+  padding: 2px var(--space-2);
+}
+
+.optionChipSelected {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.hiddenDateInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

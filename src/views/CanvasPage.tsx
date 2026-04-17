@@ -189,7 +189,6 @@ export function CanvasPage() {
   // "only" variants hide tasks entirely (handled in todosByProject); regular variants ghost here
   const filterGhostIds = useMemo(() => {
     const hasGhostFilter =
-      filters.priorities !== null || filters.hardDeadlineOnly ||
       filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null ||
       filters.statusIds !== null || filters.searchText !== '' ||
       filters.dateRangeStart !== null || filters.dateRangeEnd !== null

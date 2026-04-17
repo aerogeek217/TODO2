@@ -1,16 +1,20 @@
 import type { Person, Tag, Org, RecurrenceType, PersistedTodoItem } from '../../models'
+import type { ScheduledValue } from '../../models/scheduled-value'
 import { ChipSelector } from '../shared/ChipSelector'
+import { SchedulePicker } from '../shared/SchedulePicker'
+import { DeadlinePicker } from '../shared/DeadlinePicker'
+import { scheduledLabel } from '../../utils/effective-date'
+import { formatDate, startOfToday } from '../../utils/date'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditMetadataProps {
-  // Due date
-  dueDate: string
+  // Scheduled + Deadline
+  scheduledDate: ScheduledValue | null
+  deadline: Date | null
   recurrenceType: RecurrenceType | ''
-  isHardDeadline: boolean
-  dateRef: React.RefObject<HTMLInputElement | null>
-  onDateChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onScheduledChange: (next: ScheduledValue | null) => void
+  onDeadlineChange: (next: Date | null) => void
   onRecurrenceChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
-  onToggleHardDeadline: () => void
 
   // Project
   projectId: number | undefined
@@ -54,8 +58,8 @@ interface TaskEditMetadataProps {
 }
 
 export function TaskEditMetadata({
-  dueDate, recurrenceType, isHardDeadline, dateRef,
-  onDateChange, onRecurrenceChange, onToggleHardDeadline,
+  scheduledDate, deadline, recurrenceType,
+  onScheduledChange, onDeadlineChange, onRecurrenceChange,
   projectId, projects, projectSearch, projectRef, projectSearchRef,
   onProjectSelect, onProjectSearchChange,
   assignedPeople, assignedOrgs, allPeople, allOrgs,
@@ -67,21 +71,17 @@ export function TaskEditMetadata({
 }: TaskEditMetadataProps) {
   return (
     <div className={styles.metaSection}>
-      {/* Due date */}
+      {/* Scheduled */}
       <div className={styles.metaRow}>
-        <span className={styles.metaLabel}>Due date</span>
-        <input
-          ref={dateRef}
-          type="date"
-          className={styles.metaInput}
-          value={dueDate}
-          onChange={onDateChange}
-          onMouseDown={(e) => {
-            e.preventDefault()
-            try { dateRef.current?.showPicker() } catch {}
-          }}
-        />
-        {dueDate && (
+        <span className={styles.metaLabel}>Scheduled</span>
+        <SchedulePicker value={scheduledDate} onChange={onScheduledChange} />
+      </div>
+
+      {/* Deadline */}
+      <div className={styles.metaRow}>
+        <span className={styles.metaLabel}>Deadline</span>
+        <DeadlinePicker value={deadline} onChange={onDeadlineChange} />
+        {deadline && (
           <select
             className={styles.personSelect}
             value={recurrenceType}
@@ -96,16 +96,14 @@ export function TaskEditMetadata({
             <option value="yearly">Yearly</option>
           </select>
         )}
-        {dueDate && (
-          <button
-            className={`${styles.hardDeadlineBtn} ${isHardDeadline ? styles.hardDeadlineActive : ''}`}
-            onClick={onToggleHardDeadline}
-            title={isHardDeadline ? 'Hard deadline (click to make soft)' : 'Soft date (click to make hard deadline)'}
-          >
-            {isHardDeadline ? '⚑' : '⚐'}
-          </button>
-        )}
       </div>
+
+      {/* Combined helper line — shown only when both are set */}
+      {scheduledDate && deadline && (
+        <div className={styles.scheduleHint}>
+          Deadline {formatDate(deadline)} — scheduled {scheduledLabel(scheduledDate, startOfToday()).toLowerCase()}
+        </div>
+      )}
 
       {/* Project */}
       <div className={styles.metaRow}>

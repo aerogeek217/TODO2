@@ -1,16 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoItem, PersistedTodoItem, Person, Tag, Org, RecurrenceType } from '../../models'
-import { Priority, AppView } from '../../models'
+import { AppView } from '../../models'
+import type { ScheduledValue } from '../../models/scheduled-value'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
-import { PriorityMenu, getPriorityLabel } from '../shared/PriorityMenu'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
-import { toDateInputValue } from '../../utils/date'
 import { makeRecurrenceRule } from '../../services/recurrence'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
@@ -87,9 +86,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [statusId, setStatusId] = useState<number | undefined>(
     todo?.statusId ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
   )
-  const [dueDate, setDueDate] = useState(toDateInputValue(todo?.dueDate))
-  const [isHardDeadline, setIsHardDeadline] = useState(todo?.isHardDeadline ?? false)
-  const [priority, setPriorityState] = useState<Priority>(todo?.priority ?? filterDefaults?.priority ?? Priority.Normal)
+  const [scheduledDate, setScheduledDate] = useState<ScheduledValue | null>(todo?.scheduledDate ?? null)
+  const [deadline, setDeadline] = useState<Date | null>(todo?.dueDate ?? null)
   const [projectId, setProjectId] = useState<number | undefined>(
     todo?.projectId ?? (mode === 'create' ? (defaultProjectId ?? undefined) : undefined)
   )
@@ -111,18 +109,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     ? allOrgs.filter(o => pendingOrgIds.has(o.id!))
     : assignedOrgs
 
-  const [showPriorityMenu, setShowPriorityMenu] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | 'orgs' | 'project' | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
   const titleRef = useRef<HTMLInputElement>(null)
-  const dateRef = useRef<HTMLInputElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
   const orgsRef = useRef<HTMLDivElement>(null)
   const projectRef = useRef<HTMLDivElement>(null)
   const projectSearchRef = useRef<HTMLInputElement>(null)
-  const priorityRef = useRef<HTMLDivElement>(null)
   const statusMenuRef = useRef<HTMLDivElement>(null)
 
   const acPeople = useMemo(() => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [allPeople])
@@ -147,12 +142,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       setProgress(todo.progress ?? '')
       setStatusId(todo.statusId ?? undefined)
       setProjectId(todo.projectId)
-      setDueDate(toDateInputValue(todo.dueDate))
-      setIsHardDeadline(todo.isHardDeadline ?? false)
-      setPriorityState(todo.priority)
+      setScheduledDate(todo.scheduledDate ?? null)
+      setDeadline(todo.dueDate ?? null)
       setRecurrenceType(todo.recurrenceRule?.type ?? '')
     }
-  }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.statusId, todo?.projectId, todo?.dueDate, todo?.isHardDeadline, todo?.priority, todo?.recurrenceRule?.type])
+  }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.statusId, todo?.projectId, todo?.scheduledDate, todo?.dueDate, todo?.recurrenceRule?.type])
 
   // Track whether mousedown started on the backdrop itself.
   // Prevents closing when user selects text inside and drags outside.
@@ -177,8 +171,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, [onClose])
 
   const buildRule = useCallback(() => {
-    return recurrenceType ? makeRecurrenceRule(recurrenceType, dueDate ? new Date(dueDate + 'T00:00:00') : null) : undefined
-  }, [recurrenceType, dueDate])
+    return recurrenceType && deadline ? makeRecurrenceRule(recurrenceType, deadline) : undefined
+  }, [recurrenceType, deadline])
 
   const saveEdit = useCallback((overrides: Partial<TodoItem> = {}) => {
     if (!isEdit || !todo) return
@@ -188,13 +182,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       notes: notes || undefined,
       progress: progress || undefined,
       statusId,
-      dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
-      isHardDeadline: isHardDeadline || undefined,
-      recurrenceRule: dueDate ? buildRule() : undefined,
-      priority,
+      scheduledDate: scheduledDate ?? undefined,
+      dueDate: deadline ?? undefined,
+      recurrenceRule: deadline ? buildRule() : undefined,
       ...overrides,
     })
-  }, [isEdit, todo, title, notes, progress, statusId, dueDate, isHardDeadline, recurrenceType, priority, props.onUpdate])
+  }, [isEdit, todo, title, notes, progress, statusId, scheduledDate, deadline, buildRule, props])
 
   const handleTitleBlur = () => { if (isEdit) saveEdit() }
 
@@ -254,18 +247,22 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const handleNotesBlur = () => { if (isEdit) saveEdit() }
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newDate = e.target.value
-    setDueDate(newDate)
-    if (!newDate) setRecurrenceType('')
+  const handleScheduledChange = (next: ScheduledValue | null) => {
+    setScheduledDate(next)
+    if (isEdit && todo) {
+      props.onUpdate({ ...todo, scheduledDate: next ?? undefined, modifiedAt: new Date() })
+    }
+  }
+
+  const handleDeadlineChange = (next: Date | null) => {
+    setDeadline(next)
+    if (!next) setRecurrenceType('')
     if (isEdit && todo) {
       props.onUpdate({
         ...todo,
-        title: title.trim() || todo.title,
-        notes: notes || undefined,
-        dueDate: newDate ? new Date(newDate + 'T00:00:00') : undefined,
-        isHardDeadline: isHardDeadline || undefined,
-        recurrenceRule: newDate && recurrenceType ? makeRecurrenceRule(recurrenceType, new Date(newDate + 'T00:00:00')) : undefined,
+        dueDate: next ?? undefined,
+        recurrenceRule: next && recurrenceType ? makeRecurrenceRule(recurrenceType, next) : undefined,
+        modifiedAt: new Date(),
       })
     }
   }
@@ -274,37 +271,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     const val = e.target.value as RecurrenceType | ''
     setRecurrenceType(val)
     if (isEdit && todo) {
-      const dueDateObj = dueDate ? new Date(dueDate + 'T00:00:00') : null
       props.onUpdate({
         ...todo,
-        title: title.trim() || todo.title,
-        notes: notes || undefined,
-        dueDate: dueDateObj ?? undefined,
-        isHardDeadline: isHardDeadline || undefined,
-        recurrenceRule: val ? makeRecurrenceRule(val, dueDateObj) : undefined,
+        recurrenceRule: val && deadline ? makeRecurrenceRule(val, deadline) : undefined,
+        modifiedAt: new Date(),
       })
-    }
-  }
-
-  const handleToggleHardDeadline = () => {
-    const next = !isHardDeadline
-    setIsHardDeadline(next)
-    if (isEdit && todo) {
-      props.onUpdate({
-        ...todo,
-        title: title.trim() || todo.title,
-        notes: notes || undefined,
-        dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
-        isHardDeadline: next || undefined,
-      })
-    }
-  }
-
-  const handleSetPriority = (p: Priority) => {
-    setPriorityState(p)
-    setShowPriorityMenu(false)
-    if (isEdit && todo) {
-      props.onUpdate({ ...todo, priority: p })
     }
   }
 
@@ -319,10 +290,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       notes: notes || undefined,
       progress: progress || undefined,
       statusId,
-      dueDate: dueDate ? new Date(dueDate + 'T00:00:00') : undefined,
-      isHardDeadline: isHardDeadline || undefined,
-      recurrenceRule: dueDate && recurrenceType ? makeRecurrenceRule(recurrenceType, new Date(dueDate + 'T00:00:00')) : undefined,
-      priority,
+      scheduledDate: scheduledDate ?? undefined,
+      dueDate: deadline ?? undefined,
+      recurrenceRule: deadline && recurrenceType ? makeRecurrenceRule(recurrenceType, deadline) : undefined,
       projectId,
     }, {
       personIds: [...pendingPersonIds],
@@ -399,13 +369,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const assignedTagIds = useMemo(() => new Set(effectiveAssignedTags.map(t => t.id!)), [effectiveAssignedTags])
   const assignedOrgIds = useMemo(() => new Set(effectiveAssignedOrgs.map(o => o.id!)), [effectiveAssignedOrgs])
 
-  const priorityBadgeClass =
-    priority === Priority.High
-      ? styles.badgePriorityHigh
-      : priority === Priority.Medium
-        ? styles.badgePriorityMedium
-        : styles.badgePriorityNormal
-
   // Close dropdown on outside click
   useEffect(() => {
     if (!openDropdown) return
@@ -428,18 +391,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
   }, [openDropdown])
-
-  // Close priority menu on outside click
-  useEffect(() => {
-    if (!showPriorityMenu) return
-    const handler = (e: MouseEvent) => {
-      if (priorityRef.current && !priorityRef.current.contains(e.target as Node)) {
-        setShowPriorityMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
-  }, [showPriorityMenu])
 
   // Close status menu on outside click
   useEffect(() => {
@@ -471,19 +422,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onAcSelect={handleAcSelect}
         />
 
-        {/* Priority & Status badges */}
+        {/* Status badge */}
         <div className={styles.badges}>
-          <div className={styles.priorityWrapper} ref={priorityRef}>
-            <button
-              className={`${styles.badge} ${priorityBadgeClass}`}
-              onClick={() => setShowPriorityMenu((v) => !v)}
-            >
-              {getPriorityLabel(priority)} &#x25BE;
-            </button>
-            {showPriorityMenu && (
-              <PriorityMenu currentPriority={priority} onSelect={handleSetPriority} />
-            )}
-          </div>
           {statuses.length > 0 && (
             <div className={styles.priorityWrapper} ref={statusMenuRef}>
               <button
@@ -534,13 +474,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
         <div className={`${styles.scrollBody} ${openDropdown ? styles.scrollBodyDropdownOpen : ''}`}>
           <TaskEditMetadata
-            dueDate={dueDate}
+            scheduledDate={scheduledDate}
+            deadline={deadline}
             recurrenceType={recurrenceType}
-            isHardDeadline={isHardDeadline}
-            dateRef={dateRef}
-            onDateChange={handleDateChange}
+            onScheduledChange={handleScheduledChange}
+            onDeadlineChange={handleDeadlineChange}
             onRecurrenceChange={handleRecurrenceChange}
-            onToggleHardDeadline={handleToggleHardDeadline}
             projectId={projectId}
             projects={projects}
             projectSearch={projectSearch}

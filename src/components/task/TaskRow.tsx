@@ -1,7 +1,6 @@
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
-import { Priority } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -14,10 +13,10 @@ import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
-import { toDateInputValue } from '../../utils/date'
+import { startOfToday, formatDate } from '../../utils/date'
+import { scheduledLabel, isScheduledExpired } from '../../utils/effective-date'
 import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
-import { PriorityMenu, getPriorityColor } from '../shared/PriorityMenu'
 import { StatusIcon } from '../shared/StatusIcon'
 
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
@@ -84,32 +83,15 @@ interface TaskRowProps {
   extraLabel?: string
 }
 
-function formatDueDate(date: Date): { text: string; overdue: boolean; dueToday: boolean; urgent: boolean; approaching: boolean } {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const due = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const diff = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-
-  if (diff < 0) return { text: `${Math.abs(diff)}d overdue`, overdue: true, dueToday: false, urgent: false, approaching: false }
-  if (diff === 0) return { text: 'Today', overdue: false, dueToday: true, urgent: false, approaching: false }
-  if (diff === 1) return { text: 'Tomorrow', overdue: false, dueToday: false, urgent: true, approaching: false }
-  if (diff <= 3) return { text: due.toLocaleDateString('en-US', { weekday: 'short' }), overdue: false, dueToday: false, urgent: false, approaching: true }
-  if (diff <= 7) return { text: due.toLocaleDateString('en-US', { weekday: 'short' }), overdue: false, dueToday: false, urgent: false, approaching: false }
-  return { text: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), overdue: false, dueToday: false, urgent: false, approaching: false }
-}
-
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, assignedTags, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
   onSelect, onToggleExpand, onOpenDetail, compact, cut, extraLabel,
 }: TaskRowProps) {
-  const dateRef = useRef<HTMLInputElement>(null)
-  const [showPriorityMenu, setShowPriorityMenu] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
-  const priorityMenuRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
@@ -137,23 +119,18 @@ export const TaskRow = memo(function TaskRow({
   }, [todo])
   const edit = useInlineEdit(todo.title, handleSaveTitle)
 
-  const priorityColor = getPriorityColor(todo.priority)
-
-  const dueInfo = todo.dueDate ? formatDueDate(new Date(todo.dueDate)) : null
-  const dateValue = toDateInputValue(todo.dueDate)
+  const today = startOfToday()
+  const scheduledExpired = todo.scheduledDate ? isScheduledExpired({ scheduledDate: todo.scheduledDate }, today) : false
   const assignedOrgs = assignedOrgsForTodo ?? []
   const hasPeople = (assignedPeople && assignedPeople.length > 0) || assignedOrgs.length > 0
   const hasTags = assignedTags && assignedTags.length > 0
 
   // Click-outside handlers
-  const closePriority = useCallback(() => setShowPriorityMenu(false), [])
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
   // Ghost rows are non-interactive (drag overlay visuals)
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
   const handleDelete = useCallback(() => { if (!ghost) bulk.remove(todo.id) }, [ghost, bulk, todo.id])
-  const handleSetPriority = useCallback((p: Priority) => { if (!ghost) bulk.setPriority(todo.id, p) }, [ghost, bulk, todo.id])
-  const handleSetDueDate = useCallback((date: Date | undefined) => { if (!ghost) bulk.setDueDate(todo.id, date) }, [ghost, bulk, todo.id])
 
   const togglePerson = (id: number) => {
     if (ghost) return
@@ -192,7 +169,7 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showPriorityMenu || showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
       style={indentLevel > 0 ? { paddingLeft: `${TASK_ROW_PADDING_LEFT + indentLevel * INDENT_PX}px` } : undefined}
       data-todo-id={todo.id}
       onClick={(e) => { e.stopPropagation(); onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }) }}
@@ -225,24 +202,6 @@ export const TaskRow = memo(function TaskRow({
           ▾
         </button>
       )}
-
-      {/* Priority strip */}
-      <div className={styles.priorityStripWrapper} ref={priorityMenuRef}>
-        <button
-          className={`${styles.priorityStrip} ${!priorityColor ? styles.priorityStripNormal : ''}`}
-          style={priorityColor ? { background: priorityColor, borderColor: priorityColor } : undefined}
-          onClick={(e) => { e.stopPropagation(); if (!ghost) setShowPriorityMenu((v) => !v) }}
-          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'priority', priority: todo.priority }) }}
-          title="Set priority"
-          aria-label="Set priority"
-        />
-        {showPriorityMenu && !ghost && createPortal(
-          <PortalDropdown anchorRef={priorityMenuRef} onClickOutside={closePriority}>
-            <PriorityMenu currentPriority={todo.priority} onSelect={(p) => { handleSetPriority(p); setShowPriorityMenu(false) }} />
-          </PortalDropdown>,
-          document.body,
-        )}
-      </div>
 
       {!hasChildren && (
         <input
@@ -402,45 +361,40 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
-      {/* Date — clickable chip or calendar icon */}
-      {dueInfo ? (
+      {/* Scheduled chip */}
+      {todo.scheduledDate && !ghost && (
         <span
-          className={`${styles.dueDateChip} ${!ghost ? styles.dueDateClickable : ''} ${!todo.isHardDeadline ? styles.dueDateSoft : ''} ${dueInfo.overdue ? styles.overdue : ''} ${dueInfo.dueToday ? styles.dueDateToday : ''} ${dueInfo.urgent ? styles.dueDateUrgent : ''} ${dueInfo.approaching ? styles.dueDateApproaching : ''}`}
-          onClick={(e) => { e.stopPropagation(); if (!ghost) try { dateRef.current?.showPicker() } catch { dateRef.current?.focus() } }}
+          className={`${styles.scheduledChip} ${scheduledExpired ? styles.scheduledChipExpired : ''}`}
+          onClick={(e) => { e.stopPropagation(); onOpenDetail?.(todo.id) }}
+          title={scheduledExpired ? 'Scheduled window has passed' : 'Scheduled'}
         >
-          {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
-          {dueInfo.text}
-          {!ghost && (
-            <button
-              className={`${styles.deadlineFlag} ${todo.isHardDeadline ? styles.deadlineFlagActive : ''}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                useTodoStore.getState().update({ ...todo, isHardDeadline: !todo.isHardDeadline || undefined, modifiedAt: new Date() })
-              }}
-              title={todo.isHardDeadline ? 'Hard deadline' : 'Soft date'}
-            >
-              {todo.isHardDeadline ? '⚑' : '⚐'}
-            </button>
-          )}
-          {!ghost && (
-            <input ref={dateRef} type="date" className={styles.hiddenDateInput}
-              value={dateValue}
-              onChange={(e) => { e.stopPropagation(); handleSetDueDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined) }} />
-          )}
+          <StatusIcon icon="calendar" />
+          <span className={styles.chipLabel}>{scheduledLabel(todo.scheduledDate, today)}</span>
+          {scheduledExpired && <span className={styles.expiredDot} aria-label="Overdue" />}
         </span>
-      ) : !ghost ? (
+      )}
+
+      {/* Deadline chip */}
+      {todo.dueDate && !ghost && (
+        <span
+          className={styles.deadlineChip}
+          onClick={(e) => { e.stopPropagation(); onOpenDetail?.(todo.id) }}
+          title="Deadline"
+        >
+          <StatusIcon icon="clock" />
+          <span className={styles.chipLabel}>{formatDate(todo.dueDate)}</span>
+          {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
+        </span>
+      )}
+
+      {/* Empty state: open the edit popup so user can pick a schedule or deadline */}
+      {!todo.scheduledDate && !todo.dueDate && !ghost && (
         <button className={`${styles.actionBtn} ${styles.actionBtnHover}`}
-          onClick={(e) => { e.stopPropagation(); try { dateRef.current?.showPicker() } catch { dateRef.current?.focus() } }}
-          title="Set due date">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="2" y="3" width="12" height="11" rx="1.5" />
-            <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" />
-          </svg>
-          <input ref={dateRef} type="date" className={styles.hiddenDateInput}
-            value={dateValue}
-            onChange={(e) => { e.stopPropagation(); handleSetDueDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : undefined) }} />
+          onClick={(e) => { e.stopPropagation(); onOpenDetail?.(todo.id) }}
+          title="Schedule or set deadline">
+          <StatusIcon icon="calendar" />
         </button>
-      ) : null}
+      )}
 
       {extraLabel && <span className={styles.extraLabel}>{extraLabel}</span>}
 

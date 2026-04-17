@@ -1,11 +1,10 @@
 import type { Person, Tag, Project, Org, RecurrenceType } from '../models'
-import { Priority } from '../models'
+import type { ScheduledValue } from '../models/scheduled-value'
 import type { ParsedInput } from './natural-language-parser'
 
 export interface ResolvedInput {
   title: string
-  priority?: Priority
-  dueDate?: Date
+  scheduledDate?: ScheduledValue
   recurrence?: RecurrenceType
   personIds: number[]
   tagIds: number[]
@@ -86,8 +85,7 @@ export function resolveInput(parsed: ParsedInput, people: Person[], tags: Tag[],
 
   return {
     title: parsed.title,
-    priority: parsed.priority,
-    dueDate: parsed.dueDate,
+    scheduledDate: parsed.scheduledDate,
     recurrence: parsed.recurrence,
     personIds: persons.ids,
     tagIds: tagResult.ids,

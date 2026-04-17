@@ -1,5 +1,4 @@
 import type { PersistedTodoItem, Project, Status } from '../models'
-import { Priority } from '../models'
 import { startOfToday } from '../utils/date'
 
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks' | 'projects'
@@ -19,14 +18,10 @@ export interface CommandContext {
   selectionCount: number
   /** Bulk actions on selected tasks */
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
-  bulkSetPriority: (ids: number[], priority: Priority) => Promise<void>
   bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
   bulkRemove: (ids: number[]) => Promise<void>
   getSelectedIds: () => number[]
   /** Filter actions */
-  toggleHardDeadlineOnly: () => void
-  setPriorities: (p: Set<Priority> | null) => void
-  getPriorities: () => Set<Priority> | null
   clearAllFilters: () => void
   setShowCompleted: (show: boolean) => void
   getShowCompleted: () => boolean
@@ -92,10 +87,6 @@ export function createCommands(ctx: CommandContext): Command[] {
     }},
 
     // Filter presets
-    { id: 'filter-high', name: 'Toggle High Priority', category: 'filter', action: () => {
-      ctx.setPriorities(ctx.getPriorities()?.has(Priority.High) && ctx.getPriorities()?.size === 1 ? null : new Set([Priority.High]))
-    }},
-    { id: 'filter-hard-deadline', name: 'Toggle Hard Deadlines Only', category: 'filter', action: ctx.toggleHardDeadlineOnly },
     { id: 'filter-show-completed', name: 'Toggle Show Completed', category: 'filter', action: () => ctx.setShowCompleted(!ctx.getShowCompleted()) },
     { id: 'filter-clear', name: 'Clear All Filters', category: 'filter', action: ctx.clearAllFilters },
     { id: 'filter-overdue', name: 'Show Overdue Tasks', category: 'filter', action: () => {
@@ -123,9 +114,6 @@ export function createCommands(ctx: CommandContext): Command[] {
     commands.push(
       { id: 'bulk-complete', name: `Complete ${label}`, category: 'bulk', action: () => ctx.bulkSetCompleted(ctx.getSelectedIds(), true) },
       { id: 'bulk-uncomplete', name: `Uncomplete ${label}`, category: 'bulk', action: () => ctx.bulkSetCompleted(ctx.getSelectedIds(), false) },
-      { id: 'bulk-priority-high', name: `Set ${label} Priority: High`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.High) },
-      { id: 'bulk-priority-medium', name: `Set ${label} Priority: Medium`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.Medium) },
-      { id: 'bulk-priority-normal', name: `Set ${label} Priority: Normal`, category: 'bulk', action: () => ctx.bulkSetPriority(ctx.getSelectedIds(), Priority.Normal) },
     )
     // Bulk status commands
     const statuses = ctx.getStatuses?.() ?? []

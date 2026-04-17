@@ -41,7 +41,7 @@ export function TaskEditHeader({
           onChange={onTitleChange}
           onBlur={onTitleBlur}
           onKeyDown={onTitleKeyDown}
-          placeholder={mode === 'create' ? 'New task... (@person @org #tag /project p1 tomorrow)' : 'Task title'}
+          placeholder={mode === 'create' ? 'New task... (@person @org #tag /project tomorrow "this week")' : 'Task title'}
         />
         <NlpAutocomplete state={acState} onSelect={onAcSelect} />
       </div>

@@ -1,9 +1,14 @@
-import { Priority } from '../models'
 import type { RecurrenceType } from '../models'
+import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
 import { MS_PER_DAY } from '../utils/date'
 
 export interface ParsedToken {
-  type: 'priority' | 'date' | 'person' | 'tag' | 'project' | 'recurrence'
+  /**
+   * 'date' covers single-word date keywords (today/tomorrow/day-names); the
+   * resolver decides fuzzy-vs-precise from the value.
+   * 'fuzzy-schedule' covers multi-word fuzzy windows (this week, next month, …).
+   */
+  type: 'date' | 'fuzzy-schedule' | 'person' | 'tag' | 'project' | 'recurrence'
   value: string
   raw: string
   start: number
@@ -13,21 +18,20 @@ export interface ParsedToken {
 export interface ParsedInput {
   title: string
   tokens: ParsedToken[]
-  priority?: Priority
-  dueDate?: Date
+  scheduledDate?: ScheduledValue
   recurrence?: RecurrenceType
   persons: string[]
   tags: string[]
   projects: string[]
 }
 
-// !high, !medium, !med, !low, !normal
-const BANG_PRIORITY_PATTERN = /!(?:high|medium|med|low|normal)/gi
-// p1 = High, p2 = Medium, p3 = Normal (word boundary to avoid matching inside words)
-const SHORT_PRIORITY_PATTERN = /\bp[123]\b/gi
 const PERSON_PATTERN = /@"([^"]+)"|@(\w+)/g
 const TAG_PATTERN = /#([A-Za-z]\w*)/g
 const PROJECT_PATTERN = /\/(\w+)/g
+
+// Multi-word fuzzy schedule windows. Pushed before single-word DATE_KEYWORDS so
+// "this week" wins overlap-dedup against any embedded day name.
+const FUZZY_SCHEDULE_PATTERN = /\b(this\s+week|next\s+week|this\s+month|next\s+month)\b/gi
 
 function parseRelativeDate(text: string): Date | null {
   const lower = text.toLowerCase().trim()
@@ -93,6 +97,14 @@ const RECURRENCE_MAP: Record<string, RecurrenceType> = {
   'repeat monthly': 'monthly', 'repeat quarterly': 'quarterly', 'repeat yearly': 'yearly',
 }
 
+// Single-word date keywords that resolve to fuzzy tokens (Phase 3 A.4).
+// 'yesterday' stays precise — when a user types it they mean the literal past date.
+const FUZZY_SINGLE: Record<string, FuzzyToken> = {
+  'today': 'today',
+  'tomorrow': 'tomorrow',
+  'tmr': 'tomorrow',
+}
+
 const MAX_INPUT_LENGTH = 500
 
 export function parseInput(text: string): ParsedInput {
@@ -100,32 +112,7 @@ export function parseInput(text: string): ParsedInput {
   const tokens: ParsedToken[] = []
   let remaining = text
 
-  // Extract bang priorities (!high, !medium, etc.)
   let match: RegExpExecArray | null
-  BANG_PRIORITY_PATTERN.lastIndex = 0
-  while ((match = BANG_PRIORITY_PATTERN.exec(text)) !== null) {
-    tokens.push({
-      type: 'priority',
-      value: match[0].slice(1).toLowerCase(),
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
-  // Extract short priorities (p1, p2, p3)
-  SHORT_PRIORITY_PATTERN.lastIndex = 0
-  while ((match = SHORT_PRIORITY_PATTERN.exec(text)) !== null) {
-    const num = match[0].charAt(1)
-    const value = num === '1' ? 'high' : num === '2' ? 'medium' : 'normal'
-    tokens.push({
-      type: 'priority',
-      value,
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
 
   // Extract people (@name or @"First Last")
   PERSON_PATTERN.lastIndex = 0
@@ -164,11 +151,24 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
+  // Extract fuzzy schedule windows BEFORE DATE_KEYWORDS so multi-word tokens
+  // win the overlap-dedup pass against any bare day name embedded inside.
+  FUZZY_SCHEDULE_PATTERN.lastIndex = 0
+  while ((match = FUZZY_SCHEDULE_PATTERN.exec(text)) !== null) {
+    tokens.push({
+      type: 'fuzzy-schedule',
+      value: match[0].toLowerCase().replace(/\s+/g, '-'),
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    })
+  }
+
   // Extract dates
   DATE_KEYWORDS.lastIndex = 0
   while ((match = DATE_KEYWORDS.exec(text)) !== null) {
-    const parsed = parseRelativeDate(match[0])
-    if (parsed) {
+    const lower = match[0].toLowerCase()
+    if (FUZZY_SINGLE[lower] || parseRelativeDate(match[0])) {
       tokens.push({
         type: 'date',
         value: match[0],
@@ -191,9 +191,7 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
-  // Remove cross-type overlaps: tokens are in pattern-priority order
-  // (priority > person > tag > project > date > recurrence), so earlier
-  // tokens win when ranges overlap (e.g. @friday beats date "friday")
+  // Remove cross-type overlaps; earlier-pushed tokens win (person/tag/project > fuzzy-schedule > date > recurrence)
   const deduped: ParsedToken[] = []
   for (const token of tokens) {
     const overlaps = deduped.some((t) => token.start < t.end && token.end > t.start)
@@ -213,36 +211,32 @@ export function parseInput(text: string): ParsedInput {
   const title = remaining.replace(/\s+/g, ' ').trim()
 
   // Resolve values
-  let priority: Priority | undefined
-  let dueDate: Date | undefined
+  let scheduledDate: ScheduledValue | undefined
   let recurrence: RecurrenceType | undefined
   const persons: string[] = []
   const tags: string[] = []
   const projects: string[] = []
 
   for (const token of tokens) {
-    if (token.type === 'priority' && priority === undefined) {
-      const val = token.value
-      if (val === 'high') priority = Priority.High
-      else if (val === 'medium' || val === 'med') priority = Priority.Medium
-      else priority = Priority.Normal
+    if (token.type === 'fuzzy-schedule' && scheduledDate === undefined) {
+      scheduledDate = { kind: 'fuzzy', token: token.value as FuzzyToken }
     }
-    if (token.type === 'date' && dueDate === undefined) {
-      dueDate = parseRelativeDate(token.value) ?? undefined
+    if (token.type === 'date' && scheduledDate === undefined) {
+      const lower = token.value.toLowerCase()
+      if (FUZZY_SINGLE[lower]) {
+        scheduledDate = { kind: 'fuzzy', token: FUZZY_SINGLE[lower] }
+      } else {
+        const parsed = parseRelativeDate(token.value)
+        if (parsed) scheduledDate = { kind: 'date', value: parsed }
+      }
     }
     if (token.type === 'recurrence' && recurrence === undefined) {
       recurrence = RECURRENCE_MAP[token.value]
     }
-    if (token.type === 'person') {
-      persons.push(token.value)
-    }
-    if (token.type === 'tag') {
-      tags.push(token.value)
-    }
-    if (token.type === 'project') {
-      projects.push(token.value)
-    }
+    if (token.type === 'person') persons.push(token.value)
+    if (token.type === 'tag') tags.push(token.value)
+    if (token.type === 'project') projects.push(token.value)
   }
 
-  return { title, tokens, priority, dueDate, recurrence, persons, tags, projects }
+  return { title, tokens, scheduledDate, recurrence, persons, tags, projects }
 }

@@ -294,6 +294,12 @@
   font-weight: var(--font-weight-bold);
 }
 
+.scheduleHint {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 2px 14px 6px;
+}
+
 .metaInput {
   flex: 1;
   width: 100%;

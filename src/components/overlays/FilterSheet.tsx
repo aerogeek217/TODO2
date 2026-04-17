@@ -6,18 +6,9 @@ import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
-import { Priority } from '../../models'
 import { toDateInputValue } from '../../utils/date'
 import { toggleItem } from '../../utils/filter'
 import styles from './FilterSheet.module.css'
-
-const ALL_PRIORITIES = [Priority.High, Priority.Medium, Priority.Normal]
-
-function priorityLabel(p: Priority): string {
-  if (p === Priority.High) return 'High'
-  if (p === Priority.Medium) return 'Med'
-  return 'Normal'
-}
 
 function EntityFilterList({
   entities,
@@ -66,14 +57,14 @@ function EntityFilterList({
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
-  const { filters, isActive, setPriorities, setShowCompleted, setShowHiddenStatuses, toggleHardDeadlineOnly, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDate, clearAll } = useFilterStore()
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
   const statuses = useStatusStore((s) => s.statuses)
   const location = useLocation()
 
-  const [openSection, setOpenSection] = useState<'priority' | 'toggles' | 'date' | 'people' | 'orgs' | 'tags' | 'status' | null>(null)
+  const [openSection, setOpenSection] = useState<'toggles' | 'date' | 'people' | 'orgs' | 'tags' | 'status' | null>(null)
   const [entitySearch, setEntitySearch] = useState('')
 
   useEffect(() => {
@@ -102,14 +93,6 @@ export function FilterSheet() {
   const allTagIds = tags.map((t) => t.id!)
   const allOrgIds = orgs.map((o) => o.id!)
 
-  const togglePriority = (p: Priority) => {
-    setPriorities(toggleItem(filters.priorities, p, ALL_PRIORITIES))
-  }
-
-  const isPriorityActive = (p: Priority): boolean => {
-    return filters.priorities === null || filters.priorities.has(p)
-  }
-
   const togglePerson = (id: number) => {
     setPersonIds(toggleItem(filters.personIds, id, [0, ...allPeopleIds]))
   }
@@ -133,7 +116,7 @@ export function FilterSheet() {
   }
 
   const dateFieldOptions: { value: DateField; label: string }[] = [
-    { value: 'due', label: 'Due' },
+    { value: 'date', label: 'Date' },
     { value: 'created', label: 'Created' },
     { value: 'modified', label: 'Modified' },
   ]
@@ -163,38 +146,14 @@ export function FilterSheet() {
             )}
           </div>
 
-          {/* Priority */}
-          <div className={styles.entitySection}>
-            <div className={styles.entityHeader} onClick={() => handleToggleSection('priority')}>
-              <span className={styles.filterLabel}>
-                Priority
-                {filters.priorities !== null && <span className={styles.activeCount}>{filters.priorities.size}</span>}
-              </span>
-              <span className={`${styles.entityChevron} ${openSection === 'priority' ? styles.entityChevronOpen : ''}`}>▸</span>
-            </div>
-            {openSection === 'priority' && (
-              <div className={styles.priorityRow}>
-                {ALL_PRIORITIES.map((p) => (
-                  <button
-                    key={p}
-                    className={`${styles.priorityChip} ${isPriorityActive(p) ? styles.priorityChipActive : ''}`}
-                    onClick={() => togglePriority(p)}
-                  >
-                    {priorityLabel(p)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Toggle filters */}
           <div className={styles.entitySection}>
             <div className={styles.entityHeader} onClick={() => handleToggleSection('toggles')}>
               <span className={styles.filterLabel}>
                 Show / hide
-                {(filters.hardDeadlineOnly || filters.showCompleted || filters.showHiddenStatuses) && (
+                {(filters.showCompleted || filters.showHiddenStatuses) && (
                   <span className={styles.activeCount}>
-                    {[filters.hardDeadlineOnly, filters.showCompleted, filters.showHiddenStatuses].filter(Boolean).length}
+                    {[filters.showCompleted, filters.showHiddenStatuses].filter(Boolean).length}
                   </span>
                 )}
               </span>
@@ -202,19 +161,6 @@ export function FilterSheet() {
             </div>
             {openSection === 'toggles' && (
               <div className={styles.toggleList}>
-                <div className={styles.filterRow}>
-                  <span className={styles.filterLabel}>
-                    <span className={styles.filterLabelIcon}>⚑</span>
-                    Hard deadlines only
-                  </span>
-                  <button
-                    className={`${styles.toggle} ${filters.hardDeadlineOnly ? styles.toggleActive : ''}`}
-                    onClick={toggleHardDeadlineOnly}
-                    role="switch"
-                    aria-checked={filters.hardDeadlineOnly}
-                    aria-label="Hard deadlines only"
-                  />
-                </div>
                 <div className={styles.filterRow}>
                   <span className={styles.filterLabel}>
                     <span className={styles.filterLabelIcon}>👁</span>
@@ -288,18 +234,18 @@ export function FilterSheet() {
                     }}
                   />
                 </div>
-                {filters.dateField === 'due' && (
+                {filters.dateField === 'date' && (
                   <div className={styles.filterRow}>
                     <span className={styles.filterLabel}>
                       <span className={styles.filterLabelIcon}>∅</span>
-                      Include no due date
+                      Include tasks with no date
                     </span>
                     <button
-                      className={`${styles.toggle} ${filters.dateRangeIncludeNoDue ? styles.toggleActive : ''}`}
-                      onClick={() => setDateRangeIncludeNoDue(!filters.dateRangeIncludeNoDue)}
+                      className={`${styles.toggle} ${filters.dateRangeIncludeNoDate ? styles.toggleActive : ''}`}
+                      onClick={() => setDateRangeIncludeNoDate(!filters.dateRangeIncludeNoDate)}
                       role="switch"
-                      aria-checked={filters.dateRangeIncludeNoDue}
-                      aria-label="Include no due date"
+                      aria-checked={filters.dateRangeIncludeNoDate}
+                      aria-label="Include tasks with no date"
                     />
                   </div>
                 )}

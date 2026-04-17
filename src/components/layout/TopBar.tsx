@@ -8,13 +8,11 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
-import { Priority } from '../../models'
-import { startOfToday } from '../../utils/date'
+import { startOfToday, formatDate } from '../../utils/date'
+import { scheduledLabel } from '../../utils/effective-date'
 import { toggleItem } from '../../utils/filter'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './TopBar.module.css'
-
-const ALL_PRIORITIES = [Priority.High, Priority.Medium, Priority.Normal]
 
 function FilterDropdown({
   label,
@@ -137,7 +135,7 @@ function FilterDropdown({
 }
 
 const DATE_FIELD_LABELS: Record<DateField, string> = {
-  due: 'Due',
+  date: 'Date',
   created: 'Created',
   modified: 'Modified',
 }
@@ -147,19 +145,19 @@ function DateRangeDropdown({
   dateField,
   startDate,
   endDate,
-  includeNoDue,
+  includeNoDate,
   onChangeDateField,
   onChangeRange,
-  onChangeIncludeNoDue,
+  onChangeIncludeNoDate,
 }: {
   active: boolean
   dateField: DateField
   startDate: Date | null
   endDate: Date | null
-  includeNoDue: boolean
+  includeNoDate: boolean
   onChangeDateField: (field: DateField) => void
   onChangeRange: (start: Date | null, end: Date | null) => void
-  onChangeIncludeNoDue: (include: boolean) => void
+  onChangeIncludeNoDate: (include: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -177,7 +175,7 @@ function DateRangeDropdown({
 
   const handleOpen = () => {
     if (!open && !active) {
-      if (dateField === 'due') {
+      if (dateField === 'date') {
         onChangeRange(startOfToday(), null)
       } else {
         onChangeRange(null, startOfToday())
@@ -200,14 +198,14 @@ function DateRangeDropdown({
       {open && (
         <div className={styles.dropdownPanel}>
           <div className={styles.dateFieldSelector}>
-            {(['due', 'created', 'modified'] as const).map((field) => (
+            {(['date', 'created', 'modified'] as const).map((field) => (
               <button
                 key={field}
                 className={`${styles.dateFieldOption} ${dateField === field ? styles.dateFieldOptionActive : ''}`}
                 onClick={() => {
                   if (field === dateField) return
                   onChangeDateField(field)
-                  if (field === 'due') {
+                  if (field === 'date') {
                     onChangeRange(startOfToday(), null)
                   } else {
                     onChangeRange(null, startOfToday())
@@ -237,12 +235,12 @@ function DateRangeDropdown({
               onChange={(e) => onChangeRange(startDate, e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
             />
           </div>
-          {dateField === 'due' && (
+          {dateField === 'date' && (
             <>
               <div className={styles.dropdownDivider} />
-              <label className={styles.dropdownItem} onClick={() => onChangeIncludeNoDue(!includeNoDue)}>
-                <span className={`${styles.check} ${includeNoDue ? styles.checked : ''}`} />
-                Include tasks with no due date
+              <label className={styles.dropdownItem} onClick={() => onChangeIncludeNoDate(!includeNoDate)}>
+                <span className={`${styles.check} ${includeNoDate ? styles.checked : ''}`} />
+                Include tasks with no scheduled or deadline date
               </label>
             </>
           )}
@@ -307,7 +305,7 @@ function EntityDropdownItems({
 
 
 export function TopBar() {
-  const { filters, isActive, setPriorities, setShowCompleted, setShowHiddenStatuses, toggleHardDeadlineOnly, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDue, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDate, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -337,17 +335,12 @@ export function TopBar() {
   // until user clicks an item. If closed without selection, stays at all (null).
   const [previewEmpty, setPreviewEmpty] = useState<'people' | 'org' | 'tags' | 'status' | null>(null)
 
-  const priorityActive = filters.priorities !== null
   const peopleActive = filters.personIds !== null
   const tagsActive = filters.tagIds !== null
   const orgsActive = filters.orgIds !== null
   const statusActive = filters.statusIds !== null
   const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null
 
-  const handlePriorityToggle = useCallback(
-    (p: Priority) => setPriorities(toggleItem(filters.priorities, p, ALL_PRIORITIES)),
-    [filters.priorities, setPriorities],
-  )
   const handlePersonToggle = useCallback(
     (personId: number) => {
       if (previewEmpty === 'people') {
@@ -398,13 +391,11 @@ export function TopBar() {
     [filters.statusIds, statuses, setStatusIds, previewEmpty],
   )
 
-  const isPriorityChecked = (p: Priority) => filters.priorities === null || filters.priorities.has(p)
   const isPersonChecked = (id: number) => previewEmpty === 'people' ? false : filters.personIds === null || filters.personIds.has(id)
   const isTagChecked = (id: number) => previewEmpty === 'tags' ? false : filters.tagIds === null || filters.tagIds.has(id)
   const isOrgChecked = (id: number) => previewEmpty === 'org' ? false : filters.orgIds === null || filters.orgIds.has(id)
   const isStatusChecked = (id: number) => previewEmpty === 'status' ? false : filters.statusIds === null || filters.statusIds.has(id)
 
-  const priorityNone = filters.priorities !== null && filters.priorities.size === 0
   const peopleNone = previewEmpty === 'people' || (filters.personIds !== null && filters.personIds.size === 0)
   const tagsNone = previewEmpty === 'tags' || (filters.tagIds !== null && filters.tagIds.size === 0)
   const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
@@ -485,38 +476,18 @@ export function TopBar() {
                   searchInputRef.current?.blur()
                 }}
               >
-                <span className={styles.miniListPriority} style={{
-                  background: todo.priority === Priority.High ? 'var(--color-priority-high)' : todo.priority === Priority.Medium ? 'var(--color-priority-medium)' : 'var(--color-text-muted)',
-                }} />
                 <span className={styles.miniListTitle}>{todo.title}</span>
+                {todo.scheduledDate && (
+                  <span className={styles.miniListDue}>{scheduledLabel(todo.scheduledDate, startOfToday())}</span>
+                )}
                 {todo.dueDate && (
-                  <span className={styles.miniListDue}>{new Date(todo.dueDate).toLocaleDateString()}</span>
+                  <span className={styles.miniListDue}>{formatDate(todo.dueDate)}</span>
                 )}
               </button>
             ))}
           </div>
         )}
       </div>
-          <FilterDropdown
-            label={<><span className={styles.filterIcon}>↑</span> Priority</>}
-            active={priorityActive}
-            allSelected={!priorityActive}
-            noneSelected={priorityNone}
-            onSelectAll={() => setPriorities(null)}
-            onDeselectAll={() => setPriorities(new Set())}
-          >
-            {([
-              { p: Priority.High, label: 'High', color: 'var(--color-priority-high)' },
-              { p: Priority.Medium, label: 'Medium', color: 'var(--color-priority-medium)' },
-              { p: Priority.Normal, label: 'Normal', color: undefined },
-            ] as const).map(({ p, label, color }) => (
-              <label key={p} className={styles.dropdownItem} onClick={() => handlePriorityToggle(p)}>
-                <span className={`${styles.check} ${isPriorityChecked(p) ? styles.checked : ''}`} />
-                {color && <span className={styles.dot} style={{ background: color }} />}
-                {label}
-              </label>
-            ))}
-          </FilterDropdown>
 
           {people.length > 0 && (
             <FilterDropdown
@@ -620,20 +591,11 @@ export function TopBar() {
             dateField={filters.dateField}
             startDate={filters.dateRangeStart}
             endDate={filters.dateRangeEnd}
-            includeNoDue={filters.dateRangeIncludeNoDue}
+            includeNoDate={filters.dateRangeIncludeNoDate}
             onChangeDateField={setDateField}
             onChangeRange={setDateRange}
-            onChangeIncludeNoDue={setDateRangeIncludeNoDue}
+            onChangeIncludeNoDate={setDateRangeIncludeNoDate}
           />
-
-          <button
-            className={`${styles.filterChip} ${filters.hardDeadlineOnly ? styles.filterChipActive : ''}`}
-            onClick={toggleHardDeadlineOnly}
-            role="switch"
-            aria-checked={filters.hardDeadlineOnly}
-          >
-            <span className={styles.filterIcon}>⚑</span> Deadlines
-          </button>
 
           {statuses.length > 0 && (
             <FilterDropdown
@@ -684,7 +646,7 @@ export function TopBar() {
         <button className={styles.clearFilters} onClick={() => { clearAll(); setPreviewEmpty(null) }} title="Clear all filters">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M1.5 2h13l-5 6.5V14l-3-2V8.5L1.5 2z" />
-            <line x1="2" y1="14" x2="14" y2="2" stroke="var(--color-priority-high)" strokeWidth="2" />
+            <line x1="2" y1="14" x2="14" y2="2" stroke="var(--color-overdue)" strokeWidth="2" />
           </svg>
         </button>
       )}

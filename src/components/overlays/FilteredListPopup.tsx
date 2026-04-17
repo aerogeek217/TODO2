@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Priority, AppView } from '../../models'
+import { AppView } from '../../models'
 import type { ListInsetAttributeFilter } from '../../models'
 import { useUIStore, type AttributeFilter } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -14,25 +14,8 @@ import { TaskRow } from '../task/TaskRow'
 import { bySortOrder } from '../../utils/hierarchy'
 import styles from './FilteredListPopup.module.css'
 
-const PRIORITY_LABELS: Record<Priority, string> = {
-  [Priority.High]: 'High Priority',
-  [Priority.Medium]: 'Medium Priority',
-  [Priority.Normal]: 'Normal Priority',
-}
-
-const PRIORITY_COLORS: Record<Priority, string> = {
-  [Priority.High]: 'var(--color-priority-high)',
-  [Priority.Medium]: 'var(--color-priority-medium)',
-  [Priority.Normal]: 'var(--color-text-muted)',
-}
-
 function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.ReactNode } {
   switch (filter.type) {
-    case 'priority':
-      return {
-        label: PRIORITY_LABELS[filter.priority],
-        icon: <span className={styles.priorityDot} style={{ background: PRIORITY_COLORS[filter.priority] }} />,
-      }
     case 'person':
       return { label: filter.personName, icon: <span>@</span> }
     case 'tag':
@@ -44,7 +27,6 @@ function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.Re
 
 function filterToInsetLabel(filter: AttributeFilter): string {
   switch (filter.type) {
-    case 'priority': return PRIORITY_LABELS[filter.priority]
     case 'person': return filter.personName
     case 'tag': return filter.tagName
     case 'org': return filter.orgName
@@ -53,7 +35,6 @@ function filterToInsetLabel(filter: AttributeFilter): string {
 
 function filterToInsetAttributeFilter(filter: AttributeFilter): ListInsetAttributeFilter {
   switch (filter.type) {
-    case 'priority': return { type: 'priority', priority: filter.priority }
     case 'person': return { type: 'person', personId: filter.personId, personName: filter.personName }
     case 'tag': return { type: 'tag', tagId: filter.tagId, tagName: filter.tagName, tagColor: filter.tagColor }
     case 'org': return { type: 'org', orgId: filter.orgId, orgName: filter.orgName, orgColor: filter.orgColor }
@@ -114,8 +95,6 @@ export function FilteredListPopup() {
     return todos.filter(todo => {
       if (todo.isCompleted) return false
       switch (filter.type) {
-        case 'priority':
-          return todo.priority === filter.priority
         case 'person': {
           const assigned = assignedPeopleMap.get(todo.id)
           return assigned?.some(p => p.id === filter.personId) ?? false

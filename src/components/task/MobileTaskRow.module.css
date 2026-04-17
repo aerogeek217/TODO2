@@ -60,18 +60,6 @@
   transform: rotate(-90deg);
 }
 
-.priorityStrip {
-  width: 6px;
-  height: 24px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  border: 1px solid var(--color-border);
-}
-
-.priorityStripNormal {
-  background: transparent;
-}
-
 .checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -188,32 +176,41 @@
   overflow: hidden;
 }
 
-.dueChip {
+.scheduledChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 11px;
   padding: 1px 6px;
   border-radius: var(--radius-chip);
-  background: var(--color-tint-5);
-  color: var(--color-text-secondary);
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
   white-space: nowrap;
 }
 
-.dueOverdue {
+.scheduledChipExpired {
   color: var(--color-overdue);
   background: var(--color-overdue-bg);
 }
 
-.dueToday {
-  color: var(--color-priority-medium);
-  background: rgba(245, 166, 35, 0.1);
+.deadlineChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  background: var(--color-overdue-bg);
+  color: var(--color-overdue);
+  white-space: nowrap;
 }
 
-.dueUrgent {
-  color: var(--color-priority-medium);
-}
-
-.dueApproaching {
-  color: var(--color-priority-medium);
-  background: rgba(245, 166, 35, 0.07);
+.expiredDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-overdue);
+  margin-left: 2px;
 }
 
 .personChip {
@@ -273,12 +270,6 @@
 .recurrenceIndicator {
   color: var(--color-text-muted);
   margin-right: 2px;
-}
-
-.hardDeadlineIcon {
-  color: var(--color-priority-high);
-  font-size: 11px;
-  flex-shrink: 0;
 }
 
 .notesIcon {

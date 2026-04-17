@@ -21,7 +21,8 @@ export function parseTaskInput(rawTitle: string, people: Person[], tags: Tag[], 
 
 /**
  * Apply resolved NLP metadata to a newly created task.
- * Updates priority/dueDate and assigns people/tags.
+ * Writes scheduledDate and assigns people/tags. Recurrence is keyed to dueDate
+ * (deadline-anchored, Q16); without a deadline the recurrence is dropped.
  */
 export async function applyNlpMetadata(
   todoId: number,
@@ -32,7 +33,7 @@ export async function applyNlpMetadata(
   assignTag: (todoId: number, tagId: number) => Promise<void>,
   assignOrg?: (todoId: number, orgId: number) => Promise<void>,
 ): Promise<void> {
-  const hasUpdates = resolved.priority !== undefined || resolved.dueDate || resolved.recurrence
+  const hasUpdates = resolved.scheduledDate !== undefined || resolved.recurrence !== undefined
   const hasAssignments = resolved.personIds.length > 0 || resolved.tagIds.length > 0 || resolved.orgIds.length > 0
   if (!hasUpdates && !hasAssignments) return
 
@@ -41,12 +42,13 @@ export async function applyNlpMetadata(
     if (hasUpdates) {
       const todo = getTodo(todoId)
       if (todo) {
-        const dueDate = resolved.dueDate ?? todo.dueDate
+        const nextRule = todo.dueDate && resolved.recurrence
+          ? makeRecurrenceRule(resolved.recurrence, todo.dueDate)
+          : todo.recurrenceRule
         await updateTodo({
           ...todo,
-          priority: resolved.priority ?? todo.priority,
-          dueDate,
-          recurrenceRule: dueDate && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, dueDate) : todo.recurrenceRule,
+          scheduledDate: resolved.scheduledDate ?? todo.scheduledDate,
+          recurrenceRule: nextRule,
         })
       }
     }

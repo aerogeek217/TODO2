@@ -4,7 +4,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
-import type { Priority } from '../models'
+import type { ScheduledValue } from '../models/scheduled-value'
 
 /**
  * Returns the set of IDs to act on: all selected IDs if the target is
@@ -79,23 +79,23 @@ export function useBulkActions() {
     useUIStore.getState().showBulkConfirmation('delete', ids)
   }, [])
 
-  const setPriority = useCallback((todoId: number, priority: Priority) => {
+  const setScheduled = useCallback((todoId: number, value: ScheduledValue | null) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
-      useTodoStore.getState().bulkSetPriority(ids, priority)
+      useTodoStore.getState().bulkSetScheduled(ids, value)
     } else {
       const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, priority })
+      if (todo) useTodoStore.getState().update({ ...todo, scheduledDate: value ?? undefined })
     }
   }, [])
 
-  const setDueDate = useCallback((todoId: number, date: Date | undefined) => {
+  const setDeadline = useCallback((todoId: number, date: Date | null) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
-      useTodoStore.getState().bulkSetDueDate(ids, date)
+      useTodoStore.getState().bulkSetDeadline(ids, date)
     } else {
       const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, dueDate: date })
+      if (todo) useTodoStore.getState().update({ ...todo, dueDate: date ?? undefined })
     }
   }, [])
 
@@ -176,9 +176,9 @@ export function useBulkActions() {
   return {
     toggleComplete,
     remove,
-    setPriority,
     setStatus,
-    setDueDate,
+    setScheduled,
+    setDeadline,
     setProject,
     quickAssignPerson,
     quickUnassignPerson,

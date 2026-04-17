@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { PersistedTodoItem } from '../models'
-import { Priority } from '../models'
+import type { ScheduledValue } from '../models/scheduled-value'
 import { todoRepository } from '../data'
 import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
@@ -22,9 +22,9 @@ interface TodoState {
   toggleComplete: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
-  bulkSetPriority: (ids: number[], priority: Priority) => Promise<void>
   bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
-  bulkSetDueDate: (ids: number[], date: Date | undefined) => Promise<void>
+  bulkSetScheduled: (ids: number[], value: ScheduledValue | null) => Promise<void>
+  bulkSetDeadline: (ids: number[], date: Date | null) => Promise<void>
   bulkSetProject: (ids: number[], projectId: number | undefined) => Promise<void>
   bulkRemove: (ids: number[]) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
@@ -65,7 +65,6 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const defaultStatusId = useSettingsStore.getState().defaultStatusId
       const id = await todoRepository.insert({
         title,
-        priority: Priority.Normal,
         isCompleted: false,
         createdAt: now,
         modifiedAt: now,
@@ -93,7 +92,6 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const defaultStatusId = useSettingsStore.getState().defaultStatusId
       const id = await todoRepository.insert({
         title,
-        priority: Priority.Normal,
         isCompleted: false,
         createdAt: now,
         modifiedAt: now,
@@ -327,16 +325,16 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     )
   },
 
-  async bulkSetPriority(ids: number[], priority: Priority) {
-    await bulkUpdateField(ids, 'priority', priority, `Set priority on ${ids.length} tasks`, get, set)
-  },
-
   async bulkSetStatus(ids: number[], statusId: number | undefined) {
     await bulkUpdateField(ids, 'statusId', statusId, `Set status on ${ids.length} tasks`, get, set)
   },
 
-  async bulkSetDueDate(ids: number[], date: Date | undefined) {
-    await bulkUpdateField(ids, 'dueDate', date, `Set due date on ${ids.length} tasks`, get, set)
+  async bulkSetScheduled(ids: number[], value: ScheduledValue | null) {
+    await bulkUpdateField(ids, 'scheduledDate', value ?? undefined, `Set scheduled on ${ids.length} tasks`, get, set)
+  },
+
+  async bulkSetDeadline(ids: number[], date: Date | null) {
+    await bulkUpdateField(ids, 'dueDate', date ?? undefined, `Set deadline on ${ids.length} tasks`, get, set)
   },
 
   async bulkSetProject(ids: number[], projectId: number | undefined) {
@@ -454,7 +452,6 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const maxSort = get().todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
       const newId = await todoRepository.insert({
         title: todo.title,
-        priority: todo.priority,
         isCompleted: false,
         createdAt: now,
         modifiedAt: now,
@@ -462,12 +459,12 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         canvasId: todo.canvasId,
         projectId: todo.projectId,
         parentId: todo.parentId,
+        scheduledDate: todo.scheduledDate,
         dueDate: todo.dueDate,
         notes: todo.notes,
         progress: todo.progress,
         statusId: todo.statusId,
         recurrenceRule: todo.recurrenceRule,
-        isHardDeadline: todo.isHardDeadline,
       })
       const newTodo = await todoRepository.getById(newId)
       if (newTodo) {

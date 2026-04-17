@@ -1,11 +1,10 @@
 import { create } from 'zustand'
-import { AppView, Priority } from '../models'
+import { AppView } from '../models'
 import type { ListSortBy } from '../models'
 
 type EditPopupMode = 'edit' | 'create' | null
 
 export type AttributeFilter =
-  | { type: 'priority'; priority: Priority }
   | { type: 'person'; personId: number; personName: string }
   | { type: 'tag'; tagId: number; tagName: string; tagColor?: string }
   | { type: 'org'; orgId: number; orgName: string; orgColor?: string }
@@ -98,7 +97,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   editPopupMode: null,
   bulkConfirmation: null,
   collapsedParents: new Set<number>(),
-  listSortBy: 'priority' as ListSortBy,
+  listSortBy: 'date' as ListSortBy,
   inlineCreateAfterId: null,
   clipboardTodoIds: [],
   clipboardSourceProjectId: null,

@@ -10,6 +10,7 @@ import type { TodoItem, PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { parseTaskInput } from '../services/nlp-task-creator'
 import { makeRecurrenceRule } from '../services/recurrence'
+import { scheduledValuesEqual } from '../utils/effective-date'
 
 /** Return the IDs of other multi-selected tasks (excluding the primary edit target). */
 function getOtherSelectedIds(primaryId: number): number[] {
@@ -45,16 +46,21 @@ export function useTaskEditCallbacks() {
     const id = await addTodo(parsedTitle || partial.title!, selectedCanvasId ?? undefined, pid)
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)
     if (todo) {
-      const hasMeta = partial.priority !== undefined || partial.dueDate || partial.notes || partial.statusId !== undefined || resolved.priority !== undefined || resolved.dueDate || resolved.recurrence || partial.recurrenceRule
+      const hasMeta =
+        partial.scheduledDate !== undefined || partial.dueDate !== undefined ||
+        partial.notes || partial.statusId !== undefined ||
+        resolved.scheduledDate !== undefined || resolved.recurrence ||
+        partial.recurrenceRule
       if (hasMeta) {
-        const dueDate = resolved.dueDate ?? partial.dueDate ?? todo.dueDate
+        const nextDeadline = partial.dueDate ?? todo.dueDate
         await updateTodo({
           ...todo,
-          priority: resolved.priority ?? partial.priority ?? todo.priority,
-          dueDate,
+          scheduledDate: resolved.scheduledDate ?? partial.scheduledDate ?? todo.scheduledDate,
+          dueDate: nextDeadline,
           statusId: partial.statusId ?? todo.statusId,
           notes: partial.notes ?? todo.notes,
-          recurrenceRule: partial.recurrenceRule ?? (dueDate && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, dueDate) : undefined),
+          recurrenceRule: partial.recurrenceRule
+            ?? (nextDeadline && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, nextDeadline) : undefined),
         })
       }
     }
@@ -78,12 +84,12 @@ export function useTaskEditCallbacks() {
     if (otherIds.length === 0 || !current) return
 
     const store = useTodoStore.getState()
-    if (updated.priority !== current.priority)
-      store.bulkSetPriority(otherIds, updated.priority)
     if (updated.statusId !== current.statusId)
       store.bulkSetStatus(otherIds, updated.statusId)
+    if (!scheduledValuesEqual(updated.scheduledDate, current.scheduledDate))
+      store.bulkSetScheduled(otherIds, updated.scheduledDate ?? null)
     if (updated.dueDate?.getTime() !== current.dueDate?.getTime())
-      store.bulkSetDueDate(otherIds, updated.dueDate)
+      store.bulkSetDeadline(otherIds, updated.dueDate ?? null)
     if (updated.projectId !== current.projectId)
       store.bulkSetProject(otherIds, updated.projectId)
   }, [updateTodo])

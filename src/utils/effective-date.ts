@@ -85,4 +85,16 @@ export function scheduledLabel(s: ScheduledValue, today: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+/** Structural equality for ScheduledValue (handles Date by time, fuzzy by token). */
+export function scheduledValuesEqual(a?: ScheduledValue | null, b?: ScheduledValue | null): boolean {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  if (a.kind !== b.kind) return false
+  if (a.kind === 'fuzzy' && b.kind === 'fuzzy') return a.token === b.token
+  if (a.kind === 'date' && b.kind === 'date') {
+    return new Date(a.value).getTime() === new Date(b.value).getTime()
+  }
+  return false
+}
+
 export { startOfToday }

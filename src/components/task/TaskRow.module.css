@@ -333,6 +333,62 @@
   flex-shrink: 0;
 }
 
+.scheduledChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-accent);
+  background: var(--color-accent-bg-medium);
+  padding: 2px 8px;
+  border-radius: var(--radius-chip);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.scheduledChip:hover {
+  border-color: var(--color-accent);
+}
+
+.scheduledChipExpired {
+  color: var(--color-overdue);
+  background: var(--color-overdue-bg);
+  box-shadow: 0 0 8px var(--color-overdue-glow);
+}
+
+.deadlineChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-overdue);
+  background: var(--color-overdue-bg);
+  padding: 2px 8px;
+  border-radius: var(--radius-chip);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.deadlineChip:hover {
+  border-color: var(--color-overdue);
+}
+
+.chipLabel {
+  white-space: nowrap;
+}
+
+.expiredDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-overdue);
+  margin-left: 2px;
+}
+
 .recurrenceIndicator {
   color: var(--color-text-muted);
   margin-right: 2px;

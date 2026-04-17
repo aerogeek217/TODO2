@@ -3,10 +3,11 @@ import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
-import { getPriorityColor } from '../shared/PriorityMenu'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { startOfToday, formatDate } from '../../utils/date'
+import { scheduledLabel, isScheduledExpired } from '../../utils/effective-date'
 import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
@@ -24,20 +25,6 @@ interface MobileTaskRowProps {
   cut?: boolean
 }
 
-function formatDueDate(date: Date): { text: string; overdue: boolean; dueToday: boolean; urgent: boolean; approaching: boolean } {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const due = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const diff = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-
-  if (diff < 0) return { text: `${Math.abs(diff)}d overdue`, overdue: true, dueToday: false, urgent: false, approaching: false }
-  if (diff === 0) return { text: 'Today', overdue: false, dueToday: true, urgent: false, approaching: false }
-  if (diff === 1) return { text: 'Tomorrow', overdue: false, dueToday: false, urgent: true, approaching: false }
-  if (diff <= 3) return { text: due.toLocaleDateString('en-US', { weekday: 'short' }), overdue: false, dueToday: false, urgent: false, approaching: true }
-  if (diff <= 7) return { text: due.toLocaleDateString('en-US', { weekday: 'short' }), overdue: false, dueToday: false, urgent: false, approaching: false }
-  return { text: due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), overdue: false, dueToday: false, urgent: false, approaching: false }
-}
-
 export const MobileTaskRow = memo(function MobileTaskRow({
   todo, assignedPeople, assignedTags, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
@@ -45,8 +32,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 }: MobileTaskRowProps) {
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const bulk = useBulkActions()
-  const priorityColor = getPriorityColor(todo.priority)
-  const dueInfo = todo.dueDate ? formatDueDate(new Date(todo.dueDate)) : null
+  const today = startOfToday()
+  const scheduledExpired = todo.scheduledDate ? isScheduledExpired({ scheduledDate: todo.scheduledDate }, today) : false
   const assignedOrgs = assignedOrgsForTodo ?? []
 
   const handleToggleComplete = useCallback(() => {
@@ -72,7 +59,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   // Metadata for line 2
   const people = assignedPeople ?? []
   const tags = assignedTags ?? []
-  const hasMetadata = dueInfo || people.length > 0 || tags.length > 0 || assignedOrgs.length > 0 || !!todo.notes || !!todo.progress || !!todo.isHardDeadline
+  const hasMetadata =
+    !!todo.scheduledDate || !!todo.dueDate ||
+    people.length > 0 || tags.length > 0 || assignedOrgs.length > 0 ||
+    !!todo.notes || !!todo.progress
 
   return (
     <div
@@ -86,11 +76,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     >
       {/* Line 1 */}
       <div className={styles.primaryRow}>
-        <div
-          className={`${styles.priorityStrip} ${!priorityColor ? styles.priorityStripNormal : ''}`}
-          style={priorityColor ? { background: priorityColor, borderColor: priorityColor } : undefined}
-        />
-
         {!hasChildren && (
           <input
             type="checkbox"
@@ -147,14 +132,19 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       {/* Line 2: metadata */}
       {hasMetadata && (
         <div className={styles.metaRow} style={hasChildren ? { paddingLeft: '70px' } : undefined}>
-          {dueInfo && (
-            <span className={`${styles.dueChip} ${dueInfo.overdue ? styles.dueOverdue : ''} ${dueInfo.dueToday ? styles.dueToday : ''} ${dueInfo.urgent ? styles.dueUrgent : ''} ${dueInfo.approaching ? styles.dueApproaching : ''}`}>
-              {todo.recurrenceRule && <span className={styles.recurrenceIndicator}>&#x21bb;</span>}
-              {dueInfo.text}
+          {todo.scheduledDate && (
+            <span className={`${styles.scheduledChip} ${scheduledExpired ? styles.scheduledChipExpired : ''}`}>
+              {scheduledLabel(todo.scheduledDate, today)}
+              {scheduledExpired && <span className={styles.expiredDot} />}
             </span>
           )}
 
-          {todo.isHardDeadline && <span className={styles.hardDeadlineIcon} title="Hard deadline">⚑</span>}
+          {todo.dueDate && (
+            <span className={styles.deadlineChip}>
+              {todo.recurrenceRule && <span className={styles.recurrenceIndicator}>&#x21bb;</span>}
+              {formatDate(todo.dueDate)}
+            </span>
+          )}
 
           {people.slice(0, 2).map((p) => (
             <span key={p.id} className={styles.personChip} style={p.color ? { color: p.color } : undefined}>
