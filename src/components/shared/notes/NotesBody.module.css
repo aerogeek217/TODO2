@@ -1,0 +1,35 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--color-canvas-bg);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.footerChip {
+  padding: 2px 6px;
+  background: var(--color-surface-high);
+  border-radius: 4px;
+}
+
+.footerHint {
+  color: var(--color-accent);
+}
+
+.footerSpacer {
+  margin-left: auto;
+}
+
+.footerSaved {
+  color: var(--color-text-muted);
+}

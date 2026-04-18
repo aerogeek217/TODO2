@@ -158,6 +158,7 @@ function makeLegacyImport(): ImportData {
     statuses: [],
     // Empty — restore should auto-seed the four rows
     listDefinitions: [],
+    notes: [],
   }
 }
 
@@ -285,6 +286,7 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       taskboardEntries: firstPass.taskboardEntries,
       statuses: firstPass.statuses,
       listDefinitions: firstPass.listDefinitions,
+      notes: [],
     }
 
     // 4) Clear DB via a fresh open then bulk re-import

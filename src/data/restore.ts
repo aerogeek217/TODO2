@@ -33,6 +33,7 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.taskboardEntries, key: 'taskboardEntries' },
   { table: db.statuses, key: 'statuses' },
   { table: db.listDefinitions, key: 'listDefinitions' },
+  { table: db.notes, key: 'notes' },
 ]
 
 /**

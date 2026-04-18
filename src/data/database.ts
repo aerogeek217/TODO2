@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry, Status, Note } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
@@ -28,6 +28,7 @@ export class Todo2Database extends Dexie {
   taskboardEntries!: Table<TaskboardEntry, number>
   statuses!: Table<Status, number>
   listDefinitions!: Table<ListDefinition, number>
+  notes!: Table<Note, number>
 
   constructor() {
     super('todo2')
@@ -108,6 +109,13 @@ export class Todo2Database extends Dexie {
     // clearing is acceptable.
     this.version(24).stores({}).upgrade(async (tx) => {
       await runV24Migration(tx)
+    })
+
+    // v25: add standalone `notes` table for the dashboard Markdown inbox
+    // (Phase 3 of the dashboard + canvas master plan). Shape matches multi-note
+    // semantics so a future multi-row UI doesn't require another schema bump.
+    this.version(25).stores({
+      notes: '++id, modifiedAt',
     })
   }
 }
@@ -650,4 +658,4 @@ export function parseHorizonSlots(value: string | undefined | null): Partial<Rec
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries, db.statuses, db.listDefinitions] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes] as const

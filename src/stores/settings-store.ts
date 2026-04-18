@@ -8,6 +8,10 @@ import type { CanvasViewport } from './ui-store'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+export type NotesDock = 'right' | 'bottom' | 'floating'
+
+export const NOTES_DOCKS: readonly NotesDock[] = ['right', 'bottom', 'floating'] as const
+
 export interface ThemeColors {
   accent: string
   canvasBg: string
@@ -47,6 +51,10 @@ interface SettingsState {
   selectedHorizon: HorizonKey
   /** Per-horizon collapse toggle (Phase 5 wires the UI). */
   horizonCollapsed: Partial<Record<HorizonKey, boolean>>
+  /** Where the dashboard notes panel docks. */
+  notesDock: NotesDock
+  /** Whether the dashboard notes panel is shown. */
+  notesVisible: boolean
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -61,6 +69,8 @@ interface SettingsState {
   setHorizonSlot: (key: HorizonKey, listDefinitionId: number | null) => Promise<void>
   setSelectedHorizon: (key: HorizonKey) => Promise<void>
   setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
+  setNotesDock: (dock: NotesDock) => Promise<void>
+  setNotesVisible: (visible: boolean) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -168,6 +178,10 @@ function isValidHorizonKey(v: unknown): v is HorizonKey {
   return typeof v === 'string' && (HORIZON_KEYS as readonly string[]).includes(v)
 }
 
+function isValidNotesDock(v: unknown): v is NotesDock {
+  return typeof v === 'string' && (NOTES_DOCKS as readonly string[]).includes(v)
+}
+
 function parseHorizonCollapsed(value: string | undefined | null): Partial<Record<HorizonKey, boolean>> {
   if (!value) return {}
   try {
@@ -203,6 +217,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   horizonSlots: {},
   selectedHorizon: 'thisweek' as HorizonKey,
   horizonCollapsed: {},
+  notesDock: 'right' as NotesDock,
+  notesVisible: true,
 
   async load() {
     try {
@@ -221,6 +237,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let horizonSlots: Partial<Record<HorizonKey, number>> = {}
       let selectedHorizon: HorizonKey = 'thisweek'
       let horizonCollapsed: Partial<Record<HorizonKey, boolean>> = {}
+      let notesDock: NotesDock = 'right'
+      let notesVisible = true
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -259,11 +277,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isValidHorizonKey(row.value)) selectedHorizon = row.value
         } else if (row.key === 'horizonCollapsed') {
           horizonCollapsed = parseHorizonCollapsed(row.value)
+        } else if (row.key === 'notesDock') {
+          if (isValidNotesDock(row.value)) notesDock = row.value
+        } else if (row.key === 'notesVisible') {
+          notesVisible = row.value !== 'false'
         }
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesDock, notesVisible })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -362,6 +384,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     else delete next[key]
     await settingsRepository.put('horizonCollapsed', JSON.stringify(next))
     set({ horizonCollapsed: next })
+  },
+
+  async setNotesDock(dock: NotesDock) {
+    if (!isValidNotesDock(dock)) return
+    await settingsRepository.put('notesDock', dock)
+    set({ notesDock: dock })
+  },
+
+  async setNotesVisible(visible: boolean) {
+    await settingsRepository.put('notesVisible', visible ? 'true' : 'false')
+    set({ notesVisible: visible })
   },
 
   setCanvasViewport(vp: CanvasViewport) {

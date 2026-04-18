@@ -25,6 +25,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     taskboardEntries: [],
     statuses: [],
     listDefinitions: [],
+    notes: [],
     ...overrides,
   }
 }

@@ -1,4 +1,4 @@
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status, Note } from '../models'
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
@@ -416,6 +416,15 @@ function checkStickyNote(v: unknown): CheckResult {
   ])
 }
 
+function checkNote(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['content', typeof v.content === 'string' && (v.content as string).length <= 500000],
+    ['createdAt', isDateLike(v.createdAt)],
+    ['modifiedAt', isDateLike(v.modifiedAt)],
+  ])
+}
+
 function checkTaskboardEntry(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -438,7 +447,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesDock', 'notesVisible']
 
 function isValidSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
@@ -467,6 +476,14 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === 'weekStartsOn') {
     const n = Number(v.value)
     return n === 0 || n === 1 ? true : 'value (weekStartsOn must be 0 or 1)'
+  }
+  if (v.key === 'notesDock') {
+    return v.value === 'right' || v.value === 'bottom' || v.value === 'floating'
+      ? true
+      : 'value (notesDock must be right/bottom/floating)'
+  }
+  if (v.key === 'notesVisible') {
+    return v.value === 'true' || v.value === 'false' ? true : 'value (notesVisible must be true/false)'
   }
   return true
 }
@@ -668,6 +685,15 @@ function pickSetting(v: Record<string, unknown>): SettingRow {
   return { key: v.key as string, value: v.value as string }
 }
 
+function pickNote(v: Record<string, unknown>): Note {
+  return {
+    id: v.id as number | undefined,
+    content: v.content as string,
+    createdAt: v.createdAt as Date,
+    modifiedAt: v.modifiedAt as Date,
+  }
+}
+
 function pickListDefinition(v: Record<string, unknown>): ListDefinition {
   return {
     id: v.id as number | undefined,
@@ -707,6 +733,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'taskboardEntries', check: checkTaskboardEntry },
   { key: 'statuses', check: checkStatus },
   { key: 'listDefinitions', check: checkListDefinition },
+  { key: 'notes', check: checkNote },
 ]
 
 export interface ImportData {
@@ -727,6 +754,7 @@ export interface ImportData {
   taskboardEntries: TaskboardEntry[]
   statuses: Status[]
   listDefinitions: ListDefinition[]
+  notes: Note[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -808,6 +836,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       taskboardEntries: ((raw.taskboardEntries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
       statuses: ((raw.statuses ?? []) as Record<string, unknown>[]).map(pickStatus),
       listDefinitions: ((raw.listDefinitions ?? []) as Record<string, unknown>[]).map(pickListDefinition),
+      notes: ((raw.notes ?? []) as Record<string, unknown>[]).map(pickNote),
     },
   }
 }
