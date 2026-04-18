@@ -10,8 +10,7 @@ beforeEach(async () => {
 describe('listInsetRepository', () => {
   function makeInset(overrides: Record<string, unknown> = {}) {
     return {
-      name: 'Due This Week',
-      preset: 'due-this-week' as const,
+      listDefinitionId: 1,
       canvasId: 1,
       x: 100,
       y: 200,
@@ -24,28 +23,28 @@ describe('listInsetRepository', () => {
 
   it('insert and retrieve by canvas', async () => {
     await listInsetRepository.insert(makeInset())
-    await listInsetRepository.insert(makeInset({ name: 'High Priority', preset: 'high-priority', canvasId: 2 }))
+    await listInsetRepository.insert(makeInset({ listDefinitionId: 2, canvasId: 2 }))
 
     const insets = await listInsetRepository.getByCanvas(1)
     expect(insets).toHaveLength(1)
-    expect(insets[0].name).toBe('Due This Week')
+    expect(insets[0].listDefinitionId).toBe(1)
   })
 
   it('getById returns correct inset', async () => {
-    const id = await listInsetRepository.insert(makeInset())
+    const id = await listInsetRepository.insert(makeInset({ listDefinitionId: 7 }))
     const inset = await listInsetRepository.getById(id)
     expect(inset).toBeDefined()
-    expect(inset!.preset).toBe('due-this-week')
+    expect(inset!.listDefinitionId).toBe(7)
   })
 
   it('update modifies fields', async () => {
     const id = await listInsetRepository.insert(makeInset())
     const inset = await listInsetRepository.getById(id)
-    await listInsetRepository.update({ ...inset!, name: 'Updated', isCollapsed: true })
+    await listInsetRepository.update({ ...inset!, isCollapsed: true, width: 400 })
 
     const updated = await listInsetRepository.getById(id)
-    expect(updated!.name).toBe('Updated')
     expect(updated!.isCollapsed).toBe(true)
+    expect(updated!.width).toBe(400)
   })
 
   it('updatePosition changes x, y', async () => {
@@ -65,7 +64,7 @@ describe('listInsetRepository', () => {
 
   it('deleteByCanvas removes all for a canvas', async () => {
     await listInsetRepository.insert(makeInset())
-    await listInsetRepository.insert(makeInset({ name: 'High Priority', preset: 'high-priority' }))
+    await listInsetRepository.insert(makeInset({ listDefinitionId: 2 }))
     await listInsetRepository.insert(makeInset({ canvasId: 2 }))
 
     await listInsetRepository.deleteByCanvas(1)

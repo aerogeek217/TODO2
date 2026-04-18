@@ -216,10 +216,19 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
     if (!validated.ok) throw new Error(validated.error)
     await restoreFromImportData(validated.data)
 
+    // v23: the `due-this-week` preset is translated into an inset referencing
+    // a freshly-created unpinned ListDefinition (ID 10–12 are not preserved
+    // across the translation). The surviving inset points at a custom def.
     const insets = await db.listInsets.toArray()
-    const ids = insets.map((i) => i.id!).sort((a, b) => a - b)
-    // High-priority (id 10) + priority attr filter (id 11) deleted; due-this-week (id 12) preserved
-    expect(ids).toEqual([12])
+    expect(insets).toHaveLength(1)
+    const survivor = insets[0] as unknown as Record<string, unknown>
+    expect(survivor.listDefinitionId).toBeTypeOf('number')
+    expect(survivor.preset).toBeUndefined()
+    expect(survivor.attributeFilter).toBeUndefined()
+
+    const def = await db.listDefinitions.get(survivor.listDefinitionId as number)
+    expect(def?.membership.kind).toBe('custom')
+    expect(def?.pinnedToDashboard).toBe(false)
   })
 
   it('auto-seeds listDefinitions and seeded statuses', async () => {
@@ -228,11 +237,15 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
     if (!validated.ok) throw new Error(validated.error)
     await restoreFromImportData(validated.data)
 
+    // v22 seeded defaults + v23-synthesized custom def for `due-this-week`.
     const listDefinitions = await db.listDefinitions.toArray()
-    const kinds = listDefinitions.map((d) => d.membership.kind).sort()
-    expect(kinds).toEqual(['deadlines', 'someday', 'today', 'upcoming'])
-    // v22: all seeded rows are pinned to the dashboard by default.
-    for (const d of listDefinitions) expect(d.pinnedToDashboard).toBe(true)
+    const seededKinds = listDefinitions
+      .filter((d) => d.pinnedToDashboard)
+      .map((d) => d.membership.kind).sort()
+    expect(seededKinds).toEqual(['deadlines', 'someday', 'today', 'upcoming'])
+    // v23 inset translation produces a single unpinned `custom` row.
+    const customCount = listDefinitions.filter((d) => d.membership.kind === 'custom').length
+    expect(customCount).toBe(1)
 
     const statuses = await db.statuses.toArray()
     const names = statuses.map((s) => s.name).sort()

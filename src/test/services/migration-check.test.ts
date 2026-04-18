@@ -28,29 +28,29 @@ describe('checkMigrationNeeded', () => {
   })
 
   it('returns null when database is at current version', async () => {
-    // Dexie v22 = IDB v220
-    await createRawDb(220, (db) => {
+    // Dexie v23 = IDB v230
+    await createRawDb(230, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
     expect(await checkMigrationNeeded()).toBeNull()
   })
 
   it('returns migration info when data migration is pending', async () => {
-    // Dexie v21 = IDB v210 (only v22 pending — v22 is a pure data migration in DATA_MIGRATIONS)
-    await createRawDb(210, (db) => {
+    // Dexie v22 = IDB v220 (only v23 pending)
+    await createRawDb(220, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
 
     const result = await checkMigrationNeeded()
     expect(result).not.toBeNull()
-    expect(result!.currentVersion).toBe(21)
-    expect(result!.targetVersion).toBe(22)
+    expect(result!.currentVersion).toBe(22)
+    expect(result!.targetVersion).toBe(23)
     expect(result!.migrations).toHaveLength(1)
-    expect(result!.migrations[0].version).toBe(22)
+    expect(result!.migrations[0].version).toBe(23)
   })
 
   it('detects migration from much older versions', async () => {
-    // Dexie v16 = IDB v160 (v20 + v21 + v22 pending)
+    // Dexie v16 = IDB v160 (v20 + v21 + v22 + v23 pending)
     await createRawDb(160, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
@@ -58,8 +58,8 @@ describe('checkMigrationNeeded', () => {
     const result = await checkMigrationNeeded()
     expect(result).not.toBeNull()
     expect(result!.currentVersion).toBe(16)
-    expect(result!.migrations).toHaveLength(3)
-    expect(result!.migrations.map(m => m.version)).toEqual([20, 21, 22])
+    expect(result!.migrations).toHaveLength(4)
+    expect(result!.migrations.map(m => m.version)).toEqual([20, 21, 22, 23])
   })
 })
 

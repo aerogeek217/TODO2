@@ -183,7 +183,7 @@ describe('v21 migration', () => {
     } as never)
 
     await runMigration()
-    const insets = await db.listInsets.toArray()
+    const insets = await db.listInsets.toArray() as unknown as Record<string, unknown>[]
     expect(insets).toHaveLength(1)
     expect(insets[0].preset).toBe('due-this-week')
   })
@@ -201,7 +201,7 @@ describe('v21 migration', () => {
     } as never)
 
     await runMigration()
-    const insets = await db.listInsets.toArray()
+    const insets = await db.listInsets.toArray() as unknown as Record<string, unknown>[]
     expect(insets).toHaveLength(1)
     const filter = insets[0].attributeFilter as { type: string } | undefined
     expect(filter?.type).toBe('tag')

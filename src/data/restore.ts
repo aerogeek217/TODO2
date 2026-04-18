@@ -1,14 +1,24 @@
 import type { Table } from 'dexie'
-import { db, ensureSeededStatuses, ensureSeededListDefinitions, translateTodoV20ToV21 } from './database'
-import type { ImportData } from './import-validation'
+import {
+  db,
+  ensureSeededStatuses,
+  ensureSeededListDefinitions,
+  translateTodoV20ToV21,
+  buildListDefFromLegacyInset,
+} from './database'
+import type { ImportData, ImportListInset } from './import-validation'
 import { validateImportData } from './import-validation'
+import type { ListDefinition } from '../models/list-definition'
+import type { ListInset } from '../models'
 
 /** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
 const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.todos, key: 'todos' },
   { table: db.projects, key: 'projects' },
   { table: db.canvases, key: 'canvases' },
-  { table: db.listInsets, key: 'listInsets' },
+  // Note: listInsets is handled separately (post v20→v21 list-inset cleanup
+  // and the v22→v23 legacy → listDefinitionId translation both run before
+  // the rows land in the table).
   { table: db.people, key: 'people' },
   { table: db.settings, key: 'settings' },
   { table: db.tags, key: 'tags' },
@@ -24,16 +34,67 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.listDefinitions, key: 'listDefinitions' },
 ]
 
+/**
+ * Rewrites the caller's `listInsets` array so every row has a `listDefinitionId`
+ * pointing at a freshly-created (unpinned) `ListDefinition`. Rows with no
+ * recognizable legacy shape are silently dropped. Mirrors `runV23Migration`
+ * but runs after `bulkAdd` so fresh-install imports of legacy JSON converge
+ * on the same state as an in-place migration.
+ */
+async function translateLegacyListInsets(): Promise<number> {
+  const insets = await db.listInsets.toArray() as unknown as ImportListInset[]
+  const existingDefs = await db.listDefinitions.toArray()
+  let nextSortOrder = existingDefs.reduce((m, d) => Math.max(m, d.sortOrder), -1) + 1
+  const now = new Date()
+
+  let translated = 0
+  const toDelete: number[] = []
+  for (const row of insets) {
+    const raw = row as unknown as Record<string, unknown>
+    if (raw.listDefinitionId != null && raw.preset == null && raw.attributeFilter == null) continue
+    const def = buildListDefFromLegacyInset(raw, now)
+    if (!def) {
+      if (row.id != null) toDelete.push(row.id)
+      continue
+    }
+    const newId = await db.listDefinitions.add({
+      ...def,
+      sortOrder: nextSortOrder++,
+    } as ListDefinition) as number
+    await db.listInsets
+      .where(':id').equals(row.id as number)
+      .modify((inset) => {
+        const mut = inset as unknown as Record<string, unknown>
+        mut.listDefinitionId = newId
+        delete mut.preset
+        delete mut.attributeFilter
+        delete mut.name
+      })
+    translated++
+  }
+  if (toDelete.length > 0) {
+    await db.listInsets.bulkDelete(toDelete)
+  }
+  return translated
+}
+
 /** Clear all data tables and bulk-add from validated import data, then auto-seed statuses + list definitions and translate legacy fields. */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
-  const tables = TABLE_KEY_PAIRS.map(p => p.table)
+  const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets])
   await db.transaction('rw', tables, async () => {
     for (const { table } of TABLE_KEY_PAIRS) await table.clear()
+    await db.listInsets.clear()
 
     for (const { table, key } of TABLE_KEY_PAIRS) {
       const rows = v[key]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (rows?.length) await (table as any).bulkAdd(rows)
+    }
+    // List insets: carry legacy fields through so translateLegacyListInsets can
+    // read them, then strip during translation. bulkAdd accepts the extended
+    // shape because Dexie doesn't validate unknown fields.
+    if (v.listInsets?.length) {
+      await db.listInsets.bulkAdd(v.listInsets as unknown as ListInset[])
     }
 
     // Seed missing defaults (idempotent). ensureSeededStatuses must run before
@@ -58,7 +119,9 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       if (hadLegacy) v21Translated++
     })
 
-    // v20→v21: delete priority list insets (mirrors runV21Migration).
+    // v20→v21: delete priority list insets (mirrors runV21Migration). Must run
+    // BEFORE the v22→v23 inset translation since those rows have no valid
+    // translation target.
     const badPresetInsets = await db.listInsets
       .filter(li => (li as unknown as Record<string, unknown>).preset === 'high-priority')
       .toArray()
@@ -72,6 +135,12 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     if (toDelete.length > 0) {
       await db.listInsets.bulkDelete(toDelete.map(li => li.id!))
       console.info(`Restore: removed ${toDelete.length} priority list inset(s)`)
+    }
+
+    // v22→v23: translate legacy presets + attributeFilters into ListDefinitions.
+    const v23Translated = await translateLegacyListInsets()
+    if (v23Translated > 0) {
+      console.info(`Restore: translated ${v23Translated} legacy list inset(s) to listDefinitionId`)
     }
 
     if (v20Translated > 0) {

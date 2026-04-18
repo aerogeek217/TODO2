@@ -1,4 +1,4 @@
-const CURRENT_DB_VERSION = 22
+const CURRENT_DB_VERSION = 23
 // Dexie multiplies version numbers by 10 for the native IDB version
 const CURRENT_IDB_VERSION = CURRENT_DB_VERSION * 10
 
@@ -20,6 +20,10 @@ const DATA_MIGRATIONS: PendingMigration[] = [
     version: 22,
     description: 'Dashboard list definitions gain a "Pin to Dashboard" toggle. Existing lists are pinned by default; the seeded-list marker is retired so renamed or deleted defaults stay that way.',
   },
+  {
+    version: 23,
+    description: 'Canvas list insets are unified with dashboard list definitions. Existing insets become unpinned list definitions that continue to appear on the canvas; their filter is preserved as a custom predicate.',
+  },
 ]
 
 export interface MigrationInfo {
@@ -38,6 +42,8 @@ export interface LegacyImportInfo {
   hardDeadlineCount: number
   /** v20→v21: listInsets with preset='high-priority' or attributeFilter.type='priority' */
   priorityInsetCount: number
+  /** v22→v23: listInsets carrying a legacy preset or attributeFilter (excluding the retired priority rows counted above). */
+  legacyInsetCount: number
   descriptions: string[]
 }
 
@@ -91,6 +97,7 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
   ).length
 
   let priorityInsetCount = 0
+  let legacyInsetCount = 0
   for (const li of listInsets) {
     if (!li || typeof li !== 'object') continue
     const lo = li as Record<string, unknown>
@@ -99,11 +106,21 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
       continue
     }
     const af = lo.attributeFilter as Record<string, unknown> | undefined
-    if (af && af.type === 'priority') priorityInsetCount++
+    if (af && af.type === 'priority') {
+      priorityInsetCount++
+      continue
+    }
+    // Canvas list inset unification (v23): any non-priority legacy inset
+    // becomes a custom ListDefinition on import.
+    const hasLegacyPreset = typeof lo.preset === 'string' && lo.preset !== 'starred'
+    const hasLegacyAttr = af && typeof af.type === 'string'
+    if (lo.listDefinitionId == null && (hasLegacyPreset || hasLegacyAttr)) {
+      legacyInsetCount++
+    }
   }
 
   const totalLegacy = starredCount + assignedCount + starredInsetCount
-    + priorityTaskCount + hardDeadlineCount + priorityInsetCount
+    + priorityTaskCount + hardDeadlineCount + priorityInsetCount + legacyInsetCount
   if (totalLegacy === 0) return null
 
   const descriptions: string[] = []
@@ -119,6 +136,9 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
   if (priorityInsetCount > 0) descriptions.push(
     `${priorityInsetCount} priority-based list inset(s) will be removed`
   )
+  if (legacyInsetCount > 0) descriptions.push(
+    `${legacyInsetCount} canvas list inset(s) will be converted to list definitions`
+  )
 
   return {
     starredCount,
@@ -127,6 +147,7 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
     priorityTaskCount,
     hardDeadlineCount,
     priorityInsetCount,
+    legacyInsetCount,
     descriptions,
   }
 }

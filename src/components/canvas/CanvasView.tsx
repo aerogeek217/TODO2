@@ -103,7 +103,7 @@ export interface InsetHandlers {
   onDeleteInset?: (id: number) => void
   onToggleCollapseInset?: (id: number) => void
   onInsetDragStop?: (id: number, x: number, y: number) => void
-  onAddListInset?: (preset: string, x: number, y: number) => void
+  onRequestAddList?: (x: number, y: number) => void
   onResizeInset?: (id: number, width: number, height: number) => void
 }
 
@@ -186,7 +186,7 @@ export function CanvasView({
   showHiddenStatuses,
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
-  const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onAddListInset, onResizeInset } = insetHandlers
+  const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddList, onResizeInset } = insetHandlers
   const { onAddStickyNote, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onNoteDragStop, onResizeNote, onConvertNoteLines } = stickyHandlers
   const { activeDragTodoId } = useContext(DragInsertContext)
   const isNavOpen = useUIStore((s) => s.isProjectNavigatorOpen)
@@ -672,14 +672,14 @@ export function CanvasView({
     if (onAddStickyNote && pos) {
       items.push({ label: 'New Sticky Note', action: () => onAddStickyNote(pos.x, pos.y) })
     }
-    if (onAddListInset && pos) {
+    if (onRequestAddList && pos) {
       items.push({ separator: true, label: '', action: () => {} })
-      items.push({ label: 'List: Due & Overdue', action: () => onAddListInset('due-this-week', pos.x, pos.y) })
+      items.push({ label: 'Add list…', action: () => onRequestAddList(pos.x, pos.y) })
     }
     if (items.length > 0) {
       setContextMenu({ x: e.clientX, y: e.clientY, items })
     }
-  }, [onAddProject, onAddStickyNote, onAddListInset])
+  }, [onAddProject, onAddStickyNote, onRequestAddList])
 
   return (
     <div className={styles.canvasWrapper} onContextMenu={handleContextMenu}>

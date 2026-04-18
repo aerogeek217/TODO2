@@ -5,6 +5,13 @@ import styles from './ListDefinitionPickerPopup.module.css'
 interface Props {
   x: number
   y: number
+  /**
+   * 'dashboard' (default): only unpinned defs are shown, action pins.
+   * 'canvas': every def is shown, action fires `onSelect(id)` and the caller
+   *   decides what to do with it (typically: create an inset referencing it).
+   */
+  mode?: 'dashboard' | 'canvas'
+  onSelect?: (listDefinitionId: number) => void
   onCreateNew: () => void
   onClose: () => void
 }
@@ -13,7 +20,7 @@ const WIDTH_PX = 280
 const EST_HEIGHT_PX = 320
 const MARGIN_PX = 8
 
-export function ListDefinitionPickerPopup({ x, y, onCreateNew, onClose }: Props) {
+export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, onCreateNew, onClose }: Props) {
   const popupRef = useRef<HTMLDivElement>(null)
   const { listDefinitions, setPinned } = useListDefinitionStore()
 
@@ -41,13 +48,17 @@ export function ListDefinitionPickerPopup({ x, y, onCreateNew, onClose }: Props)
     }
   }, [x, y])
 
-  const unpinned = useMemo(
-    () => [...listDefinitions].filter(d => !d.pinnedToDashboard).sort((a, b) => a.sortOrder - b.sortOrder),
-    [listDefinitions],
-  )
+  const items = useMemo(() => {
+    const all = [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
+    return mode === 'canvas' ? all : all.filter(d => !d.pinnedToDashboard)
+  }, [listDefinitions, mode])
 
   const clampedX = Math.min(x, window.innerWidth - WIDTH_PX - MARGIN_PX)
   const clampedY = Math.min(y, window.innerHeight - EST_HEIGHT_PX - MARGIN_PX)
+
+  const headerLabel = mode === 'canvas' ? 'Add list to canvas' : 'Add to Dashboard'
+  const emptyLabel = mode === 'canvas' ? 'No lists yet.' : 'All lists are already pinned.'
+  const actionLabel = mode === 'canvas' ? 'Add' : 'Pin'
 
   return (
     <div
@@ -55,19 +66,26 @@ export function ListDefinitionPickerPopup({ x, y, onCreateNew, onClose }: Props)
       className={styles.popup}
       style={{ left: Math.max(MARGIN_PX, clampedX), top: Math.max(MARGIN_PX, clampedY), width: WIDTH_PX }}
     >
-      <div className={styles.header}>Add to Dashboard</div>
-      {unpinned.length === 0 ? (
-        <div className={styles.empty}>All lists are already pinned.</div>
+      <div className={styles.header}>{headerLabel}</div>
+      {items.length === 0 ? (
+        <div className={styles.empty}>{emptyLabel}</div>
       ) : (
         <div className={styles.list}>
-          {unpinned.map(d => (
+          {items.map(d => (
             <button
               key={d.id}
               className={styles.item}
-              onClick={async () => { await setPinned(d.id, true); onClose() }}
+              onClick={async () => {
+                if (mode === 'canvas') {
+                  onSelect?.(d.id)
+                } else {
+                  await setPinned(d.id, true)
+                }
+                onClose()
+              }}
             >
               <span className={styles.itemName}>{d.name}</span>
-              <span className={styles.itemAction}>Pin</span>
+              <span className={styles.itemAction}>{actionLabel}</span>
             </button>
           ))}
         </div>

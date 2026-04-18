@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ListInset, ListInsetPreset, ListInsetAttributeFilter } from '../models'
+import type { ListInset } from '../models'
 import { listInsetRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { mutate, optimistic } from './store-helpers'
@@ -10,8 +10,7 @@ interface ListInsetState {
   error: string | null
 
   loadByCanvas: (canvasId: number) => Promise<void>
-  add: (name: string, preset: ListInsetPreset, canvasId: number, x: number, y: number) => Promise<number>
-  addFiltered: (name: string, filter: ListInsetAttributeFilter, canvasId: number, x: number, y: number) => Promise<number>
+  add: (listDefinitionId: number, canvasId: number, x: number, y: number) => Promise<number>
   update: (inset: ListInset) => Promise<void>
   updatePosition: (id: number, x: number, y: number) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -35,31 +34,10 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
     }
   },
 
-  async add(name: string, preset: ListInsetPreset, canvasId: number, x: number, y: number) {
+  async add(listDefinitionId: number, canvasId: number, x: number, y: number) {
     return mutate(set, async () => {
       const id = await listInsetRepository.insert({
-        name,
-        preset,
-        canvasId,
-        x,
-        y,
-        width: 280,
-        height: 300,
-        isCollapsed: false,
-      })
-      const inset = await listInsetRepository.getById(id)
-      if (inset) {
-        set({ insets: [...get().insets, inset] })
-      }
-      return id
-    }, 'Failed to add list inset')
-  },
-
-  async addFiltered(name: string, filter: ListInsetAttributeFilter, canvasId: number, x: number, y: number) {
-    return mutate(set, async () => {
-      const id = await listInsetRepository.insert({
-        name,
-        attributeFilter: filter,
+        listDefinitionId,
         canvasId,
         x,
         y,
@@ -72,7 +50,7 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
         set({ insets: [...get().insets, inset] })
       }
       return id
-    }, 'Failed to add filtered list inset')
+    }, 'Failed to add list inset')
   },
 
   async update(inset: ListInset) {
@@ -117,7 +95,7 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
       set({ insets: get().insets.filter((i) => i.id !== id) })
       if (inset) {
         undoable(
-          `Delete list inset "${inset.name}"`,
+          `Delete list inset`,
           () => get().remove(id),
           async () => {
             await listInsetRepository.insert(inset)

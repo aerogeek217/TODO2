@@ -23,6 +23,9 @@ import { CanvasView } from '../components/canvas/CanvasView'
 import { ProjectNavigator } from '../components/canvas/ProjectNavigator'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
+import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
+import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
+import { useListDefinitionStore } from '../stores/list-definition-store'
 import type { PersistedTodoItem } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
 import { DragInsertContext, DragPreviewContext } from '../components/canvas/DragInsertContext'
@@ -45,6 +48,9 @@ export function CanvasPage() {
   const taskEdit = useTaskEditCallbacks()
   const { filters } = useFilterStore()
   const { insets, loadByCanvas: loadInsets, add: addInset, update: updateInset, updatePosition: updateInsetPosition, remove: removeInset } = useListInsetStore()
+  const loadDefinitions = useListDefinitionStore((s) => s.load)
+  const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
+  const [showListEditor, setShowListEditor] = useState(false)
   const { notes: stickyNotes, loadByCanvas: loadNotes, add: addNote, update: updateNote, updatePosition: updateNotePosition, updateText: updateNoteText, updateTitle: updateNoteTitle, updateColor: updateNoteColor, remove: removeNote } = useStickyNoteStore()
 
 
@@ -67,7 +73,8 @@ export function CanvasPage() {
     loadTags()
     loadOrgs()
     loadTaskboard()
-  }, [loadPeople, loadTags, loadOrgs, loadTaskboard])
+    loadDefinitions()
+  }, [loadPeople, loadTags, loadOrgs, loadTaskboard, loadDefinitions])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -388,15 +395,24 @@ export function CanvasPage() {
     [stickyNotes, updateNote]
   )
 
-  const handleAddListInset = useCallback(
-    async (preset: string, x: number, y: number) => {
-      if (!selectedCanvasId) return
-      const names: Record<string, string> = {
-        'due-this-week': 'Due & Overdue',
-      }
-      await addInset(names[preset] || preset, preset as 'due-this-week', selectedCanvasId, x, y)
+  const handleRequestAddList = useCallback(
+    (flowX: number, flowY: number) => {
+      // Best-effort screen coords for the picker anchor; we already captured
+      // the flow-space coords used when creating the inset.
+      const rect = document.querySelector('.react-flow')?.getBoundingClientRect()
+      const anchorX = rect ? rect.left + Math.min(rect.width - 16, 120) : 120
+      const anchorY = rect ? rect.top + Math.min(rect.height - 16, 120) : 120
+      setAddListPickerPos({ x: anchorX, y: anchorY, flowX, flowY })
     },
-    [selectedCanvasId, addInset]
+    [],
+  )
+
+  const handlePickListDef = useCallback(
+    async (listDefinitionId: number) => {
+      if (!selectedCanvasId || !addListPickerPos) return
+      await addInset(listDefinitionId, selectedCanvasId, addListPickerPos.flowX, addListPickerPos.flowY)
+    },
+    [selectedCanvasId, addInset, addListPickerPos],
   )
 
   const handleClickTask = useCallback(
@@ -440,9 +456,9 @@ export function CanvasPage() {
     onDeleteInset: removeInset,
     onToggleCollapseInset: handleToggleCollapseInset,
     onInsetDragStop: updateInsetPosition,
-    onAddListInset: handleAddListInset,
+    onRequestAddList: handleRequestAddList,
     onResizeInset: handleResizeInset,
-  }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleAddListInset, handleResizeInset])
+  }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleRequestAddList, handleResizeInset])
 
   const stickyHandlers = useMemo(() => ({
     onAddStickyNote: handleAddStickyNote,
@@ -613,6 +629,18 @@ export function CanvasPage() {
       )}
 
       <FilteredListPopup />
+
+      {addListPickerPos && (
+        <ListDefinitionPickerPopup
+          x={addListPickerPos.x}
+          y={addListPickerPos.y}
+          mode="canvas"
+          onSelect={handlePickListDef}
+          onCreateNew={() => setShowListEditor(true)}
+          onClose={() => setAddListPickerPos(null)}
+        />
+      )}
+      {showListEditor && <DashboardListsEditor onClose={() => setShowListEditor(false)} />}
     </DndContext>
   )
 }

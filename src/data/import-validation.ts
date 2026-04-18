@@ -1,4 +1,4 @@
-import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { STATUS_ICON_KEYS } from '../components/shared/StatusIcon'
@@ -255,9 +255,15 @@ function checkListInset(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   const hasPreset = v.preset != null
   const hasAttrFilter = v.attributeFilter != null
-  if (!hasPreset && !hasAttrFilter) return 'preset or attributeFilter required'
+  const hasDefId = v.listDefinitionId != null
+  // Post-v23: must have `listDefinitionId`. Pre-v23: must have preset or attributeFilter.
+  if (!hasDefId && !hasPreset && !hasAttrFilter) {
+    return 'listDefinitionId or legacy preset/attributeFilter required'
+  }
   return checkFields(v, [
-    ['name', isStr(v.name, 200)],
+    // Pre-v23 legacy: `name` was required; post-v23 drops it. Accept either.
+    ['name', v.name === undefined || isOptStr(v.name, 200)],
+    ['listDefinitionId', !hasDefId || isFiniteNum(v.listDefinitionId)],
     ['preset', !hasPreset || (typeof v.preset === 'string' && (VALID_PRESETS.includes(v.preset) || LEGACY_PRESETS.includes(v.preset)))],
     ['attributeFilter', !hasAttrFilter || isValidAttributeFilter(v.attributeFilter)],
     ['canvasId', isFiniteNum(v.canvasId)],
@@ -481,7 +487,32 @@ function pickTag(v: Record<string, unknown>): Tag {
   return { id: v.id as number | undefined, name: v.name as string, color: v.color as string }
 }
 
-function pickAttributeFilter(f: Record<string, unknown>): ListInset['attributeFilter'] {
+/**
+ * Post-v23 `ListInset` only has `listDefinitionId`. Pre-v23 rows still carry
+ * `preset` / `attributeFilter` / `name`; `restoreFromImportData` translates
+ * them into fresh ListDefinitions before write. The import stage keeps the
+ * legacy fields visible so the translator has something to consume.
+ */
+export type LegacyAttributeFilter =
+  | { type: 'person'; personId: number; personName: string }
+  | { type: 'tag'; tagId: number; tagName: string; tagColor?: string }
+  | { type: 'org'; orgId: number; orgName: string; orgColor?: string }
+
+export interface ImportListInset {
+  id?: number
+  listDefinitionId?: number
+  name?: string
+  preset?: string
+  attributeFilter?: LegacyAttributeFilter
+  canvasId: number
+  x: number
+  y: number
+  width: number
+  height: number
+  isCollapsed: boolean
+}
+
+function pickAttributeFilter(f: Record<string, unknown>): LegacyAttributeFilter | undefined {
   switch (f.type) {
     // 'priority' is a retired v20 attribute; the inset row is dropped before
     // write in restore, so accepting it here is a no-op. Return undefined so
@@ -494,10 +525,12 @@ function pickAttributeFilter(f: Record<string, unknown>): ListInset['attributeFi
   }
 }
 
-function pickListInset(v: Record<string, unknown>): ListInset {
+function pickListInset(v: Record<string, unknown>): ImportListInset {
   return {
-    id: v.id as number | undefined, name: v.name as string,
-    ...(v.preset != null ? { preset: v.preset as ListInset['preset'] } : {}),
+    id: v.id as number | undefined,
+    ...(v.listDefinitionId != null ? { listDefinitionId: v.listDefinitionId as number } : {}),
+    ...(v.name != null ? { name: v.name as string } : {}),
+    ...(v.preset != null ? { preset: v.preset as string } : {}),
     ...(v.attributeFilter != null ? { attributeFilter: pickAttributeFilter(v.attributeFilter as Record<string, unknown>) } : {}),
     canvasId: v.canvasId as number, x: v.x as number, y: v.y as number,
     width: v.width as number, height: v.height as number, isCollapsed: v.isCollapsed as boolean,
@@ -630,7 +663,7 @@ export interface ImportData {
   todos: TodoItem[]
   people: Person[]
   tags: Tag[]
-  listInsets: ListInset[]
+  listInsets: ImportListInset[]
   todoTags: TodoTag[]
   todoPeople: TodoPerson[]
   todoOrgs: TodoOrg[]
@@ -709,7 +742,9 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
         // Drop legacy-preset insets AND insets whose attributeFilter was stripped
         // (e.g. retired `type: 'priority'`) leaving them filterless.
         .filter(li => !(li.preset && LEGACY_PRESETS.includes(li.preset)))
-        .filter(li => li.preset != null || li.attributeFilter != null),
+        // Keep only rows that will produce a usable entry: either a v23+
+        // listDefinitionId or a legacy shape restore can translate.
+        .filter(li => li.listDefinitionId != null || li.preset != null || li.attributeFilter != null),
       todoTags: ((raw.todoTags ?? []) as Record<string, unknown>[]).map(pickTodoTag),
       todoPeople: ((raw.todoPeople ?? []) as Record<string, unknown>[]).map(pickTodoPerson),
       todoOrgs: ((raw.todoOrgs ?? []) as Record<string, unknown>[]).map(pickTodoOrg),

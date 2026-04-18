@@ -123,7 +123,7 @@ describe('v20 migration', () => {
     } as any)
 
     await runMigration()
-    const insets = await db.listInsets.toArray()
+    const insets = await db.listInsets.toArray() as unknown as Record<string, unknown>[]
     expect(insets).toHaveLength(1)
     expect(insets[0].preset).toBe('high-priority')
   })

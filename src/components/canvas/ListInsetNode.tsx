@@ -1,13 +1,14 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
-import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
-import { useFilterStore, applyFilter } from '../../stores/filter-store'
+import type { ListInset, PersistedTodoItem, Person, Tag, Org, TodoPredicate } from '../../models'
+import type { PersistedListDefinition } from '../../models/list-definition'
+import { useFilterStore, applyFilter, matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../../stores/filter-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { buildDashboardLists } from '../../services/dashboard-lists'
 import { TaskRow } from '../task/TaskRow'
-import { bySortOrder } from '../../utils/hierarchy'
-import { effectiveDate } from '../../utils/effective-date'
-import { startOfToday, MS_PER_DAY } from '../../utils/date'
+import { startOfToday } from '../../utils/date'
 import styles from './ListInsetNode.module.css'
 
 export function DraggableTaskRow({
@@ -45,12 +46,6 @@ export function DraggableTaskRow({
   )
 }
 
-// Label kept for backwards familiarity. Membership is now effectiveDate <=
-// today + 7 days (matches scheduled + deadline both). Subtitle clarifies.
-const PRESET_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = {
-  'due-this-week': { icon: '\u{1F4C5}', label: 'Due & Overdue' },
-}
-
 export interface ListInsetNodeData {
   inset: ListInset
   allTodos: PersistedTodoItem[]
@@ -68,59 +63,45 @@ export interface ListInsetNodeData {
 
 type ListInsetNodeType = ListInsetNodeData
 
-function getInsetHeaderInfo(inset: ListInset): { icon: React.ReactNode; label: string } {
-  if (inset.preset) {
-    return PRESET_CONFIG[inset.preset] ?? { icon: '\u{1F4CB}', label: inset.preset }
-  }
-  if (inset.attributeFilter) {
-    switch (inset.attributeFilter.type) {
-      case 'person':
-        return { icon: '@', label: inset.attributeFilter.personName }
-      case 'tag':
-        return { icon: '#', label: inset.attributeFilter.tagName }
-      case 'org':
-        return { icon: '@', label: inset.attributeFilter.orgName }
-    }
-  }
-  return { icon: '\u{1F4CB}', label: inset.name }
+/** Rough summary of a predicate, used as a subtitle below the inset header. */
+function describePredicate(p: TodoPredicate): string {
+  const parts: string[] = []
+  if (p.personIds?.length) parts.push(`${p.personIds.length} person filter`)
+  if (p.tagIds?.length) parts.push(`${p.tagIds.length} tag filter`)
+  if (p.orgIds?.length) parts.push(`${p.orgIds.length} org filter`)
+  if (p.statusIds?.length) parts.push(`${p.statusIds.length} status filter`)
+  if (p.dateRangeStart || p.dateRangeEnd) parts.push('date range')
+  if (p.searchText) parts.push(`search: "${p.searchText}"`)
+  return parts.length > 0 ? parts.join(' · ') : 'All tasks'
 }
 
-function getFilterDescription(inset: ListInset): string {
-  if (inset.preset) {
-    switch (inset.preset) {
-      case 'due-this-week': return 'Tasks scheduled or deadlined within 7 days, plus overdue'
-    }
+function describeMembership(def: PersistedListDefinition): string {
+  switch (def.membership.kind) {
+    case 'today': return 'Today (overdue + due within window)'
+    case 'upcoming': return 'Upcoming tasks'
+    case 'deadlines': return 'Tasks with a deadline'
+    case 'someday': return 'Tasks with no date'
+    case 'custom': return describePredicate(def.membership.predicate)
   }
-  if (inset.attributeFilter) {
-    switch (inset.attributeFilter.type) {
-      case 'person': return `Tasks assigned to ${inset.attributeFilter.personName}`
-      case 'tag': return `Tasks tagged ${inset.attributeFilter.tagName}`
-      case 'org': return `Tasks assigned to ${inset.attributeFilter.orgName}`
-    }
-  }
-  return ''
 }
 
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const { inset, allTodos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, onDelete, onToggleCollapse, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
-  const headerInfo = getInsetHeaderInfo(inset)
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const { filters } = useFilterStore()
   const statuses = useStatusStore((s) => s.statuses)
+  const definition = useListDefinitionStore((s) => s.listDefinitions.find(d => d.id === inset.listDefinitionId))
 
-  // Clean up resize listeners on unmount
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
-  // Re-compute date-sensitive filters (e.g. due-this-week) across midnight.
-  // Date-only presets bin todos relative to "today", which changes at midnight;
-  // without this tick the memo would stale for presets left open overnight.
+  // Date-sensitive membership (today/upcoming/deadlines) rolls at midnight;
+  // tick the day key so the memo recomputes even when no other props change.
   const [dayKey, setDayKey] = useState(() => {
     const d = new Date()
     return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
   })
   useEffect(() => {
-    if (inset.preset !== 'due-this-week') return
     const now = new Date()
     const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
     const timer = setTimeout(() => {
@@ -128,52 +109,43 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       setDayKey(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
     }, Math.max(1000, nextMidnight - now.getTime() + 50))
     return () => clearTimeout(timer)
-  }, [inset.preset, dayKey])
+  }, [dayKey])
 
   const filteredTodos = useMemo(() => {
-    // Apply global filters first
+    if (!definition) return [] as PersistedTodoItem[]
+
+    // Global filter first (parity with pre-v23 behavior) — narrows by person/
+    // tag/org/status selections plus showCompleted + showHiddenStatuses gates.
     const globalFiltered = applyFilter(filters, allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
 
     const today = startOfToday()
-    const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
+    const hiddenStatusIds = new Set(statuses.filter(s => s.hideByDefault).map(s => s.id!))
+    const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(predicate)
+      const people = assignedPeopleMap.get(todo.id) ?? []
+      const personIds = people.map(p => p.id!)
+      const tagIds = (assignedTagsMap?.get(todo.id) ?? []).map(t => t.id!)
+      const personOrgIds = people.flatMap(p => personOrgMap?.get(p.id!) ?? [])
+      const directOrgIds = (assignedOrgsMap?.get(todo.id) ?? []).map(o => o.id!)
+      const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap ?? new Map<number, number[]>())
+      return matchesFilter(criteria, todo, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
+    }
 
-    return globalFiltered.filter(todo => {
-      // Attribute-based filter
-      if (inset.attributeFilter) {
-        switch (inset.attributeFilter.type) {
-          case 'person': {
-            const assigned = assignedPeopleMap.get(todo.id)
-            return assigned?.some(p => p.id === (inset.attributeFilter as { personId: number }).personId) ?? false
-          }
-          case 'tag': {
-            const assigned = assignedTagsMap?.get(todo.id)
-            return assigned?.some(t => t.id === (inset.attributeFilter as { tagId: number }).tagId) ?? false
-          }
-          case 'org': {
-            const assigned = assignedOrgsMap?.get(todo.id)
-            return assigned?.some(o => o.id === (inset.attributeFilter as { orgId: number }).orgId) ?? false
-          }
-        }
-      }
-      // Preset-based filter
-      switch (inset.preset) {
-        case 'due-this-week': {
-          const ed = effectiveDate(todo, today)
-          if (!ed) return false
-          return ed <= weekEnd
-        }
-        default:
-          return false
-      }
-    }).sort((a, b) => {
-      if (inset.preset === 'due-this-week') {
-        const ae = effectiveDate(a, today)
-        const be = effectiveDate(b, today)
-        if (ae && be && ae.getTime() !== be.getTime()) return ae.getTime() - be.getTime()
-      }
-      return bySortOrder(a, b)
+    const [list] = buildDashboardLists([definition], globalFiltered, {
+      today,
+      hiddenStatusIds,
+      showCompleted: true,            // already applied by applyFilter above
+      showHiddenStatuses: true,       // same
+      evalPredicate,
     })
-  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses, dayKey])
+    return list?.todos ?? []
+  }, [
+    definition, allTodos, filters, assignedPeopleMap, assignedTagsMap,
+    assignedOrgsMap, personOrgMap, statuses, dayKey,
+  ])
+
+  const headerLabel = definition?.name ?? '(Deleted list)'
+  const subtitle = definition ? describeMembership(definition) : 'Referenced list was deleted'
 
   return (
     <div className={styles.inset} style={{ width: inset.width }}>
@@ -184,8 +156,8 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         >
           &#9662;
         </button>
-        <span className={styles.presetIcon}>{headerInfo.icon}</span>
-        <span className={styles.insetName}>{headerInfo.label}</span>
+        <span className={styles.presetIcon}>{'\u{1F4CB}'}</span>
+        <span className={styles.insetName}>{headerLabel}</span>
         <span className={styles.taskCount}>{filteredTodos.length}</span>
         <button
           className={styles.deleteButton}
@@ -195,7 +167,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         </button>
       </div>
 
-      {!inset.isCollapsed && <div className={styles.filterDesc}>{getFilterDescription(inset)}</div>}
+      {!inset.isCollapsed && <div className={styles.filterDesc}>{subtitle}</div>}
 
       <div
         className={`${inset.isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AppView } from '../../models'
-import type { ListInsetAttributeFilter } from '../../models'
+import type { TodoPredicate } from '../../models'
 import { useUIStore, type AttributeFilter } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
+import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { TaskRow } from '../task/TaskRow'
@@ -25,20 +26,22 @@ function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.Re
   }
 }
 
-function filterToInsetLabel(filter: AttributeFilter): string {
+function filterToListDefName(filter: AttributeFilter): string {
   switch (filter.type) {
-    case 'person': return filter.personName
-    case 'tag': return filter.tagName
-    case 'org': return filter.orgName
+    case 'person': return `Tasks assigned to ${filter.personName}`
+    case 'tag': return `Tasks tagged ${filter.tagName}`
+    case 'org': return `Tasks in ${filter.orgName}`
   }
 }
 
-function filterToInsetAttributeFilter(filter: AttributeFilter): ListInsetAttributeFilter {
+function filterToPredicate(filter: AttributeFilter): TodoPredicate {
+  const p = emptyPredicate()
   switch (filter.type) {
-    case 'person': return { type: 'person', personId: filter.personId, personName: filter.personName }
-    case 'tag': return { type: 'tag', tagId: filter.tagId, tagName: filter.tagName, tagColor: filter.tagColor }
-    case 'org': return { type: 'org', orgId: filter.orgId, orgName: filter.orgName, orgColor: filter.orgColor }
+    case 'person': p.personIds = [filter.personId]; break
+    case 'tag': p.tagIds = [filter.tagId]; break
+    case 'org': p.orgIds = [filter.orgId]; break
   }
+  return p
 }
 
 /** Compute clamped position so the popup fits in the viewport. */
@@ -77,7 +80,8 @@ export function FilteredListPopup() {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const addFiltered = useListInsetStore((s) => s.addFiltered)
+  const addInset = useListInsetStore((s) => s.add)
+  const addListDef = useListDefinitionStore((s) => s.add)
   const selectedCanvasId = useCanvasStore((s) => s.selectedCanvasId)
 
   // Drag state
@@ -148,10 +152,22 @@ export function FilteredListPopup() {
           const rect = canvasEl.getBoundingClientRect()
           const flowX = (ev.clientX - rect.left - viewport.x) / viewport.zoom
           const flowY = (ev.clientY - rect.top - viewport.y) / viewport.zoom
-          const label = filterToInsetLabel(popup.filter)
-          const attrFilter = filterToInsetAttributeFilter(popup.filter)
-          addFiltered(label, attrFilter, selectedCanvasId, flowX, flowY)
-          hideFilteredList()
+          // Auto-create an unpinned ListDefinition scoped to this attribute
+          // filter, then pin an inset referencing it. Users can later promote
+          // the def to the dashboard or edit its predicate via the manager.
+          void (async () => {
+            const name = filterToListDefName(popup.filter)
+            const predicate = filterToPredicate(popup.filter)
+            const defId = await addListDef({
+              name,
+              pinnedToDashboard: false,
+              membership: { kind: 'custom', predicate },
+              sort: { kind: 'sort-order' },
+              grouping: { kind: 'none' },
+            })
+            await addInset(defId, selectedCanvasId, flowX, flowY)
+            hideFilteredList()
+          })()
         }
       }
 
@@ -163,7 +179,7 @@ export function FilteredListPopup() {
     dragCleanupRef.current = cleanup
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-  }, [pos, activeView, selectedCanvasId, popup, addFiltered, hideFilteredList])
+  }, [pos, activeView, selectedCanvasId, popup, addListDef, addInset, hideFilteredList])
 
   // Close on Escape
   useEffect(() => {

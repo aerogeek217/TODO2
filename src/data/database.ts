@@ -90,6 +90,13 @@ export class Todo2Database extends Dexie {
     this.version(22).stores({}).upgrade(async (tx) => {
       await runV22Migration(tx)
     })
+
+    // v23: canvas list-inset unification — drop `preset` / `attributeFilter` /
+    // `name` on `ListInset`; each row gains `listDefinitionId` referencing a
+    // freshly-created (unpinned) `ListDefinition`.
+    this.version(23).stores({}).upgrade(async (tx) => {
+      await runV23Migration(tx)
+    })
   }
 }
 
@@ -326,6 +333,154 @@ export async function runV22Migration(tx: Transaction): Promise<void> {
     if (def.pinnedToDashboard === undefined) def.pinnedToDashboard = true
     delete def.seededKey
   })
+}
+
+/** Default empty predicate (matches all tasks aside from the standard gates). */
+function emptyPredicateSeed(): Record<string, unknown> {
+  return {
+    showCompleted: false,
+    showHiddenStatuses: false,
+    personIds: null,
+    personFilterMode: 'include-orgs',
+    tagIds: null,
+    orgIds: null,
+    orgFilterMode: 'include-people',
+    statusIds: null,
+    searchText: '',
+    dateField: 'date',
+    dateRangeStart: null,
+    dateRangeEnd: null,
+    dateRangeIncludeNoDate: false,
+  }
+}
+
+/**
+ * Builds a synthetic `ListDefinition` row (no id / sortOrder assigned) from a
+ * pre-v23 list-inset row. Preset `due-this-week` becomes a custom predicate
+ * pinned to an `effectiveDate <= today+7d` range at migration time (fixed-date
+ * compromise per plan D10 — the rolling semantics are lost). Attribute filters
+ * become a custom predicate scoped to the referenced person/tag/org.
+ *
+ * Returns `null` for rows that don't match any known legacy shape — callers
+ * treat these as corrupt and drop the inset.
+ */
+export function buildListDefFromLegacyInset(
+  raw: Record<string, unknown>,
+  now: Date = new Date(),
+): Omit<ListDefinition, 'id' | 'sortOrder'> | null {
+  const insetName = typeof raw.name === 'string' && raw.name.length > 0 ? raw.name : null
+  const preset = raw.preset
+  const attr = raw.attributeFilter as Record<string, unknown> | undefined
+
+  if (preset === 'due-this-week') {
+    const end = new Date(now)
+    end.setDate(end.getDate() + 7)
+    const predicate = emptyPredicateSeed()
+    predicate.dateField = 'date'
+    predicate.dateRangeEnd = end.toISOString()
+    return {
+      name: insetName ?? 'Due this week',
+      pinnedToDashboard: false,
+      membership: {
+        kind: 'custom',
+        predicate: predicate as unknown as import('../models').TodoPredicate,
+      },
+      sort: { kind: 'effective-date-asc' },
+      grouping: { kind: 'none' },
+    }
+  }
+
+  if (attr && typeof attr.type === 'string') {
+    const predicate = emptyPredicateSeed()
+    let derivedName: string
+    switch (attr.type) {
+      case 'person': {
+        const id = attr.personId as number | undefined
+        if (typeof id !== 'number') return null
+        predicate.personIds = [id]
+        derivedName = `Tasks assigned to ${attr.personName ?? 'person'}`
+        break
+      }
+      case 'tag': {
+        const id = attr.tagId as number | undefined
+        if (typeof id !== 'number') return null
+        predicate.tagIds = [id]
+        derivedName = `Tasks tagged ${attr.tagName ?? 'tag'}`
+        break
+      }
+      case 'org': {
+        const id = attr.orgId as number | undefined
+        if (typeof id !== 'number') return null
+        predicate.orgIds = [id]
+        derivedName = `Tasks in ${attr.orgName ?? 'org'}`
+        break
+      }
+      default:
+        return null
+    }
+    return {
+      name: insetName ?? derivedName,
+      pinnedToDashboard: false,
+      membership: {
+        kind: 'custom',
+        predicate: predicate as unknown as import('../models').TodoPredicate,
+      },
+      sort: { kind: 'sort-order' },
+      grouping: { kind: 'none' },
+    }
+  }
+
+  return null
+}
+
+/**
+ * v23 upgrade: for every existing list-inset row, synthesize a matching
+ * (unpinned) `ListDefinition` and rewrite the inset to reference it by id.
+ * The legacy `preset` / `attributeFilter` / `name` fields are stripped.
+ * Rows with no recognizable legacy shape are deleted.
+ */
+export async function runV23Migration(tx: Transaction): Promise<void> {
+  const listInsetsTable = tx.table('listInsets')
+  const listDefsTable = tx.table<ListDefinition>('listDefinitions')
+
+  const existingDefs = await listDefsTable.toArray()
+  let nextSortOrder = existingDefs.reduce((m, d) => Math.max(m, d.sortOrder), -1) + 1
+
+  const rows = await listInsetsTable.toArray() as unknown as Record<string, unknown>[]
+  const toDelete: number[] = []
+  const now = new Date()
+
+  for (const row of rows) {
+    // Already migrated (has listDefinitionId, no legacy fields) — no-op.
+    if (row.listDefinitionId != null && row.preset == null && row.attributeFilter == null) {
+      continue
+    }
+
+    const def = buildListDefFromLegacyInset(row, now)
+    if (!def) {
+      if (row.id != null) toDelete.push(row.id as number)
+      continue
+    }
+
+    const newId = await listDefsTable.add({
+      ...def,
+      sortOrder: nextSortOrder++,
+    } as ListDefinition) as number
+
+    await listInsetsTable
+      .where(':id').equals(row.id as number)
+      .modify((inset: Record<string, unknown>) => {
+        inset.listDefinitionId = newId
+        delete inset.preset
+        delete inset.attributeFilter
+        delete inset.name
+      })
+  }
+
+  if (toDelete.length > 0) {
+    await listInsetsTable.bulkDelete(toDelete)
+    console.info(`v23 migration: dropped ${toDelete.length} corrupt list inset(s)`)
+  }
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
