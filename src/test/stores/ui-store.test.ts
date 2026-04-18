@@ -18,6 +18,23 @@ beforeEach(() => {
     clipboardTodoIds: [],
     clipboardSourceProjectId: null,
     filteredListPopup: null,
+    editingListDefId: null,
+    editingListDefName: null,
+  })
+})
+
+describe('useUIStore editing list-definition state', () => {
+  it('startEditingListDef sets id + name; clearEditingListDef resets both', () => {
+    expect(useUIStore.getState().editingListDefId).toBeNull()
+    expect(useUIStore.getState().editingListDefName).toBeNull()
+
+    useUIStore.getState().startEditingListDef(42, "Alice's tasks")
+    expect(useUIStore.getState().editingListDefId).toBe(42)
+    expect(useUIStore.getState().editingListDefName).toBe("Alice's tasks")
+
+    useUIStore.getState().clearEditingListDef()
+    expect(useUIStore.getState().editingListDefId).toBeNull()
+    expect(useUIStore.getState().editingListDefName).toBeNull()
   })
 })
 

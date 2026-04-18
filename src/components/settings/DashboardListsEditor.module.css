@@ -30,3 +30,204 @@
   padding: 8px 10px 0;
   line-height: 1.4;
 }
+
+.configToggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.configToggle:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+.configToggleActive {
+  background: var(--color-accent-bg-light);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.configPanel {
+  margin: 4px 0 8px 28px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--font-size-meta);
+}
+
+.configRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.configLabel {
+  width: 90px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10px;
+}
+
+.configButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.configBtn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.configBtn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+.configBtnActive {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border-color: var(--color-accent);
+}
+
+.configBtnActive:hover {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border-color: var(--color-accent);
+}
+
+.configSelect {
+  flex: 1;
+  min-width: 120px;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 3px 6px;
+  outline: none;
+}
+
+.configSelect:focus {
+  border-color: var(--color-accent);
+}
+
+.windowField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.windowInput {
+  width: 60px;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 3px 6px;
+  outline: none;
+}
+
+.windowInput:focus {
+  border-color: var(--color-accent);
+}
+
+.windowSuffix {
+  color: var(--color-text-muted);
+}
+
+.predicateBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.predicateEmpty {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.predicateChip {
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  color: var(--color-text-secondary);
+  padding: 2px 8px;
+  font-size: var(--font-size-meta);
+}
+
+.editInListBtn {
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.editInListBtn:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.configFooter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.configDoneBtn {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border: none;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  padding: 3px 12px;
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold);
+}
+
+.configDoneBtn:hover {
+  opacity: 0.85;
+}

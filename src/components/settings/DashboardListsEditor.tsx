@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 import {
   DndContext,
   closestCenter,
@@ -15,8 +16,21 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
-import type { ListMembership, PersistedListDefinition } from '../../models/list-definition'
+import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { usePersonStore } from '../../stores/person-store'
+import { useTagStore } from '../../stores/tag-store'
+import { useOrgStore } from '../../stores/org-store'
+import { useStatusStore } from '../../stores/status-store'
+import { useFilterStore, predicateToCriteria } from '../../stores/filter-store'
+import { useUIStore } from '../../stores/ui-store'
+import type {
+  ListGrouping,
+  ListMembership,
+  ListSort,
+  PersistedListDefinition,
+} from '../../models/list-definition'
+import type { ListSortBy, TodoPredicate } from '../../models'
+import { WARNING_WINDOW_DAYS } from '../../services/dashboard-lists'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -28,6 +42,39 @@ interface EditState {
 interface Props {
   onClose: () => void
 }
+
+const MEMBERSHIP_KINDS: { value: ListMembership['kind']; label: string }[] = [
+  { value: 'today', label: 'Today' },
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'deadlines', label: 'Deadlines' },
+  { value: 'someday', label: 'Someday' },
+  { value: 'custom', label: 'Custom' },
+]
+
+const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
+  { value: 'effective-date-asc', label: 'Effective date' },
+  { value: 'deadline-asc', label: 'Deadline' },
+  { value: 'sort-order', label: 'Manual order' },
+  { value: 'sortBy', label: 'Group attribute' },
+]
+
+const GROUPING_KINDS: { value: ListGrouping['kind']; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'relative-effective', label: 'Relative (effective)' },
+  { value: 'relative-deadline', label: 'Relative (deadline)' },
+  { value: 'by-sortBy', label: 'Match sort' },
+]
+
+const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
+  { value: 'date', label: 'Date' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'deadline', label: 'Deadline' },
+  { value: 'project', label: 'Project' },
+  { value: 'status', label: 'Status' },
+  { value: 'people', label: 'People' },
+  { value: 'org', label: 'Org' },
+  { value: 'tag', label: 'Tag' },
+]
 
 function membershipLabel(m: ListMembership): string {
   switch (m.kind) {
@@ -46,14 +93,269 @@ function membershipLabel(m: ListMembership): string {
   }
 }
 
+interface PredicateChip {
+  key: string
+  label: string
+  color?: string
+}
+
+function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
+  const people = usePersonStore((s) => s.people)
+  const tags = useTagStore((s) => s.tags)
+  const orgs = useOrgStore((s) => s.orgs)
+  const statuses = useStatusStore((s) => s.statuses)
+
+  return useMemo(() => {
+    const chips: PredicateChip[] = []
+    if (predicate.searchText) {
+      chips.push({ key: 'search', label: `“${predicate.searchText}”` })
+    }
+    if (predicate.personIds && predicate.personIds.length > 0) {
+      const names = predicate.personIds.map((id) => {
+        if (id === 0) return 'Unassigned'
+        const p = people.find((x) => x.id === id)
+        return p ? `@${p.name}` : `@?`
+      })
+      chips.push({ key: 'people', label: names.join(', ') })
+    }
+    if (predicate.tagIds && predicate.tagIds.length > 0) {
+      const names = predicate.tagIds.map((id) => {
+        if (id === 0) return 'No tag'
+        const t = tags.find((x) => x.id === id)
+        return t ? `#${t.name}` : `#?`
+      })
+      chips.push({ key: 'tags', label: names.join(', ') })
+    }
+    if (predicate.orgIds && predicate.orgIds.length > 0) {
+      const names = predicate.orgIds.map((id) => {
+        if (id === 0) return 'No org'
+        const o = orgs.find((x) => x.id === id)
+        return o ? o.name : '?'
+      })
+      chips.push({ key: 'orgs', label: names.join(', ') })
+    }
+    if (predicate.statusIds && predicate.statusIds.length > 0) {
+      const names = predicate.statusIds.map((id) => {
+        if (id === 0) return 'No status'
+        const s = statuses.find((x) => x.id === id)
+        return s ? s.name : '?'
+      })
+      chips.push({ key: 'statuses', label: names.join(', ') })
+    }
+    if (predicate.dateRangeStart || predicate.dateRangeEnd) {
+      const fmt = (v: string | null) => v ? v.slice(0, 10) : '…'
+      chips.push({ key: 'date', label: `${predicate.dateField}: ${fmt(predicate.dateRangeStart)} → ${fmt(predicate.dateRangeEnd)}` })
+    }
+    if (predicate.showCompleted) chips.push({ key: 'completed', label: 'Show completed' })
+    if (predicate.showHiddenStatuses) chips.push({ key: 'hidden', label: 'Show hidden statuses' })
+    return chips
+  }, [predicate, people, tags, orgs, statuses])
+}
+
+function ConfigPanel({
+  def,
+  onChange,
+  onEditInListView,
+  onClose,
+}: {
+  def: PersistedListDefinition
+  onChange: (next: PersistedListDefinition) => void
+  onEditInListView: (def: PersistedListDefinition) => void
+  onClose: () => void
+}) {
+  const chips = usePredicateChips(
+    def.membership.kind === 'custom' ? def.membership.predicate : emptyPredicate(),
+  )
+
+  const setMembershipKind = (kind: ListMembership['kind']) => {
+    if (kind === def.membership.kind) return
+    let next: ListMembership
+    switch (kind) {
+      case 'today':
+        next = { kind: 'today' }
+        break
+      case 'upcoming':
+        next = { kind: 'upcoming' }
+        break
+      case 'deadlines':
+        next = { kind: 'deadlines' }
+        break
+      case 'someday':
+        next = { kind: 'someday' }
+        break
+      case 'custom':
+        next = { kind: 'custom', predicate: emptyPredicate() }
+        break
+    }
+    onChange({ ...def, membership: next })
+  }
+
+  const setWarningWindow = (raw: string) => {
+    const n = parseInt(raw, 10)
+    if (def.membership.kind !== 'today' && def.membership.kind !== 'upcoming') return
+    const next: ListMembership = isNaN(n) || n < 0
+      ? { kind: def.membership.kind }
+      : { kind: def.membership.kind, warningWindowDays: n }
+    onChange({ ...def, membership: next })
+  }
+
+  const setSortKind = (kind: ListSort['kind']) => {
+    if (kind === def.sort.kind) return
+    let next: ListSort
+    switch (kind) {
+      case 'effective-date-asc': next = { kind: 'effective-date-asc' }; break
+      case 'deadline-asc': next = { kind: 'deadline-asc' }; break
+      case 'sort-order': next = { kind: 'sort-order' }; break
+      case 'sortBy': next = { kind: 'sortBy', by: 'date' }; break
+    }
+    onChange({ ...def, sort: next })
+  }
+
+  const setSortBy = (by: ListSortBy) => {
+    if (def.sort.kind !== 'sortBy') return
+    onChange({ ...def, sort: { kind: 'sortBy', by } })
+  }
+
+  const setGroupingKind = (kind: ListGrouping['kind']) => {
+    if (kind === def.grouping.kind) return
+    onChange({ ...def, grouping: { kind } })
+  }
+
+  const window = (def.membership.kind === 'today' || def.membership.kind === 'upcoming')
+    ? (def.membership.warningWindowDays ?? WARNING_WINDOW_DAYS)
+    : null
+
+  return (
+    <div className={local.configPanel}>
+      <div className={local.configRow}>
+        <span className={local.configLabel}>Membership</span>
+        <div className={local.configButtons}>
+          {MEMBERSHIP_KINDS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              className={`${local.configBtn} ${def.membership.kind === value ? local.configBtnActive : ''}`}
+              onClick={() => setMembershipKind(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {window !== null && (
+        <div className={local.configRow}>
+          <span className={local.configLabel}>Warning window</span>
+          <div className={local.windowField}>
+            <input
+              type="number"
+              min={0}
+              max={365}
+              className={local.windowInput}
+              value={window}
+              onChange={(e) => setWarningWindow(e.target.value)}
+            />
+            <span className={local.windowSuffix}>days</span>
+          </div>
+        </div>
+      )}
+
+      {def.membership.kind === 'custom' && (
+        <div className={local.configRow}>
+          <span className={local.configLabel}>Filter</span>
+          <div className={local.predicateBlock}>
+            {chips.length === 0 ? (
+              <span className={local.predicateEmpty}>No filters set — matches all tasks.</span>
+            ) : (
+              <div className={local.chipRow}>
+                {chips.map((c) => (
+                  <span
+                    key={c.key}
+                    className={local.predicateChip}
+                    style={c.color ? { borderColor: c.color } : undefined}
+                  >
+                    {c.label}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              className={local.editInListBtn}
+              onClick={() => onEditInListView(def)}
+            >
+              Edit in ListView…
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={local.configRow}>
+        <span className={local.configLabel}>Sort</span>
+        <div className={local.configButtons}>
+          {SORT_KINDS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              className={`${local.configBtn} ${def.sort.kind === value ? local.configBtnActive : ''}`}
+              onClick={() => setSortKind(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {def.sort.kind === 'sortBy' && (
+        <div className={local.configRow}>
+          <span className={local.configLabel}>Sort by</span>
+          <select
+            className={local.configSelect}
+            value={def.sort.by}
+            onChange={(e) => setSortBy(e.target.value as ListSortBy)}
+          >
+            {SORT_BY_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className={local.configRow}>
+        <span className={local.configLabel}>Grouping</span>
+        <div className={local.configButtons}>
+          {GROUPING_KINDS.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              className={`${local.configBtn} ${def.grouping.kind === value ? local.configBtnActive : ''}`}
+              onClick={() => setGroupingKind(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className={local.configFooter}>
+        <button type="button" className={local.configDoneBtn} onClick={onClose}>Done</button>
+      </div>
+    </div>
+  )
+}
+
 function SortableRow({
   def,
+  expanded,
   onEdit,
+  onConfigure,
   onTogglePin,
   onDelete,
 }: {
   def: PersistedListDefinition
+  expanded: boolean
   onEdit: (d: PersistedListDefinition) => void
+  onConfigure: (id: number) => void
   onTogglePin: (id: number, next: boolean) => void
   onDelete: (id: number) => void
 }) {
@@ -70,6 +372,14 @@ function SortableRow({
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(def)}>{def.name}</span>
       <span className={local.kindLabel}>{membershipLabel(def.membership)}</span>
+      <button
+        type="button"
+        className={`${local.configToggle} ${expanded ? local.configToggleActive : ''}`}
+        onClick={() => onConfigure(def.id)}
+        title={expanded ? 'Hide settings' : 'Configure'}
+      >
+        ⚙
+      </button>
       <label
         className={local.pinToggle}
         title={def.pinnedToDashboard ? 'Pinned to Dashboard' : 'Not pinned'}
@@ -93,12 +403,17 @@ function SortableRow({
 }
 
 export function DashboardListsEditor({ onClose }: Props) {
-  const { listDefinitions, load, add, rename, setPinned, remove, reorder } = useListDefinitionStore()
+  const { listDefinitions, load, add, update, rename, setPinned, remove, reorder } = useListDefinitionStore()
+  const setAllFilters = useFilterStore((s) => s.setAllFilters)
+  const setListSortBy = useUIStore((s) => s.setListSortBy)
+  const startEditingListDef = useUIStore((s) => s.startEditingListDef)
+  const navigate = useNavigate()
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [error, setError] = useState('')
+  const [configuringId, setConfiguringId] = useState<number | null>(null)
 
   useEffect(() => { load() }, [load])
 
@@ -125,6 +440,7 @@ export function DashboardListsEditor({ onClose }: Props) {
     setEditing({ id: d.id, name: d.name })
     setAdding(false)
     setDeleteId(null)
+    setConfiguringId(null)
     setError('')
   }
   const saveEdit = async () => {
@@ -169,6 +485,23 @@ export function DashboardListsEditor({ onClose }: Props) {
     if (deleteId == null) return
     await remove(deleteId)
     setDeleteId(null)
+    if (configuringId === deleteId) setConfiguringId(null)
+  }
+
+  const handleConfigure = (id: number) => {
+    setConfiguringId((cur) => (cur === id ? null : id))
+    setEditing(null)
+    setDeleteId(null)
+  }
+
+  const handleEditInListView = (def: PersistedListDefinition) => {
+    if (def.membership.kind !== 'custom') return
+    const criteria = predicateToCriteria(def.membership.predicate)
+    setAllFilters(criteria)
+    if (def.sort.kind === 'sortBy') setListSortBy(def.sort.by)
+    startEditingListDef(def.id, def.name)
+    onClose()
+    navigate('/list')
   }
 
   return (
@@ -222,13 +555,24 @@ export function DashboardListsEditor({ onClose }: Props) {
                 }
 
                 return (
-                  <SortableRow
-                    key={d.id}
-                    def={d}
-                    onEdit={startEdit}
-                    onTogglePin={setPinned}
-                    onDelete={(id) => { setDeleteId(id); setEditing(null); setAdding(false) }}
-                  />
+                  <div key={d.id}>
+                    <SortableRow
+                      def={d}
+                      expanded={configuringId === d.id}
+                      onEdit={startEdit}
+                      onConfigure={handleConfigure}
+                      onTogglePin={setPinned}
+                      onDelete={(id) => { setDeleteId(id); setEditing(null); setAdding(false) }}
+                    />
+                    {configuringId === d.id && (
+                      <ConfigPanel
+                        def={d}
+                        onChange={(next) => update(next)}
+                        onEditInListView={handleEditInListView}
+                        onClose={() => setConfiguringId(null)}
+                      />
+                    )}
+                  </div>
                 )
               })}
             </SortableContext>
@@ -252,7 +596,7 @@ export function DashboardListsEditor({ onClose }: Props) {
             </div>
             {error && <div className={styles.errorHint}>{error}</div>}
             <div className={local.hint}>
-              New lists start as <strong>Custom</strong> and match all tasks. A predicate editor is coming soon.
+              New lists start as <strong>Custom</strong> with no filter (matches all tasks). Click ⚙ to configure membership, sort, and grouping.
             </div>
           </div>
         ) : (

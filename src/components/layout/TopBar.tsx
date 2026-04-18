@@ -177,7 +177,7 @@ function DateRangeDropdown({
 
   const handleOpen = () => {
     if (!open && !active) {
-      if (dateField === 'date') {
+      if (dateField === 'date' || dateField === 'scheduled' || dateField === 'deadline') {
         onChangeRange(startOfToday(), null)
       } else {
         onChangeRange(null, startOfToday())
@@ -200,14 +200,14 @@ function DateRangeDropdown({
       {open && (
         <div className={styles.dropdownPanel}>
           <div className={styles.dateFieldSelector}>
-            {(['date', 'created', 'modified'] as const).map((field) => (
+            {(['date', 'scheduled', 'deadline', 'created', 'modified'] as const).map((field) => (
               <button
                 key={field}
                 className={`${styles.dateFieldOption} ${dateField === field ? styles.dateFieldOptionActive : ''}`}
                 onClick={() => {
                   if (field === dateField) return
                   onChangeDateField(field)
-                  if (field === 'date') {
+                  if (field === 'date' || field === 'scheduled' || field === 'deadline') {
                     onChangeRange(startOfToday(), null)
                   } else {
                     onChangeRange(null, startOfToday())

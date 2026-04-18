@@ -27,8 +27,9 @@ import { useOrgStore } from '../stores/org-store'
 import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
-import { useFilterStore, applyFilter } from '../stores/filter-store'
+import { useFilterStore, applyFilter, criteriaToPredicate } from '../stores/filter-store'
 import { useSavedViewStore, savedFiltersToRuntime, translateSortBy } from '../stores/saved-view-store'
+import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskList } from '../components/task/TaskList'
 import { TaskRow } from '../components/task/TaskRow'
@@ -41,7 +42,7 @@ import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy } from '../models'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
-import { effectiveDate } from '../utils/effective-date'
+import { effectiveDate, resolveScheduled } from '../utils/effective-date'
 import { buildHierarchy } from '../utils/hierarchy'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import styles from './ListView.module.css'
@@ -60,10 +61,27 @@ const sortByOptions: { value: ListSortBy; label: string }[] = [
   { value: 'org', label: 'Org' },
   { value: 'tag', label: 'Tag' },
   { value: 'date', label: 'Date' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'deadline', label: 'Deadline' },
 ]
 
 
-export function buildDateSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
+type DateBucketField = 'date' | 'scheduled' | 'deadline'
+
+function pickBucketDate(todo: PersistedTodoItem, field: DateBucketField, today: Date): Date | null {
+  switch (field) {
+    case 'date': return effectiveDate(todo, today)
+    case 'scheduled': return todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today) : null
+    case 'deadline': return todo.dueDate ? new Date(todo.dueDate) : null
+  }
+}
+
+function buildBucketSections(
+  todos: PersistedTodoItem[],
+  field: DateBucketField,
+  today: Date,
+  noDateLabel: string,
+): Section[] {
   const tomorrow = new Date(today.getTime() + MS_PER_DAY)
   const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
 
@@ -74,7 +92,7 @@ export function buildDateSections(todos: PersistedTodoItem[], today: Date = star
   const noDate: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    const d = effectiveDate(t, today)
+    const d = pickBucketDate(t, field, today)
     if (!d) { noDate.push(t); continue }
     if (d < today) overdue.push(t)
     else if (d < tomorrow) dueToday.push(t)
@@ -87,8 +105,20 @@ export function buildDateSections(todos: PersistedTodoItem[], today: Date = star
   if (dueToday.length > 0) sections.push({ key: 'today', label: 'Today', accentColor: 'var(--color-accent)', todos: dueToday })
   if (thisWeek.length > 0) sections.push({ key: 'week', label: 'This Week', accentColor: 'var(--color-accent)', todos: thisWeek })
   if (later.length > 0) sections.push({ key: 'later', label: 'Later', todos: later })
-  if (noDate.length > 0) sections.push({ key: 'none', label: 'No Date', todos: noDate })
+  if (noDate.length > 0) sections.push({ key: 'none', label: noDateLabel, todos: noDate })
   return sections
+}
+
+export function buildDateSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
+  return buildBucketSections(todos, 'date', today, 'No Date')
+}
+
+export function buildScheduledSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
+  return buildBucketSections(todos, 'scheduled', today, 'Not Scheduled')
+}
+
+export function buildDeadlineSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
+  return buildBucketSections(todos, 'deadline', today, 'No Deadline')
 }
 
 export function buildPeopleSections(
@@ -510,6 +540,12 @@ export function ListView() {
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { statuses, load: loadStatuses } = useStatusStore()
   const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
+  const editingListDefId = useUIStore((s) => s.editingListDefId)
+  const editingListDefName = useUIStore((s) => s.editingListDefName)
+  const clearEditingListDef = useUIStore((s) => s.clearEditingListDef)
+  const updateListDefinition = useListDefinitionStore((s) => s.update)
+  const allListDefinitions = useListDefinitionStore((s) => s.listDefinitions)
+  const loadListDefinitions = useListDefinitionStore((s) => s.load)
   const { filters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
   const taskEdit = useTaskEditCallbacks()
@@ -523,6 +559,11 @@ export function ListView() {
   const [renameText, setRenameText] = useState('')
   const [showSaveViewDialog, setShowSaveViewDialog] = useState(false)
   const [saveViewName, setSaveViewName] = useState('')
+  const [showSavePresetDialog, setShowSavePresetDialog] = useState(false)
+  const [savePresetName, setSavePresetName] = useState('')
+  const [savePresetPin, setSavePresetPin] = useState(true)
+  const [savePresetError, setSavePresetError] = useState('')
+  const addListDefinition = useListDefinitionStore((s) => s.add)
   const isMobile = useIsMobile()
 
   const sensors = useSensors(
@@ -537,7 +578,8 @@ export function ListView() {
     loadOrgs()
     loadStatuses()
     loadSavedViews()
-  }, [loadAll, loadPeople, loadTags, loadAllProjects, loadOrgs, loadStatuses, loadSavedViews])
+    loadListDefinitions()
+  }, [loadAll, loadPeople, loadTags, loadAllProjects, loadOrgs, loadStatuses, loadSavedViews, loadListDefinitions])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
@@ -563,12 +605,11 @@ export function ListView() {
   const sections = useMemo(() => {
     switch (listSortBy) {
       case 'date':
-      case 'scheduled':
-      case 'deadline':
-        // Commit A: 'scheduled' / 'deadline' accepted in the union but not yet
-        // surfaced in the sort picker. Treat as 'date' until Commit C lands
-        // proper per-field grouping.
         return buildDateSections(activeTodos)
+      case 'scheduled':
+        return buildScheduledSections(activeTodos)
+      case 'deadline':
+        return buildDeadlineSections(activeTodos)
       case 'people':
         return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds)
       case 'tag':
@@ -636,6 +677,44 @@ export function ListView() {
     setShowSaveViewDialog(false)
     setSaveViewName('')
   }, [saveViewName, saveCurrentView, listSortBy, filters])
+
+  const handleSavePreset = useCallback(() => {
+    setSavePresetName('')
+    setSavePresetPin(true)
+    setSavePresetError('')
+    setShowSavePresetDialog(true)
+  }, [])
+
+  const handleSaveEditedPreset = useCallback(async () => {
+    if (editingListDefId == null) return
+    const def = allListDefinitions.find((d) => d.id === editingListDefId)
+    if (!def) { clearEditingListDef(); return }
+    await updateListDefinition({
+      ...def,
+      membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
+      sort: { kind: 'sortBy', by: listSortBy },
+      grouping: { kind: 'by-sortBy' },
+    })
+    clearEditingListDef()
+  }, [editingListDefId, allListDefinitions, updateListDefinition, filters, listSortBy, clearEditingListDef])
+
+  const handleConfirmSavePreset = useCallback(async () => {
+    const name = savePresetName.trim()
+    if (!name) return
+    try {
+      await addListDefinition({
+        name,
+        membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
+        sort: { kind: 'sortBy', by: listSortBy },
+        grouping: { kind: 'by-sortBy' },
+        pinnedToDashboard: savePresetPin,
+      })
+      setShowSavePresetDialog(false)
+      setSavePresetName('')
+    } catch (e) {
+      setSavePresetError((e as Error).message)
+    }
+  }, [savePresetName, savePresetPin, addListDefinition, filters, listSortBy])
 
   const handleStartRename = useCallback((id: number, currentName: string) => {
     setRenamingViewId(id)
@@ -797,6 +876,16 @@ export function ListView() {
             <div className={styles.pageSubtitle}>{totalActive} active tasks</div>
           </div>
 
+          {editingListDefId !== null && (
+            <div className={styles.editingPresetBanner}>
+              <span className={styles.editingPresetLabel}>
+                Editing preset <strong>{editingListDefName ?? '…'}</strong>
+              </span>
+              <button className={styles.editingPresetSave} onClick={handleSaveEditedPreset}>Save changes</button>
+              <button className={styles.editingPresetCancel} onClick={clearEditingListDef}>Cancel</button>
+            </div>
+          )}
+
           {savedViews.length > 0 && (
             <DndContext key={viewReorderKey} sensors={viewSortSensors} collisionDetection={closestCenter} onDragEnd={handleViewDragEnd}>
               <SortableContext items={savedViewIds} strategy={horizontalListSortingStrategy}>
@@ -846,6 +935,13 @@ export function ListView() {
               title="Save current view"
             >
               Save View
+            </button>
+            <button
+              className={styles.saveViewButton}
+              onClick={handleSavePreset}
+              title="Save as a Dashboard / Canvas preset list"
+            >
+              Save as Preset
             </button>
             <button
               className={styles.exportButton}
@@ -969,6 +1065,41 @@ export function ListView() {
             <div className={styles.dialogActions}>
               <button className={styles.dialogCancel} onClick={() => setShowSaveViewDialog(false)}>Cancel</button>
               <button className={styles.dialogConfirm} onClick={handleConfirmSaveView} disabled={!saveViewName.trim()}>Save</button>
+            </div>
+          </div>
+        </>
+      )}
+      {showSavePresetDialog && (
+        <>
+          <div className={styles.dialogBackdrop} onClick={() => setShowSavePresetDialog(false)} />
+          <div className={styles.dialog}>
+            <div className={styles.dialogTitle}>Save as Preset</div>
+            <div className={styles.dialogHint}>
+              Captures current filters + grouping as a reusable list, available on the Dashboard and as a canvas inset.
+            </div>
+            <input
+              className={styles.dialogInput}
+              value={savePresetName}
+              onChange={(e) => { setSavePresetName(e.target.value); setSavePresetError('') }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleConfirmSavePreset()
+                if (e.key === 'Escape') setShowSavePresetDialog(false)
+              }}
+              placeholder="Preset name"
+              autoFocus
+            />
+            <label className={styles.dialogToggle}>
+              <input
+                type="checkbox"
+                checked={savePresetPin}
+                onChange={(e) => setSavePresetPin(e.target.checked)}
+              />
+              Pin to Dashboard
+            </label>
+            {savePresetError && <div className={styles.dialogError}>{savePresetError}</div>}
+            <div className={styles.dialogActions}>
+              <button className={styles.dialogCancel} onClick={() => setShowSavePresetDialog(false)}>Cancel</button>
+              <button className={styles.dialogConfirm} onClick={handleConfirmSavePreset} disabled={!savePresetName.trim()}>Save</button>
             </div>
           </div>
         </>

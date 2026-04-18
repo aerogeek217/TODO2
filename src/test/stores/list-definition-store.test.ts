@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { criteriaToPredicate, predicateToCriteria, matchesFilter } from '../../stores/filter-store'
+import { buildDashboardLists } from '../../services/dashboard-lists'
+import type { PersistedTodoItem, TodoPredicate } from '../../models'
 
 beforeEach(async () => {
   await db.delete()
@@ -146,5 +149,111 @@ describe('useListDefinitionStore mutations', () => {
     await expect(
       useListDefinitionStore.getState().rename(id, '   '),
     ).rejects.toThrow(/Name is required/)
+  })
+})
+
+function makeTodo(o: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
+  return {
+    title: 'Task ' + o.id,
+    isCompleted: false,
+    createdAt: new Date('2026-04-18T00:00:00Z'),
+    modifiedAt: new Date('2026-04-18T00:00:00Z'),
+    sortOrder: 0,
+    ...o,
+  }
+}
+
+describe('Save-as-preset round-trip', () => {
+  it('persists a custom predicate from filter criteria and evaluates correctly', async () => {
+    const original = {
+      ...predicateToCriteria(emptyPredicate()),
+      personIds: new Set([7]),
+      tagIds: new Set([2]),
+    }
+    const predicate: TodoPredicate = criteriaToPredicate(original)
+
+    const id = await useListDefinitionStore.getState().add({
+      name: "Alice's tasks",
+      membership: { kind: 'custom', predicate },
+      sort: { kind: 'sortBy', by: 'date' },
+      grouping: { kind: 'by-sortBy' },
+      pinnedToDashboard: true,
+    })
+
+    // Reload from DB to confirm persistence (no in-memory shortcut).
+    useListDefinitionStore.setState({ listDefinitions: [] })
+    await useListDefinitionStore.getState().load()
+    const reloaded = useListDefinitionStore.getState().listDefinitions.find(d => d.id === id)
+    expect(reloaded).toBeDefined()
+    expect(reloaded!.membership.kind).toBe('custom')
+    if (reloaded!.membership.kind === 'custom') {
+      expect(reloaded!.membership.predicate.personIds).toEqual([7])
+      expect(reloaded!.membership.predicate.tagIds).toEqual([2])
+    }
+    expect(reloaded!.sort).toEqual({ kind: 'sortBy', by: 'date' })
+    expect(reloaded!.grouping).toEqual({ kind: 'by-sortBy' })
+
+    // Round-trip predicate evaluation: matchesFilter via the dashboard interpreter.
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1 }),                                  // unassigned + untagged
+      makeTodo({ id: 2 }),                                  // person=7, tag=2
+      makeTodo({ id: 3 }),                                  // person=7, tag=99
+    ]
+    const personMap = new Map<number, number[]>([
+      [2, [7]], [3, [7]],
+    ])
+    const tagMap = new Map<number, number[]>([
+      [2, [2]], [3, [99]],
+    ])
+
+    const lists = buildDashboardLists([reloaded!], todos, {
+      today: new Date('2026-04-18T00:00:00Z'),
+      hiddenStatusIds: new Set(),
+      showHiddenStatuses: false,
+      showCompleted: false,
+      evalPredicate: (predicate, todo) => {
+        const criteria = predicateToCriteria(predicate)
+        return matchesFilter(criteria, todo, personMap.get(todo.id), tagMap.get(todo.id))
+      },
+    })
+
+    expect(lists).toHaveLength(1)
+    const ids = lists[0].todos.map(t => t.id).sort()
+    expect(ids).toEqual([2])  // only id=2 has BOTH person=7 AND tag=2
+  })
+
+  it('updateListDefinition mirrors a "save edited preset" flow', async () => {
+    const initialPredicate = criteriaToPredicate({
+      ...predicateToCriteria(emptyPredicate()),
+      tagIds: new Set([1]),
+    })
+    const id = await useListDefinitionStore.getState().add({
+      name: 'My preset',
+      membership: { kind: 'custom', predicate: initialPredicate },
+      sort: { kind: 'sortBy', by: 'date' },
+      grouping: { kind: 'by-sortBy' },
+    })
+
+    // Simulate a user editing in ListView and saving back: build a new predicate
+    // from edited criteria and call update().
+    const edited = criteriaToPredicate({
+      ...predicateToCriteria(emptyPredicate()),
+      tagIds: new Set([1, 2]),  // added a second tag
+      showCompleted: true,
+    })
+    const def = useListDefinitionStore.getState().listDefinitions.find(d => d.id === id)!
+    await useListDefinitionStore.getState().update({
+      ...def,
+      membership: { kind: 'custom', predicate: edited },
+    })
+
+    useListDefinitionStore.setState({ listDefinitions: [] })
+    await useListDefinitionStore.getState().load()
+    const after = useListDefinitionStore.getState().listDefinitions.find(d => d.id === id)
+    expect(after).toBeDefined()
+    if (after!.membership.kind === 'custom') {
+      expect(after!.membership.predicate.tagIds).toEqual([1, 2])
+      expect(after!.membership.predicate.showCompleted).toBe(true)
+    }
   })
 })
