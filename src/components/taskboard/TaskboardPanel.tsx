@@ -31,11 +31,10 @@ interface SortableEntryProps {
   todo: PersistedTodoItem
   assignedPeople: import('../../models').Person[] | undefined
   assignedTags: import('../../models').Tag[] | undefined
-  onRemove: (todoId: number) => void
   onOpenDetail: (todoId: number) => void
 }
 
-function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onRemove, onOpenDetail }: SortableEntryProps) {
+function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onOpenDetail }: SortableEntryProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entryId })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -45,13 +44,12 @@ function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onR
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} compact onOpenDetail={onOpenDetail} />
       </div>
-      <button className={styles.removeBtn} onClick={(e) => { e.stopPropagation(); onRemove(todo.id) }} title="Remove from taskboard">&times;</button>
     </div>
   )
 }
 
 export function TaskboardPanel() {
-  const { entries, remove, reorder } = useTaskboardStore()
+  const { entries, reorder } = useTaskboardStore()
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
@@ -93,7 +91,6 @@ export function TaskboardPanel() {
     }
   }, [entries, reorder])
 
-  const handleRemove = useCallback((todoId: number) => { remove(todoId) }, [remove])
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
 
   return (
@@ -124,7 +121,6 @@ export function TaskboardPanel() {
                       todo={todo}
                       assignedPeople={assignedPeopleMap.get(todo.id)}
                       assignedTags={assignedTagsMap.get(todo.id)}
-                      onRemove={handleRemove}
                       onOpenDetail={handleOpenDetail}
                     />
                   )

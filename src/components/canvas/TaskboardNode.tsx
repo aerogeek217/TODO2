@@ -8,7 +8,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { TaskRow } from '../task/TaskRow'
 import styles from './TaskboardNode.module.css'
 
@@ -47,10 +46,6 @@ function SortableTaskboardEntry({
     data: { type: 'taskboard-task', todo, entryId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
-  const handleRemove = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    useTaskboardStore.getState().remove(todo.id)
-  }, [todo.id])
 
   return (
     <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
@@ -58,7 +53,6 @@ function SortableTaskboardEntry({
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} ghost={ghost} compact onOpenDetail={onOpenDetail} />
       </div>
-      <button className={styles.removeBtn} onClick={handleRemove} title="Remove from taskboard">&times;</button>
     </div>
   )
 }
