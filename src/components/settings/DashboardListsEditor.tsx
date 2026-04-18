@@ -16,7 +16,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -25,12 +25,10 @@ import { useFilterStore, predicateToCriteria } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
 import type {
   ListGrouping,
-  ListMembership,
   ListSort,
   PersistedListDefinition,
 } from '../../models/list-definition'
 import type { ListGroupBy, ListItemSortBy, ListSortBy, TodoPredicate } from '../../models'
-import { WARNING_WINDOW_DAYS } from '../../services/dashboard-lists'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -42,14 +40,6 @@ interface EditState {
 interface Props {
   onClose: () => void
 }
-
-const MEMBERSHIP_KINDS: { value: ListMembership['kind']; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'upcoming', label: 'Upcoming' },
-  { value: 'deadlines', label: 'Deadlines' },
-  { value: 'someday', label: 'Someday' },
-  { value: 'custom', label: 'Custom' },
-]
 
 const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
   { value: 'effective-date-asc', label: 'Effective date' },
@@ -99,23 +89,6 @@ function resolveItemSortBy(def: PersistedListDefinition): ListItemSortBy {
     return 'manual'
   }
   return 'manual'
-}
-
-function membershipLabel(m: ListMembership): string {
-  switch (m.kind) {
-    case 'today': {
-      const win = m.warningWindowDays
-      return win !== undefined ? `Today (+${win}d)` : 'Today'
-    }
-    case 'upcoming':
-      return 'Upcoming'
-    case 'deadlines':
-      return 'Deadlines'
-    case 'someday':
-      return 'Someday'
-    case 'custom':
-      return 'Custom'
-  }
 }
 
 interface PredicateChip {
@@ -198,41 +171,7 @@ function ConfigPanel({
   onEditInListView: (def: PersistedListDefinition) => void
   onClose: () => void
 }) {
-  const chips = usePredicateChips(
-    def.membership.kind === 'custom' ? def.membership.predicate : emptyPredicate(),
-  )
-
-  const setMembershipKind = (kind: ListMembership['kind']) => {
-    if (kind === def.membership.kind) return
-    let next: ListMembership
-    switch (kind) {
-      case 'today':
-        next = { kind: 'today' }
-        break
-      case 'upcoming':
-        next = { kind: 'upcoming' }
-        break
-      case 'deadlines':
-        next = { kind: 'deadlines' }
-        break
-      case 'someday':
-        next = { kind: 'someday' }
-        break
-      case 'custom':
-        next = { kind: 'custom', predicate: emptyPredicate() }
-        break
-    }
-    onChange({ ...def, membership: next })
-  }
-
-  const setWarningWindow = (raw: string) => {
-    const n = parseInt(raw, 10)
-    if (def.membership.kind !== 'today' && def.membership.kind !== 'upcoming') return
-    const next: ListMembership = isNaN(n) || n < 0
-      ? { kind: def.membership.kind }
-      : { kind: def.membership.kind, warningWindowDays: n }
-    onChange({ ...def, membership: next })
-  }
+  const chips = usePredicateChips(def.membership.predicate)
 
   const setSortKind = (kind: ListSort['kind']) => {
     if (kind === def.sort.kind) return
@@ -268,74 +207,35 @@ function ConfigPanel({
     onChange({ ...def, grouping: { kind: 'by-field', by } })
   }
 
-  const window = (def.membership.kind === 'today' || def.membership.kind === 'upcoming')
-    ? (def.membership.warningWindowDays ?? WARNING_WINDOW_DAYS)
-    : null
-
   return (
     <div className={local.configPanel}>
       <div className={local.configRow}>
-        <span className={local.configLabel}>Membership</span>
-        <div className={local.configButtons}>
-          {MEMBERSHIP_KINDS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`${local.configBtn} ${def.membership.kind === value ? local.configBtnActive : ''}`}
-              onClick={() => setMembershipKind(value)}
-            >
-              {label}
-            </button>
-          ))}
+        <span className={local.configLabel}>Filter</span>
+        <div className={local.predicateBlock}>
+          {chips.length === 0 ? (
+            <span className={local.predicateEmpty}>No filters set — matches all tasks.</span>
+          ) : (
+            <div className={local.chipRow}>
+              {chips.map((c) => (
+                <span
+                  key={c.key}
+                  className={local.predicateChip}
+                  style={c.color ? { borderColor: c.color } : undefined}
+                >
+                  {c.label}
+                </span>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            className={local.editInListBtn}
+            onClick={() => onEditInListView(def)}
+          >
+            Edit in ListView…
+          </button>
         </div>
       </div>
-
-      {window !== null && (
-        <div className={local.configRow}>
-          <span className={local.configLabel}>Warning window</span>
-          <div className={local.windowField}>
-            <input
-              type="number"
-              min={0}
-              max={365}
-              className={local.windowInput}
-              value={window}
-              onChange={(e) => setWarningWindow(e.target.value)}
-            />
-            <span className={local.windowSuffix}>days</span>
-          </div>
-        </div>
-      )}
-
-      {def.membership.kind === 'custom' && (
-        <div className={local.configRow}>
-          <span className={local.configLabel}>Filter</span>
-          <div className={local.predicateBlock}>
-            {chips.length === 0 ? (
-              <span className={local.predicateEmpty}>No filters set — matches all tasks.</span>
-            ) : (
-              <div className={local.chipRow}>
-                {chips.map((c) => (
-                  <span
-                    key={c.key}
-                    className={local.predicateChip}
-                    style={c.color ? { borderColor: c.color } : undefined}
-                  >
-                    {c.label}
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              className={local.editInListBtn}
-              onClick={() => onEditInListView(def)}
-            >
-              Edit in ListView…
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className={local.configRow}>
         <span className={local.configLabel}>Sort</span>
@@ -433,7 +333,6 @@ function SortableRow({
         </svg>
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(def)}>{def.name}</span>
-      <span className={local.kindLabel}>{membershipLabel(def.membership)}</span>
       <button
         type="button"
         className={`${local.configToggle} ${expanded ? local.configToggleActive : ''}`}
@@ -558,7 +457,6 @@ export function DashboardListsEditor({ onClose }: Props) {
   }
 
   const handleEditInListView = (def: PersistedListDefinition) => {
-    if (def.membership.kind !== 'custom') return
     const criteria = predicateToCriteria(def.membership.predicate)
     setAllFilters(criteria)
     setListGroupBy(resolveGroupBy(def))

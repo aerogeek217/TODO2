@@ -2,22 +2,13 @@ import type { ListSortBy } from './app-view'
 import type { TodoPredicate } from './filter-predicate'
 
 /**
- * Serializable predicate DSL for list membership. Grown in v22 with
- * per-list `warningWindowDays` (today bucket) and `custom` (user-defined
- * predicate, see `TodoPredicate`).
+ * Serializable predicate DSL for list membership. Post-v24, the only kind is
+ * `custom` — the former `today` / `upcoming` / `deadlines` / `someday` kinds
+ * were retired when the 5 horizon seeds landed (each horizon is now a custom
+ * predicate authored via `TodoPredicate`). The `kind` discriminator is kept
+ * for forward-compat (future kinds like `saved-search` remain cheap to add).
  */
 export type ListMembership =
-  | {
-      kind: 'today'
-      /**
-       * Days ahead of "today" to pull deadlines into the bucket. Defaults to 3
-       * when omitted (preserves pre-v22 hardcoded `WARNING_WINDOW_DAYS`).
-       */
-      warningWindowDays?: number
-    }
-  | { kind: 'upcoming'; warningWindowDays?: number }
-  | { kind: 'deadlines' }
-  | { kind: 'someday' }
   | { kind: 'custom'; predicate: TodoPredicate }
 
 export type ListSort =

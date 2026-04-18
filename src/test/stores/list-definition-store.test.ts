@@ -26,14 +26,14 @@ describe('useListDefinitionStore load', () => {
     await listDefinitionRepository.insert({
       name: 'B', sortOrder: 2,
       pinnedToDashboard: true,
-      membership: { kind: 'upcoming' },
+      membership: { kind: 'custom', predicate: emptyPredicate() },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'relative-effective' },
     })
     await listDefinitionRepository.insert({
       name: 'A', sortOrder: 1,
       pinnedToDashboard: true,
-      membership: { kind: 'today' },
+      membership: { kind: 'custom', predicate: emptyPredicate() },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'none' },
     })

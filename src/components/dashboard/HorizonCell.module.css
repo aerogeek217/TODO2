@@ -1,0 +1,141 @@
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  min-height: 74px;
+}
+
+.cell:hover {
+  background: var(--color-surface-high);
+  border-color: var(--color-accent-dim);
+}
+
+.cellSelected {
+  background: var(--color-surface-high);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.label {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.01em;
+}
+
+.count {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  min-height: 34px;
+}
+
+.bars {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 2px;
+  height: 34px;
+}
+
+.barCell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  height: 100%;
+  min-width: 6px;
+  position: relative;
+}
+
+.bar,
+.barSelected,
+.barDeadline,
+.barOverdue {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: height 0.18s ease, background 0.18s ease;
+}
+
+.bar { background: color-mix(in oklab, var(--color-text-muted) 50%, transparent); }
+.barSelected { background: var(--color-accent); }
+.barDeadline { background: var(--color-deadline); }
+.barOverdue { background: var(--color-danger); }
+
+.barLabel {
+  display: none;
+}
+
+.barCellToday .bar,
+.barCellToday .barSelected {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.dotCluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  height: 34px;
+  align-content: flex-end;
+}
+
+.dot,
+.dotSelected {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+
+.dot { background: color-mix(in oklab, var(--color-text-muted) 55%, transparent); }
+.dotSelected { background: var(--color-accent); }
+
+.dotMore {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  padding-left: 2px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  min-height: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.flag,
+.overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.flagGlyph { color: var(--color-deadline); }
+.overdueGlyph { color: var(--color-danger); font-size: 7px; }

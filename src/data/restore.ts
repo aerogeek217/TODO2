@@ -3,11 +3,12 @@ import {
   db,
   ensureSeededStatuses,
   ensureSeededListDefinitions,
+  persistHorizonSlots,
   translateTodoV20ToV21,
   buildListDefFromLegacyInset,
 } from './database'
 import type { ImportData, ImportListInset } from './import-validation'
-import { validateImportData } from './import-validation'
+import { validateImportData, isLegacyMembershipKind } from './import-validation'
 import type { ListDefinition } from '../models/list-definition'
 import type { ListInset } from '../models'
 
@@ -97,10 +98,24 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       await db.listInsets.bulkAdd(v.listInsets as unknown as ListInset[])
     }
 
+    // Drop any imported listDefinitions carrying retired v21–v23 membership
+    // kinds (today / upcoming / deadlines / someday). The 5 horizon seeds
+    // below replace them; user-created `custom` rows survive the import.
+    const legacyDefRows = await db.listDefinitions
+      .filter((d) => isLegacyMembershipKind(d.membership.kind))
+      .toArray()
+    if (legacyDefRows.length > 0) {
+      await db.listDefinitions.bulkDelete(legacyDefRows.map((d) => d.id!))
+      console.info(`Restore: dropped ${legacyDefRows.length} legacy-kind listDefinition(s)`)
+    }
+
     // Seed missing defaults (idempotent). ensureSeededStatuses must run before
     // the v19→v20 todo walk below (statusId lookup). Order vs.
     // ensureSeededListDefinitions is a don't-care; we seed list defs first.
-    await ensureSeededListDefinitions(db.listDefinitions)
+    const seededSlots = await ensureSeededListDefinitions(db.listDefinitions)
+    if (Object.keys(seededSlots).length > 0) {
+      await persistHorizonSlots(db.settings, seededSlots)
+    }
     const { assignedId, followupId } = await ensureSeededStatuses(db.statuses, db.settings)
 
     let v20Translated = 0

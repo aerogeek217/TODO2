@@ -19,6 +19,7 @@ import { useFilterStore, matchesFilter, predicateToCriteria, computeFilterPerson
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { TaskRow } from '../components/task/TaskRow'
@@ -27,6 +28,8 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import type { PersistedTodoItem, Person, Tag } from '../models'
 import { startOfToday } from '../utils/date'
 import { buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
+import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
+import { HorizonRibbon } from '../components/dashboard/HorizonRibbon'
 import { TaskboardPanel } from '../components/taskboard/TaskboardPanel'
 import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
@@ -80,6 +83,7 @@ function renderRow(
 
 function DashboardListCard({
   list,
+  variant,
   collapsed,
   onToggleCollapse,
   onOpenDetail,
@@ -88,6 +92,7 @@ function DashboardListCard({
   isMobile,
 }: {
   list: DashboardList
+  variant: 'hero' | 'secondary'
   collapsed: boolean
   onToggleCollapse: (key: string) => void
   onOpenDetail: (todoId: number) => void
@@ -96,14 +101,17 @@ function DashboardListCard({
   isMobile: boolean
 }) {
   return (
-    <div className={`${styles.card} ${styles.listCard}`} data-list-key={list.key}>
+    <div
+      className={`${styles.card} ${styles.listCard} ${variant === 'hero' ? styles.heroCard : ''}`}
+      data-list-key={list.key}
+    >
       <div className={styles.cardHeader} onClick={() => onToggleCollapse(list.key)}>
         <span className={`${styles.chevron} ${collapsed ? styles.chevronCollapsed : ''}`}>&#9662;</span>
-        <span className={styles.cardTitle}>{list.label}</span>
+        <span className={`${styles.cardTitle} ${variant === 'hero' ? styles.cardTitleHero : ''}`}>{list.label}</span>
         <span className={styles.cardCount}>{list.todos.length}</span>
       </div>
       {!collapsed && (
-        <div className={styles.cardBody}>
+        <div className={`${styles.cardBody} ${variant === 'hero' ? styles.cardBodyHero : ''}`}>
           {list.todos.length === 0 ? (
             <div className={styles.empty}>No tasks</div>
           ) : list.groups !== undefined ? (
@@ -137,11 +145,17 @@ export function DashboardView() {
   const showCompleted = useFilterStore((s) => s.filters.showCompleted)
   const { load: loadTaskboard } = useTaskboardStore()
   const { listDefinitions, load: loadDefinitions } = useListDefinitionStore()
+  const horizonSlots = useSettingsStore((s) => s.horizonSlots)
+  const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
+  const setSelectedHorizon = useSettingsStore((s) => s.setSelectedHorizon)
+  const setHorizonSlot = useSettingsStore((s) => s.setHorizonSlot)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
-  const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
+  const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number } | null>(null)
+  const [slotPickerAt, setSlotPickerAt] = useState<{ key: HorizonKey; x: number; y: number } | null>(null)
   const [showEditor, setShowEditor] = useState(false)
 
   const sensors = useSensors(
@@ -184,12 +198,10 @@ export function DashboardView() {
     loadPersonOrgMap()
   }, [loadPersonOrgMap])
 
-  const lists = useMemo<DashboardList[]>(() => {
-    const today = startOfToday()
-    const hiddenStatusIds = new Set(
-      statuses.filter((s) => s.hideByDefault).map((s) => s.id!),
-    )
-    const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
+  const today = useMemo(() => startOfToday(), [])
+
+  const evalPredicate = useCallback(
+    (predicate: TodoPredicate, todo: PersistedTodoItem) => {
       const criteria = predicateToCriteria(predicate)
       const people = assignedPeopleMap.get(todo.id) ?? []
       const personIds = people.map((p) => p.id!)
@@ -198,7 +210,16 @@ export function DashboardView() {
       const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
       const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
       return matchesFilter(criteria, todo, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
-    }
+    },
+    [assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses, today],
+  )
+
+  // Compute every pinned list's rendered output. Hero and secondary grid both
+  // read from this — the ribbon's tasks-by-horizon derives from the same source.
+  const lists = useMemo<DashboardList[]>(() => {
+    const hiddenStatusIds = new Set(
+      statuses.filter((s) => s.hideByDefault).map((s) => s.id!),
+    )
     const pinned = listDefinitions.filter((d) => d.pinnedToDashboard)
     return buildDashboardLists(pinned, todos, {
       today,
@@ -207,7 +228,67 @@ export function DashboardView() {
       showCompleted,
       evalPredicate,
     })
-  }, [listDefinitions, todos, statuses, showHiddenStatuses, showCompleted, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap])
+  }, [listDefinitions, todos, statuses, showHiddenStatuses, showCompleted, today, evalPredicate])
+
+  const listsById = useMemo(() => {
+    const map = new Map<number, DashboardList>()
+    for (const l of lists) map.set(l.id, l)
+    return map
+  }, [lists])
+
+  // Horizon → rendered list (may be null if slot unmapped or def deleted).
+  const horizonLists = useMemo(() => {
+    const out: Partial<Record<HorizonKey, DashboardList>> = {}
+    for (const key of HORIZON_KEYS) {
+      const defId = horizonSlots[key]
+      if (defId == null) continue
+      const list = listsById.get(defId)
+      if (list) out[key] = list
+    }
+    return out
+  }, [horizonSlots, listsById])
+
+  const tasksByHorizon = useMemo(() => {
+    const out = {} as Record<HorizonKey, PersistedTodoItem[]>
+    for (const key of HORIZON_KEYS) {
+      out[key] = horizonLists[key]?.todos ?? []
+    }
+    return out
+  }, [horizonLists])
+
+  const labelsByHorizon = useMemo(() => {
+    const out = {} as Record<HorizonKey, string>
+    for (const key of HORIZON_KEYS) {
+      out[key] = horizonLists[key]?.label ?? ''
+    }
+    return out
+  }, [horizonLists])
+
+  const unmappedSlots = useMemo(() => {
+    const s = new Set<HorizonKey>()
+    for (const key of HORIZON_KEYS) {
+      if (!horizonLists[key]) s.add(key)
+    }
+    return s
+  }, [horizonLists])
+
+  const horizonDefIds = useMemo(() => {
+    const s = new Set<number>()
+    for (const key of HORIZON_KEYS) {
+      const id = horizonSlots[key]
+      if (id != null) s.add(id)
+    }
+    return s
+  }, [horizonSlots])
+
+  // User-pinned lists NOT mapped to a horizon.
+  const userLists = useMemo(
+    () => lists.filter((l) => !horizonDefIds.has(l.id)),
+    [lists, horizonDefIds],
+  )
+
+  const heroList = horizonLists[selectedHorizon]
+  const otherHorizons: HorizonKey[] = HORIZON_KEYS.filter((k) => k !== selectedHorizon)
 
   const handleClick = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -217,6 +298,24 @@ export function DashboardView() {
     setCollapsed((s) => ({ ...s, [key]: !s[key] }))
   }, [])
 
+  const openSlotPicker = useCallback((key: HorizonKey) => {
+    // Fallback position when triggered from a non-placeholder cell (keyboard).
+    const el = document.querySelector(`[data-horizon="${key}"]`) as HTMLElement | null
+    const rect = el?.getBoundingClientRect()
+    setSlotPickerAt({
+      key,
+      x: rect?.left ?? 40,
+      y: (rect?.bottom ?? 80) + 4,
+    })
+  }, [])
+
+  const handleSlotPick = useCallback(async (listDefinitionId: number) => {
+    if (slotPickerAt) {
+      await setHorizonSlot(slotPickerAt.key, listDefinitionId)
+      setSlotPickerAt(null)
+    }
+  }, [slotPickerAt, setHorizonSlot])
+
   const pageContent = (
     <>
       <div className={styles.page}>
@@ -225,38 +324,98 @@ export function DashboardView() {
             <div className={styles.pageTitle}>Dashboard</div>
           </div>
 
+          <HorizonRibbon
+            tasksByHorizon={tasksByHorizon}
+            labelsByHorizon={labelsByHorizon}
+            selectedHorizon={selectedHorizon}
+            today={today}
+            weekStartsOn={weekStartsOn}
+            onSelect={(k) => setSelectedHorizon(k)}
+            onConfigureSlot={openSlotPicker}
+            unmappedSlots={unmappedSlots}
+          />
+
           <div className={styles.taskboardSection}>
             <TaskboardPanel />
           </div>
 
-          <div className={styles.grid}>
-            {lists.map((list) => (
+          {heroList && (
+            <div className={styles.heroSection}>
               <DashboardListCard
-                key={list.key}
-                list={list}
-                collapsed={!!collapsed[list.key]}
+                list={heroList}
+                variant="hero"
+                collapsed={!!collapsed[heroList.key]}
                 onToggleCollapse={toggleSection}
                 onOpenDetail={handleClick}
                 assignedPeopleMap={assignedPeopleMap}
                 assignedTagsMap={assignedTagsMap}
                 isMobile={isMobile}
               />
-            ))}
-            {!isMobile && (
-              <button
-                type="button"
-                className={styles.addTile}
-                onClick={(e) => {
-                  const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-                  setPickerPos({ x: r.left, y: r.bottom + 4 })
-                }}
-                title="Add a list to the dashboard"
-              >
-                <span className={styles.addTileGlyph}>+</span>
-                <span className={styles.addTileLabel}>Add list</span>
-              </button>
-            )}
-          </div>
+            </div>
+          )}
+
+          {otherHorizons.some((k) => horizonLists[k]) && (
+            <>
+              <div className={styles.sectionDivider}>Other horizons</div>
+              <div className={styles.grid}>
+                {otherHorizons.map((key) => {
+                  const list = horizonLists[key]
+                  if (!list) return null
+                  return (
+                    <DashboardListCard
+                      key={list.key}
+                      list={list}
+                      variant="secondary"
+                      collapsed={!!collapsed[list.key]}
+                      onToggleCollapse={toggleSection}
+                      onOpenDetail={handleClick}
+                      assignedPeopleMap={assignedPeopleMap}
+                      assignedTagsMap={assignedTagsMap}
+                      isMobile={isMobile}
+                    />
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {(userLists.length > 0 || !isMobile) && (
+            <>
+              {userLists.length > 0 && (
+                <div className={styles.sectionDivider}>Your lists</div>
+              )}
+              <div className={styles.grid}>
+                {userLists.map((list) => (
+                  <DashboardListCard
+                    key={list.key}
+                    list={list}
+                    variant="secondary"
+                    collapsed={!!collapsed[list.key]}
+                    onToggleCollapse={toggleSection}
+                    onOpenDetail={handleClick}
+                    assignedPeopleMap={assignedPeopleMap}
+                    assignedTagsMap={assignedTagsMap}
+                    isMobile={isMobile}
+                  />
+                ))}
+                {!isMobile && (
+                  <button
+                    type="button"
+                    className={styles.addTile}
+                    onClick={(e) => {
+                      const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                      setAddListPickerPos({ x: r.left, y: r.bottom + 4 })
+                    }}
+                    title="Add a list to the dashboard"
+                  >
+                    <span className={styles.addTileGlyph}>+</span>
+                    <span className={styles.addTileLabel}>Add list</span>
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+
         </div>
 
         {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
@@ -293,12 +452,22 @@ export function DashboardView() {
         )}
       </div>
       <FilteredListPopup />
-      {pickerPos && (
+      {addListPickerPos && (
         <ListDefinitionPickerPopup
-          x={pickerPos.x}
-          y={pickerPos.y}
-          onClose={() => setPickerPos(null)}
+          x={addListPickerPos.x}
+          y={addListPickerPos.y}
+          onClose={() => setAddListPickerPos(null)}
           onCreateNew={() => setShowEditor(true)}
+        />
+      )}
+      {slotPickerAt && (
+        <ListDefinitionPickerPopup
+          x={slotPickerAt.x}
+          y={slotPickerAt.y}
+          mode="canvas"
+          onClose={() => setSlotPickerAt(null)}
+          onSelect={handleSlotPick}
+          onCreateNew={() => { setShowEditor(true); setSlotPickerAt(null) }}
         />
       )}
       {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}

@@ -13,7 +13,28 @@ import { useUIStore } from '../../stores/ui-store'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
+import type { TodoPredicate } from '../../models'
 import { makeTodo } from '../helpers'
+
+function emptyPredicate(): TodoPredicate {
+  return {
+    showCompleted: false,
+    showHiddenStatuses: false,
+    personIds: null,
+    personFilterMode: 'include-orgs',
+    tagIds: null,
+    orgIds: null,
+    orgFilterMode: 'include-people',
+    statusIds: null,
+    searchText: '',
+    dateField: 'date',
+    dateRangeStart: null,
+    dateRangeEnd: null,
+    dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
+  }
+}
 
 // Repositories touched by effect-driven loads: no-op them so tests drive stores directly.
 vi.mock('../../data/list-definition-repository', () => ({
@@ -72,7 +93,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     name: 'List',
     sortOrder: 0,
     pinnedToDashboard: true,
-    membership: { kind: 'someday' },
+    membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: { kind: 'sort-order' },
     grouping: { kind: 'none' },
     ...overrides,
@@ -158,19 +179,19 @@ describe('DashboardView', () => {
   it('renders one card per list definition', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        makeDef({ id: 1, name: 'Today', membership: { kind: 'today' }, sortOrder: 0 }),
-        makeDef({ id: 2, name: 'Upcoming', membership: { kind: 'upcoming' }, sortOrder: 1 }),
-        makeDef({ id: 3, name: 'Deadlines', membership: { kind: 'deadlines' }, sortOrder: 2 }),
-        makeDef({ id: 4, name: 'Someday', membership: { kind: 'someday' }, sortOrder: 3 }),
+        makeDef({ id: 1, name: 'Deck One', sortOrder: 0 }),
+        makeDef({ id: 2, name: 'Deck Two', sortOrder: 1 }),
+        makeDef({ id: 3, name: 'Deck Three', sortOrder: 2 }),
+        makeDef({ id: 4, name: 'Deck Four', sortOrder: 3 }),
       ],
     })
     const { container } = render(<DashboardView />)
     const cards = container.querySelectorAll('[data-list-key]')
     expect(cards.length).toBe(4)
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Upcoming')).toBeInTheDocument()
-    expect(screen.getByText('Deadlines')).toBeInTheDocument()
-    expect(screen.getByText('Someday')).toBeInTheDocument()
+    expect(screen.getByText('Deck One')).toBeInTheDocument()
+    expect(screen.getByText('Deck Two')).toBeInTheDocument()
+    expect(screen.getByText('Deck Three')).toBeInTheDocument()
+    expect(screen.getByText('Deck Four')).toBeInTheDocument()
   })
 
   it('renders group labels when a list uses relative-effective grouping', () => {
@@ -179,7 +200,6 @@ describe('DashboardView', () => {
         makeDef({
           id: 1,
           name: 'Upcoming',
-          membership: { kind: 'upcoming' },
           sort: { kind: 'effective-date-asc' },
           grouping: { kind: 'relative-effective' },
           sortOrder: 0,
@@ -208,10 +228,10 @@ describe('DashboardView', () => {
   it('reflects listDefinitions sortOrder in rendered card order', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        makeDef({ id: 1, name: 'Today', membership: { kind: 'today' }, sortOrder: 0 }),
-        makeDef({ id: 2, name: 'Upcoming', membership: { kind: 'upcoming' }, sortOrder: 1 }),
-        makeDef({ id: 3, name: 'Deadlines', membership: { kind: 'deadlines' }, sortOrder: 2 }),
-        makeDef({ id: 4, name: 'Someday', membership: { kind: 'someday' }, sortOrder: 3 }),
+        makeDef({ id: 1, name: 'Today', sortOrder: 0 }),
+        makeDef({ id: 2, name: 'Upcoming', sortOrder: 1 }),
+        makeDef({ id: 3, name: 'Deadlines', sortOrder: 2 }),
+        makeDef({ id: 4, name: 'Someday', sortOrder: 3 }),
       ],
     })
     const { container } = render(<DashboardView />)

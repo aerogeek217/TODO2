@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { settingsRepository } from '../data'
 import { isValidCssColor } from '../data/import-validation'
+import { parseHorizonSlots } from '../data/database'
 import { setConfiguredWeekStart, type WeekStart } from '../utils/effective-date'
+import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
 import type { CanvasViewport } from './ui-store'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -39,6 +41,12 @@ interface SettingsState {
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
   canvasViewport: CanvasViewport | null
+  /** HorizonKey → `ListDefinition.id` the ribbon cell renders. */
+  horizonSlots: Partial<Record<HorizonKey, number>>
+  /** Which horizon cell is currently selected (drives the hero card). */
+  selectedHorizon: HorizonKey
+  /** Per-horizon collapse toggle (Phase 5 wires the UI). */
+  horizonCollapsed: Partial<Record<HorizonKey, boolean>>
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -50,6 +58,9 @@ interface SettingsState {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setCanvasViewport: (vp: CanvasViewport) => void
+  setHorizonSlot: (key: HorizonKey, listDefinitionId: number | null) => Promise<void>
+  setSelectedHorizon: (key: HorizonKey) => Promise<void>
+  setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -153,6 +164,26 @@ function isValidWeekStart(n: unknown): n is WeekStart {
   return n === 0 || n === 1
 }
 
+function isValidHorizonKey(v: unknown): v is HorizonKey {
+  return typeof v === 'string' && (HORIZON_KEYS as readonly string[]).includes(v)
+}
+
+function parseHorizonCollapsed(value: string | undefined | null): Partial<Record<HorizonKey, boolean>> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!parsed || typeof parsed !== 'object') return {}
+    const out: Partial<Record<HorizonKey, boolean>> = {}
+    for (const key of HORIZON_KEYS) {
+      const v = (parsed as Record<string, unknown>)[key]
+      if (typeof v === 'boolean') out[key] = v
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
 /** Track which color keys have user-customized values in IndexedDB */
 let customizedColorKeys = new Set<string>()
 let vpPersistTimer: ReturnType<typeof setTimeout> | undefined
@@ -169,6 +200,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
   canvasViewport: null,
+  horizonSlots: {},
+  selectedHorizon: 'thisweek' as HorizonKey,
+  horizonCollapsed: {},
 
   async load() {
     try {
@@ -184,6 +218,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
       let canvasViewport: CanvasViewport | null = null
+      let horizonSlots: Partial<Record<HorizonKey, number>> = {}
+      let selectedHorizon: HorizonKey = 'thisweek'
+      let horizonCollapsed: Partial<Record<HorizonKey, boolean>> = {}
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -216,11 +253,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
               canvasViewport = { x: parsed.x, y: parsed.y, zoom: parsed.zoom }
             }
           } catch { /* ignore invalid JSON */ }
+        } else if (row.key === 'horizonSlots') {
+          horizonSlots = parseHorizonSlots(row.value)
+        } else if (row.key === 'selectedHorizon') {
+          if (isValidHorizonKey(row.value)) selectedHorizon = row.value
+        } else if (row.key === 'horizonCollapsed') {
+          horizonCollapsed = parseHorizonCollapsed(row.value)
         }
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -297,6 +340,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await settingsRepository.put('completedRetentionDays', String(days))
     }
     set({ completedRetentionDays: days })
+  },
+
+  async setHorizonSlot(key: HorizonKey, listDefinitionId: number | null) {
+    const next = { ...get().horizonSlots }
+    if (listDefinitionId == null) delete next[key]
+    else next[key] = listDefinitionId
+    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    set({ horizonSlots: next })
+  },
+
+  async setSelectedHorizon(key: HorizonKey) {
+    if (!isValidHorizonKey(key)) return
+    await settingsRepository.put('selectedHorizon', key)
+    set({ selectedHorizon: key })
+  },
+
+  async setHorizonCollapsed(key: HorizonKey, collapsed: boolean) {
+    const next = { ...get().horizonCollapsed }
+    if (collapsed) next[key] = true
+    else delete next[key]
+    await settingsRepository.put('horizonCollapsed', JSON.stringify(next))
+    set({ horizonCollapsed: next })
   },
 
   setCanvasViewport(vp: CanvasViewport) {

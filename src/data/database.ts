@@ -1,6 +1,8 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
 import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
 import type { ListDefinition } from '../models/list-definition'
+import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
+import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
 
 export interface SettingRow {
   key: string
@@ -96,6 +98,16 @@ export class Todo2Database extends Dexie {
     // freshly-created (unpinned) `ListDefinition`.
     this.version(23).stores({}).upgrade(async (tx) => {
       await runV23Migration(tx)
+    })
+
+    // v24: horizon-ribbon reseed — retire the today/upcoming/deadlines/someday
+    // ListMembership kinds; clear listDefinitions and reseed with 5 horizon
+    // custom-predicate defs (ThisWeek / NextWeek / RestOfMonth / Later /
+    // Someday); write the `horizonSlots` setting mapping each horizon to the
+    // new def id. No users on this branch at the time of the migration, so
+    // clearing is acceptable.
+    this.version(24).stores({}).upgrade(async (tx) => {
+      await runV24Migration(tx)
     })
   }
 }
@@ -265,60 +277,164 @@ export async function runV21Migration(tx: Transaction): Promise<void> {
   )
 }
 
+/** Base predicate for horizon seeds — inherits standard completed/hidden gates. */
+function basePredicate(): TodoPredicate {
+  return {
+    showCompleted: false,
+    showHiddenStatuses: false,
+    personIds: null,
+    personFilterMode: 'include-orgs',
+    tagIds: null,
+    orgIds: null,
+    orgFilterMode: 'include-people',
+    statusIds: null,
+    searchText: '',
+    dateField: 'date',
+    dateRangeStart: null,
+    dateRangeEnd: null,
+    dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
+  }
+}
+
+function relAnchor(token: Extract<DateAnchor, { kind: 'relative' }>['token']): DateAnchor {
+  return { kind: 'relative', token }
+}
+
 /**
- * Seeds the four default list definitions (Today / Upcoming / Deadlines /
- * Someday) iff the `listDefinitions` table is empty. Post-v22, the defaults
- * are just normal rows — if the user deletes them they stay deleted; if the
- * user renames them the rename persists.
+ * Seed configuration for the 5 horizon list-definitions. Rendered on the
+ * dashboard ribbon; each maps to a slot in `settings.horizonSlots`.
+ */
+interface HorizonSeed {
+  horizonKey: HorizonKey
+  def: Omit<ListDefinition, 'id'>
+}
+
+function horizonSeeds(): HorizonSeed[] {
+  return [
+    {
+      horizonKey: 'thisweek',
+      def: {
+        name: 'This week',
+        sortOrder: 0,
+        pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            ...basePredicate(),
+            dateField: 'date',
+            dateRangeStart: relAnchor('start-of-week'),
+            dateRangeEnd: relAnchor('end-of-week'),
+          },
+        },
+        sort: { kind: 'effective-date-asc' },
+        grouping: { kind: 'none' },
+      },
+    },
+    {
+      horizonKey: 'nextweek',
+      def: {
+        name: 'Next week',
+        sortOrder: 1,
+        pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            ...basePredicate(),
+            dateField: 'date',
+            dateRangeStart: relAnchor('start-of-next-week'),
+            dateRangeEnd: relAnchor('end-of-next-week'),
+          },
+        },
+        sort: { kind: 'effective-date-asc' },
+        grouping: { kind: 'none' },
+      },
+    },
+    {
+      horizonKey: 'thismonth',
+      def: {
+        name: 'Rest of month',
+        sortOrder: 2,
+        pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            ...basePredicate(),
+            dateField: 'date',
+            dateRangeStart: relAnchor('tomorrow'),
+            dateRangeEnd: relAnchor('end-of-month'),
+          },
+        },
+        sort: { kind: 'effective-date-asc' },
+        grouping: { kind: 'none' },
+      },
+    },
+    {
+      horizonKey: 'later',
+      def: {
+        name: 'Later',
+        sortOrder: 3,
+        pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            ...basePredicate(),
+            dateField: 'date',
+            dateRangeStart: relAnchor('start-of-next-month'),
+            dateRangeEnd: relAnchor('end-of-month-plus-3'),
+          },
+        },
+        sort: { kind: 'effective-date-asc' },
+        grouping: { kind: 'relative-effective' },
+      },
+    },
+    {
+      horizonKey: 'someday',
+      def: {
+        name: 'Someday',
+        sortOrder: 4,
+        pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            ...basePredicate(),
+            hasScheduled: false,
+            hasDeadline: false,
+          },
+        },
+        sort: { kind: 'sort-order' },
+        grouping: { kind: 'none' },
+      },
+    },
+  ]
+}
+
+/**
+ * Seeds the 5 horizon list definitions iff the `listDefinitions` table is
+ * empty. Returns a `HorizonKey → new id` map when seeding happens; returns
+ * an empty object when the table is non-empty (caller should load existing
+ * `horizonSlots` from settings).
  *
- * Used by `runV21Migration` (initial creation), `runV22Migration` (no-op when
- * v21 already seeded), and `restoreFromImportData` (backfill when an import
- * lacks a `listDefinitions` table).
+ * Post-v24, the seeds are just normal rows — if the user deletes them they
+ * stay deleted; if the user renames them the rename persists.
+ *
+ * Used by `runV24Migration` (initial creation after clear), `runV21Migration`
+ * and `runV22Migration` (no-op now that v24 always reseeds), and
+ * `restoreFromImportData` (after clear).
  */
 export async function ensureSeededListDefinitions(
   table: Table<ListDefinition, number>,
-): Promise<void> {
+): Promise<Partial<Record<HorizonKey, number>>> {
   const count = await table.count()
-  if (count > 0) return
+  if (count > 0) return {}
 
-  const seeds: Omit<ListDefinition, 'id'>[] = [
-    {
-      name: 'Today',
-      sortOrder: 0,
-      pinnedToDashboard: true,
-      membership: { kind: 'today' },
-      sort: { kind: 'effective-date-asc' },
-      grouping: { kind: 'none' },
-    },
-    {
-      name: 'Upcoming',
-      sortOrder: 1,
-      pinnedToDashboard: true,
-      membership: { kind: 'upcoming' },
-      sort: { kind: 'effective-date-asc' },
-      grouping: { kind: 'relative-effective' },
-    },
-    {
-      name: 'Deadlines',
-      sortOrder: 2,
-      pinnedToDashboard: true,
-      membership: { kind: 'deadlines' },
-      sort: { kind: 'deadline-asc' },
-      grouping: { kind: 'relative-deadline' },
-    },
-    {
-      name: 'Someday',
-      sortOrder: 3,
-      pinnedToDashboard: true,
-      membership: { kind: 'someday' },
-      sort: { kind: 'sort-order' },
-      grouping: { kind: 'none' },
-    },
-  ]
-
-  for (const seed of seeds) {
-    await table.add(seed as ListDefinition)
+  const slots: Partial<Record<HorizonKey, number>> = {}
+  for (const { horizonKey, def } of horizonSeeds()) {
+    const id = (await table.add(def as ListDefinition)) as number
+    slots[horizonKey] = id
   }
+  return slots
 }
 
 /**
@@ -482,6 +598,54 @@ export async function runV23Migration(tx: Transaction): Promise<void> {
   if (toDelete.length > 0) {
     await listInsetsTable.bulkDelete(toDelete)
     console.info(`v23 migration: dropped ${toDelete.length} corrupt list inset(s)`)
+  }
+}
+
+/**
+ * v24 upgrade: retire the 4 legacy horizon kinds; clear `listDefinitions` and
+ * reseed with 5 horizon custom-predicate defs; persist the resulting
+ * `HorizonKey → id` mapping in the `horizonSlots` setting. Safe because the
+ * feature branch has no production users.
+ */
+export async function runV24Migration(tx: Transaction): Promise<void> {
+  const listDefsTable = tx.table<ListDefinition>('listDefinitions')
+  const settingsTable = tx.table<SettingRow>('settings')
+
+  await listDefsTable.clear()
+  const slots = await ensureSeededListDefinitions(listDefsTable)
+  await persistHorizonSlots(settingsTable, slots)
+}
+
+/**
+ * Writes `settings.horizonSlots` as JSON (one row). `null` values allowed so
+ * the caller can explicitly un-map a slot to surface the "Configure horizon…"
+ * placeholder in the ribbon.
+ */
+export async function persistHorizonSlots(
+  settingsTable: Table<SettingRow, string>,
+  slots: Partial<Record<HorizonKey, number | null>>,
+): Promise<void> {
+  await settingsTable.put({ key: 'horizonSlots', value: JSON.stringify(slots) })
+}
+
+/**
+ * Parse `settings.horizonSlots`. Returns `{}` when absent / invalid. Invalid
+ * slot keys are silently dropped (never throw — a bad settings row should not
+ * break dashboard rendering).
+ */
+export function parseHorizonSlots(value: string | undefined | null): Partial<Record<HorizonKey, number>> {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!parsed || typeof parsed !== 'object') return {}
+    const out: Partial<Record<HorizonKey, number>> = {}
+    for (const key of HORIZON_KEYS) {
+      const v = (parsed as Record<string, unknown>)[key]
+      if (typeof v === 'number' && Number.isFinite(v)) out[key] = v
+    }
+    return out
+  } catch {
+    return {}
   }
 }
 

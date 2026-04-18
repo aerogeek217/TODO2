@@ -136,7 +136,17 @@ function checkTodo(v: unknown): CheckResult {
   ])
 }
 
+/**
+ * Post-v24 the only valid kind is `custom`. Legacy kinds are still *accepted*
+ * here (so v21-v23 exports can be loaded) but `restoreFromImportData` drops
+ * any listDefinition with a legacy kind after bulkAdd — the 5 horizon seeds
+ * replace them.
+ */
 const VALID_LIST_MEMBERSHIP_KINDS = ['today', 'upcoming', 'deadlines', 'someday', 'custom']
+const LEGACY_LIST_MEMBERSHIP_KINDS = ['today', 'upcoming', 'deadlines', 'someday']
+export function isLegacyMembershipKind(kind: string): boolean {
+  return LEGACY_LIST_MEMBERSHIP_KINDS.includes(kind)
+}
 const VALID_LIST_SORT_KINDS = ['effective-date-asc', 'deadline-asc', 'sort-order', 'sortBy']
 const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadline', 'by-sortBy', 'by-field']
 // v22→v21 back-compat: old exports may still carry `seededKey`; accepted but
@@ -428,7 +438,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed']
 
 function isValidSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')

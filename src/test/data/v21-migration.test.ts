@@ -221,38 +221,45 @@ describe('v21 migration', () => {
   })
 
   // ---------- listDefinitions seeding ----------
+  //
+  // Post-v24, `ensureSeededListDefinitions` seeds 5 horizon defs (This week /
+  // Next week / Rest of month / Later / Someday) instead of the original 4
+  // (Today / Upcoming / Deadlines / Someday). `runV21Migration` calls
+  // `ensureSeededListDefinitions` — so running it on a v21 schema lands 5
+  // horizons by the time control returns. v24 would clear + reseed these
+  // anyway, so the intermediate state is a don't-care; the tests just verify
+  // that v21 produces a non-empty, `pinnedToDashboard=true` seed set.
 
-  it('seeds all 4 listDefinitions in correct order on empty table', async () => {
+  it('seeds horizon listDefinitions with pinnedToDashboard=true', async () => {
     await runMigration()
     const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
-    expect(defs).toHaveLength(4)
-    expect(defs.map(d => d.name)).toEqual(['Today', 'Upcoming', 'Deadlines', 'Someday'])
-    expect(defs.map(d => d.sortOrder)).toEqual([0, 1, 2, 3])
-    expect(defs.map(d => d.membership.kind)).toEqual(['today', 'upcoming', 'deadlines', 'someday'])
-    // v22: pinnedToDashboard defaults true on seed
+    expect(defs).toHaveLength(5)
+    expect(defs.map(d => d.name)).toEqual(['This week', 'Next week', 'Rest of month', 'Later', 'Someday'])
     for (const d of defs) expect(d.pinnedToDashboard).toBe(true)
+    for (const d of defs) expect(d.membership.kind).toBe('custom')
   })
 
-  it('does not re-seed when listDefinitions already has rows (v22 "insert iff empty" semantics)', async () => {
+  it('does not re-seed when listDefinitions already has rows ("insert iff empty" semantics)', async () => {
     await runMigration()
     const firstCount = (await db.listDefinitions.toArray()).length
 
     await runMigration()
     const secondCount = (await db.listDefinitions.toArray()).length
 
-    expect(firstCount).toBe(4)
-    expect(secondCount).toBe(4)
+    expect(firstCount).toBe(5)
+    expect(secondCount).toBe(5)
   })
 
-  it('preserves user-customized rows without adding duplicates (v22: no re-seed on non-empty)', async () => {
+  it('preserves user-customized rows without adding duplicates (no re-seed on non-empty)', async () => {
     await db.listDefinitions.add({
       name: 'My Today',
       sortOrder: 0,
       pinnedToDashboard: true,
+      // Shape matches a pre-v24 row (legacy `today` kind); cast is deliberate.
       membership: { kind: 'today' },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'none' },
-    } as ListDefinition)
+    } as unknown as ListDefinition)
 
     await runMigration()
     const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
@@ -267,8 +274,8 @@ describe('v21 migration', () => {
     const firstCount = (await db.listDefinitions.toArray()).length
     await ensureSeededListDefinitions(db.listDefinitions)
     const secondCount = (await db.listDefinitions.toArray()).length
-    expect(firstCount).toBe(4)
-    expect(secondCount).toBe(4)
+    expect(firstCount).toBe(5)
+    expect(secondCount).toBe(5)
   })
 
   // ---------- Composite run ----------
@@ -294,6 +301,6 @@ describe('v21 migration', () => {
     expect(insets).toHaveLength(0)
 
     const defs = await db.listDefinitions.toArray()
-    expect(defs).toHaveLength(4)
+    expect(defs).toHaveLength(5)
   })
 })

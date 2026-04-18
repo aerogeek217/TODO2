@@ -237,15 +237,17 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
     if (!validated.ok) throw new Error(validated.error)
     await restoreFromImportData(validated.data)
 
-    // v22 seeded defaults + v23-synthesized custom def for `due-this-week`.
+    // Post-v24: seeded lists are the 5 horizon custom-predicate defs; the
+    // v23-synthesized unpinned `custom` row from `due-this-week` inset
+    // translation survives alongside them.
     const listDefinitions = await db.listDefinitions.toArray()
-    const seededKinds = listDefinitions
+    const pinnedNames = listDefinitions
       .filter((d) => d.pinnedToDashboard)
-      .map((d) => d.membership.kind).sort()
-    expect(seededKinds).toEqual(['deadlines', 'someday', 'today', 'upcoming'])
-    // v23 inset translation produces a single unpinned `custom` row.
-    const customCount = listDefinitions.filter((d) => d.membership.kind === 'custom').length
-    expect(customCount).toBe(1)
+      .map((d) => d.name).sort()
+    expect(pinnedNames).toEqual(['Later', 'Next week', 'Rest of month', 'Someday', 'This week'])
+    for (const d of listDefinitions) expect(d.membership.kind).toBe('custom')
+    const unpinnedCount = listDefinitions.filter((d) => !d.pinnedToDashboard).length
+    expect(unpinnedCount).toBe(1)
 
     const statuses = await db.statuses.toArray()
     const names = statuses.map((s) => s.name).sort()

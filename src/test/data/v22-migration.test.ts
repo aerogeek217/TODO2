@@ -45,10 +45,11 @@ describe('v22 migration', () => {
       name: 'Hidden',
       sortOrder: 0,
       pinnedToDashboard: false,
+      // Legacy v22-era row shape (pre-v24 `someday` kind).
       membership: { kind: 'someday' },
       sort: { kind: 'sort-order' },
       grouping: { kind: 'none' },
-    } as ListDefinition)
+    } as unknown as ListDefinition)
 
     await runMigration()
     const rows = await db.listDefinitions.toArray()
@@ -60,23 +61,25 @@ describe('v22 migration', () => {
     expect(await db.listDefinitions.count()).toBe(0)
   })
 
-  it('ensureSeededListDefinitions seeds 4 rows on empty table', async () => {
+  it('ensureSeededListDefinitions seeds 5 horizon rows on empty table', async () => {
     await ensureSeededListDefinitions(db.listDefinitions)
     const rows = await db.listDefinitions.orderBy('sortOrder').toArray()
-    expect(rows).toHaveLength(4)
-    expect(rows.map(r => r.name)).toEqual(['Today', 'Upcoming', 'Deadlines', 'Someday'])
+    expect(rows).toHaveLength(5)
+    expect(rows.map(r => r.name)).toEqual(['This week', 'Next week', 'Rest of month', 'Later', 'Someday'])
     for (const r of rows) expect(r.pinnedToDashboard).toBe(true)
+    for (const r of rows) expect(r.membership.kind).toBe('custom')
   })
 
-  it('ensureSeededListDefinitions is a no-op when table is non-empty (v22 "insert iff empty")', async () => {
+  it('ensureSeededListDefinitions is a no-op when table is non-empty ("insert iff empty")', async () => {
     await db.listDefinitions.add({
       name: 'My Only List',
       sortOrder: 0,
       pinnedToDashboard: true,
+      // Legacy v21-era row shape (pre-v24 `today` kind).
       membership: { kind: 'today' },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'none' },
-    } as ListDefinition)
+    } as unknown as ListDefinition)
 
     await ensureSeededListDefinitions(db.listDefinitions)
     const rows = await db.listDefinitions.toArray()

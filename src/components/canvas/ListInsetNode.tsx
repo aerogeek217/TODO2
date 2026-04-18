@@ -76,13 +76,7 @@ function describePredicate(p: TodoPredicate): string {
 }
 
 function describeMembership(def: PersistedListDefinition): string {
-  switch (def.membership.kind) {
-    case 'today': return 'Today (overdue + due within window)'
-    case 'upcoming': return 'Upcoming tasks'
-    case 'deadlines': return 'Tasks with a deadline'
-    case 'someday': return 'Tasks with no date'
-    case 'custom': return describePredicate(def.membership.predicate)
-  }
+  return describePredicate(def.membership.predicate)
 }
 
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {

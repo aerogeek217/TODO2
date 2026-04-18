@@ -26,6 +26,40 @@
   margin-bottom: 16px;
 }
 
+.heroSection {
+  margin-bottom: 16px;
+}
+
+.heroCard .cardHeader {
+  padding: 14px 18px;
+}
+
+.cardTitleHero {
+  font-size: 18px;
+}
+
+.cardBodyHero {
+  max-height: 520px;
+}
+
+.sectionDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 8px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sectionDivider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--color-border);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

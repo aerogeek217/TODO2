@@ -8,9 +8,6 @@ import type {
 import { effectiveDate, isScheduledExpired, resolveScheduled } from '../utils/effective-date'
 import { startOfDay, MS_PER_DAY } from '../utils/date'
 
-/** Default today-bucket deadline warning window when ListMembership doesn't override it. */
-export const WARNING_WINDOW_DAYS = 3
-
 export interface DashboardListsContext {
   today: Date
   hiddenStatusIds: Set<number>
@@ -70,46 +67,11 @@ export function interpretMembership(
   if (t.isCompleted && !ctx.showCompleted) return false
   if (!ctx.showHiddenStatuses && t.statusId != null && ctx.hiddenStatusIds.has(t.statusId)) return false
 
-  const today = startOfDay(ctx.today)
-
-  switch (m.kind) {
-    case 'today': {
-      const window = m.warningWindowDays ?? WARNING_WINDOW_DAYS
-      const eff = effectiveDate(t, today)
-      if (eff !== null && eff.getTime() <= today.getTime()) return true
-      if (t.dueDate !== undefined) {
-        const due = startOfDay(new Date(t.dueDate)).getTime()
-        const horizon = today.getTime() + window * MS_PER_DAY
-        if (due <= horizon) return true
-      }
-      return false
-    }
-
-    case 'upcoming': {
-      const hasSched = t.scheduledDate !== undefined
-      const hasDue = t.dueDate !== undefined
-      if (!hasSched && !hasDue) return false
-      // Exclusion uses the same window as today's inclusion — otherwise a task
-      // 2 days out would appear in BOTH today and upcoming when window=3.
-      const window = m.warningWindowDays ?? WARNING_WINDOW_DAYS
-      if (interpretMembership({ kind: 'today', warningWindowDays: window }, t, ctx)) return false
-      return true
-    }
-
-    case 'deadlines':
-      return t.dueDate !== undefined
-
-    case 'someday':
-      return t.scheduledDate === undefined && t.dueDate === undefined
-
-    case 'custom': {
-      if (!ctx.evalPredicate) {
-        warnOnceMissingEvaluator()
-        return false
-      }
-      return ctx.evalPredicate(m.predicate, t)
-    }
+  if (!ctx.evalPredicate) {
+    warnOnceMissingEvaluator()
+    return false
   }
+  return ctx.evalPredicate(m.predicate, t)
 }
 
 let warnedMissingEvaluator = false
