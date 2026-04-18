@@ -1,17 +1,21 @@
-import type { ReactNode } from 'react'
+import type { HTMLAttributes, ReactNode } from 'react'
 import styles from './SlotHeader.module.css'
 
 interface SlotHeaderProps {
   title: ReactNode
   meta?: ReactNode
-  onMore?: () => void
+  onMore?: (anchor: { x: number; y: number }) => void
   onClose?: () => void
+  dragHandleProps?: HTMLAttributes<HTMLSpanElement> & { ref?: React.Ref<HTMLSpanElement> }
 }
 
-export function SlotHeader({ title, meta, onMore, onClose }: SlotHeaderProps) {
+export function SlotHeader({ title, meta, onMore, onClose, dragHandleProps }: SlotHeaderProps) {
+  const { ref: dragRef, ...dragRest } = dragHandleProps ?? {}
   return (
     <header className={styles.header}>
       <span
+        {...dragRest}
+        ref={dragRef}
         className={styles.dragHandle}
         aria-label="Drag slot"
         role="button"
@@ -25,7 +29,10 @@ export function SlotHeader({ title, meta, onMore, onClose }: SlotHeaderProps) {
         <button
           type="button"
           className={styles.iconButton}
-          onClick={onMore}
+          onClick={(e) => {
+            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+            onMore({ x: rect.left, y: rect.bottom + 4 })
+          }}
           aria-label="Slot options"
           title="Slot options"
         >

@@ -101,6 +101,77 @@ describe('canvas-rails-store', () => {
     expect(useCanvasRailsStore.getState().rails.right?.slots[0].id).toBe(slot.id)
   })
 
+  it('dropSlotToSide delegates to the pure reducer', () => {
+    const a = createLensSlot(1)
+    useCanvasRailsStore.setState({
+      rails: {
+        left: null,
+        right: { orientation: 'vertical', slots: [a] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+    useCanvasRailsStore.getState().dropSlotToSide(a.id, 'left')
+    const s = useCanvasRailsStore.getState().rails
+    expect(s.right).toBeNull()
+    expect(s.left?.slots[0].id).toBe(a.id)
+  })
+
+  it('edgeDropSlot reorders within a rail', () => {
+    const a = createLensSlot(1)
+    const b = createLensSlot(2)
+    const c = createLensSlot(3)
+    useCanvasRailsStore.setState({
+      rails: {
+        left: null,
+        right: { orientation: 'vertical', slots: [a, b, c] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+    useCanvasRailsStore.getState().edgeDropSlot(b.id, 'right', 'head')
+    expect(useCanvasRailsStore.getState().rails.right?.slots.map((s) => s.id)).toEqual([b.id, a.id, c.id])
+  })
+
+  it('splitDropSlot inserts before a target slot', () => {
+    const a = createLensSlot(1)
+    const b = createLensSlot(2)
+    useCanvasRailsStore.setState({
+      rails: {
+        left: { orientation: 'vertical', slots: [a] },
+        right: { orientation: 'vertical', slots: [b] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+    useCanvasRailsStore.getState().splitDropSlot(a.id, b.id, 'above')
+    const s = useCanvasRailsStore.getState().rails
+    expect(s.left).toBeNull()
+    expect(s.right?.slots.map((x) => x.id)).toEqual([a.id, b.id])
+  })
+
+  it('splitSlot inserts a new adjacent slot', () => {
+    const a = createLensSlot(1)
+    useCanvasRailsStore.setState({
+      rails: {
+        left: null,
+        right: { orientation: 'vertical', slots: [a] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+    useCanvasRailsStore.getState().splitSlot(a.id, 'below')
+    const slots = useCanvasRailsStore.getState().rails.right?.slots ?? []
+    expect(slots).toHaveLength(2)
+    expect(slots[0].id).toBe(a.id)
+    expect(slots[1].id).not.toBe(a.id)
+    expect(slots[1].kind).toBe('lens')
+  })
+
   it('closeSlot and updateSlot are no-ops when the slotId is unknown', () => {
     const slot = createLensSlot(1)
     const before = {

@@ -3,7 +3,9 @@ import {
   DndContext,
   DragOverlay,
   pointerWithin,
+  type CollisionDetection,
 } from '@dnd-kit/core'
+import { RAILS_DRAG_TYPE, isRailsDropId } from '../components/canvas/rails/rail-dnd'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -518,11 +520,20 @@ export function CanvasPage() {
     [dnd.insertTodoId, dnd.insertIndentLevel, dnd.insertAtEnd, dnd.insertProjectId],
   )
 
+  const collisionDetection = useMemo<CollisionDetection>(() => (args) => {
+    const type = args.active?.data.current?.type
+    const hits = pointerWithin(args)
+    if (type === RAILS_DRAG_TYPE) {
+      return hits.filter((h) => isRailsDropId(String(h.id)))
+    }
+    return hits.filter((h) => !isRailsDropId(String(h.id)))
+  }, [])
+
   return (
     <DndContext
       sensors={dnd.sensors}
       measuring={dnd.measuring}
-      collisionDetection={pointerWithin}
+      collisionDetection={collisionDetection}
       onDragStart={dnd.handleDragStart}
       onDragMove={dnd.handleDragMove}
       onDragOver={dnd.handleDragOver}

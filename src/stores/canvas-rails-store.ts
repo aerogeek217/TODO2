@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import type { RailSide, RailsState, Slot, SlotKind } from '../models/canvas-rails'
 import { EMPTY_RAILS, railOrientationForSide } from '../models/canvas-rails'
+import {
+  applyDropToSide,
+  applyEdgeDrop,
+  applySplitDrop,
+  applySplitButton,
+  type SplitZone,
+} from '../components/canvas/rails/rail-dnd'
 
 function genSlotId(): string {
   return `slot-${Math.random().toString(36).slice(2, 10)}`
@@ -22,6 +29,10 @@ interface CanvasRailsState {
   addRail: (side: RailSide, defaultSlot?: Slot) => void
   closeSlot: (slotId: string) => void
   updateSlot: (slotId: string, patch: Partial<Slot>) => void
+  dropSlotToSide: (slotId: string, toSide: RailSide) => void
+  edgeDropSlot: (slotId: string, toSide: RailSide, edge: 'head' | 'tail') => void
+  splitDropSlot: (slotId: string, targetSlotId: string, zone: SplitZone) => void
+  splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right') => void
 }
 
 export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
@@ -76,5 +87,25 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
       touched = true
     }
     return touched ? { rails: next } : state
+  }),
+
+  dropSlotToSide: (slotId, toSide) => set((state) => {
+    const next = applyDropToSide(state.rails, slotId, toSide)
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  edgeDropSlot: (slotId, toSide, edge) => set((state) => {
+    const next = applyEdgeDrop(state.rails, slotId, toSide, edge)
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  splitDropSlot: (slotId, targetSlotId, zone) => set((state) => {
+    const next = applySplitDrop(state.rails, slotId, targetSlotId, zone)
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  splitSlot: (slotId, dir) => set((state) => {
+    const next = applySplitButton(state.rails, slotId, dir, { genSlotId })
+    return next === state.rails ? state : { rails: next }
   }),
 }))
