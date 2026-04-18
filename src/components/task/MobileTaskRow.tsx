@@ -2,8 +2,10 @@ import { useCallback, memo } from 'react'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useUIStore } from '../../stores/ui-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { StatusIcon } from '../shared/StatusIcon'
+import { AvatarStack } from '../shared/AvatarStack'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { startOfToday, formatDateShort } from '../../utils/date'
@@ -31,6 +33,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   onSelect, onToggleExpand, onOpenDetail, cut,
 }: MobileTaskRowProps) {
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
+  const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const bulk = useBulkActions()
   const today = startOfToday()
   const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today)
@@ -72,9 +75,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${isSelected ? styles.selected : ''}`}
       style={indentLevel > 0 ? { paddingLeft: `${4 + indentLevel * 16}px` } : undefined}
       data-todo-id={todo.id}
+      data-hovered-synced={hoveredSynced ? 'true' : undefined}
       role="button"
       tabIndex={0}
       onClick={handleRowTap}
+      onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
+      onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowTap(e as unknown as React.MouseEvent) } }}
     >
       {/* Line 1 */}
@@ -154,12 +160,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             </span>
           )}
 
-          {people.slice(0, 2).map((p) => (
-            <span key={p.id} className={styles.personChip} style={p.color ? { color: p.color } : undefined}>
-              {p.initials}
-            </span>
-          ))}
-          {people.length > 2 && <span className={styles.overflow}>+{people.length - 2}</span>}
+          {people.length > 0 && (
+            <AvatarStack people={people} max={3} size="sm" />
+          )}
 
           {tags.slice(0, 1).map((t) => (
             <span key={t.id} className={styles.tagChip} style={{ borderColor: t.color || 'var(--color-border)', color: t.color || 'var(--color-text-secondary)' }}>

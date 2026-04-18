@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -7,7 +7,8 @@ import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
-import { makeTodo } from '../helpers'
+import { useUIStore } from '../../stores/ui-store'
+import { makeTodo, makePerson, makeProject } from '../helpers'
 
 const mockBulk = {
   toggleComplete: vi.fn(),
@@ -39,6 +40,7 @@ function resetStores() {
   useStatusStore.setState({ statuses: [] })
   useProjectStore.setState({ projects: [] })
   useTaskboardStore.setState({ entries: [] })
+  useUIStore.setState({ hoveredTodoId: null })
 }
 
 describe('TaskRow (unified scheduling)', () => {
@@ -252,6 +254,59 @@ describe('TaskRow (unified scheduling)', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
       fireEvent.click(screen.getByLabelText('Clear deadline'))
       expect(mockBulk.setDeadline).toHaveBeenCalledWith(1, null)
+    })
+  })
+
+  describe('avatar stack', () => {
+    it('renders overlapping avatars for assigned people instead of @name chips', () => {
+      const people = [
+        makePerson({ id: 1, name: 'Alice', initials: 'AL' }),
+        makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
+      ]
+      render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
+      expect(screen.getByText('AL')).toBeInTheDocument()
+      expect(screen.getByText('BO')).toBeInTheDocument()
+      expect(screen.queryByText('@Alice')).not.toBeInTheDocument()
+    })
+
+    it('shows +N overflow when 4+ people are assigned', () => {
+      const people = [1, 2, 3, 4].map((id) => makePerson({ id, name: `P${id}`, initials: `P${id}` }))
+      render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
+      expect(screen.getByText('+1')).toBeInTheDocument()
+    })
+  })
+
+  describe('showContext sub-line', () => {
+    it('renders `in <project name>` when showContext is true and the task has a project', () => {
+      useProjectStore.setState({ projects: [makeProject({ id: 5, canvasId: 1, name: 'Launch plan' })] })
+      render(<TaskRow todo={makeTodo({ id: 1, projectId: 5 })} showContext />)
+      expect(screen.getByText('in Launch plan')).toBeInTheDocument()
+    })
+
+    it('does not render the context line when showContext is false', () => {
+      useProjectStore.setState({ projects: [makeProject({ id: 5, canvasId: 1, name: 'Launch plan' })] })
+      render(<TaskRow todo={makeTodo({ id: 1, projectId: 5 })} />)
+      expect(screen.queryByText(/in Launch plan/i)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('hover-sync', () => {
+    it('toggles data-hovered-synced when another surface sets hoveredTodoId', () => {
+      render(<TaskRow todo={makeTodo({ id: 7 })} />)
+      const row = getRow()
+      expect(row.getAttribute('data-hovered-synced')).toBeNull()
+      act(() => { useUIStore.getState().setHoveredTodoId(7) })
+      expect(row.getAttribute('data-hovered-synced')).toBe('true')
+      act(() => { useUIStore.getState().setHoveredTodoId(null) })
+      expect(row.getAttribute('data-hovered-synced')).toBeNull()
+    })
+
+    it('writes hoveredTodoId on mouseenter and clears it on mouseleave', () => {
+      render(<TaskRow todo={makeTodo({ id: 7 })} />)
+      fireEvent.mouseEnter(getRow())
+      expect(useUIStore.getState().hoveredTodoId).toBe(7)
+      fireEvent.mouseLeave(getRow())
+      expect(useUIStore.getState().hoveredTodoId).toBeNull()
     })
   })
 })

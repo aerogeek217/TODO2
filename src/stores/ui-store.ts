@@ -39,6 +39,8 @@ interface UIState {
   selectionAnchorId: number | null
   selectionFocusId: number | null
   focusedTodoId: number | null
+  /** Todo currently hovered on any surface — drives cross-surface hover highlighting. */
+  hoveredTodoId: number | null
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
   collapsedParents: Set<number>
@@ -70,6 +72,7 @@ interface UIState {
   toggleSelectTodo: (id: number) => void
   rangeSelectTodo: (id: number, orderedIds: number[]) => void
   setFocusedTodo: (id: number | null) => void
+  setHoveredTodoId: (id: number | null) => void
   selectAll: (ids: number[]) => void
   clearSelection: () => void
   showBulkConfirmation: (action: BulkConfirmation['action'], ids: number[], options?: Partial<Pick<BulkConfirmation, 'message' | 'title' | 'confirmLabel' | 'cancelLabel' | 'skipIds' | 'onConfirm'>>) => void
@@ -103,6 +106,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   selectionAnchorId: null,
   selectionFocusId: null,
   focusedTodoId: null,
+  hoveredTodoId: null,
   editPopupMode: null,
   bulkConfirmation: null,
   collapsedParents: new Set<number>(),
@@ -162,6 +166,11 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setFocusedTodo(id: number | null) {
     set({ focusedTodoId: id })
+  },
+
+  setHoveredTodoId(id: number | null) {
+    if (get().hoveredTodoId === id) return
+    set({ hoveredTodoId: id })
   },
 
   selectAll(ids: number[]) {

@@ -115,17 +115,19 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('BO')).toBeInTheDocument()
     })
 
-    it('shows overflow count for 3+ people (max 2 shown)', () => {
+    it('shows overflow count for 4+ people (avatar stack shows 3)', () => {
       const people = [
         makePerson({ id: 1, initials: 'A' }),
         makePerson({ id: 2, initials: 'B' }),
         makePerson({ id: 3, initials: 'C' }),
+        makePerson({ id: 4, initials: 'D' }),
       ]
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
       expect(screen.getByText('A')).toBeInTheDocument()
       expect(screen.getByText('B')).toBeInTheDocument()
+      expect(screen.getByText('C')).toBeInTheDocument()
       expect(screen.getByText('+1')).toBeInTheDocument()
-      expect(screen.queryByText('C')).not.toBeInTheDocument()
+      expect(screen.queryByText('D')).not.toBeInTheDocument()
     })
 
     it('shows first tag name', () => {

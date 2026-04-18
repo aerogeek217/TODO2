@@ -19,6 +19,7 @@ import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
+import { AvatarStack } from '../shared/AvatarStack'
 
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
@@ -76,18 +77,20 @@ interface TaskRowProps {
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onToggleExpand?: (todoId: number) => void
   onOpenDetail?: (todoId: number) => void
-  /** Show compact people chips (initials only) */
+  /** Show compact people chips (initials only) — retained for non-row surfaces */
   compact?: boolean
   /** Task is in clipboard (cut) */
   cut?: boolean
   /** Extra label shown after tags (e.g. "Modified 3d ago") */
   extraLabel?: string
+  /** Render an `in <project>` sub-line under the title (rail lens / search). */
+  showContext?: boolean
 }
 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, assignedTags, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
-  onSelect, onToggleExpand, onOpenDetail, compact, cut, extraLabel,
+  onSelect, onToggleExpand, onOpenDetail, compact, cut, extraLabel, showContext,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
@@ -112,6 +115,13 @@ export const TaskRow = memo(function TaskRow({
     if (!todo.statusId) return undefined
     return statuses.find(st => st.id === todo.statusId)
   }, [todo.statusId, statuses])
+
+  // Cross-surface hover highlighting
+  const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
+  const project = useMemo(
+    () => (showContext && todo.projectId ? projects.find(p => p.id === todo.projectId) : undefined),
+    [showContext, todo.projectId, projects],
+  )
 
 
   // Bulk-aware mutation callbacks
@@ -190,6 +200,9 @@ export const TaskRow = memo(function TaskRow({
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
       style={indentLevel > 0 ? { paddingLeft: `${TASK_ROW_PADDING_LEFT + indentLevel * INDENT_PX}px` } : undefined}
       data-todo-id={todo.id}
+      data-hovered-synced={hoveredSynced ? 'true' : undefined}
+      onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
+      onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
       onClick={(e) => { e.stopPropagation(); onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }) }}
       onDoubleClick={(e) => {
         e.stopPropagation()
@@ -245,22 +258,27 @@ export const TaskRow = memo(function TaskRow({
           onPointerDown={(e) => e.stopPropagation()}
         />
       ) : (
-        <span
-          className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
-          title={todo.title}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (e.shiftKey || e.ctrlKey || e.metaKey) {
-              onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey })
-            } else if (isSelected) {
-              edit.scheduleEdit()
-            } else {
-              onSelect?.(todo.id, { shift: false, ctrl: false })
-            }
-          }}
-        >
-          {todo.title}
-        </span>
+        <div className={styles.titleBlock}>
+          <span
+            className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
+            title={todo.title}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey })
+              } else if (isSelected) {
+                edit.scheduleEdit()
+              } else {
+                onSelect?.(todo.id, { shift: false, ctrl: false })
+              }
+            }}
+          >
+            {todo.title}
+          </span>
+          {showContext && project && (
+            <span className={styles.contextLine}>in {project.name}</span>
+          )}
+        </div>
       )}
 
       {/* Notes indicator */}
@@ -291,20 +309,23 @@ export const TaskRow = memo(function TaskRow({
         </span>
       )}
 
-      {/* People chip group */}
+      {/* People chip group — avatar stack + org chips share one picker */}
       {!ghost && (
         <div className={`${styles.chipGroup} ${hasPeople ? '' : styles.chipGroupEmpty}`} ref={peopleRef}>
           {hasPeople ? (
             <>
-              {(assignedPeople ?? []).map((person) => (
-                <button key={person.id} className={styles.personChip}
-                  style={person.color ? { color: person.color } : undefined}
-                  title={compact ? person.name : undefined}
-                  onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
-                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'person', personId: person.id!, personName: person.name }) }}>
-                  {compact ? person.initials : `@${person.name}`}
-                </button>
-              ))}
+              {(assignedPeople ?? []).length > 0 && (
+                <AvatarStack
+                  people={assignedPeople ?? []}
+                  max={3}
+                  onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
+                  onPersonContextMenu={(e, person) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'person', personId: person.id!, personName: person.name })
+                  }}
+                />
+              )}
               {assignedOrgs.map((org) => (
                 <button key={`org-${org.id}`} className={styles.orgChip}
                   style={org.color ? { borderColor: org.color, color: org.color } : undefined}
@@ -379,43 +400,46 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
-      {/* Scheduled chip — click to edit inline */}
-      {todo.scheduledDate && !ghost && (
-        <button
-          ref={scheduledAnchorRef}
-          type="button"
-          className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
-          style={{ '--date-intensity': scheduledIntensity } as React.CSSProperties}
-          onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-          title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
-        >
-          <StatusIcon icon="calendar" />
-          <span className={styles.chipLabel}>{scheduledLabel(todo.scheduledDate, today)}</span>
-        </button>
-      )}
+      {/* Date chips stack — scheduled on top, deadline beneath when both present */}
+      {!ghost && (todo.scheduledDate || todo.dueDate) && (
+        <div className={styles.dateStack}>
+          {todo.scheduledDate && (
+            <button
+              ref={scheduledAnchorRef}
+              type="button"
+              className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
+              style={{ '--date-intensity': scheduledIntensity } as React.CSSProperties}
+              onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
+              title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
+            >
+              <StatusIcon icon="calendar" />
+              <span className={styles.chipLabel}>{scheduledLabel(todo.scheduledDate, today)}</span>
+            </button>
+          )}
 
-      {/* Deadline chip — click opens native date picker, hover × clears */}
-      {todo.dueDate && !ghost && (
-        <button
-          type="button"
-          className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`}
-          style={{ '--date-intensity': deadlineIntensity } as React.CSSProperties}
-          onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-          title={deadlinePast ? 'Deadline passed — click to change' : 'Deadline — click to change'}
-        >
-          <StatusIcon icon="clock" />
-          <span className={styles.chipLabel}>{formatDateShort(todo.dueDate)}</span>
-          {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
-          <span
-            className={styles.chipClear}
-            role="button"
-            tabIndex={-1}
-            aria-label="Clear deadline"
-            title="Clear deadline"
-            onClick={(e) => { e.stopPropagation(); bulk.setDeadline(todo.id, null) }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >&times;</span>
-        </button>
+          {todo.dueDate && (
+            <button
+              type="button"
+              className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`}
+              style={{ '--date-intensity': deadlineIntensity } as React.CSSProperties}
+              onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+              title={deadlinePast ? 'Deadline passed — click to change' : 'Deadline — click to change'}
+            >
+              <StatusIcon icon="clock" />
+              <span className={styles.chipLabel}>{formatDateShort(todo.dueDate)}</span>
+              {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
+              <span
+                className={styles.chipClear}
+                role="button"
+                tabIndex={-1}
+                aria-label="Clear deadline"
+                title="Clear deadline"
+                onClick={(e) => { e.stopPropagation(); bulk.setDeadline(todo.id, null) }}
+                onMouseDown={(e) => e.stopPropagation()}
+              >&times;</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* Empty state: inline scheduled picker (with "Add deadline" action) */}

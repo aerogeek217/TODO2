@@ -17,6 +17,17 @@
   background: var(--color-surface-high);
 }
 
+/*
+ * Cross-surface hover sync: when another surface is hovering this todo,
+ * highlight this row subtly. :hover already handles the source row itself,
+ * and wins since it paints on top of the synced treatment.
+ */
+.row[data-hovered-synced="true"] {
+  background: var(--color-surface-high);
+  outline: 1px solid var(--color-accent-dim);
+  outline-offset: -1px;
+}
+
 .rowDropdownOpen {
   z-index: var(--z-row-open);
 }
@@ -80,73 +91,6 @@
   transform: translateY(-50%) rotate(-90deg);
 }
 
-.priorityStripWrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.priorityStrip {
-  width: 8px;
-  height: 24px;
-  border-radius: 4px 1px 1px 4px;
-  flex-shrink: 0;
-  background: transparent;
-  border: 1.5px solid var(--color-text-muted);
-  padding: 0;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.priorityStripNormal {
-  border-color: var(--color-border);
-}
-
-.priorityStripNormal:hover {
-  border-color: var(--color-text-muted);
-}
-
-.priorityStrip:hover {
-  border-color: var(--color-text-secondary);
-}
-
-.priorityMenu {
-  composes: menu from '../shared/dropdown.module.css';
-  left: -4px;
-  z-index: var(--z-dropdown);
-  min-width: 110px;
-}
-
-.priorityOption {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 5px 10px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.priorityOption:hover {
-  background: var(--color-surface-high);
-}
-
-.priorityOptionActive {
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.priorityDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
 .checkbox {
   width: 18px;
   height: 18px;
@@ -199,16 +143,6 @@
   flex-shrink: 0;
 }
 
-.statusDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-
 .statusMenu {
   composes: menu from '../shared/dropdown.module.css';
   min-width: 150px;
@@ -248,14 +182,31 @@
   flex-shrink: 0;
 }
 
-.title {
+.titleBlock {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.title {
+  display: block;
   font-size: var(--font-size-task);
   color: var(--color-text-primary);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.contextLine {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.1;
 }
 
 .title.parentTitle {
@@ -322,14 +273,16 @@
   transition: width 0.3s ease;
 }
 
-/* Date chip */
-.dueDateChip {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-secondary);
-  padding: 2px 8px;
-  border-radius: var(--radius-chip);
-  background: var(--color-surface-bright);
-  white-space: nowrap;
+/*
+ * Wrapper that stacks scheduled (top) and deadline (beneath) vertically.
+ * When only one chip is present it sits alone; when both are present the
+ * row stays single-height thanks to the smaller chip paddings below.
+ */
+.dateStack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
   flex-shrink: 0;
 }
 
@@ -461,91 +414,9 @@
   white-space: nowrap;
 }
 
-.expiredDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-overdue);
-  margin-left: 2px;
-}
-
 .recurrenceIndicator {
   color: var(--color-text-muted);
   margin-right: 2px;
-}
-
-.dueDateClickable {
-  cursor: pointer;
-  position: relative;
-}
-
-.dueDateClickable:hover {
-  color: var(--color-text-primary);
-}
-
-.dueDateChip.overdue {
-  color: var(--color-overdue);
-  background: var(--color-overdue-bg);
-  box-shadow: 0 0 8px var(--color-overdue-glow);
-}
-
-.dueDateToday {
-  color: var(--color-danger);
-  background: rgba(238, 125, 119, 0.12);
-  box-shadow: 0 0 8px rgba(238, 125, 119, 0.3);
-}
-
-.dueDateUrgent {
-  color: var(--color-warning);
-  background: rgba(245, 166, 35, 0.12);
-  box-shadow: 0 0 8px rgba(245, 166, 35, 0.25);
-}
-
-.dueDateApproaching {
-  color: var(--color-warning);
-  background: rgba(245, 166, 35, 0.07);
-  box-shadow: 0 0 4px rgba(245, 166, 35, 0.15);
-}
-
-/* Soft dates: text color only, no glow */
-.dueDateSoft.overdue,
-.dueDateSoft.dueDateToday,
-.dueDateSoft.dueDateUrgent,
-.dueDateSoft.dueDateApproaching {
-  box-shadow: none;
-  background: var(--color-surface-bright);
-}
-
-.deadlineFlag {
-  background: transparent;
-  border: none;
-  font-size: 11px;
-  cursor: pointer;
-  padding: 0 1px;
-  margin-left: 3px;
-  color: var(--color-text-muted);
-  line-height: 1;
-  transition: color 0.15s;
-}
-
-.deadlineFlag:hover {
-  color: var(--color-text-primary);
-}
-
-.deadlineFlagActive {
-  color: var(--color-danger);
-}
-
-.deadlineFlagActive:hover {
-  color: var(--color-danger);
-}
-
-.hiddenDateInput {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-  pointer-events: none;
 }
 
 /* Chip groups (people, tags) */
@@ -565,26 +436,6 @@
 
 .row:hover .chipGroupEmpty {
   opacity: 1;
-}
-
-.personChip {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-  background: transparent;
-  border: none;
-  padding: 1px 4px;
-  cursor: pointer;
-  font-family: inherit;
-  border-radius: var(--radius-chip);
-  transition: background 0.1s;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100px;
-}
-
-.personChip:hover {
-  background: var(--color-surface-bright);
 }
 
 .orgChip {
@@ -797,13 +648,6 @@
 
 .statusButton:hover {
   color: var(--color-text-secondary);
-}
-
-.statusBadgeDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
 }
 
 .statusDotEmpty {

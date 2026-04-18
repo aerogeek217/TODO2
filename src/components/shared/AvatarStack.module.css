@@ -1,0 +1,54 @@
+.stack {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  /* Compensate for overlap so the visible width matches the rendered pixels */
+  padding-right: 2px;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--color-text-on-accent);
+  background: var(--color-surface-bright);
+  border: 1.5px solid var(--color-surface);
+  margin-left: -4px;
+  white-space: nowrap;
+  transition: transform 0.1s ease;
+}
+
+.avatar:first-child {
+  margin-left: 0;
+}
+
+.stack:hover .avatar {
+  transform: translateY(-1px);
+}
+
+.overflow {
+  background: var(--color-surface-high);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* Smaller variant for tight rows (e.g. mobile) */
+.stackSm .avatar {
+  width: 16px;
+  height: 16px;
+  font-size: 8px;
+  margin-left: -3px;
+  border-width: 1px;
+}
