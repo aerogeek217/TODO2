@@ -28,6 +28,8 @@ import type { PersistedTodoItem, Person, Tag } from '../models'
 import { startOfToday } from '../utils/date'
 import { buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
 import { TaskboardPanel } from '../components/taskboard/TaskboardPanel'
+import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
+import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import styles from './DashboardView.module.css'
 
 function DashboardDraggableRow({
@@ -139,6 +141,8 @@ export function DashboardView() {
   const isMobile = useIsMobile()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
+  const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
+  const [showEditor, setShowEditor] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -195,7 +199,8 @@ export function DashboardView() {
       const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
       return matchesFilter(criteria, todo, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
     }
-    return buildDashboardLists(listDefinitions, todos, {
+    const pinned = listDefinitions.filter((d) => d.pinnedToDashboard)
+    return buildDashboardLists(pinned, todos, {
       today,
       hiddenStatusIds,
       showHiddenStatuses,
@@ -224,26 +229,34 @@ export function DashboardView() {
             <TaskboardPanel />
           </div>
 
-          {listDefinitions.length === 0 ? (
-            <div className={styles.emptyState}>
-              No dashboard lists. Reset by reloading.
-            </div>
-          ) : (
-            <div className={styles.grid}>
-              {lists.map((list) => (
-                <DashboardListCard
-                  key={list.key}
-                  list={list}
-                  collapsed={!!collapsed[list.key]}
-                  onToggleCollapse={toggleSection}
-                  onOpenDetail={handleClick}
-                  assignedPeopleMap={assignedPeopleMap}
-                  assignedTagsMap={assignedTagsMap}
-                  isMobile={isMobile}
-                />
-              ))}
-            </div>
-          )}
+          <div className={styles.grid}>
+            {lists.map((list) => (
+              <DashboardListCard
+                key={list.key}
+                list={list}
+                collapsed={!!collapsed[list.key]}
+                onToggleCollapse={toggleSection}
+                onOpenDetail={handleClick}
+                assignedPeopleMap={assignedPeopleMap}
+                assignedTagsMap={assignedTagsMap}
+                isMobile={isMobile}
+              />
+            ))}
+            {!isMobile && (
+              <button
+                type="button"
+                className={styles.addTile}
+                onClick={(e) => {
+                  const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                  setPickerPos({ x: r.left, y: r.bottom + 4 })
+                }}
+                title="Add a list to the dashboard"
+              >
+                <span className={styles.addTileGlyph}>+</span>
+                <span className={styles.addTileLabel}>Add list</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
@@ -280,6 +293,15 @@ export function DashboardView() {
         )}
       </div>
       <FilteredListPopup />
+      {pickerPos && (
+        <ListDefinitionPickerPopup
+          x={pickerPos.x}
+          y={pickerPos.y}
+          onClose={() => setPickerPos(null)}
+          onCreateNew={() => setShowEditor(true)}
+        />
+      )}
+      {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
     </>
   )
 

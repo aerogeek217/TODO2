@@ -134,10 +134,23 @@ describe('DashboardView', () => {
     vi.useRealTimers()
   })
 
-  it('renders an empty-state message when there are no list definitions', async () => {
+  it('renders no list cards but still shows the Add list tile when empty', async () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
+    const { container } = render(<DashboardView />)
+    expect(container.querySelectorAll('[data-list-key]').length).toBe(0)
+    expect(screen.getByText(/Add list/i)).toBeInTheDocument()
+  })
+
+  it('only renders lists that are pinned to dashboard', () => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 1, name: 'Pinned', sortOrder: 0, pinnedToDashboard: true }),
+        makeDef({ id: 2, name: 'Hidden', sortOrder: 1, pinnedToDashboard: false }),
+      ],
+    })
     render(<DashboardView />)
-    expect(screen.getByText(/No dashboard lists/i)).toBeInTheDocument()
+    expect(screen.getByText('Pinned')).toBeInTheDocument()
+    expect(screen.queryByText('Hidden')).not.toBeInTheDocument()
   })
 
   it('renders one card per list definition', () => {

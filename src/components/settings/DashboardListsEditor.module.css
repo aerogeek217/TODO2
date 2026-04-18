@@ -1,0 +1,32 @@
+.kindLabel {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 1px 8px;
+  flex-shrink: 0;
+}
+
+.pinToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pinToggle input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.hint {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 8px 10px 0;
+  line-height: 1.4;
+}

@@ -68,6 +68,40 @@
   font-size: var(--font-size-meta);
 }
 
+.addTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 120px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.addTile:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-surface-hover);
+}
+
+.addTileGlyph {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.addTileLabel {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .cardHeader {
   display: flex;
   align-items: center;

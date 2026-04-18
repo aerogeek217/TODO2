@@ -24,7 +24,9 @@ import { TagEditor } from '../components/settings/TagEditor'
 import { ThemeColorsEditor } from '../components/settings/ThemeColorsEditor'
 import { KeyboardShortcutsModal } from '../components/settings/KeyboardShortcutsModal'
 import { StatusEditor } from '../components/settings/StatusEditor'
+import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { useStatusStore } from '../stores/status-store'
+import { useListDefinitionStore } from '../stores/list-definition-store'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -64,6 +66,9 @@ export function SettingsPage() {
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showStatusEditor, setShowStatusEditor] = useState(false)
+  const [showDashboardListsEditor, setShowDashboardListsEditor] = useState(false)
+  const listDefinitionCount = useListDefinitionStore((s) => s.listDefinitions.length)
+  const loadListDefinitions = useListDefinitionStore((s) => s.load)
   const [backups, setBackups] = useState<BackupSummary[]>([])
   const [backupMsg, setBackupMsg] = useState('')
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
@@ -95,11 +100,12 @@ export function SettingsPage() {
     loadOrgs()
     loadTags()
     loadStatuses()
+    loadListDefinitions()
     loadBackups()
     return () => {
       timerRefs.current.forEach(clearTimeout)
     }
-  }, [load, loadProjects, loadPeople, loadOrgs, loadTags, loadStatuses])
+  }, [load, loadProjects, loadPeople, loadOrgs, loadTags, loadStatuses, loadListDefinitions])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -313,6 +319,9 @@ export function SettingsPage() {
             </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowStatusEditor(true)}>
               Manage Statuses{statusCount > 0 && ` (${statusCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowDashboardListsEditor(true)}>
+              Manage Dashboard Lists{listDefinitionCount > 0 && ` (${listDefinitionCount})`}
             </button>
           </div>
         </div>
@@ -706,6 +715,7 @@ export function SettingsPage() {
       {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
       {showStatusEditor && <StatusEditor onClose={() => setShowStatusEditor(false)} />}
+      {showDashboardListsEditor && <DashboardListsEditor onClose={() => setShowDashboardListsEditor(false)} />}
 
       {showCleanupPopup && (
         <div className={styles.cleanupOverlay} onClick={() => setShowCleanupPopup(false)}>
