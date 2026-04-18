@@ -1,14 +1,11 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { useFilterStore, applyFilter, matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../../stores/filter-store'
-import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { buildDashboardLists } from '../../services/dashboard-lists'
 import { TaskRow } from '../task/TaskRow'
-import { startOfToday } from '../../utils/date'
+import { ListDefinitionBody } from './ListDefinitionBody'
 import styles from './ListInsetNode.module.css'
 
 export function DraggableTaskRow({
@@ -80,63 +77,13 @@ function describeMembership(def: PersistedListDefinition): string {
 }
 
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
-  const { inset, allTodos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, onDelete, onToggleCollapse, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
+  const { inset, onDelete, onToggleCollapse, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
-  const { filters } = useFilterStore()
-  const statuses = useStatusStore((s) => s.statuses)
   const definition = useListDefinitionStore((s) => s.listDefinitions.find(d => d.id === inset.listDefinitionId))
+  const [count, setCount] = useState(0)
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
-
-  // Date-sensitive membership (today/upcoming/deadlines) rolls at midnight;
-  // tick the day key so the memo recomputes even when no other props change.
-  const [dayKey, setDayKey] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-  })
-  useEffect(() => {
-    const now = new Date()
-    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
-    const timer = setTimeout(() => {
-      const d = new Date()
-      setDayKey(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
-    }, Math.max(1000, nextMidnight - now.getTime() + 50))
-    return () => clearTimeout(timer)
-  }, [dayKey])
-
-  const filteredTodos = useMemo(() => {
-    if (!definition) return [] as PersistedTodoItem[]
-
-    // Global filter first (parity with pre-v23 behavior) — narrows by person/
-    // tag/org/status selections plus showCompleted + showHiddenStatuses gates.
-    const globalFiltered = applyFilter(filters, allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
-
-    const today = startOfToday()
-    const hiddenStatusIds = new Set(statuses.filter(s => s.hideByDefault).map(s => s.id!))
-    const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
-      const criteria = predicateToCriteria(predicate)
-      const people = assignedPeopleMap.get(todo.id) ?? []
-      const personIds = people.map(p => p.id!)
-      const tagIds = (assignedTagsMap?.get(todo.id) ?? []).map(t => t.id!)
-      const personOrgIds = people.flatMap(p => personOrgMap?.get(p.id!) ?? [])
-      const directOrgIds = (assignedOrgsMap?.get(todo.id) ?? []).map(o => o.id!)
-      const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap ?? new Map<number, number[]>())
-      return matchesFilter(criteria, todo, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
-    }
-
-    const [list] = buildDashboardLists([definition], globalFiltered, {
-      today,
-      hiddenStatusIds,
-      showCompleted: true,            // already applied by applyFilter above
-      showHiddenStatuses: true,       // same
-      evalPredicate,
-    })
-    return list?.todos ?? []
-  }, [
-    definition, allTodos, filters, assignedPeopleMap, assignedTagsMap,
-    assignedOrgsMap, personOrgMap, statuses, dayKey,
-  ])
 
   const headerLabel = definition?.name ?? '(Deleted list)'
   const subtitle = definition ? describeMembership(definition) : 'Referenced list was deleted'
@@ -152,7 +99,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         </button>
         <span className={styles.presetIcon}>{'\u{1F4CB}'}</span>
         <span className={styles.insetName}>{headerLabel}</span>
-        <span className={styles.taskCount}>{filteredTodos.length}</span>
+        <span className={styles.taskCount}>{count}</span>
         <button
           className={styles.deleteButton}
           onClick={() => inset.id && onDelete(inset.id)}
@@ -167,19 +114,19 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         className={`${inset.isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}
         style={!inset.isCollapsed ? { maxHeight: inset.height || 300 } : undefined}
       >
-        {filteredTodos.length === 0 ? (
-          <div className={styles.emptyMessage}>No tasks</div>
-        ) : (
-          filteredTodos.map(todo => (
-              <DraggableTaskRow
-                key={todo.id}
-                todo={todo}
-                assignedPeople={assignedPeopleMap.get(todo.id)}
-                assignedTags={assignedTagsMap?.get(todo.id)}
-                onOpenDetail={onOpenDetail}
-              />
-          ))
-        )}
+        <ListDefinitionBody
+          listDefinitionId={inset.listDefinitionId}
+          onResult={({ count }) => setCount(count)}
+          emptyClassName={styles.emptyMessage}
+          renderRow={({ todo, assignedPeople, assignedTags }) => (
+            <DraggableTaskRow
+              todo={todo}
+              assignedPeople={assignedPeople}
+              assignedTags={assignedTags}
+              onOpenDetail={onOpenDetail}
+            />
+          )}
+        />
       </div>
 
       {!inset.isCollapsed && (

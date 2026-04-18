@@ -7,6 +7,9 @@ import { RailContainer } from './RailContainer'
 import { Slot as SlotComponent } from './Slot'
 import { SlotHeader } from './SlotHeader'
 import { LensSlotContent } from './LensSlotContent'
+import { LensTitleButton } from './LensTitleButton'
+import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPopup'
+import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 import styles from './RailsFrame.module.css'
 
 interface RailsFrameProps {
@@ -37,28 +40,49 @@ function useDefaultRails() {
 
 function SlotRenderer({ slot }: { slot: Slot }) {
   const closeSlot = useCanvasRailsStore((s) => s.closeSlot)
+  const updateSlot = useCanvasRailsStore((s) => s.updateSlot)
   const [title, setTitle] = useState<string>('')
   const [count, setCount] = useState<number>(0)
+  const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
+  const [showEditor, setShowEditor] = useState(false)
 
   if (slot.kind === 'lens') {
     return (
-      <SlotComponent
-        header={(
-          <SlotHeader
-            title={<span>◴ {title || 'Lens'}</span>}
-            meta={count > 0 ? count : undefined}
-            onClose={() => closeSlot(slot.id)}
+      <>
+        <SlotComponent
+          header={(
+            <SlotHeader
+              title={(
+                <LensTitleButton
+                  label={title || 'Lens'}
+                  onOpen={(x, y) => setPickerPos({ x, y })}
+                />
+              )}
+              meta={count > 0 ? count : undefined}
+              onClose={() => closeSlot(slot.id)}
+            />
+          )}
+        >
+          <LensSlotContent
+            listDefinitionId={slot.listDefinitionId}
+            onTitleChange={(t, c) => {
+              setTitle(t)
+              setCount(c)
+            }}
+          />
+        </SlotComponent>
+        {pickerPos && (
+          <ListDefinitionPickerPopup
+            x={pickerPos.x}
+            y={pickerPos.y}
+            mode="canvas"
+            onSelect={(listDefinitionId) => updateSlot(slot.id, { listDefinitionId })}
+            onCreateNew={() => setShowEditor(true)}
+            onClose={() => setPickerPos(null)}
           />
         )}
-      >
-        <LensSlotContent
-          listDefinitionId={slot.listDefinitionId}
-          onTitleChange={(t, c) => {
-            setTitle(t)
-            setCount(c)
-          }}
-        />
-      </SlotComponent>
+        {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
+      </>
     )
   }
 

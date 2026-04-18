@@ -13,6 +13,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useTodoStore } from '../../stores/todo-store'
 import { emptyPredicate } from '../../stores/list-definition-store'
 import { makeTodo } from '../helpers'
 
@@ -63,6 +64,7 @@ function dueThisWeekDef(): PersistedListDefinition {
 }
 
 function resetStores(def: PersistedListDefinition = dueThisWeekDef()) {
+  useTodoStore.setState({ todos: [] })
   usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
   useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
@@ -113,6 +115,8 @@ function renderInset(data: Partial<ListInsetNodeData>) {
     onDelete: vi.fn(),
     onToggleCollapse: vi.fn(),
   }
+  // ListDefinitionBody reads todos from the store; seed it from the fixture.
+  useTodoStore.setState({ todos: merged.allTodos })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const NodeComp = ListInsetNode as any
   return render(
