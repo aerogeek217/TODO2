@@ -48,6 +48,11 @@ function legacySortBy(groupBy: ListGroupBy): ListSortBy {
   return groupBy === 'none' ? 'date' : groupBy
 }
 
+export interface ViewLimit {
+  maxTasks?: number
+  limitMode?: 'hard' | 'scroll'
+}
+
 interface SavedViewState {
   views: PersistedSavedView[]
   activeViewId: number | null
@@ -60,12 +65,14 @@ interface SavedViewState {
     groupBy: ListGroupBy,
     itemSortBy: ListItemSortBy,
     filters: FilterCriteria,
+    limit?: ViewLimit,
   ) => Promise<void>
   updateView: (
     id: number,
     groupBy: ListGroupBy,
     itemSortBy: ListItemSortBy,
     filters: FilterCriteria,
+    limit?: ViewLimit,
   ) => Promise<void>
   renameView: (id: number, name: string) => Promise<void>
   removeView: (id: number) => Promise<void>
@@ -77,12 +84,15 @@ function buildViewFields(
   groupBy: ListGroupBy,
   itemSortBy: ListItemSortBy,
   filters: FilterCriteria,
-): Pick<SavedView, 'sortBy' | 'groupBy' | 'itemSortBy' | 'filters'> {
+  limit?: ViewLimit,
+): Pick<SavedView, 'sortBy' | 'groupBy' | 'itemSortBy' | 'filters' | 'maxTasks' | 'limitMode'> {
   return {
     sortBy: legacySortBy(groupBy),
     groupBy,
     itemSortBy,
     filters: filtersToSerializable(filters),
+    ...(limit?.maxTasks != null ? { maxTasks: limit.maxTasks } : {}),
+    ...(limit?.limitMode != null ? { limitMode: limit.limitMode } : {}),
   }
 }
 
@@ -227,11 +237,11 @@ export const useSavedViewStore = create<SavedViewState>((set, get) => ({
     }
   },
 
-  async saveCurrentView(name: string, groupBy: ListGroupBy, itemSortBy: ListItemSortBy, filters: FilterCriteria) {
+  async saveCurrentView(name: string, groupBy: ListGroupBy, itemSortBy: ListItemSortBy, filters: FilterCriteria, limit?: ViewLimit) {
     try {
       const { views } = get()
       const maxSort = views.length > 0 ? Math.max(...views.map((v) => v.sortOrder)) : 0
-      const fields = buildViewFields(groupBy, itemSortBy, filters)
+      const fields = buildViewFields(groupBy, itemSortBy, filters, limit)
       const id = await savedViewRepository.add({
         name,
         ...fields,
@@ -244,11 +254,17 @@ export const useSavedViewStore = create<SavedViewState>((set, get) => ({
     }
   },
 
-  async updateView(id: number, groupBy: ListGroupBy, itemSortBy: ListItemSortBy, filters: FilterCriteria) {
+  async updateView(id: number, groupBy: ListGroupBy, itemSortBy: ListItemSortBy, filters: FilterCriteria, limit?: ViewLimit) {
     try {
-      const fields = buildViewFields(groupBy, itemSortBy, filters)
-      await savedViewRepository.update(id, fields)
-      set({ views: get().views.map((v) => (v.id === id ? { ...v, ...fields } : v)), activeViewId: id })
+      const fields = buildViewFields(groupBy, itemSortBy, filters, limit)
+      // Passing `undefined` explicitly ensures cleared caps actually overwrite the stored value.
+      const patch = {
+        ...fields,
+        maxTasks: limit?.maxTasks,
+        limitMode: limit?.limitMode,
+      }
+      await savedViewRepository.update(id, patch)
+      set({ views: get().views.map((v) => (v.id === id ? { ...v, ...patch } : v)), activeViewId: id })
     } catch (e) {
       console.error('Failed to update view:', e)
       set({ error: 'Failed to update view' })

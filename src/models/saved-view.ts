@@ -43,6 +43,14 @@ export interface SavedView {
   itemSortBy?: ListItemSortBy
   filters: SavedViewFilters
   sortOrder: number
+  /**
+   * Optional cap on the number of visible tasks. Undefined = unlimited.
+   * When `limitMode` is `'hard'` the remaining tasks are hidden; when `'scroll'`
+   * they're kept rendered inside a bounded scrollable container.
+   */
+  maxTasks?: number
+  /** How `maxTasks` is enforced. Defaults to `'hard'` when omitted. */
+  limitMode?: 'hard' | 'scroll'
 }
 
 export type PersistedSavedView = SavedView & { id: number }

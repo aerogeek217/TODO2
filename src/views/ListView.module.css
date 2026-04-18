@@ -13,7 +13,7 @@
 }
 
 .medium {
-  max-width: 720px;
+  max-width: 880px;
 }
 
 .pageHeader {
@@ -161,35 +161,104 @@
   color: var(--color-text-muted);
 }
 
-.toolbarSelect {
-  appearance: none;
-  -webkit-appearance: none;
+.maxInput {
   background: var(--color-surface);
-  background-image: linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%),
-                    linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%);
-  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-chip);
   color: var(--color-text-primary);
   font-family: inherit;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
-  padding: 5px 28px 5px 12px;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-  min-width: 110px;
-}
-
-.toolbarSelect:hover {
-  border-color: var(--color-text-muted);
-  background-color: var(--color-surface-high);
-}
-
-.toolbarSelect:focus {
-  border-color: var(--color-accent);
+  padding: 5px 6px 5px 10px;
+  width: 70px;
   outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.maxInput:hover {
+  border-color: var(--color-text-muted);
+}
+
+.maxInput:focus {
+  border-color: var(--color-accent);
+}
+
+.maxInput::-webkit-outer-spin-button,
+.maxInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.maxInput {
+  -moz-appearance: textfield;
+}
+
+.limitModeGroup {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.limitModeBtn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.limitModeBtn + .limitModeBtn {
+  border-left: 1px solid var(--color-border);
+}
+
+.limitModeBtn:hover {
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+}
+
+.limitModeBtnActive {
+  background: var(--color-accent-bg-light);
+  color: var(--color-accent);
+}
+
+.limitModeBtnActive:hover {
+  background: var(--color-accent-bg-light);
+  color: var(--color-accent);
+}
+
+.scrollRegion {
+  overflow-y: auto;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 6px;
+  margin-bottom: 12px;
+}
+
+.limitIndicator {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 10px 0 6px;
+}
+
+.limitIndicatorAction {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.limitIndicatorAction:hover {
+  filter: brightness(1.15);
 }
 
 .toolbarActions {
@@ -533,10 +602,14 @@
     display: none;
   }
 
-  .toolbarSelect {
+  .maxInput {
     min-height: 36px;
-    min-width: 100px;
+    width: 56px;
     font-size: var(--font-size-nav);
+  }
+
+  .limitModeBtn {
+    min-height: 36px;
   }
 
   .toolbarLabel {
@@ -574,7 +647,7 @@
 /* Neutralize sticky hover on touch devices */
 @media (hover: none) {
   .toolbarActionBtn:hover,
-  .toolbarSelect:hover {
+  .maxInput:hover {
     color: var(--color-text-secondary);
     border-color: var(--color-border);
     background: none;

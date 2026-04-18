@@ -46,32 +46,34 @@ import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
 import { buildHierarchy } from '../utils/hierarchy'
 import { useIsMobile } from '../hooks/use-is-mobile'
+import { IconSelect } from '../components/shared/IconSelect'
+import { groupByIcons, itemSortByIcons } from '../components/shared/list-option-icons'
 import styles from './ListView.module.css'
 
-interface Section {
+export interface Section {
   key: string
   label: string
   accentColor?: string
   todos: PersistedTodoItem[]
 }
 
-const groupByOptions: { value: ListGroupBy; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'date', label: 'Date' },
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'deadline', label: 'Deadline' },
-  { value: 'project', label: 'Project' },
-  { value: 'status', label: 'Status' },
-  { value: 'people', label: 'People' },
-  { value: 'org', label: 'Org' },
-  { value: 'tag', label: 'Tag' },
+const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode }[] = [
+  { value: 'none', label: 'None', icon: groupByIcons.none },
+  { value: 'date', label: 'Date', icon: groupByIcons.date },
+  { value: 'scheduled', label: 'Scheduled', icon: groupByIcons.scheduled },
+  { value: 'deadline', label: 'Deadline', icon: groupByIcons.deadline },
+  { value: 'project', label: 'Project', icon: groupByIcons.project },
+  { value: 'status', label: 'Status', icon: groupByIcons.status },
+  { value: 'people', label: 'People', icon: groupByIcons.people },
+  { value: 'org', label: 'Org', icon: groupByIcons.org },
+  { value: 'tag', label: 'Tag', icon: groupByIcons.tag },
 ]
 
-const itemSortByOptions: { value: ListItemSortBy; label: string }[] = [
-  { value: 'manual', label: 'Manual' },
-  { value: 'date', label: 'Date' },
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'deadline', label: 'Deadline' },
+const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.ReactNode }[] = [
+  { value: 'manual', label: 'Manual', icon: itemSortByIcons.manual },
+  { value: 'date', label: 'Date', icon: itemSortByIcons.date },
+  { value: 'scheduled', label: 'Scheduled', icon: itemSortByIcons.scheduled },
+  { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
 ]
 
 
@@ -369,6 +371,32 @@ export function itemSortComparator(
 }
 
 /**
+ * Walk sections in order and truncate at the tail so the total task count
+ * doesn't exceed `maxTasks`. Returns the clipped sections and how many tasks
+ * were hidden.
+ */
+export function truncateSections(sections: Section[], maxTasks: number): { displaySections: Section[]; truncatedCount: number } {
+  let remaining = maxTasks
+  let dropped = 0
+  const out: Section[] = []
+  for (const s of sections) {
+    if (remaining <= 0) {
+      dropped += s.todos.length
+      continue
+    }
+    if (s.todos.length <= remaining) {
+      out.push(s)
+      remaining -= s.todos.length
+    } else {
+      out.push({ ...s, todos: s.todos.slice(0, remaining) })
+      dropped += s.todos.length - remaining
+      remaining = 0
+    }
+  }
+  return { displaySections: out, truncatedCount: dropped }
+}
+
+/**
  * Encode current groupBy + itemSortBy into a list-definition's `sort` + `grouping`.
  * Symmetric with `resolveGroupBy` / `resolveItemSortBy` in DashboardListsEditor.
  */
@@ -629,6 +657,11 @@ export function ListView() {
   const addListDefinition = useListDefinitionStore((s) => s.add)
   const isMobile = useIsMobile()
 
+  // Per-view limit controls (persisted via saved views, not globally).
+  const [maxTasks, setMaxTasks] = useState<number | null>(null)
+  const [limitMode, setLimitMode] = useState<'hard' | 'scroll'>('hard')
+  const [maxTasksInput, setMaxTasksInput] = useState('')
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
@@ -693,6 +726,15 @@ export function ListView() {
     [listSortBy],
   )
 
+  // Apply hard limit by walking sections in order and truncating at the tail.
+  // Scroll mode leaves sections intact and bounds the container instead.
+  const { displaySections, truncatedCount } = useMemo(() => {
+    if (maxTasks == null || limitMode !== 'hard') {
+      return { displaySections: sections, truncatedCount: 0 }
+    }
+    return truncateSections(sections, maxTasks)
+  }, [sections, maxTasks, limitMode])
+
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
 
   const sectionLabelMap = useMemo(() => {
@@ -719,6 +761,8 @@ export function ListView() {
     itemSortBy?: ListItemSortBy
     filters: import('../models/saved-view').SavedViewFilters
     id: number
+    maxTasks?: number
+    limitMode?: 'hard' | 'scroll'
   }) => {
     applyingViewRef.current = true
     const { groupBy, itemSortBy } = resolveSavedViewGrouping(view)
@@ -729,9 +773,12 @@ export function ListView() {
     const { runtime } = savedFiltersToRuntime(view.filters, seededAssignedStatusId, seededFollowupStatusId, allStatuses)
     setAllFilters({ ...useFilterStore.getState().filters, ...runtime })
     setActiveViewId(view.id)
+    setMaxTasks(view.maxTasks ?? null)
+    setMaxTasksInput(view.maxTasks != null ? String(view.maxTasks) : '')
+    setLimitMode(view.limitMode ?? 'hard')
   }, [setListGroupBy, setListSortBy, setAllFilters, setActiveViewId])
 
-  // Clear saved view highlight when filters or group/sort change externally
+  // Clear saved view highlight when filters or group/sort or limit change externally
   useEffect(() => {
     if (applyingViewRef.current) {
       applyingViewRef.current = false
@@ -741,7 +788,7 @@ export function ListView() {
     if (currentId !== null) {
       clearId(null)
     }
-  }, [filters, listGroupBy, listSortBy])
+  }, [filters, listGroupBy, listSortBy, maxTasks, limitMode])
 
   const handleSaveView = useCallback(() => {
     setSaveViewName('')
@@ -751,10 +798,13 @@ export function ListView() {
   const handleConfirmSaveView = useCallback(async () => {
     const name = saveViewName.trim()
     if (!name) return
-    await saveCurrentView(name, listGroupBy, listSortBy, filters)
+    await saveCurrentView(name, listGroupBy, listSortBy, filters, {
+      maxTasks: maxTasks ?? undefined,
+      limitMode: maxTasks != null ? limitMode : undefined,
+    })
     setShowSaveViewDialog(false)
     setSaveViewName('')
-  }, [saveViewName, saveCurrentView, listGroupBy, listSortBy, filters])
+  }, [saveViewName, saveCurrentView, listGroupBy, listSortBy, filters, maxTasks, limitMode])
 
   const handleSavePreset = useCallback(() => {
     setSavePresetName('')
@@ -810,8 +860,11 @@ export function ListView() {
   }, [renamingViewId, renameText, renameView])
 
   const handleUpdateView = useCallback(async (id: number) => {
-    await updateView(id, listGroupBy, listSortBy, filters)
-  }, [updateView, listGroupBy, listSortBy, filters])
+    await updateView(id, listGroupBy, listSortBy, filters, {
+      maxTasks: maxTasks ?? undefined,
+      limitMode: maxTasks != null ? limitMode : undefined,
+    })
+  }, [updateView, listGroupBy, listSortBy, filters, maxTasks, limitMode])
 
   // --- Saved view reorder ---
   const [viewReorderKey, setViewReorderKey] = useState(0)
@@ -1002,30 +1055,59 @@ export function ListView() {
 
           <div className={styles.toolbar}>
             <div className={styles.toolbarControls}>
-              <label className={styles.toolbarField}>
+              <div className={styles.toolbarField}>
                 <span className={styles.toolbarLabel}>Group</span>
-                <select
-                  className={styles.toolbarSelect}
+                <IconSelect<ListGroupBy>
                   value={listGroupBy}
-                  onChange={(e) => { setListGroupBy(e.target.value as ListGroupBy); setActiveViewId(null) }}
-                >
-                  {groupByOptions.map(({ value, label }) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
-              <label className={styles.toolbarField}>
+                  options={groupByOptions}
+                  onChange={(v) => { setListGroupBy(v); setActiveViewId(null) }}
+                  ariaLabel="Group tasks by"
+                />
+              </div>
+              <div className={styles.toolbarField}>
                 <span className={styles.toolbarLabel}>Sort</span>
-                <select
-                  className={styles.toolbarSelect}
+                <IconSelect<ListItemSortBy>
                   value={listSortBy}
-                  onChange={(e) => { setListSortBy(e.target.value as ListItemSortBy); setActiveViewId(null) }}
-                >
-                  {itemSortByOptions.map(({ value, label }) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
+                  options={itemSortByOptions}
+                  onChange={(v) => { setListSortBy(v); setActiveViewId(null) }}
+                  ariaLabel="Sort tasks by"
+                />
+              </div>
+              <div className={styles.toolbarField}>
+                <span className={styles.toolbarLabel}>Max</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  className={styles.maxInput}
+                  placeholder="All"
+                  value={maxTasksInput}
+                  aria-label="Maximum visible tasks"
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    setMaxTasksInput(raw)
+                    if (raw.trim() === '') { setMaxTasks(null); return }
+                    const n = Number(raw)
+                    if (Number.isFinite(n) && n >= 1) setMaxTasks(Math.floor(n))
+                  }}
+                />
+              </div>
+              {maxTasks != null && (
+                <div className={styles.limitModeGroup} role="group" aria-label="Limit mode">
+                  <button
+                    type="button"
+                    className={`${styles.limitModeBtn} ${limitMode === 'hard' ? styles.limitModeBtnActive : ''}`}
+                    onClick={() => setLimitMode('hard')}
+                    title="Hide tasks beyond the limit"
+                  >Hard</button>
+                  <button
+                    type="button"
+                    className={`${styles.limitModeBtn} ${limitMode === 'scroll' ? styles.limitModeBtnActive : ''}`}
+                    onClick={() => setLimitMode('scroll')}
+                    title="Show all tasks inside a scrollable region"
+                  >Scroll</button>
+                </div>
+              )}
             </div>
             <div className={styles.toolbarActions}>
               <button
@@ -1065,43 +1147,68 @@ export function ListView() {
             </div>
           )}
 
-          {sections.map((section) => {
-            const { todos: todosWithGhosts, ghostIds } = addGhostParents(section.todos, todos)
-            const isCollapsed = !!collapsed[section.key]
-            const isOver = overSectionKey === section.key
-            const dropIdx = (isOver && activeDragTodo)
-              ? computeDropIndex(section.todos, todos, activeDragTodo, collapsedParents)
-              : undefined
-            const hideHeader = listGroupBy === 'none'
-            return (
-              <DroppableSection key={section.key} sectionKey={section.key} isOver={isOver}>
-                {!hideHeader && (
-                  <SectionHeader
-                    label={section.label}
-                    count={section.todos.length}
-                    accentColor={section.accentColor}
-                    collapsed={isCollapsed}
-                    onToggle={() => toggleSection(section.key)}
-                  />
-                )}
-                {!isCollapsed && (
-                  <div className={styles.taskList}>
-                    <TaskList
-                      todos={todosWithGhosts}
-                      assignedPeopleMap={assignedPeopleMap}
-                      assignedTagsMap={assignedTagsMap}
-                      ghostIds={ghostIds}
-                      draggable={isDndEnabled}
-                      sectionKey={section.key}
-                      dropIndicatorIndex={dropIdx}
-                      rootComparator={withinGroupComparator}
-                      onOpenDetail={handleClick}
+          {(() => {
+            const sectionEls = displaySections.map((section) => {
+              const { todos: todosWithGhosts, ghostIds } = addGhostParents(section.todos, todos)
+              const isCollapsed = !!collapsed[section.key]
+              const isOver = overSectionKey === section.key
+              const dropIdx = (isOver && activeDragTodo)
+                ? computeDropIndex(section.todos, todos, activeDragTodo, collapsedParents)
+                : undefined
+              const hideHeader = listGroupBy === 'none'
+              return (
+                <DroppableSection key={section.key} sectionKey={section.key} isOver={isOver}>
+                  {!hideHeader && (
+                    <SectionHeader
+                      label={section.label}
+                      count={section.todos.length}
+                      accentColor={section.accentColor}
+                      collapsed={isCollapsed}
+                      onToggle={() => toggleSection(section.key)}
                     />
-                  </div>
-                )}
-              </DroppableSection>
-            )
-          })}
+                  )}
+                  {!isCollapsed && (
+                    <div className={styles.taskList}>
+                      <TaskList
+                        todos={todosWithGhosts}
+                        assignedPeopleMap={assignedPeopleMap}
+                        assignedTagsMap={assignedTagsMap}
+                        ghostIds={ghostIds}
+                        draggable={isDndEnabled}
+                        sectionKey={section.key}
+                        dropIndicatorIndex={dropIdx}
+                        rootComparator={withinGroupComparator}
+                        onOpenDetail={handleClick}
+                      />
+                    </div>
+                  )}
+                </DroppableSection>
+              )
+            })
+
+            if (maxTasks != null && limitMode === 'scroll') {
+              // Heuristic height: 28px/row + ~32px/section-header offset.
+              const headerCount = listGroupBy === 'none' ? 0 : displaySections.length
+              const maxHeight = `calc(${maxTasks} * 28px + ${headerCount} * 32px + 16px)`
+              return (
+                <div className={styles.scrollRegion} style={{ maxHeight }}>
+                  {sectionEls}
+                </div>
+              )
+            }
+            return sectionEls
+          })()}
+
+          {maxTasks != null && limitMode === 'hard' && truncatedCount > 0 && (
+            <div className={styles.limitIndicator}>
+              Showing {maxTasks} of {maxTasks + truncatedCount} tasks —{' '}
+              <button
+                type="button"
+                className={styles.limitIndicatorAction}
+                onClick={() => setLimitMode('scroll')}
+              >switch to scroll</button>
+            </div>
+          )}
         </div>
 
         {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (

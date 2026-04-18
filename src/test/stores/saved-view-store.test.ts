@@ -241,6 +241,63 @@ describe('resolveSavedViewGrouping (split group + sort)', () => {
   })
 })
 
+describe('saveCurrentView — maxTasks / limitMode', () => {
+  it('persists maxTasks and limitMode when provided', async () => {
+    await useSavedViewStore.getState().saveCurrentView(
+      'Top 20',
+      'date',
+      'manual',
+      defaultFilters,
+      { maxTasks: 20, limitMode: 'hard' },
+    )
+    const saved = useSavedViewStore.getState().views[0]
+    expect(saved.maxTasks).toBe(20)
+    expect(saved.limitMode).toBe('hard')
+  })
+
+  it('omits the fields when no limit is set', async () => {
+    await useSavedViewStore.getState().saveCurrentView('All', 'date', 'manual', defaultFilters)
+    const saved = useSavedViewStore.getState().views[0]
+    expect(saved.maxTasks).toBeUndefined()
+    expect(saved.limitMode).toBeUndefined()
+  })
+
+  it('updateView can clear a previously set limit', async () => {
+    await useSavedViewStore.getState().saveCurrentView(
+      'Top 5',
+      'date',
+      'manual',
+      defaultFilters,
+      { maxTasks: 5, limitMode: 'scroll' },
+    )
+    const id = useSavedViewStore.getState().views[0].id
+    await useSavedViewStore.getState().updateView(id, 'date', 'manual', defaultFilters)
+    await useSavedViewStore.getState().load()
+    const reloaded = useSavedViewStore.getState().views[0]
+    expect(reloaded.maxTasks).toBeUndefined()
+    expect(reloaded.limitMode).toBeUndefined()
+  })
+
+  it('updateView can change limitMode on an existing view', async () => {
+    await useSavedViewStore.getState().saveCurrentView(
+      'Top 10',
+      'date',
+      'manual',
+      defaultFilters,
+      { maxTasks: 10, limitMode: 'hard' },
+    )
+    const id = useSavedViewStore.getState().views[0].id
+    await useSavedViewStore.getState().updateView(
+      id, 'date', 'manual', defaultFilters,
+      { maxTasks: 10, limitMode: 'scroll' },
+    )
+    await useSavedViewStore.getState().load()
+    const reloaded = useSavedViewStore.getState().views[0]
+    expect(reloaded.maxTasks).toBe(10)
+    expect(reloaded.limitMode).toBe('scroll')
+  })
+})
+
 describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
   it('orgFilterMode direct-only survives save and restore roundtrip', async () => {
     const filters: FilterCriteria = {

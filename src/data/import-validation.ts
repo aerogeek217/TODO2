@@ -399,6 +399,8 @@ function checkSavedView(v: unknown): CheckResult {
     ['sortBy', typeof v.sortBy === 'string' && VALID_SORT_BY.includes(v.sortBy)],
     ['filters', isObj(v.filters)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
+    ['maxTasks', v.maxTasks === undefined || (isFiniteNum(v.maxTasks) && (v.maxTasks as number) >= 1 && (v.maxTasks as number) <= 10000)],
+    ['limitMode', v.limitMode === undefined || v.limitMode === 'hard' || v.limitMode === 'scroll'],
   ])
   if (basic !== true) return basic
   return checkSavedViewFilters(v.filters)
@@ -619,6 +621,8 @@ function pickSavedView(v: Record<string, unknown>): SavedView {
     ...(v.itemSortBy !== undefined ? { itemSortBy: v.itemSortBy as SavedView['itemSortBy'] } : {}),
     filters: pickSavedViewFilters(v.filters as Record<string, unknown>),
     sortOrder: v.sortOrder as number,
+    ...(v.maxTasks !== undefined ? { maxTasks: v.maxTasks as number } : {}),
+    ...(v.limitMode !== undefined ? { limitMode: v.limitMode as SavedView['limitMode'] } : {}),
   }
 }
 
