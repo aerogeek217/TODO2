@@ -1,0 +1,77 @@
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, fireEvent, cleanup } from '@testing-library/react'
+import { DateAnchorInput } from '../../components/shared/DateAnchorInput'
+import type { DateAnchor } from '../../models'
+
+afterEach(cleanup)
+
+function dateInput(container: HTMLElement) {
+  return container.querySelector('input[type="date"]') as HTMLInputElement
+}
+
+function tokenSelect(container: HTMLElement) {
+  return container.querySelector('select') as HTMLSelectElement
+}
+
+describe('DateAnchorInput', () => {
+  it('renders empty inputs when value is null', () => {
+    const { container } = render(<DateAnchorInput value={null} onChange={() => {}} />)
+    expect(dateInput(container).value).toBe('')
+    expect(tokenSelect(container).value).toBe('')
+  })
+
+  it('shows the ISO day in the date input for a fixed anchor', () => {
+    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
+    const { container } = render(<DateAnchorInput value={v} onChange={() => {}} />)
+    expect(dateInput(container).value).toBe('2026-04-18')
+    expect(tokenSelect(container).value).toBe('')
+  })
+
+  it('selects the matching token in the dropdown for a relative anchor', () => {
+    const v: DateAnchor = { kind: 'relative', token: 'end-of-week' }
+    const { container } = render(<DateAnchorInput value={v} onChange={() => {}} />)
+    expect(tokenSelect(container).value).toBe('end-of-week')
+    expect(dateInput(container).value).toBe('')
+  })
+
+  it('fires a fixed anchor when the native date input changes', () => {
+    const onChange = vi.fn()
+    const { container } = render(<DateAnchorInput value={null} onChange={onChange} />)
+    fireEvent.change(dateInput(container), { target: { value: '2026-04-20' } })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const arg = onChange.mock.calls[0][0]
+    expect(arg.kind).toBe('fixed')
+    expect(arg.iso.slice(0, 10)).toBe('2026-04-20')
+  })
+
+  it('fires a relative anchor when a token is picked from the dropdown', () => {
+    const onChange = vi.fn()
+    const { container } = render(<DateAnchorInput value={null} onChange={onChange} />)
+    fireEvent.change(tokenSelect(container), { target: { value: 'start-of-next-week' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'start-of-next-week' })
+  })
+
+  it('clears to null when a relative anchor is reset to Custom', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'relative', token: 'today' }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(tokenSelect(container), { target: { value: '' } })
+    expect(onChange).toHaveBeenCalledWith(null)
+  })
+
+  it('clears to null when a fixed anchor date is emptied', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(dateInput(container), { target: { value: '' } })
+    expect(onChange).toHaveBeenCalledWith(null)
+  })
+
+  it('switching from fixed to relative replaces the value', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(tokenSelect(container), { target: { value: 'end-of-month' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'end-of-month' })
+  })
+})

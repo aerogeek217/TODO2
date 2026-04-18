@@ -11,12 +11,6 @@ export function fixedAnchor(d: Date): DateAnchor {
   return { kind: 'fixed', iso: d.toISOString() }
 }
 
-/** Resolve a `DateAnchor | null` to a `Date | null` using today + configured weekStartsOn. */
-export function resolveAnchor(anchor: DateAnchor | null, today: Date = startOfToday()): Date | null {
-  if (!anchor) return null
-  return resolveDateAnchor(anchor, today, getConfiguredWeekStart())
-}
-
 /**
  * Runtime filter state: same fields as the serializable `TodoPredicate`, but
  * with `Set<number>` instead of `number[]` and `Date` instead of ISO string.

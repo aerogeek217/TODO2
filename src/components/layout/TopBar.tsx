@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router'
-import { useFilterStore, resolveAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
+import { useFilterStore, fixedAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
+import type { DateAnchor } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -12,6 +13,7 @@ import { startOfToday, formatDateShort } from '../../utils/date'
 import { scheduledLabel } from '../../utils/effective-date'
 import { toggleItem } from '../../utils/filter'
 import { StatusIcon } from '../shared/StatusIcon'
+import { DateAnchorInput } from '../shared/DateAnchorInput'
 import styles from './TopBar.module.css'
 
 function FilterDropdown({
@@ -142,24 +144,52 @@ const DATE_FIELD_LABELS: Record<DateField, string> = {
   modified: 'Modified',
 }
 
+function TriStateRow({ label, value, onChange }: {
+  label: string
+  value: boolean | null
+  onChange: (v: boolean | null) => void
+}) {
+  // cycle: null → true → false → null
+  const next = value === null ? true : value === true ? false : null
+  const icon = value === null ? '—' : value === true ? '✓' : '✕'
+  return (
+    <label
+      className={styles.dropdownItem}
+      onClick={() => onChange(next)}
+      title={value === null ? 'No filter' : value ? 'Only tasks with this field' : 'Only tasks without this field'}
+    >
+      <span className={`${styles.triState} ${value !== null ? styles.triStateActive : ''}`}>{icon}</span>
+      {label}
+    </label>
+  )
+}
+
 function DateRangeDropdown({
   active,
   dateField,
-  startDate,
-  endDate,
+  startAnchor,
+  endAnchor,
   includeNoDate,
+  hasScheduled,
+  hasDeadline,
   onChangeDateField,
-  onChangeRange,
+  onChangeAnchors,
   onChangeIncludeNoDate,
+  onChangeHasScheduled,
+  onChangeHasDeadline,
 }: {
   active: boolean
   dateField: DateField
-  startDate: Date | null
-  endDate: Date | null
+  startAnchor: DateAnchor | null
+  endAnchor: DateAnchor | null
   includeNoDate: boolean
+  hasScheduled: boolean | null
+  hasDeadline: boolean | null
   onChangeDateField: (field: DateField) => void
-  onChangeRange: (start: Date | null, end: Date | null) => void
+  onChangeAnchors: (start: DateAnchor | null, end: DateAnchor | null) => void
   onChangeIncludeNoDate: (include: boolean) => void
+  onChangeHasScheduled: (v: boolean | null) => void
+  onChangeHasDeadline: (v: boolean | null) => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -173,14 +203,13 @@ function DateRangeDropdown({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const toStr = (d: Date | null) => d ? d.toISOString().split('T')[0] : ''
-
   const handleOpen = () => {
     if (!open && !active) {
+      const todayAnchor = fixedAnchor(startOfToday())
       if (dateField === 'date' || dateField === 'scheduled' || dateField === 'deadline') {
-        onChangeRange(startOfToday(), null)
+        onChangeAnchors(todayAnchor, null)
       } else {
-        onChangeRange(null, startOfToday())
+        onChangeAnchors(null, todayAnchor)
       }
     }
     setOpen(!open)
@@ -207,10 +236,11 @@ function DateRangeDropdown({
                 onClick={() => {
                   if (field === dateField) return
                   onChangeDateField(field)
+                  const todayAnchor = fixedAnchor(startOfToday())
                   if (field === 'date' || field === 'scheduled' || field === 'deadline') {
-                    onChangeRange(startOfToday(), null)
+                    onChangeAnchors(todayAnchor, null)
                   } else {
-                    onChangeRange(null, startOfToday())
+                    onChangeAnchors(null, todayAnchor)
                   }
                 }}
               >
@@ -221,20 +251,18 @@ function DateRangeDropdown({
           <div className={styles.dropdownDivider} />
           <div className={styles.dateRangeRow}>
             <label className={styles.dateLabel}>From</label>
-            <input
-              type="date"
-              className={styles.dateInput}
-              value={toStr(startDate)}
-              onChange={(e) => onChangeRange(e.target.value ? new Date(e.target.value + 'T00:00:00') : null, endDate)}
+            <DateAnchorInput
+              value={startAnchor}
+              onChange={(v) => onChangeAnchors(v, endAnchor)}
+              aria-label="Date range start"
             />
           </div>
           <div className={styles.dateRangeRow}>
             <label className={styles.dateLabel}>To</label>
-            <input
-              type="date"
-              className={styles.dateInput}
-              value={toStr(endDate)}
-              onChange={(e) => onChangeRange(startDate, e.target.value ? new Date(e.target.value + 'T00:00:00') : null)}
+            <DateAnchorInput
+              value={endAnchor}
+              onChange={(v) => onChangeAnchors(startAnchor, v)}
+              aria-label="Date range end"
             />
           </div>
           {dateField === 'date' && (
@@ -247,10 +275,13 @@ function DateRangeDropdown({
             </>
           )}
           <div className={styles.dropdownDivider} />
+          <TriStateRow label="Has scheduled" value={hasScheduled} onChange={onChangeHasScheduled} />
+          <TriStateRow label="Has deadline" value={hasDeadline} onChange={onChangeHasDeadline} />
+          <div className={styles.dropdownDivider} />
           <div className={styles.dropdownActions}>
             <button
               className={`${styles.dropdownAction} ${!active ? styles.dropdownActionDisabled : ''}`}
-              onClick={() => { onChangeRange(null, null); setOpen(false) }}
+              onClick={() => { onChangeAnchors(null, null); onChangeHasScheduled(null); onChangeHasDeadline(null); setOpen(false) }}
             >
               Clear
             </button>
@@ -307,7 +338,7 @@ function EntityDropdownItems({
 
 
 export function TopBar() {
-  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDate, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -341,7 +372,7 @@ export function TopBar() {
   const tagsActive = filters.tagIds !== null
   const orgsActive = filters.orgIds !== null
   const statusActive = filters.statusIds !== null
-  const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null
+  const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null || filters.hasScheduled !== null || filters.hasDeadline !== null
 
   const handlePersonToggle = useCallback(
     (personId: number) => {
@@ -591,12 +622,16 @@ export function TopBar() {
           <DateRangeDropdown
             active={dateRangeActive}
             dateField={filters.dateField}
-            startDate={resolveAnchor(filters.dateRangeStart)}
-            endDate={resolveAnchor(filters.dateRangeEnd)}
+            startAnchor={filters.dateRangeStart}
+            endAnchor={filters.dateRangeEnd}
             includeNoDate={filters.dateRangeIncludeNoDate}
+            hasScheduled={filters.hasScheduled}
+            hasDeadline={filters.hasDeadline}
             onChangeDateField={setDateField}
-            onChangeRange={setDateRange}
+            onChangeAnchors={setDateRangeAnchors}
             onChangeIncludeNoDate={setDateRangeIncludeNoDate}
+            onChangeHasScheduled={setHasScheduled}
+            onChangeHasDeadline={setHasDeadline}
           />
 
           {statuses.length > 0 && (

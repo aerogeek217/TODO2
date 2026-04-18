@@ -349,6 +349,29 @@
   transform: rotate(45deg) translate(-0.5px, -0.5px);
 }
 
+/* ═══ Tri-state indicator ═══ */
+
+.triState {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.triStateActive {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
 /* ═══ Custom radio ═══ */
 
 .radio {

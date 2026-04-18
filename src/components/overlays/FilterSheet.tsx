@@ -1,13 +1,13 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useLocation } from 'react-router'
-import { useFilterStore, resolveAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
+import { useFilterStore, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
-import { toDateInputValue } from '../../utils/date'
 import { toggleItem } from '../../utils/filter'
+import { DateAnchorInput } from '../shared/DateAnchorInput'
 import styles from './FilterSheet.module.css'
 
 function EntityFilterList({
@@ -57,7 +57,7 @@ function EntityFilterList({
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
-  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRange, setDateRangeIncludeNoDate, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
@@ -117,9 +117,17 @@ export function FilterSheet() {
 
   const dateFieldOptions: { value: DateField; label: string }[] = [
     { value: 'date', label: 'Date' },
+    { value: 'scheduled', label: 'Sched.' },
+    { value: 'deadline', label: 'Deadline' },
     { value: 'created', label: 'Created' },
     { value: 'modified', label: 'Modified' },
   ]
+
+  const cycleTri = (v: boolean | null): boolean | null =>
+    v === null ? true : v === true ? false : null
+  const triIcon = (v: boolean | null) => v === null ? '—' : v === true ? '✓' : '✕'
+  const triLabel = (v: boolean | null) =>
+    v === null ? 'No filter' : v ? 'Only tasks with this field' : 'Only tasks without this field'
 
   return (
     <>
@@ -196,7 +204,7 @@ export function FilterSheet() {
             <div className={styles.entityHeader} onClick={() => handleToggleSection('date')}>
               <span className={styles.filterLabel}>
                 Date range
-                {(filters.dateRangeStart || filters.dateRangeEnd) && <span className={styles.activeCount}>1</span>}
+                {(filters.dateRangeStart || filters.dateRangeEnd || filters.hasScheduled !== null || filters.hasDeadline !== null) && <span className={styles.activeCount}>1</span>}
               </span>
               <span className={`${styles.entityChevron} ${openSection === 'date' ? styles.entityChevronOpen : ''}`}>▸</span>
             </div>
@@ -214,24 +222,16 @@ export function FilterSheet() {
                   ))}
                 </div>
                 <div className={styles.dateInputs}>
-                  <input
-                    className={styles.dateInput}
-                    type="date"
-                    value={toDateInputValue(resolveAnchor(filters.dateRangeStart) ?? undefined)}
-                    onChange={(e) => {
-                      const d = e.target.value ? new Date(e.target.value + 'T00:00:00') : null
-                      setDateRange(d, resolveAnchor(filters.dateRangeEnd))
-                    }}
+                  <DateAnchorInput
+                    value={filters.dateRangeStart}
+                    onChange={(v) => setDateRangeAnchors(v, filters.dateRangeEnd)}
+                    aria-label="Date range start"
                   />
                   <span style={{ color: 'var(--color-text-muted)' }}>to</span>
-                  <input
-                    className={styles.dateInput}
-                    type="date"
-                    value={toDateInputValue(resolveAnchor(filters.dateRangeEnd) ?? undefined)}
-                    onChange={(e) => {
-                      const d = e.target.value ? new Date(e.target.value + 'T00:00:00') : null
-                      setDateRange(resolveAnchor(filters.dateRangeStart), d)
-                    }}
+                  <DateAnchorInput
+                    value={filters.dateRangeEnd}
+                    onChange={(v) => setDateRangeAnchors(filters.dateRangeStart, v)}
+                    aria-label="Date range end"
                   />
                 </div>
                 {filters.dateField === 'date' && (
@@ -249,6 +249,34 @@ export function FilterSheet() {
                     />
                   </div>
                 )}
+                <div className={styles.filterRow}>
+                  <span className={styles.filterLabel}>
+                    <span className={styles.filterLabelIcon}>📅</span>
+                    Has scheduled
+                  </span>
+                  <button
+                    className={`${styles.triToggle} ${filters.hasScheduled !== null ? styles.triToggleActive : ''}`}
+                    onClick={() => setHasScheduled(cycleTri(filters.hasScheduled))}
+                    aria-label={`Has scheduled: ${triLabel(filters.hasScheduled)}`}
+                    title={triLabel(filters.hasScheduled)}
+                  >
+                    {triIcon(filters.hasScheduled)}
+                  </button>
+                </div>
+                <div className={styles.filterRow}>
+                  <span className={styles.filterLabel}>
+                    <span className={styles.filterLabelIcon}>⚑</span>
+                    Has deadline
+                  </span>
+                  <button
+                    className={`${styles.triToggle} ${filters.hasDeadline !== null ? styles.triToggleActive : ''}`}
+                    onClick={() => setHasDeadline(cycleTri(filters.hasDeadline))}
+                    aria-label={`Has deadline: ${triLabel(filters.hasDeadline)}`}
+                    title={triLabel(filters.hasDeadline)}
+                  >
+                    {triIcon(filters.hasDeadline)}
+                  </button>
+                </div>
               </div>
             )}
           </div>

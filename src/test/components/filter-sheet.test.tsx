@@ -127,6 +127,41 @@ describe('FilterSheet', () => {
       if (!dateRangeStart || dateRangeStart.kind !== 'fixed') throw new Error('expected fixed anchor')
       expect(dateRangeStart.iso.slice(0, 10)).toBe('2026-04-01')
     })
+
+    it('sets a relative-token anchor from the token dropdown', () => {
+      renderSheet()
+      fireEvent.click(screen.getByText('Date range'))
+      // First select is the date-field selector in dateFieldSelector (buttons, not a select).
+      // The real <select> elements belong to DateAnchorInput (start, end).
+      const selects = document.querySelectorAll('select')
+      fireEvent.change(selects[0], { target: { value: 'end-of-week' } })
+
+      const { dateRangeStart } = useFilterStore.getState().filters
+      expect(dateRangeStart).not.toBeNull()
+      if (!dateRangeStart || dateRangeStart.kind !== 'relative') throw new Error('expected relative anchor')
+      expect(dateRangeStart.token).toBe('end-of-week')
+    })
+
+    it('cycles hasScheduled tri-state null → true → false → null', () => {
+      renderSheet()
+      fireEvent.click(screen.getByText('Date range'))
+      const btn = screen.getByRole('button', { name: /Has scheduled/ })
+
+      fireEvent.click(btn)
+      expect(useFilterStore.getState().filters.hasScheduled).toBe(true)
+      fireEvent.click(btn)
+      expect(useFilterStore.getState().filters.hasScheduled).toBe(false)
+      fireEvent.click(btn)
+      expect(useFilterStore.getState().filters.hasScheduled).toBe(null)
+    })
+
+    it('cycles hasDeadline tri-state', () => {
+      renderSheet()
+      fireEvent.click(screen.getByText('Date range'))
+      const btn = screen.getByRole('button', { name: /Has deadline/ })
+      fireEvent.click(btn)
+      expect(useFilterStore.getState().filters.hasDeadline).toBe(true)
+    })
   })
 
   // ── Entity lists ──────────────────────────────────────────────────

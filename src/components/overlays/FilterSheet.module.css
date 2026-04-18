@@ -177,6 +177,30 @@
   transform: translateX(20px);
 }
 
+/* Tri-state toggle (null / true / false) */
+.triToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 28px;
+  border-radius: var(--radius-chip);
+  border: 1.5px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.triToggleActive {
+  background: var(--color-accent-bg-light);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 /* Date range */
 .dateSection {
   display: flex;
