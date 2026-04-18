@@ -27,6 +27,17 @@ export function formatDate(date: Date): string {
   })
 }
 
+/** Format as "Mon DD", adding ", YYYY" only when the date is not in the current calendar year */
+export function formatDateShort(date: Date): string {
+  const d = new Date(date)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  })
+}
+
 /** Format as relative time: "just now", "5m ago", "3h ago", "2d ago", or "in Xd" for future */
 export function formatRelativeTime(date: Date): string {
   const now = new Date()

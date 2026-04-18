@@ -6,7 +6,7 @@ import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { startOfToday, formatDate } from '../../utils/date'
+import { startOfToday, formatDateShort } from '../../utils/date'
 import { scheduledLabel, isScheduledExpired } from '../../utils/effective-date'
 import styles from './MobileTaskRow.module.css'
 
@@ -142,7 +142,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           {todo.dueDate && (
             <span className={styles.deadlineChip}>
               {todo.recurrenceRule && <span className={styles.recurrenceIndicator}>&#x21bb;</span>}
-              {formatDate(todo.dueDate)}
+              {formatDateShort(todo.dueDate)}
             </span>
           )}
 

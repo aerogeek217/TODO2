@@ -78,8 +78,9 @@ describe('MobileTaskRow', () => {
 
   describe('date chips', () => {
     it('shows deadline chip with formatted date', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11) })} />)
-      expect(screen.getByText(/Apr 11, 2026/)).toBeInTheDocument()
+      const year = new Date().getFullYear()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
+      expect(screen.getByText(/Apr 11$/)).toBeInTheDocument()
     })
 
     it('shows scheduled chip label for fuzzy token', () => {
@@ -94,8 +95,9 @@ describe('MobileTaskRow', () => {
     })
 
     it('shows recurrence indicator inside deadline chip when recurrenceRule is set', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
-      const chip = screen.getByText(/Apr 11, 2026/)
+      const year = new Date().getFullYear()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
+      const chip = screen.getByText(/Apr 11/)
       expect(chip.textContent).toContain('\u21bb')
     })
   })

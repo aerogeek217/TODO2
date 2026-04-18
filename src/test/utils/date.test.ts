@@ -5,6 +5,7 @@ import {
   startOfToday,
   isSameDay,
   formatDate,
+  formatDateShort,
   formatRelativeTime,
   toDateInputValue,
 } from '../../utils/date'
@@ -103,6 +104,26 @@ describe('formatDate', () => {
 
   it('returns a non-empty string', () => {
     expect(formatDate(new Date())).toBeTruthy()
+  })
+})
+
+describe('formatDateShort', () => {
+  it('omits the year when the date is in the current year', () => {
+    const now = new Date()
+    const d = new Date(now.getFullYear(), 0, 5) // Jan 5 of this year
+    expect(formatDateShort(d)).toBe('Jan 5')
+  })
+
+  it('includes the year when the date is in a different year', () => {
+    const now = new Date()
+    const d = new Date(now.getFullYear() + 1, 0, 5) // Jan 5 of next year
+    expect(formatDateShort(d)).toBe(`Jan 5, ${now.getFullYear() + 1}`)
+  })
+
+  it('includes the year for past years', () => {
+    const now = new Date()
+    const d = new Date(now.getFullYear() - 2, 11, 31)
+    expect(formatDateShort(d)).toBe(`Dec 31, ${now.getFullYear() - 2}`)
   })
 })
 

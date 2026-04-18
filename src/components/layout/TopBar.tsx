@@ -8,7 +8,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
-import { startOfToday, formatDate } from '../../utils/date'
+import { startOfToday, formatDateShort } from '../../utils/date'
 import { scheduledLabel } from '../../utils/effective-date'
 import { toggleItem } from '../../utils/filter'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -481,7 +481,7 @@ export function TopBar() {
                   <span className={styles.miniListDue}>{scheduledLabel(todo.scheduledDate, startOfToday())}</span>
                 )}
                 {todo.dueDate && (
-                  <span className={styles.miniListDue}>{formatDate(todo.dueDate)}</span>
+                  <span className={styles.miniListDue}>{formatDateShort(todo.dueDate)}</span>
                 )}
               </button>
             ))}
