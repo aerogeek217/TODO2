@@ -27,7 +27,7 @@ import { useOrgStore } from '../stores/org-store'
 import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
-import { useFilterStore } from '../stores/filter-store'
+import { useFilterStore, applyFilter } from '../stores/filter-store'
 import { useSavedViewStore, savedFiltersToRuntime, translateSortBy } from '../stores/saved-view-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskList } from '../components/task/TaskList'
@@ -510,7 +510,7 @@ export function ListView() {
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { statuses, load: loadStatuses } = useStatusStore()
   const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
-  const { filters, applyFilter, setAllFilters } = useFilterStore()
+  const { filters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
   const taskEdit = useTaskEditCallbacks()
   const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, updateView, renameView, removeView, reorder: reorderViews, setActiveViewId } = useSavedViewStore()
@@ -557,12 +557,17 @@ export function ListView() {
   }, [people, orgs, loadPersonOrgMap])
 
   const activeTodos = useMemo(() => {
-    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter, statuses])
+    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses])
 
   const sections = useMemo(() => {
     switch (listSortBy) {
       case 'date':
+      case 'scheduled':
+      case 'deadline':
+        // Commit A: 'scheduled' / 'deadline' accepted in the union but not yet
+        // surfaced in the sort picker. Treat as 'date' until Commit C lands
+        // proper per-field grouping.
         return buildDateSections(activeTodos)
       case 'people':
         return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds)
@@ -780,7 +785,7 @@ export function ListView() {
     setPendingReassign(null)
   }, [])
 
-  const isDndEnabled = !isMobile && listSortBy !== 'date'
+  const isDndEnabled = !isMobile && listSortBy !== 'date' && listSortBy !== 'scheduled' && listSortBy !== 'deadline'
   const totalActive = activeTodos.length
 
   const pageContent = (

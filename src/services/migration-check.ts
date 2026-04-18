@@ -1,4 +1,4 @@
-const CURRENT_DB_VERSION = 21
+const CURRENT_DB_VERSION = 22
 // Dexie multiplies version numbers by 10 for the native IDB version
 const CURRENT_IDB_VERSION = CURRENT_DB_VERSION * 10
 
@@ -15,6 +15,10 @@ const DATA_MIGRATIONS: PendingMigration[] = [
   {
     version: 21,
     description: 'Priority is removed and replaced with Scheduled Date + Deadline (hard due-date). Tasks with a recurrence rule or hard-deadline flag keep their due date. Soft-due tasks move their date to "Scheduled". Priority-based list insets are removed.',
+  },
+  {
+    version: 22,
+    description: 'Dashboard list definitions gain a "Pin to Dashboard" toggle. Existing lists are pinned by default; the seeded-list marker is retired so renamed or deleted defaults stay that way.',
   },
 ]
 

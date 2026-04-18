@@ -226,17 +226,14 @@ describe('v21 migration', () => {
     await runMigration()
     const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
     expect(defs).toHaveLength(4)
-    expect(defs[0].seededKey).toBe('today')
-    expect(defs[0].sortOrder).toBe(0)
-    expect(defs[1].seededKey).toBe('upcoming')
-    expect(defs[1].sortOrder).toBe(1)
-    expect(defs[2].seededKey).toBe('deadlines')
-    expect(defs[2].sortOrder).toBe(2)
-    expect(defs[3].seededKey).toBe('someday')
-    expect(defs[3].sortOrder).toBe(3)
+    expect(defs.map(d => d.name)).toEqual(['Today', 'Upcoming', 'Deadlines', 'Someday'])
+    expect(defs.map(d => d.sortOrder)).toEqual([0, 1, 2, 3])
+    expect(defs.map(d => d.membership.kind)).toEqual(['today', 'upcoming', 'deadlines', 'someday'])
+    // v22: pinnedToDashboard defaults true on seed
+    for (const d of defs) expect(d.pinnedToDashboard).toBe(true)
   })
 
-  it('does not duplicate seeds if listDefinitions is already fully populated', async () => {
+  it('does not re-seed when listDefinitions already has rows (v22 "insert iff empty" semantics)', async () => {
     await runMigration()
     const firstCount = (await db.listDefinitions.toArray()).length
 
@@ -247,11 +244,11 @@ describe('v21 migration', () => {
     expect(secondCount).toBe(4)
   })
 
-  it('adds missing seeds when partially populated', async () => {
+  it('preserves user-customized rows without adding duplicates (v22: no re-seed on non-empty)', async () => {
     await db.listDefinitions.add({
       name: 'My Today',
-      seededKey: 'today',
       sortOrder: 0,
+      pinnedToDashboard: true,
       membership: { kind: 'today' },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'none' },
@@ -259,10 +256,8 @@ describe('v21 migration', () => {
 
     await runMigration()
     const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
-    const keys = defs.map(d => d.seededKey).sort()
-    expect(keys).toEqual(['deadlines', 'someday', 'today', 'upcoming'])
-    const today = defs.find(d => d.seededKey === 'today')!
-    expect(today.name).toBe('My Today')
+    expect(defs).toHaveLength(1)
+    expect(defs[0].name).toBe('My Today')
   })
 
   // ---------- ensureSeededListDefinitions directly ----------

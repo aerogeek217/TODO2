@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org } from '../../models'
-import { useFilterStore } from '../../stores/filter-store'
+import { useFilterStore, applyFilter } from '../../stores/filter-store'
 import { useStatusStore } from '../../stores/status-store'
 import { TaskRow } from '../task/TaskRow'
 import { bySortOrder } from '../../utils/hierarchy'
@@ -106,7 +106,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const headerInfo = getInsetHeaderInfo(inset)
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
-  const { filters, applyFilter } = useFilterStore()
+  const { filters } = useFilterStore()
   const statuses = useStatusStore((s) => s.statuses)
 
   // Clean up resize listeners on unmount
@@ -132,7 +132,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
 
   const filteredTodos = useMemo(() => {
     // Apply global filters first
-    const globalFiltered = applyFilter(allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
+    const globalFiltered = applyFilter(filters, allTodos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
 
     const today = startOfToday()
     const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
@@ -173,7 +173,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       }
       return bySortOrder(a, b)
     })
-  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, applyFilter, statuses, dayKey])
+  }, [allTodos, filters, inset.preset, inset.attributeFilter, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses, dayKey])
 
   return (
     <div className={styles.inset} style={{ width: inset.width }}>

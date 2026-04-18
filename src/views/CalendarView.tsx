@@ -5,7 +5,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useProjectStore } from '../stores/project-store'
 import { useUIStore } from '../stores/ui-store'
-import { useFilterStore } from '../stores/filter-store'
+import { useFilterStore, applyFilter } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
@@ -89,7 +89,7 @@ export function CalendarView() {
   const { orgs, personOrgMap, assignedOrgsMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { loadAll: loadAllProjects } = useProjectStore()
   const { openEditPopup } = useUIStore()
-  const { filters, applyFilter } = useFilterStore()
+  const { filters } = useFilterStore()
   const { statuses } = useStatusStore()
   const taskEdit = useTaskEditCallbacks()
 
@@ -121,8 +121,8 @@ export function CalendarView() {
   }, [people, orgs, loadPersonOrgMap])
 
   const activeTodos = useMemo(() => {
-    return applyFilter(todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, applyFilter, statuses])
+    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses])
 
   const [today, setToday] = useState(() => startOfDay(new Date()))
 

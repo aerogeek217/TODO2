@@ -13,8 +13,9 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
+import type { TodoPredicate } from '../models'
 import { useUIStore } from '../stores/ui-store'
-import { useFilterStore } from '../stores/filter-store'
+import { useFilterStore, matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
@@ -127,7 +128,7 @@ export function DashboardView() {
   const { todos, loadAll } = useTodoStore()
   const { assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments } = usePersonStore()
   const { assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments } = useTagStore()
-  const { load: loadOrgs, loadAssignments: loadOrgAssignments } = useOrgStore()
+  const { assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
   const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
@@ -175,18 +176,33 @@ export function DashboardView() {
     }
   }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
 
+  useEffect(() => {
+    loadPersonOrgMap()
+  }, [loadPersonOrgMap])
+
   const lists = useMemo<DashboardList[]>(() => {
     const today = startOfToday()
     const hiddenStatusIds = new Set(
       statuses.filter((s) => s.hideByDefault).map((s) => s.id!),
     )
+    const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(predicate)
+      const people = assignedPeopleMap.get(todo.id) ?? []
+      const personIds = people.map((p) => p.id!)
+      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
+      const personOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
+      const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
+      const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
+      return matchesFilter(criteria, todo, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
+    }
     return buildDashboardLists(listDefinitions, todos, {
       today,
       hiddenStatusIds,
       showHiddenStatuses,
       showCompleted,
+      evalPredicate,
     })
-  }, [listDefinitions, todos, statuses, showHiddenStatuses, showCompleted])
+  }, [listDefinitions, todos, statuses, showHiddenStatuses, showCompleted, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap])
 
   const handleClick = useCallback((todoId: number) => {
     openEditPopup(todoId)

@@ -84,6 +84,12 @@ export class Todo2Database extends Dexie {
     }).upgrade(async (tx) => {
       await runV21Migration(tx)
     })
+
+    // v22: list-definitions builder DSL — add `pinnedToDashboard`, drop
+    // `seededKey`. No index change (both fields are stored inline).
+    this.version(22).stores({}).upgrade(async (tx) => {
+      await runV22Migration(tx)
+    })
   }
 }
 
@@ -214,7 +220,7 @@ export async function runV21Migration(tx: Transaction): Promise<void> {
   const listInsetsTable = tx.table<ListInset>('listInsets')
   const listDefinitionsTable = tx.table<ListDefinition>('listDefinitions')
 
-  // 1) Seed listDefinitions (idempotent by seededKey).
+  // 1) Seed listDefinitions (inserts the 4 defaults iff the table is empty).
   await ensureSeededListDefinitions(listDefinitionsTable)
 
   // 2) Per-row Q2 rules. See translateTodoV20ToV21 for the precedence table.
@@ -252,18 +258,27 @@ export async function runV21Migration(tx: Transaction): Promise<void> {
   )
 }
 
-/** Idempotent seeder for Today/Upcoming/Deadlines/Someday list definitions. */
+/**
+ * Seeds the four default list definitions (Today / Upcoming / Deadlines /
+ * Someday) iff the `listDefinitions` table is empty. Post-v22, the defaults
+ * are just normal rows — if the user deletes them they stay deleted; if the
+ * user renames them the rename persists.
+ *
+ * Used by `runV21Migration` (initial creation), `runV22Migration` (no-op when
+ * v21 already seeded), and `restoreFromImportData` (backfill when an import
+ * lacks a `listDefinitions` table).
+ */
 export async function ensureSeededListDefinitions(
   table: Table<ListDefinition, number>,
 ): Promise<void> {
-  const existing = await table.toArray()
-  const haveKeys = new Set(existing.map(d => d.seededKey).filter(Boolean) as string[])
+  const count = await table.count()
+  if (count > 0) return
 
   const seeds: Omit<ListDefinition, 'id'>[] = [
     {
       name: 'Today',
       sortOrder: 0,
-      seededKey: 'today',
+      pinnedToDashboard: true,
       membership: { kind: 'today' },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'none' },
@@ -271,7 +286,7 @@ export async function ensureSeededListDefinitions(
     {
       name: 'Upcoming',
       sortOrder: 1,
-      seededKey: 'upcoming',
+      pinnedToDashboard: true,
       membership: { kind: 'upcoming' },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'relative-effective' },
@@ -279,7 +294,7 @@ export async function ensureSeededListDefinitions(
     {
       name: 'Deadlines',
       sortOrder: 2,
-      seededKey: 'deadlines',
+      pinnedToDashboard: true,
       membership: { kind: 'deadlines' },
       sort: { kind: 'deadline-asc' },
       grouping: { kind: 'relative-deadline' },
@@ -287,7 +302,7 @@ export async function ensureSeededListDefinitions(
     {
       name: 'Someday',
       sortOrder: 3,
-      seededKey: 'someday',
+      pinnedToDashboard: true,
       membership: { kind: 'someday' },
       sort: { kind: 'sort-order' },
       grouping: { kind: 'none' },
@@ -295,10 +310,22 @@ export async function ensureSeededListDefinitions(
   ]
 
   for (const seed of seeds) {
-    if (!haveKeys.has(seed.seededKey!)) {
-      await table.add(seed as ListDefinition)
-    }
+    await table.add(seed as ListDefinition)
   }
+}
+
+/**
+ * v22 upgrade: backfill `pinnedToDashboard = true` on every existing list
+ * definition (the four v21 seeds are the only possible rows) and strip the
+ * retired `seededKey` field. No-op if the table is empty (v21 migration
+ * already seeded four rows).
+ */
+export async function runV22Migration(tx: Transaction): Promise<void> {
+  const listDefsTable = tx.table('listDefinitions')
+  await listDefsTable.toCollection().modify((def: Record<string, unknown>) => {
+    if (def.pinnedToDashboard === undefined) def.pinnedToDashboard = true
+    delete def.seededKey
+  })
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */

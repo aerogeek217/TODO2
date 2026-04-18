@@ -136,6 +136,8 @@ function FilterDropdown({
 
 const DATE_FIELD_LABELS: Record<DateField, string> = {
   date: 'Date',
+  scheduled: 'Scheduled',
+  deadline: 'Deadline',
   created: 'Created',
   modified: 'Modified',
 }

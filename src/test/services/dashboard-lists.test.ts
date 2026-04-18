@@ -42,36 +42,36 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
 
 const TODAY_DEF: PersistedListDefinition = {
   id: 1,
-  seededKey: 'today',
   name: 'Today',
   sortOrder: 0,
+  pinnedToDashboard: true,
   membership: { kind: 'today' },
   sort: { kind: 'effective-date-asc' },
   grouping: { kind: 'none' },
 }
 const UPCOMING_DEF: PersistedListDefinition = {
   id: 2,
-  seededKey: 'upcoming',
   name: 'Upcoming',
   sortOrder: 1,
+  pinnedToDashboard: true,
   membership: { kind: 'upcoming' },
   sort: { kind: 'effective-date-asc' },
   grouping: { kind: 'relative-effective' },
 }
 const DEADLINES_DEF: PersistedListDefinition = {
   id: 3,
-  seededKey: 'deadlines',
   name: 'Deadlines',
   sortOrder: 2,
+  pinnedToDashboard: true,
   membership: { kind: 'deadlines' },
   sort: { kind: 'deadline-asc' },
   grouping: { kind: 'relative-deadline' },
 }
 const SOMEDAY_DEF: PersistedListDefinition = {
   id: 4,
-  seededKey: 'someday',
   name: 'Someday',
   sortOrder: 3,
+  pinnedToDashboard: true,
   membership: { kind: 'someday' },
   sort: { kind: 'sort-order' },
   grouping: { kind: 'none' },
@@ -86,14 +86,16 @@ describe('buildDashboardLists', () => {
 
   it('renders definitions in sortOrder', () => {
     const lists = buildDashboardLists(ALL_DEFS, [], makeCtx())
-    expect(lists.map((l) => l.key)).toEqual(['today', 'upcoming', 'deadlines', 'someday'])
+    expect(lists.map((l) => l.id)).toEqual([1, 2, 3, 4])
+    expect(lists.map((l) => l.label)).toEqual(['Today', 'Upcoming', 'Deadlines', 'Someday'])
   })
 
-  it('falls back to def-{id} key when seededKey absent', () => {
+  it('keys every row by def-{id}', () => {
     const custom: PersistedListDefinition = {
       id: 99,
       name: 'Custom',
       sortOrder: 0,
+      pinnedToDashboard: true,
       membership: { kind: 'someday' },
       sort: { kind: 'sort-order' },
       grouping: { kind: 'none' },
@@ -243,8 +245,8 @@ describe('buildDashboardLists — overlap + sort', () => {
   it('places a task with deadline today+1 in Today AND Deadlines', () => {
     const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 1 * MS_PER_DAY) })
     const lists = buildDashboardLists(ALL_DEFS, [t], makeCtx())
-    const todayList = lists.find((l) => l.key === 'today')!
-    const deadlines = lists.find((l) => l.key === 'deadlines')!
+    const todayList = lists.find((l) => l.id === 1)!
+    const deadlines = lists.find((l) => l.id === 3)!
     expect(todayList.todos.map((x) => x.id)).toContain(1)
     expect(deadlines.todos.map((x) => x.id)).toContain(1)
   })
@@ -260,7 +262,7 @@ describe('buildDashboardLists — overlap + sort', () => {
     })
     const ctx = makeCtx()
     const lists = buildDashboardLists(ALL_DEFS, [later, earlier], ctx)
-    const todayList = lists.find((l) => l.key === 'today')!
+    const todayList = lists.find((l) => l.id === 1)!
     expect(todayList.todos.map((t) => t.id)).toEqual([1, 2])
   })
 })
@@ -372,5 +374,211 @@ describe('week boundary parity with resolveFuzzy', () => {
     const upcoming = lists[0]
     const thisWeekGroup = upcoming.groups!.find((g) => g.key === 'this-week')
     expect(thisWeekGroup?.todos.map((x) => x.id)).toContain(1)
+  })
+})
+
+describe('interpretMembership — today with warningWindowDays override', () => {
+  it('shorter window (1 day) excludes a deadline 2 days out', () => {
+    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 2 * MS_PER_DAY) })
+    expect(interpretMembership({ kind: 'today', warningWindowDays: 1 }, t, makeCtx())).toBe(false)
+  })
+
+  it('longer window (7 days) includes a deadline 5 days out', () => {
+    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 5 * MS_PER_DAY) })
+    expect(interpretMembership({ kind: 'today', warningWindowDays: 7 }, t, makeCtx())).toBe(true)
+  })
+
+  it('omitting warningWindowDays falls back to default (3)', () => {
+    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 3 * MS_PER_DAY) })
+    expect(interpretMembership({ kind: 'today' }, t, makeCtx())).toBe(true)
+    const t2 = makeTodo({ id: 2, dueDate: new Date(today.getTime() + 4 * MS_PER_DAY) })
+    expect(interpretMembership({ kind: 'today' }, t2, makeCtx())).toBe(false)
+  })
+})
+
+describe('interpretMembership — upcoming/today window coupling', () => {
+  it('upcoming exclusion uses the same warningWindowDays as today', () => {
+    // Task 5 days out: in today when window=7, so must be excluded from upcoming with matching window.
+    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 5 * MS_PER_DAY) })
+    expect(interpretMembership({ kind: 'today', warningWindowDays: 7 }, t, makeCtx())).toBe(true)
+    expect(interpretMembership({ kind: 'upcoming', warningWindowDays: 7 }, t, makeCtx())).toBe(false)
+  })
+
+  it('short-window upcoming still excludes same task from today bucket', () => {
+    // Task 2 days out: IN today when window=3 (default), so NOT in upcoming.
+    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 2 * MS_PER_DAY) })
+    expect(interpretMembership({ kind: 'upcoming' }, t, makeCtx())).toBe(false)
+    // Narrow window to 1 → task no longer in today → should appear in upcoming.
+    expect(interpretMembership({ kind: 'upcoming', warningWindowDays: 1 }, t, makeCtx())).toBe(true)
+  })
+})
+
+describe('interpretMembership — custom', () => {
+  const PREDICATE_ALWAYS = {
+    showCompleted: true,
+    showHiddenStatuses: false,
+    personIds: null,
+    personFilterMode: 'include-orgs' as const,
+    tagIds: null,
+    orgIds: null,
+    orgFilterMode: 'include-people' as const,
+    statusIds: null,
+    searchText: '',
+    dateField: 'date' as const,
+    dateRangeStart: null,
+    dateRangeEnd: null,
+    dateRangeIncludeNoDate: false,
+  }
+
+  it('delegates to ctx.evalPredicate', () => {
+    const t = makeTodo({ id: 1 })
+    const ctx = makeCtx({
+      evalPredicate: (_p, todo) => todo.id === 1,
+    })
+    expect(interpretMembership({ kind: 'custom', predicate: PREDICATE_ALWAYS }, t, ctx)).toBe(true)
+
+    const other = makeTodo({ id: 2 })
+    expect(interpretMembership({ kind: 'custom', predicate: PREDICATE_ALWAYS }, other, ctx)).toBe(false)
+  })
+
+  it('without ctx.evalPredicate, matches zero todos', () => {
+    const t = makeTodo({ id: 1 })
+    const ctx = makeCtx() // no evalPredicate
+    expect(interpretMembership({ kind: 'custom', predicate: PREDICATE_ALWAYS }, t, ctx)).toBe(false)
+  })
+})
+
+describe('interpretSort — sortBy', () => {
+  it('sortBy=date sorts chronologically, earliest first', () => {
+    const early = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'date', value: new Date(today.getTime() - 1 * MS_PER_DAY) },
+    })
+    const late = makeTodo({
+      id: 2,
+      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 5 * MS_PER_DAY) },
+    })
+    // Use a custom predicate membership that accepts both todos so the sort
+    // behavior is isolated from the today/upcoming filter.
+    const allPredicate = {
+      showCompleted: true, showHiddenStatuses: true,
+      personIds: null, personFilterMode: 'include-orgs' as const,
+      tagIds: null, orgIds: null, orgFilterMode: 'include-people' as const,
+      statusIds: null, searchText: '', dateField: 'date' as const,
+      dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false,
+    }
+    const def: PersistedListDefinition = {
+      id: 42,
+      name: 'By date',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'custom', predicate: allPredicate },
+      sort: { kind: 'sortBy', by: 'date' },
+      grouping: { kind: 'none' },
+    }
+    const lists = buildDashboardLists(
+      [def],
+      [late, early],
+      makeCtx({ evalPredicate: () => true }),
+    )
+    expect(lists[0].todos.map((t) => t.id)).toEqual([1, 2])
+  })
+
+  it('sortBy=deadline sorts by dueDate only', () => {
+    const a = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 5 * MS_PER_DAY) })
+    const b = makeTodo({ id: 2, dueDate: new Date(today.getTime() + 1 * MS_PER_DAY) })
+    const def: PersistedListDefinition = {
+      id: 43,
+      name: 'Deadline-asc',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'deadlines' },
+      sort: { kind: 'sortBy', by: 'deadline' },
+      grouping: { kind: 'none' },
+    }
+    const lists = buildDashboardLists([def], [a, b], makeCtx())
+    expect(lists[0].todos.map((t) => t.id)).toEqual([2, 1])
+  })
+
+  it('sortBy=people falls back to sortOrder (categorical ambiguity)', () => {
+    const a = makeTodo({ id: 1, sortOrder: 200 })
+    const b = makeTodo({ id: 2, sortOrder: 100 })
+    const def: PersistedListDefinition = {
+      id: 44,
+      name: 'By people',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'someday' },
+      sort: { kind: 'sortBy', by: 'people' },
+      grouping: { kind: 'none' },
+    }
+    const lists = buildDashboardLists([def], [a, b], makeCtx())
+    expect(lists[0].todos.map((t) => t.id)).toEqual([2, 1])
+  })
+})
+
+describe('interpretGrouping — by-sortBy', () => {
+  it('by-sortBy with sortBy=date reuses relative-effective buckets', () => {
+    const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
+    const tomorrow = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 1 * MS_PER_DAY) },
+    })
+    const def: PersistedListDefinition = {
+      id: 50,
+      name: 'By date',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'upcoming' },
+      sort: { kind: 'sortBy', by: 'date' },
+      grouping: { kind: 'by-sortBy' },
+    }
+    const lists = buildDashboardLists([def], [tomorrow], makeCtx({ today: anchor }))
+    expect(lists[0].groups?.[0].key).toBe('tomorrow')
+  })
+
+  it('by-sortBy with sortBy=deadline reuses relative-deadline buckets', () => {
+    const overdue = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 5 * MS_PER_DAY) })
+    const def: PersistedListDefinition = {
+      id: 51,
+      name: 'By deadline',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'deadlines' },
+      sort: { kind: 'sortBy', by: 'deadline' },
+      grouping: { kind: 'by-sortBy' },
+    }
+    const lists = buildDashboardLists([def], [overdue], makeCtx())
+    expect(lists[0].groups?.[0].key).toBe('overdue')
+  })
+
+  it('by-sortBy with categorical sortBy returns undefined (not yet implemented)', () => {
+    const t = makeTodo({ id: 1 })
+    const def: PersistedListDefinition = {
+      id: 52,
+      name: 'By tag',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'someday' },
+      sort: { kind: 'sortBy', by: 'tag' },
+      grouping: { kind: 'by-sortBy' },
+    }
+    const lists = buildDashboardLists([def], [t], makeCtx())
+    expect(lists[0].groups).toBeUndefined()
+  })
+
+  it('by-sortBy without a sortBy sort kind returns undefined', () => {
+    const t = makeTodo({ id: 1 })
+    const def: PersistedListDefinition = {
+      id: 53,
+      name: 'Mismatched',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'someday' },
+      sort: { kind: 'sort-order' },
+      grouping: { kind: 'by-sortBy' },
+    }
+    const lists = buildDashboardLists([def], [t], makeCtx())
+    expect(lists[0].groups).toBeUndefined()
   })
 })

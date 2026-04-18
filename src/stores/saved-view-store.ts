@@ -12,7 +12,8 @@ import type { FilterCriteria } from './filter-store'
  */
 export function translateSortBy(sortBy: string): ListSortBy {
   if (sortBy === 'priority' || sortBy === 'due') return 'date'
-  if (sortBy === 'date' || sortBy === 'people' || sortBy === 'tag'
+  if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline'
+      || sortBy === 'people' || sortBy === 'tag'
       || sortBy === 'project' || sortBy === 'org' || sortBy === 'status') {
     return sortBy
   }
@@ -111,18 +112,20 @@ export function savedFiltersToRuntime(
       }
     }
   } else {
-    showCompleted = s.showCompleted
-    showHiddenStatuses = s.showHiddenStatuses
+    showCompleted = s.showCompleted ?? false
+    showHiddenStatuses = s.showHiddenStatuses ?? false
   }
 
   // v20→v21 translation — silent per Q13 (no losses pushed).
   //
   // (a) dateField: 'due' → 'date'. Stored value 'due' predates Phase 2's rename.
-  //     Undefined defaults to 'date'.
+  //     Undefined defaults to 'date'. 'scheduled' / 'deadline' pass through (v22+).
   const dateFieldRaw = s.dateField as string | undefined
   const dateField: DateField =
     dateFieldRaw === 'created' ? 'created'
     : dateFieldRaw === 'modified' ? 'modified'
+    : dateFieldRaw === 'scheduled' ? 'scheduled'
+    : dateFieldRaw === 'deadline' ? 'deadline'
     : 'date'
 
   // (b) dateRangeIncludeNoDue → dateRangeIncludeNoDate. Read either key.

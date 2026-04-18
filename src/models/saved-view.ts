@@ -1,11 +1,17 @@
-import type { ListSortBy, DateField } from './app-view'
+import type { ListSortBy } from './app-view'
+import type { TodoPredicate } from './filter-predicate'
 
-/** Serializable snapshot of filter + grouping state */
-export interface SavedViewFilters {
+/**
+ * Serializable snapshot of filter + grouping state. Composes `TodoPredicate`
+ * for the live fields; keeps `@deprecated` legacy fields only (they are read
+ * by `savedFiltersToRuntime` but never written).
+ *
+ * Fields from `TodoPredicate` are made optional here because pre-v21 saved
+ * views may omit them; `savedFiltersToRuntime` fills in defaults.
+ */
+export interface SavedViewFilters extends Partial<TodoPredicate> {
   /** @deprecated v20→v21 legacy — kept for reading old saved views; ignored at runtime */
   priorities?: number[] | null
-  showCompleted: boolean
-  showHiddenStatuses: boolean
   /** @deprecated v19→v20 legacy — kept for reading old saved views */
   completedFilter?: string
   /** @deprecated v19→v20 legacy — kept for reading old saved views */
@@ -20,20 +26,6 @@ export interface SavedViewFilters {
   hardDeadlineOnly?: boolean
   /** @deprecated v20→v21 legacy — renamed to dateRangeIncludeNoDate */
   dateRangeIncludeNoDue?: boolean
-  personIds: number[] | null
-  personFilterMode?: 'include-orgs' | 'direct-only'
-  tagIds: number[] | null
-  orgIds: number[] | null
-  orgFilterMode?: 'include-people' | 'direct-only'
-  statusIds?: number[] | null
-  /** Which date field to filter on. 'due' is accepted as a legacy value and translated to 'date' at load time. */
-  dateField?: DateField
-  /** ISO string of date range start (optional for backward compat) */
-  dateRangeStart?: string | null
-  /** ISO string of date range end (optional for backward compat) */
-  dateRangeEnd?: string | null
-  /** Renamed from dateRangeIncludeNoDue. Translation layer reads both keys on load; serializer writes only this key. */
-  dateRangeIncludeNoDate: boolean
 }
 
 export interface SavedView {

@@ -229,8 +229,10 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
     await restoreFromImportData(validated.data)
 
     const listDefinitions = await db.listDefinitions.toArray()
-    const keys = listDefinitions.map((d) => d.seededKey).sort()
-    expect(keys).toEqual(['deadlines', 'someday', 'today', 'upcoming'])
+    const kinds = listDefinitions.map((d) => d.membership.kind).sort()
+    expect(kinds).toEqual(['deadlines', 'someday', 'today', 'upcoming'])
+    // v22: all seeded rows are pinned to the dashboard by default.
+    for (const d of listDefinitions) expect(d.pinnedToDashboard).toBe(true)
 
     const statuses = await db.statuses.toArray()
     const names = statuses.map((s) => s.name).sort()
@@ -304,9 +306,10 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       firstPass.listInsets.map((i) => i.id).sort(),
     )
 
-    // List definitions: same set (seeder is idempotent)
-    expect(secondPass.listDefinitions.map((d) => d.seededKey).sort())
-      .toEqual(firstPass.listDefinitions.map((d) => d.seededKey).sort())
+    // List definitions: same set of membership kinds round-trip (seeder idempotent,
+    // seededKey retired in v22).
+    expect(secondPass.listDefinitions.map((d) => d.membership.kind).sort())
+      .toEqual(firstPass.listDefinitions.map((d) => d.membership.kind).sort())
 
     // Seeded statuses: same names present
     expect(secondPass.statuses.map((s) => s.name).sort())

@@ -1,5 +1,5 @@
 import type { TodoItem, Project, Canvas, Person, Tag, ListInset, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
-import type { ListDefinition, ListMembership, ListSort, ListGrouping, SeededListKey } from '../models/list-definition'
+import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { STATUS_ICON_KEYS } from '../components/shared/StatusIcon'
 
@@ -135,10 +135,44 @@ function checkTodo(v: unknown): CheckResult {
   ])
 }
 
-const VALID_LIST_MEMBERSHIP_KINDS = ['today', 'upcoming', 'deadlines', 'someday']
-const VALID_LIST_SORT_KINDS = ['effective-date-asc', 'deadline-asc', 'sort-order']
-const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadline']
-const VALID_SEEDED_LIST_KEYS = ['today', 'upcoming', 'deadlines', 'someday']
+const VALID_LIST_MEMBERSHIP_KINDS = ['today', 'upcoming', 'deadlines', 'someday', 'custom']
+const VALID_LIST_SORT_KINDS = ['effective-date-asc', 'deadline-asc', 'sort-order', 'sortBy']
+const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadline', 'by-sortBy']
+// v22→v21 back-compat: old exports may still carry `seededKey`; accepted but
+// stripped at reconstruction time. Not validated against a strict enum —
+// anything stringy passes so restore can drop it silently.
+
+function isTodoPredicateShape(v: unknown): boolean {
+  if (!isObj(v)) return false
+  // Minimal shape check — full field validation defers to savedView reader.
+  // Must have the core boolean + string fields; everything else is optional.
+  return typeof v.showCompleted === 'boolean'
+    && typeof v.showHiddenStatuses === 'boolean'
+    && typeof v.searchText === 'string'
+    && typeof v.dateRangeIncludeNoDate === 'boolean'
+}
+
+function isValidMembership(m: unknown): boolean {
+  if (!isObj(m) || typeof m.kind !== 'string') return false
+  if (!VALID_LIST_MEMBERSHIP_KINDS.includes(m.kind)) return false
+  if (m.kind === 'today' || m.kind === 'upcoming') {
+    return m.warningWindowDays === undefined || m.warningWindowDays === null
+      || (typeof m.warningWindowDays === 'number' && m.warningWindowDays >= 0 && m.warningWindowDays <= 365)
+  }
+  if (m.kind === 'custom') {
+    return isTodoPredicateShape(m.predicate)
+  }
+  return true
+}
+
+function isValidSort(s: unknown): boolean {
+  if (!isObj(s) || typeof s.kind !== 'string') return false
+  if (!VALID_LIST_SORT_KINDS.includes(s.kind)) return false
+  if (s.kind === 'sortBy') {
+    return typeof s.by === 'string' && VALID_SORT_BY.includes(s.by)
+  }
+  return true
+}
 
 function checkListDefinition(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
@@ -148,14 +182,12 @@ function checkListDefinition(v: unknown): CheckResult {
   return checkFields(v, [
     ['name', isStr(v.name, 200)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
-    ['membership', isObj(membership) && typeof membership.kind === 'string'
-      && VALID_LIST_MEMBERSHIP_KINDS.includes(membership.kind)],
-    ['sort', isObj(sort) && typeof sort.kind === 'string'
-      && VALID_LIST_SORT_KINDS.includes(sort.kind)],
+    ['membership', isValidMembership(membership)],
+    ['sort', isValidSort(sort)],
     ['grouping', isObj(grouping) && typeof grouping.kind === 'string'
       && VALID_LIST_GROUPING_KINDS.includes(grouping.kind)],
-    ['seededKey', v.seededKey === undefined || v.seededKey === null
-      || (typeof v.seededKey === 'string' && VALID_SEEDED_LIST_KEYS.includes(v.seededKey))],
+    // v22+: pinnedToDashboard required. v21 imports may omit; restore backfills.
+    ['pinnedToDashboard', v.pinnedToDashboard === undefined || isBool(v.pinnedToDashboard)],
   ])
 }
 
@@ -269,11 +301,11 @@ function checkPersonOrg(v: unknown): CheckResult {
   ])
 }
 
-// Accept BOTH legacy ('priority', 'due') and new ('date') values so pre-v21
-// saved views pass validation. Phase 5's savedFiltersToRuntime translates
-// legacy → runtime at load time.
-const VALID_SORT_BY = ['date', 'due', 'priority', 'people', 'tag', 'project', 'org', 'status']
-const VALID_DATE_FIELDS = ['date', 'due', 'created', 'modified']
+// Accept BOTH legacy ('priority', 'due') and new ('date'/'scheduled'/'deadline')
+// values so pre-v21 saved views pass validation. Phase 5's savedFiltersToRuntime
+// translates legacy → runtime at load time.
+const VALID_SORT_BY = ['date', 'scheduled', 'deadline', 'due', 'priority', 'people', 'tag', 'project', 'org', 'status']
+const VALID_DATE_FIELDS = ['date', 'scheduled', 'deadline', 'due', 'created', 'modified']
 
 function isOptNullableIntArray(v: unknown): boolean {
   if (v === undefined || v === null) return true
@@ -559,7 +591,9 @@ function pickListDefinition(v: Record<string, unknown>): ListDefinition {
     membership: v.membership as ListMembership,
     sort: v.sort as ListSort,
     grouping: v.grouping as ListGrouping,
-    ...(v.seededKey != null ? { seededKey: v.seededKey as SeededListKey } : {}),
+    // v21 exports omit pinnedToDashboard; treat as pinned (matches v22 migration).
+    // v21 `seededKey` is silently dropped.
+    pinnedToDashboard: typeof v.pinnedToDashboard === 'boolean' ? v.pinnedToDashboard : true,
   }
 }
 

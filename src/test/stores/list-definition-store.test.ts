@@ -20,12 +20,14 @@ describe('useListDefinitionStore', () => {
   it('load reads rows ordered by sortOrder', async () => {
     await listDefinitionRepository.insert({
       name: 'B', sortOrder: 2,
+      pinnedToDashboard: true,
       membership: { kind: 'upcoming' },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'relative-effective' },
     })
     await listDefinitionRepository.insert({
       name: 'A', sortOrder: 1,
+      pinnedToDashboard: true,
       membership: { kind: 'today' },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'none' },

@@ -1,13 +1,18 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Tag, Org, Status, DateField } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Tag, Org, Status, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode } from '../models'
 import { startOfDay, startOfToday } from '../utils/date'
-import { effectiveDate } from '../utils/effective-date'
+import { effectiveDate, resolveScheduled } from '../utils/effective-date'
 
-export type OrgFilterMode = 'include-people' | 'direct-only'
-export type PersonFilterMode = 'include-orgs' | 'direct-only'
+export type { DateField, PersonFilterMode, OrgFilterMode }
 
-export type { DateField }
-
+/**
+ * Runtime filter state: same fields as the serializable `TodoPredicate`, but
+ * with `Set<number>` instead of `number[]` and `Date` instead of ISO string.
+ * Keep the Sets for O(1) `.has()` in UI hot paths (TopBar, FilterSheet).
+ *
+ * Serializable boundary: `criteriaToPredicate` / `predicateToCriteria` convert
+ * between this and `TodoPredicate` at storage / evaluation boundaries.
+ */
 export interface FilterCriteria {
   showCompleted: boolean
   showHiddenStatuses: boolean
@@ -27,9 +32,11 @@ export interface FilterCriteria {
   searchText: string
   /**
    * Which date field drives the date range filter:
-   *   'date'     → effectiveDate(todo, today)
-   *   'created'  → todo.createdAt
-   *   'modified' → todo.modifiedAt
+   *   'date'      → effectiveDate(todo, today)
+   *   'scheduled' → resolveScheduled(todo.scheduledDate, today)
+   *   'deadline'  → todo.dueDate
+   *   'created'   → todo.createdAt
+   *   'modified'  → todo.modifiedAt
    */
   dateField: DateField
   /** null = no filter; Date = only show tasks with date on or after this date */
@@ -59,25 +66,6 @@ interface FilterState {
   setDateRangeIncludeNoDate: (include: boolean) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
-  applyFilter: (
-    todos: PersistedTodoItem[],
-    assignedPeopleMap?: Map<number, Person[]>,
-    assignedTagsMap?: Map<number, Tag[]>,
-    personOrgMap?: Map<number, number[]>,
-    assignedOrgsMap?: Map<number, Org[]>,
-    statuses?: Status[],
-    today?: Date,
-  ) => PersistedTodoItem[]
-  matchesFilter: (
-    todo: TodoItem,
-    assignedPersonIds?: number[],
-    assignedTagIds?: number[],
-    assignedPersonOrgIds?: number[],
-    directOrgIds?: number[],
-    filterPersonOrgIds?: Set<number>,
-    statuses?: Status[],
-    today?: Date,
-  ) => boolean
 }
 
 const defaultFilters: FilterCriteria = {
@@ -124,9 +112,15 @@ export function computeFilterPersonOrgIds(
   return s.size > 0 ? s : undefined
 }
 
-function todoMatchesFilter(
-  todo: TodoItem,
+/**
+ * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
+ * single todo; returns whether the todo passes the filter. Top-level function
+ * (not a store method) so the interpreter in `dashboard-lists.ts` can call it
+ * with a `FilterCriteria` synthesized from a stored `TodoPredicate`.
+ */
+export function matchesFilter(
   filters: FilterCriteria,
+  todo: TodoItem,
   assignedPersonIds?: number[],
   assignedTagIds?: number[],
   assignedPersonOrgIds?: number[],
@@ -180,12 +174,22 @@ function todoMatchesFilter(
   }
   if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
     let rawDate: Date | null
-    if (filters.dateField === 'date') {
-      rawDate = effectiveDate(todo, today)
-    } else if (filters.dateField === 'created') {
-      rawDate = todo.createdAt
-    } else {
-      rawDate = todo.modifiedAt
+    switch (filters.dateField) {
+      case 'date':
+        rawDate = effectiveDate(todo, today)
+        break
+      case 'scheduled':
+        rawDate = todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today) : null
+        break
+      case 'deadline':
+        rawDate = todo.dueDate ? new Date(todo.dueDate) : null
+        break
+      case 'created':
+        rawDate = todo.createdAt
+        break
+      case 'modified':
+        rawDate = todo.modifiedAt
+        break
     }
 
     if (!rawDate) {
@@ -204,6 +208,68 @@ function todoMatchesFilter(
     }
   }
   return true
+}
+
+/**
+ * Canonical bulk evaluator. See `matchesFilter`.
+ */
+export function applyFilter(
+  filters: FilterCriteria,
+  todos: PersistedTodoItem[],
+  assignedPeopleMap?: Map<number, Person[]>,
+  assignedTagsMap?: Map<number, Tag[]>,
+  personOrgMap?: Map<number, number[]>,
+  assignedOrgsMap?: Map<number, Org[]>,
+  statuses?: Status[],
+  today: Date = startOfToday(),
+): PersistedTodoItem[] {
+  const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
+  return todos.filter((t) => {
+    const people = assignedPeopleMap?.get(t.id) ?? []
+    const personIds = people.map((p) => p.id!)
+    const tagIds = (assignedTagsMap?.get(t.id) ?? []).map((tg) => tg.id!)
+    const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
+    const directOrgIds = (assignedOrgsMap?.get(t.id) ?? []).map((o) => o.id!)
+    return matchesFilter(filters, t, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
+  })
+}
+
+/** Runtime (Sets + Dates) → serializable (arrays + ISO strings) for saved views / list definitions. */
+export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
+  return {
+    showCompleted: f.showCompleted,
+    showHiddenStatuses: f.showHiddenStatuses,
+    personIds: f.personIds ? Array.from(f.personIds) : null,
+    personFilterMode: f.personFilterMode,
+    tagIds: f.tagIds ? Array.from(f.tagIds) : null,
+    orgIds: f.orgIds ? Array.from(f.orgIds) : null,
+    orgFilterMode: f.orgFilterMode,
+    statusIds: f.statusIds ? Array.from(f.statusIds) : null,
+    searchText: f.searchText,
+    dateField: f.dateField,
+    dateRangeStart: f.dateRangeStart ? f.dateRangeStart.toISOString() : null,
+    dateRangeEnd: f.dateRangeEnd ? f.dateRangeEnd.toISOString() : null,
+    dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
+  }
+}
+
+/** Serializable (arrays + ISO strings) → runtime (Sets + Dates). Inverse of `criteriaToPredicate`. */
+export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
+  return {
+    showCompleted: p.showCompleted,
+    showHiddenStatuses: p.showHiddenStatuses,
+    personIds: p.personIds ? new Set(p.personIds) : null,
+    personFilterMode: p.personFilterMode,
+    tagIds: p.tagIds ? new Set(p.tagIds) : null,
+    orgIds: p.orgIds ? new Set(p.orgIds) : null,
+    orgFilterMode: p.orgFilterMode,
+    statusIds: p.statusIds ? new Set(p.statusIds) : null,
+    searchText: p.searchText,
+    dateField: p.dateField,
+    dateRangeStart: p.dateRangeStart ? new Date(p.dateRangeStart) : null,
+    dateRangeEnd: p.dateRangeEnd ? new Date(p.dateRangeEnd) : null,
+    dateRangeIncludeNoDate: p.dateRangeIncludeNoDate,
+  }
 }
 
 function commit(set: (s: Partial<FilterState>) => void, filters: FilterCriteria) {
@@ -268,39 +334,5 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   clearAll() {
     set({ filters: { ...defaultFilters }, isActive: false })
-  },
-
-  applyFilter(
-    todos: PersistedTodoItem[],
-    assignedPeopleMap?: Map<number, Person[]>,
-    assignedTagsMap?: Map<number, Tag[]>,
-    personOrgMap?: Map<number, number[]>,
-    assignedOrgsMap?: Map<number, Org[]>,
-    statuses?: Status[],
-    today: Date = startOfToday(),
-  ): PersistedTodoItem[] {
-    const { filters } = get()
-    const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
-    return todos.filter((t) => {
-      const people = assignedPeopleMap?.get(t.id) ?? []
-      const personIds = people.map((p) => p.id!)
-      const tagIds = (assignedTagsMap?.get(t.id) ?? []).map((tg) => tg.id!)
-      const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
-      const directOrgIds = (assignedOrgsMap?.get(t.id) ?? []).map((o) => o.id!)
-      return todoMatchesFilter(t, filters, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
-    })
-  },
-
-  matchesFilter(
-    todo: TodoItem,
-    assignedPersonIds?: number[],
-    assignedTagIds?: number[],
-    assignedPersonOrgIds?: number[],
-    directOrgIds?: number[],
-    filterPersonOrgIds?: Set<number>,
-    statuses?: Status[],
-    today: Date = startOfToday(),
-  ): boolean {
-    return todoMatchesFilter(todo, get().filters, assignedPersonIds, assignedTagIds, assignedPersonOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
   },
 }))

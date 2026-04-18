@@ -6,6 +6,6 @@ export enum AppView {
   Settings = 'settings',
 }
 
-export type ListSortBy = 'date' | 'people' | 'tag' | 'project' | 'org' | 'status'
+export type ListSortBy = 'date' | 'scheduled' | 'deadline' | 'people' | 'tag' | 'project' | 'org' | 'status'
 
-export type DateField = 'date' | 'created' | 'modified'
+export type DateField = 'date' | 'scheduled' | 'deadline' | 'created' | 'modified'

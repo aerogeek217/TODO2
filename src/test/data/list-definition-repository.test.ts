@@ -12,6 +12,7 @@ function makeDef(overrides: Partial<ListDefinition> = {}): ListDefinition {
   return {
     name: 'Custom',
     sortOrder: 0,
+    pinnedToDashboard: true,
     membership: { kind: 'today' },
     sort: { kind: 'effective-date-asc' },
     grouping: { kind: 'none' },

@@ -71,6 +71,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
   return {
     name: 'List',
     sortOrder: 0,
+    pinnedToDashboard: true,
     membership: { kind: 'someday' },
     sort: { kind: 'sort-order' },
     grouping: { kind: 'none' },
@@ -142,10 +143,10 @@ describe('DashboardView', () => {
   it('renders one card per list definition', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        makeDef({ id: 1, name: 'Today', seededKey: 'today', membership: { kind: 'today' }, sortOrder: 0 }),
-        makeDef({ id: 2, name: 'Upcoming', seededKey: 'upcoming', membership: { kind: 'upcoming' }, sortOrder: 1 }),
-        makeDef({ id: 3, name: 'Deadlines', seededKey: 'deadlines', membership: { kind: 'deadlines' }, sortOrder: 2 }),
-        makeDef({ id: 4, name: 'Someday', seededKey: 'someday', membership: { kind: 'someday' }, sortOrder: 3 }),
+        makeDef({ id: 1, name: 'Today', membership: { kind: 'today' }, sortOrder: 0 }),
+        makeDef({ id: 2, name: 'Upcoming', membership: { kind: 'upcoming' }, sortOrder: 1 }),
+        makeDef({ id: 3, name: 'Deadlines', membership: { kind: 'deadlines' }, sortOrder: 2 }),
+        makeDef({ id: 4, name: 'Someday', membership: { kind: 'someday' }, sortOrder: 3 }),
       ],
     })
     const { container } = render(<DashboardView />)
@@ -163,7 +164,6 @@ describe('DashboardView', () => {
         makeDef({
           id: 1,
           name: 'Upcoming',
-          seededKey: 'upcoming',
           membership: { kind: 'upcoming' },
           sort: { kind: 'effective-date-asc' },
           grouping: { kind: 'relative-effective' },
@@ -179,7 +179,7 @@ describe('DashboardView', () => {
 
     render(<DashboardView />)
     // relative-effective produces non-empty buckets such as "This week" / "Next week"
-    const card = document.querySelector('[data-list-key="upcoming"]') as HTMLElement
+    const card = document.querySelector('[data-list-key="def-1"]') as HTMLElement
     expect(card).toBeInTheDocument()
     expect(card.querySelector('[class*="groupLabel"]')).toBeInTheDocument()
   })
@@ -193,16 +193,16 @@ describe('DashboardView', () => {
   it('reflects listDefinitions sortOrder in rendered card order', () => {
     useListDefinitionStore.setState({
       listDefinitions: [
-        makeDef({ id: 1, name: 'Today', seededKey: 'today', membership: { kind: 'today' }, sortOrder: 0 }),
-        makeDef({ id: 2, name: 'Upcoming', seededKey: 'upcoming', membership: { kind: 'upcoming' }, sortOrder: 1 }),
-        makeDef({ id: 3, name: 'Deadlines', seededKey: 'deadlines', membership: { kind: 'deadlines' }, sortOrder: 2 }),
-        makeDef({ id: 4, name: 'Someday', seededKey: 'someday', membership: { kind: 'someday' }, sortOrder: 3 }),
+        makeDef({ id: 1, name: 'Today', membership: { kind: 'today' }, sortOrder: 0 }),
+        makeDef({ id: 2, name: 'Upcoming', membership: { kind: 'upcoming' }, sortOrder: 1 }),
+        makeDef({ id: 3, name: 'Deadlines', membership: { kind: 'deadlines' }, sortOrder: 2 }),
+        makeDef({ id: 4, name: 'Someday', membership: { kind: 'someday' }, sortOrder: 3 }),
       ],
     })
     const { container } = render(<DashboardView />)
     const keys = Array.from(container.querySelectorAll('[data-list-key]')).map(
       (el) => el.getAttribute('data-list-key'),
     )
-    expect(keys).toEqual(['today', 'upcoming', 'deadlines', 'someday'])
+    expect(keys).toEqual(['def-1', 'def-2', 'def-3', 'def-4'])
   })
 })

@@ -12,7 +12,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
 import { useStatusStore } from '../stores/status-store'
-import { useFilterStore, computeFilterPersonOrgIds } from '../stores/filter-store'
+import { useFilterStore, computeFilterPersonOrgIds, matchesFilter } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useStickyNoteStore } from '../stores/sticky-note-store'
@@ -43,7 +43,7 @@ export function CanvasPage() {
   const { openEditPopup, showBulkConfirmation } = useUIStore()
   const { statuses } = useStatusStore()
   const taskEdit = useTaskEditCallbacks()
-  const { filters, matchesFilter } = useFilterStore()
+  const { filters } = useFilterStore()
   const { insets, loadByCanvas: loadInsets, add: addInset, update: updateInset, updatePosition: updateInsetPosition, remove: removeInset } = useListInsetStore()
   const { notes: stickyNotes, loadByCanvas: loadNotes, add: addNote, update: updateNote, updatePosition: updateNotePosition, updateText: updateNoteText, updateTitle: updateNoteTitle, updateColor: updateNoteColor, remove: removeNote } = useStickyNoteStore()
 
@@ -207,12 +207,12 @@ export function CanvasPage() {
       const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const dOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
-      if (!matchesFilter(todo, personIds, tagIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses)) {
+      if (!matchesFilter(filters, todo, personIds, tagIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses)) {
         ghost.add(todo.id)
       }
     }
     return ghost.size > 0 ? ghost : undefined
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, matchesFilter, statuses])
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses])
 
   // Merge filter ghosts and drag-child ghosts
   const ghostTodoIds = useMemo(() => {
