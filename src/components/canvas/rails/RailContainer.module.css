@@ -1,0 +1,33 @@
+.rail {
+  display: flex;
+  background: var(--color-surface);
+  flex-shrink: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rail.vertical {
+  flex-direction: column;
+  width: 340px;
+}
+
+.rail.horizontal {
+  flex-direction: row;
+  height: 260px;
+}
+
+.rail.left {
+  border-right: 1px solid var(--color-border);
+}
+
+.rail.right {
+  border-left: 1px solid var(--color-border);
+}
+
+.rail.top {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rail.bottom {
+  border-top: 1px solid var(--color-border);
+}

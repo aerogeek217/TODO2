@@ -1,0 +1,10 @@
+.list {
+  padding: 2px 0;
+}
+
+.empty {
+  padding: 16px 12px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  text-align: center;
+}

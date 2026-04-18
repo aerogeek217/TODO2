@@ -21,6 +21,7 @@ import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { CanvasView } from '../components/canvas/CanvasView'
 import { ProjectNavigator } from '../components/canvas/ProjectNavigator'
+import { RailsFrame } from '../components/canvas/rails/RailsFrame'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
@@ -530,46 +531,48 @@ export function CanvasPage() {
     >
       <DragInsertContext.Provider value={dragInsertValue}>
       <DragPreviewContext.Provider value={dragPreviewValue}>
-      <CanvasView
-        projects={projects}
-        todosByProject={todosByProject}
-        assignedPeopleMap={assignedPeopleMap}
-        assignedTagsMap={assignedTagsMap}
-        assignedOrgsMap={assignedOrgsMap}
-        personOrgMap={personOrgMap}
-        ghostTodoIds={ghostTodoIds}
-        onNodeDragStop={handleNodeDragStop}
-        onReactFlowInit={handleReactFlowInit}
-        onOpenDetail={handleClickTask}
-        projectHandlers={projectHandlers}
-        listInsets={insets}
-        allTodos={todos}
-        insetHandlers={insetHandlers}
-        stickyNotes={stickyNotes}
-        stickyHandlers={stickyHandlers}
-        allPeople={people}
-        allTags={tags}
-        allOrgs={orgs}
-        taskboardEntries={taskboardEntries}
-        isTaskboardCollapsed={isTaskboardCollapsed}
-        onToggleTaskboardCollapse={handleToggleTaskboardCollapse}
-        onCloseTaskboard={handleCloseTaskboard}
-        onTaskboardDragStop={handleTaskboardDragStop}
-        taskboardPosition={taskboardPosition}
-        taskboardWidth={taskboardSize.w}
-        taskboardHeight={taskboardSize.h}
-        onResizeTaskboard={handleResizeTaskboard}
-        onCascadeShift={handleCascadeShift}
-        showCompleted={filters.showCompleted}
-        showHiddenStatuses={filters.showHiddenStatuses}
-      />
-      {isProjectNavigatorOpen && (
-        <ProjectNavigator
+      <RailsFrame>
+        <CanvasView
           projects={projects}
           todosByProject={todosByProject}
-          rfInstance={rfInstanceRef.current}
+          assignedPeopleMap={assignedPeopleMap}
+          assignedTagsMap={assignedTagsMap}
+          assignedOrgsMap={assignedOrgsMap}
+          personOrgMap={personOrgMap}
+          ghostTodoIds={ghostTodoIds}
+          onNodeDragStop={handleNodeDragStop}
+          onReactFlowInit={handleReactFlowInit}
+          onOpenDetail={handleClickTask}
+          projectHandlers={projectHandlers}
+          listInsets={insets}
+          allTodos={todos}
+          insetHandlers={insetHandlers}
+          stickyNotes={stickyNotes}
+          stickyHandlers={stickyHandlers}
+          allPeople={people}
+          allTags={tags}
+          allOrgs={orgs}
+          taskboardEntries={taskboardEntries}
+          isTaskboardCollapsed={isTaskboardCollapsed}
+          onToggleTaskboardCollapse={handleToggleTaskboardCollapse}
+          onCloseTaskboard={handleCloseTaskboard}
+          onTaskboardDragStop={handleTaskboardDragStop}
+          taskboardPosition={taskboardPosition}
+          taskboardWidth={taskboardSize.w}
+          taskboardHeight={taskboardSize.h}
+          onResizeTaskboard={handleResizeTaskboard}
+          onCascadeShift={handleCascadeShift}
+          showCompleted={filters.showCompleted}
+          showHiddenStatuses={filters.showHiddenStatuses}
         />
-      )}
+        {isProjectNavigatorOpen && (
+          <ProjectNavigator
+            projects={projects}
+            todosByProject={todosByProject}
+            rfInstance={rfInstanceRef.current}
+          />
+        )}
+      </RailsFrame>
       </DragPreviewContext.Provider>
       </DragInsertContext.Provider>
 
