@@ -346,6 +346,7 @@
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
+  font-family: inherit;
 }
 
 .scheduledChip:hover {
@@ -371,10 +372,47 @@
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
+  font-family: inherit;
 }
 
 .deadlineChip:hover {
   border-color: var(--color-overdue);
+}
+
+/* × clear button inside a chip — hidden until the chip is hovered */
+.chipClear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease;
+  cursor: pointer;
+}
+
+.deadlineChip:hover .chipClear,
+.scheduledChip:hover .chipClear {
+  opacity: 0.7;
+}
+
+.chipClear:hover {
+  opacity: 1 !important;
+  background: var(--color-tint-12);
+}
+
+/* Hidden native date input used by inline deadline editing (showPicker trigger) */
+.hiddenDateInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .chipLabel {

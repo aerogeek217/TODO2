@@ -1,0 +1,112 @@
+import { useRef, useState } from 'react'
+import type { ScheduledValue, FuzzyToken } from '../../models/scheduled-value'
+import { StatusIcon } from './StatusIcon'
+import { toDateInputValue } from '../../utils/date'
+import styles from './SchedulePicker.module.css'
+
+interface PresetChipProps {
+  selected?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}
+
+function PresetChip({ selected, onClick, children }: PresetChipProps) {
+  const cls = [styles.presetChip, selected ? styles.presetChipSelected : ''].filter(Boolean).join(' ')
+  return (
+    <button type="button" className={cls} onClick={(e) => { e.stopPropagation(); onClick() }}>
+      {children}
+    </button>
+  )
+}
+
+interface ScheduledValueMenuProps {
+  value: ScheduledValue | null | undefined
+  onChange: (next: ScheduledValue | null) => void
+  onClose: () => void
+  /** When provided, renders an "Add deadline" action in the footer that invokes this callback after closing. */
+  onAddDeadline?: () => void
+}
+
+/**
+ * The menu content of a scheduled-value picker: 3×2 fuzzy-token grid plus action footer.
+ * Shared by SchedulePicker (edit popup) and TaskRow (inline chip edit).
+ * Callers supply positioning; this component renders the styled `.menu` container.
+ */
+export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: ScheduledValueMenuProps) {
+  const [showDatePicker, setShowDatePicker] = useState(false)
+  const dateInputRef = useRef<HTMLInputElement>(null)
+
+  const selectFuzzy = (token: FuzzyToken) => {
+    onChange({ kind: 'fuzzy', token })
+    onClose()
+  }
+
+  const selectDate = (iso: string) => {
+    if (!iso) { onChange(null); onClose(); return }
+    onChange({ kind: 'date', value: new Date(iso + 'T00:00:00') })
+    onClose()
+  }
+
+  const openDatePicker = () => {
+    setShowDatePicker(true)
+    setTimeout(() => {
+      try { dateInputRef.current?.showPicker?.() } catch { dateInputRef.current?.focus() }
+    }, 0)
+  }
+
+  const isActive = (k: FuzzyToken) => value?.kind === 'fuzzy' && value.token === k
+
+  return (
+    <div className={styles.menu} role="dialog" aria-label="Schedule" onClick={(e) => e.stopPropagation()}>
+      <div className={styles.grid}>
+        <div className={styles.gutter}>Day</div>
+        <PresetChip selected={isActive('today')}    onClick={() => selectFuzzy('today')}>Today</PresetChip>
+        <PresetChip selected={isActive('tomorrow')} onClick={() => selectFuzzy('tomorrow')}>Tomorrow</PresetChip>
+
+        <div className={styles.gutter}>Week</div>
+        <PresetChip selected={isActive('this-week')} onClick={() => selectFuzzy('this-week')}>This week</PresetChip>
+        <PresetChip selected={isActive('next-week')} onClick={() => selectFuzzy('next-week')}>Next week</PresetChip>
+
+        <div className={styles.gutter}>Month</div>
+        <PresetChip selected={isActive('this-month')} onClick={() => selectFuzzy('this-month')}>This month</PresetChip>
+        <PresetChip selected={isActive('next-month')} onClick={() => selectFuzzy('next-month')}>Next month</PresetChip>
+      </div>
+
+      <div className={styles.actions}>
+        <button type="button" className={styles.actionRow} onClick={(e) => { e.stopPropagation(); openDatePicker() }}>
+          <span className={styles.actionIcon}><StatusIcon icon="calendar" /></span>
+          <span>Pick a specific day…</span>
+        </button>
+        {onAddDeadline && (
+          <button
+            type="button"
+            className={styles.actionRow}
+            onClick={(e) => { e.stopPropagation(); onClose(); onAddDeadline() }}
+          >
+            <span className={styles.actionIcon}><StatusIcon icon="clock" /></span>
+            <span>Add deadline…</span>
+          </button>
+        )}
+        {value && (
+          <button
+            type="button"
+            className={`${styles.actionRow} ${styles.actionClear}`}
+            onClick={(e) => { e.stopPropagation(); onChange(null); onClose() }}
+          >
+            <span className={styles.actionIcon} aria-hidden>×</span>
+            <span>Clear</span>
+          </button>
+        )}
+      </div>
+
+      <input
+        ref={dateInputRef}
+        type="date"
+        className={styles.hiddenDateInput}
+        style={{ display: showDatePicker ? 'block' : 'none' }}
+        value={value?.kind === 'date' ? toDateInputValue(value.value) : ''}
+        onChange={(e) => selectDate(e.target.value)}
+      />
+    </div>
+  )
+}

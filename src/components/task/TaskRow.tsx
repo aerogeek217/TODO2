@@ -13,11 +13,12 @@ import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
-import { startOfToday, formatDate } from '../../utils/date'
+import { startOfToday, formatDateShort, toDateInputValue } from '../../utils/date'
 import { scheduledLabel, isScheduledExpired } from '../../utils/effective-date'
 import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
+import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
 
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
@@ -92,9 +93,12 @@ export const TaskRow = memo(function TaskRow({
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
+  const [showScheduledMenu, setShowScheduledMenu] = useState(false)
   const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
+  const scheduledAnchorRef = useRef<HTMLButtonElement>(null)
+  const deadlineInputRef = useRef<HTMLInputElement>(null)
 
   // Read entity lists from stores
   const allPeople = usePersonStore((s) => s.people)
@@ -128,6 +132,17 @@ export const TaskRow = memo(function TaskRow({
   // Click-outside handlers
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
+  const closeScheduledMenu = useCallback(() => setShowScheduledMenu(false), [])
+
+  const openDeadlinePicker = useCallback(() => {
+    setTimeout(() => {
+      try { deadlineInputRef.current?.showPicker?.() } catch { deadlineInputRef.current?.focus() }
+    }, 0)
+  }, [])
+  const handleDeadlineInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    bulk.setDeadline(todo.id, raw ? new Date(raw + 'T00:00:00') : null)
+  }, [bulk, todo.id])
   // Ghost rows are non-interactive (drag overlay visuals)
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
   const handleDelete = useCallback(() => { if (!ghost) bulk.remove(todo.id) }, [ghost, bulk, todo.id])
@@ -361,39 +376,79 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
-      {/* Scheduled chip */}
+      {/* Scheduled chip — click to edit inline */}
       {todo.scheduledDate && !ghost && (
-        <span
+        <button
+          ref={scheduledAnchorRef}
+          type="button"
           className={`${styles.scheduledChip} ${scheduledExpired ? styles.scheduledChipExpired : ''}`}
-          onClick={(e) => { e.stopPropagation(); onOpenDetail?.(todo.id) }}
+          onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
           title={scheduledExpired ? 'Scheduled window has passed' : 'Scheduled'}
         >
           <StatusIcon icon="calendar" />
           <span className={styles.chipLabel}>{scheduledLabel(todo.scheduledDate, today)}</span>
           {scheduledExpired && <span className={styles.expiredDot} aria-label="Overdue" />}
-        </span>
+        </button>
       )}
 
-      {/* Deadline chip */}
+      {/* Deadline chip — click opens native date picker, hover × clears */}
       {todo.dueDate && !ghost && (
-        <span
+        <button
+          type="button"
           className={styles.deadlineChip}
-          onClick={(e) => { e.stopPropagation(); onOpenDetail?.(todo.id) }}
-          title="Deadline"
+          onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+          title="Deadline — click to change"
         >
           <StatusIcon icon="clock" />
-          <span className={styles.chipLabel}>{formatDate(todo.dueDate)}</span>
+          <span className={styles.chipLabel}>{formatDateShort(todo.dueDate)}</span>
           {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
-        </span>
+          <span
+            className={styles.chipClear}
+            role="button"
+            tabIndex={-1}
+            aria-label="Clear deadline"
+            title="Clear deadline"
+            onClick={(e) => { e.stopPropagation(); bulk.setDeadline(todo.id, null) }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >&times;</span>
+        </button>
       )}
 
-      {/* Empty state: open the edit popup so user can pick a schedule or deadline */}
+      {/* Empty state: inline scheduled picker (with "Add deadline" action) */}
       {!todo.scheduledDate && !todo.dueDate && !ghost && (
-        <button className={`${styles.actionBtn} ${styles.actionBtnHover}`}
-          onClick={(e) => { e.stopPropagation(); onOpenDetail?.(todo.id) }}
-          title="Schedule or set deadline">
+        <button
+          ref={scheduledAnchorRef}
+          type="button"
+          className={`${styles.actionBtn} ${styles.actionBtnHover}`}
+          onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
+          title="Schedule or set deadline"
+        >
           <StatusIcon icon="calendar" />
         </button>
+      )}
+
+      {/* Inline scheduled-value menu, portalized + anchored to chip/empty button */}
+      {showScheduledMenu && !ghost && createPortal(
+        <PortalDropdown anchorRef={scheduledAnchorRef} onClickOutside={closeScheduledMenu}>
+          <ScheduledValueMenu
+            value={todo.scheduledDate ?? null}
+            onChange={(v) => bulk.setScheduled(todo.id, v)}
+            onClose={closeScheduledMenu}
+            onAddDeadline={todo.dueDate ? undefined : openDeadlinePicker}
+          />
+        </PortalDropdown>,
+        document.body,
+      )}
+
+      {/* Hidden native date input for inline deadline editing */}
+      {!ghost && (
+        <input
+          ref={deadlineInputRef}
+          type="date"
+          className={styles.hiddenDateInput}
+          value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
+          onChange={handleDeadlineInputChange}
+        />
       )}
 
       {extraLabel && <span className={styles.extraLabel}>{extraLabel}</span>}
