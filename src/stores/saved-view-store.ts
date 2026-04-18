@@ -1,7 +1,16 @@
 import { create } from 'zustand'
 import { savedViewRepository } from '../data/saved-view-repository'
 import { db } from '../data/database'
-import type { PersistedSavedView, SavedViewFilters, ListSortBy, DateField, Status } from '../models'
+import type {
+  PersistedSavedView,
+  SavedView,
+  SavedViewFilters,
+  ListSortBy,
+  ListGroupBy,
+  ListItemSortBy,
+  DateField,
+  Status,
+} from '../models'
 import type { FilterCriteria } from './filter-store'
 
 /**
@@ -20,6 +29,25 @@ export function translateSortBy(sortBy: string): ListSortBy {
   return 'date'
 }
 
+/**
+ * Resolve the grouping + within-group sort from a persisted saved view,
+ * falling back to the legacy single `sortBy` field for views saved before
+ * group/sort were split.
+ */
+export function resolveSavedViewGrouping(v: { sortBy: string; groupBy?: ListGroupBy; itemSortBy?: ListItemSortBy }): {
+  groupBy: ListGroupBy
+  itemSortBy: ListItemSortBy
+} {
+  const groupBy: ListGroupBy = v.groupBy ?? translateSortBy(v.sortBy)
+  const itemSortBy: ListItemSortBy = v.itemSortBy ?? 'manual'
+  return { groupBy, itemSortBy }
+}
+
+/** Narrow a `ListGroupBy` to the legacy `ListSortBy` field written on save. */
+function legacySortBy(groupBy: ListGroupBy): ListSortBy {
+  return groupBy === 'none' ? 'date' : groupBy
+}
+
 interface SavedViewState {
   views: PersistedSavedView[]
   activeViewId: number | null
@@ -27,12 +55,35 @@ interface SavedViewState {
   error: string | null
 
   load: () => Promise<void>
-  saveCurrentView: (name: string, sortBy: ListSortBy, filters: FilterCriteria) => Promise<void>
-  updateView: (id: number, sortBy: ListSortBy, filters: FilterCriteria) => Promise<void>
+  saveCurrentView: (
+    name: string,
+    groupBy: ListGroupBy,
+    itemSortBy: ListItemSortBy,
+    filters: FilterCriteria,
+  ) => Promise<void>
+  updateView: (
+    id: number,
+    groupBy: ListGroupBy,
+    itemSortBy: ListItemSortBy,
+    filters: FilterCriteria,
+  ) => Promise<void>
   renameView: (id: number, name: string) => Promise<void>
   removeView: (id: number) => Promise<void>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
   setActiveViewId: (id: number | null) => void
+}
+
+function buildViewFields(
+  groupBy: ListGroupBy,
+  itemSortBy: ListItemSortBy,
+  filters: FilterCriteria,
+): Pick<SavedView, 'sortBy' | 'groupBy' | 'itemSortBy' | 'filters'> {
+  return {
+    sortBy: legacySortBy(groupBy),
+    groupBy,
+    itemSortBy,
+    filters: filtersToSerializable(filters),
+  }
 }
 
 function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
@@ -176,29 +227,28 @@ export const useSavedViewStore = create<SavedViewState>((set, get) => ({
     }
   },
 
-  async saveCurrentView(name: string, sortBy: ListSortBy, filters: FilterCriteria) {
+  async saveCurrentView(name: string, groupBy: ListGroupBy, itemSortBy: ListItemSortBy, filters: FilterCriteria) {
     try {
       const { views } = get()
       const maxSort = views.length > 0 ? Math.max(...views.map((v) => v.sortOrder)) : 0
+      const fields = buildViewFields(groupBy, itemSortBy, filters)
       const id = await savedViewRepository.add({
         name,
-        sortBy,
-        filters: filtersToSerializable(filters),
+        ...fields,
         sortOrder: maxSort + 1,
       })
-      const view = { id, name, sortBy, filters: filtersToSerializable(filters), sortOrder: maxSort + 1 }
-      set({ views: [...views, view], activeViewId: id })
+      set({ views: [...views, { id, name, ...fields, sortOrder: maxSort + 1 }], activeViewId: id })
     } catch (e) {
       console.error('Failed to save view:', e)
       set({ error: 'Failed to save view' })
     }
   },
 
-  async updateView(id: number, sortBy: ListSortBy, filters: FilterCriteria) {
+  async updateView(id: number, groupBy: ListGroupBy, itemSortBy: ListItemSortBy, filters: FilterCriteria) {
     try {
-      const serialized = filtersToSerializable(filters)
-      await savedViewRepository.update(id, { sortBy, filters: serialized })
-      set({ views: get().views.map((v) => (v.id === id ? { ...v, sortBy, filters: serialized } : v)), activeViewId: id })
+      const fields = buildViewFields(groupBy, itemSortBy, filters)
+      await savedViewRepository.update(id, fields)
+      set({ views: get().views.map((v) => (v.id === id ? { ...v, ...fields } : v)), activeViewId: id })
     } catch (e) {
       console.error('Failed to update view:', e)
       set({ error: 'Failed to update view' })

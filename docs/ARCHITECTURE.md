@@ -59,7 +59,9 @@ main.tsx (entry point)
 | Status | models/status.ts | User-defined workflow state with name, color, sortOrder, `icon` (key from StatusIcon registry, default 'circle'), and optional `hideByDefault` (excluded from default filter when true) |
 | PersistedStatus | models/status.ts | Status with guaranteed id (post-insert) |
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
-| ListSortBy | models/app-view.ts | Type: date, scheduled, deadline, people, org, tag, project, status. `'date'` groups by `effectiveDate` buckets (Overdue/Today/This Week/Later/No Date); `'scheduled'` and `'deadline'` use the same buckets but read only the relevant date field. |
+| ListSortBy | models/app-view.ts | Type: date, scheduled, deadline, people, org, tag, project, status. Used by list-definition `sort.by`. ListView itself now uses the split `ListGroupBy` + `ListItemSortBy` pair below. |
+| ListGroupBy | models/app-view.ts | Type: `'none'` + every `ListSortBy` value. Drives `ListView` section-builder choice; `'none'` renders a flat list (header hidden). |
+| ListItemSortBy | models/app-view.ts | Type: `'manual' \| 'date' \| 'scheduled' \| 'deadline'`. Sort applied within each group (or across the whole list when groupBy='none'). Aligned with `ListSort` so ListView state round-trips losslessly into a saved list-definition via `encodeGroupSort` / `resolveGroupBy` / `resolveItemSortBy`. |
 | DateField | models/app-view.ts | Type: date, scheduled, deadline, created, modified — used by filter store and saved views. `'date'` filters on `effectiveDate`; v22 `'scheduled'` filters on resolved `scheduledDate` only, `'deadline'` on `dueDate` only |
 | OrgFilterMode | stores/filter-store.ts | Type: include-people, direct-only — org filter mode; include-people matches person-org + direct-org, direct-only matches only direct org assignment |
 | PersonFilterMode | stores/filter-store.ts | Type: include-orgs, direct-only — person filter mode; include-orgs also matches tasks with directly-assigned orgs the filter person belongs to, direct-only matches only direct person assignment |

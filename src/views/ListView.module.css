@@ -126,81 +126,96 @@
   outline: none;
 }
 
-.saveViewButton {
-  background: none;
+/* Group / Sort toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 8px 10px;
+  background: var(--color-inset-light);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-meta);
-  padding: 4px 10px;
+  flex-wrap: wrap;
+}
+
+.toolbarControls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.toolbarField {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
-  margin-left: auto;
-  transition: all 0.15s ease;
 }
 
-.saveViewButton:hover {
+.toolbarLabel {
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.toolbarSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--color-surface);
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%),
+                    linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
   color: var(--color-text-primary);
-  border-color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  padding: 5px 28px 5px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  min-width: 110px;
 }
 
-/* Sort-by toolbar */
-.sortBar {
+.toolbarSelect:hover {
+  border-color: var(--color-text-muted);
+  background-color: var(--color-surface-high);
+}
+
+.toolbarSelect:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+.toolbarActions {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 20px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--color-border);
+  margin-left: auto;
 }
 
-.sortLabel {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  margin-right: 4px;
-}
-
-.sortButton {
+.toolbarActionBtn {
   background: none;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-chip);
   color: var(--color-text-secondary);
+  font-family: inherit;
   font-size: var(--font-size-meta);
-  padding: 4px 10px;
+  padding: 5px 12px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
-.sortButton:hover {
+.toolbarActionBtn:hover {
   color: var(--color-text-primary);
   border-color: var(--color-text-muted);
-}
-
-.sortButtonActive {
-  background: var(--color-accent);
-  color: var(--color-surface);
-  border-color: var(--color-accent);
-}
-
-.sortButtonActive:hover {
-  background: var(--color-accent);
-  color: var(--color-surface);
-  border-color: var(--color-accent);
-}
-
-.exportButton {
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-meta);
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.exportButton:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-text-muted);
+  background: var(--color-surface-high);
 }
 
 .section {
@@ -498,34 +513,37 @@
     display: none;
   }
 
-  .sortBar {
+  .toolbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 6px 8px;
+  }
+
+  .toolbarControls {
+    flex-wrap: nowrap;
+    gap: 8px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    gap: 6px;
-    margin-bottom: 12px;
-    padding: 4px 0;
+    flex: 1;
   }
 
-  .sortBar::-webkit-scrollbar {
+  .toolbarControls::-webkit-scrollbar {
     display: none;
   }
 
-  .sortButton {
+  .toolbarSelect {
     min-height: 36px;
-    padding: 6px 12px;
-    white-space: nowrap;
+    min-width: 100px;
+    font-size: var(--font-size-nav);
   }
 
-  .sortLabel {
+  .toolbarLabel {
     display: none;
   }
 
-  .exportButton {
-    display: none;
-  }
-
-  .saveViewButton {
+  .toolbarActions {
     display: none;
   }
 
@@ -555,9 +573,11 @@
 
 /* Neutralize sticky hover on touch devices */
 @media (hover: none) {
-  .sortButton:hover {
-    color: var(--color-text-muted);
+  .toolbarActionBtn:hover,
+  .toolbarSelect:hover {
+    color: var(--color-text-secondary);
     border-color: var(--color-border);
+    background: none;
   }
 
   .savedViewName:hover {

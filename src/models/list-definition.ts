@@ -31,6 +31,10 @@ export type ListGrouping =
   | { kind: 'relative-effective' }
   | { kind: 'relative-deadline' }
   | { kind: 'by-sortBy' }
+  /** Group by a specific field, independent of sort. Chronological fields bucket
+   *  by relative windows; categorical fields fall back to flat in the interpreter
+   *  (ListView handles categorical bucketing locally). */
+  | { kind: 'by-field'; by: ListSortBy }
 
 export interface ListDefinition {
   id?: number

@@ -28,7 +28,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter, criteriaToPredicate } from '../stores/filter-store'
-import { useSavedViewStore, savedFiltersToRuntime, translateSortBy } from '../stores/saved-view-store'
+import { useSavedViewStore, savedFiltersToRuntime, resolveSavedViewGrouping } from '../stores/saved-view-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskList } from '../components/task/TaskList'
@@ -40,7 +40,8 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopup'
 import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy } from '../models'
+import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
+import type { ListGrouping, ListSort } from '../models/list-definition'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
 import { buildHierarchy } from '../utils/hierarchy'
@@ -54,12 +55,20 @@ interface Section {
   todos: PersistedTodoItem[]
 }
 
-const sortByOptions: { value: ListSortBy; label: string }[] = [
+const groupByOptions: { value: ListGroupBy; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'date', label: 'Date' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'deadline', label: 'Deadline' },
   { value: 'project', label: 'Project' },
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
   { value: 'org', label: 'Org' },
   { value: 'tag', label: 'Tag' },
+]
+
+const itemSortByOptions: { value: ListItemSortBy; label: string }[] = [
+  { value: 'manual', label: 'Manual' },
   { value: 'date', label: 'Date' },
   { value: 'scheduled', label: 'Scheduled' },
   { value: 'deadline', label: 'Deadline' },
@@ -107,6 +116,11 @@ function buildBucketSections(
   if (later.length > 0) sections.push({ key: 'later', label: 'Later', todos: later })
   if (noDate.length > 0) sections.push({ key: 'none', label: noDateLabel, todos: noDate })
   return sections
+}
+
+export function buildFlatSection(todos: PersistedTodoItem[]): Section[] {
+  if (todos.length === 0) return []
+  return [{ key: 'all', label: 'All tasks', todos }]
 }
 
 export function buildDateSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
@@ -328,6 +342,55 @@ export function buildStatusSections(
   return sections
 }
 
+/**
+ * Build a comparator for within-group sort. `'manual'` returns undefined so
+ * `buildHierarchy` falls through to its sortOrder default.
+ */
+export function itemSortComparator(
+  sortBy: ListItemSortBy,
+  today: Date = startOfToday(),
+): ((a: PersistedTodoItem, b: PersistedTodoItem) => number) | undefined {
+  if (sortBy === 'manual') return undefined
+  const pick = (t: PersistedTodoItem): Date | null => {
+    if (sortBy === 'date') return effectiveDate(t, today)
+    if (sortBy === 'scheduled') return t.scheduledDate ? resolveScheduled(t.scheduledDate, today) : null
+    return t.dueDate ? new Date(t.dueDate) : null
+  }
+  return (a, b) => {
+    const ad = pick(a)
+    const bd = pick(b)
+    if (ad === null && bd === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    if (ad === null) return 1
+    if (bd === null) return -1
+    const cmp = ad.getTime() - bd.getTime()
+    if (cmp !== 0) return cmp
+    return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  }
+}
+
+/**
+ * Encode current groupBy + itemSortBy into a list-definition's `sort` + `grouping`.
+ * Symmetric with `resolveGroupBy` / `resolveItemSortBy` in DashboardListsEditor.
+ */
+export function encodeGroupSort(
+  groupBy: ListGroupBy,
+  itemSortBy: ListItemSortBy,
+): { sort: ListSort; grouping: ListGrouping } {
+  const sort: ListSort = itemSortBy === 'manual'
+    ? { kind: 'sort-order' }
+    : { kind: 'sortBy', by: itemSortBy }
+
+  let grouping: ListGrouping
+  if (groupBy === 'none') {
+    grouping = { kind: 'none' }
+  } else if (itemSortBy !== 'manual' && groupBy === itemSortBy) {
+    grouping = { kind: 'by-sortBy' }
+  } else {
+    grouping = { kind: 'by-field', by: groupBy }
+  }
+  return { sort, grouping }
+}
+
 export function addGhostParents(sectionTodos: PersistedTodoItem[], allTodos: PersistedTodoItem[]): { todos: PersistedTodoItem[]; ghostIds: Set<number> } {
   const sectionIds = new Set(sectionTodos.map((t) => t.id))
   const allById = new Map(allTodos.map((t) => [t.id, t]))
@@ -539,7 +602,7 @@ export function ListView() {
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { statuses, load: loadStatuses } = useStatusStore()
-  const { listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
+  const { listGroupBy, setListGroupBy, listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
   const editingListDefId = useUIStore((s) => s.editingListDefId)
   const editingListDefName = useUIStore((s) => s.editingListDefName)
   const clearEditingListDef = useUIStore((s) => s.clearEditingListDef)
@@ -592,7 +655,7 @@ export function ListView() {
 
   useEffect(() => {
     setCollapsed({})
-  }, [listSortBy])
+  }, [listGroupBy])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -603,7 +666,9 @@ export function ListView() {
   }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses])
 
   const sections = useMemo(() => {
-    switch (listSortBy) {
+    switch (listGroupBy) {
+      case 'none':
+        return buildFlatSection(activeTodos)
       case 'date':
         return buildDateSections(activeTodos)
       case 'scheduled':
@@ -621,7 +686,12 @@ export function ListView() {
       case 'status':
         return buildStatusSections(activeTodos, statuses)
     }
-  }, [listSortBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, tags, assignedTagsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
+  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, tags, assignedTagsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
+
+  const withinGroupComparator = useMemo(
+    () => itemSortComparator(listSortBy),
+    [listSortBy],
+  )
 
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
 
@@ -643,17 +713,25 @@ export function ListView() {
 
   const applyingViewRef = useRef(false)
 
-  const handleApplyView = useCallback((view: { sortBy: ListSortBy; filters: import('../models/saved-view').SavedViewFilters; id: number }) => {
+  const handleApplyView = useCallback((view: {
+    sortBy: string
+    groupBy?: ListGroupBy
+    itemSortBy?: ListItemSortBy
+    filters: import('../models/saved-view').SavedViewFilters
+    id: number
+  }) => {
     applyingViewRef.current = true
-    setListSortBy(translateSortBy(view.sortBy))
+    const { groupBy, itemSortBy } = resolveSavedViewGrouping(view)
+    setListGroupBy(groupBy)
+    setListSortBy(itemSortBy)
     const { seededAssignedStatusId, seededFollowupStatusId } = useSettingsStore.getState()
     const allStatuses = useStatusStore.getState().statuses
     const { runtime } = savedFiltersToRuntime(view.filters, seededAssignedStatusId, seededFollowupStatusId, allStatuses)
     setAllFilters({ ...useFilterStore.getState().filters, ...runtime })
     setActiveViewId(view.id)
-  }, [setListSortBy, setAllFilters, setActiveViewId])
+  }, [setListGroupBy, setListSortBy, setAllFilters, setActiveViewId])
 
-  // Clear saved view highlight when filters or sort-by change externally
+  // Clear saved view highlight when filters or group/sort change externally
   useEffect(() => {
     if (applyingViewRef.current) {
       applyingViewRef.current = false
@@ -663,7 +741,7 @@ export function ListView() {
     if (currentId !== null) {
       clearId(null)
     }
-  }, [filters, listSortBy])
+  }, [filters, listGroupBy, listSortBy])
 
   const handleSaveView = useCallback(() => {
     setSaveViewName('')
@@ -673,10 +751,10 @@ export function ListView() {
   const handleConfirmSaveView = useCallback(async () => {
     const name = saveViewName.trim()
     if (!name) return
-    await saveCurrentView(name, listSortBy, filters)
+    await saveCurrentView(name, listGroupBy, listSortBy, filters)
     setShowSaveViewDialog(false)
     setSaveViewName('')
-  }, [saveViewName, saveCurrentView, listSortBy, filters])
+  }, [saveViewName, saveCurrentView, listGroupBy, listSortBy, filters])
 
   const handleSavePreset = useCallback(() => {
     setSavePresetName('')
@@ -689,24 +767,26 @@ export function ListView() {
     if (editingListDefId == null) return
     const def = allListDefinitions.find((d) => d.id === editingListDefId)
     if (!def) { clearEditingListDef(); return }
+    const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
     await updateListDefinition({
       ...def,
       membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
-      sort: { kind: 'sortBy', by: listSortBy },
-      grouping: { kind: 'by-sortBy' },
+      sort,
+      grouping,
     })
     clearEditingListDef()
-  }, [editingListDefId, allListDefinitions, updateListDefinition, filters, listSortBy, clearEditingListDef])
+  }, [editingListDefId, allListDefinitions, updateListDefinition, filters, listGroupBy, listSortBy, clearEditingListDef])
 
   const handleConfirmSavePreset = useCallback(async () => {
     const name = savePresetName.trim()
     if (!name) return
     try {
+      const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
       await addListDefinition({
         name,
         membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
-        sort: { kind: 'sortBy', by: listSortBy },
-        grouping: { kind: 'by-sortBy' },
+        sort,
+        grouping,
         pinnedToDashboard: savePresetPin,
       })
       setShowSavePresetDialog(false)
@@ -714,7 +794,7 @@ export function ListView() {
     } catch (e) {
       setSavePresetError((e as Error).message)
     }
-  }, [savePresetName, savePresetPin, addListDefinition, filters, listSortBy])
+  }, [savePresetName, savePresetPin, addListDefinition, filters, listGroupBy, listSortBy])
 
   const handleStartRename = useCallback((id: number, currentName: string) => {
     setRenamingViewId(id)
@@ -730,8 +810,8 @@ export function ListView() {
   }, [renamingViewId, renameText, renameView])
 
   const handleUpdateView = useCallback(async (id: number) => {
-    await updateView(id, listSortBy, filters)
-  }, [updateView, listSortBy, filters])
+    await updateView(id, listGroupBy, listSortBy, filters)
+  }, [updateView, listGroupBy, listSortBy, filters])
 
   // --- Saved view reorder ---
   const [viewReorderKey, setViewReorderKey] = useState(0)
@@ -791,7 +871,7 @@ export function ListView() {
     const children = todos.filter(t => t.parentId === todo.id)
     const now = new Date()
 
-    if (listSortBy === 'project') {
+    if (listGroupBy === 'project') {
       const newProjectId = parseSectionProjectId(toKey)
       if (newProjectId !== null && newProjectId !== todo.projectId) {
         updateTodo({ ...todo, projectId: newProjectId, modifiedAt: now })
@@ -799,15 +879,15 @@ export function ListView() {
           updateTodo({ ...child, projectId: newProjectId, modifiedAt: now })
         }
       }
-    } else if (listSortBy === 'people') {
+    } else if (listGroupBy === 'people') {
       const fromLabel = sectionLabelMap.get(fromKey) ?? fromKey
       const toLabel = sectionLabelMap.get(toKey) ?? toKey
       setPendingReassign({ todo, fromKey, toKey, fromLabel, toLabel, attribute: 'person' })
-    } else if (listSortBy === 'tag') {
+    } else if (listGroupBy === 'tag') {
       const fromLabel = sectionLabelMap.get(fromKey) ?? fromKey
       const toLabel = sectionLabelMap.get(toKey) ?? toKey
       setPendingReassign({ todo, fromKey, toKey, fromLabel, toLabel, attribute: 'tag' })
-    } else if (listSortBy === 'status') {
+    } else if (listGroupBy === 'status') {
       const newStatusId = toKey === 'no-status' ? undefined : toKey.startsWith('status-') ? Number(toKey.slice(7)) : null
       if (newStatusId !== null && newStatusId !== todo.statusId) {
         updateTodo({ ...todo, statusId: newStatusId, modifiedAt: now })
@@ -816,8 +896,8 @@ export function ListView() {
         }
       }
     }
-    // 'date' — no reassignment (ambiguous target dates)
-  }, [listSortBy, todos, sectionLabelMap, updateTodo])
+    // Chronological / org / none groupings — no reassignment (ambiguous targets)
+  }, [listGroupBy, todos, sectionLabelMap, updateTodo])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveDragTodo(null)
@@ -864,7 +944,9 @@ export function ListView() {
     setPendingReassign(null)
   }, [])
 
-  const isDndEnabled = !isMobile && listSortBy !== 'date' && listSortBy !== 'scheduled' && listSortBy !== 'deadline'
+  const isDndEnabled =
+    !isMobile &&
+    (listGroupBy === 'project' || listGroupBy === 'people' || listGroupBy === 'tag' || listGroupBy === 'status')
   const totalActive = activeTodos.length
 
   const pageContent = (
@@ -918,38 +1000,56 @@ export function ListView() {
             </DndContext>
           )}
 
-          <div className={styles.sortBar}>
-            <span className={styles.sortLabel}>Group by</span>
-            {sortByOptions.map(({ value, label }) => (
+          <div className={styles.toolbar}>
+            <div className={styles.toolbarControls}>
+              <label className={styles.toolbarField}>
+                <span className={styles.toolbarLabel}>Group</span>
+                <select
+                  className={styles.toolbarSelect}
+                  value={listGroupBy}
+                  onChange={(e) => { setListGroupBy(e.target.value as ListGroupBy); setActiveViewId(null) }}
+                >
+                  {groupByOptions.map(({ value, label }) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.toolbarField}>
+                <span className={styles.toolbarLabel}>Sort</span>
+                <select
+                  className={styles.toolbarSelect}
+                  value={listSortBy}
+                  onChange={(e) => { setListSortBy(e.target.value as ListItemSortBy); setActiveViewId(null) }}
+                >
+                  {itemSortByOptions.map(({ value, label }) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className={styles.toolbarActions}>
               <button
-                key={value}
-                className={`${styles.sortButton} ${listSortBy === value ? styles.sortButtonActive : ''}`}
-                onClick={() => { setListSortBy(value); setActiveViewId(null) }}
+                className={styles.toolbarActionBtn}
+                onClick={handleSaveView}
+                title="Save current view"
               >
-                {label}
+                Save View
               </button>
-            ))}
-            <button
-              className={styles.saveViewButton}
-              onClick={handleSaveView}
-              title="Save current view"
-            >
-              Save View
-            </button>
-            <button
-              className={styles.saveViewButton}
-              onClick={handleSavePreset}
-              title="Save as a Dashboard / Canvas preset list"
-            >
-              Save as Preset
-            </button>
-            <button
-              className={styles.exportButton}
-              onClick={() => setShowExport(true)}
-              title="Export as plain text"
-            >
-              Export
-            </button>
+              <button
+                className={styles.toolbarActionBtn}
+                onClick={handleSavePreset}
+                title="Save as a Dashboard / Canvas preset list"
+              >
+                Save as Preset
+              </button>
+              <button
+                className={styles.toolbarActionBtn}
+                onClick={() => setShowExport(true)}
+                title="Export as plain text"
+              >
+                Export
+              </button>
+            </div>
           </div>
 
           {totalActive === 0 && (
@@ -972,15 +1072,18 @@ export function ListView() {
             const dropIdx = (isOver && activeDragTodo)
               ? computeDropIndex(section.todos, todos, activeDragTodo, collapsedParents)
               : undefined
+            const hideHeader = listGroupBy === 'none'
             return (
               <DroppableSection key={section.key} sectionKey={section.key} isOver={isOver}>
-                <SectionHeader
-                  label={section.label}
-                  count={section.todos.length}
-                  accentColor={section.accentColor}
-                  collapsed={isCollapsed}
-                  onToggle={() => toggleSection(section.key)}
-                />
+                {!hideHeader && (
+                  <SectionHeader
+                    label={section.label}
+                    count={section.todos.length}
+                    accentColor={section.accentColor}
+                    collapsed={isCollapsed}
+                    onToggle={() => toggleSection(section.key)}
+                  />
+                )}
                 {!isCollapsed && (
                   <div className={styles.taskList}>
                     <TaskList
@@ -991,7 +1094,7 @@ export function ListView() {
                       draggable={isDndEnabled}
                       sectionKey={section.key}
                       dropIndicatorIndex={dropIdx}
-                      /* rootComparator omitted — within-bucket order is user sortOrder (buildHierarchy default) */
+                      rootComparator={withinGroupComparator}
                       onOpenDetail={handleClick}
                     />
                   </div>

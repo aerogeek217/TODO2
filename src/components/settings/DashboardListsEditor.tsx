@@ -29,7 +29,7 @@ import type {
   ListSort,
   PersistedListDefinition,
 } from '../../models/list-definition'
-import type { ListSortBy, TodoPredicate } from '../../models'
+import type { ListGroupBy, ListItemSortBy, ListSortBy, TodoPredicate } from '../../models'
 import { WARNING_WINDOW_DAYS } from '../../services/dashboard-lists'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
@@ -63,6 +63,7 @@ const GROUPING_KINDS: { value: ListGrouping['kind']; label: string }[] = [
   { value: 'relative-effective', label: 'Relative (effective)' },
   { value: 'relative-deadline', label: 'Relative (deadline)' },
   { value: 'by-sortBy', label: 'Match sort' },
+  { value: 'by-field', label: 'By field' },
 ]
 
 const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
@@ -75,6 +76,30 @@ const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
   { value: 'org', label: 'Org' },
   { value: 'tag', label: 'Tag' },
 ]
+
+/** Map a persisted list-definition's grouping to ListView's groupBy field. */
+function resolveGroupBy(def: PersistedListDefinition): ListGroupBy {
+  const g = def.grouping
+  if (g.kind === 'none') return 'none'
+  if (g.kind === 'by-field') return g.by
+  if (g.kind === 'by-sortBy' && def.sort.kind === 'sortBy') return def.sort.by
+  if (g.kind === 'relative-deadline') return 'deadline'
+  if (g.kind === 'relative-effective') return 'date'
+  return 'date'
+}
+
+/** Map a persisted list-definition's sort to ListView's within-group sort field. */
+function resolveItemSortBy(def: PersistedListDefinition): ListItemSortBy {
+  const s = def.sort
+  if (s.kind === 'sort-order') return 'manual'
+  if (s.kind === 'effective-date-asc') return 'date'
+  if (s.kind === 'deadline-asc') return 'deadline'
+  if (s.kind === 'sortBy') {
+    if (s.by === 'date' || s.by === 'scheduled' || s.by === 'deadline') return s.by
+    return 'manual'
+  }
+  return 'manual'
+}
 
 function membershipLabel(m: ListMembership): string {
   switch (m.kind) {
@@ -218,7 +243,19 @@ function ConfigPanel({
 
   const setGroupingKind = (kind: ListGrouping['kind']) => {
     if (kind === def.grouping.kind) return
-    onChange({ ...def, grouping: { kind } })
+    let next: ListGrouping
+    if (kind === 'by-field') {
+      const fallback: ListSortBy = def.sort.kind === 'sortBy' ? def.sort.by : 'date'
+      next = { kind: 'by-field', by: fallback }
+    } else {
+      next = { kind }
+    }
+    onChange({ ...def, grouping: next })
+  }
+
+  const setGroupingField = (by: ListSortBy) => {
+    if (def.grouping.kind !== 'by-field') return
+    onChange({ ...def, grouping: { kind: 'by-field', by } })
   }
 
   const window = (def.membership.kind === 'today' || def.membership.kind === 'upcoming')
@@ -337,6 +374,21 @@ function ConfigPanel({
         </div>
       </div>
 
+      {def.grouping.kind === 'by-field' && (
+        <div className={local.configRow}>
+          <span className={local.configLabel}>Group by</span>
+          <select
+            className={local.configSelect}
+            value={def.grouping.by}
+            onChange={(e) => setGroupingField(e.target.value as ListSortBy)}
+          >
+            {SORT_BY_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className={local.configFooter}>
         <button type="button" className={local.configDoneBtn} onClick={onClose}>Done</button>
       </div>
@@ -405,6 +457,7 @@ function SortableRow({
 export function DashboardListsEditor({ onClose }: Props) {
   const { listDefinitions, load, add, update, rename, setPinned, remove, reorder } = useListDefinitionStore()
   const setAllFilters = useFilterStore((s) => s.setAllFilters)
+  const setListGroupBy = useUIStore((s) => s.setListGroupBy)
   const setListSortBy = useUIStore((s) => s.setListSortBy)
   const startEditingListDef = useUIStore((s) => s.startEditingListDef)
   const navigate = useNavigate()
@@ -498,7 +551,8 @@ export function DashboardListsEditor({ onClose }: Props) {
     if (def.membership.kind !== 'custom') return
     const criteria = predicateToCriteria(def.membership.predicate)
     setAllFilters(criteria)
-    if (def.sort.kind === 'sortBy') setListSortBy(def.sort.by)
+    setListGroupBy(resolveGroupBy(def))
+    setListSortBy(resolveItemSortBy(def))
     startEditingListDef(def.id, def.name)
     onClose()
     navigate('/list')

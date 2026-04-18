@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest'
 import type { PersistedTodoItem, Person, Tag, Project } from '../../models'
 import {
   buildDateSections,
+  buildFlatSection,
   buildPeopleSections,
   buildTagSections,
   buildProjectSections,
   addGhostParents,
+  itemSortComparator,
+  encodeGroupSort,
 } from '../../views/ListView'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
@@ -189,5 +192,70 @@ describe('addGhostParents', () => {
     const { todos, ghostIds } = addGhostParents([todo], [todo])
     expect(todos).toHaveLength(1)
     expect(ghostIds.size).toBe(0)
+  })
+})
+
+describe('buildFlatSection', () => {
+  it('returns single "all" section with every todo', () => {
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const sections = buildFlatSection(todos)
+    expect(sections).toHaveLength(1)
+    expect(sections[0].key).toBe('all')
+    expect(sections[0].todos).toHaveLength(3)
+  })
+
+  it('returns empty when no todos so the "empty state" message shows', () => {
+    expect(buildFlatSection([])).toEqual([])
+  })
+})
+
+describe('itemSortComparator', () => {
+  const today = new Date(2026, 0, 15)
+
+  it('returns undefined for manual sort so buildHierarchy keeps sortOrder default', () => {
+    expect(itemSortComparator('manual')).toBeUndefined()
+  })
+
+  it('sorts deadline ascending, nulls last', () => {
+    const cmp = itemSortComparator('deadline', today)!
+    const a = makeTodo({ id: 1, dueDate: new Date(2026, 0, 20), sortOrder: 10 })
+    const b = makeTodo({ id: 2, dueDate: new Date(2026, 0, 18), sortOrder: 1 })
+    const c = makeTodo({ id: 3, sortOrder: 5 }) // no deadline
+    const sorted = [a, b, c].sort(cmp)
+    expect(sorted.map((t) => t.id)).toEqual([2, 1, 3])
+  })
+
+  it('breaks ties with sortOrder', () => {
+    const cmp = itemSortComparator('deadline', today)!
+    const d = new Date(2026, 0, 20)
+    const a = makeTodo({ id: 1, dueDate: d, sortOrder: 10 })
+    const b = makeTodo({ id: 2, dueDate: d, sortOrder: 5 })
+    expect([a, b].sort(cmp).map((t) => t.id)).toEqual([2, 1])
+  })
+})
+
+describe('encodeGroupSort', () => {
+  it('ungrouped + manual → grouping=none, sort=sort-order', () => {
+    const { sort, grouping } = encodeGroupSort('none', 'manual')
+    expect(grouping).toEqual({ kind: 'none' })
+    expect(sort).toEqual({ kind: 'sort-order' })
+  })
+
+  it('coupled groupBy === itemSortBy → grouping=by-sortBy', () => {
+    const { sort, grouping } = encodeGroupSort('date', 'date')
+    expect(grouping).toEqual({ kind: 'by-sortBy' })
+    expect(sort).toEqual({ kind: 'sortBy', by: 'date' })
+  })
+
+  it('decoupled groupBy / itemSortBy → grouping=by-field', () => {
+    const { sort, grouping } = encodeGroupSort('project', 'deadline')
+    expect(grouping).toEqual({ kind: 'by-field', by: 'project' })
+    expect(sort).toEqual({ kind: 'sortBy', by: 'deadline' })
+  })
+
+  it('grouped by categorical + manual sort → grouping=by-field, sort=sort-order', () => {
+    const { sort, grouping } = encodeGroupSort('tag', 'manual')
+    expect(grouping).toEqual({ kind: 'by-field', by: 'tag' })
+    expect(sort).toEqual({ kind: 'sort-order' })
   })
 })

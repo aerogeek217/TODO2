@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { AppView } from '../models'
-import type { ListSortBy } from '../models'
+import type { ListGroupBy, ListItemSortBy } from '../models'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -42,7 +42,10 @@ interface UIState {
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
   collapsedParents: Set<number>
-  listSortBy: ListSortBy
+  /** What the List view groups tasks by. `'none'` = flat list. */
+  listGroupBy: ListGroupBy
+  /** How the List view sorts tasks within each group (or across all when ungrouped). */
+  listSortBy: ListItemSortBy
   inlineCreateAfterId: number | null
   clipboardTodoIds: number[]
   clipboardSourceProjectId: number | null
@@ -75,7 +78,8 @@ interface UIState {
   openCreatePopup: () => void
   closeEditPopup: () => void
   toggleCollapseParent: (todoId: number) => void
-  setListSortBy: (sortBy: ListSortBy) => void
+  setListGroupBy: (groupBy: ListGroupBy) => void
+  setListSortBy: (sortBy: ListItemSortBy) => void
   triggerInlineCreate: (afterTodoId: number) => void
   clearInlineCreate: () => void
   cutTasks: (todoIds: number[], sourceProjectId: number | null) => void
@@ -102,7 +106,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   editPopupMode: null,
   bulkConfirmation: null,
   collapsedParents: new Set<number>(),
-  listSortBy: 'date' as ListSortBy,
+  listGroupBy: 'date' as ListGroupBy,
+  listSortBy: 'manual' as ListItemSortBy,
   inlineCreateAfterId: null,
   clipboardTodoIds: [],
   clipboardSourceProjectId: null,
@@ -188,7 +193,11 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ selectedTodoId: null, editPopupMode: null })
   },
 
-  setListSortBy(sortBy: ListSortBy) {
+  setListGroupBy(groupBy: ListGroupBy) {
+    set({ listGroupBy: groupBy })
+  },
+
+  setListSortBy(sortBy: ListItemSortBy) {
     set({ listSortBy: sortBy })
   },
 

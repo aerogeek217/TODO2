@@ -13,7 +13,8 @@ beforeEach(() => {
     editPopupMode: null,
     bulkConfirmation: null,
     collapsedParents: new Set(),
-    listSortBy: 'date',
+    listGroupBy: 'date',
+    listSortBy: 'manual',
     inlineCreateAfterId: null,
     clipboardTodoIds: [],
     clipboardSourceProjectId: null,
@@ -159,12 +160,20 @@ describe('useUIStore', () => {
     expect(useUIStore.getState().inlineCreateAfterId).toBeNull()
   })
 
-  it('setListSortBy changes sort', () => {
+  it('setListSortBy changes within-group sort', () => {
     useUIStore.getState().setListSortBy('date')
     expect(useUIStore.getState().listSortBy).toBe('date')
 
-    useUIStore.getState().setListSortBy('tag')
-    expect(useUIStore.getState().listSortBy).toBe('tag')
+    useUIStore.getState().setListSortBy('manual')
+    expect(useUIStore.getState().listSortBy).toBe('manual')
+  })
+
+  it('setListGroupBy changes grouping', () => {
+    useUIStore.getState().setListGroupBy('tag')
+    expect(useUIStore.getState().listGroupBy).toBe('tag')
+
+    useUIStore.getState().setListGroupBy('none')
+    expect(useUIStore.getState().listGroupBy).toBe('none')
   })
 
   it('cutTasks and clearClipboard', () => {

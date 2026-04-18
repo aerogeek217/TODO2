@@ -137,7 +137,7 @@ function checkTodo(v: unknown): CheckResult {
 
 const VALID_LIST_MEMBERSHIP_KINDS = ['today', 'upcoming', 'deadlines', 'someday', 'custom']
 const VALID_LIST_SORT_KINDS = ['effective-date-asc', 'deadline-asc', 'sort-order', 'sortBy']
-const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadline', 'by-sortBy']
+const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadline', 'by-sortBy', 'by-field']
 // v22→v21 back-compat: old exports may still carry `seededKey`; accepted but
 // stripped at reconstruction time. Not validated against a strict enum —
 // anything stringy passes so restore can drop it silently.
@@ -174,6 +174,15 @@ function isValidSort(s: unknown): boolean {
   return true
 }
 
+function isValidGrouping(g: unknown): boolean {
+  if (!isObj(g) || typeof g.kind !== 'string') return false
+  if (!VALID_LIST_GROUPING_KINDS.includes(g.kind)) return false
+  if (g.kind === 'by-field') {
+    return typeof g.by === 'string' && VALID_SORT_BY.includes(g.by)
+  }
+  return true
+}
+
 function checkListDefinition(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   const membership = v.membership
@@ -184,8 +193,7 @@ function checkListDefinition(v: unknown): CheckResult {
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['membership', isValidMembership(membership)],
     ['sort', isValidSort(sort)],
-    ['grouping', isObj(grouping) && typeof grouping.kind === 'string'
-      && VALID_LIST_GROUPING_KINDS.includes(grouping.kind)],
+    ['grouping', isValidGrouping(grouping)],
     // v22+: pinnedToDashboard required. v21 imports may omit; restore backfills.
     ['pinnedToDashboard', v.pinnedToDashboard === undefined || isBool(v.pinnedToDashboard)],
   ])
@@ -607,6 +615,8 @@ function pickSavedView(v: Record<string, unknown>): SavedView {
     id: v.id as number | undefined,
     name: v.name as string,
     sortBy: v.sortBy as SavedView['sortBy'],
+    ...(v.groupBy !== undefined ? { groupBy: v.groupBy as SavedView['groupBy'] } : {}),
+    ...(v.itemSortBy !== undefined ? { itemSortBy: v.itemSortBy as SavedView['itemSortBy'] } : {}),
     filters: pickSavedViewFilters(v.filters as Record<string, unknown>),
     sortOrder: v.sortOrder as number,
   }

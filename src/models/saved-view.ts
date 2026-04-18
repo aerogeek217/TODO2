@@ -1,4 +1,4 @@
-import type { ListSortBy } from './app-view'
+import type { ListSortBy, ListGroupBy, ListItemSortBy } from './app-view'
 import type { TodoPredicate } from './filter-predicate'
 
 /**
@@ -31,7 +31,16 @@ export interface SavedViewFilters extends Partial<TodoPredicate> {
 export interface SavedView {
   id?: number
   name: string
+  /**
+   * Legacy field (pre split-group-and-sort). Still written on save as
+   * `groupBy` narrowed to a ListSortBy value (defaults to `'date'` when
+   * groupBy is `'none'`), so pre-split code can still read the view.
+   */
   sortBy: ListSortBy
+  /** Preferred read source (post split). What to group by; `'none'` = flat. */
+  groupBy?: ListGroupBy
+  /** Sort applied within each group (or the whole list when groupBy='none'). */
+  itemSortBy?: ListItemSortBy
   filters: SavedViewFilters
   sortOrder: number
 }

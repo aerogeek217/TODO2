@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { useSavedViewStore, savedFiltersToRuntime } from '../../stores/saved-view-store'
+import { useSavedViewStore, savedFiltersToRuntime, resolveSavedViewGrouping } from '../../stores/saved-view-store'
 import type { FilterCriteria } from '../../stores/filter-store'
 
 const defaultFilters: FilterCriteria = {
@@ -59,7 +59,7 @@ describe('useSavedViewStore', () => {
 
   describe('saveCurrentView', () => {
     it('saveCurrentView_withBasicFilters_createsViewAndSetsActiveViewId', async () => {
-      await useSavedViewStore.getState().saveCurrentView('Work', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Work', 'date', 'manual', defaultFilters)
 
       const { views, activeViewId } = useSavedViewStore.getState()
       expect(views).toHaveLength(1)
@@ -79,7 +79,7 @@ describe('useSavedViewStore', () => {
         dateRangeIncludeNoDate: true,
       }
 
-      await useSavedViewStore.getState().saveCurrentView('Complex', 'tag', filters)
+      await useSavedViewStore.getState().saveCurrentView('Complex', 'tag', 'manual', filters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
@@ -92,7 +92,7 @@ describe('useSavedViewStore', () => {
     })
 
     it('saveCurrentView_withNullSets_storesNullInFilters', async () => {
-      await useSavedViewStore.getState().saveCurrentView('Minimal', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Minimal', 'date', 'manual', defaultFilters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
@@ -107,7 +107,7 @@ describe('useSavedViewStore', () => {
         statusIds: new Set([1, 2]),
       }
 
-      await useSavedViewStore.getState().saveCurrentView('Status View', 'status', filters)
+      await useSavedViewStore.getState().saveCurrentView('Status View', 'status', 'manual', filters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
@@ -115,7 +115,7 @@ describe('useSavedViewStore', () => {
     })
 
     it('saveCurrentView_withNullStatusIds_omitsStatusIdsField', async () => {
-      await useSavedViewStore.getState().saveCurrentView('No Status', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('No Status', 'date', 'manual', defaultFilters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
@@ -123,9 +123,9 @@ describe('useSavedViewStore', () => {
     })
 
     it('saveCurrentView_withExistingViews_setsSortOrderIncrementally', async () => {
-      await useSavedViewStore.getState().saveCurrentView('First', 'date', defaultFilters)
-      await useSavedViewStore.getState().saveCurrentView('Second', 'date', defaultFilters)
-      await useSavedViewStore.getState().saveCurrentView('Third', 'people', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('First', 'date', 'manual', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Second', 'date', 'manual', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Third', 'people', 'manual', defaultFilters)
 
       const { views } = useSavedViewStore.getState()
       const sortOrders = views.map((v) => v.sortOrder)
@@ -134,7 +134,7 @@ describe('useSavedViewStore', () => {
     })
 
     it('saveCurrentView_persistsViewToDatabase', async () => {
-      await useSavedViewStore.getState().saveCurrentView('Persisted', 'project', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Persisted', 'project', 'manual', defaultFilters)
 
       const rows = await db.savedViews.toArray()
       expect(rows).toHaveLength(1)
@@ -144,7 +144,7 @@ describe('useSavedViewStore', () => {
 
   describe('renameView', () => {
     it('renameView_withExistingView_updatesNameInStateAndDB', async () => {
-      await useSavedViewStore.getState().saveCurrentView('Old Name', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('Old Name', 'date', 'manual', defaultFilters)
       const id = useSavedViewStore.getState().views[0].id
 
       await useSavedViewStore.getState().renameView(id, 'New Name')
@@ -155,8 +155,8 @@ describe('useSavedViewStore', () => {
     })
 
     it('renameView_withMultipleViews_onlyRenamesTargetView', async () => {
-      await useSavedViewStore.getState().saveCurrentView('View A', 'date', defaultFilters)
-      await useSavedViewStore.getState().saveCurrentView('View B', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View A', 'date', 'manual', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View B', 'date', 'manual', defaultFilters)
       const { views } = useSavedViewStore.getState()
       const idA = views[0].id
 
@@ -170,7 +170,7 @@ describe('useSavedViewStore', () => {
 
   describe('removeView', () => {
     it('removeView_withMatchingActiveViewId_deletesViewAndClearsActiveViewId', async () => {
-      await useSavedViewStore.getState().saveCurrentView('To Delete', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('To Delete', 'date', 'manual', defaultFilters)
       const id = useSavedViewStore.getState().activeViewId!
 
       await useSavedViewStore.getState().removeView(id)
@@ -183,8 +183,8 @@ describe('useSavedViewStore', () => {
     })
 
     it('removeView_withDifferentActiveViewId_preservesActiveViewId', async () => {
-      await useSavedViewStore.getState().saveCurrentView('View 1', 'date', defaultFilters)
-      await useSavedViewStore.getState().saveCurrentView('View 2', 'date', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View 1', 'date', 'manual', defaultFilters)
+      await useSavedViewStore.getState().saveCurrentView('View 2', 'date', 'manual', defaultFilters)
       const { views } = useSavedViewStore.getState()
       const idToKeep = views[0].id
       const idToRemove = views[1].id
@@ -214,6 +214,33 @@ describe('useSavedViewStore', () => {
   })
 })
 
+describe('resolveSavedViewGrouping (split group + sort)', () => {
+  it('reads modern saves directly', () => {
+    expect(resolveSavedViewGrouping({ sortBy: 'date', groupBy: 'tag', itemSortBy: 'deadline' }))
+      .toEqual({ groupBy: 'tag', itemSortBy: 'deadline' })
+  })
+
+  it('falls back to legacy sortBy as groupBy when groupBy is absent', () => {
+    expect(resolveSavedViewGrouping({ sortBy: 'project' }))
+      .toEqual({ groupBy: 'project', itemSortBy: 'manual' })
+  })
+
+  it('translates legacy priority/due sortBy to date', () => {
+    expect(resolveSavedViewGrouping({ sortBy: 'priority' }).groupBy).toBe('date')
+    expect(resolveSavedViewGrouping({ sortBy: 'due' }).groupBy).toBe('date')
+  })
+
+  it('round-trips through saveCurrentView — groupBy=none is preserved', async () => {
+    await useSavedViewStore.getState().saveCurrentView('Flat', 'none', 'date', defaultFilters)
+    const saved = useSavedViewStore.getState().views[0]
+    expect(saved.groupBy).toBe('none')
+    expect(saved.itemSortBy).toBe('date')
+    // Legacy field defaults to 'date' so pre-split clients still get something sane.
+    expect(saved.sortBy).toBe('date')
+    expect(resolveSavedViewGrouping(saved)).toEqual({ groupBy: 'none', itemSortBy: 'date' })
+  })
+})
+
 describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
   it('orgFilterMode direct-only survives save and restore roundtrip', async () => {
     const filters: FilterCriteria = {
@@ -222,7 +249,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
       orgIds: new Set([5]),
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Org Test', 'date', filters)
+    await useSavedViewStore.getState().saveCurrentView('Org Test', 'date', 'manual', filters)
 
     const { views } = useSavedViewStore.getState()
     const saved = views[0].filters
@@ -238,7 +265,7 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
       orgFilterMode: 'include-people',
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Default Org', 'date', filters)
+    await useSavedViewStore.getState().saveCurrentView('Default Org', 'date', 'manual', filters)
 
     const { views } = useSavedViewStore.getState()
     const { runtime: restored } = savedFiltersToRuntime(views[0].filters)
@@ -268,7 +295,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
       personIds: new Set([5]),
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Person Test', 'date', filters)
+    await useSavedViewStore.getState().saveCurrentView('Person Test', 'date', 'manual', filters)
 
     const { views } = useSavedViewStore.getState()
     const saved = views[0].filters
@@ -284,7 +311,7 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
       personFilterMode: 'include-orgs',
     }
 
-    await useSavedViewStore.getState().saveCurrentView('Default Person', 'date', filters)
+    await useSavedViewStore.getState().saveCurrentView('Default Person', 'date', 'manual', filters)
 
     const { views } = useSavedViewStore.getState()
     const { runtime: restored } = savedFiltersToRuntime(views[0].filters)
@@ -595,7 +622,7 @@ describe('savedFiltersToRuntime legacy translation with seeded IDs', () => {
       showCompleted: true,
       showHiddenStatuses: true,
     }
-    await useSavedViewStore.getState().saveCurrentView('V20 View', 'date', filters)
+    await useSavedViewStore.getState().saveCurrentView('V20 View', 'date', 'manual', filters)
     const { views } = useSavedViewStore.getState()
     const saved = views[0].filters
     expect(saved.showCompleted).toBe(true)

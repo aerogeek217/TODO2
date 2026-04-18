@@ -232,19 +232,29 @@ export function interpretGrouping(
       return bucketByDeadline(todos, ctx)
     case 'by-sortBy': {
       if (sort.kind !== 'sortBy') return undefined
-      switch (sort.by) {
-        case 'date':
-          return bucketByEffective(todos, ctx)
-        case 'scheduled':
-          return bucketByScheduled(todos, ctx)
-        case 'deadline':
-          return bucketByDeadline(todos, ctx)
-        // Categorical buckets require assignment maps that the interpreter
-        // doesn't receive yet — Commit C extends context when the UI ships.
-        default:
-          return undefined
-      }
+      return bucketByField(sort.by, todos, ctx)
     }
+    case 'by-field':
+      return bucketByField(g.by, todos, ctx)
+  }
+}
+
+function bucketByField(
+  by: ListSortBy,
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+): DashboardListGroup[] | undefined {
+  switch (by) {
+    case 'date':
+      return bucketByEffective(todos, ctx)
+    case 'scheduled':
+      return bucketByScheduled(todos, ctx)
+    case 'deadline':
+      return bucketByDeadline(todos, ctx)
+    // Categorical buckets require assignment maps that the interpreter
+    // doesn't receive yet — ListView handles them locally.
+    default:
+      return undefined
   }
 }
 
