@@ -1,6 +1,7 @@
 import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status } from '../models'
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
+import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../components/shared/StatusIcon'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
@@ -142,14 +143,33 @@ const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadl
 // stripped at reconstruction time. Not validated against a strict enum —
 // anything stringy passes so restore can drop it silently.
 
+/** Accepts legacy ISO strings (pre-DSL) and `DateAnchor` objects. null/undefined = no filter. */
+function isOptDateAnchorOrLegacy(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (typeof v === 'string') return isDateLike(v) // legacy ISO string
+  if (!isObj(v)) return false
+  if (v.kind === 'fixed') return typeof v.iso === 'string' && isDateLike(v.iso)
+  if (v.kind === 'relative') return typeof v.token === 'string' && (RELATIVE_DATE_TOKENS as readonly string[]).includes(v.token)
+  return false
+}
+
+function isOptTriBool(v: unknown): boolean {
+  return v === undefined || v === null || isBool(v)
+}
+
 function isTodoPredicateShape(v: unknown): boolean {
   if (!isObj(v)) return false
   // Minimal shape check — full field validation defers to savedView reader.
   // Must have the core boolean + string fields; everything else is optional.
-  return typeof v.showCompleted === 'boolean'
-    && typeof v.showHiddenStatuses === 'boolean'
-    && typeof v.searchText === 'string'
-    && typeof v.dateRangeIncludeNoDate === 'boolean'
+  if (typeof v.showCompleted !== 'boolean'
+    || typeof v.showHiddenStatuses !== 'boolean'
+    || typeof v.searchText !== 'string'
+    || typeof v.dateRangeIncludeNoDate !== 'boolean') return false
+  if (!isOptDateAnchorOrLegacy(v.dateRangeStart)) return false
+  if (!isOptDateAnchorOrLegacy(v.dateRangeEnd)) return false
+  if (!isOptTriBool(v.hasScheduled)) return false
+  if (!isOptTriBool(v.hasDeadline)) return false
+  return true
 }
 
 function isValidMembership(m: unknown): boolean {
@@ -363,8 +383,10 @@ function checkSavedViewFilters(v: unknown): CheckResult {
     ['orgFilterMode', isOptFilterStr(v.orgFilterMode, ['include-people', 'direct-only'])],
     ['statusIds', isOptNullableIntArray(v.statusIds)],
     ['dateField', v.dateField === undefined || (typeof v.dateField === 'string' && VALID_DATE_FIELDS.includes(v.dateField))],
-    ['dateRangeStart', isOptDateLike(v.dateRangeStart)],
-    ['dateRangeEnd', isOptDateLike(v.dateRangeEnd)],
+    ['dateRangeStart', isOptDateAnchorOrLegacy(v.dateRangeStart)],
+    ['dateRangeEnd', isOptDateAnchorOrLegacy(v.dateRangeEnd)],
+    ['hasScheduled', isOptTriBool(v.hasScheduled)],
+    ['hasDeadline', isOptTriBool(v.hasDeadline)],
   ])
 }
 
@@ -607,8 +629,10 @@ function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] 
     ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as SavedView['filters']['orgFilterMode'] } : {}),
     ...(v.statusIds !== undefined ? { statusIds: v.statusIds as number[] | null } : {}),
     ...(v.dateField !== undefined ? { dateField: v.dateField as SavedView['filters']['dateField'] } : {}),
-    ...(v.dateRangeStart !== undefined ? { dateRangeStart: v.dateRangeStart as string | null } : {}),
-    ...(v.dateRangeEnd !== undefined ? { dateRangeEnd: v.dateRangeEnd as string | null } : {}),
+    ...(v.dateRangeStart !== undefined ? { dateRangeStart: v.dateRangeStart as SavedView['filters']['dateRangeStart'] } : {}),
+    ...(v.dateRangeEnd !== undefined ? { dateRangeEnd: v.dateRangeEnd as SavedView['filters']['dateRangeEnd'] } : {}),
+    ...(v.hasScheduled !== undefined ? { hasScheduled: v.hasScheduled as boolean | null } : {}),
+    ...(v.hasDeadline !== undefined ? { hasDeadline: v.hasDeadline as boolean | null } : {}),
   }
 }
 

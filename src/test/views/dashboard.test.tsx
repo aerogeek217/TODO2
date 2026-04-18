@@ -104,6 +104,8 @@ function resetStores() {
     dateRangeStart: null,
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
   })
 }
 

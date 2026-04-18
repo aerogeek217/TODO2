@@ -1,6 +1,7 @@
 import { startOfDay, startOfToday, MS_PER_DAY } from './date'
 import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
 import type { TodoItem } from '../models/todo-item'
+import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 
 /**
  * 0 = Sunday-first week (week ends Saturday).
@@ -48,6 +49,75 @@ export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn?: Week
     case 'next-month':
       return new Date(base.getFullYear(), base.getMonth() + 2, 0)
   }
+}
+
+/**
+ * Resolve a `RelativeDateToken` to a concrete midnight Date. Week tokens honor
+ * `weekStartsOn` (defaults to the configured setting). Month tokens work off
+ * calendar month boundaries regardless of week start.
+ */
+export function resolveRelativeToken(
+  token: RelativeDateToken,
+  today: Date,
+  weekStartsOn?: WeekStart,
+): Date {
+  const ws = weekStartsOn ?? configuredWeekStart
+  const base = startOfDay(today)
+  const dow = base.getDay()
+
+  const addDays = (d: Date, n: number) =>
+    startOfDay(new Date(d.getTime() + n * MS_PER_DAY))
+
+  const startOfWeek = () => {
+    const startDow = ws // 0 = Sun-first, 1 = Mon-first
+    const days = (dow - startDow + 7) % 7
+    return addDays(base, -days)
+  }
+  const endOfWeek = () => {
+    const endDow = ws === 1 ? 0 : 6
+    const days = (endDow - dow + 7) % 7
+    return addDays(base, days)
+  }
+  const startOfMonth = () => new Date(base.getFullYear(), base.getMonth(), 1)
+  const endOfMonth = () => new Date(base.getFullYear(), base.getMonth() + 1, 0)
+
+  switch (token) {
+    case 'today':
+      return base
+    case 'tomorrow':
+      return addDays(base, 1)
+    case 'start-of-week':
+      return startOfWeek()
+    case 'end-of-week':
+      return endOfWeek()
+    case 'start-of-next-week':
+      return addDays(startOfWeek(), 7)
+    case 'end-of-next-week':
+      return addDays(endOfWeek(), 7)
+    case 'start-of-month':
+      return startOfMonth()
+    case 'end-of-month':
+      return endOfMonth()
+    case 'start-of-next-month':
+      return new Date(base.getFullYear(), base.getMonth() + 1, 1)
+    case 'end-of-next-month':
+      return new Date(base.getFullYear(), base.getMonth() + 2, 0)
+    case 'end-of-month-plus-3':
+      return new Date(base.getFullYear(), base.getMonth() + 4, 0)
+  }
+}
+
+/**
+ * Resolve a `DateAnchor` to a concrete midnight Date. `fixed` parses the ISO
+ * string; `relative` resolves against `today` via `resolveRelativeToken`.
+ */
+export function resolveDateAnchor(
+  anchor: DateAnchor,
+  today: Date,
+  weekStartsOn?: WeekStart,
+): Date {
+  if (anchor.kind === 'fixed') return startOfDay(new Date(anchor.iso))
+  return resolveRelativeToken(anchor.token, today, weekStartsOn)
 }
 
 /** Resolve scheduledDate to a concrete Date, or null if unset. */

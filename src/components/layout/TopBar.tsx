@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router'
-import { useFilterStore, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
+import { useFilterStore, resolveAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -591,8 +591,8 @@ export function TopBar() {
           <DateRangeDropdown
             active={dateRangeActive}
             dateField={filters.dateField}
-            startDate={filters.dateRangeStart}
-            endDate={filters.dateRangeEnd}
+            startDate={resolveAnchor(filters.dateRangeStart)}
+            endDate={resolveAnchor(filters.dateRangeEnd)}
             includeNoDate={filters.dateRangeIncludeNoDate}
             onChangeDateField={setDateField}
             onChangeRange={setDateRange}

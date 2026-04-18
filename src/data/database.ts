@@ -351,6 +351,8 @@ function emptyPredicateSeed(): Record<string, unknown> {
     dateRangeStart: null,
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
   }
 }
 
@@ -377,7 +379,7 @@ export function buildListDefFromLegacyInset(
     end.setDate(end.getDate() + 7)
     const predicate = emptyPredicateSeed()
     predicate.dateField = 'date'
-    predicate.dateRangeEnd = end.toISOString()
+    predicate.dateRangeEnd = { kind: 'fixed', iso: end.toISOString() }
     return {
       name: insetName ?? 'Due this week',
       pinnedToDashboard: false,

@@ -14,7 +14,14 @@ export { type Backup, type BackupTrigger } from './backup'
 export { AppView } from './app-view'
 export { type ListSortBy, type ListGroupBy, type ListItemSortBy, type DateField } from './app-view'
 export { type SavedView, type PersistedSavedView, type SavedViewFilters } from './saved-view'
-export { type TodoPredicate, type OrgFilterMode, type PersonFilterMode } from './filter-predicate'
+export {
+  type TodoPredicate,
+  type OrgFilterMode,
+  type PersonFilterMode,
+  type DateAnchor,
+  type RelativeDateToken,
+  RELATIVE_DATE_TOKENS,
+} from './filter-predicate'
 export { type StickyNote } from './sticky-note'
 export { type TaskboardEntry } from './taskboard-entry'
 export { type Status, type PersistedStatus } from './status'

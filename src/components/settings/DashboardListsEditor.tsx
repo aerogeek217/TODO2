@@ -168,8 +168,18 @@ function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
       chips.push({ key: 'statuses', label: names.join(', ') })
     }
     if (predicate.dateRangeStart || predicate.dateRangeEnd) {
-      const fmt = (v: string | null) => v ? v.slice(0, 10) : '…'
+      const fmt = (a: typeof predicate.dateRangeStart) => {
+        if (!a) return '…'
+        if (a.kind === 'fixed') return a.iso.slice(0, 10)
+        return a.token
+      }
       chips.push({ key: 'date', label: `${predicate.dateField}: ${fmt(predicate.dateRangeStart)} → ${fmt(predicate.dateRangeEnd)}` })
+    }
+    if (predicate.hasScheduled !== null && predicate.hasScheduled !== undefined) {
+      chips.push({ key: 'hasSched', label: predicate.hasScheduled ? 'Has scheduled' : 'No scheduled' })
+    }
+    if (predicate.hasDeadline !== null && predicate.hasDeadline !== undefined) {
+      chips.push({ key: 'hasDead', label: predicate.hasDeadline ? 'Has deadline' : 'No deadline' })
     }
     if (predicate.showCompleted) chips.push({ key: 'completed', label: 'Show completed' })
     if (predicate.showHiddenStatuses) chips.push({ key: 'hidden', label: 'Show hidden statuses' })

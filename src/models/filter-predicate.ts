@@ -4,14 +4,55 @@ export type OrgFilterMode = 'include-people' | 'direct-only'
 export type PersonFilterMode = 'include-orgs' | 'direct-only'
 
 /**
+ * Relative-date tokens resolve to a concrete Date at eval time against "today"
+ * and the user's `weekStartsOn`. Authoring a predicate with a relative anchor
+ * (e.g. `end-of-week`) keeps the filter correct across midnight rollovers
+ * without rewriting the stored predicate.
+ */
+export type RelativeDateToken =
+  | 'today'
+  | 'tomorrow'
+  | 'start-of-week'
+  | 'end-of-week'
+  | 'start-of-next-week'
+  | 'end-of-next-week'
+  | 'start-of-month'
+  | 'end-of-month'
+  | 'start-of-next-month'
+  | 'end-of-next-month'
+  | 'end-of-month-plus-3'
+
+export const RELATIVE_DATE_TOKENS: readonly RelativeDateToken[] = [
+  'today',
+  'tomorrow',
+  'start-of-week',
+  'end-of-week',
+  'start-of-next-week',
+  'end-of-next-week',
+  'start-of-month',
+  'end-of-month',
+  'start-of-next-month',
+  'end-of-next-month',
+  'end-of-month-plus-3',
+]
+
+/**
+ * Serializable date-range anchor. `fixed` matches the legacy ISO-string
+ * behavior; `relative` carries a token that resolves against today at eval time.
+ */
+export type DateAnchor =
+  | { kind: 'fixed'; iso: string }
+  | { kind: 'relative'; token: RelativeDateToken }
+
+/**
  * Serializable predicate describing the live filter fields. Intentionally does
  * NOT include @deprecated legacy keys (`priorities`, `completedFilter`, etc.)
  * — those live only on `SavedViewFilters` for backward-compat.
  *
- * Shape is JSON-friendly: number arrays (not Sets) and ISO date strings (not
- * Date objects), so it can be stored unchanged inside `ListDefinition.custom`
- * and inside `SavedViewFilters`, then converted to the runtime `FilterCriteria`
- * shape at evaluation time.
+ * Shape is JSON-friendly: number arrays (not Sets), and `DateAnchor` for date
+ * range (either a fixed ISO string or a relative token resolved at eval time).
+ * Stored unchanged inside `ListDefinition.custom` and `SavedViewFilters`, then
+ * converted to the runtime `FilterCriteria` shape at evaluation time.
  */
 export interface TodoPredicate {
   showCompleted: boolean
@@ -25,8 +66,12 @@ export interface TodoPredicate {
   statusIds: number[] | null
   searchText: string
   dateField: DateField
-  /** ISO date string (YYYY-MM-DD or full ISO); null = no lower bound. */
-  dateRangeStart: string | null
-  dateRangeEnd: string | null
+  /** Fixed ISO string or relative token; null = no lower bound. */
+  dateRangeStart: DateAnchor | null
+  dateRangeEnd: DateAnchor | null
   dateRangeIncludeNoDate: boolean
+  /** Tri-state presence filter on `scheduledDate`. null = no filter. */
+  hasScheduled: boolean | null
+  /** Tri-state presence filter on `dueDate`. null = no filter. */
+  hasDeadline: boolean | null
 }

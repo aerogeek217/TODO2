@@ -10,6 +10,8 @@ import {
   daysUntil,
   dateIntensity,
   setConfiguredWeekStart,
+  resolveDateAnchor,
+  resolveRelativeToken,
 } from '../../utils/effective-date'
 import { startOfDay, MS_PER_DAY } from '../../utils/date'
 
@@ -389,5 +391,89 @@ describe('dateIntensity', () => {
     expect(dateIntensity(14)).toBe(0.15)
     expect(dateIntensity(30)).toBe(0.15)
     expect(dateIntensity(365)).toBe(0.15)
+  })
+})
+
+describe('resolveRelativeToken', () => {
+  afterEach(() => setConfiguredWeekStart(1))
+
+  const wed = d('2026-04-15') // Wednesday
+
+  it('today and tomorrow', () => {
+    expect(resolveRelativeToken('today', wed).getDate()).toBe(15)
+    expect(resolveRelativeToken('tomorrow', wed).getDate()).toBe(16)
+  })
+
+  it('start-of-week / end-of-week honor Monday-first default', () => {
+    const start = resolveRelativeToken('start-of-week', wed)
+    expect(start.getDate()).toBe(13)      // Monday
+    expect(start.getDay()).toBe(1)
+    const end = resolveRelativeToken('end-of-week', wed)
+    expect(end.getDate()).toBe(19)        // Sunday
+    expect(end.getDay()).toBe(0)
+  })
+
+  it('start-of-week / end-of-week honor Sunday-first configuration', () => {
+    setConfiguredWeekStart(0)
+    const start = resolveRelativeToken('start-of-week', wed)
+    expect(start.getDate()).toBe(12)      // Sunday
+    expect(start.getDay()).toBe(0)
+    const end = resolveRelativeToken('end-of-week', wed)
+    expect(end.getDate()).toBe(18)        // Saturday
+    expect(end.getDay()).toBe(6)
+  })
+
+  it('start-of-next-week / end-of-next-week add 7 days to this-week boundaries', () => {
+    expect(resolveRelativeToken('start-of-next-week', wed).getDate()).toBe(20)
+    expect(resolveRelativeToken('end-of-next-week', wed).getDate()).toBe(26)
+  })
+
+  it('start-of-month / end-of-month use calendar month', () => {
+    expect(resolveRelativeToken('start-of-month', wed).getDate()).toBe(1)
+    const end = resolveRelativeToken('end-of-month', wed)
+    expect(end.getMonth()).toBe(3)
+    expect(end.getDate()).toBe(30)
+  })
+
+  it('start-of-next-month / end-of-next-month step one calendar month', () => {
+    const sm = resolveRelativeToken('start-of-next-month', wed)
+    expect(sm.getMonth()).toBe(4)
+    expect(sm.getDate()).toBe(1)
+    const em = resolveRelativeToken('end-of-next-month', wed)
+    expect(em.getMonth()).toBe(4)
+    expect(em.getDate()).toBe(31)
+  })
+
+  it('end-of-month-plus-3 covers current month + 3', () => {
+    const end = resolveRelativeToken('end-of-month-plus-3', wed)
+    // Wednesday 2026-04-15 + 3 months = July; end of July is the 31st.
+    expect(end.getMonth()).toBe(6)
+    expect(end.getDate()).toBe(31)
+  })
+
+  it('month boundaries still work when today is the last day of the month', () => {
+    const lastDay = d('2026-04-30')
+    const end = resolveRelativeToken('end-of-month', lastDay)
+    expect(end.getMonth()).toBe(3)
+    expect(end.getDate()).toBe(30)
+    const sm = resolveRelativeToken('start-of-next-month', lastDay)
+    expect(sm.getMonth()).toBe(4)
+    expect(sm.getDate()).toBe(1)
+  })
+})
+
+describe('resolveDateAnchor', () => {
+  const today = d('2026-04-15')
+
+  it('resolves a fixed anchor to the ISO date', () => {
+    const result = resolveDateAnchor({ kind: 'fixed', iso: '2026-05-01T12:00:00' }, today)
+    expect(result.getFullYear()).toBe(2026)
+    expect(result.getMonth()).toBe(4)
+    expect(result.getDate()).toBe(1)
+  })
+
+  it('resolves a relative anchor via resolveRelativeToken', () => {
+    const result = resolveDateAnchor({ kind: 'relative', token: 'end-of-week' }, today)
+    expect(result.getDate()).toBe(19)
   })
 })

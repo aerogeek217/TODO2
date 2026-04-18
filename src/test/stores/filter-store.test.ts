@@ -242,10 +242,117 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
   })
 
+  describe('hasScheduled / hasDeadline presence filters', () => {
+    it('hasScheduled=true keeps only tasks with a scheduledDate', () => {
+      useFilterStore.getState().setHasScheduled(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
+    })
+
+    it('hasScheduled=false keeps only tasks without a scheduledDate', () => {
+      useFilterStore.getState().setHasScheduled(false)
+      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
+    })
+
+    it('hasDeadline=true keeps only tasks with a deadline', () => {
+      useFilterStore.getState().setHasDeadline(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
+    })
+
+    it('hasDeadline=false keeps only tasks without a deadline', () => {
+      useFilterStore.getState().setHasDeadline(false)
+      expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
+    })
+
+    it('null (default) disables the presence filter entirely', () => {
+      expect(f().hasScheduled).toBeNull()
+      expect(f().hasDeadline).toBeNull()
+      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
+    })
+
+    it('hasScheduled and hasDeadline compose with AND', () => {
+      useFilterStore.getState().setHasScheduled(true)
+      useFilterStore.getState().setHasDeadline(true)
+      // Only the task with both should pass
+      expect(matchesFilter(f(), makeTodo({
+        id: 1,
+        scheduledDate: { kind: 'fuzzy', token: 'this-week' },
+        dueDate: new Date('2026-04-20'),
+      }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2026-04-20') }))).toBe(false)
+    })
+  })
+
+  describe('DateAnchor relative-token resolution', () => {
+    it('relative end-of-week resolves to the configured weekStartsOn boundary', () => {
+      // Wednesday 2026-04-15 → Monday-first week ends Sunday 2026-04-19.
+      const today = new Date('2026-04-15T12:00:00')
+      useFilterStore.getState().setDateRangeAnchors(
+        null,
+        { kind: 'relative', token: 'end-of-week' },
+      )
+
+      // Task due Sunday (2026-04-19) passes; task due next Monday (2026-04-20) fails.
+      expect(matchesFilter(f(), makeTodo({
+        id: 1,
+        dueDate: new Date(2026, 3, 19),
+      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+
+      expect(matchesFilter(f(), makeTodo({
+        id: 2,
+        dueDate: new Date(2026, 3, 20),
+      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+    })
+
+    it('relative tomorrow anchor lets a same-day task through as a start bound', () => {
+      const today = new Date('2026-04-15T12:00:00')
+      useFilterStore.getState().setDateRangeAnchors(
+        { kind: 'relative', token: 'tomorrow' },
+        null,
+      )
+      // Today-due task excluded (before tomorrow); tomorrow-due passes.
+      expect(matchesFilter(f(), makeTodo({
+        id: 1,
+        dueDate: new Date(2026, 3, 15),
+      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+
+      expect(matchesFilter(f(), makeTodo({
+        id: 2,
+        dueDate: new Date(2026, 3, 16),
+      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+    })
+
+    it('fixed anchor behaves like the legacy ISO-string range', () => {
+      useFilterStore.getState().setDateRangeAnchors(
+        { kind: 'fixed', iso: '2025-03-01' },
+        { kind: 'fixed', iso: '2025-03-31' },
+      )
+      expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
+    })
+  })
+
   it('clearAll resets dateField to date', () => {
     useFilterStore.getState().setDateField('modified')
     useFilterStore.getState().clearAll()
     expect(useFilterStore.getState().filters.dateField).toBe('date')
+  })
+
+  it('clearAll resets hasScheduled / hasDeadline to null', () => {
+    useFilterStore.getState().setHasScheduled(true)
+    useFilterStore.getState().setHasDeadline(false)
+    expect(useFilterStore.getState().isActive).toBe(true)
+    useFilterStore.getState().clearAll()
+    expect(useFilterStore.getState().filters.hasScheduled).toBeNull()
+    expect(useFilterStore.getState().filters.hasDeadline).toBeNull()
   })
 
   it('clearAll resets orgFilterMode to include-people', () => {
@@ -458,7 +565,7 @@ describe('useFilterStore', () => {
 })
 
 describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
-  it('converts Sets to arrays and Dates to ISO strings and back', async () => {
+  it('converts Sets to arrays and DateAnchor round-trips', async () => {
     const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
     const original = {
       showCompleted: true,
@@ -471,20 +578,51 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       statusIds: new Set([0, 3]),
       searchText: 'x',
       dateField: 'deadline' as const,
-      dateRangeStart: new Date('2025-03-01T00:00:00Z'),
-      dateRangeEnd: new Date('2025-03-31T00:00:00Z'),
+      dateRangeStart: { kind: 'fixed' as const, iso: '2025-03-01T00:00:00.000Z' },
+      dateRangeEnd: { kind: 'relative' as const, token: 'end-of-week' as const },
       dateRangeIncludeNoDate: true,
+      hasScheduled: true,
+      hasDeadline: null,
     }
 
     const serialized = criteriaToPredicate(original)
     expect(Array.isArray(serialized.personIds)).toBe(true)
     expect(serialized.personIds).toEqual([5, 10])
-    expect(typeof serialized.dateRangeStart).toBe('string')
+    expect(serialized.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
+    expect(serialized.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
+    expect(serialized.hasScheduled).toBe(true)
+    expect(serialized.hasDeadline).toBe(null)
 
     const runtime = predicateToCriteria(serialized)
     expect(runtime.personIds instanceof Set).toBe(true)
     expect([...runtime.personIds!].sort((a, b) => a - b)).toEqual([5, 10])
     expect(runtime.dateField).toBe('deadline')
-    expect(runtime.dateRangeStart?.toISOString()).toBe(original.dateRangeStart.toISOString())
+    expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
+    expect(runtime.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
+    expect(runtime.hasScheduled).toBe(true)
+  })
+
+  it('legacy ISO-string dateRangeStart auto-upgrades to fixed anchor', async () => {
+    const { predicateToCriteria } = await import('../../stores/filter-store')
+    const legacy = {
+      showCompleted: false,
+      showHiddenStatuses: false,
+      personIds: null,
+      personFilterMode: 'include-orgs' as const,
+      tagIds: null,
+      orgIds: null,
+      orgFilterMode: 'include-people' as const,
+      statusIds: null,
+      searchText: '',
+      dateField: 'date' as const,
+      dateRangeStart: '2025-03-01' as unknown as never, // legacy string shape
+      dateRangeEnd: null,
+      dateRangeIncludeNoDate: false,
+      hasScheduled: null,
+      hasDeadline: null,
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const runtime = predicateToCriteria(legacy as any)
+    expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01' })
   })
 })

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useLocation } from 'react-router'
-import { useFilterStore, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
+import { useFilterStore, resolveAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -217,20 +217,20 @@ export function FilterSheet() {
                   <input
                     className={styles.dateInput}
                     type="date"
-                    value={filters.dateRangeStart ? toDateInputValue(filters.dateRangeStart) : ''}
+                    value={toDateInputValue(resolveAnchor(filters.dateRangeStart) ?? undefined)}
                     onChange={(e) => {
                       const d = e.target.value ? new Date(e.target.value + 'T00:00:00') : null
-                      setDateRange(d, filters.dateRangeEnd)
+                      setDateRange(d, resolveAnchor(filters.dateRangeEnd))
                     }}
                   />
                   <span style={{ color: 'var(--color-text-muted)' }}>to</span>
                   <input
                     className={styles.dateInput}
                     type="date"
-                    value={filters.dateRangeEnd ? toDateInputValue(filters.dateRangeEnd) : ''}
+                    value={toDateInputValue(resolveAnchor(filters.dateRangeEnd) ?? undefined)}
                     onChange={(e) => {
                       const d = e.target.value ? new Date(e.target.value + 'T00:00:00') : null
-                      setDateRange(filters.dateRangeStart, d)
+                      setDateRange(resolveAnchor(filters.dateRangeStart), d)
                     }}
                   />
                 </div>

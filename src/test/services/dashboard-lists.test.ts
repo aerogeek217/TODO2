@@ -428,6 +428,8 @@ describe('interpretMembership — custom', () => {
     dateRangeStart: null,
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
   }
 
   it('delegates to ctx.evalPredicate', () => {
@@ -466,6 +468,7 @@ describe('interpretSort — sortBy', () => {
       tagIds: null, orgIds: null, orgFilterMode: 'include-people' as const,
       statusIds: null, searchText: '', dateField: 'date' as const,
       dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false,
+      hasScheduled: null, hasDeadline: null,
     }
     const def: PersistedListDefinition = {
       id: 42,

@@ -51,6 +51,8 @@ export function emptyPredicate(): TodoPredicate {
     dateRangeStart: null,
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
   }
 }
 

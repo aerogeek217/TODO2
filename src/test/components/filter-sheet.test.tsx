@@ -124,7 +124,8 @@ describe('FilterSheet', () => {
 
       const { dateRangeStart } = useFilterStore.getState().filters
       expect(dateRangeStart).not.toBeNull()
-      expect(dateRangeStart!.toISOString().slice(0, 10)).toBe('2026-04-01')
+      if (!dateRangeStart || dateRangeStart.kind !== 'fixed') throw new Error('expected fixed anchor')
+      expect(dateRangeStart.iso.slice(0, 10)).toBe('2026-04-01')
     })
   })
 

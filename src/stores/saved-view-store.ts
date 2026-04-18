@@ -12,6 +12,7 @@ import type {
   Status,
 } from '../models'
 import type { FilterCriteria } from './filter-store'
+import { readDateAnchor } from './filter-store'
 
 /**
  * Translate a persisted saved-view sortBy value into the current ListSortBy.
@@ -107,9 +108,11 @@ function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
     orgFilterMode: f.orgFilterMode,
     ...(f.statusIds != null ? { statusIds: Array.from(f.statusIds) } : {}),
     dateField: f.dateField,
-    dateRangeStart: f.dateRangeStart ? f.dateRangeStart.toISOString() : null,
-    dateRangeEnd: f.dateRangeEnd ? f.dateRangeEnd.toISOString() : null,
+    dateRangeStart: f.dateRangeStart,
+    dateRangeEnd: f.dateRangeEnd,
     dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
+    hasScheduled: f.hasScheduled,
+    hasDeadline: f.hasDeadline,
   }
 }
 
@@ -209,9 +212,11 @@ export function savedFiltersToRuntime(
       orgFilterMode: s.orgFilterMode === 'direct-only' ? 'direct-only' : 'include-people',
       statusIds,
       dateField,
-      dateRangeStart: s.dateRangeStart ? new Date(s.dateRangeStart) : null,
-      dateRangeEnd: s.dateRangeEnd ? new Date(s.dateRangeEnd) : null,
+      dateRangeStart: readDateAnchor(s.dateRangeStart),
+      dateRangeEnd: readDateAnchor(s.dateRangeEnd),
       dateRangeIncludeNoDate,
+      hasScheduled: s.hasScheduled ?? null,
+      hasDeadline: s.hasDeadline ?? null,
       searchText: '',
     },
     losses,

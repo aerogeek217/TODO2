@@ -17,6 +17,8 @@ function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
     dateRangeStart: null,
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
     ...overrides,
   }
 }

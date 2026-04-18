@@ -150,7 +150,10 @@ describe('v23 migration', () => {
       expect(def).not.toBeNull()
       expect(def!.membership.kind).toBe('custom')
       if (def!.membership.kind !== 'custom') return
-      const end = new Date(def!.membership.predicate.dateRangeEnd!)
+      const anchor = def!.membership.predicate.dateRangeEnd
+      expect(anchor?.kind).toBe('fixed')
+      if (anchor?.kind !== 'fixed') return
+      const end = new Date(anchor.iso)
       const expectedEnd = new Date(now)
       expectedEnd.setDate(expectedEnd.getDate() + 7)
       expect(end.getTime()).toBe(expectedEnd.getTime())

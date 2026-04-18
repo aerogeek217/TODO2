@@ -50,7 +50,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 function dueThisWeekDef(): PersistedListDefinition {
   const predicate = emptyPredicate()
   predicate.dateField = 'date'
-  predicate.dateRangeEnd = new Date(2026, 3, 23).toISOString()
+  predicate.dateRangeEnd = { kind: 'fixed', iso: new Date(2026, 3, 23).toISOString() }
   return {
     id: 1,
     name: 'Due this week',
@@ -83,6 +83,8 @@ function resetStores(def: PersistedListDefinition = dueThisWeekDef()) {
     dateRangeStart: null,
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
+    hasScheduled: null,
+    hasDeadline: null,
   })
 }
 
