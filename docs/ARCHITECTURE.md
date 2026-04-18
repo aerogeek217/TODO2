@@ -25,13 +25,13 @@ main.tsx (entry point)
 ├── components/
 │   ├── layout/            → Sidebar, TopBar (filter bar + search + storage status), FileSyncBanner, BottomTabBar (mobile)
 │   ├── task/              → TaskRow, TaskList, TaskEditPopup, MobileTaskRow
-│   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, StickyNoteNode, SortableTaskList, ProjectNavigator, alignment
+│   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, StickyNoteNode, SortableTaskList, ProjectNavigator, alignment; rails/ (RailsFrame, RailContainer, Slot, SlotHeader, LensSlotContent — Phase 4A scaffolding, session-only)
 │   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node)
 │   ├── dashboard/         → HorizonRibbon + HorizonCell (5-cell horizon chart; reads settings `horizonSlots` + `listDefinitions`); NotesPanel (Inbox chrome + dock buttons; body = shared `NotesBody`)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
 │   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, StatusEditor, ThemeColorsEditor, KeyboardShortcutsModal, DashboardListsEditor
 │   └── shared/            → Chip, SectionHeader, ChipSelector, ColorInput, StatusIcon, AvatarStack, notes/NotesEditor (CM6 wrapper) + notes/NotesBody (shared editor + ⌘T-to-task), selection.module.css, dropdown.module.css
-├── stores/                → Zustand (canvas, todo, project, person, tag, org, status, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view, list-definition, settings, file-storage, note)
+├── stores/                → Zustand (canvas, canvas-rails, todo, project, person, tag, org, status, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view, list-definition, settings, file-storage, note)
 ├── data/                  → Dexie repositories + migrations + restore + audit
 ├── models/                → TypeScript interfaces
 ├── hooks/                 → Custom React hooks
