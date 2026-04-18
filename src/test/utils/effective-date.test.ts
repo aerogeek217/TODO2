@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import {
   resolveFuzzy,
   resolveScheduled,
@@ -9,6 +9,7 @@ import {
   scheduledLabel,
   daysUntil,
   dateIntensity,
+  setConfiguredWeekStart,
 } from '../../utils/effective-date'
 import { startOfDay, MS_PER_DAY } from '../../utils/date'
 
@@ -95,6 +96,52 @@ describe('resolveFuzzy', () => {
     expect(result.getFullYear()).toBe(2027)
     expect(result.getMonth()).toBe(0)
     expect(result.getDate()).toBe(31)
+  })
+
+  describe('week-start configurable', () => {
+    afterEach(() => setConfiguredWeekStart(1))
+
+    it('with weekStartsOn=0 (Sunday-first), this-week on Thursday ends Saturday', () => {
+      const thursday = d('2026-04-16')
+      const result = resolveFuzzy('this-week', thursday, 0)
+      expect(result.getDay()).toBe(6)
+      expect(result.getDate()).toBe(18)
+    })
+
+    it('with weekStartsOn=0, this-week on Saturday ends same Saturday', () => {
+      const saturday = d('2026-04-18')
+      const result = resolveFuzzy('this-week', saturday, 0)
+      expect(result.getDay()).toBe(6)
+      expect(result.getDate()).toBe(18)
+    })
+
+    it('with weekStartsOn=0, this-week on Sunday goes to next Saturday', () => {
+      const sunday = d('2026-04-19')
+      const result = resolveFuzzy('this-week', sunday, 0)
+      expect(result.getDay()).toBe(6)
+      expect(result.getDate()).toBe(25)
+    })
+
+    it('with weekStartsOn=0, next-week on Thursday ends Saturday of next week', () => {
+      const thursday = d('2026-04-16')
+      const result = resolveFuzzy('next-week', thursday, 0)
+      expect(result.getDay()).toBe(6)
+      expect(result.getDate()).toBe(25)
+    })
+
+    it('setConfiguredWeekStart changes the default used when parameter omitted', () => {
+      setConfiguredWeekStart(0)
+      const thursday = d('2026-04-16')
+      expect(resolveFuzzy('this-week', thursday).getDay()).toBe(6)
+      setConfiguredWeekStart(1)
+      expect(resolveFuzzy('this-week', thursday).getDay()).toBe(0)
+    })
+
+    it('explicit parameter overrides configured default', () => {
+      setConfiguredWeekStart(0)
+      const thursday = d('2026-04-16')
+      expect(resolveFuzzy('this-week', thursday, 1).getDay()).toBe(0)
+    })
   })
 })
 

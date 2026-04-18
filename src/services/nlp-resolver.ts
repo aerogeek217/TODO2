@@ -5,6 +5,7 @@ import type { ParsedInput } from './natural-language-parser'
 export interface ResolvedInput {
   title: string
   scheduledDate?: ScheduledValue
+  dueDate?: Date
   recurrence?: RecurrenceType
   personIds: number[]
   tagIds: number[]
@@ -86,6 +87,7 @@ export function resolveInput(parsed: ParsedInput, people: Person[], tags: Tag[],
   return {
     title: parsed.title,
     scheduledDate: parsed.scheduledDate,
+    dueDate: parsed.dueDate,
     recurrence: parsed.recurrence,
     personIds: persons.ids,
     tagIds: tagResult.ids,

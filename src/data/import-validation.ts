@@ -396,7 +396,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'canvasViewport']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport']
 
 function isValidSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
@@ -421,6 +421,10 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === 'completedRetentionDays') {
     const n = Number(v.value)
     return Number.isInteger(n) && n >= 1 && n <= 3650 ? true : 'value (retention days out of range)'
+  }
+  if (v.key === 'weekStartsOn') {
+    const n = Number(v.value)
+    return n === 0 || n === 1 ? true : 'value (weekStartsOn must be 0 or 1)'
   }
   return true
 }

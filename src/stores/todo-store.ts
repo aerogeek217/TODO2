@@ -4,7 +4,7 @@ import type { ScheduledValue } from '../models/scheduled-value'
 import { todoRepository } from '../data'
 import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
-import { computeNextDueDate } from '../services/recurrence'
+import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField } from './store-helpers'
 import { useSettingsStore } from './settings-store'
 
@@ -141,45 +141,54 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     const todo = get().todos.find((t) => t.id === id)
     if (!todo) return
 
-    // Recurring task: advance due date instead of completing
-    if (!todo.isCompleted && todo.recurrenceRule && todo.dueDate) {
-      const prevDueDate = todo.dueDate
-      const nextDueDate = computeNextDueDate(new Date(prevDueDate), todo.recurrenceRule)
-      return optimistic(
-        set,
-        () => set({
-          todos: get().todos.map((t) =>
-            t.id === id ? { ...t, dueDate: nextDueDate, modifiedAt: new Date() } : t
-          ),
-        }),
-        () => todoRepository.bulkUpdate([{ todoId: id, changes: { dueDate: nextDueDate } }]),
-        () => set({
-          todos: get().todos.map((t) =>
-            t.id === id ? { ...t, dueDate: prevDueDate } : t
-          ),
-        }),
-        'Failed to advance recurring task',
-        {
-          description: `Advance recurring "${todo.title}"`,
-          redo: async () => {
-            await todoRepository.bulkUpdate([{ todoId: id, changes: { dueDate: nextDueDate } }])
-            set({
-              todos: get().todos.map((t) =>
-                t.id === id ? { ...t, dueDate: nextDueDate, modifiedAt: new Date() } : t
-              ),
-            })
+    // Recurring task: advance its anchor date (dueDate or precise scheduledDate) instead of completing
+    if (!todo.isCompleted && todo.recurrenceRule) {
+      const advance = advanceRecurring(todo)
+      if (advance) {
+        const isDue = advance.field === 'dueDate'
+        const prevValue: Date | ScheduledValue | undefined = isDue ? todo.dueDate : todo.scheduledDate
+        const nextChanges = isDue
+          ? { dueDate: advance.dueDate! }
+          : { scheduledDate: advance.scheduledDate! }
+        const prevChanges = isDue
+          ? { dueDate: prevValue as Date }
+          : { scheduledDate: prevValue as ScheduledValue }
+        return optimistic(
+          set,
+          () => set({
+            todos: get().todos.map((t) =>
+              t.id === id ? { ...t, ...nextChanges, modifiedAt: new Date() } : t
+            ),
+          }),
+          () => todoRepository.bulkUpdate([{ todoId: id, changes: nextChanges }]),
+          () => set({
+            todos: get().todos.map((t) =>
+              t.id === id ? { ...t, ...prevChanges } : t
+            ),
+          }),
+          'Failed to advance recurring task',
+          {
+            description: `Advance recurring "${todo.title}"`,
+            redo: async () => {
+              await todoRepository.bulkUpdate([{ todoId: id, changes: nextChanges }])
+              set({
+                todos: get().todos.map((t) =>
+                  t.id === id ? { ...t, ...nextChanges, modifiedAt: new Date() } : t
+                ),
+              })
+            },
+            undo: async () => {
+              await todoRepository.bulkUpdate([{ todoId: id, changes: prevChanges }])
+              set({
+                todos: get().todos.map((t) =>
+                  t.id === id ? { ...t, ...prevChanges, modifiedAt: new Date() } : t
+                ),
+              })
+            },
+            showSnackbar: true,
           },
-          undo: async () => {
-            await todoRepository.bulkUpdate([{ todoId: id, changes: { dueDate: prevDueDate } }])
-            set({
-              todos: get().todos.map((t) =>
-                t.id === id ? { ...t, dueDate: prevDueDate, modifiedAt: new Date() } : t
-              ),
-            })
-          },
-          showSnackbar: true,
-        },
-      )
+        )
+      }
     }
 
     const completed = !todo.isCompleted
@@ -226,25 +235,37 @@ export const useTodoStore = create<TodoState>((set, get) => ({
   },
 
   async bulkSetCompleted(ids: number[], completed: boolean) {
-    // Split recurring tasks (advance date) from normal tasks (toggle completion)
+    // Split recurring tasks (advance their anchor date) from normal tasks (toggle completion)
     const allTodos = get().todos.filter((t) => ids.includes(t.id))
-    const recurringTodos = completed
-      ? allTodos.filter((t) => !t.isCompleted && t.recurrenceRule && t.dueDate)
-      : []
-    const recurringIds = new Set(recurringTodos.map((t) => t.id))
+    type RecurringAdvance = {
+      id: number
+      field: 'dueDate' | 'scheduledDate'
+      prev: Date | ScheduledValue
+      nextChanges: Partial<Pick<PersistedTodoItem, 'dueDate' | 'scheduledDate'>>
+    }
+    const recurringAdvances: RecurringAdvance[] = []
+    if (completed) {
+      for (const t of allTodos) {
+        if (t.isCompleted || !t.recurrenceRule) continue
+        const advance = advanceRecurring(t)
+        if (!advance) continue
+        const nextChanges = advance.field === 'dueDate'
+          ? { dueDate: advance.dueDate! }
+          : { scheduledDate: advance.scheduledDate! }
+        const prev = advance.field === 'dueDate' ? t.dueDate! : t.scheduledDate!
+        recurringAdvances.push({ id: t.id, field: advance.field, prev, nextChanges })
+      }
+    }
+    const recurringIds = new Set(recurringAdvances.map((r) => r.id))
     const normalIds = ids.filter((id) => !recurringIds.has(id))
 
-    // Capture previous state for rollback/undo
-    const recurringPrevDates = recurringTodos.map((t) => ({ id: t.id, prevDueDate: t.dueDate! }))
-    const recurringMutations = recurringTodos.map((t) => ({
-      todoId: t.id,
-      changes: { dueDate: computeNextDueDate(new Date(t.dueDate!), t.recurrenceRule!) },
-    }))
+    const recurringMutations = recurringAdvances.map((r) => ({ todoId: r.id, changes: r.nextChanges }))
     const prevStates = get().todos
       .filter((t) => normalIds.includes(t.id))
       .map((t) => ({ id: t.id, wasCompleted: t.isCompleted }))
     const normalIdSet = new Set(normalIds)
-    const recurringDateMap = new Map(recurringMutations.map(m => [m.todoId, m.changes.dueDate]))
+    const recurringNextMap = new Map(recurringAdvances.map((r) => [r.id, r.nextChanges]))
+    const recurringPrevMap = new Map(recurringAdvances.map((r) => [r.id, r]))
 
     const label = completed ? 'Complete' : 'Uncomplete'
     return optimistic(
@@ -253,9 +274,8 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         const now = new Date()
         set({
           todos: get().todos.map((t) => {
-            if (recurringDateMap.has(t.id)) {
-              return { ...t, dueDate: recurringDateMap.get(t.id)!, modifiedAt: now }
-            }
+            const next = recurringNextMap.get(t.id)
+            if (next) return { ...t, ...next, modifiedAt: now }
             if (normalIdSet.has(t.id)) {
               return { ...t, isCompleted: completed, modifiedAt: now }
             }
@@ -270,13 +290,14 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         await Promise.all(normalIds.map((id) => todoRepository.complete(id, completed)))
       },
       () => {
-        // Item-level rollback: restore per-item previous values
-        const prevDateMap = new Map(recurringPrevDates.map(s => [s.id, s.prevDueDate]))
         const prevCompletedMap = new Map(prevStates.map(s => [s.id, s.wasCompleted]))
         set({
           todos: get().todos.map((t) => {
-            if (prevDateMap.has(t.id)) {
-              return { ...t, dueDate: prevDateMap.get(t.id)! }
+            const r = recurringPrevMap.get(t.id)
+            if (r) {
+              return r.field === 'dueDate'
+                ? { ...t, dueDate: r.prev as Date }
+                : { ...t, scheduledDate: r.prev as ScheduledValue }
             }
             if (prevCompletedMap.has(t.id)) {
               return { ...t, isCompleted: prevCompletedMap.get(t.id)! }
@@ -291,16 +312,22 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         redo: () => get().bulkSetCompleted(ids, completed),
         undo: async () => {
           // Revert recurring date advances
-          if (recurringPrevDates.length > 0) {
-            const revertMutations = recurringPrevDates.map(s => ({
-              todoId: s.id, changes: { dueDate: s.prevDueDate },
+          if (recurringAdvances.length > 0) {
+            const revertMutations = recurringAdvances.map(r => ({
+              todoId: r.id,
+              changes: r.field === 'dueDate'
+                ? { dueDate: r.prev as Date }
+                : { scheduledDate: r.prev as ScheduledValue },
             }))
             await todoRepository.bulkUpdate(revertMutations)
-            const revertDateMap = new Map(recurringPrevDates.map(s => [s.id, s.prevDueDate]))
             set({
-              todos: get().todos.map((t) =>
-                revertDateMap.has(t.id) ? { ...t, dueDate: revertDateMap.get(t.id)!, modifiedAt: new Date() } : t
-              ),
+              todos: get().todos.map((t) => {
+                const r = recurringPrevMap.get(t.id)
+                if (!r) return t
+                return r.field === 'dueDate'
+                  ? { ...t, dueDate: r.prev as Date, modifiedAt: new Date() }
+                  : { ...t, scheduledDate: r.prev as ScheduledValue, modifiedAt: new Date() }
+              }),
             })
           }
           // Revert normal completions

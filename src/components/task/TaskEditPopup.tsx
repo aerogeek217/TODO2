@@ -171,8 +171,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, [onClose])
 
   const buildRule = useCallback(() => {
-    return recurrenceType && deadline ? makeRecurrenceRule(recurrenceType, deadline) : undefined
-  }, [recurrenceType, deadline])
+    if (!recurrenceType) return undefined
+    if (deadline) return makeRecurrenceRule(recurrenceType, deadline)
+    if (scheduledDate && scheduledDate.kind === 'date') {
+      return makeRecurrenceRule(recurrenceType, scheduledDate.value)
+    }
+    return undefined
+  }, [recurrenceType, deadline, scheduledDate])
 
   const saveEdit = useCallback((overrides: Partial<TodoItem> = {}) => {
     if (!isEdit || !todo) return
@@ -184,7 +189,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       statusId,
       scheduledDate: scheduledDate ?? undefined,
       dueDate: deadline ?? undefined,
-      recurrenceRule: deadline ? buildRule() : undefined,
+      recurrenceRule: buildRule(),
       ...overrides,
     })
   }, [isEdit, todo, title, notes, progress, statusId, scheduledDate, deadline, buildRule, props])
@@ -249,19 +254,42 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const handleScheduledChange = (next: ScheduledValue | null) => {
     setScheduledDate(next)
+    // Recurrence is anchored to deadline first, then to a precise scheduled date.
+    // If no anchor remains after this change, drop the rule.
+    const stillAnchored = !!deadline || (next?.kind === 'date')
+    if (!stillAnchored) setRecurrenceType('')
     if (isEdit && todo) {
-      props.onUpdate({ ...todo, scheduledDate: next ?? undefined, modifiedAt: new Date() })
+      const nextRule: typeof todo.recurrenceRule = (() => {
+        if (!recurrenceType) return undefined
+        if (deadline) return makeRecurrenceRule(recurrenceType, deadline)
+        if (next?.kind === 'date') return makeRecurrenceRule(recurrenceType, next.value)
+        return undefined
+      })()
+      props.onUpdate({
+        ...todo,
+        scheduledDate: next ?? undefined,
+        recurrenceRule: nextRule,
+        modifiedAt: new Date(),
+      })
     }
   }
 
   const handleDeadlineChange = (next: Date | null) => {
     setDeadline(next)
-    if (!next) setRecurrenceType('')
+    // Rule can persist when a precise scheduled date anchors it.
+    const stillAnchored = !!next || (scheduledDate?.kind === 'date')
+    if (!stillAnchored) setRecurrenceType('')
     if (isEdit && todo) {
+      const nextRule: typeof todo.recurrenceRule = (() => {
+        if (!recurrenceType) return undefined
+        if (next) return makeRecurrenceRule(recurrenceType, next)
+        if (scheduledDate?.kind === 'date') return makeRecurrenceRule(recurrenceType, scheduledDate.value)
+        return undefined
+      })()
       props.onUpdate({
         ...todo,
         dueDate: next ?? undefined,
-        recurrenceRule: next && recurrenceType ? makeRecurrenceRule(recurrenceType, next) : undefined,
+        recurrenceRule: nextRule,
         modifiedAt: new Date(),
       })
     }
@@ -271,9 +299,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     const val = e.target.value as RecurrenceType | ''
     setRecurrenceType(val)
     if (isEdit && todo) {
+      const nextRule: typeof todo.recurrenceRule = (() => {
+        if (!val) return undefined
+        if (deadline) return makeRecurrenceRule(val, deadline)
+        if (scheduledDate?.kind === 'date') return makeRecurrenceRule(val, scheduledDate.value)
+        return undefined
+      })()
       props.onUpdate({
         ...todo,
-        recurrenceRule: val && deadline ? makeRecurrenceRule(val, deadline) : undefined,
+        recurrenceRule: nextRule,
         modifiedAt: new Date(),
       })
     }
@@ -292,7 +326,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       statusId,
       scheduledDate: scheduledDate ?? undefined,
       dueDate: deadline ?? undefined,
-      recurrenceRule: deadline && recurrenceType ? makeRecurrenceRule(recurrenceType, deadline) : undefined,
+      recurrenceRule: buildRule(),
       projectId,
     }, {
       personIds: [...pendingPersonIds],

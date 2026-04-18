@@ -81,7 +81,7 @@ export function TaskEditMetadata({
       <div className={styles.metaRow}>
         <span className={styles.metaLabel}>Deadline</span>
         <DeadlinePicker value={deadline} onChange={onDeadlineChange} />
-        {deadline && (
+        {(deadline || (scheduledDate && scheduledDate.kind === 'date')) && (
           <select
             className={styles.personSelect}
             value={recurrenceType}

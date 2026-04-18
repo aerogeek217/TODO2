@@ -21,8 +21,9 @@ export function parseTaskInput(rawTitle: string, people: Person[], tags: Tag[], 
 
 /**
  * Apply resolved NLP metadata to a newly created task.
- * Writes scheduledDate and assigns people/tags. Recurrence is keyed to dueDate
- * (deadline-anchored, Q16); without a deadline the recurrence is dropped.
+ * Writes scheduledDate and assigns people/tags. Recurrence anchors to dueDate
+ * when present, otherwise to a precise scheduledDate; without either anchor
+ * the recurrence is dropped.
  */
 export async function applyNlpMetadata(
   todoId: number,
@@ -33,7 +34,7 @@ export async function applyNlpMetadata(
   assignTag: (todoId: number, tagId: number) => Promise<void>,
   assignOrg?: (todoId: number, orgId: number) => Promise<void>,
 ): Promise<void> {
-  const hasUpdates = resolved.scheduledDate !== undefined || resolved.recurrence !== undefined
+  const hasUpdates = resolved.scheduledDate !== undefined || resolved.dueDate !== undefined || resolved.recurrence !== undefined
   const hasAssignments = resolved.personIds.length > 0 || resolved.tagIds.length > 0 || resolved.orgIds.length > 0
   if (!hasUpdates && !hasAssignments) return
 
@@ -42,12 +43,22 @@ export async function applyNlpMetadata(
     if (hasUpdates) {
       const todo = getTodo(todoId)
       if (todo) {
-        const nextRule = todo.dueDate && resolved.recurrence
-          ? makeRecurrenceRule(resolved.recurrence, todo.dueDate)
-          : todo.recurrenceRule
+        const nextScheduled = resolved.scheduledDate ?? todo.scheduledDate
+        const nextDue = resolved.dueDate ?? todo.dueDate
+        let nextRule = todo.recurrenceRule
+        if (resolved.recurrence) {
+          if (nextDue) {
+            nextRule = makeRecurrenceRule(resolved.recurrence, nextDue)
+          } else if (nextScheduled && nextScheduled.kind === 'date') {
+            nextRule = makeRecurrenceRule(resolved.recurrence, nextScheduled.value)
+          } else {
+            nextRule = undefined
+          }
+        }
         await updateTodo({
           ...todo,
-          scheduledDate: resolved.scheduledDate ?? todo.scheduledDate,
+          scheduledDate: nextScheduled,
+          dueDate: nextDue,
           recurrenceRule: nextRule,
         })
       }

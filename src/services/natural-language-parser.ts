@@ -1,14 +1,17 @@
 import type { RecurrenceType } from '../models'
 import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
 import { MS_PER_DAY } from '../utils/date'
+import { resolveFuzzy } from '../utils/effective-date'
 
 export interface ParsedToken {
   /**
    * 'date' covers single-word date keywords (today/tomorrow/day-names); the
    * resolver decides fuzzy-vs-precise from the value.
    * 'fuzzy-schedule' covers multi-word fuzzy windows (this week, next month, …).
+   * 'deadline' covers explicit deadline syntax: `by <date>` / `!<date>` — resolves
+   * to a concrete `dueDate`, never fuzzy.
    */
-  type: 'date' | 'fuzzy-schedule' | 'person' | 'tag' | 'project' | 'recurrence'
+  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'tag' | 'project' | 'recurrence'
   value: string
   raw: string
   start: number
@@ -19,6 +22,7 @@ export interface ParsedInput {
   title: string
   tokens: ParsedToken[]
   scheduledDate?: ScheduledValue
+  dueDate?: Date
   recurrence?: RecurrenceType
   persons: string[]
   tags: string[]
@@ -32,6 +36,15 @@ const PROJECT_PATTERN = /\/(\w+)/g
 // Multi-word fuzzy schedule windows. Pushed before single-word DATE_KEYWORDS so
 // "this week" wins overlap-dedup against any embedded day name.
 const FUZZY_SCHEDULE_PATTERN = /\b(this\s+week|next\s+week|this\s+month|next\s+month)\b/gi
+
+// Shared inner date phrase for deadline syntax. Group-1 is the date text.
+const DEADLINE_DATE_INNER = String.raw`(today|tomorrow|tmr|this\s+week|next\s+week|this\s+month|next\s+month|next\s+(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|in\s+\d+\s+days?)`
+
+// "by <date>" phrase deadline
+const BY_DEADLINE_PATTERN = new RegExp(String.raw`\bby\s+` + DEADLINE_DATE_INNER + String.raw`\b`, 'gi')
+
+// "!<date>" prefix deadline (single-word forms only)
+const BANG_DEADLINE_PATTERN = /!(today|tomorrow|tmr|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/gi
 
 function parseRelativeDate(text: string): Date | null {
   const lower = text.toLowerCase().trim()
@@ -105,6 +118,24 @@ const FUZZY_SINGLE: Record<string, FuzzyToken> = {
   'tmr': 'tomorrow',
 }
 
+// Normalize a deadline date phrase to a concrete Date. Fuzzy windows
+// resolve to their end-of-window date (deadline is precise-only by schema).
+function resolveDeadlineText(text: string, today: Date): Date | null {
+  const lower = text.toLowerCase().trim().replace(/\s+/g, ' ')
+  const fuzzyMap: Record<string, FuzzyToken> = {
+    'today': 'today',
+    'tomorrow': 'tomorrow',
+    'tmr': 'tomorrow',
+    'this week': 'this-week',
+    'next week': 'next-week',
+    'this month': 'this-month',
+    'next month': 'next-month',
+  }
+  const fuzzy = fuzzyMap[lower]
+  if (fuzzy) return resolveFuzzy(fuzzy, today)
+  return parseRelativeDate(text)
+}
+
 const MAX_INPUT_LENGTH = 500
 
 export function parseInput(text: string): ParsedInput {
@@ -144,6 +175,30 @@ export function parseInput(text: string): ParsedInput {
     if (match.index > 0 && !/\s/.test(text[match.index - 1])) continue
     tokens.push({
       type: 'project',
+      value: match[1],
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    })
+  }
+
+  // Extract explicit deadline tokens BEFORE fuzzy-schedule / date keywords so
+  // the enclosing "by <date>" / "!<date>" phrase wins overlap-dedup against
+  // the inner date text.
+  BY_DEADLINE_PATTERN.lastIndex = 0
+  while ((match = BY_DEADLINE_PATTERN.exec(text)) !== null) {
+    tokens.push({
+      type: 'deadline',
+      value: match[1],
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    })
+  }
+  BANG_DEADLINE_PATTERN.lastIndex = 0
+  while ((match = BANG_DEADLINE_PATTERN.exec(text)) !== null) {
+    tokens.push({
+      type: 'deadline',
       value: match[1],
       raw: match[0],
       start: match.index,
@@ -212,12 +267,18 @@ export function parseInput(text: string): ParsedInput {
 
   // Resolve values
   let scheduledDate: ScheduledValue | undefined
+  let dueDate: Date | undefined
   let recurrence: RecurrenceType | undefined
   const persons: string[] = []
   const tags: string[] = []
   const projects: string[] = []
+  const now = new Date()
 
   for (const token of tokens) {
+    if (token.type === 'deadline' && dueDate === undefined) {
+      const parsed = resolveDeadlineText(token.value, now)
+      if (parsed) dueDate = parsed
+    }
     if (token.type === 'fuzzy-schedule' && scheduledDate === undefined) {
       scheduledDate = { kind: 'fuzzy', token: token.value as FuzzyToken }
     }
@@ -238,5 +299,5 @@ export function parseInput(text: string): ParsedInput {
     if (token.type === 'project') projects.push(token.value)
   }
 
-  return { title, tokens, scheduledDate, recurrence, persons, tags, projects }
+  return { title, tokens, scheduledDate, dueDate, recurrence, persons, tags, projects }
 }

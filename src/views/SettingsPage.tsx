@@ -47,7 +47,7 @@ async function getStartIn(): Promise<FileSystemHandle | 'documents'> {
 }
 
 export function SettingsPage() {
-  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays } = useSettingsStore()
+  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn } = useSettingsStore()
   const fileStorage = useFileStorageStore()
   const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
@@ -382,6 +382,17 @@ export function SettingsPage() {
               {statuses.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
+            </select>
+          </div>
+          <div className={styles.settingRow}>
+            <span className={styles.settingLabel}>Week starts on</span>
+            <select
+              className={styles.settingSelect}
+              value={weekStartsOn}
+              onChange={(e) => setWeekStartsOn(Number(e.target.value) === 0 ? 0 : 1)}
+            >
+              <option value={1}>Monday</option>
+              <option value={0}>Sunday</option>
             </select>
           </div>
         </div>

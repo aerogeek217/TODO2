@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { settingsRepository } from '../data'
 import { isValidCssColor } from '../data/import-validation'
+import { setConfiguredWeekStart, type WeekStart } from '../utils/effective-date'
 import type { CanvasViewport } from './ui-store'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -36,6 +37,7 @@ interface SettingsState {
   seededAssignedStatusId: number | null
   seededFollowupStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
+  weekStartsOn: WeekStart
   canvasViewport: CanvasViewport | null
 
   load: () => Promise<void>
@@ -46,6 +48,7 @@ interface SettingsState {
   setDefaultStatusId: (id: number | null) => Promise<void>
   setQuickStatusId: (id: number | null) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
+  setWeekStartsOn: (day: WeekStart) => Promise<void>
   setCanvasViewport: (vp: CanvasViewport) => void
 }
 
@@ -146,6 +149,10 @@ function isValidRetentionDays(n: number): boolean {
   return Number.isInteger(n) && n >= 1 && n <= 3650
 }
 
+function isValidWeekStart(n: unknown): n is WeekStart {
+  return n === 0 || n === 1
+}
+
 /** Track which color keys have user-customized values in IndexedDB */
 let customizedColorKeys = new Set<string>()
 let vpPersistTimer: ReturnType<typeof setTimeout> | undefined
@@ -160,6 +167,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   seededAssignedStatusId: null,
   seededFollowupStatusId: null,
   completedRetentionDays: null,
+  weekStartsOn: 1 as WeekStart,
   canvasViewport: null,
 
   async load() {
@@ -174,6 +182,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let seededFollowupStatusId: number | null = null
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
+      let weekStartsOn: WeekStart = 1
       let canvasViewport: CanvasViewport | null = null
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
@@ -197,6 +206,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           completedRetentionDays = parsed != null && isValidRetentionDays(parsed) ? parsed : null
         } else if (row.key === 'themeMode') {
           if (isValidThemeMode(row.value)) themeMode = row.value
+        } else if (row.key === 'weekStartsOn') {
+          const parsed = Number(row.value)
+          if (isValidWeekStart(parsed)) weekStartsOn = parsed
         } else if (row.key === 'canvasViewport') {
           try {
             const parsed = JSON.parse(row.value)
@@ -208,10 +220,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, canvasViewport })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
+      setConfiguredWeekStart(weekStartsOn)
     } catch (e) {
       console.error('Failed to load settings:', e)
     }
@@ -266,6 +279,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await settingsRepository.put('quickStatusId', String(id))
     }
     set({ quickStatusId: id })
+  },
+
+  async setWeekStartsOn(day: WeekStart) {
+    if (!isValidWeekStart(day)) return
+    await settingsRepository.put('weekStartsOn', String(day))
+    set({ weekStartsOn: day })
+    setConfiguredWeekStart(day)
   },
 
   async setCompletedRetentionDays(days: number | null) {

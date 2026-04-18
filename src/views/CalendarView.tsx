@@ -14,7 +14,7 @@ import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, scheduledLabel, isScheduledExpired } from '../utils/effective-date'
-import { generateRecurringInstances } from '../services/recurrence'
+import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
 import { StatusIcon } from '../components/shared/StatusIcon'
 import styles from './CalendarView.module.css'
 
@@ -176,15 +176,17 @@ export function CalendarView() {
       const primaryDay = startOfDay(ed)
       addEntry(primaryDay, t, false)
 
-      // Generate virtual future instances for recurring tasks (recurrence is
-      // always deadline-anchored per Q16, so a rule without dueDate can't exist).
-      if (t.recurrenceRule && t.dueDate) {
-        const instances = generateRecurringInstances(new Date(t.dueDate), t.recurrenceRule, rangeStart, rangeEnd)
-        for (const instanceDate of instances) {
-          const instDay = startOfDay(instanceDate)
-          // Skip if it's the same day as the primary pill (already added)
-          if (instDay.getTime() === primaryDay.getTime()) continue
-          addEntry(instDay, t, true)
+      // Generate virtual future instances for recurring tasks.
+      // Anchored to dueDate when set, otherwise a precise scheduledDate.
+      if (t.recurrenceRule) {
+        const anchor = recurrenceAnchor(t)
+        if (anchor) {
+          const instances = generateRecurringInstances(anchor.date, t.recurrenceRule, rangeStart, rangeEnd)
+          for (const instanceDate of instances) {
+            const instDay = startOfDay(instanceDate)
+            if (instDay.getTime() === primaryDay.getTime()) continue
+            addEntry(instDay, t, true)
+          }
         }
       }
     }

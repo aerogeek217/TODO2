@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { computeNextDueDate, generateRecurringInstances, makeRecurrenceRule } from '../../services/recurrence'
+import { computeNextDueDate, generateRecurringInstances, makeRecurrenceRule, recurrenceAnchor, advanceRecurring } from '../../services/recurrence'
 import type { RecurrenceRule } from '../../models/recurrence'
+import type { TodoItem } from '../../models/todo-item'
 
 /** Create a local midnight date (avoids UTC timezone issues) */
 function localDate(y: number, m: number, d: number): Date {
@@ -177,5 +178,79 @@ describe('makeRecurrenceRule', () => {
   it('no due date: does not set originalDayOfMonth', () => {
     const rule = makeRecurrenceRule('monthly', null)
     expect(rule).toEqual({ type: 'monthly' })
+  })
+})
+
+describe('recurrenceAnchor', () => {
+  it('prefers dueDate when present', () => {
+    const result = recurrenceAnchor({
+      dueDate: localDate(2026, 1, 15),
+      scheduledDate: { kind: 'date', value: localDate(2026, 1, 10) },
+    })
+    expect(result?.field).toBe('dueDate')
+    expect(fmt(result!.date)).toBe('2026-01-15')
+  })
+
+  it('falls back to precise scheduledDate when no dueDate', () => {
+    const result = recurrenceAnchor({
+      scheduledDate: { kind: 'date', value: localDate(2026, 1, 10) },
+    })
+    expect(result?.field).toBe('scheduledDate')
+    expect(fmt(result!.date)).toBe('2026-01-10')
+  })
+
+  it('returns null for fuzzy scheduledDate without dueDate', () => {
+    const result = recurrenceAnchor({
+      scheduledDate: { kind: 'fuzzy', token: 'this-week' },
+    })
+    expect(result).toBeNull()
+  })
+
+  it('returns null when neither scheduledDate nor dueDate is set', () => {
+    expect(recurrenceAnchor({})).toBeNull()
+  })
+})
+
+describe('advanceRecurring', () => {
+  afterEach(() => vi.useRealTimers())
+
+  function fakeToday(y: number, m: number, d: number) {
+    vi.useFakeTimers()
+    vi.setSystemTime(localDate(y, m, d))
+  }
+
+  const partial = <T extends Partial<TodoItem>>(t: T) => t
+
+  it('returns null without a rule', () => {
+    expect(advanceRecurring(partial({ dueDate: localDate(2026, 1, 10) }))).toBeNull()
+  })
+
+  it('advances dueDate when deadline anchors the rule', () => {
+    fakeToday(2026, 1, 15)
+    const result = advanceRecurring(partial({
+      dueDate: localDate(2026, 1, 10),
+      recurrenceRule: { type: 'weekly' },
+    }))
+    expect(result?.field).toBe('dueDate')
+    expect(fmt(result!.dueDate!)).toBe('2026-01-17')
+  })
+
+  it('advances scheduledDate when no deadline and precise scheduled', () => {
+    fakeToday(2026, 1, 15)
+    const result = advanceRecurring(partial({
+      scheduledDate: { kind: 'date', value: localDate(2026, 1, 10) },
+      recurrenceRule: { type: 'weekly' },
+    }))
+    expect(result?.field).toBe('scheduledDate')
+    expect(result?.scheduledDate?.kind).toBe('date')
+    expect(fmt((result!.scheduledDate as { kind: 'date'; value: Date }).value)).toBe('2026-01-17')
+  })
+
+  it('returns null for fuzzy-only scheduled (no concrete anchor)', () => {
+    const result = advanceRecurring(partial({
+      scheduledDate: { kind: 'fuzzy', token: 'this-week' },
+      recurrenceRule: { type: 'weekly' },
+    }))
+    expect(result).toBeNull()
   })
 })

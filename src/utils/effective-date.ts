@@ -3,10 +3,28 @@ import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
 import type { TodoItem } from '../models/todo-item'
 
 /**
- * Resolve a fuzzy token to a concrete Date: the end-of-window (inclusive last day).
- * Sunday is treated as end-of-week; locale-aware week start is a later plan.
+ * 0 = Sunday-first week (week ends Saturday).
+ * 1 = Monday-first week (week ends Sunday). Default — matches pre-setting behavior.
  */
-export function resolveFuzzy(token: FuzzyToken, today: Date): Date {
+export type WeekStart = 0 | 1
+
+let configuredWeekStart: WeekStart = 1
+
+/** Set the default week start used by resolveFuzzy when no explicit value is given. */
+export function setConfiguredWeekStart(day: WeekStart): void {
+  configuredWeekStart = day
+}
+
+export function getConfiguredWeekStart(): WeekStart {
+  return configuredWeekStart
+}
+
+/**
+ * Resolve a fuzzy token to a concrete Date: the end-of-window (inclusive last day).
+ * `weekStartsOn` defaults to the configured setting (see `setConfiguredWeekStart`).
+ */
+export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn?: WeekStart): Date {
+  const ws = weekStartsOn ?? configuredWeekStart
   const base = startOfDay(today)
   switch (token) {
     case 'today':
@@ -14,14 +32,16 @@ export function resolveFuzzy(token: FuzzyToken, today: Date): Date {
     case 'tomorrow':
       return startOfDay(new Date(base.getTime() + MS_PER_DAY))
     case 'this-week': {
+      const endDow = ws === 1 ? 0 : 6 // Sunday if Monday-first, Saturday if Sunday-first
       const dow = base.getDay()
-      const daysUntilSunday = dow === 0 ? 0 : 7 - dow
-      return startOfDay(new Date(base.getTime() + daysUntilSunday * MS_PER_DAY))
+      const days = (endDow - dow + 7) % 7
+      return startOfDay(new Date(base.getTime() + days * MS_PER_DAY))
     }
     case 'next-week': {
+      const endDow = ws === 1 ? 0 : 6
       const dow = base.getDay()
-      const daysUntilSunday = dow === 0 ? 0 : 7 - dow
-      return startOfDay(new Date(base.getTime() + (daysUntilSunday + 7) * MS_PER_DAY))
+      const days = (endDow - dow + 7) % 7
+      return startOfDay(new Date(base.getTime() + (days + 7) * MS_PER_DAY))
     }
     case 'this-month':
       return new Date(base.getFullYear(), base.getMonth() + 1, 0)

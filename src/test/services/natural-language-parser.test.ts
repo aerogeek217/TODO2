@@ -185,4 +185,63 @@ describe('natural-language-parser', () => {
       expect(result.scheduledDate!.value.toDateString()).toBe(expected.toDateString())
     }
   })
+
+  describe('deadline syntax', () => {
+    it('extracts "by <day>" as a deadline, not a scheduled date', () => {
+      const result = parseInput('Submit report by friday')
+      expect(result.title).toBe('Submit report')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "by tomorrow" as a deadline', () => {
+      const result = parseInput('Call vendor by tomorrow')
+      expect(result.title).toBe('Call vendor')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const expected = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "by this week" as a deadline (end-of-window date)', () => {
+      const result = parseInput('Wrap up tasks by this week')
+      expect(result.title).toBe('Wrap up tasks')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "!<day>" as a deadline', () => {
+      const result = parseInput('Urgent task !tuesday')
+      expect(result.title).toBe('Urgent task')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "!today" as a deadline', () => {
+      const result = parseInput('Ship it !today')
+      expect(result.title).toBe('Ship it')
+      expect(result.dueDate).toBeInstanceOf(Date)
+    })
+
+    it('allows scheduled + deadline in one input', () => {
+      const result = parseInput('Review tomorrow by friday')
+      expect(result.title).toBe('Review')
+      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+      expect(result.dueDate).toBeInstanceOf(Date)
+    })
+
+    it('does not match "by" followed by non-date words', () => {
+      const result = parseInput('Done by default')
+      expect(result.title).toBe('Done by default')
+      expect(result.dueDate).toBeUndefined()
+    })
+
+    it('does not match bare "!" without a date', () => {
+      const result = parseInput('Urgent!')
+      expect(result.title).toBe('Urgent!')
+      expect(result.dueDate).toBeUndefined()
+    })
+  })
 })
