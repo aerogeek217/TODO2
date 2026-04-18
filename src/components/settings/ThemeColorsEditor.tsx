@@ -10,6 +10,8 @@ const colorLabels: Record<keyof ThemeColors, string> = {
   danger: 'Danger accent',
   warning: 'Warning accent',
   star: 'Follow up',
+  scheduled: 'Scheduled date',
+  deadline: 'Deadline date',
 }
 
 interface ThemeColorsEditorProps {

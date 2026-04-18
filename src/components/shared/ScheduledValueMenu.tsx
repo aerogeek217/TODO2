@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ScheduledValue, FuzzyToken } from '../../models/scheduled-value'
 import { StatusIcon } from './StatusIcon'
 import { toDateInputValue } from '../../utils/date'
+import { scheduledValuesEqual } from '../../utils/effective-date'
 import styles from './SchedulePicker.module.css'
 
 interface PresetChipProps {
@@ -36,14 +37,37 @@ export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: 
   const [showDatePicker, setShowDatePicker] = useState(false)
   const dateInputRef = useRef<HTMLInputElement>(null)
 
+  // Changes are staged locally and committed once the menu unmounts, so the
+  // host list/view doesn't re-filter (and the task doesn't jump sections)
+  // while the picker is still visible. See also commitAndClose below.
+  const initialRef = useRef<ScheduledValue | null>(value ?? null)
+  const [staged, setStaged] = useState<ScheduledValue | null>(value ?? null)
+  const stagedRef = useRef<ScheduledValue | null>(staged)
+  stagedRef.current = staged
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
+  useEffect(() => {
+    return () => {
+      if (!scheduledValuesEqual(stagedRef.current ?? undefined, initialRef.current ?? undefined)) {
+        onChangeRef.current(stagedRef.current)
+      }
+    }
+  }, [])
+
+  const stage = (next: ScheduledValue | null) => {
+    stagedRef.current = next
+    setStaged(next)
+  }
+
   const selectFuzzy = (token: FuzzyToken) => {
-    onChange({ kind: 'fuzzy', token })
+    stage({ kind: 'fuzzy', token })
     onClose()
   }
 
   const selectDate = (iso: string) => {
-    if (!iso) { onChange(null); onClose(); return }
-    onChange({ kind: 'date', value: new Date(iso + 'T00:00:00') })
+    if (!iso) { stage(null); onClose(); return }
+    stage({ kind: 'date', value: new Date(iso + 'T00:00:00') })
     onClose()
   }
 
@@ -54,7 +78,7 @@ export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: 
     }, 0)
   }
 
-  const isActive = (k: FuzzyToken) => value?.kind === 'fuzzy' && value.token === k
+  const isActive = (k: FuzzyToken) => staged?.kind === 'fuzzy' && staged.token === k
 
   return (
     <div className={styles.menu} role="dialog" aria-label="Schedule" onClick={(e) => e.stopPropagation()}>
@@ -87,11 +111,11 @@ export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: 
             <span>Add deadline…</span>
           </button>
         )}
-        {value && (
+        {staged && (
           <button
             type="button"
             className={`${styles.actionRow} ${styles.actionClear}`}
-            onClick={(e) => { e.stopPropagation(); onChange(null); onClose() }}
+            onClick={(e) => { e.stopPropagation(); stage(null); onClose() }}
           >
             <span className={styles.actionIcon} aria-hidden>×</span>
             <span>Clear</span>
@@ -104,7 +128,7 @@ export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: 
         type="date"
         className={styles.hiddenDateInput}
         style={{ display: showDatePicker ? 'block' : 'none' }}
-        value={value?.kind === 'date' ? toDateInputValue(value.value) : ''}
+        value={staged?.kind === 'date' ? toDateInputValue(staged.value) : ''}
         onChange={(e) => selectDate(e.target.value)}
       />
     </div>

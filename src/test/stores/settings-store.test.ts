@@ -13,6 +13,8 @@ beforeEach(async () => {
       danger: '#ee7d77',
       warning: '#f5a623',
       star: '#f5c842',
+      scheduled: '#7ec4bc',
+      deadline: '#e86bf0',
     },
     defaultProjectId: null,
     completedRetentionDays: null,

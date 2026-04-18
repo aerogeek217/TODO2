@@ -83,6 +83,12 @@
   --color-overdue-bg: rgba(232, 107, 240, 0.12);
   --color-overdue-glow: rgba(232, 107, 240, 0.3);
 
+  /* Scheduled / deadline chip colors (one per type, not per task) */
+  --color-scheduled: #7ec4bc;
+  --color-scheduled-bg: color-mix(in srgb, var(--color-scheduled) 15%, transparent);
+  --color-deadline: #e86bf0;
+  --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 12%, transparent);
+
   /* Text */
   --color-text-primary: #ece9e6;
   --color-text-secondary: #bfbbb6;
@@ -185,6 +191,12 @@
   --color-overdue: #b838c0;
   --color-overdue-bg: rgba(184, 56, 192, 0.08);
   --color-overdue-glow: rgba(184, 56, 192, 0.15);
+
+  /* Scheduled / deadline chip colors */
+  --color-scheduled: #3a9e93;
+  --color-scheduled-bg: color-mix(in srgb, var(--color-scheduled) 12%, transparent);
+  --color-deadline: #b838c0;
+  --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
 
   /* Text */
   --color-text-primary: #1a1917;

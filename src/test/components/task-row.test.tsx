@@ -106,6 +106,40 @@ describe('TaskRow (unified scheduling)', () => {
     })
   })
 
+  describe('past/overdue state', () => {
+    it('applies the scheduledChipPast class when the scheduled date is in the past', () => {
+      const { container } = render(
+        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'date', value: new Date(2026, 3, 10) } })} />,
+      )
+      const chip = container.querySelector('[class*="scheduledChip"]') as HTMLElement
+      expect(chip.className).toMatch(/scheduledChipPast/i)
+    })
+
+    it('does not apply the past class for a future scheduled date', () => {
+      const { container } = render(
+        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) } })} />,
+      )
+      const chip = container.querySelector('[class*="scheduledChip"]') as HTMLElement
+      expect(chip.className).not.toMatch(/scheduledChipPast/i)
+    })
+
+    it('applies the deadlineChipPast class when the deadline is overdue', () => {
+      const { container } = render(
+        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 10) })} />,
+      )
+      const chip = container.querySelector('[class*="deadlineChip"]') as HTMLElement
+      expect(chip.className).toMatch(/deadlineChipPast/i)
+    })
+
+    it('does not apply the past class for a future deadline', () => {
+      const { container } = render(
+        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 25) })} />,
+      )
+      const chip = container.querySelector('[class*="deadlineChip"]') as HTMLElement
+      expect(chip.className).not.toMatch(/deadlineChipPast/i)
+    })
+  })
+
   describe('both chips', () => {
     it('renders scheduled and deadline chips simultaneously', () => {
       const { container } = render(

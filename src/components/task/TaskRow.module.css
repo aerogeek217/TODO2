@@ -333,13 +333,20 @@
   flex-shrink: 0;
 }
 
+/*
+ * Date chips fade toward greyscale the further out the date is.
+ * --date-intensity (0.15..1): 1 at/past the date, ~0.15 far in the future.
+ * --fade is the percentage of greyscale mixed in — higher = more muted.
+ */
 .scheduledChip {
+  --date-intensity: 1;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: var(--font-size-meta);
-  color: var(--color-accent);
-  background: var(--color-accent-bg-medium);
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
+  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
   padding: 2px 8px;
   border-radius: var(--radius-chip);
   border: 1px solid transparent;
@@ -350,22 +357,35 @@
 }
 
 .scheduledChip:hover {
-  border-color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
 }
 
-.scheduledChipExpired {
-  color: var(--color-overdue);
-  background: var(--color-overdue-bg);
-  box-shadow: 0 0 8px var(--color-overdue-glow);
+/*
+ * Past states (Option A, prominent):
+ *   scheduled past → bold dashed border + bumped bg + weight 600 + soft glow
+ *   deadline past  → stamped solid fill with contrast text, weight 700, strong glow
+ */
+.scheduledChipPast {
+  color: var(--color-scheduled);
+  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
+  border: 1px dashed var(--color-scheduled);
+  font-weight: 600;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-scheduled) 30%, transparent);
+}
+
+.scheduledChipPast:hover {
+  background: color-mix(in srgb, var(--color-scheduled) 34%, transparent);
 }
 
 .deadlineChip {
+  --date-intensity: 1;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: var(--font-size-meta);
-  color: var(--color-overdue);
-  background: var(--color-overdue-bg);
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
   padding: 2px 8px;
   border-radius: var(--radius-chip);
   border: 1px solid transparent;
@@ -376,7 +396,29 @@
 }
 
 .deadlineChip:hover {
-  border-color: var(--color-overdue);
+  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+}
+
+.deadlineChipPast {
+  color: var(--color-surface);
+  background: var(--color-deadline);
+  border: 1px solid var(--color-deadline);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-deadline) 45%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-deadline) 50%, transparent),
+    0 0 24px color-mix(in srgb, var(--color-deadline) 22%, transparent);
+}
+
+.deadlineChipPast:hover {
+  background: color-mix(in srgb, var(--color-deadline) 92%, var(--color-text-primary));
+}
+
+/* Muted recurrence arrow inside a stamped deadline chip needs to track the chip text color */
+.deadlineChipPast .recurrenceIndicator {
+  color: currentColor;
+  opacity: 0.75;
 }
 
 /* × clear button inside a chip — hidden until the chip is hovered */

@@ -64,6 +64,29 @@ export function isScheduledExpired(
   return resolved < startOfDay(today)
 }
 
+/**
+ * True when the scheduled date's resolved day is before today — covers both
+ * fuzzy-expired (end-of-window passed) and precise past dates. Used for
+ * "past" chip styling; `isScheduledExpired` remains fuzzy-only.
+ */
+export function isScheduledPast(
+  t: Pick<TodoItem, 'scheduledDate'>,
+  today: Date,
+): boolean {
+  const resolved = resolveScheduled(t.scheduledDate, today)
+  if (!resolved) return false
+  return resolved < startOfDay(today)
+}
+
+/** True when the deadline is before today. */
+export function isDeadlinePast(
+  t: Pick<TodoItem, 'dueDate'>,
+  today: Date,
+): boolean {
+  if (!t.dueDate) return false
+  return startOfDay(new Date(t.dueDate)) < startOfDay(today)
+}
+
 /** Human-readable label for a scheduled chip. */
 export function scheduledLabel(s: ScheduledValue, today: Date): string {
   if (s.kind === 'fuzzy') {
@@ -83,6 +106,29 @@ export function scheduledLabel(s: ScheduledValue, today: Date): string {
   if (diff === 1) return 'Tomorrow'
   if (diff === -1) return 'Yesterday'
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+/**
+ * Days from `today` to `d` (both normalized to midnight). Negative = past.
+ * Returns null when `d` is null/undefined.
+ */
+export function daysUntil(d: Date | null | undefined, today: Date): number | null {
+  if (!d) return null
+  const target = startOfDay(new Date(d)).getTime()
+  const base = startOfDay(today).getTime()
+  return Math.round((target - base) / MS_PER_DAY)
+}
+
+/**
+ * Proximity factor in [0.15, 1] — used to fade chip color from greyscale (far)
+ * toward the full color (at or past the date). Linear ramp over 14 days, with
+ * a floor so distant chips stay legible rather than becoming invisible.
+ */
+export function dateIntensity(days: number | null | undefined): number {
+  if (days == null) return 1
+  if (days <= 0) return 1
+  const f = 1 - days / 14
+  return Math.max(0.15, f)
 }
 
 /** Structural equality for ScheduledValue (handles Date by time, fuzzy by token). */

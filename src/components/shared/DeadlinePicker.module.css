@@ -19,9 +19,9 @@
 }
 
 .triggerChipActive {
-  background: var(--color-overdue-bg);
-  border-color: var(--color-overdue);
-  color: var(--color-overdue);
+  background: var(--color-deadline-bg);
+  border-color: var(--color-deadline);
+  color: var(--color-deadline);
 }
 
 .triggerLabel {

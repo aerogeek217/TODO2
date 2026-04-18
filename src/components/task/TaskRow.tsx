@@ -14,7 +14,7 @@ import { useClickOutside } from '../../hooks/use-click-outside'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
 import { startOfToday, formatDateShort, toDateInputValue } from '../../utils/date'
-import { scheduledLabel, isScheduledExpired } from '../../utils/effective-date'
+import { scheduledLabel, isScheduledPast, isDeadlinePast, resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
 import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -124,7 +124,10 @@ export const TaskRow = memo(function TaskRow({
   const edit = useInlineEdit(todo.title, handleSaveTitle)
 
   const today = startOfToday()
-  const scheduledExpired = todo.scheduledDate ? isScheduledExpired({ scheduledDate: todo.scheduledDate }, today) : false
+  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today)
+  const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
+  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today), today))
+  const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
   const hasPeople = (assignedPeople && assignedPeople.length > 0) || assignedOrgs.length > 0
   const hasTags = assignedTags && assignedTags.length > 0
@@ -381,13 +384,13 @@ export const TaskRow = memo(function TaskRow({
         <button
           ref={scheduledAnchorRef}
           type="button"
-          className={`${styles.scheduledChip} ${scheduledExpired ? styles.scheduledChipExpired : ''}`}
+          className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
+          style={{ '--date-intensity': scheduledIntensity } as React.CSSProperties}
           onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-          title={scheduledExpired ? 'Scheduled window has passed' : 'Scheduled'}
+          title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
         >
           <StatusIcon icon="calendar" />
           <span className={styles.chipLabel}>{scheduledLabel(todo.scheduledDate, today)}</span>
-          {scheduledExpired && <span className={styles.expiredDot} aria-label="Overdue" />}
         </button>
       )}
 
@@ -395,9 +398,10 @@ export const TaskRow = memo(function TaskRow({
       {todo.dueDate && !ghost && (
         <button
           type="button"
-          className={styles.deadlineChip}
+          className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`}
+          style={{ '--date-intensity': deadlineIntensity } as React.CSSProperties}
           onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-          title="Deadline — click to change"
+          title={deadlinePast ? 'Deadline passed — click to change' : 'Deadline — click to change'}
         >
           <StatusIcon icon="clock" />
           <span className={styles.chipLabel}>{formatDateShort(todo.dueDate)}</span>

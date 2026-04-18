@@ -24,9 +24,9 @@
 }
 
 .triggerChipActive {
-  background: var(--color-accent-bg-medium);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+  background: var(--color-scheduled-bg);
+  border-color: var(--color-scheduled);
+  color: var(--color-scheduled);
 }
 
 .triggerChipExpired {

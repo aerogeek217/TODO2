@@ -4,7 +4,11 @@ import {
   resolveScheduled,
   effectiveDate,
   isScheduledExpired,
+  isScheduledPast,
+  isDeadlinePast,
   scheduledLabel,
+  daysUntil,
+  dateIntensity,
 } from '../../utils/effective-date'
 import { startOfDay, MS_PER_DAY } from '../../utils/date'
 
@@ -204,6 +208,50 @@ describe('isScheduledExpired', () => {
   })
 })
 
+describe('isScheduledPast', () => {
+  const today = d('2026-04-20')
+
+  it('returns true for precise scheduled date in the past', () => {
+    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 1) } }, today)).toBe(true)
+  })
+
+  it('returns false for precise scheduled date today', () => {
+    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 20) } }, today)).toBe(false)
+  })
+
+  it('returns false for precise scheduled date in the future', () => {
+    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) } }, today)).toBe(false)
+  })
+
+  it('returns false for fuzzy this-week (end-of-window always today or later)', () => {
+    expect(isScheduledPast({ scheduledDate: { kind: 'fuzzy', token: 'this-week' } }, today)).toBe(false)
+  })
+
+  it('returns false when no scheduled', () => {
+    expect(isScheduledPast({}, today)).toBe(false)
+  })
+})
+
+describe('isDeadlinePast', () => {
+  const today = d('2026-04-20')
+
+  it('returns true for deadline before today', () => {
+    expect(isDeadlinePast({ dueDate: new Date(2026, 3, 19) }, today)).toBe(true)
+  })
+
+  it('returns false for deadline today', () => {
+    expect(isDeadlinePast({ dueDate: new Date(2026, 3, 20) }, today)).toBe(false)
+  })
+
+  it('returns false for deadline in the future', () => {
+    expect(isDeadlinePast({ dueDate: new Date(2026, 3, 21) }, today)).toBe(false)
+  })
+
+  it('returns false when no deadline', () => {
+    expect(isDeadlinePast({}, today)).toBe(false)
+  })
+})
+
 describe('scheduledLabel', () => {
   const today = d('2026-04-16')
 
@@ -249,5 +297,50 @@ describe('scheduledLabel', () => {
       today,
     )
     expect(result).toBe('Apr 21')
+  })
+})
+
+describe('daysUntil', () => {
+  const today = d('2026-04-16')
+
+  it('returns null for null/undefined input', () => {
+    expect(daysUntil(null, today)).toBeNull()
+    expect(daysUntil(undefined, today)).toBeNull()
+  })
+
+  it('returns 0 for same day', () => {
+    expect(daysUntil(d('2026-04-16'), today)).toBe(0)
+  })
+
+  it('returns positive for future dates', () => {
+    expect(daysUntil(d('2026-04-23'), today)).toBe(7)
+  })
+
+  it('returns negative for past dates', () => {
+    expect(daysUntil(d('2026-04-13'), today)).toBe(-3)
+  })
+})
+
+describe('dateIntensity', () => {
+  it('returns 1 when null (no date = full color, treated as Someday-neutral caller responsibility)', () => {
+    expect(dateIntensity(null)).toBe(1)
+    expect(dateIntensity(undefined)).toBe(1)
+  })
+
+  it('returns 1 for today or past dates', () => {
+    expect(dateIntensity(0)).toBe(1)
+    expect(dateIntensity(-3)).toBe(1)
+    expect(dateIntensity(-100)).toBe(1)
+  })
+
+  it('fades linearly over the 14-day window', () => {
+    expect(dateIntensity(7)).toBeCloseTo(0.5, 3)
+    expect(dateIntensity(3)).toBeCloseTo(1 - 3 / 14, 3)
+  })
+
+  it('floors at 0.15 for distant future dates', () => {
+    expect(dateIntensity(14)).toBe(0.15)
+    expect(dateIntensity(30)).toBe(0.15)
+    expect(dateIntensity(365)).toBe(0.15)
   })
 })

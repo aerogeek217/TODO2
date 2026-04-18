@@ -7,7 +7,7 @@ import { StatusIcon } from '../shared/StatusIcon'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { startOfToday, formatDateShort } from '../../utils/date'
-import { scheduledLabel, isScheduledExpired } from '../../utils/effective-date'
+import { scheduledLabel, isScheduledPast, isDeadlinePast, resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
 import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
@@ -33,7 +33,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const bulk = useBulkActions()
   const today = startOfToday()
-  const scheduledExpired = todo.scheduledDate ? isScheduledExpired({ scheduledDate: todo.scheduledDate }, today) : false
+  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today)
+  const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
+  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today), today))
+  const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
 
   const handleToggleComplete = useCallback(() => {
@@ -133,14 +136,19 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       {hasMetadata && (
         <div className={styles.metaRow} style={hasChildren ? { paddingLeft: '70px' } : undefined}>
           {todo.scheduledDate && (
-            <span className={`${styles.scheduledChip} ${scheduledExpired ? styles.scheduledChipExpired : ''}`}>
+            <span
+              className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
+              style={{ '--date-intensity': scheduledIntensity } as React.CSSProperties}
+            >
               {scheduledLabel(todo.scheduledDate, today)}
-              {scheduledExpired && <span className={styles.expiredDot} />}
             </span>
           )}
 
           {todo.dueDate && (
-            <span className={styles.deadlineChip}>
+            <span
+              className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`}
+              style={{ '--date-intensity': deadlineIntensity } as React.CSSProperties}
+            >
               {todo.recurrenceRule && <span className={styles.recurrenceIndicator}>&#x21bb;</span>}
               {formatDateShort(todo.dueDate)}
             </span>

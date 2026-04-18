@@ -12,6 +12,8 @@ export interface ThemeColors {
   danger: string
   warning: string
   star: string
+  scheduled: string
+  deadline: string
 }
 
 const defaultColors: ThemeColors = {
@@ -21,6 +23,8 @@ const defaultColors: ThemeColors = {
   danger: '#ee7d77',
   warning: '#f5a623',
   star: '#f5c842',
+  scheduled: '#7ec4bc',
+  deadline: '#e86bf0',
 }
 
 interface SettingsState {
@@ -75,6 +79,8 @@ const colorVarMap: Record<keyof ThemeColors, string> = {
   danger: '--color-danger',
   warning: '--color-warning',
   star: '--color-followup',
+  scheduled: '--color-scheduled',
+  deadline: '--color-deadline',
 }
 
 /**

@@ -177,32 +177,55 @@
 }
 
 .scheduledChip {
+  --date-intensity: 1;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 11px;
   padding: 1px 6px;
   border-radius: var(--radius-chip);
-  background: var(--color-accent-bg-medium);
-  color: var(--color-accent);
+  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
   white-space: nowrap;
 }
 
-.scheduledChipExpired {
-  color: var(--color-overdue);
-  background: var(--color-overdue-bg);
+.scheduledChipPast {
+  color: var(--color-scheduled);
+  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
+  border: 1px dashed var(--color-scheduled);
+  font-weight: 600;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-scheduled) 30%, transparent);
 }
 
 .deadlineChip {
+  --date-intensity: 1;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 11px;
   padding: 1px 6px;
   border-radius: var(--radius-chip);
-  background: var(--color-overdue-bg);
-  color: var(--color-overdue);
+  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
   white-space: nowrap;
+}
+
+.deadlineChipPast {
+  color: var(--color-surface);
+  background: var(--color-deadline);
+  border: 1px solid var(--color-deadline);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-deadline) 45%, transparent),
+    0 0 10px color-mix(in srgb, var(--color-deadline) 45%, transparent);
+}
+
+.deadlineChipPast .recurrenceIndicator {
+  color: currentColor;
+  opacity: 0.75;
 }
 
 .expiredDot {
