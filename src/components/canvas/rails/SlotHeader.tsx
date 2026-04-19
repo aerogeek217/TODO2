@@ -1,23 +1,43 @@
 import type { HTMLAttributes, ReactNode } from 'react'
+import type { SlotKind } from '../../../models/canvas-rails'
 import styles from './SlotHeader.module.css'
 
 interface SlotHeaderProps {
   title: ReactNode
   meta?: ReactNode
+  slotKind: SlotKind
   onMore?: (anchor: { x: number; y: number }) => void
+  menuOpen?: boolean
   onClose?: () => void
   dragHandleProps?: HTMLAttributes<HTMLSpanElement> & { ref?: React.Ref<HTMLSpanElement> }
+  moreButtonRef?: React.Ref<HTMLButtonElement>
 }
 
-export function SlotHeader({ title, meta, onMore, onClose, dragHandleProps }: SlotHeaderProps) {
+const KIND_LABEL: Record<SlotKind, string> = {
+  lens: 'lens',
+  notes: 'notes',
+  calendar: 'calendar',
+}
+
+export function SlotHeader({
+  title,
+  meta,
+  slotKind,
+  onMore,
+  menuOpen,
+  onClose,
+  dragHandleProps,
+  moreButtonRef,
+}: SlotHeaderProps) {
   const { ref: dragRef, ...dragRest } = dragHandleProps ?? {}
+  const kindLabel = KIND_LABEL[slotKind] ?? slotKind
   return (
     <header className={styles.header}>
       <span
         {...dragRest}
         ref={dragRef}
         className={styles.dragHandle}
-        aria-label="Drag slot"
+        aria-label={`Reorder slot: ${kindLabel}`}
         role="button"
         tabIndex={-1}
       >
@@ -27,13 +47,16 @@ export function SlotHeader({ title, meta, onMore, onClose, dragHandleProps }: Sl
       {meta != null && <span className={styles.meta}>{meta}</span>}
       {onMore && (
         <button
+          ref={moreButtonRef}
           type="button"
           className={styles.iconButton}
           onClick={(e) => {
             const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
             onMore({ x: rect.left, y: rect.bottom + 4 })
           }}
-          aria-label="Slot options"
+          aria-label={`Slot options: ${kindLabel}`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen ? true : false}
           title="Slot options"
         >
           ⋯
@@ -44,7 +67,7 @@ export function SlotHeader({ title, meta, onMore, onClose, dragHandleProps }: Sl
           type="button"
           className={styles.iconButton}
           onClick={onClose}
-          aria-label="Close slot"
+          aria-label={`Close ${kindLabel} slot`}
           title="Close slot"
         >
           ×

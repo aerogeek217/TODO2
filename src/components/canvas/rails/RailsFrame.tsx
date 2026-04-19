@@ -3,7 +3,7 @@ import { useDndMonitor } from '@dnd-kit/core'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
-import type { RailSide, Slot } from '../../../models/canvas-rails'
+import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotHeader } from './SlotHeader'
@@ -71,17 +71,54 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const closeSlot = useCanvasRailsStore((s) => s.closeSlot)
   const updateSlot = useCanvasRailsStore((s) => s.updateSlot)
   const splitSlot = useCanvasRailsStore((s) => s.splitSlot)
+  const pendingFocusSlotId = useCanvasRailsStore((s) => s.pendingFocusSlotId)
+  const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
+  const rails = useCanvasRailsStore((s) => s.rails)
   const [title, setTitle] = useState<string>('')
   const [count, setCount] = useState<number>(0)
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
 
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null)
+  const menuOpen = menuAnchor !== null
+
+  const closeMenuAndFocusTrigger = () => {
+    setMenuAnchor(null)
+    queueMicrotask(() => moreButtonRef.current?.focus())
+  }
+
+  const closeThisSlot = () => {
+    // Find sibling slot id (prefer the next slot in the rail, fall back to previous)
+    // so focus lands on an adjacent slot's "⋯" button after close.
+    const rail = rails[fromSide]
+    let siblingId: string | null = null
+    if (rail) {
+      const idx = rail.slots.findIndex((s) => s.id === slot.id)
+      if (idx !== -1) {
+        const sibling = rail.slots[idx + 1] ?? rail.slots[idx - 1]
+        if (sibling) siblingId = sibling.id
+      }
+    }
+    closeSlot(slot.id)
+    if (siblingId) {
+      useCanvasRailsStore.setState({ pendingFocusSlotId: siblingId })
+    }
+  }
+
+  useEffect(() => {
+    if (pendingFocusSlotId === slot.id && moreButtonRef.current) {
+      moreButtonRef.current.focus()
+      clearPendingFocus()
+    }
+  }, [pendingFocusSlotId, slot.id, clearPendingFocus])
+
   let header: ReactNode
   let body: ReactNode
   if (slot.kind === 'lens') {
     header = (
       <SlotHeader
+        slotKind={slot.kind}
         title={(
           <LensTitleButton
             label={title || 'Lens'}
@@ -90,7 +127,9 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         )}
         meta={count > 0 ? count : undefined}
         onMore={(anchor) => setMenuAnchor(anchor)}
-        onClose={() => closeSlot(slot.id)}
+        menuOpen={menuOpen}
+        moreButtonRef={moreButtonRef}
+        onClose={closeThisSlot}
       />
     )
     body = (
@@ -105,27 +144,36 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   } else if (slot.kind === 'calendar') {
     header = (
       <SlotHeader
+        slotKind={slot.kind}
         title="📅 Calendar · next 2 wks"
         onMore={(anchor) => setMenuAnchor(anchor)}
-        onClose={() => closeSlot(slot.id)}
+        menuOpen={menuOpen}
+        moreButtonRef={moreButtonRef}
+        onClose={closeThisSlot}
       />
     )
     body = <CalendarSlotContent />
   } else if (slot.kind === 'notes') {
     header = (
       <SlotHeader
+        slotKind={slot.kind}
         title="◰ Notes · Inbox"
         onMore={(anchor) => setMenuAnchor(anchor)}
-        onClose={() => closeSlot(slot.id)}
+        menuOpen={menuOpen}
+        moreButtonRef={moreButtonRef}
+        onClose={closeThisSlot}
       />
     )
     body = <NotesSlotContent />
   } else {
     header = (
       <SlotHeader
+        slotKind={slot.kind}
         title={slot.kind}
         onMore={(anchor) => setMenuAnchor(anchor)}
-        onClose={() => closeSlot(slot.id)}
+        menuOpen={menuOpen}
+        moreButtonRef={moreButtonRef}
+        onClose={closeThisSlot}
       />
     )
     body = (
@@ -157,15 +205,39 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           currentKind={slot.kind}
           onChangeKind={(kind) => updateSlot(slot.id, { kind })}
           onSplit={(dir) => splitSlot(slot.id, dir)}
-          onClose={() => setMenuAnchor(null)}
+          onClose={closeMenuAndFocusTrigger}
         />
       )}
     </>
   )
 }
 
-function useRailsDragMonitor() {
+function findSlotKind(rails: RailsState, slotId: string): string | null {
+  for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+    const rail = rails[side]
+    if (!rail) continue
+    const slot = rail.slots.find((s) => s.id === slotId)
+    if (slot) return slot.kind
+  }
+  return null
+}
+
+function describeDropZone(zone: ReturnType<typeof decodeRailsDropId>, rails: RailsState): string {
+  if (!zone) return 'unknown target'
+  if (zone.kind === 'empty-side') return `${zone.side} rail`
+  if (zone.kind === 'edge') return `${zone.side} rail ${zone.edge === 'head' ? 'start' : 'end'}`
+  const targetKind = findSlotKind(rails, zone.slotId) ?? 'slot'
+  return `${targetKind} slot`
+}
+
+interface RailsDragMonitorResult {
+  draggingSlot: RailsDragData | null
+  announcement: string
+}
+
+function useRailsDragMonitor(): RailsDragMonitorResult {
   const [draggingSlot, setDraggingSlot] = useState<RailsDragData | null>(null)
+  const [announcement, setAnnouncement] = useState<string>('')
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
   const dropSlotToSide = useCanvasRailsStore((s) => s.dropSlotToSide)
   const edgeDropSlot = useCanvasRailsStore((s) => s.edgeDropSlot)
@@ -177,6 +249,8 @@ function useRailsDragMonitor() {
       const data = active.data.current as RailsDragData | undefined
       if (data?.type !== RAILS_DRAG_TYPE) return
       setDraggingSlot(data)
+      const kind = findSlotKind(rails, data.slotId)
+      setAnnouncement(`Dragging ${kind ?? 'slot'}`)
       const onMove = (e: PointerEvent) => {
         pointerRef.current = { x: e.clientX, y: e.clientY }
       }
@@ -192,9 +266,10 @@ function useRailsDragMonitor() {
       if (cleanup) { cleanup(); (pointerRef as unknown as { cleanup?: () => void }).cleanup = undefined }
       if (data?.type !== RAILS_DRAG_TYPE) { setDraggingSlot(null); return }
       setDraggingSlot(null)
-      if (!over) return
+      if (!over) { setAnnouncement('Drop cancelled'); return }
       const zone = decodeRailsDropId(String(over.id))
-      if (!zone) return
+      if (!zone) { setAnnouncement('Drop cancelled'); return }
+      setAnnouncement(`Dropped in ${describeDropZone(zone, rails)}`)
       if (zone.kind === 'empty-side') {
         dropSlotToSide(data.slotId, zone.side)
       } else if (zone.kind === 'edge') {
@@ -227,15 +302,16 @@ function useRailsDragMonitor() {
       const cleanup = (pointerRef as unknown as { cleanup?: () => void }).cleanup
       if (cleanup) { cleanup(); (pointerRef as unknown as { cleanup?: () => void }).cleanup = undefined }
       setDraggingSlot(null)
+      setAnnouncement('Drop cancelled')
     },
   })
 
-  return draggingSlot
+  return { draggingSlot, announcement }
 }
 
 export function RailsFrame({ children }: RailsFrameProps) {
   const rails = useDefaultRails()
-  const draggingSlot = useRailsDragMonitor()
+  const { draggingSlot, announcement } = useRailsDragMonitor()
   const railsDragging = draggingSlot !== null
 
   const emptySides = useMemo(() => {
@@ -270,6 +346,14 @@ export function RailsFrame({ children }: RailsFrameProps) {
         {renderRail('bottom')}
       </div>
       {renderRail('right')}
+      <div
+        className={styles.srOnly}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {announcement}
+      </div>
     </div>
   )
 }

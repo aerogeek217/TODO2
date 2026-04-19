@@ -24,6 +24,8 @@ export function createSlot(kind: SlotKind, listDefinitionId?: number): Slot {
 interface CanvasRailsState {
   rails: RailsState
   hydrated: boolean
+  /** Transient: id of a slot that should receive keyboard focus on next render (e.g. newly-split slot). Cleared after focus. */
+  pendingFocusSlotId: string | null
   hydrate: (next: RailsState) => void
   setRails: (next: RailsState) => void
   addRail: (side: RailSide, defaultSlot?: Slot) => void
@@ -33,13 +35,17 @@ interface CanvasRailsState {
   edgeDropSlot: (slotId: string, toSide: RailSide, edge: 'head' | 'tail') => void
   splitDropSlot: (slotId: string, targetSlotId: string, zone: SplitZone) => void
   splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right') => void
+  clearPendingFocus: () => void
 }
 
 export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
   rails: EMPTY_RAILS,
   hydrated: false,
+  pendingFocusSlotId: null,
 
   hydrate: (next) => set({ rails: next, hydrated: true }),
+
+  clearPendingFocus: () => set({ pendingFocusSlotId: null }),
 
   setRails: (next) => set({ rails: next }),
 
@@ -105,7 +111,9 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
   }),
 
   splitSlot: (slotId, dir) => set((state) => {
-    const next = applySplitButton(state.rails, slotId, dir, { genSlotId })
-    return next === state.rails ? state : { rails: next }
+    const newId = genSlotId()
+    const next = applySplitButton(state.rails, slotId, dir, { genSlotId: () => newId })
+    if (next === state.rails) return state
+    return { rails: next, pendingFocusSlotId: newId }
   }),
 }))

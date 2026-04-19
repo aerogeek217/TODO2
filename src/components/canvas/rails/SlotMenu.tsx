@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { SlotKind } from '../../../models/canvas-rails'
 import styles from './SlotMenu.module.css'
 
@@ -8,6 +8,12 @@ interface SlotMenuProps {
   onChangeKind: (kind: SlotKind) => void
   onSplit: (dir: 'above' | 'below' | 'left' | 'right') => void
   onClose: () => void
+}
+
+const KIND_LABEL: Record<SlotKind, string> = {
+  lens: 'lens',
+  notes: 'notes',
+  calendar: 'calendar',
 }
 
 const KINDS: { kind: SlotKind; label: string }[] = [
@@ -26,20 +32,65 @@ const SPLITS: { dir: 'above' | 'below' | 'left' | 'right'; label: string }[] = [
 export function SlotMenu({ anchor, currentKind, onChangeKind, onSplit, onClose }: SlotMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null)
 
+  const getItems = useCallback((): HTMLButtonElement[] => {
+    if (!ref.current) return []
+    const nodes = ref.current.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')
+    return Array.from(nodes)
+  }, [])
+
+  const moveFocus = useCallback((delta: 1 | -1 | 'first' | 'last') => {
+    const items = getItems()
+    if (items.length === 0) return
+    const current = document.activeElement as HTMLElement | null
+    const currentIdx = current ? items.findIndex((el) => el === current) : -1
+    let next: number
+    if (delta === 'first') next = 0
+    else if (delta === 'last') next = items.length - 1
+    else if (currentIdx === -1) next = delta === 1 ? 0 : items.length - 1
+    else next = (currentIdx + delta + items.length) % items.length
+    items[next]?.focus()
+  }, [getItems])
+
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
     document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('keydown', handleKey)
     return () => {
       document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('keydown', handleKey)
     }
   }, [onClose])
+
+  // Focus the first enabled menu item on open.
+  useEffect(() => {
+    const items = getItems()
+    items[0]?.focus()
+  }, [getItems])
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      moveFocus(1)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      moveFocus(-1)
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      moveFocus('first')
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      moveFocus('last')
+    } else if (e.key === 'Tab') {
+      // Close on Tab to let focus escape the menu naturally.
+      onClose()
+    }
+  }
 
   return (
     <div
@@ -47,6 +98,8 @@ export function SlotMenu({ anchor, currentKind, onChangeKind, onSplit, onClose }
       className={styles.menu}
       style={{ left: anchor.x, top: anchor.y }}
       role="menu"
+      aria-label={`${KIND_LABEL[currentKind]} slot options`}
+      onKeyDown={onKeyDown}
     >
       <div className={styles.groupLabel}>Change type</div>
       {KINDS.map((k) => (
