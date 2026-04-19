@@ -44,6 +44,7 @@ export function DraggableSlot({ slotId, fromSide, header, children }: DraggableS
       }}
       className={classes}
       data-slot-id={slotId}
+      data-drop-id={dropId}
     >
       <Slot header={headerWithHandle}>{children}</Slot>
     </div>

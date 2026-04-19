@@ -21,6 +21,7 @@ function EdgeDrop({ side, edge, orientation }: { side: RailSide; edge: 'head' | 
       ref={setNodeRef}
       className={`${styles.edge} ${axisClass} ${edgeClass} ${isOver ? styles.edgeOver : ''}`}
       aria-hidden="true"
+      data-drop-id={id}
     />
   )
 }

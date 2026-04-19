@@ -24,6 +24,7 @@ function EmptySideDrop({ side }: { side: RailSide }) {
       className={`${styles.zone} ${styles[side]} ${isOver ? styles.over : ''}`}
       role="button"
       aria-label={label}
+      data-drop-id={id}
     >
       <span className={styles.label}>Dock {side}</span>
     </div>

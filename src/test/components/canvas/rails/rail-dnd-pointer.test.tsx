@@ -1,0 +1,114 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { cleanup } from '@testing-library/react'
+import type { RailsState } from '../../../../models/canvas-rails'
+import { setupRailsHarness, resetRailsStore } from '../../../utils/rail-dnd-harness'
+import * as railDnd from '../../../../components/canvas/rails/rail-dnd'
+import { db } from '../../../../data/database'
+import { useCanvasStore } from '../../../../stores/canvas-store'
+import { useNoteStore } from '../../../../stores/note-store'
+import { useTodoStore } from '../../../../stores/todo-store'
+import { useSettingsStore } from '../../../../stores/settings-store'
+
+beforeEach(async () => {
+  await db.delete()
+  await db.open()
+  resetRailsStore()
+  useCanvasStore.setState({ selectedCanvasId: null })
+  useNoteStore.setState({ notes: new Map(), activeId: null, lastSavedAt: null })
+  useTodoStore.setState({ todos: [], loading: false, error: null })
+  useSettingsStore.setState({ defaultProjectId: null })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
+
+function leftLens(): RailsState {
+  return {
+    left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
+    right: null,
+    top: null,
+    bottom: null,
+  }
+}
+
+function leftLensRightNotes(): RailsState {
+  return {
+    left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
+    right: { orientation: 'vertical', slots: [{ id: 'slot-B', kind: 'notes' }] },
+    top: null,
+    bottom: null,
+  }
+}
+
+describe('rails dragSlot — empty-side dock', () => {
+  it('drags slot-A from left rail onto empty top rail', async () => {
+    const h = await setupRailsHarness(leftLens())
+    await h.dragSlot('slot-A', { kind: 'empty-side', side: 'top' })
+    const rails = h.getRails()
+    expect(rails.left).toBeNull()
+    expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-A'])
+    expect(rails.top?.orientation).toBe('horizontal')
+    h.cleanup()
+  })
+})
+
+describe('rails dragSlot — edge dock', () => {
+  it('drops onto head of a populated right rail → source inserted at index 0', async () => {
+    const h = await setupRailsHarness(leftLensRightNotes())
+    await h.dragSlot('slot-A', { kind: 'edge', side: 'right', edge: 'head' })
+    const rails = h.getRails()
+    expect(rails.left).toBeNull()
+    expect(rails.right?.slots.map((s) => s.id)).toEqual(['slot-A', 'slot-B'])
+    h.cleanup()
+  })
+
+  it('drops onto tail of a populated right rail → source inserted at end', async () => {
+    const h = await setupRailsHarness(leftLensRightNotes())
+    await h.dragSlot('slot-A', { kind: 'edge', side: 'right', edge: 'tail' })
+    expect(h.getRails().right?.slots.map((s) => s.id)).toEqual(['slot-B', 'slot-A'])
+    h.cleanup()
+  })
+})
+
+describe('rails dragSlot — split quadrant', () => {
+  it('upper half of a vertical slot → splits above target', async () => {
+    const h = await setupRailsHarness(leftLensRightNotes())
+    await h.dragSlot('slot-A', { kind: 'slot', slotId: 'slot-B', quadrant: 'upper' })
+    expect(h.getRails().right?.slots.map((s) => s.id)).toEqual(['slot-A', 'slot-B'])
+    h.cleanup()
+  })
+
+  it('lower half of a vertical slot → splits below target', async () => {
+    const h = await setupRailsHarness(leftLensRightNotes())
+    await h.dragSlot('slot-A', { kind: 'slot', slotId: 'slot-B', quadrant: 'lower' })
+    expect(h.getRails().right?.slots.map((s) => s.id)).toEqual(['slot-B', 'slot-A'])
+    h.cleanup()
+  })
+})
+
+describe('rails dragSlot — cancel path', () => {
+  it('pointerup outside any droppable is a no-op; announcement reads "Drop cancelled"', async () => {
+    const h = await setupRailsHarness(leftLens())
+    await h.dragSlot('slot-A', { kind: 'cancel' })
+    const rails = h.getRails()
+    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-A'])
+    expect(rails.top).toBeNull()
+    const status = document.querySelector('[role="status"]')?.textContent
+    expect(status).toBe('Drop cancelled')
+    h.cleanup()
+  })
+})
+
+describe('rails dragSlot — droppable id wiring smoke', () => {
+  it('breaking encodeRailsDropId neutralises the drag (nothing collides)', async () => {
+    vi.spyOn(railDnd, 'encodeRailsDropId').mockImplementation(() => 'rails:bogus:xyz')
+    const h = await setupRailsHarness(leftLens())
+    await h.dragSlot('slot-A', { kind: 'empty-side', side: 'top' })
+    const rails = h.getRails()
+    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-A'])
+    expect(rails.top).toBeNull()
+    h.cleanup()
+  })
+})
