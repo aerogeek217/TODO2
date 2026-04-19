@@ -5,14 +5,11 @@ import { FilterSheet } from '../../components/overlays/FilterSheet'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
-import { makePerson, makeTag, makeOrg } from '../helpers'
+import { makePerson, makeOrg } from '../helpers'
 
 const alice = makePerson({ id: 1, name: 'Alice' })
 const bob = makePerson({ id: 2, name: 'Bob' })
-const bugTag = makeTag({ id: 1, name: 'Bug' })
-const featureTag = makeTag({ id: 2, name: 'Feature' })
 const acmeOrg = makeOrg({ id: 1, name: 'Acme' })
 
 /**
@@ -34,7 +31,6 @@ describe('FilterSheet', () => {
     useFilterStore.getState().clearAll()
     useUIStore.setState({ isFilterSheetOpen: false })
     usePersonStore.setState({ people: [alice, bob] })
-    useTagStore.setState({ tags: [bugTag, featureTag] })
     useOrgStore.setState({ orgs: [acmeOrg] })
   })
 
@@ -192,16 +188,6 @@ describe('FilterSheet', () => {
       fireEvent.change(screen.getByPlaceholderText('Search people...'), { target: { value: 'Ali' } })
       expect(screen.getByText('Alice')).toBeInTheDocument()
       expect(screen.queryByText('Bob')).not.toBeInTheDocument()
-    })
-
-    it('toggles a tag filter', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Tags'))
-      fireEvent.click(screen.getByText('Bug'))
-
-      const { tagIds } = useFilterStore.getState().filters
-      expect(tagIds).not.toBeNull()
-      expect(tagIds!.has(1)).toBe(false) // Bug deselected
     })
 
     it('toggles an org filter', () => {

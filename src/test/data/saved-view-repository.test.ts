@@ -18,7 +18,6 @@ describe('savedViewRepository', () => {
         showCompleted: false,
         showHiddenStatuses: false,
         personIds: null,
-        tagIds: null,
         orgIds: null,
         dateRangeIncludeNoDate: false,
       },
@@ -56,11 +55,11 @@ describe('savedViewRepository', () => {
 
   it('update_modifiesNameAndSortBy', async () => {
     const id = await savedViewRepository.add(makeView({ name: 'Old Name', sortBy: 'date' }))
-    await savedViewRepository.update(id, { name: 'New Name', sortBy: 'tag' })
+    await savedViewRepository.update(id, { name: 'New Name', sortBy: 'project' })
 
     const views = await savedViewRepository.getAll()
     expect(views[0].name).toBe('New Name')
-    expect(views[0].sortBy).toBe('tag')
+    expect(views[0].sortBy).toBe('project')
   })
 
   it('update_partialChanges_doesNotAffectOtherFields', async () => {
@@ -98,7 +97,6 @@ describe('savedViewRepository', () => {
       showCompleted: true,
       showHiddenStatuses: true,
       personIds: [1, 2],
-      tagIds: null,
       orgIds: null,
       dateRangeIncludeNoDate: true,
     }

@@ -3,7 +3,6 @@ import type { ResolvedInput } from '../services/nlp-resolver'
 
 export interface FilterDefaults {
   personIds: number[]
-  tagIds: number[]
   orgIds: number[]
   statusId: number | undefined
 }
@@ -14,7 +13,6 @@ export interface FilterDefaults {
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const personIds = filters.personIds ? [...filters.personIds].filter(id => id !== 0) : []
-  const tagIds = filters.tagIds ? [...filters.tagIds].filter(id => id !== 0) : []
   const orgIds = filters.orgIds ? [...filters.orgIds].filter(id => id !== 0) : []
 
   let statusId: number | undefined
@@ -23,18 +21,17 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) statusId = only
   }
 
-  return { personIds, tagIds, orgIds, statusId }
+  return { personIds, orgIds, statusId }
 }
 
 /**
  * Supplement resolved NLP output with filter-inferred defaults.
- * Mutates `resolved` in place for person/tag/org fields.
+ * Mutates `resolved` in place for person/org fields.
  */
 export function supplementWithFilterDefaults(
   resolved: ResolvedInput,
   fd: FilterDefaults,
 ): void {
   if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
-  if (resolved.tagIds.length === 0) resolved.tagIds = fd.tagIds
   if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
 }

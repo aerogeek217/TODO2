@@ -8,6 +8,8 @@ import {
   translateStickyToNote,
   translateNoteToFloatingNote,
   buildListDefFromLegacyInset,
+  appendTagNamesToTitle,
+  buildTagNamesByTodo,
 } from './database'
 import type { ImportData, ImportListInset, ImportNote } from './import-validation'
 import { validateImportData, isLegacyMembershipKind } from './import-validation'
@@ -24,8 +26,6 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   // the rows land in the table).
   { table: db.people, key: 'people' },
   { table: db.settings, key: 'settings' },
-  { table: db.tags, key: 'tags' },
-  { table: db.todoTags, key: 'todoTags' },
   { table: db.todoPeople, key: 'todoPeople' },
   { table: db.todoOrgs, key: 'todoOrgs' },
   { table: db.personOrgs, key: 'personOrgs' },
@@ -118,6 +118,39 @@ async function restoreNoteBuckets(importNotes: ImportNote[]): Promise<{ global: 
 
 /** Clear all data tables and bulk-add from validated import data, then auto-seed statuses + list definitions and translate legacy fields. */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
+  // Pre-v29 backups carry `tags` + `todoTags` arrays. Bake the tag names into
+  // todo titles (` #tagname`) before the bulk-add so the surviving DB has no
+  // tag-feature footprint. Mirrors the in-place `runV29Migration`.
+  let tagsBaked = 0
+  if (v.tags?.length || v.todoTags?.length) {
+    const namesByTodo = buildTagNamesByTodo(v.todoTags ?? [], v.tags ?? [])
+    if (namesByTodo.size > 0) {
+      for (const todo of v.todos) {
+        if (todo.id == null) continue
+        const names = namesByTodo.get(todo.id)
+        if (!names || names.length === 0) continue
+        todo.title = appendTagNamesToTitle(todo.title, names)
+        tagsBaked++
+      }
+    }
+  }
+
+  // Strip tagIds from any custom predicate carried in saved list defs / views
+  // (post-v29 the field is gone from the runtime shape).
+  for (const def of v.listDefinitions ?? []) {
+    const m = def.membership as Record<string, unknown> | undefined
+    if (!m || m.kind !== 'custom') continue
+    const p = m.predicate as Record<string, unknown> | undefined
+    if (p && 'tagIds' in p) delete p.tagIds
+  }
+  for (const sv of v.savedViews ?? []) {
+    const svRow = sv as unknown as Record<string, unknown>
+    const f = svRow.filters as Record<string, unknown> | undefined
+    if (f && 'tagIds' in f) delete f.tagIds
+    if (svRow.sortBy === 'tag') svRow.sortBy = 'date'
+    if (svRow.groupBy === 'tag') svRow.groupBy = 'none'
+  }
+
   const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes])
   await db.transaction('rw', tables, async () => {
     for (const { table } of TABLE_KEY_PAIRS) await table.clear()
@@ -128,6 +161,10 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       const rows = v[key]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (rows?.length) await (table as any).bulkAdd(rows)
+    }
+
+    if (tagsBaked > 0) {
+      console.info(`Restore: baked tag names into ${tagsBaked} todo title(s) (tags feature retired in v29)`)
     }
 
     // Split `notes` into global vs floating at restore time (matches v28).

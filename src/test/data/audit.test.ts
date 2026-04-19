@@ -32,10 +32,8 @@ describe('auditData', () => {
   it('reports no issues on clean data', async () => {
     const { todoId } = await seedBase()
     const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
-    const tagId = await db.tags.add({ name: 'urgent', color: '#f00' } as any)
     const orgId = await db.orgs.add({ name: 'Acme', color: '#00f' } as any)
     await db.todoPeople.add({ todoId, personId })
-    await db.todoTags.add({ todoId, tagId })
     await db.todoOrgs.add({ todoId, orgId })
     await db.personOrgs.add({ personId, orgId })
     await db.taskboardEntries.add({ todoId, sortOrder: 0 })
@@ -70,16 +68,6 @@ describe('auditData', () => {
     const report = await auditData()
     expect(report.totalOrphans).toBe(1)
     expect(report.issues.find((i) => i.table === 'todoPeople')).toBeDefined()
-  })
-
-  it('detects orphaned todoTags', async () => {
-    const { todoId } = await seedBase()
-    await db.todoTags.add({ todoId, tagId: 999 })
-    await db.todoTags.add({ todoId: 888, tagId: 999 })
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'todoTags')!
-    expect(issue.count).toBe(2)
   })
 
   it('detects orphaned todoOrgs', async () => {
@@ -202,7 +190,7 @@ describe('auditData', () => {
 
   it('detects multiple issue types in one scan', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoTags.add({ todoId: 999, tagId: 888 })
+    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
     await db.taskboardEntries.add({ todoId: 999, sortOrder: 0 })
     await db.todos.add(makeTodo({ projectId: 777 }) as any)
 
@@ -234,7 +222,7 @@ describe('auditData', () => {
 describe('cleanupIssues', () => {
   it('deletes orphaned join rows', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoTags.add({ todoId: 999, tagId: 888 })
+    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
     await db.taskboardEntries.add({ todoId: 999, sortOrder: 0 })
 
     const report = await auditData()
@@ -244,7 +232,7 @@ describe('cleanupIssues', () => {
     expect(cleaned).toBe(3)
 
     expect(await db.todoPeople.count()).toBe(0)
-    expect(await db.todoTags.count()).toBe(0)
+    expect(await db.todoOrgs.count()).toBe(0)
     expect(await db.taskboardEntries.count()).toBe(0)
   })
 

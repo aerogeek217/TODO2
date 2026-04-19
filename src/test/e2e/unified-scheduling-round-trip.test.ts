@@ -26,13 +26,13 @@ function snapshotTable<T>(rows: T[]): T[] {
 
 async function readAllTables() {
   const [
-    todos, projects, canvases, listInsets, people, settings, tags, todoTags,
+    todos, projects, canvases, listInsets, people, settings,
     todoPeople, todoOrgs, personOrgs, orgs, savedViews, notes,
     taskboardEntries, statuses, listDefinitions,
   ] = await Promise.all([
     db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(),
     db.listInsets.toArray(), db.people.toArray(), db.settings.toArray(),
-    db.tags.toArray(), db.todoTags.toArray(), db.todoPeople.toArray(),
+    db.todoPeople.toArray(),
     db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
     db.savedViews.toArray(), db.notes.toArray(),
     db.taskboardEntries.toArray(), db.statuses.toArray(),
@@ -45,8 +45,6 @@ async function readAllTables() {
     listInsets: snapshotTable(listInsets),
     people: snapshotTable(people),
     settings: snapshotTable(settings),
-    tags: snapshotTable(tags),
-    todoTags: snapshotTable(todoTags),
     todoPeople: snapshotTable(todoPeople),
     todoOrgs: snapshotTable(todoOrgs),
     personOrgs: snapshotTable(personOrgs),
@@ -139,14 +137,12 @@ function makeLegacyImport(): ImportData {
       },
     ] as unknown as ImportData['todos'],
     people: [],
-    tags: [],
     // Legacy list insets that must be deleted on import
     listInsets: [
       { id: 10, name: 'High Priority', preset: 'high-priority', canvasId: 1, x: 0, y: 0, width: 280, height: 300, isCollapsed: false } as unknown as ImportData['listInsets'][number],
       { id: 11, name: 'P2', attributeFilter: { type: 'priority', priority: 2 }, canvasId: 1, x: 0, y: 300, width: 280, height: 300, isCollapsed: false } as unknown as ImportData['listInsets'][number],
       { id: 12, name: 'Due this week', preset: 'due-this-week', canvasId: 1, x: 0, y: 600, width: 280, height: 300, isCollapsed: false },
     ],
-    todoTags: [],
     todoPeople: [],
     todoOrgs: [],
     personOrgs: [],
@@ -275,9 +271,7 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       projects: firstPass.projects,
       todos: firstPass.todos as unknown as ImportData['todos'],
       people: firstPass.people,
-      tags: firstPass.tags,
       listInsets: firstPass.listInsets,
-      todoTags: firstPass.todoTags,
       todoPeople: firstPass.todoPeople,
       todoOrgs: firstPass.todoOrgs,
       personOrgs: firstPass.personOrgs,

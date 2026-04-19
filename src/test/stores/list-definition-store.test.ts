@@ -168,7 +168,6 @@ describe('Save-as-preset round-trip', () => {
     const original = {
       ...predicateToCriteria(emptyPredicate()),
       personIds: new Set([7]),
-      tagIds: new Set([2]),
     }
     const predicate: TodoPredicate = criteriaToPredicate(original)
 
@@ -188,22 +187,18 @@ describe('Save-as-preset round-trip', () => {
     expect(reloaded!.membership.kind).toBe('custom')
     if (reloaded!.membership.kind === 'custom') {
       expect(reloaded!.membership.predicate.personIds).toEqual([7])
-      expect(reloaded!.membership.predicate.tagIds).toEqual([2])
     }
     expect(reloaded!.sort).toEqual({ kind: 'sortBy', by: 'date' })
     expect(reloaded!.grouping).toEqual({ kind: 'by-sortBy' })
 
     // Round-trip predicate evaluation: matchesFilter via the dashboard interpreter.
     const todos: PersistedTodoItem[] = [
-      makeTodo({ id: 1 }),                                  // unassigned + untagged
-      makeTodo({ id: 2 }),                                  // person=7, tag=2
-      makeTodo({ id: 3 }),                                  // person=7, tag=99
+      makeTodo({ id: 1 }),                                  // unassigned
+      makeTodo({ id: 2 }),                                  // person=7
+      makeTodo({ id: 3 }),                                  // person=99
     ]
     const personMap = new Map<number, number[]>([
-      [2, [7]], [3, [7]],
-    ])
-    const tagMap = new Map<number, number[]>([
-      [2, [2]], [3, [99]],
+      [2, [7]], [3, [99]],
     ])
 
     const lists = buildDashboardLists([reloaded!], todos, {
@@ -213,19 +208,19 @@ describe('Save-as-preset round-trip', () => {
       showCompleted: false,
       evalPredicate: (predicate, todo) => {
         const criteria = predicateToCriteria(predicate)
-        return matchesFilter(criteria, todo, personMap.get(todo.id), tagMap.get(todo.id))
+        return matchesFilter(criteria, todo, personMap.get(todo.id))
       },
     })
 
     expect(lists).toHaveLength(1)
     const ids = lists[0].todos.map(t => t.id).sort()
-    expect(ids).toEqual([2])  // only id=2 has BOTH person=7 AND tag=2
+    expect(ids).toEqual([2])  // only id=2 has person=7
   })
 
   it('updateListDefinition mirrors a "save edited preset" flow', async () => {
     const initialPredicate = criteriaToPredicate({
       ...predicateToCriteria(emptyPredicate()),
-      tagIds: new Set([1]),
+      personIds: new Set([1]),
     })
     const id = await useListDefinitionStore.getState().add({
       name: 'My preset',
@@ -238,7 +233,7 @@ describe('Save-as-preset round-trip', () => {
     // from edited criteria and call update().
     const edited = criteriaToPredicate({
       ...predicateToCriteria(emptyPredicate()),
-      tagIds: new Set([1, 2]),  // added a second tag
+      personIds: new Set([1, 2]),  // added a second person
       showCompleted: true,
     })
     const def = useListDefinitionStore.getState().listDefinitions.find(d => d.id === id)!
@@ -252,7 +247,7 @@ describe('Save-as-preset round-trip', () => {
     const after = useListDefinitionStore.getState().listDefinitions.find(d => d.id === id)
     expect(after).toBeDefined()
     if (after!.membership.kind === 'custom') {
-      expect(after!.membership.predicate.tagIds).toEqual([1, 2])
+      expect(after!.membership.predicate.personIds).toEqual([1, 2])
       expect(after!.membership.predicate.showCompleted).toBe(true)
     }
   })

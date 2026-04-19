@@ -3,7 +3,6 @@ import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-a
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useOrgStore } from '../../stores/org-store'
 import styles from './InsertTrigger.module.css'
@@ -24,16 +23,14 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const committedRef = useRef(false)
 
   const people = usePersonStore((s) => s.people)
-  const tags = useTagStore((s) => s.tags)
   const projects = useProjectStore((s) => s.projects)
   const orgsFromStore = useOrgStore((s) => s.orgs)
 
   const acPeople = useMemo(() => people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [people])
-  const acTags = useMemo(() => tags.map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })), [tags])
   const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
   const acOrgs = useMemo(() => orgsFromStore.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [orgsFromStore])
 
-  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags, projects: acProjects, orgs: acOrgs })
+  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs })
 
   useClickOutside(wrapperRef, () => {
     ac.dismiss()
@@ -135,7 +132,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
               else { ac.dismiss(); handleCommit() }
             }, 150)
           }}
-          placeholder="New task... (@person #tag /project p1 tomorrow)"
+          placeholder="New task... (@person /project p1 tomorrow)"
         />
         <NlpAutocomplete state={ac.state} onSelect={handleSelect} />
       </div>

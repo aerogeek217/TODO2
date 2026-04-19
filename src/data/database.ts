@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
@@ -15,8 +15,6 @@ export class Todo2Database extends Dexie {
   canvases!: Table<Canvas, number>
   people!: Table<Person, number>
   settings!: Table<SettingRow, string>
-  tags!: Table<Tag, number>
-  todoTags!: Table<TodoTag, number>
   todoPeople!: Table<TodoPerson, number>
   listInsets!: Table<ListInset, number>
   orgs!: Table<Org, number>
@@ -149,6 +147,18 @@ export class Todo2Database extends Dexie {
       floatingNotes: '++id, canvasId',
     }).upgrade(async (tx) => {
       await runV28Migration(tx)
+    })
+
+    // v29: remove the tags feature entirely. For each todo with assigned tags,
+    // append " #tagname" to its title (preserving discoverability via the
+    // text-search predicate). Strip `tagIds` from any custom predicate stored
+    // inside `listDefinitions` and `savedViews`. Drop the `tags` and
+    // `todoTags` tables.
+    this.version(29).stores({
+      tags: null,
+      todoTags: null,
+    }).upgrade(async (tx) => {
+      await runV29Migration(tx)
     })
   }
 }
@@ -325,7 +335,6 @@ function basePredicate(): TodoPredicate {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,
@@ -499,7 +508,6 @@ function emptyPredicateSeed(): Record<string, unknown> {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,
@@ -561,9 +569,12 @@ export function buildListDefFromLegacyInset(
         break
       }
       case 'tag': {
-        const id = attr.tagId as number | undefined
-        if (typeof id !== 'number') return null
-        predicate.tagIds = [id]
+        // v29 retired the tags feature. Legacy tag-attribute insets become
+        // a text-search predicate scoped to `#tagname` so they keep
+        // surfacing the same todos via the post-v29 inline tag suffixes.
+        const name = typeof attr.tagName === 'string' ? attr.tagName.trim() : ''
+        if (!name) return null
+        predicate.searchText = `#${name}`
         derivedName = `Tasks tagged ${attr.tagName ?? 'tag'}`
         break
       }
@@ -691,7 +702,107 @@ export function parseHorizonSlots(value: string | undefined | null): Partial<Rec
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes] as const
+
+/**
+ * Append `" #tagname"` for every assigned tag to each todo's title. Mutates
+ * the `todos` array (or, when `mutate` returns void, calls it per row). Pure
+ * over its inputs — shared between `runV29Migration` (in-place migration)
+ * and `restoreFromImportData` (legacy JSON import).
+ *
+ * Tag names are NOT sanitized — text search is plain substring, so spaces in
+ * a tag name still resolve. The `#` marker stays meaningful so a search for
+ * `#urgent` keeps matching tag-derived text. Empty / whitespace-only tag
+ * names are skipped.
+ */
+export function appendTagNamesToTitle(
+  title: string,
+  tagNames: string[],
+): string {
+  const cleaned = tagNames.map((n) => n.trim()).filter((n) => n.length > 0)
+  if (cleaned.length === 0) return title
+  const suffix = cleaned.map((n) => `#${n}`).join(' ')
+  return title.length > 0 ? `${title} ${suffix}` : suffix
+}
+
+/**
+ * Build a `todoId → tagNames[]` map from the join + tag arrays. Pure helper
+ * shared between in-place migration and import-time tag flattening.
+ */
+export function buildTagNamesByTodo(
+  todoTags: { todoId: number; tagId: number }[],
+  tags: { id?: number; name: string }[],
+): Map<number, string[]> {
+  const tagNameById = new Map<number, string>()
+  for (const t of tags) {
+    if (typeof t.id === 'number') tagNameById.set(t.id, t.name)
+  }
+  const out = new Map<number, string[]>()
+  for (const j of todoTags) {
+    const name = tagNameById.get(j.tagId)
+    if (!name) continue
+    const list = out.get(j.todoId) ?? []
+    list.push(name)
+    out.set(j.todoId, list)
+  }
+  return out
+}
+
+/**
+ * v29 upgrade: bake tag assignments into todo titles as `#tagname` suffixes,
+ * strip `tagIds` from saved custom predicates, drop the tag tables.
+ *
+ * Read order matters: tags + todoTags are read inside the upgrade callback;
+ * Dexie removes the stores AFTER the callback returns so the reads are safe.
+ */
+export async function runV29Migration(tx: Transaction): Promise<void> {
+  let tagsRows: { id?: number; name: string }[] = []
+  let joinRows: { todoId: number; tagId: number }[] = []
+  try {
+    tagsRows = await tx.table('tags').toArray() as { id?: number; name: string }[]
+  } catch { /* table already gone */ }
+  try {
+    joinRows = await tx.table('todoTags').toArray() as { todoId: number; tagId: number }[]
+  } catch { /* table already gone */ }
+
+  const namesByTodo = buildTagNamesByTodo(joinRows, tagsRows)
+  let mutated = 0
+  if (namesByTodo.size > 0) {
+    await tx.table('todos').toCollection().modify((todo: Record<string, unknown>) => {
+      const id = todo.id as number | undefined
+      if (id == null) return
+      const names = namesByTodo.get(id)
+      if (!names || names.length === 0) return
+      const before = typeof todo.title === 'string' ? todo.title : ''
+      const after = appendTagNamesToTitle(before, names)
+      if (after !== before) {
+        todo.title = after
+        mutated++
+      }
+    })
+  }
+
+  // Strip tagIds from any custom predicate stored on a list definition.
+  await tx.table('listDefinitions').toCollection().modify((def: Record<string, unknown>) => {
+    const m = def.membership as Record<string, unknown> | undefined
+    if (!m || m.kind !== 'custom') return
+    const p = m.predicate as Record<string, unknown> | undefined
+    if (!p) return
+    if ('tagIds' in p) delete p.tagIds
+  })
+
+  // Strip tagIds from any persisted saved-view filter set.
+  await tx.table('savedViews').toCollection().modify((sv: Record<string, unknown>) => {
+    const f = sv.filters as Record<string, unknown> | undefined
+    if (!f) return
+    if ('tagIds' in f) delete f.tagIds
+    // Translate sortBy === 'tag' into a benign default so the view still loads.
+    if (sv.sortBy === 'tag') sv.sortBy = 'date'
+    if (sv.groupBy === 'tag') sv.groupBy = 'none'
+  })
+
+  console.info(`v29 migration: baked tag names into ${mutated} todo title(s); dropped tags + todoTags tables`)
+}
 
 /**
  * Translate a legacy note row carrying canvasId + placement fields (post-v26

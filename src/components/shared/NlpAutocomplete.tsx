@@ -14,7 +14,7 @@ export function NlpAutocomplete({ state, onSelect }: NlpAutocompleteProps) {
   return (
     <div className={styles.dropdown} style={{ left: state.caretLeft }}>
       <div className={styles.header}>
-        {state.trigger === '@' ? (hasOrgs ? 'People & Orgs' : 'People') : state.trigger === '#' ? 'Tags' : 'Projects'}
+        {state.trigger === '@' ? (hasOrgs ? 'People & Orgs' : 'People') : 'Projects'}
       </div>
       {state.items.map((item, i) => (
         <button

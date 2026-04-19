@@ -1,9 +1,8 @@
 import { memo, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import type { FloatingCalendar, PersistedTodoItem, Person, Tag, Org, Status } from '../../models'
+import type { FloatingCalendar, PersistedTodoItem, Person, Org, Status } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -26,7 +25,6 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
 
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const statuses = useStatusStore((s) => s.statuses)
@@ -54,12 +52,11 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
       filters,
       todos,
       assignedPeopleMap as Map<number, Person[]>,
-      assignedTagsMap as Map<number, Tag[]>,
       personOrgMap,
       assignedOrgsMap as Map<number, Org[]>,
       statuses as Status[],
     ),
-    [filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses],
+    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses],
   )
 
   const width = calendar.width

@@ -21,7 +21,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
 import { useProjectStore } from '../stores/project-store'
 import { useOrgStore } from '../stores/org-store'
 import { useStatusStore } from '../stores/status-store'
@@ -40,7 +39,7 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopup'
 import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person, Tag, Project, Org, Status, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
+import type { PersistedTodoItem, Person, Project, Org, Status, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
 import type { ListGrouping, ListSort } from '../models/list-definition'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
@@ -66,7 +65,6 @@ const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode
   { value: 'status', label: 'Status', icon: groupByIcons.status },
   { value: 'people', label: 'People', icon: groupByIcons.people },
   { value: 'org', label: 'Org', icon: groupByIcons.org },
-  { value: 'tag', label: 'Tag', icon: groupByIcons.tag },
 ]
 
 const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.ReactNode }[] = [
@@ -204,37 +202,6 @@ export function buildPeopleSections(
     ...personSections,
     ...(remaining.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: remaining }] : []),
   ]
-}
-
-export function buildTagSections(
-  todos: PersistedTodoItem[],
-  tags: Tag[],
-  assignedTagsMap: Map<number, Tag[]>,
-): Section[] {
-  const sections: Section[] = []
-  const taggedTodoIds = new Set<number>()
-
-  for (const tag of tags) {
-    const tagTodos = todos.filter((t) => {
-      const assigned = assignedTagsMap.get(t.id) ?? []
-      return assigned.some((tg) => tg.id === tag.id)
-    })
-    if (tagTodos.length > 0) {
-      for (const t of tagTodos) taggedTodoIds.add(t.id)
-      sections.push({
-        key: `tag-${tag.id}`,
-        label: tag.name,
-        accentColor: tag.color,
-        todos: tagTodos,
-      })
-    }
-  }
-
-  const untagged = todos.filter((t) => !taggedTodoIds.has(t.id))
-  if (untagged.length > 0) {
-    sections.push({ key: 'untagged', label: 'No Tags', todos: untagged })
-  }
-  return sections
 }
 
 export function buildProjectSections(
@@ -530,11 +497,6 @@ function parseSectionPersonId(key: string): number | null {
   return null
 }
 
-function parseSectionTagId(key: string): number | null {
-  if (key.startsWith('tag-')) return Number(key.slice(4))
-  return null
-}
-
 function parseSectionProjectId(key: string): number | null | undefined {
   if (key === 'no-project') return undefined
   if (key.startsWith('project-')) return Number(key.slice(8))
@@ -549,7 +511,7 @@ interface PendingReassign {
   toKey: string
   fromLabel: string
   toLabel: string
-  attribute: 'person' | 'tag'
+  attribute: 'person'
 }
 
 // --- Sortable saved view chip ---
@@ -626,7 +588,6 @@ function SortableViewChip({
 export function ListView() {
   const { todos, loadAll, update: updateTodo } = useTodoStore()
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments, assignPerson, unassignPerson } = usePersonStore()
-  const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag, unassignTag } = useTagStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { statuses, load: loadStatuses } = useStatusStore()
@@ -669,22 +630,20 @@ export function ListView() {
   useEffect(() => {
     loadAll()
     loadPeople()
-    loadTags()
     loadAllProjects()
     loadOrgs()
     loadStatuses()
     loadSavedViews()
     loadListDefinitions()
-  }, [loadAll, loadPeople, loadTags, loadAllProjects, loadOrgs, loadStatuses, loadSavedViews, loadListDefinitions])
+  }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadStatuses, loadSavedViews, loadListDefinitions])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
     if (todoIds.length > 0) {
       loadPeopleAssignments(todoIds)
-      loadTagAssignments(todoIds)
       loadOrgAssignments(todoIds)
     }
-  }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
+  }, [todos, loadPeopleAssignments, loadOrgAssignments])
 
   useEffect(() => {
     setCollapsed({})
@@ -696,8 +655,8 @@ export function ListView() {
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const activeTodos = useMemo(() => {
-    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, projectsById])
+    return applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById)
+  }, [todos, filters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById])
 
   const sections = useMemo(() => {
     switch (listGroupBy) {
@@ -711,8 +670,6 @@ export function ListView() {
         return buildDeadlineSections(activeTodos)
       case 'people':
         return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds)
-      case 'tag':
-        return buildTagSections(activeTodos, tags, assignedTagsMap)
       case 'project':
         return buildProjectSections(activeTodos, projects)
       case 'org':
@@ -720,7 +677,7 @@ export function ListView() {
       case 'status':
         return buildStatusSections(activeTodos, statuses)
     }
-  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, tags, assignedTagsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
+  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
 
   const withinGroupComparator = useMemo(
     () => itemSortComparator(listSortBy),
@@ -942,10 +899,6 @@ export function ListView() {
       const fromLabel = sectionLabelMap.get(fromKey) ?? fromKey
       const toLabel = sectionLabelMap.get(toKey) ?? toKey
       setPendingReassign({ todo, fromKey, toKey, fromLabel, toLabel, attribute: 'person' })
-    } else if (listGroupBy === 'tag') {
-      const fromLabel = sectionLabelMap.get(fromKey) ?? fromKey
-      const toLabel = sectionLabelMap.get(toKey) ?? toKey
-      setPendingReassign({ todo, fromKey, toKey, fromLabel, toLabel, attribute: 'tag' })
     } else if (listGroupBy === 'status') {
       const newStatusId = toKey === 'no-status' ? undefined : toKey.startsWith('status-') ? Number(toKey.slice(7)) : null
       if (newStatusId !== null && newStatusId !== todo.statusId) {
@@ -985,19 +938,12 @@ export function ListView() {
         if (fromPersonId != null) await unassignPerson(id, fromPersonId)
         if (toPersonId != null) await assignPerson(id, toPersonId)
       }
-    } else if (attribute === 'tag') {
-      const fromTagId = parseSectionTagId(fromKey)
-      const toTagId = parseSectionTagId(toKey)
-      for (const id of allIds) {
-        if (fromTagId != null) await unassignTag(id, fromTagId)
-        if (toTagId != null) await assignTag(id, toTagId)
-      }
     }
 
     setPendingReassign(null)
     // Reload to reflect changes
     await loadAll()
-  }, [pendingReassign, todos, assignPerson, unassignPerson, assignTag, unassignTag, loadAll])
+  }, [pendingReassign, todos, assignPerson, unassignPerson, loadAll])
 
   const cancelReassign = useCallback(() => {
     setPendingReassign(null)
@@ -1005,7 +951,7 @@ export function ListView() {
 
   const isDndEnabled =
     !isMobile &&
-    (listGroupBy === 'project' || listGroupBy === 'people' || listGroupBy === 'tag' || listGroupBy === 'status')
+    (listGroupBy === 'project' || listGroupBy === 'people' || listGroupBy === 'status')
   const totalActive = activeTodos.length
 
   const pageContent = (
@@ -1178,7 +1124,6 @@ export function ListView() {
                       <TaskList
                         todos={todosWithGhosts}
                         assignedPeopleMap={assignedPeopleMap}
-                        assignedTagsMap={assignedTagsMap}
                         ghostIds={ghostIds}
                         draggable={isDndEnabled}
                         sectionKey={section.key}
@@ -1222,7 +1167,6 @@ export function ListView() {
             mode="edit"
             {...taskEdit.editProps}
             allPeople={taskEdit.allPeople}
-            allTags={taskEdit.allTags}
             allOrgs={taskEdit.allOrgs}
             onClose={taskEdit.closeEditPopup}
             {...taskEdit.entityCreators}
@@ -1234,16 +1178,12 @@ export function ListView() {
             mode="create"
             assignedPeople={[]}
             allPeople={taskEdit.allPeople}
-            assignedTags={[]}
-            allTags={taskEdit.allTags}
             onClose={taskEdit.closeEditPopup}
             onCreate={taskEdit.onCreate}
             assignedOrgs={[]}
             allOrgs={taskEdit.allOrgs}
             onAssignPerson={() => {}}
             onUnassignPerson={() => {}}
-            onAssignTag={() => {}}
-            onUnassignTag={() => {}}
             onAssignOrg={() => {}}
             onUnassignOrg={() => {}}
             {...taskEdit.entityCreators}
@@ -1324,7 +1264,6 @@ export function ListView() {
         <PlainTextExportPopup
           sections={sections}
           assignedPeopleMap={assignedPeopleMap}
-          assignedTagsMap={assignedTagsMap}
           statusMap={statusMap}
           onClose={() => setShowExport(false)}
         />

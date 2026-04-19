@@ -4,7 +4,6 @@ import { ReactFlowProvider } from '@xyflow/react'
 import type { ReactNode } from 'react'
 import { ListDefinitionBody } from '../../../components/canvas/ListDefinitionBody'
 import { usePersonStore } from '../../../stores/person-store'
-import { useTagStore } from '../../../stores/tag-store'
 import { useOrgStore } from '../../../stores/org-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useProjectStore } from '../../../stores/project-store'
@@ -24,8 +23,6 @@ vi.mock('../../../hooks/use-bulk-actions', () => ({
     setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
-    quickAssignTag: vi.fn(),
-    quickUnassignTag: vi.fn(),
     quickAssignOrg: vi.fn(),
     quickUnassignOrg: vi.fn(),
   }),
@@ -53,7 +50,6 @@ function futureDef(): PersistedListDefinition {
 function resetStores() {
   useTodoStore.setState({ todos: [] })
   usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
   useStatusStore.setState({ statuses: [] })
   useProjectStore.setState({ projects: [] })
@@ -63,7 +59,6 @@ function resetStores() {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,

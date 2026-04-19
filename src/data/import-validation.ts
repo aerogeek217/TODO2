@@ -1,4 +1,19 @@
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+
+/**
+ * Pre-v29 tag types. Retained here so import validation can read pre-v29
+ * backups, bake `#tagname` suffixes into todo titles, and drop the rows.
+ */
+export interface ImportTag {
+  id?: number
+  name: string
+  color: string
+}
+export interface ImportTodoTag {
+  id?: number
+  todoId: number
+  tagId: number
+}
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
@@ -623,7 +638,7 @@ function pickOrg(v: Record<string, unknown>): Org {
   }
 }
 
-function pickTag(v: Record<string, unknown>): Tag {
+function pickTag(v: Record<string, unknown>): ImportTag {
   return { id: v.id as number | undefined, name: v.name as string, color: v.color as string }
 }
 
@@ -635,7 +650,7 @@ function pickTag(v: Record<string, unknown>): Tag {
  */
 export type LegacyAttributeFilter =
   | { type: 'person'; personId: number; personName: string }
-  | { type: 'tag'; tagId: number; tagName: string; tagColor?: string }
+  | { type: 'tag'; tagId: number; tagName: string; tagColor?: string } // pre-v29: translated to a `#tagname` text-search predicate by buildListDefFromLegacyInset
   | { type: 'org'; orgId: number; orgName: string; orgColor?: string }
 
 export interface ImportListInset {
@@ -677,7 +692,7 @@ function pickListInset(v: Record<string, unknown>): ImportListInset {
   }
 }
 
-function pickTodoTag(v: Record<string, unknown>): TodoTag {
+function pickTodoTag(v: Record<string, unknown>): ImportTodoTag {
   return { id: v.id as number | undefined, todoId: v.todoId as number, tagId: v.tagId as number }
 }
 
@@ -746,7 +761,7 @@ function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] 
     dateRangeIncludeNoDate: (v.dateRangeIncludeNoDate as boolean) ?? false,
     personIds: v.personIds as number[] | null,
     ...(v.personFilterMode !== undefined ? { personFilterMode: v.personFilterMode as SavedView['filters']['personFilterMode'] } : {}),
-    tagIds: v.tagIds as number[] | null,
+    // v29 retired tags; pre-v29 backups may carry tagIds — silently dropped here.
     orgIds: v.orgIds as number[] | null,
     ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as SavedView['filters']['orgFilterMode'] } : {}),
     ...(v.statusIds !== undefined ? { statusIds: v.statusIds as number[] | null } : {}),
@@ -882,9 +897,11 @@ export interface ImportData {
   projects: Project[]
   todos: TodoItem[]
   people: Person[]
-  tags: Tag[]
+  /** Pre-v29 tag rows preserved so restore can bake names into titles, then dropped. */
+  tags?: ImportTag[]
   listInsets: ImportListInset[]
-  todoTags: TodoTag[]
+  /** Pre-v29 tag-join rows preserved for the same reason as `tags`. */
+  todoTags?: ImportTodoTag[]
   todoPeople: TodoPerson[]
   todoOrgs: TodoOrg[]
   personOrgs: PersonOrg[]
@@ -959,7 +976,9 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       projects: ((raw.projects ?? []) as Record<string, unknown>[]).map(pickProject),
       todos: ((raw.todos ?? []) as Record<string, unknown>[]).map(pickTodo),
       people: ((raw.people ?? []) as Record<string, unknown>[]).map(pickPerson),
-      tags: ((raw.tags ?? []) as Record<string, unknown>[]).map(pickTag),
+      ...(Array.isArray(raw.tags) && raw.tags.length > 0
+        ? { tags: (raw.tags as Record<string, unknown>[]).map(pickTag) }
+        : {}),
       listInsets: ((raw.listInsets ?? []) as Record<string, unknown>[])
         .map(pickListInset)
         // Drop legacy-preset insets AND insets whose attributeFilter was stripped
@@ -968,7 +987,9 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
         // Keep only rows that will produce a usable entry: either a v23+
         // listDefinitionId or a legacy shape restore can translate.
         .filter(li => li.listDefinitionId != null || li.preset != null || li.attributeFilter != null),
-      todoTags: ((raw.todoTags ?? []) as Record<string, unknown>[]).map(pickTodoTag),
+      ...(Array.isArray(raw.todoTags) && raw.todoTags.length > 0
+        ? { todoTags: (raw.todoTags as Record<string, unknown>[]).map(pickTodoTag) }
+        : {}),
       todoPeople: ((raw.todoPeople ?? []) as Record<string, unknown>[]).map(pickTodoPerson),
       todoOrgs: ((raw.todoOrgs ?? []) as Record<string, unknown>[]).map(pickTodoOrg),
       personOrgs: migratePersonOrgs(raw),

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
@@ -19,8 +18,6 @@ const mockBulk = {
   setStatus: vi.fn(),
   quickAssignPerson: vi.fn(),
   quickUnassignPerson: vi.fn(),
-  quickAssignTag: vi.fn(),
-  quickUnassignTag: vi.fn(),
   quickAssignOrg: vi.fn(),
   quickUnassignOrg: vi.fn(),
 }
@@ -35,7 +32,6 @@ function getRow(): HTMLElement {
 
 function resetStores() {
   usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useTagStore.setState({ tags: [] })
   useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
   useStatusStore.setState({ statuses: [] })
   useProjectStore.setState({ projects: [] })

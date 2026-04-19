@@ -70,7 +70,6 @@ describe('popSlotToCanvas', () => {
         showHiddenStatuses: false,
         personIds: null,
         personFilterMode: 'include-orgs',
-        tagIds: null,
         orgIds: null,
         orgFilterMode: 'include-people',
         statusIds: null,

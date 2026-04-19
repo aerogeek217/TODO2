@@ -64,15 +64,6 @@ function OrgIcon() {
   )
 }
 
-function TagIcon() {
-  return (
-    <svg {...svgBase}>
-      <path d="M8.5 2.5H13.5V7.5L7.5 13.5L2.5 8.5L8.5 2.5Z" />
-      <circle cx="10.5" cy="5.5" r="0.8" />
-    </svg>
-  )
-}
-
 function ProjectIcon() {
   return (
     <svg {...svgBase}>
@@ -92,7 +83,6 @@ export const groupByIcons: Record<ListGroupBy, React.ReactNode> = {
   deadline: <DeadlineIcon />,
   people: <PeopleIcon />,
   org: <OrgIcon />,
-  tag: <TagIcon />,
   project: <ProjectIcon />,
   status: <StatusIconGlyph />,
 }

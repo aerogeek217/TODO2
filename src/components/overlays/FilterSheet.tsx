@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react'
 import { useLocation } from 'react-router'
 import { useFilterStore, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -57,14 +56,13 @@ function EntityFilterList({
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
-  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
   const people = usePersonStore((s) => s.people)
-  const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
   const statuses = useStatusStore((s) => s.statuses)
   const location = useLocation()
 
-  const [openSection, setOpenSection] = useState<'toggles' | 'date' | 'people' | 'orgs' | 'tags' | 'status' | null>(null)
+  const [openSection, setOpenSection] = useState<'toggles' | 'date' | 'people' | 'orgs' | 'status' | null>(null)
   const [entitySearch, setEntitySearch] = useState('')
 
   useEffect(() => {
@@ -90,15 +88,10 @@ export function FilterSheet() {
   if (!isOpen) return null
 
   const allPeopleIds = people.map((p) => p.id!)
-  const allTagIds = tags.map((t) => t.id!)
   const allOrgIds = orgs.map((o) => o.id!)
 
   const togglePerson = (id: number) => {
     setPersonIds(toggleItem(filters.personIds, id, [0, ...allPeopleIds]))
-  }
-
-  const toggleTag = (id: number) => {
-    setTagIds(toggleItem(filters.tagIds, id, [0, ...allTagIds]))
   }
 
   const toggleOrg = (id: number) => {
@@ -351,30 +344,6 @@ export function FilterSheet() {
                     onSearchChange={setEntitySearch}
                   />
                 </>
-              )}
-            </div>
-          )}
-
-          {/* Tags */}
-          {tags.length > 0 && (
-            <div className={styles.entitySection}>
-              <div className={styles.entityHeader} onClick={() => handleToggleSection('tags')}>
-                <span className={styles.filterLabel}>
-                  Tags
-                  {filters.tagIds !== null && <span className={styles.activeCount}>{filters.tagIds.size}</span>}
-                </span>
-                <span className={`${styles.entityChevron} ${openSection === 'tags' ? styles.entityChevronOpen : ''}`}>▸</span>
-              </div>
-              {openSection === 'tags' && (
-                <EntityFilterList
-                  entities={tags}
-                  filterIds={filters.tagIds}
-                  onToggle={toggleTag}
-                  noneLabel="No tags"
-                  searchPlaceholder="Search tags..."
-                  searchText={entitySearch}
-                  onSearchChange={setEntitySearch}
-                />
               )}
             </div>
           )}

@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router'
 import { DashboardView } from '../../views/DashboardView'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
@@ -24,7 +23,6 @@ function emptyPredicate(): TodoPredicate {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,
@@ -68,14 +66,6 @@ vi.mock('../../data/person-repository', () => ({
     unassignPerson: async () => {},
   },
 }))
-vi.mock('../../data/tag-repository', () => ({
-  tagRepository: {
-    getAll: async () => [],
-    getTagsForTodos: async () => new Map(),
-    assignTag: async () => {},
-    unassignTag: async () => {},
-  },
-}))
 vi.mock('../../data/org-repository', () => ({
   orgRepository: {
     getAll: async () => [],
@@ -111,7 +101,6 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
 function resetStores() {
   useTodoStore.setState({ todos: [] })
   usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
   useStatusStore.setState({ statuses: [] })
   useProjectStore.setState({ projects: [] })
@@ -124,7 +113,6 @@ function resetStores() {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,

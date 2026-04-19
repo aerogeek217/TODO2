@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import type { ScheduledValue } from '../models/scheduled-value'
 
@@ -137,24 +136,6 @@ export function useBulkActions() {
     }
   }, [])
 
-  const quickAssignTag = useCallback((todoId: number, tagId: number) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useTagStore.getState().bulkAssignTag(ids, tagId)
-    } else {
-      useTagStore.getState().assignTag(todoId, tagId)
-    }
-  }, [])
-
-  const quickUnassignTag = useCallback((todoId: number, tagId: number) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useTagStore.getState().bulkUnassignTag(ids, tagId)
-    } else {
-      useTagStore.getState().unassignTag(todoId, tagId)
-    }
-  }, [])
-
   const quickAssignOrg = useCallback((todoId: number, orgId: number) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
@@ -182,8 +163,6 @@ export function useBulkActions() {
     setProject,
     quickAssignPerson,
     quickUnassignPerson,
-    quickAssignTag,
-    quickUnassignTag,
     quickAssignOrg,
     quickUnassignOrg,
   }

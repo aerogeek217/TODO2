@@ -1,6 +1,6 @@
 import { useMemo, useCallback, useRef } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import type { PersistedTodoItem, Person, Tag } from '../../models'
+import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { buildHierarchy } from '../../utils/hierarchy'
 import { useIsMobile } from '../../hooks/use-is-mobile'
@@ -11,7 +11,6 @@ import styles from './TaskList.module.css'
 interface TaskListProps {
   todos: PersistedTodoItem[]
   assignedPeopleMap?: Map<number, Person[]>
-  assignedTagsMap?: Map<number, Tag[]>
   ghostIds?: Set<number>
   draggable?: boolean
   sectionKey?: string
@@ -55,7 +54,6 @@ function DraggableRow({
 export function TaskList({
   todos,
   assignedPeopleMap,
-  assignedTagsMap,
   ghostIds,
   draggable,
   sectionKey,
@@ -120,7 +118,6 @@ export function TaskList({
           <RowComponent
             todo={item.todo}
             assignedPeople={item.assignedPeople}
-            assignedTags={assignedTagsMap?.get(item.todo.id)}
             indentLevel={item.indentLevel}
             hasChildren={item.hasChildren}
             isExpanded={item.isExpanded}

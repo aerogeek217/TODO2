@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
-import type { ListInset, PersistedTodoItem, Person, Tag, Org, TodoPredicate } from '../../models'
+import type { ListInset, PersistedTodoItem, Person, Org, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
@@ -12,12 +12,10 @@ import styles from './ListInsetNode.module.css'
 export function DraggableTaskRow({
   todo,
   assignedPeople,
-  assignedTags,
   onOpenDetail,
 }: {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  assignedTags?: Tag[]
   onOpenDetail?: (todoId: number) => void
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -36,7 +34,6 @@ export function DraggableTaskRow({
       <TaskRow
         todo={todo}
         assignedPeople={assignedPeople}
-        assignedTags={assignedTags}
         onOpenDetail={onOpenDetail ? () => onOpenDetail(todo.id) : undefined}
         compact
       />
@@ -48,7 +45,6 @@ export interface ListInsetNodeData {
   inset: ListInset
   allTodos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>
-  assignedTagsMap?: Map<number, Tag[]>
   assignedOrgsMap?: Map<number, Org[]>
   personOrgMap?: Map<number, number[]>
   onDelete: (id: number) => void
@@ -65,7 +61,6 @@ type ListInsetNodeType = ListInsetNodeData
 function describePredicate(p: TodoPredicate): string {
   const parts: string[] = []
   if (p.personIds?.length) parts.push(`${p.personIds.length} person filter`)
-  if (p.tagIds?.length) parts.push(`${p.tagIds.length} tag filter`)
   if (p.orgIds?.length) parts.push(`${p.orgIds.length} org filter`)
   if (p.statusIds?.length) parts.push(`${p.statusIds.length} status filter`)
   if (p.dateRangeStart || p.dateRangeEnd) parts.push('date range')
@@ -131,11 +126,10 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           listDefinitionId={inset.listDefinitionId}
           onResult={({ count }) => setCount(count)}
           emptyClassName={styles.emptyMessage}
-          renderRow={({ todo, assignedPeople, assignedTags }) => (
+          renderRow={({ todo, assignedPeople }) => (
             <DraggableTaskRow
               todo={todo}
               assignedPeople={assignedPeople}
-              assignedTags={assignedTags}
               onOpenDetail={onOpenDetail}
             />
           )}

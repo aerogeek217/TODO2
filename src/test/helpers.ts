@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Person, Tag, Project, Org, ScheduledValue } from '../models'
+import type { PersistedTodoItem, Person, Project, Org, ScheduledValue } from '../models'
 import { db } from '../data/database'
 
 export function makeTodo(
@@ -19,14 +19,6 @@ export function makePerson(overrides: Partial<Person> & { id: number }): Person 
     name: `Person ${overrides.id}`,
     initials: `P${overrides.id}`,
     color: '#537FE7',
-    ...overrides,
-  }
-}
-
-export function makeTag(overrides: Partial<Tag> & { id: number }): Tag & { id: number } {
-  return {
-    name: `Tag ${overrides.id}`,
-    color: '#FF5733',
     ...overrides,
   }
 }

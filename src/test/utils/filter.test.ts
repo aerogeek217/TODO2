@@ -24,20 +24,18 @@ describe('matchTodoText', () => {
       projectName: 'foo project',
       personNames: ['Foo Person'],
       orgNames: ['OtherOrg'],
-      tagNames: [],
       statusName: 'InProgress',
     })
     expect(r.matched).toBe(true)
     expect(r.fields).toEqual(['title', 'notes', 'project', 'person'])
   })
 
-  it('matches on project / person / org / status / tag via ctx', () => {
+  it('matches on project / person / org / status via ctx', () => {
     const todo = { title: 't', notes: 'n' }
     expect(matchTodoText(todo, 'projx', { projectName: 'ProjX' }).fields).toEqual(['project'])
     expect(matchTodoText(todo, 'alice', { personNames: ['Alice', 'Bob'] }).fields).toEqual(['person'])
     expect(matchTodoText(todo, 'acme', { orgNames: ['Acme Corp'] }).fields).toEqual(['org'])
     expect(matchTodoText(todo, 'blocked', { statusName: 'Blocked' }).fields).toEqual(['status'])
-    expect(matchTodoText(todo, 'home', { tagNames: ['work', 'home'] }).fields).toEqual(['tag'])
   })
 
   it('is null-safe for missing todo fields and missing context', () => {

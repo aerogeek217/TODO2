@@ -10,7 +10,6 @@ import { useCanvasStore } from '../stores/canvas-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useUIStore } from '../stores/ui-store'
 import { useStatusStore } from '../stores/status-store'
@@ -45,7 +44,6 @@ export function CanvasPage() {
   const { projects, loadByCanvas: loadProjects, add: addProject, updatePosition, bulkUpdatePositions, update: updateProject, remove: removeProject } = useProjectStore()
   const { todos, loadByCanvas: loadTodos, add: addTodo, addAt: addTodoAt, update: updateTodo, applyMutations } = useTodoStore()
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments, assignPerson } = usePersonStore()
-  const { tags, assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments, assignTag } = useTagStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap, assignOrg } = useOrgStore()
   const { openEditPopup, showBulkConfirmation } = useUIStore()
   const { statuses } = useStatusStore()
@@ -84,11 +82,10 @@ export function CanvasPage() {
 
   useEffect(() => {
     loadPeople()
-    loadTags()
     loadOrgs()
     loadTaskboard()
     loadDefinitions()
-  }, [loadPeople, loadTags, loadOrgs, loadTaskboard, loadDefinitions])
+  }, [loadPeople, loadOrgs, loadTaskboard, loadDefinitions])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -130,15 +127,14 @@ export function CanvasPage() {
     }
   }, [todos, applyMutations])
 
-  // Load people and tag assignments when todos change
+  // Load people and org assignments when todos change
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
     if (todoIds.length > 0) {
       loadAssignments(todoIds)
-      loadTagAssignments(todoIds)
       loadOrgAssignments(todoIds)
     }
-  }, [todos, loadAssignments, loadTagAssignments, loadOrgAssignments])
+  }, [todos, loadAssignments, loadOrgAssignments])
 
   // Consume pending canvas navigation target from command palette
   const pendingTarget = useUIStore((s) => s.pendingCanvasTarget)
@@ -211,7 +207,7 @@ export function CanvasPage() {
   // "only" variants hide tasks entirely (handled in todosByProject); regular variants ghost here
   const filterGhostIds = useMemo(() => {
     const hasGhostFilter =
-      filters.personIds !== null || filters.tagIds !== null || filters.orgIds !== null ||
+      filters.personIds !== null || filters.orgIds !== null ||
       filters.statusIds !== null || filters.searchText !== '' ||
       filters.dateRangeStart !== null || filters.dateRangeEnd !== null
     if (!hasGhostFilter) return undefined
@@ -226,10 +222,8 @@ export function CanvasPage() {
         if (s?.hideByDefault) continue
       }
       const people = assignedPeopleMap.get(todo.id) ?? []
-      const tags = assignedTagsMap.get(todo.id) ?? []
       const orgs = assignedOrgsMap.get(todo.id) ?? []
       const personIds = people.map((p) => p.id!)
-      const tagIds = tags.map((t) => t.id!)
       const pOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const dOrgIds = orgs.map((o) => o.id!)
       const searchCtx = filters.searchText
@@ -237,16 +231,15 @@ export function CanvasPage() {
             projectName: todo.projectId != null ? projects.find(p => p.id === todo.projectId)?.name : undefined,
             personNames: people.map(p => p.name),
             orgNames: orgs.map(o => o.name),
-            tagNames: tags.map(tg => tg.name),
             statusName: todo.statusId != null ? statuses.find(s => s.id === todo.statusId)?.name : undefined,
           }
         : undefined
-      if (!matchesFilter(filters, todo, personIds, tagIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses, undefined, searchCtx)) {
+      if (!matchesFilter(filters, todo, personIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses, undefined, searchCtx)) {
         ghost.add(todo.id)
       }
     }
     return ghost.size > 0 ? ghost : undefined
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses, projects])
+  }, [todos, filters, assignedPeopleMap, assignedOrgsMap, personOrgMap, statuses, projects])
 
   // Merge filter ghosts and drag-child ghosts
   const ghostTodoIds = useMemo(() => {
@@ -276,7 +269,7 @@ export function CanvasPage() {
       if (!selectedCanvasId) return
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
-      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
+      const { title, resolved } = parseTaskInput(rawTitle, people, currentProjects, orgs)
       const fd = getFilterDefaults(useFilterStore.getState().filters)
       supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
@@ -284,10 +277,10 @@ export function CanvasPage() {
       await applyNlpMetadata(
         id, resolved,
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
-        updateTodo, assignPerson, assignTag, assignOrg,
+        updateTodo, assignPerson, assignOrg,
       )
     },
-    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
+    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, people, orgs]
   )
 
   const handleInsertTask = useCallback(
@@ -295,7 +288,7 @@ export function CanvasPage() {
       if (!selectedCanvasId) return -1
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
-      const { title, resolved } = parseTaskInput(rawTitle, people, tags, currentProjects, orgs)
+      const { title, resolved } = parseTaskInput(rawTitle, people, currentProjects, orgs)
       const fd = getFilterDefaults(useFilterStore.getState().filters)
       supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
@@ -309,11 +302,11 @@ export function CanvasPage() {
       await applyNlpMetadata(
         id, resolved,
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
-        updateTodo, assignPerson, assignTag, assignOrg,
+        updateTodo, assignPerson, assignOrg,
       )
       return id
     },
-    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignTag, assignOrg, people, tags, orgs]
+    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignOrg, people, orgs]
   )
 
   const handleDeleteProject = useCallback(
@@ -553,7 +546,6 @@ export function CanvasPage() {
           projects={projects}
           todosByProject={todosByProject}
           assignedPeopleMap={assignedPeopleMap}
-          assignedTagsMap={assignedTagsMap}
           assignedOrgsMap={assignedOrgsMap}
           personOrgMap={personOrgMap}
           ghostTodoIds={ghostTodoIds}
@@ -569,7 +561,6 @@ export function CanvasPage() {
           floatingCalendars={floatingCalendars}
           floatingCalendarHandlers={floatingCalendarHandlers}
           allPeople={people}
-          allTags={tags}
           allOrgs={orgs}
           taskboardEntries={taskboardEntries}
           isTaskboardCollapsed={isTaskboardCollapsed}
@@ -622,7 +613,6 @@ export function CanvasPage() {
           mode="edit"
           {...taskEdit.editProps}
           allPeople={taskEdit.allPeople}
-          allTags={taskEdit.allTags}
           allOrgs={taskEdit.allOrgs}
           onClose={taskEdit.closeEditPopup}
           {...taskEdit.entityCreators}
@@ -634,16 +624,12 @@ export function CanvasPage() {
           mode="create"
           assignedPeople={[]}
           allPeople={taskEdit.allPeople}
-          assignedTags={[]}
-          allTags={taskEdit.allTags}
           onClose={taskEdit.closeEditPopup}
           onCreate={taskEdit.onCreate}
           assignedOrgs={[]}
           allOrgs={taskEdit.allOrgs}
           onAssignPerson={() => {}}
           onUnassignPerson={() => {}}
-          onAssignTag={() => {}}
-          onUnassignTag={() => {}}
           onAssignOrg={() => {}}
           onUnassignOrg={() => {}}
           {...taskEdit.entityCreators}

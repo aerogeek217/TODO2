@@ -5,7 +5,6 @@ import { useSettingsStore } from './settings-store'
 import { useTodoStore } from './todo-store'
 import { useProjectStore } from './project-store'
 import { usePersonStore } from './person-store'
-import { useTagStore } from './tag-store'
 import { useListInsetStore } from './list-inset-store'
 import { useOrgStore } from './org-store'
 import { useSavedViewStore } from './saved-view-store'
@@ -28,7 +27,6 @@ async function refreshAllStores() {
     useTodoStore.getState().loadAll(),
     useProjectStore.getState().loadAll(),
     usePersonStore.getState().load(),
-    useTagStore.getState().load(),
     useOrgStore.getState().load(),
     useOrgStore.getState().loadPersonOrgMap(),
     useStatusStore.getState().load(),
@@ -46,7 +44,6 @@ async function refreshAllStores() {
   if (todoIds.length > 0) {
     await Promise.all([
       usePersonStore.getState().loadAssignments(todoIds),
-      useTagStore.getState().loadAssignments(todoIds),
       useOrgStore.getState().loadAssignments(todoIds),
     ])
   }

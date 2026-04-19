@@ -37,15 +37,15 @@ describe('useFilterStore', () => {
   it('showHiddenStatuses false hides tasks with hideByDefault statuses', () => {
     const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
 
-    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, undefined, statuses)).toBe(false)
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), undefined, undefined, undefined, undefined, undefined, statuses)).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, statuses)).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 2 }), undefined, undefined, undefined, undefined, statuses)).toBe(true)
   })
 
   it('showHiddenStatuses true shows tasks with hideByDefault statuses', () => {
     useFilterStore.getState().setShowHiddenStatuses(true)
     const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
 
-    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, undefined, statuses)).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, statuses)).toBe(true)
   })
 
   it('matchesFilter checks person assignment', () => {
@@ -67,32 +67,12 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 4 }), [])).toBe(true)
   })
 
-  it('matchesFilter checks tag assignment', () => {
-    useFilterStore.getState().setTagIds(new Set([10]))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [10])).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [20])).toBe(false)
-    // unassigned tasks filtered out when "None" (0) not in set
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [])).toBe(false)
-    expect(matchesFilter(f(), makeTodo({ id: 4 }), [], [])).toBe(false)
-  })
-
-  it('matchesFilter shows untagged tasks when None (0) is in tagIds', () => {
-    useFilterStore.getState().setTagIds(new Set([0, 10]))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [10])).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [20])).toBe(false)
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [])).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 4 }), [], [])).toBe(true)
-  })
-
   it('clearAll resets all filters', () => {
-    useFilterStore.getState().setTagIds(new Set([1]))
+    useFilterStore.getState().setPersonIds(new Set([1]))
     useFilterStore.getState().setShowCompleted(true)
     useFilterStore.getState().clearAll()
 
     const { filters, isActive } = useFilterStore.getState()
-    expect(filters.tagIds).toBe(null)
     expect(filters.personIds).toBe(null)
     expect(filters.showCompleted).toBe(false)
     expect(filters.showHiddenStatuses).toBe(false)
@@ -103,40 +83,40 @@ describe('useFilterStore', () => {
     useFilterStore.getState().setOrgIds(new Set([10]))
 
     // Task with direct org 10
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [], [10])).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10])).toBe(true)
     // Task with direct org 20
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [], [20])).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20])).toBe(false)
   })
 
   it('setOrgIds filters by person org (assignedPersonOrgIds)', () => {
     useFilterStore.getState().setOrgIds(new Set([10]))
 
     // Task whose assigned person belongs to org 10
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
     // Task whose assigned person belongs to org 20
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [1], [], [20], [])).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 2 }), [1], [20], [])).toBe(false)
   })
 
   it('setOrgIds with 0 (None): tasks with no org assignment pass', () => {
     useFilterStore.getState().setOrgIds(new Set([0]))
 
     // Task with no org at all
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [], [])).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [])).toBe(true)
     // Task with no assigned people/orgs
     expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
     // Task with an org should NOT match when only 0 is in set
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [], [10], [10])).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [10], [10])).toBe(false)
   })
 
   it('combined person-org and direct-org: either match passes', () => {
     useFilterStore.getState().setOrgIds(new Set([10, 20]))
 
     // Only person-org match
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
     // Only direct-org match
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [], [20])).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20])).toBe(true)
     // Neither match
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [], [30], [30])).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [30], [30])).toBe(false)
   })
 
   it('setStatusIds filters by statusId', () => {
@@ -304,12 +284,12 @@ describe('useFilterStore', () => {
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 19),
-      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 20),
-      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
     })
 
     it('relative tomorrow anchor lets a same-day task through as a start bound', () => {
@@ -322,12 +302,12 @@ describe('useFilterStore', () => {
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 15),
-      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 16),
-      }), undefined, undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
     })
 
     it('fixed anchor behaves like the legacy ISO-string range', () => {
@@ -366,9 +346,9 @@ describe('useFilterStore', () => {
       useFilterStore.getState().setOrgIds(new Set([10]))
 
       // Person-org match
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
       // Direct-org match
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [], [10])).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [10])).toBe(true)
     })
 
     it('direct-only ignores person-org, matches only direct-org', () => {
@@ -376,16 +356,16 @@ describe('useFilterStore', () => {
       useFilterStore.getState().setOrgFilterMode('direct-only')
 
       // Person-org only — should be excluded
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [], [10], [])).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(false)
       // Direct-org match
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [], [10])).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [10])).toBe(true)
     })
 
     it('direct-only with task having both person-org and direct-org matches on direct', () => {
       useFilterStore.getState().setOrgIds(new Set([10]))
       useFilterStore.getState().setOrgFilterMode('direct-only')
 
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [], [10], [10])).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [10])).toBe(true)
     })
 
     it('direct-only with None (0): no direct org passes', () => {
@@ -393,15 +373,15 @@ describe('useFilterStore', () => {
       useFilterStore.getState().setOrgFilterMode('direct-only')
 
       // No direct org, but has person-org — should still pass (no direct org = None)
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
       // No org at all
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [], [])).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [])).toBe(true)
     })
 
     it('undefined orgFilterMode defaults to include-people', () => {
       useFilterStore.getState().setOrgIds(new Set([10]))
 
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [], [10], [])).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
     })
   })
 
@@ -428,7 +408,6 @@ describe('useFilterStore', () => {
         f(),
         todos,
         assignedPeopleMap as never,
-        undefined,
         personOrgMap,
         assignedOrgsMap as never,
       )
@@ -458,7 +437,6 @@ describe('useFilterStore', () => {
         f(),
         todos,
         assignedPeopleMap as never,
-        undefined,
         personOrgMap,
         assignedOrgsMap as never,
       )
@@ -481,9 +459,9 @@ describe('useFilterStore', () => {
       // include-orgs is the default
       // Person 5 belongs to org 10; task has direct org 10 but no direct person
       const filterPersonOrgIds = new Set([10])
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [], [10], filterPersonOrgIds)).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10], filterPersonOrgIds)).toBe(true)
       // Task with unrelated org is excluded
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [], [20], filterPersonOrgIds)).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20], filterPersonOrgIds)).toBe(false)
     })
 
     it('direct-only ignores filter-person-org expansion', () => {
@@ -491,8 +469,8 @@ describe('useFilterStore', () => {
       useFilterStore.getState().setPersonFilterMode('direct-only')
       const filterPersonOrgIds = new Set([10])
       // Even with filterPersonOrgIds supplied, direct-only only matches direct person
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [], [10], filterPersonOrgIds)).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [5], [], [], [], filterPersonOrgIds)).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10], filterPersonOrgIds)).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2 }), [5], [], [], filterPersonOrgIds)).toBe(true)
     })
 
     it('clearAll resets personFilterMode to include-orgs', () => {
@@ -525,7 +503,6 @@ describe('useFilterStore', () => {
         f(),
         todos,
         assignedPeopleMap as never,
-        undefined,
         personOrgMap,
         assignedOrgsMap as never,
       )
@@ -554,7 +531,6 @@ describe('useFilterStore', () => {
         f(),
         todos,
         assignedPeopleMap as never,
-        undefined,
         personOrgMap,
         assignedOrgsMap as never,
       )
@@ -572,7 +548,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       showHiddenStatuses: false,
       personIds: new Set([5, 10]),
       personFilterMode: 'direct-only' as const,
-      tagIds: new Set([1]),
       orgIds: null,
       orgFilterMode: 'include-people' as const,
       statusIds: new Set([0, 3]),
@@ -609,7 +584,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       showHiddenStatuses: false,
       personIds: null,
       personFilterMode: 'include-orgs' as const,
-      tagIds: null,
       orgIds: null,
       orgFilterMode: 'include-people' as const,
       statusIds: null,

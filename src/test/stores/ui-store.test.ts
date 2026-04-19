@@ -169,8 +169,8 @@ describe('useUIStore', () => {
   })
 
   it('setListGroupBy changes grouping', () => {
-    useUIStore.getState().setListGroupBy('tag')
-    expect(useUIStore.getState().listGroupBy).toBe('tag')
+    useUIStore.getState().setListGroupBy('date')
+    expect(useUIStore.getState().listGroupBy).toBe('date')
 
     useUIStore.getState().setListGroupBy('none')
     expect(useUIStore.getState().listGroupBy).toBe('none')

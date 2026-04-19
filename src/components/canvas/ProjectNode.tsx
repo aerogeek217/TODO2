@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useContext, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDroppable } from '@dnd-kit/core'
-import type { Project, PersistedTodoItem, Person, Tag, Status } from '../../models'
+import type { Project, PersistedTodoItem, Person, Status } from '../../models'
 import { SortableTaskList } from './SortableTaskList'
 import { DragInsertContext } from './DragInsertContext'
 import { useUIStore } from '../../stores/ui-store'
@@ -52,7 +52,6 @@ export interface ProjectNodeData {
   project: Project
   todos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>
-  assignedTagsMap?: Map<number, Tag[]>
   ghostTodoIds?: Set<number>
   onAddTask: (projectId: number, title: string) => void
   onInsertTask?: (title: string, projectId: number, beforeTodoId: number | null, parentId: number | undefined) => Promise<number>
@@ -70,7 +69,7 @@ export interface ProjectNodeData {
 type ProjectNodeType = ProjectNodeData
 
 function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeType }) {
-  const { project, todos, assignedPeopleMap, assignedTagsMap, ghostTodoIds, onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail, onResizeProject, onResizeSnap, onSetAlignmentLines, onSetColor, onBringToFront } = data
+  const { project, todos, assignedPeopleMap, ghostTodoIds, onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail, onResizeProject, onResizeSnap, onSetAlignmentLines, onSetColor, onBringToFront } = data
   const { getZoom } = useReactFlow()
   const statuses = useStatusStore((s) => s.statuses)
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id!, s as Status])), [statuses])
@@ -290,7 +289,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
                 projectId={project.id!}
                 todos={todos}
                 assignedPeopleMap={assignedPeopleMap}
-                assignedTagsMap={assignedTagsMap}
                 ghostTodoIds={ghostTodoIds}
                 onOpenDetail={onOpenDetail}
                 onInsertTask={onInsertTask ? (title, beforeId, parentId) => onInsertTask(title, project.id!, beforeId, parentId) : undefined}
@@ -374,7 +372,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
         <PlainTextExportPopup
           sections={[{ key: `project-${project.id}`, label: project.name, todos }]}
           assignedPeopleMap={assignedPeopleMap}
-          assignedTagsMap={assignedTagsMap ?? new Map()}
           statusMap={statusMap}
           onClose={() => setShowExport(false)}
         />,

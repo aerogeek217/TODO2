@@ -7,7 +7,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { PersistedTodoItem, Person, Tag } from '../../models'
+import type { PersistedTodoItem, Person } from '../../models'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { TaskRow } from '../task/TaskRow'
 import styles from './TaskboardNode.module.css'
@@ -16,7 +16,6 @@ export interface TaskboardNodeData {
   entries: import('../../models').TaskboardEntry[]
   allTodos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>
-  assignedTagsMap?: Map<number, Tag[]>
   ghostTodoIds?: Set<number>
   showCompleted?: boolean
   showHiddenStatuses?: boolean
@@ -32,13 +31,12 @@ export interface TaskboardNodeData {
 type TaskboardNodeType = TaskboardNodeData
 
 function SortableTaskboardEntry({
-  entryId, index, todo, assignedPeople, assignedTags, ghost, onOpenDetail,
+  entryId, index, todo, assignedPeople, ghost, onOpenDetail,
 }: {
   entryId: number
   index: number
   todo: PersistedTodoItem
   assignedPeople: Person[] | undefined
-  assignedTags: Tag[] | undefined
   ghost?: boolean
   onOpenDetail?: (todoId: number) => void
 }) {
@@ -52,14 +50,14 @@ function SortableTaskboardEntry({
     <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} ghost={ghost} compact onOpenDetail={onOpenDetail} />
+        <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} />
       </div>
     </div>
   )
 }
 
 function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
-  const { entries, allTodos, assignedPeopleMap, assignedTagsMap, ghostTodoIds, showCompleted, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
+  const { entries, allTodos, assignedPeopleMap, ghostTodoIds, showCompleted, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
@@ -178,7 +176,6 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                     index={i}
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
-                    assignedTags={assignedTagsMap?.get(todo.id)}
                     ghost={ghostTodoIds?.has(todo.id)}
                     onOpenDetail={onOpenDetail}
                   />

@@ -62,18 +62,13 @@ export const todoRepository = {
   async restoreWithAssignments(
     todo: PersistedTodoItem,
     personIds: number[],
-    tagIds: number[],
     orgIds: number[] = [],
   ): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoTags, db.todoPeople, db.todoOrgs], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs], async () => {
       await db.todos.put(todo)
       for (const personId of personIds) {
         const existing = await db.todoPeople.where({ todoId: todo.id, personId }).count()
         if (existing === 0) await db.todoPeople.add({ todoId: todo.id, personId })
-      }
-      for (const tagId of tagIds) {
-        const existing = await db.todoTags.where({ todoId: todo.id, tagId }).count()
-        if (existing === 0) await db.todoTags.add({ todoId: todo.id, tagId })
       }
       for (const orgId of orgIds) {
         const existing = await db.todoOrgs.where({ todoId: todo.id, orgId }).count()
@@ -83,13 +78,12 @@ export const todoRepository = {
   },
 
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoTags, db.todoPeople, db.todoOrgs, db.taskboardEntries], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboardEntries], async () => {
       // Clear parentId on children so they don't become orphaned
       const children = await db.todos.where('parentId').equals(id).toArray()
       for (const child of children) {
         await db.todos.update(child.id!, { parentId: undefined })
       }
-      await db.todoTags.where('todoId').equals(id).delete()
       await db.todoPeople.where('todoId').equals(id).delete()
       await db.todoOrgs.where('todoId').equals(id).delete()
       await db.taskboardEntries.where('todoId').equals(id).delete()
@@ -99,13 +93,12 @@ export const todoRepository = {
 
   async bulkDelete(ids: number[]): Promise<void> {
     if (ids.length === 0) return
-    await db.transaction('rw', [db.todos, db.todoTags, db.todoPeople, db.todoOrgs, db.taskboardEntries], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboardEntries], async () => {
       for (const id of ids) {
         const children = await db.todos.where('parentId').equals(id).toArray()
         for (const child of children) {
           await db.todos.update(child.id!, { parentId: undefined })
         }
-        await db.todoTags.where('todoId').equals(id).delete()
         await db.todoPeople.where('todoId').equals(id).delete()
         await db.todoOrgs.where('todoId').equals(id).delete()
         await db.taskboardEntries.where('todoId').equals(id).delete()

@@ -6,10 +6,10 @@ export enum AppView {
   Settings = 'settings',
 }
 
-export type ListSortBy = 'date' | 'scheduled' | 'deadline' | 'people' | 'tag' | 'project' | 'org' | 'status'
+export type ListSortBy = 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status'
 
 /** What ListView / list-definition groups tasks by. `'none'` = flat list (no grouping). */
-export type ListGroupBy = 'none' | 'date' | 'scheduled' | 'deadline' | 'people' | 'tag' | 'project' | 'org' | 'status'
+export type ListGroupBy = 'none' | 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status'
 
 /** Sort applied within each group (or across the whole list when groupBy='none').
  *  Kept aligned with preset `ListSort` so ListView state round-trips losslessly

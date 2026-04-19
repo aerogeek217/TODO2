@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem, Person, Tag, Project } from '../../models'
+import type { PersistedTodoItem, Person, Project } from '../../models'
 import {
   buildDateSections,
   buildFlatSection,
   buildPeopleSections,
-  buildTagSections,
   buildProjectSections,
   addGhostParents,
   itemSortComparator,
@@ -122,30 +121,6 @@ describe('buildPeopleSections', () => {
   })
 })
 
-describe('buildTagSections', () => {
-  it('groups by tag with untagged fallback', () => {
-    const tags: Tag[] = [
-      { id: 1, name: 'Bug', color: '#f00' },
-      { id: 2, name: 'Feature', color: '#0f0' },
-    ]
-    const todos = [
-      makeTodo({ id: 10 }),
-      makeTodo({ id: 11 }),
-      makeTodo({ id: 12 }),
-    ]
-    const assignedTagsMap = new Map<number, Tag[]>([
-      [10, [tags[0]]],
-      [11, [tags[1]]],
-    ])
-
-    const sections = buildTagSections(todos, tags, assignedTagsMap)
-    expect(sections).toHaveLength(3)
-    expect(sections[0].label).toBe('Bug')
-    expect(sections[1].label).toBe('Feature')
-    expect(sections[2].label).toBe('No Tags')
-  })
-})
-
 describe('buildProjectSections', () => {
   it('groups by project with no-project fallback', () => {
     const projects: Project[] = [
@@ -256,8 +231,8 @@ describe('encodeGroupSort', () => {
   })
 
   it('grouped by categorical + manual sort → grouping=by-field, sort=sort-order', () => {
-    const { sort, grouping } = encodeGroupSort('tag', 'manual')
-    expect(grouping).toEqual({ kind: 'by-field', by: 'tag' })
+    const { sort, grouping } = encodeGroupSort('project', 'manual')
+    expect(grouping).toEqual({ kind: 'by-field', by: 'project' })
     expect(sort).toEqual({ kind: 'sort-order' })
   })
 })

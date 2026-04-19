@@ -19,10 +19,10 @@ export function toggleItem<T>(current: Set<T> | null, item: T, allItems: T[]): S
 }
 
 /** Field kinds that a text search can hit. Ordered so UI groupings render consistently. */
-export type TextMatchField = 'title' | 'notes' | 'project' | 'person' | 'org' | 'status' | 'tag'
+export type TextMatchField = 'title' | 'notes' | 'project' | 'person' | 'org' | 'status'
 
 export const TEXT_MATCH_FIELDS: readonly TextMatchField[] = [
-  'title', 'notes', 'project', 'person', 'org', 'status', 'tag',
+  'title', 'notes', 'project', 'person', 'org', 'status',
 ] as const
 
 /** Resolved names for the fields beyond `title`/`notes` (which live on the todo itself). */
@@ -30,7 +30,6 @@ export interface TextMatchContext {
   projectName?: string
   personNames?: string[]
   orgNames?: string[]
-  tagNames?: string[]
   statusName?: string
 }
 
@@ -59,6 +58,5 @@ export function matchTodoText(
   if (ctx?.personNames && ctx.personNames.some(n => n.toLowerCase().includes(q))) fields.push('person')
   if (ctx?.orgNames && ctx.orgNames.some(n => n.toLowerCase().includes(q))) fields.push('org')
   if (ctx?.statusName && ctx.statusName.toLowerCase().includes(q)) fields.push('status')
-  if (ctx?.tagNames && ctx.tagNames.some(n => n.toLowerCase().includes(q))) fields.push('tag')
   return { matched: fields.length > 0, fields }
 }

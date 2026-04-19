@@ -19,19 +19,17 @@ export interface AuditReport {
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
   const [
-    todos, projects, canvases, people, tags, orgs, statuses,
-    todoPeople, todoTags, todoOrgs, personOrgs, taskboardEntries,
+    todos, projects, canvases, people, orgs, statuses,
+    todoPeople, todoOrgs, personOrgs, taskboardEntries,
     listInsets, floatingNotes, floatingCalendars,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
     db.canvases.toArray(),
     db.people.toArray(),
-    db.tags.toArray(),
     db.orgs.toArray(),
     db.statuses.toArray(),
     db.todoPeople.toArray(),
-    db.todoTags.toArray(),
     db.todoOrgs.toArray(),
     db.personOrgs.toArray(),
     db.taskboardEntries.toArray(),
@@ -44,7 +42,6 @@ export async function auditData(): Promise<AuditReport> {
   const projectIds = new Set(projects.map((p) => p.id!))
   const canvasIds = new Set(canvases.map((c) => c.id!))
   const personIds = new Set(people.map((p) => p.id!))
-  const tagIds = new Set(tags.map((t) => t.id!))
   const orgIds = new Set(orgs.map((o) => o.id!))
   const statusIds = new Set(statuses.map((s) => s.id!))
 
@@ -61,19 +58,6 @@ export async function auditData(): Promise<AuditReport> {
       description: 'Person assignments referencing deleted todos or people',
       count: orphanedTodoPeople.length,
       ids: orphanedTodoPeople.map((r) => r.id!),
-      fix: 'delete',
-    })
-  }
-
-  const orphanedTodoTags = todoTags.filter(
-    (r) => !todoIds.has(r.todoId) || !tagIds.has(r.tagId),
-  )
-  if (orphanedTodoTags.length > 0) {
-    issues.push({
-      table: 'todoTags',
-      description: 'Tag assignments referencing deleted todos or tags',
-      count: orphanedTodoTags.length,
-      ids: orphanedTodoTags.map((r) => r.id!),
       fix: 'delete',
     })
   }
@@ -256,7 +240,7 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   let cleaned = 0
   await db.transaction(
     'rw',
-    [db.todos, db.projects, db.todoPeople, db.todoTags, db.todoOrgs,
+    [db.todos, db.projects, db.todoPeople, db.todoOrgs,
      db.personOrgs, db.taskboardEntries, db.listInsets, db.notes,
      db.floatingNotes, db.floatingCalendars, db.statuses],
     async () => {

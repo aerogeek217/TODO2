@@ -11,7 +11,7 @@ export interface ParsedToken {
    * 'deadline' covers explicit deadline syntax: `by <date>` / `!<date>` — resolves
    * to a concrete `dueDate`, never fuzzy.
    */
-  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'tag' | 'project' | 'recurrence'
+  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'project' | 'recurrence'
   value: string
   raw: string
   start: number
@@ -25,12 +25,10 @@ export interface ParsedInput {
   dueDate?: Date
   recurrence?: RecurrenceType
   persons: string[]
-  tags: string[]
   projects: string[]
 }
 
 const PERSON_PATTERN = /@"([^"]+)"|@(\w+)/g
-const TAG_PATTERN = /#([A-Za-z]\w*)/g
 const PROJECT_PATTERN = /\/(\w+)/g
 
 // Multi-word fuzzy schedule windows. Pushed before single-word DATE_KEYWORDS so
@@ -157,18 +155,6 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
-  // Extract tags (#tag)
-  TAG_PATTERN.lastIndex = 0
-  while ((match = TAG_PATTERN.exec(text)) !== null) {
-    tokens.push({
-      type: 'tag',
-      value: match[1].trim(),
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
   // Extract projects (/name) — only when preceded by whitespace or at start
   PROJECT_PATTERN.lastIndex = 0
   while ((match = PROJECT_PATTERN.exec(text)) !== null) {
@@ -246,7 +232,7 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
-  // Remove cross-type overlaps; earlier-pushed tokens win (person/tag/project > fuzzy-schedule > date > recurrence)
+  // Remove cross-type overlaps; earlier-pushed tokens win (person/project > fuzzy-schedule > date > recurrence)
   const deduped: ParsedToken[] = []
   for (const token of tokens) {
     const overlaps = deduped.some((t) => token.start < t.end && token.end > t.start)
@@ -270,7 +256,6 @@ export function parseInput(text: string): ParsedInput {
   let dueDate: Date | undefined
   let recurrence: RecurrenceType | undefined
   const persons: string[] = []
-  const tags: string[] = []
   const projects: string[] = []
   const now = new Date()
 
@@ -295,9 +280,8 @@ export function parseInput(text: string): ParsedInput {
       recurrence = RECURRENCE_MAP[token.value]
     }
     if (token.type === 'person') persons.push(token.value)
-    if (token.type === 'tag') tags.push(token.value)
     if (token.type === 'project') projects.push(token.value)
   }
 
-  return { title, tokens, scheduledDate, dueDate, recurrence, persons, tags, projects }
+  return { title, tokens, scheduledDate, dueDate, recurrence, persons, projects }
 }

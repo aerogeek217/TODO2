@@ -4,7 +4,7 @@ interface ReassignDialogProps {
   taskTitle: string
   fromLabel: string
   toLabel: string
-  attribute: 'person' | 'tag'
+  attribute: 'person'
   onConfirm: () => void
   onCancel: () => void
 }
@@ -13,11 +13,10 @@ export function ReassignDialog({
   taskTitle,
   fromLabel,
   toLabel,
-  attribute,
   onConfirm,
   onCancel,
 }: ReassignDialogProps) {
-  const noun = attribute === 'person' ? 'person' : 'tag'
+  const noun = 'person'
 
   return (
     <>

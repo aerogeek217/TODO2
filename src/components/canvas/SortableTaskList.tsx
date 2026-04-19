@@ -4,7 +4,7 @@ import {
   SortableContext,
   useSortable,
 } from '@dnd-kit/sortable'
-import type { PersistedTodoItem, Person, Tag } from '../../models'
+import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import { buildHierarchy } from '../../utils/hierarchy'
@@ -18,7 +18,6 @@ interface SortableTaskListProps {
   projectId: number
   todos: PersistedTodoItem[]
   assignedPeopleMap?: Map<number, Person[]>
-  assignedTagsMap?: Map<number, Tag[]>
   ghostTodoIds?: Set<number>
   onOpenDetail?: (todoId: number) => void
   onInsertTask?: (title: string, beforeTodoId: number | null, parentId: number | undefined) => Promise<number>
@@ -27,7 +26,6 @@ interface SortableTaskListProps {
 function SortableTaskRow({
   todo,
   assignedPeople,
-  assignedTags,
   indentLevel,
   hasChildren,
   isExpanded,
@@ -41,7 +39,6 @@ function SortableTaskRow({
 }: {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  assignedTags?: Tag[]
   indentLevel?: number
   hasChildren?: boolean
   isExpanded?: boolean
@@ -77,7 +74,6 @@ function SortableTaskRow({
       <TaskRow
         todo={todo}
         assignedPeople={assignedPeople}
-        assignedTags={assignedTags}
         indentLevel={indentLevel}
         hasChildren={hasChildren}
         isExpanded={isExpanded}
@@ -103,7 +99,6 @@ export function SortableTaskList({
   projectId,
   todos,
   assignedPeopleMap,
-  assignedTagsMap,
   ghostTodoIds,
   onOpenDetail,
   onInsertTask,
@@ -392,7 +387,6 @@ export function SortableTaskList({
           <SortableTaskRow
             todo={item.todo}
             assignedPeople={assignedPeopleMap?.get(item.todo.id)}
-            assignedTags={assignedTagsMap?.get(item.todo.id)}
             indentLevel={item.indentLevel}
             hasChildren={item.hasChildren}
             isExpanded={item.isExpanded}

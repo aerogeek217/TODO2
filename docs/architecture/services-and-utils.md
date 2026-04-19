@@ -18,13 +18,13 @@ Detail reference for `src/services/` (non-UI logic), `src/hooks/` (custom React 
 | task-placement | services/task-placement.ts | Pure functions for task ordering: computeInsertionSort, placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, moveTasksInDirection, findOrphans, normalizeSortOrders, shouldNormalize |
 | pasteTasksAt | services/clipboard.ts | Paste cut tasks at a target position using placeMultipleAt + applyMutations; clears clipboard after paste |
 | drop-resolver | services/drop-resolver.ts | Pure drop target resolution: resolveDropTarget (DropResolution), resolveDropPreview (preview indicators) |
-| parseInput | services/natural-language-parser.ts | Parses raw text for NLP tokens: `@person` or `@"First Last"`, `#tag`, `/project`, date keywords (→ `scheduledDate`), deadline syntax `by <date>` / `!<day>` (→ `dueDate`, fuzzy windows resolve to end-of-window), recurrence (`every week`, `every quarter`, `repeat daily`); returns ParsedInput with cleaned title, persons[], tags[], projects[], scheduledDate, dueDate, recurrence |
+| parseInput | services/natural-language-parser.ts | Parses raw text for NLP tokens: `@person` or `@"First Last"`, `/project`, date keywords (→ `scheduledDate`), deadline syntax `by <date>` / `!<day>` (→ `dueDate`, fuzzy windows resolve to end-of-window), recurrence (`every week`, `every quarter`, `repeat daily`); returns ParsedInput with cleaned title, persons[], projects[], scheduledDate, dueDate, recurrence. (`#tag` is no longer extracted — v29 retired the tags feature; `#text` survives as plain title content for text search) |
 | makeRecurrenceRule | services/recurrence.ts | Build a RecurrenceRule, capturing originalDayOfMonth for monthly/quarterly/yearly |
 | computeNextDueDate | services/recurrence.ts | Advances a due date by one recurrence interval, skipping past dates |
 | recurrenceAnchor, advanceRecurring | services/recurrence.ts | `recurrenceAnchor(todo)` picks `dueDate` first, falls back to a precise `scheduledDate` (returns null for fuzzy-only). `advanceRecurring(todo)` computes the next-occurrence field update — either `{dueDate}` or `{scheduledDate: {kind:'date', value}}` — used by `todo-store.toggleComplete` / `bulkSetCompleted` and CalendarView virtual instances |
 | generateRecurringInstances | services/recurrence.ts | Generates all recurring dates within a date range for calendar display |
-| resolveInput | services/nlp-resolver.ts | Matches parsed person/tag/project/org names against known entities (case-insensitive exact/prefix/initials/first-name); person-first for @tokens, unmatched fall through to org matching; returns personIds[], tagIds[], orgIds[], projectId, unmatched names |
-| parseTaskInput | services/nlp-task-creator.ts | Combines parseInput + resolveInput; applyNlpMetadata assigns parsed metadata (people, tags, orgs) after task creation |
+| resolveInput | services/nlp-resolver.ts | Matches parsed person/project/org names against known entities (case-insensitive exact/prefix/initials/first-name); person-first for @tokens, unmatched fall through to org matching; returns personIds[], orgIds[], projectId, unmatched names |
+| parseTaskInput | services/nlp-task-creator.ts | Combines parseInput + resolveInput; applyNlpMetadata assigns parsed metadata (people, orgs) after task creation |
 
 ## Hooks
 
@@ -33,12 +33,12 @@ Detail reference for `src/services/` (non-UI logic), `src/hooks/` (custom React 
 | useIsMobile | hooks/use-is-mobile.ts | Reactive mobile detection hook (640px breakpoint via matchMedia + useSyncExternalStore) |
 | useResolvedTheme | hooks/use-resolved-theme.ts | Reactive resolved theme hook ('light' \| 'dark'); combines Zustand themeMode with OS prefers-color-scheme via useSyncExternalStore |
 | useKeyboardShortcuts | hooks/use-keyboard-shortcuts.ts | Global keyboard shortcut handler: undo/redo, task navigation (Arrow/Home/End), task actions (Enter/Space/Delete/Insert), movement (Ctrl+Arrow/Tab), chord navigation (G then C/L/A/S), filter focus (F), select all (Ctrl+A), keyboard shortcuts modal (?) |
-| useBulkActions | hooks/use-bulk-actions.ts | Hook wrapping mutations with multi-select awareness (toggleComplete, remove, setStatus, setScheduled, setDeadline, setProject, quickAssign/Unassign person/tag/org); called directly by TaskRow |
+| useBulkActions | hooks/use-bulk-actions.ts | Hook wrapping mutations with multi-select awareness (toggleComplete, remove, setStatus, setScheduled, setDeadline, setProject, quickAssign/Unassign person/org); called directly by TaskRow |
 | useTaskEditCallbacks | hooks/use-task-edit-callbacks.ts | Shared TaskEditPopup wiring: onCreate (NLP + metadata), editProps (assignments, actions), entityCreators — used by CanvasPage, DashboardView, ListView, CalendarView |
 | useCanvasDnD | hooks/use-canvas-dnd.ts | DnD state, edge panning, drag handlers (including handleDragCancel), drop execution; shared resetDragState cleans up on Escape/focus-loss |
 | useInlineEdit | hooks/use-inline-edit.ts | Inline title editing: state, focus, save/cancel, 250ms click-to-edit timer |
 | useClickOutside | hooks/use-click-outside.ts | Click-outside detection hook for closing dropdowns/menus |
-| useNlpAutocomplete | hooks/use-nlp-autocomplete.ts | Hook for `@`/`#`/`/` autocomplete in input fields: tracks trigger position, filters people/orgs/tags/projects, handles arrow/Tab/Enter/Escape navigation |
+| useNlpAutocomplete | hooks/use-nlp-autocomplete.ts | Hook for `@`/`/` autocomplete in input fields: tracks trigger position, filters people/orgs/projects, handles arrow/Tab/Enter/Escape navigation |
 
 ## Utils
 
@@ -52,5 +52,5 @@ Detail reference for `src/services/` (non-UI logic), `src/hooks/` (custom React 
 | getFlatVisualOrder | utils/hierarchy.ts | Returns todos in visual display order (parent, children, parent, children, ...) |
 | generateInitials | utils/person.ts | Generates 1-3 character uppercase initials from a name |
 | toggleItem | utils/filter.ts | Toggle an item in a null-or-Set filter (null = all shown, Set = explicit selection) |
-| getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, tags, orgs, status) from active filter criteria; strips sentinel 0 values |
-| supplementWithFilterDefaults | utils/filter-defaults.ts | Supplement resolved NLP output with filter-inferred defaults (person/tag/org); mutates resolved in place (void return) |
+| getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, orgs, status) from active filter criteria; strips sentinel 0 values |
+| supplementWithFilterDefaults | utils/filter-defaults.ts | Supplement resolved NLP output with filter-inferred defaults (person/org); mutates resolved in place (void return) |

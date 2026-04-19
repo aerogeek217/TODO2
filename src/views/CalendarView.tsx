@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useProjectStore } from '../stores/project-store'
 import { useUIStore } from '../stores/ui-store'
@@ -85,7 +84,6 @@ function formatWeekRange(days: Date[]): string {
 export function CalendarView() {
   const { todos, loadAll, update: updateTodo } = useTodoStore()
   const { people, load: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
-  const { load: loadTags, assignedTagsMap, loadAssignments: loadTagAssignments } = useTagStore()
   const { orgs, personOrgMap, assignedOrgsMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { openEditPopup } = useUIStore()
@@ -102,19 +100,17 @@ export function CalendarView() {
   useEffect(() => {
     loadAll()
     loadPeople()
-    loadTags()
     loadOrgs()
     loadAllProjects()
-  }, [loadAll, loadPeople, loadTags, loadOrgs, loadAllProjects])
+  }, [loadAll, loadPeople, loadOrgs, loadAllProjects])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
     if (todoIds.length > 0) {
       loadPeopleAssignments(todoIds)
-      loadTagAssignments(todoIds)
       loadOrgAssignments(todoIds)
     }
-  }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
+  }, [todos, loadPeopleAssignments, loadOrgAssignments])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -122,8 +118,8 @@ export function CalendarView() {
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const activeTodos = useMemo(() => {
-    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, projectsById])
+    return applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById)
+  }, [todos, filters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById])
 
   const [today, setToday] = useState(() => startOfDay(new Date()))
 
@@ -473,7 +469,6 @@ export function CalendarView() {
           mode="edit"
           {...taskEdit.editProps}
           allPeople={taskEdit.allPeople}
-          allTags={taskEdit.allTags}
           allOrgs={taskEdit.allOrgs}
           onClose={taskEdit.closeEditPopup}
           {...taskEdit.entityCreators}
@@ -485,16 +480,12 @@ export function CalendarView() {
           mode="create"
           assignedPeople={[]}
           allPeople={taskEdit.allPeople}
-          assignedTags={[]}
-          allTags={taskEdit.allTags}
           onClose={taskEdit.closeEditPopup}
           onCreate={taskEdit.onCreate}
           assignedOrgs={[]}
           allOrgs={taskEdit.allOrgs}
           onAssignPerson={() => {}}
           onUnassignPerson={() => {}}
-          onAssignTag={() => {}}
-          onUnassignTag={() => {}}
           onAssignOrg={() => {}}
           onUnassignOrg={() => {}}
           {...taskEdit.entityCreators}

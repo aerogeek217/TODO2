@@ -8,7 +8,6 @@ function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,
@@ -27,7 +26,6 @@ describe('getFilterDefaults', () => {
   it('returns empty defaults when no filters active', () => {
     const result = getFilterDefaults(makeFilters())
     expect(result.personIds).toEqual([])
-    expect(result.tagIds).toEqual([])
     expect(result.orgIds).toEqual([])
     expect(result.statusId).toBeUndefined()
   })
@@ -47,11 +45,6 @@ describe('getFilterDefaults', () => {
   it('strips 0 (None) from personIds', () => {
     const result = getFilterDefaults(makeFilters({ personIds: new Set([0, 5]) }))
     expect(result.personIds).toEqual([5])
-  })
-
-  it('strips 0 from tagIds', () => {
-    const result = getFilterDefaults(makeFilters({ tagIds: new Set([0, 10]) }))
-    expect(result.tagIds).toEqual([10])
   })
 
   it('strips 0 from orgIds', () => {
@@ -82,12 +75,10 @@ describe('getFilterDefaults', () => {
   it('combination of multiple filter types', () => {
     const result = getFilterDefaults(makeFilters({
       personIds: new Set([5, 10]),
-      tagIds: new Set([20]),
       orgIds: new Set([0, 30]),
       statusIds: new Set([7]),
     }))
     expect(result.personIds).toHaveLength(2)
-    expect(result.tagIds).toEqual([20])
     expect(result.orgIds).toEqual([30])
     expect(result.statusId).toBe(7)
   })

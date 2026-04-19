@@ -1,9 +1,8 @@
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person, Tag } from '../../models'
+import type { PersistedTodoItem, Person } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
@@ -69,7 +68,6 @@ function PortalDropdown({ anchorRef, onClickOutside, children }: {
 interface TaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  assignedTags?: Tag[]
   indentLevel?: number
   hasChildren?: boolean
   isExpanded?: boolean
@@ -82,33 +80,31 @@ interface TaskRowProps {
   compact?: boolean
   /** Task is in clipboard (cut) */
   cut?: boolean
-  /** Extra label shown after tags (e.g. "Modified 3d ago") */
+  /** Extra label shown after the date stack (e.g. "Modified 3d ago") */
   extraLabel?: string
   /** Render an `in <project>` sub-line under the title (rail lens / search). */
   showContext?: boolean
 }
 
 export const TaskRow = memo(function TaskRow({
-  todo, assignedPeople, assignedTags, indentLevel = 0,
+  todo, assignedPeople, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
   onSelect, onToggleExpand, onOpenDetail, cut, extraLabel, showContext,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
+  const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
   const [showScheduledMenu, setShowScheduledMenu] = useState(false)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
   const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
-  const tagsRef = useRef<HTMLDivElement>(null)
   const scheduledAnchorRef = useRef<HTMLButtonElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
   const notesIconRef = useRef<HTMLButtonElement>(null)
 
   // Read entity lists from stores
   const allPeople = usePersonStore((s) => s.people)
-  const allTags = useTagStore((s) => s.tags)
   const allOrgs = useOrgStore((s) => s.orgs)
   const projects = useProjectStore((s) => s.projects)
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
@@ -143,7 +139,6 @@ export const TaskRow = memo(function TaskRow({
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
   const hasPeople = (assignedPeople && assignedPeople.length > 0) || assignedOrgs.length > 0
-  const hasTags = assignedTags && assignedTags.length > 0
 
   // Click-outside handlers
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
@@ -170,13 +165,6 @@ export const TaskRow = memo(function TaskRow({
     else bulk.quickAssignPerson(todo.id, id)
   }
 
-  const toggleTag = (id: number) => {
-    if (ghost) return
-    const isAssigned = assignedTags?.some((t) => t.id === id)
-    if (isAssigned) bulk.quickUnassignTag(todo.id, id)
-    else bulk.quickAssignTag(todo.id, id)
-  }
-
   const toggleOrg = (orgId: number) => {
     if (ghost) return
     if (assignedOrgIds.has(orgId)) bulk.quickUnassignOrg(todo.id, orgId)
@@ -189,14 +177,7 @@ export const TaskRow = memo(function TaskRow({
     bulk.quickAssignPerson(todo.id, id)
   }
 
-  const handleCreateTag = async (name: string) => {
-    if (ghost) return
-    const id = await useTagStore.getState().add(name)
-    bulk.quickAssignTag(todo.id, id)
-  }
-
   const assignedPeopleIds = useMemo(() => new Set((assignedPeople ?? []).map(p => p.id!)), [assignedPeople])
-  const assignedTagIds = useMemo(() => new Set((assignedTags ?? []).map(t => t.id!)), [assignedTags])
 
   return (
     <div
@@ -389,40 +370,6 @@ export const TaskRow = memo(function TaskRow({
                   onToggle={(id) => id < 0 ? toggleOrg(-id) : togglePerson(id)}
                   onCreate={handleCreatePerson}
                   placeholder="Search people & orgs..."
-                />
-              </div>
-            </PortalDropdown>,
-            document.body,
-          )}
-        </div>
-      )}
-
-      {/* Tags chip group */}
-      {!ghost && (
-        <div className={`${styles.chipGroup} ${hasTags ? '' : styles.chipGroupEmpty}`} ref={tagsRef}>
-          {hasTags ? (
-            assignedTags!.map((tag) => (
-              <button key={tag.id} className={styles.tagChip} style={{ color: tag.color, borderColor: tag.color }}
-                onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'tags' ? null : 'tags') }}
-                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'tag', tagId: tag.id!, tagName: tag.name, tagColor: tag.color }) }}>
-                {tag.name}
-              </button>
-            ))
-          ) : (
-            <button className={styles.chipTrigger}
-              onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'tags' ? null : 'tags') }}>
-              #
-            </button>
-          )}
-          {openDropdown === 'tags' && createPortal(
-            <PortalDropdown anchorRef={tagsRef} onClickOutside={closeDropdown}>
-              <div className={styles.chipDropdown}>
-                <ChipSelector
-                  items={allTags.map(t => ({ id: t.id!, name: t.name, color: t.color }))}
-                  selectedIds={assignedTagIds}
-                  onToggle={(id) => toggleTag(id)}
-                  onCreate={handleCreateTag}
-                  placeholder="Search tags..."
                 />
               </div>
             </PortalDropdown>,

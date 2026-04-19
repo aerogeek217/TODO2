@@ -1,5 +1,5 @@
 import { useCallback, memo } from 'react'
-import type { PersistedTodoItem, Person, Tag } from '../../models'
+import type { PersistedTodoItem, Person } from '../../models'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -15,7 +15,6 @@ import styles from './MobileTaskRow.module.css'
 interface MobileTaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  assignedTags?: Tag[]
   indentLevel?: number
   hasChildren?: boolean
   isExpanded?: boolean
@@ -28,7 +27,7 @@ interface MobileTaskRowProps {
 }
 
 export const MobileTaskRow = memo(function MobileTaskRow({
-  todo, assignedPeople, assignedTags, indentLevel = 0,
+  todo, assignedPeople, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
   onSelect, onToggleExpand, onOpenDetail, cut,
 }: MobileTaskRowProps) {
@@ -64,10 +63,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   // Metadata for line 2
   const people = assignedPeople ?? []
-  const tags = assignedTags ?? []
   const hasMetadata =
     !!todo.scheduledDate || !!todo.dueDate ||
-    people.length > 0 || tags.length > 0 || assignedOrgs.length > 0 ||
+    people.length > 0 || assignedOrgs.length > 0 ||
     !!todo.notes || !!todo.progress
 
   return (
@@ -163,13 +161,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           {people.length > 0 && (
             <AvatarStack people={people} max={3} size="sm" />
           )}
-
-          {tags.slice(0, 1).map((t) => (
-            <span key={t.id} className={styles.tagChip} style={{ borderColor: t.color || 'var(--color-border)', color: t.color || 'var(--color-text-secondary)' }}>
-              {t.name}
-            </span>
-          ))}
-          {tags.length > 1 && <span className={styles.overflow}>+{tags.length - 1}</span>}
 
           {assignedOrgs.length > 0 && (
             <AvatarStack people={assignedOrgs} max={3} size="sm" variant="hollow" />

@@ -135,7 +135,7 @@ describe('ensureSeededListDefinitions — post-v24 signature', () => {
       membership: { kind: 'custom', predicate: {
         showCompleted: false, showHiddenStatuses: false,
         personIds: null, personFilterMode: 'include-orgs',
-        tagIds: null, orgIds: null, orgFilterMode: 'include-people',
+        orgIds: null, orgFilterMode: 'include-people',
         statusIds: null, searchText: '', dateField: 'date',
         dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false,
         hasScheduled: null, hasDeadline: null,

@@ -3,7 +3,6 @@ import { useLocation } from 'react-router'
 import { useFilterStore, fixedAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
 import type { DateAnchor, PersistedTodoItem } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -17,7 +16,7 @@ import { StatusIcon } from '../shared/StatusIcon'
 import { DateAnchorInput } from '../shared/DateAnchorInput'
 import styles from './TopBar.module.css'
 
-const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status', 'tag']
+const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   title: 'Title',
   notes: 'Notes',
@@ -25,7 +24,6 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   person: 'Person',
   org: 'Org',
   status: 'Status',
-  tag: 'Tag',
 }
 const MAX_GROUP_PREVIEW = 5
 
@@ -44,8 +42,6 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
       return <svg {...common}><rect x="3" y="5" width="10" height="9" /><path d="M6 14v-3h4v3M6 8h.01M10 8h.01" /></svg>
     case 'status':
       return <svg {...common}><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none" /></svg>
-    case 'tag':
-      return <span className={styles.miniListGroupIcon} style={{ fontSize: 12 }}>#</span>
   }
 }
 
@@ -463,7 +459,7 @@ function EntityDropdownItems({
 
 
 export function TopBar() {
-  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setTagIds, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -472,7 +468,6 @@ export function TopBar() {
   const todos = useTodoStore((s) => s.todos)
   const projects = useProjectStore((s) => s.projects)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
@@ -488,17 +483,15 @@ export function TopBar() {
     setLocalSearch(storeSearchText)
   }, [storeSearchText])
   const people = usePersonStore((s) => s.people)
-  const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
   const statuses = useStatusStore((s) => s.statuses)
 
   // Track which filter dropdown is in "preview empty" mode:
   // when opened with all selected, show unchecked visually but don't commit to store
   // until user clicks an item. If closed without selection, stays at all (null).
-  const [previewEmpty, setPreviewEmpty] = useState<'people' | 'org' | 'tags' | 'status' | null>(null)
+  const [previewEmpty, setPreviewEmpty] = useState<'people' | 'org' | 'status' | null>(null)
 
   const peopleActive = filters.personIds !== null
-  const tagsActive = filters.tagIds !== null
   const orgsActive = filters.orgIds !== null
   const statusActive = filters.statusIds !== null
   const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null || filters.hasScheduled !== null || filters.hasDeadline !== null
@@ -515,18 +508,6 @@ export function TopBar() {
       setPersonIds(toggleItem(filters.personIds, personId, allIds))
     },
     [filters.personIds, people, setPersonIds, previewEmpty],
-  )
-  const handleTagToggle = useCallback(
-    (tagId: number) => {
-      if (previewEmpty === 'tags') {
-        setPreviewEmpty(null)
-        setTagIds(new Set([tagId]))
-        return
-      }
-      const allIds = [0, ...tags.map((t) => t.id!)]
-      setTagIds(toggleItem(filters.tagIds, tagId, allIds))
-    },
-    [filters.tagIds, tags, setTagIds, previewEmpty],
   )
   const handleOrgToggle = useCallback(
     (orgId: number) => {
@@ -554,12 +535,10 @@ export function TopBar() {
   )
 
   const isPersonChecked = (id: number) => previewEmpty === 'people' ? false : filters.personIds === null || filters.personIds.has(id)
-  const isTagChecked = (id: number) => previewEmpty === 'tags' ? false : filters.tagIds === null || filters.tagIds.has(id)
   const isOrgChecked = (id: number) => previewEmpty === 'org' ? false : filters.orgIds === null || filters.orgIds.has(id)
   const isStatusChecked = (id: number) => previewEmpty === 'status' ? false : filters.statusIds === null || filters.statusIds.has(id)
 
   const peopleNone = previewEmpty === 'people' || (filters.personIds !== null && filters.personIds.size === 0)
-  const tagsNone = previewEmpty === 'tags' || (filters.tagIds !== null && filters.tagIds.size === 0)
   const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
   const statusNone = previewEmpty === 'status' || (filters.statusIds !== null && filters.statusIds.size === 0)
 
@@ -569,23 +548,21 @@ export function TopBar() {
   const miniListGroups = useMemo(() => {
     if (!localSearch || !searchFocused) return null
     const groups: Record<TextMatchField, PersistedTodoItem[]> = {
-      title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
+      title: [], notes: [], project: [], person: [], org: [], status: [],
     }
     for (const t of todos) {
       const people = assignedPeopleMap.get(t.id) ?? []
       const orgs = assignedOrgsMap.get(t.id) ?? []
-      const tags = assignedTagsMap.get(t.id) ?? []
       const { fields } = matchTodoText(t, localSearch, {
         projectName: t.projectId != null ? projectsById.get(t.projectId)?.name : undefined,
         personNames: people.map(p => p.name),
         orgNames: orgs.map(o => o.name),
-        tagNames: tags.map(tg => tg.name),
         statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
       })
       for (const f of fields) groups[f].push(t)
     }
     return groups
-  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, projectsById, statusesById])
+  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, projectsById, statusesById])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
@@ -731,29 +708,6 @@ export function TopBar() {
                     onToggle={handleOrgToggle}
                   />
                 </>
-              )}
-            </FilterDropdown>
-          )}
-
-          {tags.length > 0 && (
-            <FilterDropdown
-              label={<><span className={styles.filterIcon}>#</span> Tags</>}
-              active={tagsActive || previewEmpty === 'tags'}
-              allSelected={!tagsActive && previewEmpty !== 'tags'}
-              noneSelected={tagsNone}
-              onSelectAll={() => { setPreviewEmpty(null); setTagIds(null) }}
-              onDeselectAll={() => { setPreviewEmpty(null); setTagIds(new Set()) }}
-              onOpen={() => { if (!tagsActive) setPreviewEmpty('tags') }}
-              onClose={() => { if (previewEmpty === 'tags') setPreviewEmpty(null) }}
-              searchable
-            >
-              {(searchText: string) => (
-                <EntityDropdownItems
-                  searchText={searchText}
-                  entities={tags}
-                  isChecked={isTagChecked}
-                  onToggle={handleTagToggle}
-                />
               )}
             </FilterDropdown>
           )}

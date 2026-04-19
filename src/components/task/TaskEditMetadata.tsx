@@ -1,4 +1,4 @@
-import type { Person, Tag, Org, RecurrenceType, PersistedTodoItem } from '../../models'
+import type { Person, Org, RecurrenceType, PersistedTodoItem } from '../../models'
 import type { ScheduledValue } from '../../models/scheduled-value'
 import { ChipSelector } from '../shared/ChipSelector'
 import { SchedulePicker } from '../shared/SchedulePicker'
@@ -39,18 +39,9 @@ interface TaskEditMetadataProps {
   onToggleOrg: (id: number) => void
   onCreatePerson?: (name: string) => Promise<void>
 
-  // Tags
-  assignedTags: Tag[]
-  allTags: Tag[]
-  assignedTagIds: Set<number>
-  tagsRef: React.RefObject<HTMLDivElement | null>
-  onToggleTag: (id: number) => void
-  onAssignTag?: (tagId: number) => void
-  onCreateTag?: (name: string) => Promise<void>
-
   // Dropdown state
-  openDropdown: 'people' | 'tags' | 'orgs' | 'project' | null
-  setOpenDropdown: (dd: 'people' | 'tags' | 'orgs' | 'project' | null) => void
+  openDropdown: 'people' | 'orgs' | 'project' | null
+  setOpenDropdown: (dd: 'people' | 'orgs' | 'project' | null) => void
 
   // For project select save in edit mode
   todo?: PersistedTodoItem
@@ -65,7 +56,6 @@ export function TaskEditMetadata({
   assignedPeople, assignedOrgs, allPeople, allOrgs,
   assignedPeopleIds, assignedOrgIds, isEdit,
   peopleRef, orgsRef, onTogglePerson, onToggleOrg, onCreatePerson,
-  assignedTags, allTags, assignedTagIds, tagsRef, onToggleTag, onAssignTag, onCreateTag,
   openDropdown, setOpenDropdown,
   todo, onUpdate,
 }: TaskEditMetadataProps) {
@@ -223,36 +213,6 @@ export function TaskEditMetadata({
         </div>
       </div>
 
-      {/* Tags */}
-      <div className={styles.metaRow}>
-        <span className={styles.metaLabel}>Tags</span>
-        <div className={styles.chipArea} ref={tagsRef}>
-          {assignedTags.map((tag) => (
-            <button key={tag.id} className={styles.tagChip} style={{ borderColor: tag.color, color: tag.color }}
-              onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
-              {tag.name}
-              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onToggleTag(tag.id!) }}>&times;</span>
-            </button>
-          ))}
-          {onAssignTag && (
-            <button className={styles.chipAddBtn}
-              onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
-              + Add
-            </button>
-          )}
-          {openDropdown === 'tags' && (
-            <div className={styles.chipDropdown}>
-              <ChipSelector
-                items={allTags.toSorted((a, b) => a.name.localeCompare(b.name)).map(t => ({ id: t.id!, name: t.name, color: t.color }))}
-                selectedIds={assignedTagIds}
-                onToggle={onToggleTag}
-                onCreate={onCreateTag}
-                placeholder="Search tags..."
-              />
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

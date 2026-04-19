@@ -22,7 +22,7 @@ import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
 import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from './cascade-shift'
-import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, TaskboardEntry, FloatingCalendar, FloatingNote } from '../../models'
+import type { Project, PersistedTodoItem, Person, Org, ListInset, TaskboardEntry, FloatingCalendar, FloatingNote } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
@@ -128,7 +128,6 @@ interface CanvasViewProps {
   projects: Project[]
   todosByProject: Map<number, PersistedTodoItem[]>
   assignedPeopleMap: Map<number, Person[]>
-  assignedTagsMap?: Map<number, Tag[]>
   assignedOrgsMap?: Map<number, Org[]>
   personOrgMap?: Map<number, number[]>
   ghostTodoIds?: Set<number>
@@ -144,7 +143,6 @@ interface CanvasViewProps {
   floatingCalendars?: FloatingCalendar[]
   floatingCalendarHandlers?: FloatingCalendarHandlers
   allPeople?: Person[]
-  allTags?: Tag[]
   allOrgs?: Org[]
   taskboardEntries?: TaskboardEntry[]
   isTaskboardCollapsed?: boolean
@@ -164,7 +162,6 @@ export function CanvasView({
   projects,
   todosByProject,
   assignedPeopleMap,
-  assignedTagsMap,
   assignedOrgsMap,
   personOrgMap,
   ghostTodoIds,
@@ -180,7 +177,6 @@ export function CanvasView({
   floatingCalendars,
   floatingCalendarHandlers,
   allPeople,
-  allTags,
   allOrgs,
   taskboardEntries,
   isTaskboardCollapsed,
@@ -310,7 +306,6 @@ export function CanvasView({
         project,
         todos: todosByProject.get(project.id!) ?? [],
         assignedPeopleMap,
-        assignedTagsMap,
         ghostTodoIds,
         onAddTask,
         onInsertTask,
@@ -338,7 +333,6 @@ export function CanvasView({
         inset,
         allTodos: allTodos ?? [],
         assignedPeopleMap,
-        assignedTagsMap,
         assignedOrgsMap,
         personOrgMap,
         onDelete: onDeleteInset ?? NOOP,
@@ -395,7 +389,6 @@ export function CanvasView({
         entries: taskboardEntries ?? [],
         allTodos: allTodos ?? [],
         assignedPeopleMap,
-        assignedTagsMap,
         ghostTodoIds,
         showCompleted,
         showHiddenStatuses,
@@ -418,13 +411,13 @@ export function CanvasView({
     nodeDataCacheRef.current = nextCache
     return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...tbNode]
   }, [
-    projects, todosByProject, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, ghostTodoIds,
+    projects, todosByProject, assignedPeopleMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
     onResizeProject, onSetProjectColor, handleResizeSnap, getBringToFrontFn,
     listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset, handleResizeSnapByNodeId,
     floatingNotes, onDeleteNote, onResizeNote,
     floatingCalendars, onDeleteCalendar, onResizeCalendar,
-    allPeople, allTags, allOrgs,
+    allPeople, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard, hasRailTaskboard,
     showCompleted, showHiddenStatuses, activeDragTodoId,
   ])

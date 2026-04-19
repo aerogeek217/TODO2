@@ -22,18 +22,6 @@ describe('natural-language-parser', () => {
     expect(result.persons).toEqual(['Mike', 'Sarah'])
   })
 
-  it('extracts #tag', () => {
-    const result = parseInput('Fix timeout #bugs')
-    expect(result.title).toBe('Fix timeout')
-    expect(result.tags).toEqual(['bugs'])
-  })
-
-  it('extracts multiple #tags', () => {
-    const result = parseInput('Fix timeout #bugs #urgent')
-    expect(result.title).toBe('Fix timeout')
-    expect(result.tags).toEqual(['bugs', 'urgent'])
-  })
-
   it('extracts tomorrow as fuzzy scheduled token', () => {
     const result = parseInput('Submit report tomorrow')
     expect(result.title).toBe('Submit report')
@@ -45,19 +33,17 @@ describe('natural-language-parser', () => {
     expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
   })
 
-  it('parses a complex input with date + tag + person', () => {
-    const result = parseInput('Review PR #142 tomorrow @Mike #bugs')
-    expect(result.title).toBe('Review PR #142')
+  it('parses a complex input with date + person', () => {
+    const result = parseInput('Review PR tomorrow @Mike')
+    expect(result.title).toBe('Review PR')
     expect(result.persons).toEqual(['Mike'])
-    expect(result.tags).toEqual(['bugs'])
     expect(result.scheduledDate).toBeDefined()
   })
 
-  it('parses combined input: title + date + tag + person', () => {
-    const result = parseInput('Buy groceries tomorrow #shopping @john')
+  it('parses combined input: title + date + person', () => {
+    const result = parseInput('Buy groceries tomorrow @john')
     expect(result.title).toBe('Buy groceries')
     expect(result.persons).toEqual(['john'])
-    expect(result.tags).toEqual(['shopping'])
     expect(result.scheduledDate).toBeDefined()
   })
 
@@ -92,12 +78,6 @@ describe('natural-language-parser', () => {
     }
   })
 
-  it('preserves numeric # references in title', () => {
-    const result = parseInput('Fix issue #42')
-    expect(result.title).toBe('Fix issue #42')
-    expect(result.tags).toEqual([])
-  })
-
   it('extracts /project', () => {
     const result = parseInput('Fix header /Design')
     expect(result.title).toBe('Fix header')
@@ -124,37 +104,11 @@ describe('natural-language-parser', () => {
     expect(result.persons).toEqual(['Mike'])
   })
 
-  it('extracts #tag before /project without consuming the project', () => {
-    const result = parseInput('Task #urgent /Backend')
-    expect(result.tags).toEqual(['urgent'])
-    expect(result.projects).toEqual(['Backend'])
-    expect(result.title).toBe('Task')
-  })
-
-  it('does not consume subsequent words into tag name', () => {
-    const result = parseInput('Task #bug fix the issue')
-    expect(result.tags).toEqual(['bug'])
-    expect(result.title).toBe('Task fix the issue')
-  })
-
-  it('extracts single-word tag followed by regular text', () => {
-    const result = parseInput('Do something #urgent and then rest')
-    expect(result.tags).toEqual(['urgent'])
-    expect(result.title).toBe('Do something and then rest')
-  })
-
   // ─── Cross-type overlap detection ──────────────────────────────────────────
 
   it('person @friday is not also parsed as a date', () => {
     const result = parseInput('Ask @friday about the report')
     expect(result.persons).toEqual(['friday'])
-    expect(result.scheduledDate).toBeUndefined()
-    expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
-  })
-
-  it('tag #monday is not also parsed as a date', () => {
-    const result = parseInput('Review #monday items')
-    expect(result.tags).toEqual(['monday'])
     expect(result.scheduledDate).toBeUndefined()
     expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
   })

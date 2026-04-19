@@ -4,12 +4,12 @@ export interface AutocompleteItem {
   id: number
   name: string
   color?: string
-  kind: 'person' | 'org' | 'tag' | 'project'
+  kind: 'person' | 'org' | 'project'
 }
 
 export interface AutocompleteState {
   visible: boolean
-  trigger: '@' | '#' | '/' | null
+  trigger: '@' | '/' | null
   query: string
   items: AutocompleteItem[]
   selectedIndex: number
@@ -28,19 +28,18 @@ const initialState: AutocompleteState = {
 
 interface UseNlpAutocompleteOptions {
   people: AutocompleteItem[]
-  tags: AutocompleteItem[]
   projects?: AutocompleteItem[]
   orgs?: AutocompleteItem[]
 }
 
 /**
- * Hook for @person and #tag autocomplete in input fields.
+ * Hook for @person autocomplete in input fields.
  * Returns state and handlers to wire into an input element.
  */
 // Shared canvas for text measurement — avoids creating one per keystroke
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-export function useNlpAutocomplete({ people, tags, projects = [], orgs = [] }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, projects = [], orgs = [] }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   const triggerPosRef = useRef<number>(-1)
 
@@ -56,15 +55,15 @@ export function useNlpAutocomplete({ people, tags, projects = [], orgs = [] }: U
   ) => {
     // Find the trigger character before cursor
     const beforeCursor = value.slice(0, cursorPos)
-    // Look backwards for @ or # that isn't preceded by a word character
+    // Look backwards for @ or / that isn't preceded by a word character
     let triggerIdx = -1
-    let triggerChar: '@' | '#' | '/' | null = null
+    let triggerChar: '@' | '/' | null = null
     for (let i = beforeCursor.length - 1; i >= 0; i--) {
       const ch = beforeCursor[i]
       if (ch === ' ' || ch === '\t' || ch === '\n') break // whitespace before finding trigger = no trigger
-      if ((ch === '@' || ch === '#' || ch === '/') && (i === 0 || /\s/.test(beforeCursor[i - 1]))) {
+      if ((ch === '@' || ch === '/') && (i === 0 || /\s/.test(beforeCursor[i - 1]))) {
         triggerIdx = i
-        triggerChar = ch as '@' | '#' | '/'
+        triggerChar = ch as '@' | '/'
         break
       }
     }
@@ -77,7 +76,7 @@ export function useNlpAutocomplete({ people, tags, projects = [], orgs = [] }: U
     const query = beforeCursor.slice(triggerIdx + 1).toLowerCase()
     triggerPosRef.current = triggerIdx
 
-    const sourceItems = triggerChar === '@' ? [...people, ...orgs] : triggerChar === '#' ? tags : projects
+    const sourceItems = triggerChar === '@' ? [...people, ...orgs] : projects
     const filtered = query
       ? sourceItems.filter((item) => item.name.toLowerCase().includes(query))
       : sourceItems
@@ -106,7 +105,7 @@ export function useNlpAutocomplete({ people, tags, projects = [], orgs = [] }: U
       selectedIndex: 0,
       caretLeft,
     })
-  }, [people, tags, projects, orgs, state.visible, dismiss])
+  }, [people, projects, orgs, state.visible, dismiss])
 
   /**
    * Handle keyboard events for autocomplete navigation.

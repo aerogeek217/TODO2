@@ -4,7 +4,6 @@ import { useCanvasStore } from './stores/canvas-store'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
-import { useTagStore } from './stores/tag-store'
 import { useOrgStore } from './stores/org-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useProjectStore } from './stores/project-store'
@@ -77,7 +76,6 @@ function AppBulkConfirmDialog() {
 function AppShell() {
   const { ensureDefault } = useCanvasStore()
   const { load: loadPeople } = usePersonStore()
-  const { load: loadTags } = useTagStore()
   const { load: loadOrgs } = useOrgStore()
   const { load: loadSettings } = useSettingsStore()
   const { initialize: initFileStorage } = useFileStorageStore()
@@ -102,7 +100,7 @@ function AppShell() {
     Promise.all([ensureDefault(), loadSettings()])
       .then(() => initFileStorage())
       .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), loadTags(), loadOrgs(), useProjectStore.getState().loadAll(), useStatusStore.getState().load()]))
+      .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().loadAll(), useStatusStore.getState().load()]))
       .then(async () => {
         // Purge expired completed tasks on startup
         const { completedRetentionDays } = useSettingsStore.getState()
@@ -120,7 +118,7 @@ function AppShell() {
         setInitError(err instanceof Error ? err.message : String(err))
       })
     return () => backupScheduler.stop()
-  }, [ensureDefault, loadSettings, initFileStorage, loadPeople, loadTags, loadOrgs])
+  }, [ensureDefault, loadSettings, initFileStorage, loadPeople, loadOrgs])
 
   const createFloatingNote = useCallback(() => {
     if (location.pathname !== '/') return

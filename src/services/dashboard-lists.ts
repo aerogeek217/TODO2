@@ -154,7 +154,7 @@ function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: Da
 
 /**
  * Chronological `sortBy` values (date/scheduled/deadline) get proper
- * comparators. Categorical values (people/tag/project/org/status) fall back to
+ * comparators. Categorical values (people/project/org/status) fall back to
  * sortOrder — the grouping node (`by-sortBy`) is where the categorical split
  * happens; a total order inside a single list for a categorical field is
  * ambiguous (multi-assignment).
@@ -173,7 +173,6 @@ function compareBySortBy(
     case 'deadline':
       return compareDeadlineAsc(a, b)
     case 'people':
-    case 'tag':
     case 'project':
     case 'org':
     case 'status':

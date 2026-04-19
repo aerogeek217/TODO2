@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { buildExportData } from '../../services/export-import'
 import { db } from '../../data/database'
-import { resetDb, makeTodo, makePerson, makeTag, makeProject, makeOrg } from '../helpers'
+import { resetDb, makeTodo, makePerson, makeProject, makeOrg } from '../helpers'
 
 beforeEach(async () => {
   await resetDb()
@@ -15,9 +15,7 @@ describe('buildExportData', () => {
     expect(data.projects).toEqual([])
     expect(data.canvases).toEqual([])
     expect(data.people).toEqual([])
-    expect(data.tags).toEqual([])
     expect(data.orgs).toEqual([])
-    expect(data.todoTags).toEqual([])
     expect(data.todoPeople).toEqual([])
     expect(data.todoOrgs).toEqual([])
     expect(data.personOrgs).toEqual([])
@@ -34,12 +32,9 @@ describe('buildExportData', () => {
     await db.todos.add(todo)
     const person = makePerson({ id: 1 })
     await db.people.add(person)
-    const tag = makeTag({ id: 1 })
-    await db.tags.add(tag)
     const org = makeOrg({ id: 1 })
     await db.orgs.add(org)
     await db.todoPeople.add({ todoId: 1, personId: 1 } as any)
-    await db.todoTags.add({ todoId: 1, tagId: 1 } as any)
     await db.todoOrgs.add({ todoId: 1, orgId: 1 } as any)
     await db.personOrgs.add({ personId: 1, orgId: 1 } as any)
 
@@ -50,10 +45,8 @@ describe('buildExportData', () => {
     expect(data.projects).toHaveLength(1)
     expect(data.canvases).toHaveLength(1)
     expect(data.people).toHaveLength(1)
-    expect(data.tags).toHaveLength(1)
     expect(data.orgs).toHaveLength(1)
     expect(data.todoPeople).toHaveLength(1)
-    expect(data.todoTags).toHaveLength(1)
     expect(data.todoOrgs).toHaveLength(1)
     expect(data.personOrgs).toHaveLength(1)
   })

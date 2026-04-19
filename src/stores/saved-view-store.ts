@@ -21,9 +21,9 @@ import { readDateAnchor } from './filter-store'
  * Unknown values fall back to 'date'.
  */
 export function translateSortBy(sortBy: string): ListSortBy {
-  if (sortBy === 'priority' || sortBy === 'due') return 'date'
+  if (sortBy === 'priority' || sortBy === 'due' || sortBy === 'tag') return 'date'
   if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline'
-      || sortBy === 'people' || sortBy === 'tag'
+      || sortBy === 'people'
       || sortBy === 'project' || sortBy === 'org' || sortBy === 'status') {
     return sortBy
   }
@@ -103,7 +103,6 @@ function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
     showHiddenStatuses: f.showHiddenStatuses,
     personIds: f.personIds ? Array.from(f.personIds) : null,
     personFilterMode: f.personFilterMode,
-    tagIds: f.tagIds ? Array.from(f.tagIds) : null,
     orgIds: f.orgIds ? Array.from(f.orgIds) : null,
     orgFilterMode: f.orgFilterMode,
     ...(f.statusIds != null ? { statusIds: Array.from(f.statusIds) } : {}),
@@ -207,7 +206,6 @@ export function savedFiltersToRuntime(
       showHiddenStatuses,
       personIds: s.personIds ? new Set(s.personIds) : null,
       personFilterMode: s.personFilterMode === 'direct-only' ? 'direct-only' : 'include-orgs',
-      tagIds: s.tagIds ? new Set(s.tagIds) : null,
       orgIds: s.orgIds ? new Set(s.orgIds) : null,
       orgFilterMode: s.orgFilterMode === 'direct-only' ? 'direct-only' : 'include-people',
       statusIds,

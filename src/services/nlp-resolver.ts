@@ -1,4 +1,4 @@
-import type { Person, Tag, Project, Org, RecurrenceType } from '../models'
+import type { Person, Project, Org, RecurrenceType } from '../models'
 import type { ScheduledValue } from '../models/scheduled-value'
 import type { ParsedInput } from './natural-language-parser'
 
@@ -8,12 +8,9 @@ export interface ResolvedInput {
   dueDate?: Date
   recurrence?: RecurrenceType
   personIds: number[]
-  tagIds: number[]
   orgIds: number[]
   /** Person names that didn't match any existing person */
   unmatchedPersons: string[]
-  /** Tag names that didn't match any existing tag */
-  unmatchedTags: string[]
   /** Org names that didn't match any existing org */
   unmatchedOrgs: string[]
   /** Resolved project ID (first match wins) */
@@ -74,14 +71,13 @@ function matchOrg(name: string, orgs: Org[]): Org | undefined {
 }
 
 /**
- * Resolve parsed NLP input against known people, tags, projects, and orgs.
+ * Resolve parsed NLP input against known people, projects, and orgs.
  * Person-first: @tokens match people first, unmatched names fall through to org matching.
  */
-export function resolveInput(parsed: ParsedInput, people: Person[], tags: Tag[], projects: Project[] = [], orgs: Org[] = []): ResolvedInput {
+export function resolveInput(parsed: ParsedInput, people: Person[], projects: Project[] = [], orgs: Org[] = []): ResolvedInput {
   const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
   // Try unmatched person names against orgs (person-first precedence)
   const orgResult = resolveNames(persons.unmatched, (name) => matchOrg(name, orgs))
-  const tagResult = resolveNames(parsed.tags, (name) => matchByName(name, tags, (t) => t.name))
   const projectResult = resolveNames(parsed.projects, (name) => matchByName(name, projects, (p) => p.name))
 
   return {
@@ -90,10 +86,8 @@ export function resolveInput(parsed: ParsedInput, people: Person[], tags: Tag[],
     dueDate: parsed.dueDate,
     recurrence: parsed.recurrence,
     personIds: persons.ids,
-    tagIds: tagResult.ids,
     orgIds: orgResult.ids,
     unmatchedPersons: orgResult.unmatched,
-    unmatchedTags: tagResult.unmatched,
     unmatchedOrgs: [],
     projectId: projectResult.ids[0],
     unmatchedProjects: projectResult.unmatched,

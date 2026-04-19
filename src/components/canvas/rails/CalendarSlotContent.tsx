@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useTagStore } from '../../../stores/tag-store'
 import { useOrgStore } from '../../../stores/org-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -12,7 +11,6 @@ import { TwoWeekCalendarStrip } from './TwoWeekCalendarStrip'
 export function CalendarSlotContent() {
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const statuses = useStatusStore((s) => s.statuses)
@@ -37,8 +35,8 @@ export function CalendarSlotContent() {
   }, [today])
 
   const activeTodos = useMemo(
-    () => applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses),
-    [filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses],
+    () => applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses),
+    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses],
   )
 
   return (

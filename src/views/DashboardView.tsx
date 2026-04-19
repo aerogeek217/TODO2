@@ -20,7 +20,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import type { TodoPredicate } from '../models'
 import { useUIStore } from '../stores/ui-store'
@@ -34,7 +33,7 @@ import { useIsMobile } from '../hooks/use-is-mobile'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
-import type { PersistedTodoItem, Person, Tag } from '../models'
+import type { PersistedTodoItem, Person } from '../models'
 import { startOfToday } from '../utils/date'
 import { buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
@@ -127,13 +126,11 @@ function renderRow(
   isMobile: boolean,
   onOpenDetail: (todoId: number) => void,
   assignedPeopleMap: Map<number, Person[]>,
-  assignedTagsMap: Map<number, Tag[]>,
 ) {
   const row = (
     <TaskRow
       todo={todo}
       assignedPeople={assignedPeopleMap.get(todo.id)}
-      assignedTags={assignedTagsMap.get(todo.id)}
       compact
       onOpenDetail={onOpenDetail}
     />
@@ -291,7 +288,6 @@ function DashboardListCard({
   variant,
   onOpenDetail,
   assignedPeopleMap,
-  assignedTagsMap,
   isMobile,
   tabpanelId,
   tabpanelLabelledBy,
@@ -305,7 +301,6 @@ function DashboardListCard({
   variant: 'hero' | 'secondary'
   onOpenDetail: (todoId: number) => void
   assignedPeopleMap: Map<number, Person[]>
-  assignedTagsMap: Map<number, Tag[]>
   isMobile: boolean
   tabpanelId?: string
   tabpanelLabelledBy?: string
@@ -345,13 +340,13 @@ function DashboardListCard({
             <div key={group.key} className={styles.group}>
               <div className={styles.groupLabel}>{group.label}</div>
               {group.todos.map((todo) =>
-                renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
+                renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap),
               )}
             </div>
           ))
         ) : (
           list.todos.map((todo) =>
-            renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
+            renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap),
           )
         )}
         {onAddTask && addTaskLabel && (
@@ -365,7 +360,6 @@ function DashboardListCard({
 export function DashboardView() {
   const { todos, loadAll } = useTodoStore()
   const { assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments } = usePersonStore()
-  const { assignedTagsMap, load: loadTags, loadAssignments: loadTagAssignments } = useTagStore()
   const { assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
@@ -481,22 +475,20 @@ export function DashboardView() {
   useEffect(() => {
     loadAll()
     loadPeople()
-    loadTags()
     loadOrgs()
     loadStatuses()
     loadTaskboard()
     loadDefinitions()
     void loadNotes()
-  }, [loadAll, loadPeople, loadTags, loadOrgs, loadStatuses, loadTaskboard, loadDefinitions, loadNotes])
+  }, [loadAll, loadPeople, loadOrgs, loadStatuses, loadTaskboard, loadDefinitions, loadNotes])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
     if (todoIds.length > 0) {
       loadPeopleAssignments(todoIds)
-      loadTagAssignments(todoIds)
       loadOrgAssignments(todoIds)
     }
-  }, [todos, loadPeopleAssignments, loadTagAssignments, loadOrgAssignments])
+  }, [todos, loadPeopleAssignments, loadOrgAssignments])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -509,13 +501,12 @@ export function DashboardView() {
       const criteria = predicateToCriteria(predicate)
       const people = assignedPeopleMap.get(todo.id) ?? []
       const personIds = people.map((p) => p.id!)
-      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const personOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
       const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
-      return matchesFilter(criteria, todo, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
+      return matchesFilter(criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
     },
-    [assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses, today],
+    [assignedPeopleMap, assignedOrgsMap, personOrgMap, statuses, today],
   )
 
   // Compute every pinned list's rendered output. Hero and secondary grid both
@@ -825,7 +816,6 @@ export function DashboardView() {
                         variant="hero"
                         onOpenDetail={handleClick}
                         assignedPeopleMap={assignedPeopleMap}
-                        assignedTagsMap={assignedTagsMap}
                         isMobile={isMobile}
                         tabpanelId={HERO_PANEL_ID}
                         tabpanelLabelledBy={tabIdFor(selectedHorizon)}
@@ -900,7 +890,6 @@ export function DashboardView() {
                             variant="secondary"
                             onOpenDetail={handleClick}
                             assignedPeopleMap={assignedPeopleMap}
-                            assignedTagsMap={assignedTagsMap}
                             isMobile={isMobile}
                             dragHandleIcon={handleIcon}
                             dragHandleProps={dragHandleProps}
@@ -945,7 +934,6 @@ export function DashboardView() {
             mode="edit"
             {...taskEdit.editProps}
             allPeople={taskEdit.allPeople}
-            allTags={taskEdit.allTags}
             allOrgs={taskEdit.allOrgs}
             onClose={taskEdit.closeEditPopup}
             {...taskEdit.entityCreators}
@@ -957,16 +945,12 @@ export function DashboardView() {
             mode="create"
             assignedPeople={[]}
             allPeople={taskEdit.allPeople}
-            assignedTags={[]}
-            allTags={taskEdit.allTags}
             onClose={taskEdit.closeEditPopup}
             onCreate={taskEdit.onCreate}
             assignedOrgs={[]}
             allOrgs={taskEdit.allOrgs}
             onAssignPerson={() => {}}
             onUnassignPerson={() => {}}
-            onAssignTag={() => {}}
-            onUnassignTag={() => {}}
             onAssignOrg={() => {}}
             onUnassignOrg={() => {}}
             {...taskEdit.entityCreators}

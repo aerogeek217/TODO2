@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useTagStore } from '../stores/tag-store'
 import { useOrgStore } from '../stores/org-store'
 import { useProjectStore } from '../stores/project-store'
 import { useCanvasStore } from '../stores/canvas-store'
@@ -26,7 +25,6 @@ function getOtherSelectedIds(primaryId: number): number[] {
 export function useTaskEditCallbacks() {
   const { todos, update: updateTodo, add: addTodo } = useTodoStore()
   const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
-  const { tags, assignedTagsMap, assignTag, unassignTag } = useTagStore()
   const { orgs, assignedOrgsMap, assignOrg, unassignOrg } = useOrgStore()
   const { projects, add: addProject } = useProjectStore()
   const { selectedCanvasId } = useCanvasStore()
@@ -37,8 +35,8 @@ export function useTaskEditCallbacks() {
     [todos, selectedTodoId]
   )
 
-  const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds: number[]; orgIds: number[] }) => {
-    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, tags, projects, orgs)
+  const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; orgIds: number[] }) => {
+    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, projects, orgs)
     let pid = resolved.projectId ?? partial.projectId
     if (!pid && selectedCanvasId) {
       pid = await addProject('New Project', selectedCanvasId)
@@ -65,13 +63,11 @@ export function useTaskEditCallbacks() {
       }
     }
     const allPersonIds = new Set([...resolved.personIds, ...(assignments?.personIds ?? [])])
-    const allTagIds = new Set([...resolved.tagIds, ...(assignments?.tagIds ?? [])])
     const allOrgIds = new Set([...resolved.orgIds, ...(assignments?.orgIds ?? [])])
     for (const personId of allPersonIds) await assignPerson(id, personId)
-    for (const tagId of allTagIds) await assignTag(id, tagId)
     for (const orgId of allOrgIds) await assignOrg(id, orgId)
     return id
-  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, addProject, people, tags, projects, orgs])
+  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, addProject, people, projects, orgs])
 
   /** Wrap onUpdate to propagate bulk-applicable field changes to other selected tasks. */
   const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {
@@ -110,7 +106,6 @@ export function useTaskEditCallbacks() {
     return {
       todo: selectedTodo,
       assignedPeople: assignedPeopleMap.get(selectedTodo.id) ?? [],
-      assignedTags: assignedTagsMap.get(selectedTodo.id) ?? [],
       assignedOrgs: assignedOrgsMap.get(selectedTodo.id) ?? [],
       onUpdate: bulkAwareUpdate,
       onToggleComplete: () => useTodoStore.getState().toggleComplete(selectedTodo.id),
@@ -124,19 +119,16 @@ export function useTaskEditCallbacks() {
       },
       onAssignPerson: bulkAssign(assignPerson, usePersonStore.getState().bulkAssignPerson),
       onUnassignPerson: bulkAssign(unassignPerson, usePersonStore.getState().bulkUnassignPerson),
-      onAssignTag: bulkAssign(assignTag, useTagStore.getState().bulkAssignTag),
-      onUnassignTag: bulkAssign(unassignTag, useTagStore.getState().bulkUnassignTag),
       onAssignOrg: bulkAssign(assignOrg, useOrgStore.getState().bulkAssignOrg),
       onUnassignOrg: bulkAssign(unassignOrg, useOrgStore.getState().bulkUnassignOrg),
     }
-  }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignTag, unassignTag, assignOrg, unassignOrg])
+  }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedOrgsMap, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignOrg, unassignOrg])
 
   const entityCreators = useMemo(() => ({
     onCreatePerson: (name: string) => {
       const initials = generateInitials(name)
       return usePersonStore.getState().add(name, initials)
     },
-    onCreateTag: (name: string) => useTagStore.getState().add(name),
     onCreateOrg: (name: string) => useOrgStore.getState().add(name),
   }), [])
 
@@ -145,7 +137,6 @@ export function useTaskEditCallbacks() {
     editPopupMode,
     closeEditPopup,
     allPeople: people,
-    allTags: tags,
     allOrgs: orgs,
     onCreate,
     editProps,

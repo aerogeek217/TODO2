@@ -3,14 +3,13 @@
  * DUP-1: loadWithState — loading/error boilerplate
  * DUP-2: updateEntityInMap — refresh entity references in assignment maps
  * DUP-3: captureJoinRows / restoreJoinRows — capture and restore join table rows for undo
- * DUP-4: captureAssignments — capture person/tag/org IDs for undo
+ * DUP-4: captureAssignments — capture person/org IDs for undo
  * DUP-5: bulkUpdateField — shared bulk field update with undo
  */
 
 import type { Table } from 'dexie'
 import { db } from '../data/database'
 import { personRepository } from '../data/person-repository'
-import { tagRepository } from '../data/tag-repository'
 import { orgRepository } from '../data/org-repository'
 import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
@@ -113,22 +112,19 @@ export function updateEntityInMap<E extends { id?: number }>(
 }
 
 /**
- * DUP-4: Capture current person/tag/org assignment IDs for a todo (for undo).
+ * DUP-4: Capture current person/org assignment IDs for a todo (for undo).
  * Uses dynamic imports to avoid circular dependencies.
  */
 export async function captureAssignments(todoId: number): Promise<{
   personIds: number[]
-  tagIds: number[]
   orgIds: number[]
 }> {
-  const [people, tags, orgsMap] = await Promise.all([
+  const [people, orgsMap] = await Promise.all([
     personRepository.getAssignedPeople(todoId),
-    tagRepository.getTagsForTodo(todoId),
     orgRepository.getAssignedOrgsForTodos([todoId]),
   ])
   return {
     personIds: people.map((p) => p.id!),
-    tagIds: tags.map((t) => t.id!),
     orgIds: (orgsMap.get(todoId) ?? []).map((o) => o.id!),
   }
 }
@@ -137,17 +133,15 @@ export async function captureAssignments(todoId: number): Promise<{
  * DUP-4: Capture assignments for multiple todos at once.
  */
 export async function captureAssignmentsBulk(todoIds: number[]): Promise<
-  Array<{ todoId: number; personIds: number[]; tagIds: number[]; orgIds: number[] }>
+  Array<{ todoId: number; personIds: number[]; orgIds: number[] }>
 > {
-  const [pMap, tMap, oMap] = await Promise.all([
+  const [pMap, oMap] = await Promise.all([
     personRepository.getAssignedPeopleForTodos(todoIds),
-    tagRepository.getTagsForTodos(todoIds),
     orgRepository.getAssignedOrgsForTodos(todoIds),
   ])
   return todoIds.map((todoId) => ({
     todoId,
     personIds: (pMap.get(todoId) ?? []).map((p) => p.id!),
-    tagIds: (tMap.get(todoId) ?? []).map((t) => t.id!),
     orgIds: (oMap.get(todoId) ?? []).map((o) => o.id!),
   }))
 }

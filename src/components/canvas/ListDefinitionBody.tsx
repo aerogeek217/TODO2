@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { PersistedTodoItem, Person, Tag, TodoPredicate } from '../../models'
+import type { PersistedTodoItem, Person, TodoPredicate } from '../../models'
 import {
   useFilterStore,
   applyFilter,
@@ -11,7 +11,6 @@ import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useUIStore } from '../../stores/ui-store'
 import { buildDashboardLists } from '../../services/dashboard-lists'
@@ -21,7 +20,6 @@ import { TaskRow } from '../task/TaskRow'
 export interface ListDefinitionBodyRenderRowArgs {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  assignedTags?: Tag[]
   onOpenDetail: (todoId: number) => void
 }
 
@@ -60,7 +58,6 @@ export function ListDefinitionBody({
   )
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -83,7 +80,7 @@ export function ListDefinitionBody({
   const filteredTodos = useMemo(() => {
     if (!definition) return [] as PersistedTodoItem[]
     const globalFiltered = applyFilter(
-      filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses,
+      filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses,
     )
     const today = startOfToday()
     const hiddenStatusIds = new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!))
@@ -91,14 +88,13 @@ export function ListDefinitionBody({
       const criteria = predicateToCriteria(predicate)
       const people = assignedPeopleMap.get(todo.id) ?? []
       const personIds = people.map((p) => p.id!)
-      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const personOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
       const filterPersonOrgIds = computeFilterPersonOrgIds(
         criteria.personIds, criteria.personFilterMode, personOrgMap,
       )
       return matchesFilter(
-        criteria, todo, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today,
+        criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today,
       )
     }
     const [list] = buildDashboardLists([definition], globalFiltered, {
@@ -110,7 +106,7 @@ export function ListDefinitionBody({
     })
     return list?.todos ?? []
   }, [
-    definition, todos, filters, assignedPeopleMap, assignedTagsMap,
+    definition, todos, filters, assignedPeopleMap,
     assignedOrgsMap, personOrgMap, statuses, dayKey,
   ])
 
@@ -129,7 +125,6 @@ export function ListDefinitionBody({
         const args: ListDefinitionBodyRenderRowArgs = {
           todo,
           assignedPeople: assignedPeopleMap.get(todo.id),
-          assignedTags: assignedTagsMap.get(todo.id),
           onOpenDetail: openEditPopup,
         }
         if (renderRow) return <Fragment key={todo.id}>{renderRow(args)}</Fragment>
@@ -138,7 +133,6 @@ export function ListDefinitionBody({
             key={todo.id}
             todo={todo}
             assignedPeople={args.assignedPeople}
-            assignedTags={args.assignedTags}
             onOpenDetail={() => openEditPopup(todo.id)}
             showContext={showContext}
             compact={compact}

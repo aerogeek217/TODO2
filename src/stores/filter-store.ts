@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Tag, Org, Status, Project, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor, RelativeDateToken } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor, RelativeDateToken } from '../models'
 import { RELATIVE_DATE_TOKENS } from '../models'
 import { startOfDay, startOfToday } from '../utils/date'
 import { effectiveDate, resolveDateAnchor, resolveScheduled, getConfiguredWeekStart } from '../utils/effective-date'
@@ -27,8 +27,6 @@ export interface FilterCriteria {
   personIds: Set<number> | null
   /** 'include-orgs' (default) also matches tasks with orgs the filter person belongs to; 'direct-only' matches only direct person assignment */
   personFilterMode: PersonFilterMode
-  /** null = no filter (all shown); Set = only those in set are shown */
-  tagIds: Set<number> | null
   /** null = no filter; Set = only people in these orgs are shown */
   orgIds: Set<number> | null
   /** 'include-people' (default) matches person-org + direct-org; 'direct-only' matches only direct org assignment */
@@ -67,7 +65,6 @@ interface FilterState {
   setShowHiddenStatuses: (show: boolean) => void
   setPersonIds: (personIds: Set<number> | null) => void
   setPersonFilterMode: (mode: PersonFilterMode) => void
-  setTagIds: (tagIds: Set<number> | null) => void
   setOrgIds: (orgIds: Set<number> | null) => void
   setOrgFilterMode: (mode: OrgFilterMode) => void
   setStatusIds: (statusIds: Set<number> | null) => void
@@ -88,7 +85,6 @@ const defaultFilters: FilterCriteria = {
   showHiddenStatuses: false,
   personIds: null,
   personFilterMode: 'include-orgs',
-  tagIds: null,
   orgIds: null,
   orgFilterMode: 'include-people',
   statusIds: null,
@@ -106,7 +102,6 @@ function isFilterActive(f: FilterCriteria): boolean {
     f.showCompleted ||
     f.showHiddenStatuses ||
     f.personIds !== null ||
-    f.tagIds !== null ||
     f.orgIds !== null ||
     f.statusIds !== null ||
     f.searchText !== '' ||
@@ -141,7 +136,6 @@ export function matchesFilter(
   filters: FilterCriteria,
   todo: TodoItem,
   assignedPersonIds?: number[],
-  assignedTagIds?: number[],
   assignedPersonOrgIds?: number[],
   directOrgIds?: number[],
   filterPersonOrgIds?: Set<number>,
@@ -176,12 +170,6 @@ export function matchesFilter(
       && !!directOrgIds && directOrgIds.some((oid) => filterPersonOrgIds.has(oid))
     const unassignedSentinel = !hasPerson && filters.personIds.has(0)
     if (!directPersonMatch && !orgExpandedMatch && !unassignedSentinel) return false
-  }
-  if (filters.tagIds !== null) {
-    const hasAssignment = assignedTagIds && assignedTagIds.length > 0
-    if (!hasAssignment) {
-      if (!filters.tagIds.has(0)) return false
-    } else if (!assignedTagIds.some((id) => filters.tagIds!.has(id))) return false
   }
   if (filters.orgIds !== null) {
     const directOnly = filters.orgFilterMode === 'direct-only'
@@ -253,7 +241,6 @@ export function applyFilter(
   filters: FilterCriteria,
   todos: PersistedTodoItem[],
   assignedPeopleMap?: Map<number, Person[]>,
-  assignedTagsMap?: Map<number, Tag[]>,
   personOrgMap?: Map<number, number[]>,
   assignedOrgsMap?: Map<number, Org[]>,
   statuses?: Status[],
@@ -265,8 +252,6 @@ export function applyFilter(
   return todos.filter((t) => {
     const people = assignedPeopleMap?.get(t.id) ?? []
     const personIds = people.map((p) => p.id!)
-    const tags = assignedTagsMap?.get(t.id) ?? []
-    const tagIds = tags.map((tg) => tg.id!)
     const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
     const orgs = assignedOrgsMap?.get(t.id) ?? []
     const directOrgIds = orgs.map((o) => o.id!)
@@ -275,11 +260,10 @@ export function applyFilter(
           projectName: t.projectId != null ? projectsById?.get(t.projectId)?.name : undefined,
           personNames: people.map(p => p.name),
           orgNames: orgs.map(o => o.name),
-          tagNames: tags.map(tg => tg.name),
           statusName: t.statusId != null ? statuses?.find(s => s.id === t.statusId)?.name : undefined,
         }
       : undefined
-    return matchesFilter(filters, t, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, searchCtx)
+    return matchesFilter(filters, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, searchCtx)
   })
 }
 
@@ -312,7 +296,6 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     showHiddenStatuses: f.showHiddenStatuses,
     personIds: f.personIds ? Array.from(f.personIds) : null,
     personFilterMode: f.personFilterMode,
-    tagIds: f.tagIds ? Array.from(f.tagIds) : null,
     orgIds: f.orgIds ? Array.from(f.orgIds) : null,
     orgFilterMode: f.orgFilterMode,
     statusIds: f.statusIds ? Array.from(f.statusIds) : null,
@@ -333,7 +316,6 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     showHiddenStatuses: p.showHiddenStatuses,
     personIds: p.personIds ? new Set(p.personIds) : null,
     personFilterMode: p.personFilterMode,
-    tagIds: p.tagIds ? new Set(p.tagIds) : null,
     orgIds: p.orgIds ? new Set(p.orgIds) : null,
     orgFilterMode: p.orgFilterMode,
     statusIds: p.statusIds ? new Set(p.statusIds) : null,
@@ -369,10 +351,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setPersonFilterMode(personFilterMode: PersonFilterMode) {
     commit(set, { ...get().filters, personFilterMode })
-  },
-
-  setTagIds(tagIds: Set<number> | null) {
-    commit(set, { ...get().filters, tagIds })
   },
 
   setOrgIds(orgIds: Set<number> | null) {

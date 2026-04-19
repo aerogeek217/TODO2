@@ -12,9 +12,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     projects: [],
     todos: [],
     people: [],
-    tags: [],
     listInsets: [],
-    todoTags: [],
     todoPeople: [],
     todoOrgs: [],
     personOrgs: [],
@@ -79,26 +77,23 @@ describe('restoreFromImportData', () => {
       expect(canvases[0].id).toBe(5)
     })
 
-    it('restoreFromImportData_withExistingPeopleAndTags_clearsAll', async () => {
+    it('restoreFromImportData_withExistingPeople_clearsAll', async () => {
       // Arrange
       await db.people.bulkAdd([{ name: 'Alice', initials: 'AL', color: '#537FE7' }])
-      await db.tags.bulkAdd([{ name: 'urgent', color: '#ff0000' }])
 
-      // Act — import with empty people and tags
+      // Act — import with empty people
       await restoreFromImportData(makeImportData())
 
-      // Assert both tables cleared
+      // Assert table cleared
       expect(await db.people.count()).toBe(0)
-      expect(await db.tags.count()).toBe(0)
     })
   })
 
   describe('imports new data', () => {
-    it('restoreFromImportData_withPeopleAndTags_persistsBothTables', async () => {
+    it('restoreFromImportData_withPeople_persistsTable', async () => {
       // Arrange
       const data = makeImportData({
         people: [{ id: 1, name: 'Bob', initials: 'BO', color: '#aabbcc' }],
-        tags: [{ id: 1, name: 'feature', color: '#00ff00' }],
       })
 
       // Act
@@ -108,10 +103,6 @@ describe('restoreFromImportData', () => {
       const people = await db.people.toArray()
       expect(people).toHaveLength(1)
       expect(people[0].name).toBe('Bob')
-
-      const tags = await db.tags.toArray()
-      expect(tags).toHaveLength(1)
-      expect(tags[0].name).toBe('feature')
     })
 
     it('restoreFromImportData_withLegacyStickyNotes_translatesIntoFloatingNotePlacements', async () => {
@@ -139,24 +130,38 @@ describe('restoreFromImportData', () => {
       expect(placements[0].height).toBe(200)
     })
 
-    it('restoreFromImportData_withJoinTables_persistsTodoPeopleAndTodoTags', async () => {
+    it('restoreFromImportData_withJoinTables_persistsTodoPeople', async () => {
       // Arrange
       const data = makeImportData({
         todos: [
           { id: 1, title: 'Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
         people: [{ id: 1, name: 'Alice', initials: 'AL', color: '#537FE7' }],
-        tags: [{ id: 1, name: 'bug', color: '#ff0000' }],
         todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
-        todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
       })
 
       // Act
       await restoreFromImportData(data)
 
-      // Assert join tables written
+      // Assert join table written
       expect(await db.todoPeople.count()).toBe(1)
-      expect(await db.todoTags.count()).toBe(1)
+    })
+
+    it('restoreFromImportData_withLegacyTagsAndTodoTags_appendsHashtagsToTitles', async () => {
+      // Pre-v29 backups carry tag rows; restore bakes `#tagname` suffixes
+      // into matching todo titles and drops the rows.
+      const data = makeImportData({
+        todos: [
+          { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
+        ],
+        tags: [{ id: 1, name: 'urgent', color: '#ff0000' }],
+        todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
+      })
+
+      await restoreFromImportData(data)
+
+      const todo = await db.todos.get(1)
+      expect(todo!.title).toContain('#urgent')
     })
 
     it('restoreFromImportData_withStatuses_persistsStatusTable', async () => {

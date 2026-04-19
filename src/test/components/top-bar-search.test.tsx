@@ -4,12 +4,11 @@ import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../components/layout/TopBar'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useProjectStore } from '../../stores/project-store'
-import { makePerson, makeTag, makeOrg, makeProject, makeTodo } from '../helpers'
+import { makePerson, makeOrg, makeProject, makeTodo } from '../helpers'
 
 function renderBar() {
   return render(
@@ -27,7 +26,6 @@ describe('TopBar grouped search', () => {
       people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
       assignedPeopleMap: new Map(),
     })
-    useTagStore.setState({ tags: [makeTag({ id: 1, name: 'urgent' })], assignedTagsMap: new Map() })
     useOrgStore.setState({ orgs: [makeOrg({ id: 1, name: 'Acme' })], assignedOrgsMap: new Map(), personOrgMap: new Map() })
     useStatusStore.setState({ statuses: [] })
     useProjectStore.setState({ projects: [makeProject({ id: 1, canvasId: 1, name: 'Marketing' })], loading: false, error: null })

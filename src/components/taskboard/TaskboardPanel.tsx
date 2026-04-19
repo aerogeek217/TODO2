@@ -20,7 +20,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import type { PersistedTodoItem } from '../../models'
@@ -31,11 +30,10 @@ interface SortableEntryProps {
   index: number
   todo: PersistedTodoItem
   assignedPeople: import('../../models').Person[] | undefined
-  assignedTags: import('../../models').Tag[] | undefined
   onOpenDetail: (todoId: number) => void
 }
 
-function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onOpenDetail }: SortableEntryProps) {
+function SortableEntry({ entryId, index, todo, assignedPeople, onOpenDetail }: SortableEntryProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entryId })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -43,7 +41,7 @@ function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onO
     <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} assignedTags={assignedTags} compact onOpenDetail={onOpenDetail} />
+        <TaskRow todo={todo} assignedPeople={assignedPeople} compact onOpenDetail={onOpenDetail} />
       </div>
     </div>
   )
@@ -58,7 +56,6 @@ export function TaskboardPanel({
   const { entries, reorder } = useTaskboardStore()
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const { openEditPopup } = useUIStore()
   const [reorderKey, setReorderKey] = useState(0)
 
@@ -127,7 +124,6 @@ export function TaskboardPanel({
                     index={i}
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
-                    assignedTags={assignedTagsMap.get(todo.id)}
                     onOpenDetail={handleOpenDetail}
                   />
                 )

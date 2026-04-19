@@ -60,7 +60,6 @@ export interface TodoPredicate {
   /** null = no filter (all shown); array = only those IDs shown (0 = "unassigned" sentinel) */
   personIds: number[] | null
   personFilterMode: PersonFilterMode
-  tagIds: number[] | null
   orgIds: number[] | null
   orgFilterMode: OrgFilterMode
   statusIds: number[] | null

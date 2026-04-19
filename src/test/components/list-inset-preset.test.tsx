@@ -7,7 +7,6 @@ import { ListInsetNode, type ListInsetNodeData } from '../../components/canvas/L
 import type { ListInset, PersistedTodoItem } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
@@ -27,8 +26,6 @@ vi.mock('../../hooks/use-bulk-actions', () => ({
     setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
-    quickAssignTag: vi.fn(),
-    quickUnassignTag: vi.fn(),
     quickAssignOrg: vi.fn(),
     quickUnassignOrg: vi.fn(),
   }),
@@ -66,7 +63,6 @@ function dueThisWeekDef(): PersistedListDefinition {
 function resetStores(def: PersistedListDefinition = dueThisWeekDef()) {
   useTodoStore.setState({ todos: [] })
   usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
   useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
   useStatusStore.setState({ statuses: [] })
   useProjectStore.setState({ projects: [] })
@@ -76,7 +72,6 @@ function resetStores(def: PersistedListDefinition = dueThisWeekDef()) {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,
@@ -109,7 +104,6 @@ function renderInset(data: Partial<ListInsetNodeData>) {
     inset: data.inset ?? makeInset(),
     allTodos: data.allTodos ?? [],
     assignedPeopleMap: data.assignedPeopleMap ?? new Map(),
-    assignedTagsMap: data.assignedTagsMap ?? new Map(),
     assignedOrgsMap: data.assignedOrgsMap ?? new Map(),
     personOrgMap: data.personOrgMap ?? new Map(),
     onDelete: vi.fn(),

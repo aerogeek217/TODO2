@@ -19,7 +19,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useFilterStore, predicateToCriteria } from '../../stores/filter-store'
@@ -80,7 +79,6 @@ const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
   { value: 'org', label: 'Org' },
-  { value: 'tag', label: 'Tag' },
 ]
 
 /** Map a persisted list-definition's grouping to ListView's groupBy field. */
@@ -116,7 +114,6 @@ interface PredicateChip {
 
 function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
   const people = usePersonStore((s) => s.people)
-  const tags = useTagStore((s) => s.tags)
   const orgs = useOrgStore((s) => s.orgs)
   const statuses = useStatusStore((s) => s.statuses)
 
@@ -132,14 +129,6 @@ function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
         return p ? `@${p.name}` : `@?`
       })
       chips.push({ key: 'people', label: names.join(', ') })
-    }
-    if (predicate.tagIds && predicate.tagIds.length > 0) {
-      const names = predicate.tagIds.map((id) => {
-        if (id === 0) return 'No tag'
-        const t = tags.find((x) => x.id === id)
-        return t ? `#${t.name}` : `#?`
-      })
-      chips.push({ key: 'tags', label: names.join(', ') })
     }
     if (predicate.orgIds && predicate.orgIds.length > 0) {
       const names = predicate.orgIds.map((id) => {
@@ -174,7 +163,7 @@ function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
     if (predicate.showCompleted) chips.push({ key: 'completed', label: 'Show completed' })
     if (predicate.showHiddenStatuses) chips.push({ key: 'hidden', label: 'Show hidden statuses' })
     return chips
-  }, [predicate, people, tags, orgs, statuses])
+  }, [predicate, people, orgs, statuses])
 }
 
 function ConfigPanel({

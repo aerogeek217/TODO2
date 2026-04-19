@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
 import { useOrgStore } from '../../stores/org-store'
-import { makeTodo, makePerson, makeTag, makeOrg } from '../helpers'
+import { makeTodo, makePerson, makeOrg } from '../helpers'
 
 const mockToggleComplete = vi.fn()
 vi.mock('../../hooks/use-bulk-actions', () => ({
@@ -15,8 +15,6 @@ vi.mock('../../hooks/use-bulk-actions', () => ({
     setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
-    quickAssignTag: vi.fn(),
-    quickUnassignTag: vi.fn(),
     quickAssignOrg: vi.fn(),
     quickUnassignOrg: vi.fn(),
   }),
@@ -128,19 +126,6 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('C')).toBeInTheDocument()
       expect(screen.getByText('+1')).toBeInTheDocument()
       expect(screen.queryByText('D')).not.toBeInTheDocument()
-    })
-
-    it('shows first tag name', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedTags={[makeTag({ id: 1, name: 'Bug' })]} />)
-      expect(screen.getByText('Bug')).toBeInTheDocument()
-    })
-
-    it('shows overflow count for 2+ tags (max 1 shown)', () => {
-      const tags = [makeTag({ id: 1, name: 'Bug' }), makeTag({ id: 2, name: 'Feature' })]
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} assignedTags={tags} />)
-      expect(screen.getByText('Bug')).toBeInTheDocument()
-      expect(screen.getByText('+1')).toBeInTheDocument()
-      expect(screen.queryByText('Feature')).not.toBeInTheDocument()
     })
 
     it('shows org initials from store via hollow AvatarStack', () => {

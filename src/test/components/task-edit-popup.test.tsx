@@ -3,8 +3,8 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { makePerson, makeTag, makeOrg, makeTodo } from '../helpers'
-import type { Person, Tag, Org, PersistedTodoItem } from '../../models'
+import { makePerson, makeOrg, makeTodo } from '../helpers'
+import type { Person, Org, PersistedTodoItem } from '../../models'
 
 // Suppress showPicker (not supported in jsdom)
 beforeEach(() => {
@@ -15,8 +15,6 @@ const TITLE_PLACEHOLDER = 'New task... (@person @org #tag /project tomorrow "thi
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })
-const bugTag: Tag & { id: number } = makeTag({ id: 1, name: 'Bug' })
-const featureTag: Tag & { id: number } = makeTag({ id: 2, name: 'Feature' })
 const acmeOrg: Org & { id: number } = makeOrg({ id: 1, name: 'Acme' })
 const globexOrg: Org & { id: number } = makeOrg({ id: 2, name: 'Globex' })
 
@@ -39,11 +37,6 @@ function openPeopleDropdown() {
   fireEvent.click(addButtons[0])
 }
 
-function openTagsDropdown() {
-  const addButtons = screen.getAllByText('+ Add')
-  fireEvent.click(addButtons[1])
-}
-
 function renderCreateMode(overrides: Record<string, unknown> = {}) {
   const onCreate = vi.fn().mockResolvedValue(42)
   const onClose = vi.fn()
@@ -52,20 +45,15 @@ function renderCreateMode(overrides: Record<string, unknown> = {}) {
     mode: 'create' as const,
     assignedPeople: [],
     allPeople: [alice, bob],
-    assignedTags: [],
-    allTags: [bugTag, featureTag],
     assignedOrgs: [],
     allOrgs: [acmeOrg, globexOrg],
     onClose,
     onCreate,
     onAssignPerson: vi.fn(),
     onUnassignPerson: vi.fn(),
-    onAssignTag: vi.fn(),
-    onUnassignTag: vi.fn(),
     onAssignOrg: vi.fn(),
     onUnassignOrg: vi.fn(),
     onCreatePerson: vi.fn().mockResolvedValue(99),
-    onCreateTag: vi.fn().mockResolvedValue(99),
     ...overrides,
   }
 
@@ -77,8 +65,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
   const onUpdate = vi.fn()
   const onAssignPerson = vi.fn()
   const onUnassignPerson = vi.fn()
-  const onAssignTag = vi.fn()
-  const onUnassignTag = vi.fn()
   const onAssignOrg = vi.fn()
   const onUnassignOrg = vi.fn()
 
@@ -87,8 +73,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     todo,
     assignedPeople: [alice],
     allPeople: [alice, bob],
-    assignedTags: [bugTag],
-    allTags: [bugTag, featureTag],
     assignedOrgs: [],
     allOrgs: [acmeOrg, globexOrg],
     onClose: vi.fn(),
@@ -98,15 +82,13 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     onDelete: vi.fn(),
     onAssignPerson,
     onUnassignPerson,
-    onAssignTag,
-    onUnassignTag,
     onAssignOrg,
     onUnassignOrg,
     ...overrides,
   }
 
   const result = render(<TaskEditPopup {...props} />)
-  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignTag, onUnassignTag, onAssignOrg, onUnassignOrg }
+  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignOrg, onUnassignOrg }
 }
 
 describe('TaskEditPopup', () => {
@@ -138,26 +120,7 @@ describe('TaskEditPopup', () => {
       const [partial, assignments] = onCreate.mock.calls[0]
       expect(partial.title).toBe('Test task')
       expect(assignments.personIds).toEqual([1])
-      expect(assignments.tagIds).toEqual([])
       expect(assignments.orgIds).toEqual([])
-    })
-
-    it('toggling a tag includes it in onCreate assignments', async () => {
-      const { onCreate } = renderCreateMode()
-
-      openTagsDropdown()
-      fireEvent.click(screen.getByText('Bug'))
-
-      typeTitle('Fix bug')
-      clickCreate()
-
-      await vi.waitFor(() => {
-        expect(onCreate).toHaveBeenCalledOnce()
-      })
-
-      const [, assignments] = onCreate.mock.calls[0]
-      expect(assignments.tagIds).toEqual([1])
-      expect(assignments.personIds).toEqual([])
     })
 
     it('toggling an org includes it in onCreate assignments', async () => {
@@ -201,18 +164,13 @@ describe('TaskEditPopup', () => {
       expect(assignments.personIds).toEqual([])
     })
 
-    it('selecting multiple people and tags includes all in onCreate', async () => {
+    it('selecting multiple people includes all in onCreate', async () => {
       const { onCreate } = renderCreateMode()
 
       // Add Alice and Bob
       openPeopleDropdown()
       fireEvent.click(screen.getByText('Alice'))
       fireEvent.click(screen.getByText('Bob'))
-
-      // Add Bug and Feature tags
-      openTagsDropdown()
-      fireEvent.click(screen.getByText('Bug'))
-      fireEvent.click(screen.getByText('Feature'))
 
       typeTitle('Multi assign')
       clickCreate()
@@ -224,8 +182,6 @@ describe('TaskEditPopup', () => {
       const [, assignments] = onCreate.mock.calls[0]
       expect(assignments.personIds).toContain(1)
       expect(assignments.personIds).toContain(2)
-      expect(assignments.tagIds).toContain(1)
-      expect(assignments.tagIds).toContain(2)
     })
 
     it('creating a new person adds them to pending assignments', async () => {
@@ -253,49 +209,15 @@ describe('TaskEditPopup', () => {
       expect(assignments.personIds).toContain(50)
     })
 
-    it('creating a new tag adds it to pending assignments', async () => {
-      const onCreateTag = vi.fn().mockResolvedValue(50)
-      const { onCreate } = renderCreateMode({ onCreateTag })
-
-      openTagsDropdown()
-
-      const searchInput = screen.getByPlaceholderText('Search tags...')
-      fireEvent.change(searchInput, { target: { value: 'Urgent' } })
-      fireEvent.click(screen.getByText('+ Create "Urgent"'))
-
-      await vi.waitFor(() => {
-        expect(onCreateTag).toHaveBeenCalledWith('Urgent')
-      })
-
-      typeTitle('Tagged task')
-      clickCreate()
-
-      await vi.waitFor(() => {
-        expect(onCreate).toHaveBeenCalledOnce()
-      })
-
-      const [, assignments] = onCreate.mock.calls[0]
-      expect(assignments.tagIds).toContain(50)
-    })
-
     it('does not call the no-op assignment callbacks in create mode', () => {
       const { props } = renderCreateMode()
 
-      // Toggle person
+      // Toggle person and org in the same dropdown session
       openPeopleDropdown()
       fireEvent.click(screen.getByText('Alice'))
+      fireEvent.click(screen.getByText('Acme'))
       expect(props.onAssignPerson).not.toHaveBeenCalled()
       expect(props.onUnassignPerson).not.toHaveBeenCalled()
-
-      // Toggle tag
-      openTagsDropdown()
-      fireEvent.click(screen.getByText('Bug'))
-      expect(props.onAssignTag).not.toHaveBeenCalled()
-      expect(props.onUnassignTag).not.toHaveBeenCalled()
-
-      // Toggle org
-      openPeopleDropdown()
-      fireEvent.click(screen.getByText('Acme'))
       expect(props.onAssignOrg).not.toHaveBeenCalled()
       expect(props.onUnassignOrg).not.toHaveBeenCalled()
     })
@@ -312,7 +234,6 @@ describe('TaskEditPopup', () => {
 
       const [, assignments] = onCreate.mock.calls[0]
       expect(assignments.personIds).toEqual([])
-      expect(assignments.tagIds).toEqual([])
       expect(assignments.orgIds).toEqual([])
     })
   })
@@ -331,24 +252,6 @@ describe('TaskEditPopup', () => {
       // Bob is not assigned — toggling should assign
       fireEvent.click(screen.getByText('Bob'))
       expect(onAssignPerson).toHaveBeenCalledWith(2)
-    })
-
-    it('toggling a tag calls onAssignTag/onUnassignTag', () => {
-      const todo = makeTodo({ id: 10, title: 'Edit task' })
-      const { onAssignTag, onUnassignTag } = renderEditMode(todo)
-
-      openTagsDropdown()
-
-      // Bug is assigned — both chip and dropdown item show "Bug"
-      // Target the dropdown item (inside ChipSelector list)
-      const bugElements = screen.getAllByText('Bug')
-      const dropdownBug = bugElements.find(el => el.closest('button')?.querySelector('span[class*="check"]'))!
-      fireEvent.click(dropdownBug.closest('button')!)
-      expect(onUnassignTag).toHaveBeenCalledWith(1)
-
-      // Feature is not assigned — only in dropdown
-      fireEvent.click(screen.getByText('Feature'))
-      expect(onAssignTag).toHaveBeenCalledWith(2)
     })
 
     it('toggling an org calls onAssignOrg/onUnassignOrg', () => {

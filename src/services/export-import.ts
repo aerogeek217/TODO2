@@ -9,16 +9,16 @@ import { startOfToday } from '../utils/date'
  * JSON serialization (export, file-storage save, or backup snapshot).
  */
 export async function buildExportData() {
-  const [todos, projects, canvases, listInsets, people, settings, tags, todoTags, todoPeople, todoOrgs, personOrgs, orgs, savedViews, taskboardEntries, statuses, listDefinitions, notes] =
+  const [todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, savedViews, taskboardEntries, statuses, listDefinitions, notes] =
     await Promise.all([
       db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(), db.listInsets.toArray(),
-      db.people.toArray(), db.settings.toArray(), db.tags.toArray(), db.todoTags.toArray(),
+      db.people.toArray(), db.settings.toArray(),
       db.todoPeople.toArray(), db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
       db.savedViews.toArray(), db.taskboardEntries.toArray(),
       db.statuses.toArray(), db.listDefinitions.toArray(), db.notes.toArray(),
     ])
 
-  return { todos, projects, canvases, listInsets, people, settings, tags, todoTags, todoPeople, todoOrgs, personOrgs, orgs, savedViews, taskboardEntries, statuses, listDefinitions, notes }
+  return { todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, savedViews, taskboardEntries, statuses, listDefinitions, notes }
 }
 
 /**
@@ -30,7 +30,6 @@ export async function buildMarkdownExport(): Promise<string> {
   const allTodos = data.todos as PersistedTodoItem[]
 
   const peopleMap = new Map(data.people.map((p) => [p.id!, p.name]))
-  const tagMap = new Map(data.tags.map((t) => [t.id!, t.name]))
   const statusMap = new Map(data.statuses.map((s) => [s.id!, s]))
 
   const todoPeopleMap = new Map<number, string[]>()
@@ -40,15 +39,6 @@ export async function buildMarkdownExport(): Promise<string> {
       const list = todoPeopleMap.get(tp.todoId) ?? []
       list.push(name)
       todoPeopleMap.set(tp.todoId, list)
-    }
-  }
-  const todoTagsMap = new Map<number, string[]>()
-  for (const tt of data.todoTags) {
-    const name = tagMap.get(tt.tagId)
-    if (name) {
-      const list = todoTagsMap.get(tt.todoId) ?? []
-      list.push(name)
-      todoTagsMap.set(tt.todoId, list)
     }
   }
 
@@ -76,12 +66,10 @@ export async function buildMarkdownExport(): Promise<string> {
 
   const collectDetails = (todo: PersistedTodoItem) => {
     const people = todoPeopleMap.get(todo.id) ?? []
-    const tags = todoTagsMap.get(todo.id) ?? []
-    const hasMeta = people.length > 0 || tags.length > 0 || todo.notes
+    const hasMeta = people.length > 0 || todo.notes
     if (!hasMeta) return
     details.push(`### ${todo.title}`)
     if (people.length > 0) details.push(`- **People:** ${people.join(', ')}`)
-    if (tags.length > 0) details.push(`- **Tags:** ${tags.join(', ')}`)
     if (todo.notes) details.push(`- **Notes:** ${todo.notes}`)
     details.push('')
   }

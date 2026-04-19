@@ -5,7 +5,6 @@ import type { TodoPredicate } from '../../models'
 import { useUIStore, type AttributeFilter } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
@@ -19,8 +18,6 @@ function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.Re
   switch (filter.type) {
     case 'person':
       return { label: filter.personName, icon: <span>@</span> }
-    case 'tag':
-      return { label: filter.tagName, icon: <span style={filter.tagColor ? { color: filter.tagColor } : undefined}>#</span> }
     case 'org':
       return { label: filter.orgName, icon: <span style={filter.orgColor ? { color: filter.orgColor } : undefined}>@</span> }
   }
@@ -29,7 +26,6 @@ function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.Re
 function filterToListDefName(filter: AttributeFilter): string {
   switch (filter.type) {
     case 'person': return `Tasks assigned to ${filter.personName}`
-    case 'tag': return `Tasks tagged ${filter.tagName}`
     case 'org': return `Tasks in ${filter.orgName}`
   }
 }
@@ -38,7 +34,6 @@ function filterToPredicate(filter: AttributeFilter): TodoPredicate {
   const p = emptyPredicate()
   switch (filter.type) {
     case 'person': p.personIds = [filter.personId]; break
-    case 'tag': p.tagIds = [filter.tagId]; break
     case 'org': p.orgIds = [filter.orgId]; break
   }
   return p
@@ -77,7 +72,6 @@ export function FilteredListPopup() {
 
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const addInset = useListInsetStore((s) => s.add)
@@ -103,17 +97,13 @@ export function FilteredListPopup() {
           const assigned = assignedPeopleMap.get(todo.id)
           return assigned?.some(p => p.id === filter.personId) ?? false
         }
-        case 'tag': {
-          const assigned = assignedTagsMap?.get(todo.id)
-          return assigned?.some(t => t.id === filter.tagId) ?? false
-        }
         case 'org': {
           const assigned = assignedOrgsMap.get(todo.id)
           return assigned?.some(o => o.id === filter.orgId) ?? false
         }
       }
     }).sort(bySortOrder)
-  }, [popup, todos, assignedPeopleMap, assignedTagsMap, assignedOrgsMap])
+  }, [popup, todos, assignedPeopleMap, assignedOrgsMap])
 
   const pos = useMemo(() => {
     if (!popup) return { x: 0, y: 0, maxHeight: 600 }
@@ -245,7 +235,6 @@ export function FilteredListPopup() {
                 key={todo.id}
                 todo={todo}
                 assignedPeople={assignedPeopleMap.get(todo.id)}
-                assignedTags={assignedTagsMap?.get(todo.id)}
                 onOpenDetail={() => { hideFilteredList(); openEditPopup(todo.id) }}
                 compact
               />

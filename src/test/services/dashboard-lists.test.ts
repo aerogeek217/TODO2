@@ -25,7 +25,6 @@ function emptyPredicate(): TodoPredicate {
     showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
-    tagIds: null,
     orgIds: null,
     orgFilterMode: 'include-people',
     statusIds: null,
@@ -377,7 +376,7 @@ describe('interpretGrouping — by-sortBy', () => {
   it('by-sortBy with categorical sortBy returns undefined (not yet implemented)', () => {
     const t = makeTodo({ id: 1 })
     const def = customDef({
-      sort: { kind: 'sortBy', by: 'tag' },
+      sort: { kind: 'sortBy', by: 'people' },
       grouping: { kind: 'by-sortBy' },
     })
     const lists = buildDashboardLists([def], [t], makeCtx())

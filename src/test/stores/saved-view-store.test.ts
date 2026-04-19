@@ -8,7 +8,6 @@ const defaultFilters: FilterCriteria = {
   showHiddenStatuses: false,
   personIds: null,
   personFilterMode: 'include-orgs',
-  tagIds: null,
   orgIds: null,
   orgFilterMode: 'include-people',
   statusIds: null,
@@ -37,7 +36,6 @@ describe('useSavedViewStore', () => {
           showCompleted: false,
           showHiddenStatuses: false,
           personIds: null,
-          tagIds: null,
           orgIds: null,
           dateRangeIncludeNoDate: false,
         },
@@ -74,19 +72,17 @@ describe('useSavedViewStore', () => {
       const filters: FilterCriteria = {
         ...defaultFilters,
         personIds: new Set([1, 2]),
-        tagIds: new Set([10]),
         orgIds: new Set([5]),
         showCompleted: true,
         showHiddenStatuses: true,
         dateRangeIncludeNoDate: true,
       }
 
-      await useSavedViewStore.getState().saveCurrentView('Complex', 'tag', 'manual', filters)
+      await useSavedViewStore.getState().saveCurrentView('Complex', 'project', 'manual', filters)
 
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
       expect(saved.personIds).toEqual(expect.arrayContaining([1, 2]))
-      expect(saved.tagIds).toEqual([10])
       expect(saved.orgIds).toEqual([5])
       expect(saved.showCompleted).toBe(true)
       expect(saved.showHiddenStatuses).toBe(true)
@@ -99,7 +95,6 @@ describe('useSavedViewStore', () => {
       const { views } = useSavedViewStore.getState()
       const saved = views[0].filters
       expect(saved.personIds).toBeNull()
-      expect(saved.tagIds).toBeNull()
       expect(saved.orgIds).toBeNull()
     })
 
@@ -218,8 +213,8 @@ describe('useSavedViewStore', () => {
 
 describe('resolveSavedViewGrouping (split group + sort)', () => {
   it('reads modern saves directly', () => {
-    expect(resolveSavedViewGrouping({ sortBy: 'date', groupBy: 'tag', itemSortBy: 'deadline' }))
-      .toEqual({ groupBy: 'tag', itemSortBy: 'deadline' })
+    expect(resolveSavedViewGrouping({ sortBy: 'date', groupBy: 'project', itemSortBy: 'deadline' }))
+      .toEqual({ groupBy: 'project', itemSortBy: 'deadline' })
   })
 
   it('falls back to legacy sortBy as groupBy when groupBy is absent', () => {
@@ -334,7 +329,6 @@ describe('savedFiltersToRuntime orgFilterMode roundtrip', () => {
   it('undefined orgFilterMode defaults to include-people on restore', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -380,7 +374,6 @@ describe('savedFiltersToRuntime personFilterMode roundtrip', () => {
   it('undefined personFilterMode defaults to include-orgs on restore', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -396,7 +389,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withArrayValues_convertsArraysToSets', () => {
     const saved = {
       personIds: [1, 2, 3],
-      tagIds: [10, 20],
       orgIds: [5],
       showCompleted: true,
       showHiddenStatuses: true,
@@ -406,7 +398,6 @@ describe('savedFiltersToRuntime', () => {
     const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.personIds).toEqual(new Set([1, 2, 3]))
-    expect(result.tagIds).toEqual(new Set([10, 20]))
     expect(result.orgIds).toEqual(new Set([5]))
     expect(result.showCompleted).toBe(true)
     expect(result.showHiddenStatuses).toBe(true)
@@ -415,7 +406,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withNullArrays_preservesNulls', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -425,14 +415,12 @@ describe('savedFiltersToRuntime', () => {
     const { runtime: result } = savedFiltersToRuntime(saved)
 
     expect(result.personIds).toBeNull()
-    expect(result.tagIds).toBeNull()
     expect(result.orgIds).toBeNull()
   })
 
   it('savedFiltersToRuntime_withAnyInput_resetsTransientFields', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -449,7 +437,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withLegacyCompletedFilter_derivesShowCompleted', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       completedFilter: 'all',
       assignedFilter: 'all',
@@ -468,7 +455,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withLegacyIncompleteFilter_derivesShowCompletedFalse', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       completedFilter: 'incomplete',
       assignedFilter: 'unassigned',
@@ -486,7 +472,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withStatusIds_convertsArrayToSet', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       statusIds: [1, 2, 3],
       showCompleted: false,
@@ -501,7 +486,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withNoStatusIds_returnsNull', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -515,7 +499,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withDateField_preservesDateField', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -530,7 +513,6 @@ describe('savedFiltersToRuntime', () => {
   it('savedFiltersToRuntime_withoutDateField_defaultsToDate', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -544,7 +526,6 @@ describe('savedFiltersToRuntime', () => {
   it('legacy dateField=due translates to date', () => {
     const saved = {
       personIds: null,
-      tagIds: null,
       orgIds: null,
       showCompleted: false,
       showHiddenStatuses: false,
@@ -569,7 +550,6 @@ describe('savedFiltersToRuntime legacy translation with seeded IDs', () => {
 
   const baseSaved = {
     personIds: null,
-    tagIds: null,
     orgIds: null,
     showCompleted: false,
     showHiddenStatuses: false,
