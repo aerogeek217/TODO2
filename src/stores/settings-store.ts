@@ -14,6 +14,32 @@ export type NotesDock = 'right' | 'bottom' | 'floating'
 
 export const NOTES_DOCKS: readonly NotesDock[] = ['right', 'bottom', 'floating'] as const
 
+export type DashboardTopSlot = 'taskboard' | 'horizon'
+
+export const DASHBOARD_TOP_SLOTS: readonly DashboardTopSlot[] = ['taskboard', 'horizon'] as const
+
+export const DEFAULT_DASHBOARD_TOP_ORDER: readonly DashboardTopSlot[] = ['taskboard', 'horizon'] as const
+
+export function isValidDashboardTopOrder(value: unknown): value is DashboardTopSlot[] {
+  if (!Array.isArray(value) || value.length !== DASHBOARD_TOP_SLOTS.length) return false
+  const seen = new Set<string>()
+  for (const item of value) {
+    if (typeof item !== 'string' || !(DASHBOARD_TOP_SLOTS as readonly string[]).includes(item)) return false
+    if (seen.has(item)) return false
+    seen.add(item)
+  }
+  return true
+}
+
+function parseDashboardTopOrder(value: string | undefined | null): DashboardTopSlot[] {
+  if (!value) return [...DEFAULT_DASHBOARD_TOP_ORDER]
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (isValidDashboardTopOrder(parsed)) return parsed
+  } catch { /* ignore */ }
+  return [...DEFAULT_DASHBOARD_TOP_ORDER]
+}
+
 export interface ThemeColors {
   accent: string
   canvasBg: string
@@ -59,6 +85,8 @@ interface SettingsState {
   notesVisible: boolean
   /** Persisted canvas rails layout (null = no persisted state). */
   canvasRails: RailsState | null
+  /** Ordering of the dashboard top row (taskboard + hero horizon). */
+  dashboardTopOrder: DashboardTopSlot[]
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -76,6 +104,7 @@ interface SettingsState {
   setNotesDock: (dock: NotesDock) => Promise<void>
   setNotesVisible: (visible: boolean) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
+  setDashboardTopOrder: (order: DashboardTopSlot[]) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -227,6 +256,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   notesDock: 'right' as NotesDock,
   notesVisible: true,
   canvasRails: null,
+  dashboardTopOrder: [...DEFAULT_DASHBOARD_TOP_ORDER],
 
   async load() {
     try {
@@ -248,6 +278,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let notesDock: NotesDock = 'right'
       let notesVisible = true
       let canvasRails: RailsState | null = null
+      let dashboardTopOrder: DashboardTopSlot[] = [...DEFAULT_DASHBOARD_TOP_ORDER]
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -292,11 +323,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           notesVisible = row.value !== 'false'
         } else if (row.key === 'canvasRails') {
           canvasRails = parseRailsState(row.value)
+        } else if (row.key === 'dashboardTopOrder') {
+          dashboardTopOrder = parseDashboardTopOrder(row.value)
         }
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesDock, notesVisible, canvasRails })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesDock, notesVisible, canvasRails, dashboardTopOrder })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -406,6 +439,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async setNotesVisible(visible: boolean) {
     await settingsRepository.put('notesVisible', visible ? 'true' : 'false')
     set({ notesVisible: visible })
+  },
+
+  async setDashboardTopOrder(order: DashboardTopSlot[]) {
+    if (!isValidDashboardTopOrder(order)) return
+    await settingsRepository.put('dashboardTopOrder', JSON.stringify(order))
+    set({ dashboardTopOrder: [...order] })
   },
 
   setCanvasRails(rails: RailsState) {

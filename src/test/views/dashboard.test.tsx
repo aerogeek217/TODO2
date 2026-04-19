@@ -342,6 +342,50 @@ describe('DashboardView — Phase 5 polish', () => {
     expect(input).not.toBeNull()
   })
 
+  it('no longer renders the "Other horizons" section', () => {
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    expect(screen.queryByText(/Other horizons/i)).toBeNull()
+  })
+
+  it('renders taskboard + hero in the top row, honoring dashboardTopOrder', () => {
+    useSettingsStore.setState({ dashboardTopOrder: ['taskboard', 'horizon'] })
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const topRow = container.querySelector<HTMLElement>('[class*="topRow"]')
+    expect(topRow).not.toBeNull()
+    // Two sortable wrappers (taskboard + hero).
+    const wrappers = topRow!.querySelectorAll('[class*="sortableCardWrapper"]')
+    expect(wrappers.length).toBe(2)
+    // Default order: taskboard first, horizon second.
+    const firstHasTaskboard = wrappers[0].querySelector('[class*="panel"]') != null
+      || wrappers[0].textContent?.includes('Taskboard')
+    expect(firstHasTaskboard).toBe(true)
+    const secondHero = wrappers[1].querySelector('#horizon-hero-panel')
+    expect(secondHero).not.toBeNull()
+  })
+
+  it('reversed dashboardTopOrder puts hero before taskboard', () => {
+    useSettingsStore.setState({ dashboardTopOrder: ['horizon', 'taskboard'] })
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const wrappers = container.querySelectorAll<HTMLElement>(
+      '[class*="topRow"] > [class*="sortableCardWrapper"]',
+    )
+    expect(wrappers.length).toBe(2)
+    expect(wrappers[0].querySelector('#horizon-hero-panel')).not.toBeNull()
+    expect(wrappers[1].textContent).toMatch(/Taskboard/i)
+  })
+
   it('persists the hero card collapse toggle via setHorizonCollapsed', () => {
     const spy = vi.spyOn(useSettingsStore.getState(), 'setHorizonCollapsed')
     render(

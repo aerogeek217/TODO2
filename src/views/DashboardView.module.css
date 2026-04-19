@@ -72,12 +72,50 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.taskboardSection {
+.topRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
   margin-bottom: 16px;
+  align-items: start;
 }
 
-.heroSection {
-  margin-bottom: 16px;
+.sortableCardWrapper {
+  position: relative;
+  min-width: 0;
+}
+
+.cardDragHandle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+}
+
+.sortableCardWrapper:hover .cardDragHandle,
+.cardDragHandle:focus-visible {
+  opacity: 0.7;
+}
+
+.cardDragHandle:hover {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
+.cardDragHandle:active {
+  cursor: grabbing;
 }
 
 .heroCard .cardHeader {
@@ -306,6 +344,15 @@
   .grid {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .topRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .cardDragHandle {
+    display: none;
   }
 
   .cardBody {

@@ -3,12 +3,20 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  closestCenter,
   useSensor,
   useSensors,
   useDraggable,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
@@ -53,6 +61,40 @@ function DashboardDraggableRow({
 
   return (
     <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.4 : 1 }}>
+      {children}
+    </div>
+  )
+}
+
+function SortableCardWrapper({
+  id,
+  children,
+}: {
+  id: string | number
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+  return (
+    <div ref={setNodeRef} style={style} className={styles.sortableCardWrapper}>
+      <button
+        type="button"
+        className={styles.cardDragHandle}
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">
+          <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
+          <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
+          <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
+        </svg>
+      </button>
       {children}
     </div>
   )
@@ -229,6 +271,9 @@ export function DashboardView() {
   const notesDock = useSettingsStore((s) => s.notesDock)
   const notesVisible = useSettingsStore((s) => s.notesVisible)
   const setNotesVisible = useSettingsStore((s) => s.setNotesVisible)
+  const dashboardTopOrder = useSettingsStore((s) => s.dashboardTopOrder)
+  const setDashboardTopOrder = useSettingsStore((s) => s.setDashboardTopOrder)
+  const reorderListDefinitions = useListDefinitionStore((s) => s.reorder)
   const loadNotes = useNoteStore((s) => s.load)
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
@@ -250,11 +295,46 @@ export function DashboardView() {
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     setActiveDragTodo(null)
+    const activeId = event.active.id
+    const overId = event.over?.id
+
+    // Task → taskboard drop
     const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
     const overData = event.over?.data.current
-    if (!todo || overData?.type !== 'taskboard') return
-    await useTaskboardStore.getState().add(todo.id)
-  }, [])
+    if (todo && overData?.type === 'taskboard') {
+      await useTaskboardStore.getState().add(todo.id)
+      return
+    }
+
+    if (overId == null || activeId === overId) return
+
+    // Top-row swap (taskboard ↔ horizon)
+    if (typeof activeId === 'string' && typeof overId === 'string'
+      && (activeId === 'top:taskboard' || activeId === 'top:horizon')
+      && (overId === 'top:taskboard' || overId === 'top:horizon')) {
+      const current = dashboardTopOrder
+      const from = current.indexOf(activeId === 'top:taskboard' ? 'taskboard' : 'horizon')
+      const to = current.indexOf(overId === 'top:taskboard' ? 'taskboard' : 'horizon')
+      if (from !== -1 && to !== -1 && from !== to) {
+        const next = [...current]
+        const [moved] = next.splice(from, 1)
+        next.splice(to, 0, moved)
+        await setDashboardTopOrder(next)
+      }
+      return
+    }
+
+    // User-list card reorder (ids are raw listDefinitionId numbers)
+    if (typeof activeId === 'number' && typeof overId === 'number') {
+      const ordered = [...useListDefinitionStore.getState().listDefinitions]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+      const from = ordered.findIndex((d) => d.id === activeId)
+      const to = ordered.findIndex((d) => d.id === overId)
+      if (from !== -1 && to !== -1 && from !== to) {
+        await reorderListDefinitions(from, to)
+      }
+    }
+  }, [dashboardTopOrder, setDashboardTopOrder, reorderListDefinitions])
 
   useEffect(() => {
     loadAll()
@@ -370,7 +450,6 @@ export function DashboardView() {
   )
 
   const heroList = horizonLists[selectedHorizon]
-  const otherHorizons: HorizonKey[] = HORIZON_KEYS.filter((k) => k !== selectedHorizon)
 
   // Reverse lookup so we can derive the HorizonKey (if any) behind a rendered list.
   const horizonByDefId = useMemo(() => {
@@ -470,95 +549,86 @@ export function DashboardView() {
             onEditHorizons={horizonDefIdList.length > 0 ? () => setShowHorizonEditor(true) : undefined}
           />
 
-          <div className={styles.taskboardSection}>
-            <TaskboardPanel />
-          </div>
-
-          {heroList && (() => {
-            const c = resolveCollapse(heroList)
-            return (
-              <div className={styles.heroSection}>
-                <DashboardListCard
-                  list={heroList}
-                  variant="hero"
-                  collapsed={c.collapsed}
-                  onToggleCollapse={c.onToggle}
-                  onOpenDetail={handleClick}
-                  assignedPeopleMap={assignedPeopleMap}
-                  assignedTagsMap={assignedTagsMap}
-                  isMobile={isMobile}
-                  tabpanelId={HERO_PANEL_ID}
-                  tabpanelLabelledBy={tabIdFor(selectedHorizon)}
-                  addTaskLabel={heroList.label}
-                  onAddTask={handleCreateHorizonTask}
-                />
-              </div>
-            )
-          })()}
-
-          {otherHorizons.some((k) => horizonLists[k]) && (
-            <>
-              <div className={styles.sectionDivider}>Other horizons</div>
-              <div className={styles.grid}>
-                {otherHorizons.map((key) => {
-                  const list = horizonLists[key]
-                  if (!list) return null
-                  const c = resolveCollapse(list)
+          <SortableContext
+            items={dashboardTopOrder.map((slot) => `top:${slot}`)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div className={styles.topRow}>
+              {dashboardTopOrder.map((slot) => {
+                if (slot === 'taskboard') {
                   return (
+                    <SortableCardWrapper key="taskboard" id="top:taskboard">
+                      <TaskboardPanel />
+                    </SortableCardWrapper>
+                  )
+                }
+                if (!heroList) return null
+                const c = resolveCollapse(heroList)
+                return (
+                  <SortableCardWrapper key="horizon" id="top:horizon">
                     <DashboardListCard
-                      key={list.key}
-                      list={list}
-                      variant="secondary"
+                      list={heroList}
+                      variant="hero"
                       collapsed={c.collapsed}
                       onToggleCollapse={c.onToggle}
                       onOpenDetail={handleClick}
                       assignedPeopleMap={assignedPeopleMap}
                       assignedTagsMap={assignedTagsMap}
                       isMobile={isMobile}
+                      tabpanelId={HERO_PANEL_ID}
+                      tabpanelLabelledBy={tabIdFor(selectedHorizon)}
+                      addTaskLabel={heroList.label}
+                      onAddTask={handleCreateHorizonTask}
                     />
-                  )
-                })}
-              </div>
-            </>
-          )}
+                  </SortableCardWrapper>
+                )
+              })}
+            </div>
+          </SortableContext>
 
           {(userLists.length > 0 || !isMobile) && (
             <>
               {userLists.length > 0 && (
                 <div className={styles.sectionDivider}>Your lists</div>
               )}
-              <div className={styles.grid}>
-                {userLists.map((list) => {
-                  const c = resolveCollapse(list)
-                  return (
-                    <DashboardListCard
-                      key={list.key}
-                      list={list}
-                      variant="secondary"
-                      collapsed={c.collapsed}
-                      onToggleCollapse={c.onToggle}
-                      onOpenDetail={handleClick}
-                      assignedPeopleMap={assignedPeopleMap}
-                      assignedTagsMap={assignedTagsMap}
-                      isMobile={isMobile}
-                    />
-                  )
-                })}
-                {!isMobile && (
-                  <button
-                    type="button"
-                    className={styles.addTile}
-                    onClick={(e) => {
-                      const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-                      setAddListPickerPos({ x: r.left, y: r.bottom + 4 })
-                    }}
-                    title="Add a list to the dashboard"
-                  >
-                    <span className={styles.addTileGlyph}>+</span>
-                    <span className={styles.addTileLabel}>Add list</span>
-                  </button>
-                )}
-              </div>
+              <SortableContext
+                items={userLists.map((l) => l.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className={styles.grid}>
+                  {userLists.map((list) => {
+                    const c = resolveCollapse(list)
+                    return (
+                      <SortableCardWrapper key={list.id} id={list.id}>
+                        <DashboardListCard
+                          list={list}
+                          variant="secondary"
+                          collapsed={c.collapsed}
+                          onToggleCollapse={c.onToggle}
+                          onOpenDetail={handleClick}
+                          assignedPeopleMap={assignedPeopleMap}
+                          assignedTagsMap={assignedTagsMap}
+                          isMobile={isMobile}
+                        />
+                      </SortableCardWrapper>
+                    )
+                  })}
+                  {!isMobile && (
+                    <button
+                      type="button"
+                      className={styles.addTile}
+                      onClick={(e) => {
+                        const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                        setAddListPickerPos({ x: r.left, y: r.bottom + 4 })
+                      }}
+                      title="Add a list to the dashboard"
+                    >
+                      <span className={styles.addTileGlyph}>+</span>
+                      <span className={styles.addTileLabel}>Add list</span>
+                    </button>
+                  )}
+                </div>
+              </SortableContext>
             </>
           )}
 
@@ -639,6 +709,7 @@ export function DashboardView() {
   return (
     <DndContext
       sensors={sensors}
+      collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
