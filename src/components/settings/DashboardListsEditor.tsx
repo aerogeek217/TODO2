@@ -56,11 +56,15 @@ const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
   { value: 'sortBy', label: 'Group attribute' },
 ]
 
-const GROUPING_KINDS: { value: ListGrouping['kind']; label: string }[] = [
+const GROUPING_KINDS: { value: ListGrouping['kind']; label: string; title?: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'relative-effective', label: 'Relative (effective)' },
   { value: 'relative-deadline', label: 'Relative (deadline)' },
-  { value: 'by-sortBy', label: 'Match sort' },
+  {
+    value: 'by-sortBy',
+    label: 'Match sort field',
+    title: 'Group by the same field used for sorting. Only available when Sort = Group attribute.',
+  },
   { value: 'by-field', label: 'By field' },
 ]
 
@@ -279,16 +283,21 @@ function ConfigPanel({
       <div className={local.configRow}>
         <span className={local.configLabel}>Grouping</span>
         <div className={local.configButtons}>
-          {GROUPING_KINDS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`${local.configBtn} ${def.grouping.kind === value ? local.configBtnActive : ''}`}
-              onClick={() => setGroupingKind(value)}
-            >
-              {label}
-            </button>
-          ))}
+          {GROUPING_KINDS.map(({ value, label, title }) => {
+            const disabled = value === 'by-sortBy' && def.sort.kind !== 'sortBy'
+            return (
+              <button
+                key={value}
+                type="button"
+                className={`${local.configBtn} ${def.grouping.kind === value ? local.configBtnActive : ''}`}
+                onClick={() => setGroupingKind(value)}
+                disabled={disabled}
+                title={title}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
       </div>
 

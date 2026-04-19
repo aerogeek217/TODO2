@@ -1120,9 +1120,9 @@ export function ListView() {
               <button
                 className={styles.toolbarActionBtn}
                 onClick={handleSavePreset}
-                title="Save as a Dashboard / Canvas preset list"
+                title="Save as a Dashboard / Canvas list"
               >
-                Save as Preset
+                Save to Dashboard
               </button>
               <button
                 className={styles.toolbarActionBtn}
@@ -1283,7 +1283,7 @@ export function ListView() {
         <>
           <div className={styles.dialogBackdrop} onClick={() => setShowSavePresetDialog(false)} />
           <div className={styles.dialog}>
-            <div className={styles.dialogTitle}>Save as Preset</div>
+            <div className={styles.dialogTitle}>Save to Dashboard</div>
             <div className={styles.dialogHint}>
               Captures current filters + grouping as a reusable list, available on the Dashboard and as a canvas inset.
             </div>

@@ -104,3 +104,40 @@ describe('DashboardListsEditor — filterIds mode', () => {
     expect(onClose).toHaveBeenCalled()
   })
 })
+
+describe('DashboardListsEditor — Match sort field grouping option', () => {
+  beforeEach(() => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 1, name: 'SortOrder def', sort: { kind: 'sort-order' } }),
+        makeDef({ id: 2, name: 'SortBy def', sort: { kind: 'sortBy', by: 'project' } }),
+      ],
+    })
+  })
+  afterEach(() => { cleanup() })
+
+  it('disables Match-sort-field grouping when sort kind is not sortBy', () => {
+    const { getAllByText, getByText } = render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    // Open the first def's config panel.
+    const configBtns = getAllByText('⚙')
+    fireEvent.click(configBtns[0])
+    const matchBtn = getByText('Match sort field') as HTMLButtonElement
+    expect(matchBtn.disabled).toBe(true)
+  })
+
+  it('enables Match-sort-field grouping when sort kind is sortBy', () => {
+    const { getAllByText, getByText } = render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    const configBtns = getAllByText('⚙')
+    fireEvent.click(configBtns[1])
+    const matchBtn = getByText('Match sort field') as HTMLButtonElement
+    expect(matchBtn.disabled).toBe(false)
+  })
+})

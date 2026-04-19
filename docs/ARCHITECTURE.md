@@ -19,7 +19,7 @@ main.tsx (entry point)
 ├── views/                 → Route-level pages
 │   ├── CanvasPage         → components/canvas/, stores
 │   ├── DashboardView      → `HorizonRibbon` (5 slots via `settings.horizonSlots`; `role=tablist`, arrow-key roving focus, "Edit horizons…" opens `DashboardListsEditor` filtered to slot-mapped defs) → two-column `.topRow` (Taskboard + hero horizon card) drag-swappable via `@dnd-kit/sortable`, order persisted through `settings.dashboardTopOrder`; hero card (`role=tabpanel`, inline "+ Add task to {horizon}" → `useTaskEditCallbacks.onCreate`) → "Your lists" grid of non-horizon pinned `listDefinitions`, drag-reorderable via `useListDefinitionStore.reorder` (persists through `ListDefinition.sortOrder`); per-horizon collapse persists via `settings.horizonCollapsed`, non-horizon cards use local collapse; "Add list" tile → `ListDefinitionPickerPopup`; shares `showCompleted` / `showHiddenStatuses`; right/bottom/floating `NotesPanel` (CM6 Markdown inbox, ⌘T → task)
-│   ├── ListView           → Unified list with sort-by grouping (Date/Scheduled/Deadline/People/Tag/Project/Status/Org), saved views, "Save as Preset" → ListDefinition, plain text export
+│   ├── ListView           → Unified list with sort-by grouping (Date/Scheduled/Deadline/People/Tag/Project/Status/Org), saved views, "Save to Dashboard" → ListDefinition, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Theme toggle, manage buttons, task defaults, database location, import/export
 ├── components/
