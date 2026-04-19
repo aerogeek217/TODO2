@@ -548,6 +548,20 @@ describe('DashboardView — Phase 6 "Your lists" can include horizons', () => {
     expect(document.getElementById('horizon-hero-panel')).not.toBeNull()
   })
 
+  it('renders the Notes tile as a sortable card inside the grid', () => {
+    useSettingsStore.setState({ dashboardUserLists: [99, -1], notesPinnedToDashboard: true })
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const notesTile = container.querySelector('[data-notes-tile="true"]')
+    expect(notesTile).not.toBeNull()
+    // The tile's header is the drag surface, matching the other cards.
+    const header = notesTile!.querySelector<HTMLElement>('[class*="cardHeader"]')!
+    expect(header.getAttribute('aria-roledescription')).toBe('sortable')
+  })
+
   it('falls back to legacy derivation when dashboardUserLists is null (pre-seed)', () => {
     useSettingsStore.setState({ dashboardUserLists: null })
     const { container } = render(

@@ -47,6 +47,15 @@ import { useNoteStore } from '../stores/note-store'
 import { useUndoStore } from '../stores/undo-store'
 import styles from './DashboardView.module.css'
 
+// Sentinel value in `settings.dashboardUserLists` marking the Notes tile's
+// position inside the "Your lists" grid. Real ListDefinition ids are
+// positive integers, so -1 is unambiguous.
+const NOTES_SENTINEL = -1
+
+type GridItem =
+  | { kind: 'list'; list: DashboardList }
+  | { kind: 'notes' }
+
 function DashboardDraggableRow({
   todo,
   listKey,
@@ -576,22 +585,42 @@ export function DashboardView() {
     return s
   }, [horizonSlots])
 
+  const showNotesTile = notesPinnedToDashboard && !isMobile
+
   // "Your lists" grid membership and ordering. Post-P6 this is an explicit
   // setting that can include horizon-mapped defs alongside the ribbon. Falls
   // back to the legacy derivation (pinned minus horizons, by sortOrder) until
   // the first seed runs — keeps pre-P6 users visually stable across upgrade.
-  const userLists = useMemo(() => {
-    if (dashboardUserLists != null) {
-      const out: DashboardList[] = []
-      for (const id of dashboardUserLists) {
-        const l = listsById.get(id)
-        if (l) out.push(l)
+  // The Notes tile rides in the same array as `NOTES_SENTINEL` so it drags
+  // and reorders alongside list cards.
+  const gridItems = useMemo<GridItem[]>(() => {
+    const source = dashboardUserLists
+      ?? lists
+        .filter((l) => !horizonDefIds.has(l.id))
+        .map((l) => l.id)
+    const items: GridItem[] = []
+    let sawSentinel = false
+    for (const id of source) {
+      if (id === NOTES_SENTINEL) {
+        if (showNotesTile) {
+          items.push({ kind: 'notes' })
+          sawSentinel = true
+        }
+      } else {
+        const list = listsById.get(id)
+        if (list) items.push({ kind: 'list', list })
       }
-      return out
     }
-    // `lists` is already sortOrder-ordered by buildDashboardLists.
-    return lists.filter((l) => !horizonDefIds.has(l.id))
-  }, [dashboardUserLists, listsById, lists, horizonDefIds])
+    // Transient state (notes pinned but sentinel not yet persisted): render
+    // at the end. A sync effect below repairs the array on the next tick.
+    if (showNotesTile && !sawSentinel) items.push({ kind: 'notes' })
+    return items
+  }, [dashboardUserLists, listsById, lists, horizonDefIds, showNotesTile])
+
+  const userLists = useMemo(
+    () => gridItems.flatMap((i) => (i.kind === 'list' ? [i.list] : [])),
+    [gridItems],
+  )
 
   // One-time seed: first render where the setting is still `null` and at least
   // one list def is loaded, snapshot the legacy derivation so ordering persists.
@@ -602,8 +631,23 @@ export function DashboardView() {
       .filter((d) => d.pinnedToDashboard && d.id != null && !horizonDefIds.has(d.id))
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((d) => d.id!)
+    if (notesPinnedToDashboard) seed.push(NOTES_SENTINEL)
     void setDashboardUserLists(seed)
-  }, [dashboardUserLists, listDefinitions, horizonDefIds, setDashboardUserLists])
+  }, [dashboardUserLists, listDefinitions, horizonDefIds, notesPinnedToDashboard, setDashboardUserLists])
+
+  // Reconcile the notes sentinel with `notesPinnedToDashboard`. Pinning via
+  // the picker / unpinning via the ⋯ menu both flip the flag; this effect
+  // appends or removes the sentinel so the sortable array stays consistent
+  // without every caller having to touch both settings.
+  useEffect(() => {
+    if (dashboardUserLists == null) return
+    const has = dashboardUserLists.includes(NOTES_SENTINEL)
+    if (notesPinnedToDashboard && !has) {
+      void setDashboardUserLists([...dashboardUserLists, NOTES_SENTINEL])
+    } else if (!notesPinnedToDashboard && has) {
+      void setDashboardUserLists(dashboardUserLists.filter((id) => id !== NOTES_SENTINEL))
+    }
+  }, [notesPinnedToDashboard, dashboardUserLists, setDashboardUserLists])
 
   const heroList = horizonLists[selectedHorizon]
 
@@ -628,8 +672,6 @@ export function DashboardView() {
       setSlotPickerAt(null)
     }
   }, [slotPickerAt, setHorizonSlot])
-
-  const showNotesTile = notesPinnedToDashboard && !isMobile
 
   const HERO_PANEL_ID = 'horizon-hero-panel'
   const tabIdFor = useCallback((key: HorizonKey) => `horizon-tab-${key}`, [])
@@ -799,66 +841,84 @@ export function DashboardView() {
             </div>
           </SortableContext>
 
-          {(userLists.length > 0 || showNotesTile || !isMobile) && (
+          {(gridItems.length > 0 || !isMobile) && (
             <>
-              {(userLists.length > 0 || showNotesTile) && (
+              {gridItems.length > 0 && (
                 <div className={styles.sectionDivider}>Your lists</div>
               )}
               <SortableContext
-                items={userLists.map((l) => l.id)}
+                items={gridItems.map((i) => (i.kind === 'notes' ? NOTES_SENTINEL : i.list.id))}
                 strategy={rectSortingStrategy}
               >
                 <div className={styles.grid}>
-                  {userLists.map((list) => (
-                    <SortableCardWrapper
-                      key={list.id}
-                      id={list.id}
-                      render={({ handleIcon, dragHandleProps }) => (
-                        <DashboardListCard
-                          list={list}
-                          variant="secondary"
-                          onOpenDetail={handleClick}
-                          assignedPeopleMap={assignedPeopleMap}
-                          assignedTagsMap={assignedTagsMap}
-                          isMobile={isMobile}
-                          dragHandleIcon={handleIcon}
-                          dragHandleProps={dragHandleProps}
-                          headerMenu={
-                            <CardOverflowMenu
-                              open={openMenuId === list.id}
-                              onToggle={() => setOpenMenuId((cur) => (cur === list.id ? null : list.id))}
-                              onClose={() => setOpenMenuId((cur) => (cur === list.id ? null : cur))}
-                              onEdit={() => handleEditList(list.id)}
-                              onUnpin={() => handleUnpinList(list.id, list.label)}
-                              onDelete={() => handleDeleteList(list.id, list.label)}
-                            />
-                          }
+                  {gridItems.map((item) => {
+                    if (item.kind === 'notes') {
+                      return (
+                        <SortableCardWrapper
+                          key="notes"
+                          id={NOTES_SENTINEL}
+                          render={({ handleIcon, dragHandleProps }) => (
+                            <div
+                              className={`${styles.card} ${styles.listCard} ${styles.notesTile}`}
+                              data-notes-tile="true"
+                            >
+                              <div
+                                {...dragHandleProps}
+                                className={`${styles.cardHeader} ${dragHandleProps.className ?? ''}`.trim()}
+                              >
+                                {handleIcon}
+                                <span className={styles.cardTitle}>Notes</span>
+                                <span className={styles.cardCount} aria-hidden />
+                                <CardOverflowMenu
+                                  open={openMenuId === 'notes'}
+                                  onToggle={() => setOpenMenuId((cur) => (cur === 'notes' ? null : 'notes'))}
+                                  onClose={() => setOpenMenuId((cur) => (cur === 'notes' ? null : cur))}
+                                  onEdit={() => setOpenMenuId(null)}
+                                  onUnpin={() => { void handleUnpinNotes() }}
+                                  onDelete={() => setOpenMenuId(null)}
+                                  hideEdit
+                                  hideDelete
+                                  label="Notes options"
+                                />
+                              </div>
+                              <div className={styles.notesTileBody}>
+                                <NotesBody dock="slot" hideFooter />
+                              </div>
+                            </div>
+                          )}
                         />
-                      )}
-                    />
-                  ))}
-                  {showNotesTile && (
-                    <div className={`${styles.card} ${styles.listCard} ${styles.notesTile}`}>
-                      <div className={styles.cardHeader}>
-                        <span className={styles.cardTitle}>Notes</span>
-                        <span className={styles.cardCount} aria-hidden />
-                        <CardOverflowMenu
-                          open={openMenuId === 'notes'}
-                          onToggle={() => setOpenMenuId((cur) => (cur === 'notes' ? null : 'notes'))}
-                          onClose={() => setOpenMenuId((cur) => (cur === 'notes' ? null : cur))}
-                          onEdit={() => setOpenMenuId(null)}
-                          onUnpin={() => { void handleUnpinNotes() }}
-                          onDelete={() => setOpenMenuId(null)}
-                          hideEdit
-                          hideDelete
-                          label="Notes options"
-                        />
-                      </div>
-                      <div className={styles.notesTileBody}>
-                        <NotesBody dock="slot" hideFooter />
-                      </div>
-                    </div>
-                  )}
+                      )
+                    }
+                    const list = item.list
+                    return (
+                      <SortableCardWrapper
+                        key={list.id}
+                        id={list.id}
+                        render={({ handleIcon, dragHandleProps }) => (
+                          <DashboardListCard
+                            list={list}
+                            variant="secondary"
+                            onOpenDetail={handleClick}
+                            assignedPeopleMap={assignedPeopleMap}
+                            assignedTagsMap={assignedTagsMap}
+                            isMobile={isMobile}
+                            dragHandleIcon={handleIcon}
+                            dragHandleProps={dragHandleProps}
+                            headerMenu={
+                              <CardOverflowMenu
+                                open={openMenuId === list.id}
+                                onToggle={() => setOpenMenuId((cur) => (cur === list.id ? null : list.id))}
+                                onClose={() => setOpenMenuId((cur) => (cur === list.id ? null : cur))}
+                                onEdit={() => handleEditList(list.id)}
+                                onUnpin={() => handleUnpinList(list.id, list.label)}
+                                onDelete={() => handleDeleteList(list.id, list.label)}
+                              />
+                            }
+                          />
+                        )}
+                      />
+                    )
+                  })}
                   {!isMobile && (
                     <button
                       type="button"
