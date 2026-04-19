@@ -18,7 +18,7 @@ import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
-import { useStickyNoteStore } from './stores/sticky-note-store'
+import { useNoteStore } from './stores/note-store'
 import { useStatusStore } from './stores/status-store'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
@@ -122,7 +122,7 @@ function AppShell() {
     return () => backupScheduler.stop()
   }, [ensureDefault, loadSettings, initFileStorage, loadPeople, loadTags, loadOrgs])
 
-  const createStickyNote = useCallback(() => {
+  const createFloatingNote = useCallback(() => {
     if (location.pathname !== '/') return
     const canvasId = useCanvasStore.getState().selectedCanvasId
     if (!canvasId) return
@@ -133,7 +133,7 @@ function AppShell() {
     const zoom = vp?.zoom ?? 1
     const cx = (-(vp?.x ?? 0) + w / 2) / zoom
     const cy = (-(vp?.y ?? 0) + h / 2) / zoom
-    useStickyNoteStore.getState().add(canvasId, cx - 120, cy - 100)
+    useNoteStore.getState().addFloating(canvasId, cx - 120, cy - 100)
   }, [location.pathname])
 
   // Fit-to-view: dispatch a custom event that CanvasPage can listen to,
@@ -156,7 +156,7 @@ function AppShell() {
     openPalette: () => setShowPalette(true),
     closePalette: () => setShowPalette(false),
     navigate,
-    createStickyNote,
+    createFloatingNote,
     openShortcutsModal: () => setShowShortcuts(true),
     fitView,
     toggleProjectNavigator,
@@ -200,12 +200,12 @@ function AppShell() {
         navigate('/')
       },
       fitView,
-      createStickyNote: location.pathname === '/' ? createStickyNote : undefined,
+      createFloatingNote: location.pathname === '/' ? createFloatingNote : undefined,
       toggleProjectNavigator: location.pathname === '/' ? toggleProjectNavigator : undefined,
       openShortcutsModal: () => setShowShortcuts(true),
       getStatuses: () => useStatusStore.getState().statuses,
     }),
-    [navigate, todos, projects, selectionCount, fitView, createStickyNote, toggleProjectNavigator, location.pathname]
+    [navigate, todos, projects, selectionCount, fitView, createFloatingNote, toggleProjectNavigator, location.pathname]
   )
 
   const commands = useMemo(() => createCommands(commandCtx), [commandCtx])
@@ -265,7 +265,7 @@ function AppShell() {
             </svg>
           </button>
           {!isMobile && location.pathname === '/' && (
-            <button className={styles.fab} onClick={createStickyNote} title="New Sticky Note (N)">
+            <button className={styles.fab} onClick={createFloatingNote} title="New Note (N)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
                 <polyline points="14 3 14 9 21 9" />

@@ -152,11 +152,11 @@ describe('auditData', () => {
     expect(issue.fix).toBe('delete')
   })
 
-  it('detects stickyNotes with deleted canvasId', async () => {
-    await db.stickyNotes.add({ canvasId: 999, text: 'hi', x: 0, y: 0, width: 150, height: 150, createdAt: now, modifiedAt: now } as any)
+  it('detects floating notes with deleted canvasId', async () => {
+    await db.notes.add({ canvasId: 999, content: 'hi', x: 0, y: 0, width: 150, height: 150, createdAt: now, modifiedAt: now } as any)
 
     const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'stickyNotes')!
+    const issue = report.issues.find((i) => i.table === 'notes')!
     expect(issue.count).toBe(1)
     expect(issue.fix).toBe('delete')
   })
@@ -274,16 +274,19 @@ describe('cleanupIssues', () => {
     expect(todo!.parentId).toBeUndefined()
   })
 
-  it('deletes orphaned listInsets and stickyNotes', async () => {
+  it('deletes orphaned listInsets and floating notes', async () => {
     await db.listInsets.add({ canvasId: 999, preset: 'due-this-week', x: 0, y: 0, width: 200, height: 200 } as any)
-    await db.stickyNotes.add({ canvasId: 999, text: 'hi', x: 0, y: 0, width: 150, height: 150, createdAt: now, modifiedAt: now } as any)
+    await db.notes.add({ canvasId: 999, content: 'hi', x: 0, y: 0, width: 150, height: 150, createdAt: now, modifiedAt: now } as any)
 
     const report = await auditData()
     const cleaned = await cleanupIssues(report.issues)
     expect(cleaned).toBe(2)
 
     expect(await db.listInsets.count()).toBe(0)
-    expect(await db.stickyNotes.count()).toBe(0)
+    // The global seeded note (canvasId==null) is excluded from the orphan scan
+    // so the only remaining note should be... none (canvas note deleted, no
+    // global seeded in this test fixture).
+    expect(await db.notes.count()).toBe(0)
   })
 
   it('preserves valid data while cleaning orphans', async () => {

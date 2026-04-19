@@ -27,14 +27,14 @@ function snapshotTable<T>(rows: T[]): T[] {
 async function readAllTables() {
   const [
     todos, projects, canvases, listInsets, people, settings, tags, todoTags,
-    todoPeople, todoOrgs, personOrgs, orgs, savedViews, stickyNotes,
+    todoPeople, todoOrgs, personOrgs, orgs, savedViews, notes,
     taskboardEntries, statuses, listDefinitions,
   ] = await Promise.all([
     db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(),
     db.listInsets.toArray(), db.people.toArray(), db.settings.toArray(),
     db.tags.toArray(), db.todoTags.toArray(), db.todoPeople.toArray(),
     db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
-    db.savedViews.toArray(), db.stickyNotes.toArray(),
+    db.savedViews.toArray(), db.notes.toArray(),
     db.taskboardEntries.toArray(), db.statuses.toArray(),
     db.listDefinitions.toArray(),
   ])
@@ -52,7 +52,7 @@ async function readAllTables() {
     personOrgs: snapshotTable(personOrgs),
     orgs: snapshotTable(orgs),
     savedViews: snapshotTable(savedViews),
-    stickyNotes: snapshotTable(stickyNotes),
+    notes: snapshotTable(notes),
     taskboardEntries: snapshotTable(taskboardEntries),
     statuses: snapshotTable(statuses),
     listDefinitions: snapshotTable(listDefinitions),
@@ -282,11 +282,11 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       settings: firstPass.settings as unknown as ImportData['settings'],
       orgs: firstPass.orgs,
       savedViews: firstPass.savedViews as unknown as ImportData['savedViews'],
-      stickyNotes: firstPass.stickyNotes,
+      stickyNotes: [],
       taskboardEntries: firstPass.taskboardEntries,
       statuses: firstPass.statuses,
       listDefinitions: firstPass.listDefinitions,
-      notes: [],
+      notes: firstPass.notes as unknown as ImportData['notes'],
     }
 
     // 4) Clear DB via a fresh open then bulk re-import

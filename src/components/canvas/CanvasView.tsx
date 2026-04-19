@@ -16,12 +16,12 @@ import {
 import '@xyflow/react/dist/style.css'
 import { ProjectNode, type ProjectNodeData } from './ProjectNode'
 import { ListInsetNode, type ListInsetNodeData } from './ListInsetNode'
-import { StickyNoteNode, type StickyNoteNodeData } from './StickyNoteNode'
+import { FloatingNoteNode, type FloatingNoteNodeData } from './FloatingNoteNode'
 import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
 import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from './cascade-shift'
-import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, StickyNote, TaskboardEntry } from '../../models'
+import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, PersistedNote, TaskboardEntry } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
@@ -84,7 +84,7 @@ function shallowEqualObject(a: Record<string, unknown>, b: Record<string, unknow
 const nodeTypes: NodeTypes = {
   project: ProjectNode as unknown as NodeTypes[string],
   listInset: ListInsetNode as unknown as NodeTypes[string],
-  stickyNote: StickyNoteNode as unknown as NodeTypes[string],
+  floatingNote: FloatingNoteNode as unknown as NodeTypes[string],
   taskboard: TaskboardNode as unknown as NodeTypes[string],
 }
 
@@ -107,15 +107,12 @@ export interface InsetHandlers {
   onResizeInset?: (id: number, width: number, height: number) => void
 }
 
-export interface StickyHandlers {
-  onAddStickyNote?: (x: number, y: number) => void
+export interface NoteHandlers {
+  onAddFloatingNote?: (x: number, y: number) => void
   onDeleteNote?: (id: number) => void
-  onUpdateNoteText?: (id: number, text: string) => void
-  onUpdateNoteTitle?: (id: number, title: string) => void
   onUpdateNoteColor?: (id: number, color: string | undefined) => void
   onNoteDragStop?: (id: number, x: number, y: number) => void
   onResizeNote?: (id: number, width: number, height: number) => void
-  onConvertNoteLines?: (lines: string[]) => Promise<void>
 }
 
 interface CanvasViewProps {
@@ -133,8 +130,8 @@ interface CanvasViewProps {
   listInsets?: ListInset[]
   allTodos?: PersistedTodoItem[]
   insetHandlers: InsetHandlers
-  stickyNotes?: StickyNote[]
-  stickyHandlers: StickyHandlers
+  floatingNotes?: PersistedNote[]
+  noteHandlers: NoteHandlers
   allPeople?: Person[]
   allTags?: Tag[]
   allOrgs?: Org[]
@@ -167,8 +164,8 @@ export function CanvasView({
   listInsets,
   allTodos,
   insetHandlers,
-  stickyNotes,
-  stickyHandlers,
+  floatingNotes,
+  noteHandlers,
   allPeople,
   allTags,
   allOrgs,
@@ -187,7 +184,7 @@ export function CanvasView({
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddList, onResizeInset } = insetHandlers
-  const { onAddStickyNote, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onNoteDragStop, onResizeNote, onConvertNoteLines } = stickyHandlers
+  const { onAddFloatingNote, onDeleteNote, onUpdateNoteColor, onNoteDragStop, onResizeNote } = noteHandlers
   const { activeDragTodoId } = useContext(DragInsertContext)
   const isNavOpen = useUIStore((s) => s.isProjectNavigatorOpen)
   const isMinimapOpen = useUIStore((s) => s.isMinimapOpen)
@@ -255,7 +252,7 @@ export function CanvasView({
 
   // Per-node data reference cache. When a node's newly-built data object is
   // shallow-equal to its prior build, we reuse the prior reference so React.memo
-  // on ProjectNode/ListInsetNode/StickyNoteNode/TaskboardNode can short-circuit.
+  // on ProjectNode/ListInsetNode/FloatingNoteNode/TaskboardNode can short-circuit.
   // Without this, any single-project change (new `todosByProject` Map reference)
   // produces fresh `data` objects for *every* node, forcing all nodes to re-render.
   const nodeDataCacheRef = useRef(new Map<string, Record<string, unknown>>())
@@ -336,25 +333,18 @@ export function CanvasView({
       }
     })
 
-    const noteNodes: Node[] = (stickyNotes ?? []).map((note) => {
+    const noteNodes: Node[] = (floatingNotes ?? []).map((note) => {
       const id = `${NOTE_PREFIX}${note.id}`
-      const data: StickyNoteNodeData = {
+      const data: FloatingNoteNodeData = {
         note,
         onDelete: onDeleteNote ?? NOOP,
-        onUpdateText: onUpdateNoteText ?? NOOP,
-        onUpdateTitle: onUpdateNoteTitle ?? NOOP,
         onUpdateColor: onUpdateNoteColor ?? NOOP,
         onResize: onResizeNote,
-        onConvertLines: onConvertNoteLines,
-        people: allPeople,
-        tags: allTags,
-        projects,
-        orgs: allOrgs,
       }
       return {
         id,
-        type: 'stickyNote',
-        position: { x: note.x, y: note.y },
+        type: 'floatingNote',
+        position: { x: note.x ?? 0, y: note.y ?? 0 },
         zIndex: 10,
         data: stabilize(id, data as unknown as Record<string, unknown>),
       }
@@ -394,7 +384,7 @@ export function CanvasView({
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
     onResizeProject, onSetProjectColor, handleResizeSnap, getBringToFrontFn,
     listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset, handleResizeSnapByNodeId,
-    stickyNotes, onDeleteNote, onUpdateNoteText, onUpdateNoteTitle, onUpdateNoteColor, onResizeNote, onConvertNoteLines,
+    floatingNotes, onDeleteNote, onUpdateNoteColor, onResizeNote,
     allPeople, allTags, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
     showCompleted, showHiddenStatuses, activeDragTodoId,
@@ -669,8 +659,8 @@ export function CanvasView({
     if (onAddProject && pos) {
       items.push({ label: 'New Project', action: () => onAddProject(pos.x, pos.y) })
     }
-    if (onAddStickyNote && pos) {
-      items.push({ label: 'New Sticky Note', action: () => onAddStickyNote(pos.x, pos.y) })
+    if (onAddFloatingNote && pos) {
+      items.push({ label: 'New Note', action: () => onAddFloatingNote(pos.x, pos.y) })
     }
     if (onRequestAddList && pos) {
       items.push({ separator: true, label: '', action: () => {} })
@@ -679,7 +669,7 @@ export function CanvasView({
     if (items.length > 0) {
       setContextMenu({ x: e.clientX, y: e.clientY, items })
     }
-  }, [onAddProject, onAddStickyNote, onRequestAddList])
+  }, [onAddProject, onAddFloatingNote, onRequestAddList])
 
   return (
     <div className={styles.canvasWrapper} onContextMenu={handleContextMenu}>
@@ -781,7 +771,7 @@ export function CanvasView({
               pannable
               zoomable
               nodeColor={(node) => {
-                if (node.type === 'stickyNote') return (node.data as { note?: { color?: string } })?.note?.color || 'var(--color-surface-bright, #2a2a2a)'
+                if (node.type === 'floatingNote') return (node.data as { note?: { color?: string } })?.note?.color || 'var(--color-surface-bright, #2a2a2a)'
                 if (node.type === 'project') return (node.data as { project?: { color?: string } })?.project?.color || 'var(--color-surface-bright, #2a2a2a)'
                 return 'var(--color-accent-bg-subtle, #1a3a3a)'
               }}

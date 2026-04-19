@@ -17,7 +17,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useFilterStore, computeFilterPersonOrgIds, matchesFilter } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
-import { useStickyNoteStore } from '../stores/sticky-note-store'
+import { useNoteStore } from '../stores/note-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -54,7 +54,17 @@ export function CanvasPage() {
   const loadDefinitions = useListDefinitionStore((s) => s.load)
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
   const [showListEditor, setShowListEditor] = useState(false)
-  const { notes: stickyNotes, loadByCanvas: loadNotes, add: addNote, update: updateNote, updatePosition: updateNotePosition, updateText: updateNoteText, updateTitle: updateNoteTitle, updateColor: updateNoteColor, remove: removeNote } = useStickyNoteStore()
+  const notesMap = useNoteStore((s) => s.notes)
+  const loadNotes = useNoteStore((s) => s.loadByCanvas)
+  const addFloatingNote = useNoteStore((s) => s.addFloating)
+  const updateNotePosition = useNoteStore((s) => s.updatePosition)
+  const updateNoteSize = useNoteStore((s) => s.updateSize)
+  const updateNoteColor = useNoteStore((s) => s.updateColor)
+  const removeNote = useNoteStore((s) => s.remove)
+  const floatingNotes = useMemo(
+    () => Array.from(notesMap.values()).filter((n) => n.canvasId === selectedCanvasId),
+    [notesMap, selectedCanvasId],
+  )
 
 
 
@@ -364,38 +374,11 @@ export function CanvasPage() {
     [insets, updateInset]
   )
 
-  const handleConvertNoteLines = useCallback(
-    async (lines: string[]) => {
-      if (!selectedCanvasId) return
-      const fd = getFilterDefaults(useFilterStore.getState().filters)
-      for (const line of lines) {
-        const { title, resolved } = parseTaskInput(line, people, tags, projects, orgs)
-        supplementWithFilterDefaults(resolved, fd)
-        let pid = resolved.projectId
-        if (!pid) {
-          pid = projects[0]?.id
-          if (!pid) {
-            pid = await addProject('Notes', selectedCanvasId)
-          }
-        }
-        const id = await addTodo(title || line, selectedCanvasId, pid)
-        await applyNlpMetadata(
-          id, resolved,
-          (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
-          updateTodo, assignPerson, assignTag, assignOrg,
-        )
-      }
-    },
-    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignTag, assignOrg, people, tags, projects, orgs, addProject]
-  )
-
   const handleResizeNote = useCallback(
     async (id: number, width: number, height: number) => {
-      const note = stickyNotes.find(n => n.id === id)
-      if (!note) return
-      await updateNote({ ...note, width, height, modifiedAt: new Date() })
+      await updateNoteSize(id, width, height)
     },
-    [stickyNotes, updateNote]
+    [updateNoteSize]
   )
 
   const handleRequestAddList = useCallback(
@@ -440,9 +423,9 @@ export function CanvasPage() {
     if (selectedCanvasId) await addProject('New Project', selectedCanvasId, x, y)
   }, [selectedCanvasId, addProject])
 
-  const handleAddStickyNote = useCallback(async (x: number, y: number) => {
-    if (selectedCanvasId) await addNote(selectedCanvasId, x, y)
-  }, [selectedCanvasId, addNote])
+  const handleAddFloatingNote = useCallback(async (x: number, y: number) => {
+    if (selectedCanvasId) await addFloatingNote(selectedCanvasId, x, y)
+  }, [selectedCanvasId, addFloatingNote])
 
   const projectHandlers = useMemo(() => ({
     onAddTask: handleAddTask,
@@ -463,16 +446,13 @@ export function CanvasPage() {
     onResizeInset: handleResizeInset,
   }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleRequestAddList, handleResizeInset])
 
-  const stickyHandlers = useMemo(() => ({
-    onAddStickyNote: handleAddStickyNote,
+  const noteHandlers = useMemo(() => ({
+    onAddFloatingNote: handleAddFloatingNote,
     onDeleteNote: removeNote,
-    onUpdateNoteText: updateNoteText,
-    onUpdateNoteTitle: updateNoteTitle,
     onUpdateNoteColor: updateNoteColor,
     onNoteDragStop: updateNotePosition,
     onResizeNote: handleResizeNote,
-    onConvertNoteLines: handleConvertNoteLines,
-  }), [handleAddStickyNote, removeNote, updateNoteText, updateNoteTitle, updateNoteColor, updateNotePosition, handleResizeNote, handleConvertNoteLines])
+  }), [handleAddFloatingNote, removeNote, updateNoteColor, updateNotePosition, handleResizeNote])
 
   const handleTaskboardDragStop = useCallback((x: number, y: number) => {
     setTaskboardPosition({ x, y })
@@ -558,8 +538,8 @@ export function CanvasPage() {
           listInsets={insets}
           allTodos={todos}
           insetHandlers={insetHandlers}
-          stickyNotes={stickyNotes}
-          stickyHandlers={stickyHandlers}
+          floatingNotes={floatingNotes}
+          noteHandlers={noteHandlers}
           allPeople={people}
           allTags={tags}
           allOrgs={orgs}

@@ -36,8 +36,8 @@ export interface CommandContext {
   focusProject: (projectId: number) => void
   /** Fit all nodes into view */
   fitView?: () => void
-  /** Canvas-only: create sticky note */
-  createStickyNote?: () => void
+  /** Canvas-only: create floating note */
+  createFloatingNote?: () => void
   /** Canvas-only: toggle project navigator */
   toggleProjectNavigator?: () => void
   /** Open keyboard shortcuts modal */
@@ -68,7 +68,7 @@ export function createCommands(ctx: CommandContext): Command[] {
 
     // Task actions
     { id: 'new-task', name: 'New Task', shortcut: 'Ctrl+Space', category: 'task', action: ctx.openQuickAdd },
-    ...(ctx.createStickyNote ? [{ id: 'new-sticky-note', name: 'New Sticky Note', shortcut: 'N', category: 'task' as CommandCategory, action: ctx.createStickyNote }] : []),
+    ...(ctx.createFloatingNote ? [{ id: 'new-floating-note', name: 'New Note', shortcut: 'N', category: 'task' as CommandCategory, action: ctx.createFloatingNote }] : []),
     { id: 'undo', name: 'Undo', shortcut: 'Ctrl+Z', category: 'task', action: async () => {
       const { useUndoStore } = await import('../stores/undo-store')
       useUndoStore.getState().undo()

@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, StickyNote, TaskboardEntry, Status, Note } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
@@ -24,7 +24,6 @@ export class Todo2Database extends Dexie {
   personOrgs!: Table<PersonOrg, number>
   backups!: Table<Backup, number>
   savedViews!: Table<SavedView, number>
-  stickyNotes!: Table<StickyNote, number>
   taskboardEntries!: Table<TaskboardEntry, number>
   statuses!: Table<Status, number>
   listDefinitions!: Table<ListDefinition, number>
@@ -116,6 +115,19 @@ export class Todo2Database extends Dexie {
     // semantics so a future multi-row UI doesn't require another schema bump.
     this.version(25).stores({
       notes: '++id, modifiedAt',
+    })
+
+    // v26: sticky-notes → notes merge. Extend `notes` with optional canvas
+    // placement fields (canvasId, x, y, width, height, color); migrate every
+    // `stickyNotes` row into a matching `notes` row (title prepended as H1);
+    // drop the `stickyNotes` table. A note with canvasId != null is a
+    // canvas-pinned floating note; canvasId == null backs the dashboard
+    // Notes tile and rail slot.
+    this.version(26).stores({
+      notes: '++id, modifiedAt, canvasId',
+      stickyNotes: null,
+    }).upgrade(async (tx) => {
+      await runV26Migration(tx)
     })
   }
 }
@@ -658,4 +670,58 @@ export function parseHorizonSlots(value: string | undefined | null): Partial<Rec
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.stickyNotes, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes] as const
+
+/**
+ * Translate a legacy sticky-note row (title, text, canvasId, x/y/w/h, color,
+ * createdAt, modifiedAt) into the matching `notes` row. Title, when present,
+ * is prepended as an H1 so it's visible in the Markdown editor.
+ *
+ * Pure function — shared between `runV26Migration` and restore-time
+ * translation of legacy backups.
+ */
+export function translateStickyToNote(sticky: Record<string, unknown>): Omit<Note, 'id'> {
+  const title = typeof sticky.title === 'string' ? sticky.title.trim() : ''
+  const text = typeof sticky.text === 'string' ? sticky.text : ''
+  const content = title
+    ? text ? `# ${title}\n\n${text}` : `# ${title}`
+    : text
+
+  const note: Omit<Note, 'id'> = {
+    content,
+    createdAt: (sticky.createdAt as Date) ?? new Date(),
+    modifiedAt: (sticky.modifiedAt as Date) ?? new Date(),
+  }
+  if (typeof sticky.canvasId === 'number') note.canvasId = sticky.canvasId
+  if (typeof sticky.x === 'number') note.x = sticky.x
+  if (typeof sticky.y === 'number') note.y = sticky.y
+  if (typeof sticky.width === 'number') note.width = sticky.width
+  if (typeof sticky.height === 'number') note.height = sticky.height
+  if (typeof sticky.color === 'string') note.color = sticky.color
+  return note
+}
+
+/**
+ * v26 upgrade: move every `stickyNotes` row into a matching `notes` row via
+ * `translateStickyToNote`, then drop the `stickyNotes` store. Safe even if
+ * the store already went through the deletion pass — Dexie just skips the
+ * removed store.
+ */
+export async function runV26Migration(tx: Transaction): Promise<void> {
+  // When migrating from ≤v25 the `stickyNotes` table still exists at this
+  // point (Dexie removes it *after* the upgrade callback runs), so we can
+  // safely read from it. Wrapped in try/catch for the rare case where a db
+  // with no stickyNotes table reaches v26.
+  let rows: Record<string, unknown>[] = []
+  try {
+    rows = await tx.table('stickyNotes').toArray() as Record<string, unknown>[]
+  } catch {
+    return
+  }
+  if (rows.length === 0) return
+
+  const notesTable = tx.table<Note>('notes')
+  const translated = rows.map(translateStickyToNote)
+  await notesTable.bulkAdd(translated as Note[])
+  console.info(`v26 migration: moved ${translated.length} sticky note(s) into notes table`)
+}

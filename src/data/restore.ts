@@ -5,12 +5,13 @@ import {
   ensureSeededListDefinitions,
   persistHorizonSlots,
   translateTodoV20ToV21,
+  translateStickyToNote,
   buildListDefFromLegacyInset,
 } from './database'
 import type { ImportData, ImportListInset } from './import-validation'
 import { validateImportData, isLegacyMembershipKind } from './import-validation'
 import type { ListDefinition } from '../models/list-definition'
-import type { ListInset } from '../models'
+import type { ListInset, Note } from '../models'
 
 /** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
 const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
@@ -29,7 +30,8 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.personOrgs, key: 'personOrgs' },
   { table: db.orgs, key: 'orgs' },
   { table: db.savedViews, key: 'savedViews' },
-  { table: db.stickyNotes, key: 'stickyNotes' },
+  // Legacy `stickyNotes` from pre-v26 backups are translated into `notes` rows
+  // after the bulk-add pass below (see translateLegacyStickyNotes).
   { table: db.taskboardEntries, key: 'taskboardEntries' },
   { table: db.statuses, key: 'statuses' },
   { table: db.listDefinitions, key: 'listDefinitions' },
@@ -86,11 +88,23 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
   await db.transaction('rw', tables, async () => {
     for (const { table } of TABLE_KEY_PAIRS) await table.clear()
     await db.listInsets.clear()
+    await db.notes.clear()
 
     for (const { table, key } of TABLE_KEY_PAIRS) {
       const rows = v[key]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (rows?.length) await (table as any).bulkAdd(rows)
+    }
+
+    // Pre-v26 backups carry a `stickyNotes` array. Translate each row into a
+    // matching `notes` row (title prepended as H1). The legacy table itself
+    // is gone in v26; we simply drop the input once translated.
+    if (v.stickyNotes?.length) {
+      const translated: Note[] = v.stickyNotes.map((s) =>
+        translateStickyToNote(s as unknown as Record<string, unknown>) as Note,
+      )
+      await db.notes.bulkAdd(translated)
+      console.info(`Restore: translated ${translated.length} legacy sticky-note(s) to notes`)
     }
     // List insets: carry legacy fields through so translateLegacyListInsets can
     // read them, then strip during translation. bulkAdd accepts the extended

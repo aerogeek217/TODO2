@@ -22,7 +22,6 @@ export {
   type RelativeDateToken,
   RELATIVE_DATE_TOKENS,
 } from './filter-predicate'
-export { type StickyNote } from './sticky-note'
 export { type Note, type PersistedNote } from './note'
 export { type TaskboardEntry } from './taskboard-entry'
 export { type Status, type PersistedStatus } from './status'

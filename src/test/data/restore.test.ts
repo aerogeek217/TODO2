@@ -112,21 +112,24 @@ describe('restoreFromImportData', () => {
       expect(tags[0].name).toBe('feature')
     })
 
-    it('restoreFromImportData_withStickyNotes_persistsStickyNotes', async () => {
-      // Arrange
+    it('restoreFromImportData_withLegacyStickyNotes_translatesIntoNotes', async () => {
+      // Pre-v26 backups carry a `stickyNotes` array. Restore should translate
+      // each row into a matching `notes` row (title prepended as H1), since
+      // the `stickyNotes` table has been retired.
       const data = makeImportData({
         stickyNotes: [
-          { id: 1, canvasId: 1, text: 'Remember this', x: 100, y: 200, width: 240, height: 200, createdAt: now, modifiedAt: now },
+          { id: 1, canvasId: 1, title: 'Reminder', text: 'Remember this', x: 100, y: 200, width: 240, height: 200, color: '#FFF3B0', createdAt: now, modifiedAt: now },
         ],
       })
 
-      // Act
       await restoreFromImportData(data)
 
-      // Assert
-      const notes = await db.stickyNotes.toArray()
+      const notes = await db.notes.where('canvasId').equals(1).toArray()
       expect(notes).toHaveLength(1)
-      expect(notes[0].text).toBe('Remember this')
+      expect(notes[0].content).toBe('# Reminder\n\nRemember this')
+      expect(notes[0].x).toBe(100)
+      expect(notes[0].y).toBe(200)
+      expect(notes[0].color).toBe('#FFF3B0')
     })
 
     it('restoreFromImportData_withJoinTables_persistsTodoPeopleAndTodoTags', async () => {
@@ -189,7 +192,7 @@ describe('restoreFromImportData', () => {
       // Assert all optional tables are empty (no error thrown)
       expect(await db.todos.count()).toBe(0)
       expect(await db.projects.count()).toBe(0)
-      expect(await db.stickyNotes.count()).toBe(0)
+      expect(await db.notes.count()).toBe(0)
       expect(await db.orgs.count()).toBe(0)
       expect(await db.savedViews.count()).toBe(0)
     })

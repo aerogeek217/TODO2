@@ -1,4 +1,4 @@
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, StickyNote, TaskboardEntry, Status, Note } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note } from '../models'
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
@@ -400,6 +400,11 @@ function checkSavedViewFilters(v: unknown): CheckResult {
   ])
 }
 
+/**
+ * Legacy sticky-note row shape. Still accepted by import validation so
+ * pre-v26 backups can load; `restoreFromImportData` translates them into
+ * `notes` rows via `translateStickyToNote`.
+ */
 function checkStickyNote(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -422,6 +427,12 @@ function checkNote(v: unknown): CheckResult {
     ['content', typeof v.content === 'string' && (v.content as string).length <= 500000],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
+    ['canvasId', isOptNum(v.canvasId)],
+    ['x', isOptNum(v.x)],
+    ['y', isOptNum(v.y)],
+    ['width', isOptNum(v.width)],
+    ['height', isOptNum(v.height)],
+    ['color', isOptColor(v.color)],
   ])
 }
 
@@ -647,7 +658,25 @@ function pickPersonOrg(v: Record<string, unknown>): PersonOrg {
   return { id: v.id as number | undefined, personId: v.personId as number, orgId: v.orgId as number }
 }
 
-function pickStickyNote(v: Record<string, unknown>): StickyNote {
+/**
+ * Parsed legacy sticky shape. `restoreFromImportData` translates instances
+ * of this into `notes` rows via `translateStickyToNote`.
+ */
+export interface ImportStickyNote {
+  id?: number
+  canvasId: number
+  title?: string
+  text: string
+  x: number
+  y: number
+  width: number
+  height: number
+  color?: string
+  createdAt: Date
+  modifiedAt: Date
+}
+
+function pickStickyNote(v: Record<string, unknown>): ImportStickyNote {
   return {
     id: v.id as number | undefined,
     canvasId: v.canvasId as number,
@@ -722,6 +751,12 @@ function pickNote(v: Record<string, unknown>): Note {
     content: v.content as string,
     createdAt: v.createdAt as Date,
     modifiedAt: v.modifiedAt as Date,
+    ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
+    ...(v.x != null ? { x: v.x as number } : {}),
+    ...(v.y != null ? { y: v.y as number } : {}),
+    ...(v.width != null ? { width: v.width as number } : {}),
+    ...(v.height != null ? { height: v.height as number } : {}),
+    ...(v.color != null ? { color: v.color as string } : {}),
   }
 }
 
@@ -781,7 +816,7 @@ export interface ImportData {
   settings: SettingRow[]
   orgs: Org[]
   savedViews: SavedView[]
-  stickyNotes: StickyNote[]
+  stickyNotes: ImportStickyNote[]
   taskboardEntries: TaskboardEntry[]
   statuses: Status[]
   listDefinitions: ListDefinition[]

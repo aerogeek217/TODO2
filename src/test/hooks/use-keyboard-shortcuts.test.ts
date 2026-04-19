@@ -9,16 +9,16 @@ function dispatchKey(target: EventTarget, key: string, init: KeyboardEventInit =
 describe('useKeyboardShortcuts — focus gating', () => {
   const noop = () => {}
   let options: Parameters<typeof useKeyboardShortcuts>[0]
-  let createStickyNote: ReturnType<typeof vi.fn<() => void>>
+  let createFloatingNote: ReturnType<typeof vi.fn<() => void>>
 
   beforeEach(() => {
-    createStickyNote = vi.fn<() => void>()
+    createFloatingNote = vi.fn<() => void>()
     options = {
       openCreatePopup: noop,
       openPalette: noop,
       closePalette: noop,
       navigate: noop,
-      createStickyNote,
+      createFloatingNote,
     }
   })
 
@@ -26,10 +26,10 @@ describe('useKeyboardShortcuts — focus gating', () => {
     document.body.innerHTML = ''
   })
 
-  it('fires `n` → createStickyNote when focus is on the body (no text field)', () => {
+  it('fires `n` → createFloatingNote when focus is on the body (no text field)', () => {
     renderHook(() => useKeyboardShortcuts(options))
     dispatchKey(window, 'n')
-    expect(createStickyNote).toHaveBeenCalledOnce()
+    expect(createFloatingNote).toHaveBeenCalledOnce()
   })
 
   it('does NOT fire `n` when focus is inside a contenteditable', () => {
@@ -40,7 +40,7 @@ describe('useKeyboardShortcuts — focus gating', () => {
 
     renderHook(() => useKeyboardShortcuts(options))
     dispatchKey(editable, 'n')
-    expect(createStickyNote).not.toHaveBeenCalled()
+    expect(createFloatingNote).not.toHaveBeenCalled()
   })
 
   it('does NOT fire `n` when focus is inside [data-shortcut-scope="none"]', () => {
@@ -54,7 +54,7 @@ describe('useKeyboardShortcuts — focus gating', () => {
 
     renderHook(() => useKeyboardShortcuts(options))
     dispatchKey(child, 'n')
-    expect(createStickyNote).not.toHaveBeenCalled()
+    expect(createFloatingNote).not.toHaveBeenCalled()
   })
 
   it('does NOT fire `n` when focus is on a plain INPUT', () => {
@@ -64,6 +64,6 @@ describe('useKeyboardShortcuts — focus gating', () => {
 
     renderHook(() => useKeyboardShortcuts(options))
     dispatchKey(input, 'n')
-    expect(createStickyNote).not.toHaveBeenCalled()
+    expect(createFloatingNote).not.toHaveBeenCalled()
   })
 })

@@ -9,7 +9,7 @@ import { useTagStore } from './tag-store'
 import { useListInsetStore } from './list-inset-store'
 import { useOrgStore } from './org-store'
 import { useSavedViewStore } from './saved-view-store'
-import { useStickyNoteStore } from './sticky-note-store'
+import { useNoteStore } from './note-store'
 import { useTaskboardStore } from './taskboard-store'
 import { useStatusStore } from './status-store'
 import { useUndoStore } from './undo-store'
@@ -32,9 +32,10 @@ async function refreshAllStores() {
     useStatusStore.getState().load(),
     useSavedViewStore.getState().load(),
     useTaskboardStore.getState().load(),
+    useNoteStore.getState().load(),
     ...(canvasId != null ? [
       useListInsetStore.getState().loadByCanvas(canvasId),
-      useStickyNoteStore.getState().loadByCanvas(canvasId),
+      useNoteStore.getState().loadByCanvas(canvasId),
     ] : []),
   ])
   // Reload assignment maps after entities and todos are loaded

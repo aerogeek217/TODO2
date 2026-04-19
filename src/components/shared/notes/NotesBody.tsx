@@ -15,6 +15,14 @@ interface NotesBodyProps {
   onConvertToast?: (message: string) => void
   /** Show the inline formatting toolbar. Defaults to true. */
   showToolbar?: boolean
+  /**
+   * Override the note row this body edits. When provided (floating canvas
+   * notes), reads/writes the referenced row instead of the store's global
+   * `activeId`. Caller is responsible for ensuring the row is loaded.
+   */
+  activeIdOverride?: number | null
+  /** Hide the footer chrome entirely (used by floating notes for a compact look). */
+  hideFooter?: boolean
 }
 
 const CONVERTIBLE_LINE_RE = /^(\s*)([—–\-•]|\[[ xX]\])(\s+)(.*)$/
@@ -38,8 +46,9 @@ function formatRelativeTime(from: Date | null, now: Date): string {
  * and the footer saved-time indicator — but not the outer chrome / dock
  * buttons, which each surface supplies.
  */
-export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true }: NotesBodyProps) {
-  const activeId = useNoteStore((s) => s.activeId)
+export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, hideFooter = false }: NotesBodyProps) {
+  const storeActiveId = useNoteStore((s) => s.activeId)
+  const activeId = activeIdOverride !== undefined ? activeIdOverride : storeActiveId
   const notes = useNoteStore((s) => s.notes)
   const lastSavedAt = useNoteStore((s) => s.lastSavedAt)
   const setContent = useNoteStore((s) => s.setContent)
@@ -56,8 +65,9 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true }
   const viewRef = useRef<EditorView | null>(null)
 
   useEffect(() => {
-    if (activeId == null) void load()
-  }, [activeId, load])
+    // Only auto-seed the global note when no override was specified.
+    if (activeIdOverride === undefined && activeId == null) void load()
+  }, [activeId, activeIdOverride, load])
 
   // Re-render the "saved Xm ago" footer once a minute while mounted.
   useEffect(() => {
@@ -149,13 +159,15 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true }
         placeholder="Jot notes here…"
         viewRef={viewRef}
       />
-      <div className={styles.footer}>
-        <span className={styles.footerChip}>{convertShortcut} convert</span>
-        <span className={styles.footerChip}>MD shorthand</span>
-        {canConvert && <span className={styles.footerHint}>Press {convertShortcut} to convert current line</span>}
-        <span className={styles.footerSpacer} />
-        <span className={styles.footerSaved}>{savedLabel}</span>
-      </div>
+      {!hideFooter && (
+        <div className={styles.footer}>
+          <span className={styles.footerChip}>{convertShortcut} convert</span>
+          <span className={styles.footerChip}>MD shorthand</span>
+          {canConvert && <span className={styles.footerHint}>Press {convertShortcut} to convert current line</span>}
+          <span className={styles.footerSpacer} />
+          <span className={styles.footerSaved}>{savedLabel}</span>
+        </div>
+      )}
     </div>
   )
 }

@@ -467,7 +467,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // during pan/zoom. Subscribers (CanvasView) re-render on every set(), which
     // is wasteful since the value is only read as defaultViewport on mount.
     // 150ms trailing debounce collapses the re-render storm to a handful while
-    // keeping getState() callers (App.createStickyNote, FilteredListPopup) close
+    // keeping getState() callers (App.createFloatingNote, FilteredListPopup) close
     // to current — the viewport has almost always settled before these fire.
     if (vpSetTimer) clearTimeout(vpSetTimer)
     vpSetTimer = setTimeout(() => {
