@@ -68,10 +68,10 @@ function DashboardDraggableRow({
 
 function SortableCardWrapper({
   id,
-  children,
+  render,
 }: {
   id: string | number
-  children: React.ReactNode
+  render: (args: { handle: React.ReactNode }) => React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const style = {
@@ -79,23 +79,25 @@ function SortableCardWrapper({
     transition,
     opacity: isDragging ? 0.4 : 1,
   }
+  const handle = (
+    <button
+      type="button"
+      className={styles.cardDragHandle}
+      title="Drag to reorder"
+      aria-label="Drag to reorder"
+      {...attributes}
+      {...listeners}
+    >
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">
+        <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
+        <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
+        <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
+      </svg>
+    </button>
+  )
   return (
     <div ref={setNodeRef} style={style} className={styles.sortableCardWrapper}>
-      <button
-        type="button"
-        className={styles.cardDragHandle}
-        title="Drag to reorder"
-        aria-label="Drag to reorder"
-        {...attributes}
-        {...listeners}
-      >
-        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">
-          <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
-          <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
-          <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
-        </svg>
-      </button>
-      {children}
+      {render({ handle })}
     </div>
   )
 }
@@ -184,8 +186,6 @@ function InlineAddTask({
 function DashboardListCard({
   list,
   variant,
-  collapsed,
-  onToggleCollapse,
   onOpenDetail,
   assignedPeopleMap,
   assignedTagsMap,
@@ -194,11 +194,10 @@ function DashboardListCard({
   tabpanelLabelledBy,
   addTaskLabel,
   onAddTask,
+  dragHandle,
 }: {
   list: DashboardList
   variant: 'hero' | 'secondary'
-  collapsed: boolean
-  onToggleCollapse: () => void
   onOpenDetail: (todoId: number) => void
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
@@ -208,6 +207,8 @@ function DashboardListCard({
   /** When provided, renders an inline "+ Add task to {label}" button at the bottom of the card. */
   addTaskLabel?: string
   onAddTask?: (title: string) => Promise<void> | void
+  /** Drag handle rendered in the card header (left of the title). */
+  dragHandle?: React.ReactNode
 }) {
   const panelProps = tabpanelId
     ? { role: 'tabpanel' as const, id: tabpanelId, 'aria-labelledby': tabpanelLabelledBy }
@@ -218,34 +219,32 @@ function DashboardListCard({
       data-list-key={list.key}
       {...panelProps}
     >
-      <div className={styles.cardHeader} onClick={onToggleCollapse}>
-        <span className={`${styles.chevron} ${collapsed ? styles.chevronCollapsed : ''}`}>&#9662;</span>
+      <div className={styles.cardHeader}>
+        {dragHandle}
         <span className={`${styles.cardTitle} ${variant === 'hero' ? styles.cardTitleHero : ''}`}>{list.label}</span>
         <span className={styles.cardCount}>{list.todos.length}</span>
       </div>
-      {!collapsed && (
-        <div className={`${styles.cardBody} ${variant === 'hero' ? styles.cardBodyHero : ''}`}>
-          {list.todos.length === 0 ? (
-            <div className={styles.empty}>No tasks</div>
-          ) : list.groups !== undefined ? (
-            list.groups.map((group) => (
-              <div key={group.key} className={styles.group}>
-                <div className={styles.groupLabel}>{group.label}</div>
-                {group.todos.map((todo) =>
-                  renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
-                )}
-              </div>
-            ))
-          ) : (
-            list.todos.map((todo) =>
-              renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
-            )
-          )}
-          {onAddTask && addTaskLabel && (
-            <InlineAddTask label={addTaskLabel} onAdd={onAddTask} />
-          )}
-        </div>
-      )}
+      <div className={`${styles.cardBody} ${variant === 'hero' ? styles.cardBodyHero : ''}`}>
+        {list.todos.length === 0 ? (
+          <div className={styles.empty}>No tasks</div>
+        ) : list.groups !== undefined ? (
+          list.groups.map((group) => (
+            <div key={group.key} className={styles.group}>
+              <div className={styles.groupLabel}>{group.label}</div>
+              {group.todos.map((todo) =>
+                renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
+              )}
+            </div>
+          ))
+        ) : (
+          list.todos.map((todo) =>
+            renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
+          )
+        )}
+        {onAddTask && addTaskLabel && (
+          <InlineAddTask label={addTaskLabel} onAdd={onAddTask} />
+        )}
+      </div>
     </div>
   )
 }
@@ -265,8 +264,6 @@ export function DashboardView() {
   const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
   const setSelectedHorizon = useSettingsStore((s) => s.setSelectedHorizon)
   const setHorizonSlot = useSettingsStore((s) => s.setHorizonSlot)
-  const horizonCollapsed = useSettingsStore((s) => s.horizonCollapsed)
-  const setHorizonCollapsed = useSettingsStore((s) => s.setHorizonCollapsed)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const notesDock = useSettingsStore((s) => s.notesDock)
   const notesVisible = useSettingsStore((s) => s.notesVisible)
@@ -277,7 +274,6 @@ export function DashboardView() {
   const loadNotes = useNoteStore((s) => s.load)
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [slotPickerAt, setSlotPickerAt] = useState<{ key: HorizonKey; x: number; y: number } | null>(null)
@@ -451,37 +447,9 @@ export function DashboardView() {
 
   const heroList = horizonLists[selectedHorizon]
 
-  // Reverse lookup so we can derive the HorizonKey (if any) behind a rendered list.
-  const horizonByDefId = useMemo(() => {
-    const m = new Map<number, HorizonKey>()
-    for (const key of HORIZON_KEYS) {
-      const id = horizonSlots[key]
-      if (id != null) m.set(id, key)
-    }
-    return m
-  }, [horizonSlots])
-
   const handleClick = useCallback((todoId: number) => {
     openEditPopup(todoId)
   }, [openEditPopup])
-
-  const toggleSection = useCallback((key: string) => {
-    setCollapsed((s) => ({ ...s, [key]: !s[key] }))
-  }, [])
-
-  const resolveCollapse = useCallback((list: DashboardList) => {
-    const horizonKey = horizonByDefId.get(list.id)
-    if (horizonKey) {
-      return {
-        collapsed: !!horizonCollapsed[horizonKey],
-        onToggle: () => { void setHorizonCollapsed(horizonKey, !horizonCollapsed[horizonKey]) },
-      }
-    }
-    return {
-      collapsed: !!collapsed[list.key],
-      onToggle: () => toggleSection(list.key),
-    }
-  }, [horizonByDefId, horizonCollapsed, setHorizonCollapsed, collapsed, toggleSection])
 
   const openSlotPicker = useCallback((key: HorizonKey) => {
     // Fallback position when triggered from a non-placeholder cell (keyboard).
@@ -557,30 +525,34 @@ export function DashboardView() {
               {dashboardTopOrder.map((slot) => {
                 if (slot === 'taskboard') {
                   return (
-                    <SortableCardWrapper key="taskboard" id="top:taskboard">
-                      <TaskboardPanel />
-                    </SortableCardWrapper>
+                    <SortableCardWrapper
+                      key="taskboard"
+                      id="top:taskboard"
+                      render={({ handle }) => <TaskboardPanel dragHandle={handle} />}
+                    />
                   )
                 }
                 if (!heroList) return null
-                const c = resolveCollapse(heroList)
                 return (
-                  <SortableCardWrapper key="horizon" id="top:horizon">
-                    <DashboardListCard
-                      list={heroList}
-                      variant="hero"
-                      collapsed={c.collapsed}
-                      onToggleCollapse={c.onToggle}
-                      onOpenDetail={handleClick}
-                      assignedPeopleMap={assignedPeopleMap}
-                      assignedTagsMap={assignedTagsMap}
-                      isMobile={isMobile}
-                      tabpanelId={HERO_PANEL_ID}
-                      tabpanelLabelledBy={tabIdFor(selectedHorizon)}
-                      addTaskLabel={heroList.label}
-                      onAddTask={handleCreateHorizonTask}
-                    />
-                  </SortableCardWrapper>
+                  <SortableCardWrapper
+                    key="horizon"
+                    id="top:horizon"
+                    render={({ handle }) => (
+                      <DashboardListCard
+                        list={heroList}
+                        variant="hero"
+                        onOpenDetail={handleClick}
+                        assignedPeopleMap={assignedPeopleMap}
+                        assignedTagsMap={assignedTagsMap}
+                        isMobile={isMobile}
+                        tabpanelId={HERO_PANEL_ID}
+                        tabpanelLabelledBy={tabIdFor(selectedHorizon)}
+                        addTaskLabel={heroList.label}
+                        onAddTask={handleCreateHorizonTask}
+                        dragHandle={handle}
+                      />
+                    )}
+                  />
                 )
               })}
             </div>
@@ -596,23 +568,23 @@ export function DashboardView() {
                 strategy={rectSortingStrategy}
               >
                 <div className={styles.grid}>
-                  {userLists.map((list) => {
-                    const c = resolveCollapse(list)
-                    return (
-                      <SortableCardWrapper key={list.id} id={list.id}>
+                  {userLists.map((list) => (
+                    <SortableCardWrapper
+                      key={list.id}
+                      id={list.id}
+                      render={({ handle }) => (
                         <DashboardListCard
                           list={list}
                           variant="secondary"
-                          collapsed={c.collapsed}
-                          onToggleCollapse={c.onToggle}
                           onOpenDetail={handleClick}
                           assignedPeopleMap={assignedPeopleMap}
                           assignedTagsMap={assignedTagsMap}
                           isMobile={isMobile}
+                          dragHandle={handle}
                         />
-                      </SortableCardWrapper>
-                    )
-                  })}
+                      )}
+                    />
+                  ))}
                   {!isMobile && (
                     <button
                       type="button"

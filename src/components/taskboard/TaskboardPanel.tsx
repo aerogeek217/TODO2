@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -48,14 +48,13 @@ function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onO
   )
 }
 
-export function TaskboardPanel() {
+export function TaskboardPanel({ dragHandle }: { dragHandle?: ReactNode } = {}) {
   const { entries, reorder } = useTaskboardStore()
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const { openEditPopup } = useUIStore()
   const [reorderKey, setReorderKey] = useState(0)
-  const [collapsed, setCollapsed] = useState(false)
 
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: 'dashboard-taskboard-drop',
@@ -95,41 +94,39 @@ export function TaskboardPanel() {
 
   return (
     <div ref={setDropRef} className={`${styles.panel} ${isOver ? styles.dropTarget : ''}`}>
-      <div className={styles.header} onClick={() => setCollapsed(c => !c)}>
-        <span className={`${styles.chevron} ${collapsed ? styles.chevronCollapsed : ''}`}>&#9662;</span>
+      <div className={styles.header}>
+        {dragHandle}
         <span className={styles.headerTitle}>Taskboard</span>
         <span className={styles.headerCount}>{visibleEntries.length}</span>
       </div>
-      {!collapsed && (
-        <div className={styles.list}>
-          {visibleEntries.length === 0 ? (
-            <div className={styles.empty}>
-              No tasks queued
-              <span className={styles.dropHint}>Drag a task here or right-click to add</span>
-            </div>
-          ) : (
-            <DndContext key={reorderKey} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
-                {visibleEntries.map((entry, i) => {
-                  const todo = todoMap.get(entry.todoId)
-                  if (!todo) return null
-                  return (
-                    <SortableEntry
-                      key={entry.id}
-                      entryId={entry.id!}
-                      index={i}
-                      todo={todo}
-                      assignedPeople={assignedPeopleMap.get(todo.id)}
-                      assignedTags={assignedTagsMap.get(todo.id)}
-                      onOpenDetail={handleOpenDetail}
-                    />
-                  )
-                })}
-              </SortableContext>
-            </DndContext>
-          )}
-        </div>
-      )}
+      <div className={styles.list}>
+        {visibleEntries.length === 0 ? (
+          <div className={styles.empty}>
+            No tasks queued
+            <span className={styles.dropHint}>Drag a task here or right-click to add</span>
+          </div>
+        ) : (
+          <DndContext key={reorderKey} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
+              {visibleEntries.map((entry, i) => {
+                const todo = todoMap.get(entry.todoId)
+                if (!todo) return null
+                return (
+                  <SortableEntry
+                    key={entry.id}
+                    entryId={entry.id!}
+                    index={i}
+                    todo={todo}
+                    assignedPeople={assignedPeopleMap.get(todo.id)}
+                    assignedTags={assignedTagsMap.get(todo.id)}
+                    onOpenDetail={handleOpenDetail}
+                  />
+                )
+              })}
+            </SortableContext>
+          </DndContext>
+        )}
+      </div>
     </div>
   )
 }

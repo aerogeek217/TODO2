@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { DashboardView } from '../../views/DashboardView'
 import { useTodoStore } from '../../stores/todo-store'
@@ -386,8 +386,8 @@ describe('DashboardView — Phase 5 polish', () => {
     expect(wrappers[1].textContent).toMatch(/Taskboard/i)
   })
 
-  it('persists the hero card collapse toggle via setHorizonCollapsed', () => {
-    const spy = vi.spyOn(useSettingsStore.getState(), 'setHorizonCollapsed')
+
+  it('renders a drag handle inside the hero card header', () => {
     render(
       <MemoryRouter>
         <DashboardView />
@@ -395,9 +395,7 @@ describe('DashboardView — Phase 5 polish', () => {
     )
     const hero = document.getElementById('horizon-hero-panel')!
     const header = hero.querySelector<HTMLElement>('[class*="cardHeader"]')!
-    act(() => {
-      fireEvent.click(header)
-    })
-    expect(spy).toHaveBeenCalledWith('thisweek', true)
+    const handle = header.querySelector<HTMLElement>('[aria-label="Drag to reorder"]')
+    expect(handle).not.toBeNull()
   })
 })

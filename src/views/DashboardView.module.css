@@ -81,36 +81,31 @@
 }
 
 .sortableCardWrapper {
-  position: relative;
   min-width: 0;
 }
 
 .cardDragHandle {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   background: transparent;
   border: none;
   color: var(--color-text-muted);
   cursor: grab;
-  opacity: 0;
+  opacity: 0.5;
   transition: opacity var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
 }
 
 .sortableCardWrapper:hover .cardDragHandle,
 .cardDragHandle:focus-visible {
-  opacity: 0.7;
+  opacity: 1;
 }
 
 .cardDragHandle:hover {
-  opacity: 1;
   color: var(--color-accent);
 }
 
@@ -230,22 +225,7 @@
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--color-border);
-  cursor: pointer;
   user-select: none;
-}
-
-.cardHeader:hover {
-  background: var(--color-surface-high);
-}
-
-.chevron {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  transition: transform 0.15s ease;
-}
-
-.chevronCollapsed {
-  transform: rotate(-90deg);
 }
 
 .cardTitle {
