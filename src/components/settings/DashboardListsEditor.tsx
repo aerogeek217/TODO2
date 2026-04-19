@@ -39,6 +39,14 @@ interface EditState {
 
 interface Props {
   onClose: () => void
+  /**
+   * When set, only definitions with these ids are shown and the "+ Add List" /
+   * per-row delete affordances are hidden. Used by the ribbon's "Edit horizons…"
+   * entry point so users can't delete a horizon's mapped list-def from here.
+   */
+  filterIds?: number[]
+  /** Override modal title (default "Dashboard Lists"). */
+  title?: string
 }
 
 const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
@@ -313,6 +321,7 @@ function SortableRow({
   onConfigure,
   onTogglePin,
   onDelete,
+  hideDelete,
 }: {
   def: PersistedListDefinition
   expanded: boolean
@@ -320,6 +329,7 @@ function SortableRow({
   onConfigure: (id: number) => void
   onTogglePin: (id: number, next: boolean) => void
   onDelete: (id: number) => void
+  hideDelete?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: def.id })
   const style = { transform: CSS.Transform.toString(transform), transition }
@@ -352,18 +362,20 @@ function SortableRow({
         />
         Pin
       </label>
-      <div className={styles.actions}>
-        <button
-          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-          onClick={() => onDelete(def.id)}
-          title="Delete"
-        >&times;</button>
-      </div>
+      {!hideDelete && (
+        <div className={styles.actions}>
+          <button
+            className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+            onClick={() => onDelete(def.id)}
+            title="Delete"
+          >&times;</button>
+        </div>
+      )}
     </div>
   )
 }
 
-export function DashboardListsEditor({ onClose }: Props) {
+export function DashboardListsEditor({ onClose, filterIds, title }: Props) {
   const { listDefinitions, load, add, update, rename, setPinned, remove, reorder } = useListDefinitionStore()
   const setAllFilters = useFilterStore((s) => s.setAllFilters)
   const setListGroupBy = useUIStore((s) => s.setListGroupBy)
@@ -379,10 +391,12 @@ export function DashboardListsEditor({ onClose }: Props) {
 
   useEffect(() => { load() }, [load])
 
-  const sorted = useMemo(
-    () => [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder),
-    [listDefinitions],
-  )
+  const sorted = useMemo(() => {
+    const all = [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
+    if (!filterIds) return all
+    const set = new Set(filterIds)
+    return all.filter((d) => set.has(d.id))
+  }, [listDefinitions, filterIds])
   const sortedIds = useMemo(() => sorted.map(d => d.id), [sorted])
 
   const sensors = useSensors(
@@ -471,7 +485,7 @@ export function DashboardListsEditor({ onClose }: Props) {
       <div className={styles.backdrop} onClick={onClose} />
       <div className={styles.modal}>
         <div className={styles.header}>
-          <div className={styles.title}>Dashboard Lists</div>
+          <div className={styles.title}>{title ?? 'Dashboard Lists'}</div>
           <button className={styles.closeBtn} onClick={onClose}>&times;</button>
         </div>
 
@@ -525,6 +539,7 @@ export function DashboardListsEditor({ onClose }: Props) {
                       onConfigure={handleConfigure}
                       onTogglePin={setPinned}
                       onDelete={(id) => { setDeleteId(id); setEditing(null); setAdding(false) }}
+                      hideDelete={!!filterIds}
                     />
                     {configuringId === d.id && (
                       <ConfigPanel
@@ -541,7 +556,7 @@ export function DashboardListsEditor({ onClose }: Props) {
           </DndContext>
         </div>
 
-        {adding ? (
+        {filterIds ? null : adding ? (
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
               <input

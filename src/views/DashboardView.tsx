@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useState } from 'react'
+import { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -83,6 +83,62 @@ function renderRow(
   )
 }
 
+function InlineAddTask({
+  label,
+  onAdd,
+}: {
+  label: string
+  onAdd: (title: string) => Promise<void> | void
+}) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus()
+  }, [open])
+
+  const submit = useCallback(async () => {
+    const title = text.trim()
+    if (!title) { setOpen(false); return }
+    await onAdd(title)
+    setText('')
+    // Keep the input open for rapid multi-add.
+    inputRef.current?.focus()
+  }, [text, onAdd])
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className={styles.addTaskButton}
+        onClick={() => setOpen(true)}
+      >
+        + Add task to {label}
+      </button>
+    )
+  }
+
+  return (
+    <div className={styles.addTaskInputRow}>
+      <input
+        ref={inputRef}
+        className={styles.addTaskInput}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); submit() }
+          if (e.key === 'Escape') { setOpen(false); setText('') }
+        }}
+        onBlur={() => {
+          if (!text.trim()) setOpen(false)
+        }}
+        placeholder="New task — press Enter to add"
+      />
+    </div>
+  )
+}
+
 function DashboardListCard({
   list,
   variant,
@@ -92,22 +148,35 @@ function DashboardListCard({
   assignedPeopleMap,
   assignedTagsMap,
   isMobile,
+  tabpanelId,
+  tabpanelLabelledBy,
+  addTaskLabel,
+  onAddTask,
 }: {
   list: DashboardList
   variant: 'hero' | 'secondary'
   collapsed: boolean
-  onToggleCollapse: (key: string) => void
+  onToggleCollapse: () => void
   onOpenDetail: (todoId: number) => void
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
   isMobile: boolean
+  tabpanelId?: string
+  tabpanelLabelledBy?: string
+  /** When provided, renders an inline "+ Add task to {label}" button at the bottom of the card. */
+  addTaskLabel?: string
+  onAddTask?: (title: string) => Promise<void> | void
 }) {
+  const panelProps = tabpanelId
+    ? { role: 'tabpanel' as const, id: tabpanelId, 'aria-labelledby': tabpanelLabelledBy }
+    : {}
   return (
     <div
       className={`${styles.card} ${styles.listCard} ${variant === 'hero' ? styles.heroCard : ''}`}
       data-list-key={list.key}
+      {...panelProps}
     >
-      <div className={styles.cardHeader} onClick={() => onToggleCollapse(list.key)}>
+      <div className={styles.cardHeader} onClick={onToggleCollapse}>
         <span className={`${styles.chevron} ${collapsed ? styles.chevronCollapsed : ''}`}>&#9662;</span>
         <span className={`${styles.cardTitle} ${variant === 'hero' ? styles.cardTitleHero : ''}`}>{list.label}</span>
         <span className={styles.cardCount}>{list.todos.length}</span>
@@ -130,6 +199,9 @@ function DashboardListCard({
               renderRow(todo, list.key, isMobile, onOpenDetail, assignedPeopleMap, assignedTagsMap),
             )
           )}
+          {onAddTask && addTaskLabel && (
+            <InlineAddTask label={addTaskLabel} onAdd={onAddTask} />
+          )}
         </div>
       )}
     </div>
@@ -151,6 +223,8 @@ export function DashboardView() {
   const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
   const setSelectedHorizon = useSettingsStore((s) => s.setSelectedHorizon)
   const setHorizonSlot = useSettingsStore((s) => s.setHorizonSlot)
+  const horizonCollapsed = useSettingsStore((s) => s.horizonCollapsed)
+  const setHorizonCollapsed = useSettingsStore((s) => s.setHorizonCollapsed)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const notesDock = useSettingsStore((s) => s.notesDock)
   const notesVisible = useSettingsStore((s) => s.notesVisible)
@@ -163,6 +237,7 @@ export function DashboardView() {
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [slotPickerAt, setSlotPickerAt] = useState<{ key: HorizonKey; x: number; y: number } | null>(null)
   const [showEditor, setShowEditor] = useState(false)
+  const [showHorizonEditor, setShowHorizonEditor] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -297,6 +372,16 @@ export function DashboardView() {
   const heroList = horizonLists[selectedHorizon]
   const otherHorizons: HorizonKey[] = HORIZON_KEYS.filter((k) => k !== selectedHorizon)
 
+  // Reverse lookup so we can derive the HorizonKey (if any) behind a rendered list.
+  const horizonByDefId = useMemo(() => {
+    const m = new Map<number, HorizonKey>()
+    for (const key of HORIZON_KEYS) {
+      const id = horizonSlots[key]
+      if (id != null) m.set(id, key)
+    }
+    return m
+  }, [horizonSlots])
+
   const handleClick = useCallback((todoId: number) => {
     openEditPopup(todoId)
   }, [openEditPopup])
@@ -304,6 +389,20 @@ export function DashboardView() {
   const toggleSection = useCallback((key: string) => {
     setCollapsed((s) => ({ ...s, [key]: !s[key] }))
   }, [])
+
+  const resolveCollapse = useCallback((list: DashboardList) => {
+    const horizonKey = horizonByDefId.get(list.id)
+    if (horizonKey) {
+      return {
+        collapsed: !!horizonCollapsed[horizonKey],
+        onToggle: () => { void setHorizonCollapsed(horizonKey, !horizonCollapsed[horizonKey]) },
+      }
+    }
+    return {
+      collapsed: !!collapsed[list.key],
+      onToggle: () => toggleSection(list.key),
+    }
+  }, [horizonByDefId, horizonCollapsed, setHorizonCollapsed, collapsed, toggleSection])
 
   const openSlotPicker = useCallback((key: HorizonKey) => {
     // Fallback position when triggered from a non-placeholder cell (keyboard).
@@ -326,6 +425,18 @@ export function DashboardView() {
   const showNotesDock = notesVisible && !isMobile
   const notesDocked = showNotesDock && (notesDock === 'right' || notesDock === 'bottom')
   const layoutClass = notesDocked ? (styles[`pageLayout_${notesDock}`] ?? styles.pageLayout_right) : ''
+
+  const HERO_PANEL_ID = 'horizon-hero-panel'
+  const tabIdFor = useCallback((key: HorizonKey) => `horizon-tab-${key}`, [])
+
+  const horizonDefIdList = useMemo(
+    () => Array.from(horizonDefIds),
+    [horizonDefIds],
+  )
+
+  const handleCreateHorizonTask = useCallback(async (title: string) => {
+    await taskEdit.onCreate({ title })
+  }, [taskEdit])
 
   const pageContent = (
     <>
@@ -354,26 +465,36 @@ export function DashboardView() {
             onSelect={(k) => setSelectedHorizon(k)}
             onConfigureSlot={openSlotPicker}
             unmappedSlots={unmappedSlots}
+            heroPanelId={HERO_PANEL_ID}
+            tabIdFor={tabIdFor}
+            onEditHorizons={horizonDefIdList.length > 0 ? () => setShowHorizonEditor(true) : undefined}
           />
 
           <div className={styles.taskboardSection}>
             <TaskboardPanel />
           </div>
 
-          {heroList && (
-            <div className={styles.heroSection}>
-              <DashboardListCard
-                list={heroList}
-                variant="hero"
-                collapsed={!!collapsed[heroList.key]}
-                onToggleCollapse={toggleSection}
-                onOpenDetail={handleClick}
-                assignedPeopleMap={assignedPeopleMap}
-                assignedTagsMap={assignedTagsMap}
-                isMobile={isMobile}
-              />
-            </div>
-          )}
+          {heroList && (() => {
+            const c = resolveCollapse(heroList)
+            return (
+              <div className={styles.heroSection}>
+                <DashboardListCard
+                  list={heroList}
+                  variant="hero"
+                  collapsed={c.collapsed}
+                  onToggleCollapse={c.onToggle}
+                  onOpenDetail={handleClick}
+                  assignedPeopleMap={assignedPeopleMap}
+                  assignedTagsMap={assignedTagsMap}
+                  isMobile={isMobile}
+                  tabpanelId={HERO_PANEL_ID}
+                  tabpanelLabelledBy={tabIdFor(selectedHorizon)}
+                  addTaskLabel={heroList.label}
+                  onAddTask={handleCreateHorizonTask}
+                />
+              </div>
+            )
+          })()}
 
           {otherHorizons.some((k) => horizonLists[k]) && (
             <>
@@ -382,13 +503,14 @@ export function DashboardView() {
                 {otherHorizons.map((key) => {
                   const list = horizonLists[key]
                   if (!list) return null
+                  const c = resolveCollapse(list)
                   return (
                     <DashboardListCard
                       key={list.key}
                       list={list}
                       variant="secondary"
-                      collapsed={!!collapsed[list.key]}
-                      onToggleCollapse={toggleSection}
+                      collapsed={c.collapsed}
+                      onToggleCollapse={c.onToggle}
                       onOpenDetail={handleClick}
                       assignedPeopleMap={assignedPeopleMap}
                       assignedTagsMap={assignedTagsMap}
@@ -406,19 +528,22 @@ export function DashboardView() {
                 <div className={styles.sectionDivider}>Your lists</div>
               )}
               <div className={styles.grid}>
-                {userLists.map((list) => (
-                  <DashboardListCard
-                    key={list.key}
-                    list={list}
-                    variant="secondary"
-                    collapsed={!!collapsed[list.key]}
-                    onToggleCollapse={toggleSection}
-                    onOpenDetail={handleClick}
-                    assignedPeopleMap={assignedPeopleMap}
-                    assignedTagsMap={assignedTagsMap}
-                    isMobile={isMobile}
-                  />
-                ))}
+                {userLists.map((list) => {
+                  const c = resolveCollapse(list)
+                  return (
+                    <DashboardListCard
+                      key={list.key}
+                      list={list}
+                      variant="secondary"
+                      collapsed={c.collapsed}
+                      onToggleCollapse={c.onToggle}
+                      onOpenDetail={handleClick}
+                      assignedPeopleMap={assignedPeopleMap}
+                      assignedTagsMap={assignedTagsMap}
+                      isMobile={isMobile}
+                    />
+                  )
+                })}
                 {!isMobile && (
                   <button
                     type="button"
@@ -499,6 +624,13 @@ export function DashboardView() {
         />
       )}
       {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
+      {showHorizonEditor && (
+        <DashboardListsEditor
+          title="Edit Horizons"
+          filterIds={horizonDefIdList}
+          onClose={() => setShowHorizonEditor(false)}
+        />
+      )}
     </>
   )
 

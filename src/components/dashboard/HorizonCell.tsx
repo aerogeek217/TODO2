@@ -21,6 +21,13 @@ interface Props {
   today: Date
   weekStartsOn: WeekStart
   onSelect: () => void
+  /** DOM id this tab controls (hero panel). */
+  ariaControls?: string
+  /** Stable DOM id for this tab — used by the hero panel's aria-labelledby. */
+  id?: string
+  /** Keyboard-focusable index; only the selected tab is in the tab order. */
+  tabIndex?: number
+  onKeyDown?: (e: React.KeyboardEvent) => void
 }
 
 /** Cap a load value to the tallest bar-visual; anything above = full height. */
@@ -72,6 +79,10 @@ export function HorizonCell({
   today,
   weekStartsOn,
   onSelect,
+  ariaControls,
+  id,
+  tabIndex,
+  onKeyDown,
 }: Props) {
   const grain = HORIZON_GRAIN[horizonKey]
 
@@ -91,10 +102,14 @@ export function HorizonCell({
     <button
       type="button"
       role="tab"
+      id={id}
       aria-selected={selected}
+      aria-controls={ariaControls}
+      tabIndex={tabIndex}
       className={`${styles.cell} ${selected ? styles.cellSelected : ''}`}
       data-horizon={horizonKey}
       onClick={onSelect}
+      onKeyDown={onKeyDown}
     >
       <div className={styles.header}>
         <span className={styles.label}>{label}</span>

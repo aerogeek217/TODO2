@@ -18,7 +18,7 @@ main.tsx (entry point)
 ├── styles/tokens.css      → CSS custom properties (design system: dark/light themes via [data-theme], tint scale, shadows, radii, z-index, spacing, typography)
 ├── views/                 → Route-level pages
 │   ├── CanvasPage         → components/canvas/, stores
-│   ├── DashboardView      → `HorizonRibbon` (5 slots via `settings.horizonSlots`) → hero card (selected horizon) → "Other horizons" 2-up grid → "Your lists" grid of non-horizon pinned `listDefinitions`; per-list grouping + Taskboard; "Add list" tile → `ListDefinitionPickerPopup`; shares `showCompleted` / `showHiddenStatuses`; right/bottom/floating `NotesPanel` (CM6 Markdown inbox, ⌘T → task)
+│   ├── DashboardView      → `HorizonRibbon` (5 slots via `settings.horizonSlots`; `role=tablist`, arrow-key roving focus, "Edit horizons…" opens `DashboardListsEditor` filtered to slot-mapped defs) → hero card (`role=tabpanel`, inline "+ Add task to {horizon}" → `useTaskEditCallbacks.onCreate`) → "Other horizons" 2-up grid → "Your lists" grid of non-horizon pinned `listDefinitions`; per-horizon collapse persists via `settings.horizonCollapsed`, non-horizon cards use local collapse; Taskboard; "Add list" tile → `ListDefinitionPickerPopup`; shares `showCompleted` / `showHiddenStatuses`; right/bottom/floating `NotesPanel` (CM6 Markdown inbox, ⌘T → task)
 │   ├── ListView           → Unified list with sort-by grouping (Date/Scheduled/Deadline/People/Tag/Project/Status/Org), saved views, "Save as Preset" → ListDefinition, plain text export
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Theme toggle, manage buttons, task defaults, database location, import/export

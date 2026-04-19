@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import { DashboardView } from '../../views/DashboardView'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -12,6 +13,7 @@ import { useFilterStore } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import type { TodoPredicate } from '../../models'
 import { makeTodo } from '../helpers'
@@ -239,5 +241,119 @@ describe('DashboardView', () => {
       (el) => el.getAttribute('data-list-key'),
     )
     expect(keys).toEqual(['def-1', 'def-2', 'def-3', 'def-4'])
+  })
+})
+
+describe('DashboardView — Phase 5 polish', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 3, 16))
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    })
+    resetStores()
+    // Map every horizon slot to a real list-def so the ribbon shows mapped cells,
+    // the hero renders, and "Edit horizons…" becomes available.
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 11, name: 'This week', sortOrder: 0 }),
+        makeDef({ id: 12, name: 'Next week', sortOrder: 1 }),
+        makeDef({ id: 13, name: 'Rest of month', sortOrder: 2 }),
+        makeDef({ id: 14, name: 'Later', sortOrder: 3 }),
+        makeDef({ id: 15, name: 'Someday', sortOrder: 4 }),
+      ],
+    })
+    useSettingsStore.setState({
+      horizonSlots: {
+        thisweek: 11,
+        nextweek: 12,
+        thismonth: 13,
+        later: 14,
+        someday: 15,
+      },
+      selectedHorizon: 'thisweek',
+      horizonCollapsed: {},
+    })
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it('hero card has role="tabpanel" wired to the selected horizon tab', () => {
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const hero = document.getElementById('horizon-hero-panel')
+    expect(hero).not.toBeNull()
+    expect(hero?.getAttribute('role')).toBe('tabpanel')
+    const labelledBy = hero?.getAttribute('aria-labelledby')
+    expect(labelledBy).toBe('horizon-tab-thisweek')
+    const tab = document.getElementById('horizon-tab-thisweek')
+    expect(tab?.getAttribute('aria-selected')).toBe('true')
+    expect(tab?.getAttribute('aria-controls')).toBe('horizon-hero-panel')
+  })
+
+  it('renders an "Edit horizons…" button that opens the filtered editor', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const btn = screen.getByText(/Edit horizons/i)
+    fireEvent.click(btn)
+    // The filtered modal uses the supplied title.
+    expect(screen.getByText('Edit Horizons')).toBeInTheDocument()
+    // The 5 horizon-mapped defs render as editable rows within the modal.
+    const modal = container.querySelector<HTMLElement>('[class*="modal"]')!
+    const rowNames = Array.from(
+      modal.querySelectorAll<HTMLElement>('[class*="nameEditable"]'),
+    ).map((el) => el.textContent)
+    expect(rowNames).toEqual(['This week', 'Next week', 'Rest of month', 'Later', 'Someday'])
+    // The "+ Add List" affordance is suppressed in filtered mode.
+    expect(screen.queryByText(/\+ Add List/i)).toBeNull()
+  })
+
+  it('renders an inline "+ Add task to …" button in the hero card', () => {
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const btn = screen.getByText(/\+ Add task to This week/i)
+    expect(btn).toBeInTheDocument()
+    fireEvent.click(btn)
+    const input = document.querySelector<HTMLInputElement>(
+      'input[placeholder*="New task"]',
+    )
+    expect(input).not.toBeNull()
+  })
+
+  it('persists the hero card collapse toggle via setHorizonCollapsed', () => {
+    const spy = vi.spyOn(useSettingsStore.getState(), 'setHorizonCollapsed')
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const hero = document.getElementById('horizon-hero-panel')!
+    const header = hero.querySelector<HTMLElement>('[class*="cardHeader"]')!
+    act(() => {
+      fireEvent.click(header)
+    })
+    expect(spy).toHaveBeenCalledWith('thisweek', true)
   })
 })
