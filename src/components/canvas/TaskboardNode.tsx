@@ -8,6 +8,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
+import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { TaskRow } from '../task/TaskRow'
 import styles from './TaskboardNode.module.css'
 
@@ -147,6 +148,14 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         <span className={styles.icon}>&#9776;</span>
         <span className={styles.name}>Taskboard</span>
         <span className={styles.taskCount}>{visibleEntries.length}</span>
+        <button
+          className={styles.closeButton}
+          onClick={() => useCanvasRailsStore.getState().createAndDockSlot('taskboard')}
+          aria-label="Dock taskboard to rail"
+          title="Dock to rail"
+        >
+          ↙
+        </button>
         <button className={styles.closeButton} onClick={onClose}>&times;</button>
       </div>
 

@@ -1,6 +1,6 @@
 export type RailSide = 'left' | 'right' | 'top' | 'bottom'
 export type RailOrientation = 'vertical' | 'horizontal'
-export type SlotKind = 'lens' | 'notes' | 'calendar'
+export type SlotKind = 'lens' | 'notes' | 'calendar' | 'taskboard'
 
 export interface Slot {
   id: string
@@ -63,7 +63,7 @@ export function railOrientationForSide(side: RailSide): RailOrientation {
   return side === 'left' || side === 'right' ? 'vertical' : 'horizontal'
 }
 
-const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar']
+const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard']
 
 function parseSlot(raw: unknown): Slot | null {
   if (!raw || typeof raw !== 'object') return null

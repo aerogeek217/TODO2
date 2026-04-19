@@ -25,6 +25,7 @@ import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from '.
 import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, TaskboardEntry, FloatingCalendar, FloatingNote } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import styles from './CanvasView.module.css'
@@ -203,6 +204,15 @@ export function CanvasView({
   const isMinimapOpen = useUIStore((s) => s.isMinimapOpen)
   // Track which nodes are currently being dragged by React Flow
   const themeMode = useSettingsStore((s) => s.themeMode)
+  // Canvas taskboard is hidden when a rail slot already holds the taskboard,
+  // so the two surfaces never render the same singleton simultaneously.
+  const hasRailTaskboard = useCanvasRailsStore((s) => {
+    for (const side of ['left', 'right', 'top', 'bottom'] as const) {
+      const rail = s.rails[side]
+      if (rail?.slots.some((slot) => slot.kind === 'taskboard')) return true
+    }
+    return false
+  })
   const resolvedTheme = useResolvedTheme()
   const [canvasDotColor, setCanvasDotColor] = useState(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--color-canvas-dot').trim() || '#3a3a3a'
@@ -378,7 +388,7 @@ export function CanvasView({
       }
     })
 
-    const showTaskboard = (taskboardEntries && taskboardEntries.length > 0) || activeDragTodoId != null
+    const showTaskboard = !hasRailTaskboard && ((taskboardEntries && taskboardEntries.length > 0) || activeDragTodoId != null)
     const tbNode: Node[] = []
     if (showTaskboard) {
       const data: TaskboardNodeData = {
@@ -415,7 +425,7 @@ export function CanvasView({
     floatingNotes, onDeleteNote, onResizeNote,
     floatingCalendars, onDeleteCalendar, onResizeCalendar,
     allPeople, allTags, allOrgs,
-    taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
+    taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard, hasRailTaskboard,
     showCompleted, showHiddenStatuses, activeDragTodoId,
   ])
 

@@ -15,12 +15,14 @@ const KIND_LABEL: Record<SlotKind, string> = {
   lens: 'lens',
   notes: 'notes',
   calendar: 'calendar',
+  taskboard: 'taskboard',
 }
 
 const KINDS: { kind: SlotKind; label: string }[] = [
   { kind: 'lens', label: 'Lens' },
   { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
+  { kind: 'taskboard', label: 'Taskboard' },
 ]
 
 const SPLITS: { dir: 'above' | 'below' | 'left' | 'right'; label: string }[] = [

@@ -15,6 +15,7 @@ import { SlotHeader } from './SlotHeader'
 import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
 import { NotesSlotContent } from './NotesSlotContent'
+import { TaskboardSlotContent } from './TaskboardSlotContent'
 import { LensTitleButton } from './LensTitleButton'
 import { DockOverlay } from './DockOverlay'
 import { SlotMenu } from './SlotMenu'
@@ -105,6 +106,11 @@ export async function popSlotToCanvas(slot: Slot): Promise<boolean> {
   }
   if (slot.kind === 'calendar') {
     await useFloatingCalendarStore.getState().add(canvasId, pos.x, pos.y)
+    return true
+  }
+  if (slot.kind === 'taskboard') {
+    // Taskboard is a singleton — removing the rail slot lets the canvas
+    // TaskboardNode re-render (visibility is derived from rails state).
     return true
   }
   return false
@@ -221,6 +227,19 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       />
     )
     body = <NotesSlotContent />
+  } else if (slot.kind === 'taskboard') {
+    header = (
+      <SlotHeader
+        slotKind={slot.kind}
+        title="☰ Taskboard"
+        onMore={(anchor) => setMenuAnchor(anchor)}
+        onPopOut={handlePopOut}
+        menuOpen={menuOpen}
+        moreButtonRef={moreButtonRef}
+        onClose={closeThisSlot}
+      />
+    )
+    body = <TaskboardSlotContent />
   } else {
     header = (
       <SlotHeader

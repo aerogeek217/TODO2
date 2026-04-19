@@ -18,6 +18,7 @@ const KIND_LABEL: Record<SlotKind, string> = {
   lens: 'lens',
   notes: 'notes',
   calendar: 'calendar',
+  taskboard: 'taskboard',
 }
 
 export function SlotHeader({

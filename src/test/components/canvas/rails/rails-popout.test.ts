@@ -103,6 +103,16 @@ describe('popSlotToCanvas', () => {
     expect(useListInsetStore.getState().insets.length).toBe(0)
   })
 
+  it('pops a taskboard slot (no-op; rail slot removal lets canvas re-show)', async () => {
+    await seedCanvas()
+    const slot: Slot = { id: 'slot-tb', kind: 'taskboard' }
+    const moved = await popSlotToCanvas(slot)
+    // Taskboard is a singleton — popSlotToCanvas returns true so the caller
+    // removes the rail slot; the canvas TaskboardNode's visibility is derived
+    // from rails state so it re-shows automatically.
+    expect(moved).toBe(true)
+  })
+
   it('pops a calendar slot into a floating calendar node', async () => {
     const canvasId = await seedCanvas()
     const slot: Slot = { id: 'slot-cal', kind: 'calendar' }
@@ -152,5 +162,12 @@ describe('createAndDockSlot', () => {
     const slot = rails.right?.slots.find((s) => s.id === id)
     expect(slot?.kind).toBe('lens')
     expect(slot?.listDefinitionId).toBe(42)
+  })
+
+  it('docks a taskboard slot like any other kind', () => {
+    const id = useCanvasRailsStore.getState().createAndDockSlot('taskboard')
+    const { rails } = useCanvasRailsStore.getState()
+    const slot = rails.right?.slots.find((s) => s.id === id)
+    expect(slot?.kind).toBe('taskboard')
   })
 })
