@@ -9,6 +9,7 @@ import { DraggableSlot } from './DraggableSlot'
 import { SlotHeader } from './SlotHeader'
 import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
+import { NotesSlotContent } from './NotesSlotContent'
 import { LensTitleButton } from './LensTitleButton'
 import { DockOverlay } from './DockOverlay'
 import { SlotMenu } from './SlotMenu'
@@ -97,6 +98,15 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       />
     )
     body = <CalendarSlotContent />
+  } else if (slot.kind === 'notes') {
+    header = (
+      <SlotHeader
+        title="◰ Notes · Inbox"
+        onMore={(anchor) => setMenuAnchor(anchor)}
+        onClose={() => closeSlot(slot.id)}
+      />
+    )
+    body = <NotesSlotContent />
   } else {
     header = (
       <SlotHeader
