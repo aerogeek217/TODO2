@@ -447,7 +447,12 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesDock', 'notesVisible']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesDock', 'notesVisible', 'canvasRails']
+
+const SETTING_VALUE_MAX_LEN_DEFAULT = 200
+const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
+  canvasRails: 8000,
+}
 
 function isValidSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
@@ -456,7 +461,9 @@ function isValidSettingKey(key: string): boolean {
 function checkSetting(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   if (!isStr(v.key, 100)) return 'key'
-  if (typeof v.value !== 'string' || (v.value as string).length > 200) return 'value'
+  if (typeof v.value !== 'string') return 'value'
+  const maxLen = SETTING_VALUE_MAX_LEN_BY_KEY[v.key as string] ?? SETTING_VALUE_MAX_LEN_DEFAULT
+  if ((v.value as string).length > maxLen) return 'value'
   if (!isValidSettingKey(v.key as string)) return 'key (unrecognized)'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
@@ -484,6 +491,14 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === 'notesVisible') {
     return v.value === 'true' || v.value === 'false' ? true : 'value (notesVisible must be true/false)'
+  }
+  if (v.key === 'canvasRails') {
+    try {
+      const parsed = JSON.parse(v.value as string) as unknown
+      return parsed !== null && typeof parsed === 'object' ? true : 'value (canvasRails must be an object)'
+    } catch {
+      return 'value (canvasRails must be valid JSON)'
+    }
   }
   return true
 }

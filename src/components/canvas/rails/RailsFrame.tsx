@@ -30,12 +30,19 @@ interface RailsFrameProps {
 /** Default rails: right-side lens slot showing the `thisweek` horizon. */
 function useDefaultRails() {
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
+  const persistedRails = useSettingsStore((s) => s.canvasRails)
+  const setCanvasRails = useSettingsStore((s) => s.setCanvasRails)
   const listDefinitionsLoaded = useListDefinitionStore((s) => s.listDefinitions.length > 0)
   const { rails, hydrated, hydrate } = useCanvasRailsStore()
 
   useEffect(() => {
     if (hydrated) return
     if (!listDefinitionsLoaded) return
+    const hasPersisted = persistedRails && (persistedRails.left || persistedRails.right || persistedRails.top || persistedRails.bottom)
+    if (hasPersisted) {
+      hydrate(persistedRails)
+      return
+    }
     const thisweekId = horizonSlots?.thisweek
     const slot = createLensSlot(thisweekId)
     hydrate({
@@ -44,7 +51,13 @@ function useDefaultRails() {
       top: null,
       bottom: null,
     })
-  }, [hydrated, hydrate, horizonSlots, listDefinitionsLoaded])
+  }, [hydrated, hydrate, horizonSlots, listDefinitionsLoaded, persistedRails])
+
+  // Persist rails changes through settings (debounced inside setCanvasRails).
+  useEffect(() => {
+    if (!hydrated) return
+    setCanvasRails(rails)
+  }, [rails, hydrated, setCanvasRails])
 
   return rails
 }

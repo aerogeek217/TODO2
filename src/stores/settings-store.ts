@@ -5,6 +5,8 @@ import { parseHorizonSlots } from '../data/database'
 import { setConfiguredWeekStart, type WeekStart } from '../utils/effective-date'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
 import type { CanvasViewport } from './ui-store'
+import type { RailsState } from '../models/canvas-rails'
+import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -55,6 +57,8 @@ interface SettingsState {
   notesDock: NotesDock
   /** Whether the dashboard notes panel is shown. */
   notesVisible: boolean
+  /** Persisted canvas rails layout (null = no persisted state). */
+  canvasRails: RailsState | null
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -71,6 +75,7 @@ interface SettingsState {
   setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
   setNotesDock: (dock: NotesDock) => Promise<void>
   setNotesVisible: (visible: boolean) => Promise<void>
+  setCanvasRails: (rails: RailsState) => void
 }
 
 function expandHex(hex: string): string {
@@ -202,6 +207,8 @@ function parseHorizonCollapsed(value: string | undefined | null): Partial<Record
 let customizedColorKeys = new Set<string>()
 let vpPersistTimer: ReturnType<typeof setTimeout> | undefined
 let vpSetTimer: ReturnType<typeof setTimeout> | undefined
+let railsPersistTimer: ReturnType<typeof setTimeout> | undefined
+let railsSetTimer: ReturnType<typeof setTimeout> | undefined
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: { ...defaultColors },
@@ -219,6 +226,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   horizonCollapsed: {},
   notesDock: 'right' as NotesDock,
   notesVisible: true,
+  canvasRails: null,
 
   async load() {
     try {
@@ -239,6 +247,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let horizonCollapsed: Partial<Record<HorizonKey, boolean>> = {}
       let notesDock: NotesDock = 'right'
       let notesVisible = true
+      let canvasRails: RailsState | null = null
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -281,11 +290,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isValidNotesDock(row.value)) notesDock = row.value
         } else if (row.key === 'notesVisible') {
           notesVisible = row.value !== 'false'
+        } else if (row.key === 'canvasRails') {
+          canvasRails = parseRailsState(row.value)
         }
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesDock, notesVisible })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesDock, notesVisible, canvasRails })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -395,6 +406,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async setNotesVisible(visible: boolean) {
     await settingsRepository.put('notesVisible', visible ? 'true' : 'false')
     set({ notesVisible: visible })
+  },
+
+  setCanvasRails(rails: RailsState) {
+    // Debounced twin of setCanvasViewport: rapid slot operations (drag, split)
+    // coalesce into a single Zustand set + single repo write.
+    if (railsSetTimer) clearTimeout(railsSetTimer)
+    railsSetTimer = setTimeout(() => {
+      set({ canvasRails: rails })
+      railsSetTimer = undefined
+    }, 150)
+
+    if (railsPersistTimer) clearTimeout(railsPersistTimer)
+    railsPersistTimer = setTimeout(() => {
+      settingsRepository.put('canvasRails', serializeRailsState(rails))
+    }, 500)
   },
 
   setCanvasViewport(vp: CanvasViewport) {

@@ -133,3 +133,89 @@ describe('useSettingsStore.setCanvasViewport debouncing', () => {
     spy.mockRestore()
   })
 })
+
+describe('useSettingsStore.canvasRails persistence', () => {
+  beforeEach(async () => {
+    await db.delete()
+    await db.open()
+    useSettingsStore.setState({ canvasRails: null })
+  })
+
+  it('load parses persisted canvasRails JSON', async () => {
+    await db.settings.put({
+      key: 'canvasRails',
+      value: JSON.stringify({
+        left: null,
+        right: { orientation: 'vertical', slots: [{ id: 's1', kind: 'lens', listDefinitionId: 7 }] },
+        top: null,
+        bottom: null,
+      }),
+    })
+    await useSettingsStore.getState().load()
+    const rails = useSettingsStore.getState().canvasRails
+    expect(rails).not.toBeNull()
+    expect(rails!.right!.slots[0]).toEqual({ id: 's1', kind: 'lens', listDefinitionId: 7 })
+  })
+
+  it('load leaves canvasRails null when the blob is malformed', async () => {
+    await db.settings.put({ key: 'canvasRails', value: '{not json' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().canvasRails).toBeNull()
+  })
+})
+
+describe('useSettingsStore.setCanvasRails debouncing', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    useSettingsStore.setState({ canvasRails: null })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('debounces Zustand set across rapid calls and retains only the last value', () => {
+    const store = useSettingsStore.getState()
+    const rails1 = {
+      left: null,
+      right: { orientation: 'vertical' as const, slots: [{ id: 'a', kind: 'lens' as const }] },
+      top: null,
+      bottom: null,
+    }
+    const rails2 = {
+      left: null,
+      right: { orientation: 'vertical' as const, slots: [{ id: 'b', kind: 'notes' as const }] },
+      top: null,
+      bottom: null,
+    }
+    store.setCanvasRails(rails1)
+    store.setCanvasRails(rails2)
+
+    expect(useSettingsStore.getState().canvasRails).toBeNull()
+    vi.advanceTimersByTime(150)
+    expect(useSettingsStore.getState().canvasRails).toEqual(rails2)
+  })
+})
+
+describe('useSettingsStore.setCanvasRails persistence', () => {
+  beforeEach(async () => {
+    await db.delete()
+    await db.open()
+    useSettingsStore.setState({ canvasRails: null })
+  })
+
+  it('writes the serialized rails blob to the settings repo', async () => {
+    const rails = {
+      left: null,
+      right: { orientation: 'vertical' as const, slots: [{ id: 'x', kind: 'lens' as const, listDefinitionId: 5 }] },
+      top: null,
+      bottom: null,
+    }
+    useSettingsStore.getState().setCanvasRails(rails)
+    await new Promise((r) => setTimeout(r, 600))
+    const row = await db.settings.get('canvasRails')
+    expect(row).toBeDefined()
+    const parsed = JSON.parse(row!.value)
+    expect(parsed.right.slots[0].id).toBe('x')
+  })
+})
