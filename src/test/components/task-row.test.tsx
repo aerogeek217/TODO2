@@ -8,7 +8,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
-import { makeTodo, makePerson, makeProject } from '../helpers'
+import { makeTodo, makePerson, makeProject, makeOrg } from '../helpers'
 
 const mockBulk = {
   toggleComplete: vi.fn(),
@@ -273,6 +273,60 @@ describe('TaskRow (unified scheduling)', () => {
       const people = [1, 2, 3, 4].map((id) => makePerson({ id, name: `P${id}`, initials: `P${id}` }))
       render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
       expect(screen.getByText('+1')).toBeInTheDocument()
+    })
+
+    it('renders orgs as a hollow AvatarStack, not as text chips', () => {
+      const org = makeOrg({ id: 9, name: 'Acme', initials: 'AC', color: '#ff00ff' })
+      useOrgStore.setState({ assignedOrgsMap: new Map([[1, [org]]]) })
+      const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      // No legacy "@Acme" org chip
+      expect(screen.queryByText('@Acme')).not.toBeInTheDocument()
+      // Hollow avatar with initials
+      const hollow = container.querySelector('[class*="avatarHollow"]')
+      expect(hollow).not.toBeNull()
+      expect(hollow!.textContent).toBe('AC')
+    })
+  })
+
+  describe('status slot layout', () => {
+    it('reserves min-width on the status wrapper whether status is set or not', () => {
+      const { container: a } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      const noStatus = a.querySelector('[class*="statusWrapper"]') as HTMLElement
+      cleanup()
+
+      useStatusStore.setState({
+        statuses: [{ id: 10, name: 'Done', icon: 'check', color: '#00ff00', sortOrder: 0 }],
+      })
+      const { container: b } = render(<TaskRow todo={makeTodo({ id: 1, statusId: 10 })} />)
+      const withStatus = b.querySelector('[class*="statusWrapper"]') as HTMLElement
+
+      // Both wrappers carry the status-slot class (min-width reserved in CSS)
+      expect(noStatus.className).toMatch(/statusWrapper/)
+      expect(withStatus.className).toMatch(/statusWrapper/)
+    })
+  })
+
+  describe('date-stack sizing', () => {
+    it('applies the secondary class to the deadline chip only when both dates are present', () => {
+      const { container } = render(
+        <TaskRow
+          todo={makeTodo({
+            id: 1,
+            scheduledDate: { kind: 'fuzzy', token: 'today' },
+            dueDate: new Date(2026, 3, 20),
+          })}
+        />,
+      )
+      const deadline = container.querySelector('[class*="deadlineChip"]') as HTMLElement
+      expect(deadline.className).toMatch(/dateStackSecondary/i)
+    })
+
+    it('does not apply the secondary class when only the deadline is set', () => {
+      const { container } = render(
+        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />,
+      )
+      const deadline = container.querySelector('[class*="deadlineChip"]') as HTMLElement
+      expect(deadline.className).not.toMatch(/dateStackSecondary/i)
     })
   })
 

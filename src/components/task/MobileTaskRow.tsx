@@ -171,11 +171,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           ))}
           {tags.length > 1 && <span className={styles.overflow}>+{tags.length - 1}</span>}
 
-          {assignedOrgs.slice(0, 1).map((o) => (
-            <span key={o.id} className={styles.orgChip} style={o.color ? { borderColor: o.color, color: o.color } : undefined}>
-              {o.name}
-            </span>
-          ))}
+          {assignedOrgs.length > 0 && (
+            <AvatarStack people={assignedOrgs} max={3} size="sm" variant="hollow" />
+          )}
 
           {todo.progress && (
             <span className={styles.progressChip}>

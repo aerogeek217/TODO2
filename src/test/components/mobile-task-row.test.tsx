@@ -143,10 +143,14 @@ describe('MobileTaskRow', () => {
       expect(screen.queryByText('Feature')).not.toBeInTheDocument()
     })
 
-    it('shows org name from store', () => {
-      useOrgStore.setState({ assignedOrgsMap: new Map([[1, [makeOrg({ id: 5, name: 'Acme' })]]]) })
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.getByText('Acme')).toBeInTheDocument()
+    it('shows org initials from store via hollow AvatarStack', () => {
+      useOrgStore.setState({
+        assignedOrgsMap: new Map([[1, [makeOrg({ id: 5, name: 'Acme', initials: 'AC' })]]]),
+      })
+      const { container } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
+      const hollow = container.querySelector('[class*="avatarHollow"]') as HTMLElement
+      expect(hollow).not.toBeNull()
+      expect(hollow.textContent).toBe('AC')
     })
 
     it('shows progress text and bar', () => {

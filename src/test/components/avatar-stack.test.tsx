@@ -59,6 +59,23 @@ describe('AvatarStack', () => {
     unmount()
   })
 
+  it('renders hollow variant with transparent background + outlined circles', () => {
+    const orgs = [{ id: 1, name: 'Acme', initials: 'AC', color: '#00ff00' }]
+    const { container } = render(<AvatarStack people={orgs} variant="hollow" />)
+    const avatar = container.querySelector('[class*="avatar"]') as HTMLElement
+    expect(avatar.className).toMatch(/avatarHollow/i)
+    // inline style from hollow variant: borderColor + color, no background
+    expect(avatar.style.borderColor).toBeTruthy()
+    expect(avatar.style.color).toBeTruthy()
+    expect(avatar.style.background).toBe('')
+  })
+
+  it('uses an org-oriented aria-label for the hollow variant', () => {
+    const orgs = [{ id: 1, name: 'Acme', initials: 'AC' }]
+    render(<AvatarStack people={orgs} variant="hollow" />)
+    expect(screen.getByRole('button', { name: '1 org assigned' })).toBeInTheDocument()
+  })
+
   it('invokes onPersonContextMenu with the source person on right-click', () => {
     const onPersonContextMenu = vi.fn()
     const people = [

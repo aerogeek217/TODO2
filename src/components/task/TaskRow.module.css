@@ -7,6 +7,10 @@
   transition: background 0.1s, opacity 0.3s ease;
   position: relative;
   cursor: grab;
+  /* Fixed row height so a two-chip date stack doesn't push this row taller
+   * than a single-chip row. Tall enough to center ~23px stack (primary
+   * 14px + secondary 10px + 1px gap) with a sliver of padding. */
+  min-height: 28px;
 }
 
 .row:active {
@@ -140,7 +144,9 @@
 .statusWrapper {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  min-width: var(--status-slot-w, 24px);
 }
 
 .statusMenu {
@@ -274,16 +280,38 @@
 }
 
 /*
- * Wrapper that stacks scheduled (top) and deadline (beneath) vertically.
- * When only one chip is present it sits alone; when both are present the
- * row stays single-height thanks to the smaller chip paddings below.
+ * Fixed-width date-column slot. Always the same width whether a chip,
+ * chip-stack, or empty-state add-date button is rendered inside —
+ * so trailing slots (status) and preceding slots (people / orgs)
+ * line up vertically across rows.
  */
 .dateStack {
   display: inline-flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
+  justify-content: center;
   gap: 1px;
   flex-shrink: 0;
+  width: var(--date-slot-w, 80px);
+  line-height: 1;
+}
+
+/*
+ * Secondary chip in a two-chip stack: deadline when both scheduled + deadline
+ * are present. Sized per the canvas-rails design handoff: ~10px text on a
+ * tight line-height so the full stack (~23px) clears the row min-height.
+ */
+.dateStackSecondary {
+  font-size: 9.5px;
+  padding: 0 4px;
+  line-height: 10px;
+  letter-spacing: 0.1px;
+}
+
+/* Clear (×) button inside the tight secondary chip would overflow its
+ * line-height, so hide it there — users clear the primary by clicking it. */
+.dateStackSecondary .chipClear {
+  display: none;
 }
 
 /*
@@ -296,17 +324,23 @@
   --fade: calc((1 - var(--date-intensity)) * 100%);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 3px;
   font-size: var(--font-size-meta);
   color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
   background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
-  padding: 2px 8px;
+  padding: 1px 6px;
+  line-height: 14px;
   border-radius: var(--radius-chip);
   border: 1px solid transparent;
   white-space: nowrap;
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
 }
 
 .scheduledChip:hover {
@@ -335,17 +369,23 @@
   --fade: calc((1 - var(--date-intensity)) * 100%);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 3px;
   font-size: var(--font-size-meta);
   color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
   background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
-  padding: 2px 8px;
+  padding: 1px 6px;
+  line-height: 14px;
   border-radius: var(--radius-chip);
   border: 1px solid transparent;
   white-space: nowrap;
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
 }
 
 .deadlineChip:hover {
@@ -594,6 +634,19 @@
 .tagColorInput::-webkit-color-swatch {
   border: none;
   border-radius: 2px;
+}
+
+/*
+ * Empty-state slot: reserves the same width as .dateStack when no date is
+ * set, so people/org avatars and the trailing status icon align vertically
+ * across rows regardless of whether a date is present.
+ */
+.dateStackEmpty {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  width: var(--date-slot-w, 80px);
 }
 
 /* Calendar icon (hover-reveal when no date) */

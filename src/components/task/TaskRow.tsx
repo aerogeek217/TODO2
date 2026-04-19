@@ -90,7 +90,7 @@ interface TaskRowProps {
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, assignedTags, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
-  onSelect, onToggleExpand, onOpenDetail, compact, cut, extraLabel, showContext,
+  onSelect, onToggleExpand, onOpenDetail, cut, extraLabel, showContext,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
@@ -309,7 +309,7 @@ export const TaskRow = memo(function TaskRow({
         </span>
       )}
 
-      {/* People chip group — avatar stack + org chips share one picker */}
+      {/* People chip group — avatar stack + org avatars share one picker */}
       {!ghost && (
         <div className={`${styles.chipGroup} ${hasPeople ? '' : styles.chipGroupEmpty}`} ref={peopleRef}>
           {hasPeople ? (
@@ -326,15 +326,19 @@ export const TaskRow = memo(function TaskRow({
                   }}
                 />
               )}
-              {assignedOrgs.map((org) => (
-                <button key={`org-${org.id}`} className={styles.orgChip}
-                  style={org.color ? { borderColor: org.color, color: org.color } : undefined}
-                  title={compact ? org.name : undefined}
-                  onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
-                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'org', orgId: org.id!, orgName: org.name, orgColor: org.color }) }}>
-                  {compact ? (org.initials || org.name.slice(0, 2).toUpperCase()) : `@${org.name}`}
-                </button>
-              ))}
+              {assignedOrgs.length > 0 && (
+                <AvatarStack
+                  people={assignedOrgs}
+                  max={3}
+                  variant="hollow"
+                  onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
+                  onPersonContextMenu={(e, org) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'org', orgId: org.id!, orgName: org.name, orgColor: org.color })
+                  }}
+                />
+              )}
             </>
           ) : (
             <button className={styles.chipTrigger}
@@ -420,7 +424,7 @@ export const TaskRow = memo(function TaskRow({
           {todo.dueDate && (
             <button
               type="button"
-              className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`}
+              className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''} ${todo.scheduledDate ? styles.dateStackSecondary : ''}`}
               style={{ '--date-intensity': deadlineIntensity } as React.CSSProperties}
               onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
               title={deadlinePast ? 'Deadline passed — click to change' : 'Deadline — click to change'}
@@ -442,17 +446,20 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
-      {/* Empty state: inline scheduled picker (with "Add deadline" action) */}
+      {/* Empty state: reserved date slot holding the inline scheduled picker
+         trigger so people/org avatars stay aligned across rows. */}
       {!todo.scheduledDate && !todo.dueDate && !ghost && (
-        <button
-          ref={scheduledAnchorRef}
-          type="button"
-          className={`${styles.actionBtn} ${styles.actionBtnHover}`}
-          onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-          title="Schedule or set deadline"
-        >
-          <StatusIcon icon="calendar" />
-        </button>
+        <div className={styles.dateStackEmpty}>
+          <button
+            ref={scheduledAnchorRef}
+            type="button"
+            className={`${styles.actionBtn} ${styles.actionBtnHover}`}
+            onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
+            title="Schedule or set deadline"
+          >
+            <StatusIcon icon="calendar" />
+          </button>
+        </div>
       )}
 
       {/* Inline scheduled-value menu, portalized + anchored to chip/empty button */}

@@ -44,6 +44,20 @@
   font-weight: 500;
 }
 
+/*
+ * Hollow variant: transparent fill with a colored outline + matching text.
+ * Used for orgs so they visually read distinct from the solid person avatars.
+ */
+.avatarHollow {
+  background: transparent;
+  border: 1.5px solid currentColor;
+  color: var(--color-text-secondary);
+}
+
+.stackSm .avatarHollow {
+  border-width: 1px;
+}
+
 /* Smaller variant for tight rows (e.g. mobile) */
 .stackSm .avatar {
   width: 16px;
