@@ -47,6 +47,8 @@ interface Props {
   filterIds?: number[]
   /** Override modal title (default "Dashboard Lists"). */
   title?: string
+  /** When provided, mount with this definition's ConfigPanel already expanded. */
+  initialSelectedId?: number
 }
 
 const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
@@ -387,7 +389,7 @@ function SortableRow({
   )
 }
 
-export function DashboardListsEditor({ onClose, filterIds, title }: Props) {
+export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
   const { listDefinitions, load, add, update, rename, setPinned, remove, reorder } = useListDefinitionStore()
   const setAllFilters = useFilterStore((s) => s.setAllFilters)
   const setListGroupBy = useUIStore((s) => s.setListGroupBy)
@@ -399,7 +401,7 @@ export function DashboardListsEditor({ onClose, filterIds, title }: Props) {
   const [newName, setNewName] = useState('')
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [error, setError] = useState('')
-  const [configuringId, setConfiguringId] = useState<number | null>(null)
+  const [configuringId, setConfiguringId] = useState<number | null>(initialSelectedId ?? null)
 
   useEffect(() => { load() }, [load])
 

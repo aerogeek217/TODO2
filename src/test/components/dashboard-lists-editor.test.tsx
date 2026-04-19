@@ -141,3 +141,27 @@ describe('DashboardListsEditor — Match sort field grouping option', () => {
     expect(matchBtn.disabled).toBe(false)
   })
 })
+
+describe('DashboardListsEditor — initialSelectedId', () => {
+  beforeEach(() => {
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 1, name: 'Alpha' }),
+        makeDef({ id: 2, name: 'Beta' }),
+        makeDef({ id: 3, name: 'Gamma' }),
+      ],
+    })
+  })
+  afterEach(() => { cleanup() })
+
+  it('mounts with the given def\'s ConfigPanel already open', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} initialSelectedId={3} />
+      </MemoryRouter>,
+    )
+    // Only one config panel should be visible, and it belongs to Gamma (id 3).
+    const panels = container.querySelectorAll('[class*="configPanel"]')
+    expect(panels.length).toBe(1)
+  })
+})

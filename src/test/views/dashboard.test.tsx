@@ -40,7 +40,13 @@ function emptyPredicate(): TodoPredicate {
 
 // Repositories touched by effect-driven loads: no-op them so tests drive stores directly.
 vi.mock('../../data/list-definition-repository', () => ({
-  listDefinitionRepository: { getAll: async () => [] },
+  listDefinitionRepository: {
+    getAll: async () => [],
+    update: async () => {},
+    remove: async () => {},
+    insert: async () => 1,
+    reorder: async () => {},
+  },
 }))
 vi.mock('../../data/todo-repository', () => ({
   todoRepository: {
@@ -400,5 +406,80 @@ describe('DashboardView — Phase 5 polish', () => {
     // And there's a visual handle-icon child to hint at the affordance.
     const icon = header.querySelector('[class*="cardDragHandleIcon"]')
     expect(icon).not.toBeNull()
+  })
+})
+
+describe('DashboardView — per-card overflow menu', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 3, 16))
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    })
+    resetStores()
+    useListDefinitionStore.setState({
+      listDefinitions: [makeDef({ id: 42, name: 'My pinned list', sortOrder: 0, pinnedToDashboard: true })],
+    })
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it('renders a list-options (⋯) button on each user-pinned card', () => {
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const btns = screen.getAllByLabelText('List options')
+    expect(btns.length).toBeGreaterThan(0)
+  })
+
+  it('opens the menu on ⋯ click, and offers Edit / Unpin / Delete items', () => {
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByLabelText('List options'))
+    expect(screen.getByText('Edit list…')).toBeInTheDocument()
+    expect(screen.getByText('Unpin from dashboard')).toBeInTheDocument()
+    expect(screen.getByText('Delete list…')).toBeInTheDocument()
+  })
+
+  it('clicking Delete opens a confirmation dialog naming the list', () => {
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByLabelText('List options'))
+    fireEvent.click(screen.getByText('Delete list…'))
+    expect(screen.getByText('Delete list')).toBeInTheDocument()
+    // Dialog body wraps the list name in <strong>; body text mentions undo.
+    expect(screen.getByText(/You can undo for 5 seconds/)).toBeInTheDocument()
+  })
+
+  it('clicking Edit list… opens the DashboardListsEditor', () => {
+    render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByLabelText('List options'))
+    fireEvent.click(screen.getByText('Edit list…'))
+    expect(screen.getByText('Dashboard Lists')).toBeInTheDocument()
   })
 })

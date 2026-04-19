@@ -290,6 +290,148 @@
   box-sizing: border-box;
 }
 
+/* ── Per-card overflow menu ── */
+
+.cardMenuWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cardMenuBtn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.cardMenuBtn:hover,
+.cardMenuBtn[aria-expanded="true"] {
+  opacity: 1;
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+.cardMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-dropdown, 100);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 4px 0;
+  box-shadow: var(--shadow-dropdown);
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardMenuItem {
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  text-align: left;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cardMenuItem:hover {
+  background: var(--color-surface-hover);
+}
+
+.cardMenuItemDanger {
+  color: var(--color-danger);
+}
+
+.cardMenuItemDanger:hover {
+  background: color-mix(in oklab, var(--color-danger) 15%, transparent);
+}
+
+/* ── Delete-list confirm dialog ── */
+
+.deleteOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog, 1000);
+}
+
+.deleteBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.deleteDialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  box-shadow: var(--shadow-dialog, 0 10px 30px rgba(0,0,0,0.4));
+  min-width: 320px;
+  max-width: 420px;
+}
+
+.deleteTitle {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: 10px;
+}
+
+.deleteBody {
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  margin-bottom: 16px;
+}
+
+.deleteActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.deleteCancel {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.deleteConfirm {
+  background: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  color: var(--color-text-on-accent);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
 /* ── Drag overlay ── */
 
 .dragOverlay {

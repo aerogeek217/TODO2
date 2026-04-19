@@ -44,6 +44,7 @@ import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinition
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { NotesPanel } from '../components/dashboard/NotesPanel'
 import { useNoteStore } from '../stores/note-store'
+import { useUndoStore } from '../stores/undo-store'
 import styles from './DashboardView.module.css'
 
 function DashboardDraggableRow({
@@ -136,6 +137,80 @@ function renderRow(
   )
 }
 
+function CardOverflowMenu({
+  open,
+  onToggle,
+  onClose,
+  onEdit,
+  onUnpin,
+  onDelete,
+}: {
+  open: boolean
+  onToggle: () => void
+  onClose: () => void
+  onEdit: () => void
+  onUnpin: () => void
+  onDelete: () => void
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (!wrapperRef.current) return
+      if (!wrapperRef.current.contains(e.target as Node)) onClose()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, onClose])
+
+  const stopDrag = (e: React.PointerEvent | React.MouseEvent) => {
+    e.stopPropagation()
+  }
+
+  return (
+    <div ref={wrapperRef} className={styles.cardMenuWrapper}>
+      <button
+        type="button"
+        className={styles.cardMenuBtn}
+        onClick={(e) => { e.stopPropagation(); onToggle() }}
+        onPointerDown={stopDrag}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="List options"
+        title="List options"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className={styles.cardMenu} role="menu" onPointerDown={stopDrag} onClick={stopDrag}>
+          <button type="button" role="menuitem" className={styles.cardMenuItem} onClick={onEdit}>
+            Edit list…
+          </button>
+          <button type="button" role="menuitem" className={styles.cardMenuItem} onClick={onUnpin}>
+            Unpin from dashboard
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${styles.cardMenuItem} ${styles.cardMenuItemDanger}`}
+            onClick={onDelete}
+          >
+            Delete list…
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function InlineAddTask({
   label,
   onAdd,
@@ -205,6 +280,7 @@ function DashboardListCard({
   onAddTask,
   dragHandleIcon,
   dragHandleProps,
+  headerMenu,
 }: {
   list: DashboardList
   variant: 'hero' | 'secondary'
@@ -220,6 +296,8 @@ function DashboardListCard({
   dragHandleIcon?: React.ReactNode
   /** Spread onto the card header so the whole header acts as a drag surface. */
   dragHandleProps?: DashboardDragHandleProps
+  /** Rendered after the count — overflow menu trigger + popover. */
+  headerMenu?: React.ReactNode
 }) {
   const panelProps = tabpanelId
     ? { role: 'tabpanel' as const, id: tabpanelId, 'aria-labelledby': tabpanelLabelledBy }
@@ -238,6 +316,7 @@ function DashboardListCard({
         {dragHandleIcon}
         <span className={`${styles.cardTitle} ${variant === 'hero' ? styles.cardTitleHero : ''}`}>{list.label}</span>
         <span className={styles.cardCount}>{list.todos.length}</span>
+        {headerMenu}
       </div>
       <div className={`${styles.cardBody} ${variant === 'hero' ? styles.cardBodyHero : ''}`}>
         {list.todos.length === 0 ? (
@@ -293,7 +372,13 @@ export function DashboardView() {
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [slotPickerAt, setSlotPickerAt] = useState<{ key: HorizonKey; x: number; y: number } | null>(null)
   const [showEditor, setShowEditor] = useState(false)
+  const [editorInitialId, setEditorInitialId] = useState<number | null>(null)
   const [showHorizonEditor, setShowHorizonEditor] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null)
+  const setPinned = useListDefinitionStore((s) => s.setPinned)
+  const removeListDef = useListDefinitionStore((s) => s.remove)
+  const pushUndo = useUndoStore((s) => s.push)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -523,6 +608,37 @@ export function DashboardView() {
     await taskEdit.onCreate({ title })
   }, [taskEdit])
 
+  const handleEditList = useCallback((id: number) => {
+    setEditorInitialId(id)
+    setShowEditor(true)
+    setOpenMenuId(null)
+  }, [])
+
+  const handleUnpinList = useCallback(async (id: number, name: string) => {
+    setOpenMenuId(null)
+    await setPinned(id, false)
+    pushUndo(
+      {
+        description: `Unpinned "${name}"`,
+        undo: async () => { await setPinned(id, true) },
+        redo: async () => { await setPinned(id, false) },
+      },
+      true,
+    )
+  }, [setPinned, pushUndo])
+
+  const handleDeleteList = useCallback((id: number, name: string) => {
+    setOpenMenuId(null)
+    setPendingDelete({ id, name })
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return
+    const id = pendingDelete.id
+    setPendingDelete(null)
+    await removeListDef(id)
+  }, [pendingDelete, removeListDef])
+
   const pageContent = (
     <>
       <div className={styles.page}>
@@ -623,6 +739,16 @@ export function DashboardView() {
                           isMobile={isMobile}
                           dragHandleIcon={handleIcon}
                           dragHandleProps={dragHandleProps}
+                          headerMenu={
+                            <CardOverflowMenu
+                              open={openMenuId === list.id}
+                              onToggle={() => setOpenMenuId((cur) => (cur === list.id ? null : list.id))}
+                              onClose={() => setOpenMenuId((cur) => (cur === list.id ? null : cur))}
+                              onEdit={() => handleEditList(list.id)}
+                              onUnpin={() => handleUnpinList(list.id, list.label)}
+                              onDelete={() => handleDeleteList(list.id, list.label)}
+                            />
+                          }
                         />
                       )}
                     />
@@ -707,7 +833,27 @@ export function DashboardView() {
           onCreateNew={() => { setShowEditor(true); setSlotPickerAt(null) }}
         />
       )}
-      {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
+      {showEditor && (
+        <DashboardListsEditor
+          onClose={() => { setShowEditor(false); setEditorInitialId(null) }}
+          initialSelectedId={editorInitialId ?? undefined}
+        />
+      )}
+      {pendingDelete && (
+        <div className={styles.deleteOverlay}>
+          <div className={styles.deleteBackdrop} onClick={() => setPendingDelete(null)} />
+          <div className={styles.deleteDialog}>
+            <div className={styles.deleteTitle}>Delete list</div>
+            <div className={styles.deleteBody}>
+              Delete <strong>{pendingDelete.name}</strong>? You can undo for 5 seconds.
+            </div>
+            <div className={styles.deleteActions}>
+              <button type="button" className={styles.deleteCancel} onClick={() => setPendingDelete(null)}>Cancel</button>
+              <button type="button" className={styles.deleteConfirm} onClick={confirmDelete}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showHorizonEditor && (
         <DashboardListsEditor
           title="Edit Horizons"
