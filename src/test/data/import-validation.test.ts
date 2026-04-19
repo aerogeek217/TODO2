@@ -143,6 +143,26 @@ describe('validateImportData', () => {
     }
   })
 
+  it('accepts dashboardUserLists with integer ids', () => {
+    for (const value of [[], [1, 2, 3], [42]]) {
+      const result = validateImportData(validData({
+        settings: [{ key: 'dashboardUserLists', value: JSON.stringify(value) }],
+      }))
+      expect(result.ok).toBe(true)
+    }
+  })
+
+  it('rejects dashboardUserLists with non-integer or non-array payloads', () => {
+    const bad = [[1, 'two'], [1.5], { a: 1 }, 'not-json', [true]]
+    for (const value of bad) {
+      const v = typeof value === 'string' ? value : JSON.stringify(value)
+      const result = validateImportData(validData({
+        settings: [{ key: 'dashboardUserLists', value: v }],
+      }))
+      expect(result.ok).toBe(false)
+    }
+  })
+
   it('rejects dashboardTopOrder with wrong length, duplicates, or unknown slots', () => {
     const bad = [
       ['taskboard'],

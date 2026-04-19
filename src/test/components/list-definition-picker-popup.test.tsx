@@ -128,6 +128,55 @@ describe('ListDefinitionPickerPopup', () => {
       expect(onClose).toHaveBeenCalled()
     })
 
+    it('excludeIds hides listed ids regardless of pinnedToDashboard flag', () => {
+      useListDefinitionStore.setState({
+        listDefinitions: [
+          makeDef({ id: 1, name: 'In grid pinned', pinnedToDashboard: true }),
+          makeDef({ id: 2, name: 'Not in grid, pinned', pinnedToDashboard: true }),
+          makeDef({ id: 3, name: 'Not in grid, unpinned', pinnedToDashboard: false }),
+        ],
+      })
+      const { getByText, queryByText } = render(
+        <ListDefinitionPickerPopup
+          x={10}
+          y={10}
+          onCreateNew={vi.fn()}
+          onClose={vi.fn()}
+          excludeIds={[1]}
+          onPin={vi.fn()}
+        />,
+      )
+      expect(queryByText('In grid pinned')).not.toBeInTheDocument()
+      // Horizon case: pinned-to-dashboard but not yet in grid — must still be pickable.
+      expect(getByText('Not in grid, pinned')).toBeInTheDocument()
+      expect(getByText('Not in grid, unpinned')).toBeInTheDocument()
+    })
+
+    it('onPin fires instead of the store setPinned when provided', async () => {
+      useListDefinitionStore.setState({
+        listDefinitions: [makeDef({ id: 9, name: 'Pickme', pinnedToDashboard: false })],
+      })
+      const setPinnedSpy = vi.fn().mockResolvedValue(undefined)
+      useListDefinitionStore.setState({ setPinned: setPinnedSpy })
+      const onPin = vi.fn()
+      const onClose = vi.fn()
+      const { getByText } = render(
+        <ListDefinitionPickerPopup
+          x={10}
+          y={10}
+          onCreateNew={vi.fn()}
+          onClose={onClose}
+          excludeIds={[]}
+          onPin={onPin}
+        />,
+      )
+      fireEvent.click(getByText('Pickme'))
+      expect(onPin).toHaveBeenCalledWith(9)
+      expect(setPinnedSpy).not.toHaveBeenCalled()
+      await Promise.resolve()
+      expect(onClose).toHaveBeenCalled()
+    })
+
     it('when every def is pinned, shows a primary "Create new list…" CTA', () => {
       useListDefinitionStore.setState({
         listDefinitions: [makeDef({ id: 1, name: 'A', pinnedToDashboard: true })],

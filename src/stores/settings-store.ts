@@ -81,6 +81,13 @@ interface SettingsState {
   canvasRails: RailsState | null
   /** Ordering of the dashboard top row (taskboard + hero horizon). */
   dashboardTopOrder: DashboardTopSlot[]
+  /**
+   * Ordered `listDefinitionId`s for the dashboard "Your lists" grid.
+   * null = not yet seeded (first load post-P6); DashboardView falls back to the
+   * legacy derivation and seeds this setting from it once list definitions load.
+   * May contain a horizon-mapped id — the grid and ribbon are independent.
+   */
+  dashboardUserLists: number[] | null
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -98,6 +105,7 @@ interface SettingsState {
   setNotesPinnedToDashboard: (pinned: boolean) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
   setDashboardTopOrder: (order: DashboardTopSlot[]) => Promise<void>
+  setDashboardUserLists: (ids: number[]) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -205,6 +213,24 @@ function isValidHorizonKey(v: unknown): v is HorizonKey {
   return typeof v === 'string' && (HORIZON_KEYS as readonly string[]).includes(v)
 }
 
+function parseDashboardUserLists(value: string | undefined | null): number[] | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!Array.isArray(parsed)) return null
+    const out: number[] = []
+    const seen = new Set<number>()
+    for (const item of parsed) {
+      if (typeof item !== 'number' || !Number.isInteger(item) || seen.has(item)) continue
+      out.push(item)
+      seen.add(item)
+    }
+    return out
+  } catch {
+    return null
+  }
+}
+
 function parseHorizonCollapsed(value: string | undefined | null): Partial<Record<HorizonKey, boolean>> {
   if (!value) return {}
   try {
@@ -245,6 +271,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   notesPinnedToDashboard: true,
   canvasRails: null,
   dashboardTopOrder: [...DEFAULT_DASHBOARD_TOP_ORDER],
+  dashboardUserLists: null,
 
   async load() {
     try {
@@ -268,6 +295,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let legacyNotesVisible: string | undefined
       let canvasRails: RailsState | null = null
       let dashboardTopOrder: DashboardTopSlot[] = [...DEFAULT_DASHBOARD_TOP_ORDER]
+      let dashboardUserLists: number[] | null = null
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -316,6 +344,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           canvasRails = parseRailsState(row.value)
         } else if (row.key === 'dashboardTopOrder') {
           dashboardTopOrder = parseDashboardTopOrder(row.value)
+        } else if (row.key === 'dashboardUserLists') {
+          dashboardUserLists = parseDashboardUserLists(row.value)
         }
       }
       customizedColorKeys = customKeys
@@ -337,7 +367,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (legacyNotesDock != null || legacyNotesVisible != null) {
         await settingsRepository.bulkDelete(['notesDock', 'notesVisible'])
       }
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesPinnedToDashboard, canvasRails, dashboardTopOrder })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesPinnedToDashboard, canvasRails, dashboardTopOrder, dashboardUserLists })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -447,6 +477,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (!isValidDashboardTopOrder(order)) return
     await settingsRepository.put('dashboardTopOrder', JSON.stringify(order))
     set({ dashboardTopOrder: [...order] })
+  },
+
+  async setDashboardUserLists(ids: number[]) {
+    if (!Array.isArray(ids)) return
+    const clean: number[] = []
+    const seen = new Set<number>()
+    for (const id of ids) {
+      if (typeof id !== 'number' || !Number.isInteger(id) || seen.has(id)) continue
+      clean.push(id)
+      seen.add(id)
+    }
+    await settingsRepository.put('dashboardUserLists', JSON.stringify(clean))
+    set({ dashboardUserLists: clean })
   },
 
   setCanvasRails(rails: RailsState) {

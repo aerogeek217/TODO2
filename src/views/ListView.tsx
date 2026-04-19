@@ -832,13 +832,18 @@ export function ListView() {
     if (!name) return
     try {
       const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
-      await addListDefinition({
+      const id = await addListDefinition({
         name,
         membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
         sort,
         grouping,
         pinnedToDashboard: savePresetPin,
       })
+      if (savePresetPin) {
+        const { dashboardUserLists, setDashboardUserLists } = useSettingsStore.getState()
+        const cur = dashboardUserLists ?? []
+        if (!cur.includes(id)) await setDashboardUserLists([...cur, id])
+      }
       setShowSavePresetDialog(false)
       setSavePresetName('')
     } catch (e) {

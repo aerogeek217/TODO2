@@ -6,7 +6,7 @@ interface Props {
   x: number
   y: number
   /**
-   * 'dashboard' (default): only unpinned defs are shown, action pins.
+   * 'dashboard' (default): defs already in the grid are filtered out, action pins.
    * 'canvas': every def is shown, action fires `onSelect(id)` and the caller
    *   decides what to do with it (typically: create an inset referencing it).
    */
@@ -17,13 +17,25 @@ interface Props {
   /** Dashboard mode: render a "Notes" pseudo-entry that triggers `onPinNotes`. */
   showNotesEntry?: boolean
   onPinNotes?: () => void
+  /**
+   * Dashboard mode: ids to hide (already in the "Your lists" grid). When
+   * provided, overrides the legacy `pinnedToDashboard` filter so horizon-mapped
+   * defs remain pickable even though they stay pinned for the ribbon.
+   */
+  excludeIds?: number[]
+  /**
+   * Dashboard mode: override for the pin action. When provided, fires instead
+   * of the store's `setPinned(id, true)`. Used to append to
+   * `settings.dashboardUserLists`.
+   */
+  onPin?: (listDefinitionId: number) => void
 }
 
 const WIDTH_PX = 280
 const EST_HEIGHT_PX = 320
 const MARGIN_PX = 8
 
-export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, onCreateNew, onClose, showNotesEntry = false, onPinNotes }: Props) {
+export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, onCreateNew, onClose, showNotesEntry = false, onPinNotes, excludeIds, onPin }: Props) {
   const popupRef = useRef<HTMLDivElement>(null)
   const { listDefinitions, setPinned } = useListDefinitionStore()
 
@@ -53,8 +65,13 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
 
   const items = useMemo(() => {
     const all = [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
-    return mode === 'canvas' ? all : all.filter(d => !d.pinnedToDashboard)
-  }, [listDefinitions, mode])
+    if (mode === 'canvas') return all
+    if (excludeIds != null) {
+      const excluded = new Set(excludeIds)
+      return all.filter(d => d.id != null && !excluded.has(d.id))
+    }
+    return all.filter(d => !d.pinnedToDashboard)
+  }, [listDefinitions, mode, excludeIds])
 
   const clampedX = Math.min(x, window.innerWidth - WIDTH_PX - MARGIN_PX)
   const clampedY = Math.min(y, window.innerHeight - EST_HEIGHT_PX - MARGIN_PX)
@@ -107,6 +124,8 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
                   onClick={async () => {
                     if (mode === 'canvas') {
                       onSelect?.(d.id)
+                    } else if (onPin) {
+                      onPin(d.id as number)
                     } else {
                       await setPinned(d.id, true)
                     }

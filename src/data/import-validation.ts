@@ -458,11 +458,12 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardTopOrder']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardTopOrder', 'dashboardUserLists']
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
   canvasRails: 8000,
+  dashboardUserLists: 4000,
 }
 
 function isValidSettingKey(key: string): boolean {
@@ -504,6 +505,20 @@ function checkSetting(v: unknown): CheckResult {
       return parsed !== null && typeof parsed === 'object' ? true : 'value (canvasRails must be an object)'
     } catch {
       return 'value (canvasRails must be valid JSON)'
+    }
+  }
+  if (v.key === 'dashboardUserLists') {
+    try {
+      const parsed = JSON.parse(v.value as string) as unknown
+      if (!Array.isArray(parsed)) return 'value (dashboardUserLists must be an array)'
+      for (const item of parsed) {
+        if (typeof item !== 'number' || !Number.isInteger(item)) {
+          return 'value (dashboardUserLists entries must be integer ids)'
+        }
+      }
+      return true
+    } catch {
+      return 'value (dashboardUserLists must be valid JSON)'
     }
   }
   if (v.key === 'dashboardTopOrder') {

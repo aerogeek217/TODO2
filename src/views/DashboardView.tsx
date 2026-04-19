@@ -373,7 +373,8 @@ export function DashboardView() {
   const setNotesPinnedToDashboard = useSettingsStore((s) => s.setNotesPinnedToDashboard)
   const dashboardTopOrder = useSettingsStore((s) => s.dashboardTopOrder)
   const setDashboardTopOrder = useSettingsStore((s) => s.setDashboardTopOrder)
-  const reorderListDefinitions = useListDefinitionStore((s) => s.reorder)
+  const dashboardUserLists = useSettingsStore((s) => s.dashboardUserLists)
+  const setDashboardUserLists = useSettingsStore((s) => s.setDashboardUserLists)
   const loadNotes = useNoteStore((s) => s.load)
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
@@ -453,17 +454,20 @@ export function DashboardView() {
       return
     }
 
-    // User-list card reorder (ids are raw listDefinitionId numbers)
+    // User-list card reorder (ids are raw listDefinitionId numbers — indices
+    // into `dashboardUserLists`).
     if (typeof activeId === 'number' && typeof overId === 'number') {
-      const ordered = [...useListDefinitionStore.getState().listDefinitions]
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-      const from = ordered.findIndex((d) => d.id === activeId)
-      const to = ordered.findIndex((d) => d.id === overId)
+      const current = useSettingsStore.getState().dashboardUserLists ?? []
+      const from = current.indexOf(activeId)
+      const to = current.indexOf(overId)
       if (from !== -1 && to !== -1 && from !== to) {
-        await reorderListDefinitions(from, to)
+        const next = [...current]
+        const [moved] = next.splice(from, 1)
+        next.splice(to, 0, moved)
+        await setDashboardUserLists(next)
       }
     }
-  }, [dashboardTopOrder, setDashboardTopOrder, reorderListDefinitions])
+  }, [dashboardTopOrder, setDashboardTopOrder, setDashboardUserLists])
 
   useEffect(() => {
     loadAll()
@@ -572,11 +576,34 @@ export function DashboardView() {
     return s
   }, [horizonSlots])
 
-  // User-pinned lists NOT mapped to a horizon.
-  const userLists = useMemo(
-    () => lists.filter((l) => !horizonDefIds.has(l.id)),
-    [lists, horizonDefIds],
-  )
+  // "Your lists" grid membership and ordering. Post-P6 this is an explicit
+  // setting that can include horizon-mapped defs alongside the ribbon. Falls
+  // back to the legacy derivation (pinned minus horizons, by sortOrder) until
+  // the first seed runs — keeps pre-P6 users visually stable across upgrade.
+  const userLists = useMemo(() => {
+    if (dashboardUserLists != null) {
+      const out: DashboardList[] = []
+      for (const id of dashboardUserLists) {
+        const l = listsById.get(id)
+        if (l) out.push(l)
+      }
+      return out
+    }
+    // `lists` is already sortOrder-ordered by buildDashboardLists.
+    return lists.filter((l) => !horizonDefIds.has(l.id))
+  }, [dashboardUserLists, listsById, lists, horizonDefIds])
+
+  // One-time seed: first render where the setting is still `null` and at least
+  // one list def is loaded, snapshot the legacy derivation so ordering persists.
+  useEffect(() => {
+    if (dashboardUserLists != null) return
+    if (listDefinitions.length === 0) return
+    const seed = [...listDefinitions]
+      .filter((d) => d.pinnedToDashboard && d.id != null && !horizonDefIds.has(d.id))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((d) => d.id!)
+    void setDashboardUserLists(seed)
+  }, [dashboardUserLists, listDefinitions, horizonDefIds, setDashboardUserLists])
 
   const heroList = horizonLists[selectedHorizon]
 
@@ -624,16 +651,39 @@ export function DashboardView() {
 
   const handleUnpinList = useCallback(async (id: number, name: string) => {
     setOpenMenuId(null)
-    await setPinned(id, false)
+    const isHorizon = horizonDefIds.has(id)
+    const prevList = useSettingsStore.getState().dashboardUserLists ?? []
+    const prevIndex = prevList.indexOf(id)
+    const nextList = prevIndex === -1 ? prevList : prevList.filter((x) => x !== id)
+    if (prevIndex !== -1) await setDashboardUserLists(nextList)
+    // Horizon-mapped defs must stay pinnedToDashboard so the ribbon can
+    // resolve them; for non-horizon defs we clear the flag so the legacy
+    // picker-side filter stays consistent.
+    if (!isHorizon) await setPinned(id, false)
     pushUndo(
       {
         description: `Unpinned "${name}"`,
-        undo: async () => { await setPinned(id, true) },
-        redo: async () => { await setPinned(id, false) },
+        undo: async () => {
+          if (!isHorizon) await setPinned(id, true)
+          if (prevIndex !== -1) {
+            const cur = useSettingsStore.getState().dashboardUserLists ?? []
+            if (!cur.includes(id)) {
+              const restored = [...cur]
+              const clamped = Math.min(prevIndex, restored.length)
+              restored.splice(clamped, 0, id)
+              await setDashboardUserLists(restored)
+            }
+          }
+        },
+        redo: async () => {
+          const cur = useSettingsStore.getState().dashboardUserLists ?? []
+          if (cur.includes(id)) await setDashboardUserLists(cur.filter((x) => x !== id))
+          if (!isHorizon) await setPinned(id, false)
+        },
       },
       true,
     )
-  }, [setPinned, pushUndo])
+  }, [setPinned, pushUndo, horizonDefIds, setDashboardUserLists])
 
   const handleDeleteList = useCallback((id: number, name: string) => {
     setOpenMenuId(null)
@@ -644,8 +694,10 @@ export function DashboardView() {
     if (!pendingDelete) return
     const id = pendingDelete.id
     setPendingDelete(null)
+    const cur = useSettingsStore.getState().dashboardUserLists ?? []
+    if (cur.includes(id)) await setDashboardUserLists(cur.filter((x) => x !== id))
     await removeListDef(id)
-  }, [pendingDelete, removeListDef])
+  }, [pendingDelete, removeListDef, setDashboardUserLists])
 
   const handleUnpinNotes = useCallback(async () => {
     setOpenMenuId(null)
@@ -669,9 +721,17 @@ export function DashboardView() {
       candidate = `New list ${n++}`
     }
     const id = await addListDef({ name: candidate, pinnedToDashboard: true })
+    const cur = useSettingsStore.getState().dashboardUserLists ?? []
+    if (!cur.includes(id)) await setDashboardUserLists([...cur, id])
     setEditorInitialId(id)
     setShowEditor(true)
-  }, [addListDef])
+  }, [addListDef, setDashboardUserLists])
+
+  const handlePinFromPicker = useCallback(async (id: number) => {
+    await setPinned(id, true)
+    const cur = useSettingsStore.getState().dashboardUserLists ?? []
+    if (!cur.includes(id)) await setDashboardUserLists([...cur, id])
+  }, [setPinned, setDashboardUserLists])
 
   const pageContent = (
     <>
@@ -862,6 +922,8 @@ export function DashboardView() {
           onCreateNew={() => { void handleCreateNewList() }}
           showNotesEntry={!notesPinnedToDashboard}
           onPinNotes={() => { void setNotesPinnedToDashboard(true) }}
+          excludeIds={userLists.map((l) => l.id)}
+          onPin={(id) => { void handlePinFromPicker(id) }}
         />
       )}
       {slotPickerAt && (

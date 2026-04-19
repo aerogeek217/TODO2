@@ -483,3 +483,82 @@ describe('DashboardView — per-card overflow menu', () => {
     expect(screen.getByText('Dashboard Lists')).toBeInTheDocument()
   })
 })
+
+describe('DashboardView — Phase 6 "Your lists" can include horizons', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 3, 16))
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    })
+    resetStores()
+    useListDefinitionStore.setState({
+      listDefinitions: [
+        makeDef({ id: 11, name: 'This week', sortOrder: 0 }),
+        makeDef({ id: 12, name: 'Next week', sortOrder: 1 }),
+        makeDef({ id: 13, name: 'Rest of month', sortOrder: 2 }),
+        makeDef({ id: 14, name: 'Later', sortOrder: 3 }),
+        makeDef({ id: 15, name: 'Someday', sortOrder: 4 }),
+        makeDef({ id: 99, name: 'Side project', sortOrder: 5, pinnedToDashboard: true }),
+      ],
+    })
+    useSettingsStore.setState({
+      horizonSlots: {
+        thisweek: 11,
+        nextweek: 12,
+        thismonth: 13,
+        later: 14,
+        someday: 15,
+      },
+      selectedHorizon: 'thisweek',
+      horizonCollapsed: {},
+    })
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it('renders horizon def pinned into dashboardUserLists in the grid while it stays in the ribbon', () => {
+    // Opt into an explicit grid ordering that includes a horizon def (11) +
+    // a non-horizon def (99). Phase 6's new signal.
+    useSettingsStore.setState({ dashboardUserLists: [11, 99] })
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const gridKeys = Array.from(
+      container.querySelectorAll('[class*="grid"] [data-list-key]'),
+    ).map((el) => el.getAttribute('data-list-key'))
+    // Grid contains both the horizon (11) and the non-horizon (99) card.
+    expect(gridKeys).toEqual(expect.arrayContaining(['def-11', 'def-99']))
+    // Hero (This week → id 11) still renders — horizons are not mutually exclusive.
+    expect(document.getElementById('horizon-hero-panel')).not.toBeNull()
+  })
+
+  it('falls back to legacy derivation when dashboardUserLists is null (pre-seed)', () => {
+    useSettingsStore.setState({ dashboardUserLists: null })
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardView />
+      </MemoryRouter>,
+    )
+    const gridKeys = Array.from(
+      container.querySelectorAll('[class*="grid"] [data-list-key]'),
+    ).map((el) => el.getAttribute('data-list-key'))
+    // No horizon defs (11-15) in the grid; only the non-horizon pinned def 99.
+    expect(gridKeys).toEqual(['def-99'])
+  })
+})

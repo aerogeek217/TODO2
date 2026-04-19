@@ -87,6 +87,40 @@ describe('useSettingsStore', () => {
   })
 })
 
+describe('useSettingsStore.dashboardUserLists', () => {
+  beforeEach(async () => {
+    await db.delete()
+    await db.open()
+    useSettingsStore.setState({ dashboardUserLists: null })
+  })
+
+  it('load leaves dashboardUserLists null when no row is present', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().dashboardUserLists).toBeNull()
+  })
+
+  it('load parses a persisted integer-id array', async () => {
+    await db.settings.put({ key: 'dashboardUserLists', value: JSON.stringify([3, 1, 4]) })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().dashboardUserLists).toEqual([3, 1, 4])
+  })
+
+  it('load drops malformed entries and survives invalid JSON', async () => {
+    await db.settings.put({ key: 'dashboardUserLists', value: '[1, "two", 2, 1]' })
+    await useSettingsStore.getState().load()
+    // Valid entries only; duplicates stripped.
+    expect(useSettingsStore.getState().dashboardUserLists).toEqual([1, 2])
+  })
+
+  it('setDashboardUserLists persists + deduplicates', async () => {
+    await useSettingsStore.getState().setDashboardUserLists([5, 5, 9, 2])
+    expect(useSettingsStore.getState().dashboardUserLists).toEqual([5, 9, 2])
+    const row = await db.settings.get('dashboardUserLists')
+    expect(row).toBeDefined()
+    expect(JSON.parse(row!.value)).toEqual([5, 9, 2])
+  })
+})
+
 describe('useSettingsStore.setCanvasViewport debouncing', () => {
   beforeEach(() => {
     vi.useFakeTimers()
