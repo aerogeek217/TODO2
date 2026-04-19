@@ -267,37 +267,12 @@
 }
 .deadlineMarker svg { width: 10px; height: 10px; }
 
-/*
- * Secondary deadline badge rendered when both scheduled + deadline are set —
- * mirrors TaskRow's `.dateStackSecondary` dimensions so a glance at the
- * calendar tells the same story as a glance at the row.
- */
-.deadlineBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 4px;
-  line-height: 10px;
-  font-size: 9px;
-  letter-spacing: 0.1px;
-  border-radius: var(--radius-chip);
-  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
-  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
-  margin-right: 2px;
-  flex-shrink: 0;
-}
-.deadlineBadge svg { width: 8px; height: 8px; }
-
 /* Inside a stamped past-deadline item, children track the item's surface-coloured text. */
 .taskItemPastDeadline .scheduledMarker,
 .taskItemPastDeadline .deadlineMarker,
-.taskItemPastDeadline .deadlineBadge,
 .taskItemPastDeadline .recurrenceIndicator,
 .taskItemPastDeadline .taskInitials {
   color: currentColor;
-}
-.taskItemPastDeadline .deadlineBadge {
-  background: color-mix(in srgb, var(--color-surface) 22%, transparent);
 }
 
 .markerExpired {

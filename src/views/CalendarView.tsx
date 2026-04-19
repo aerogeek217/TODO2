@@ -12,7 +12,7 @@ import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
-import { startOfDay, isSameDay, MS_PER_DAY, formatDateShort } from '../utils/date'
+import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
 import { StatusIcon } from '../components/shared/StatusIcon'
@@ -401,23 +401,13 @@ export function CalendarView() {
                           {isScheduledExpired(todo, today) && <span className={styles.markerExpired} />}
                         </span>
                       )}
-                      {hasDead && !hasSched && (
+                      {hasDead && (
                         <span
                           className={styles.deadlineMarker}
                           title={`Deadline: ${new Date(todo.dueDate!).toLocaleDateString()}`}
                           aria-label="Deadline"
                         >
                           <StatusIcon icon="clock" />
-                        </span>
-                      )}
-                      {hasDead && hasSched && (
-                        <span
-                          className={styles.deadlineBadge}
-                          title={`Deadline: ${new Date(todo.dueDate!).toLocaleDateString()}`}
-                          aria-label="Deadline"
-                        >
-                          <StatusIcon icon="clock" />
-                          {formatDateShort(new Date(todo.dueDate!))}
                         </span>
                       )}
                       {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}

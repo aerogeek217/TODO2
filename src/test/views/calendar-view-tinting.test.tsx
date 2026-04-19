@@ -141,7 +141,7 @@ describe('CalendarView — date-type tinting', () => {
     expect(item!.className).not.toMatch(/taskItemScheduled/)
   })
 
-  it('tints both-set tasks with the taskItemBoth class and renders a secondary deadline badge', () => {
+  it('tints both-set tasks with the taskItemBoth class and shows both marker icons', () => {
     useTodoStore.setState({
       todos: [
         makeTodo({
@@ -156,7 +156,9 @@ describe('CalendarView — date-type tinting', () => {
     expect(item).not.toBeNull()
     expect(item!.className).toMatch(/taskItemBoth/)
     expect(item!.className).not.toMatch(/taskItemScheduled\b/)
-    expect(item!.querySelector('[class*="deadlineBadge"]')).toBeTruthy()
+    expect(item!.querySelector('[class*="scheduledMarker"]')).toBeTruthy()
+    expect(item!.querySelector('[class*="deadlineMarker"]')).toBeTruthy()
+    expect(item!.querySelector('[class*="deadlineBadge"]')).toBeNull()
   })
 
   it('applies the taskItemPastDeadline stamp when the deadline is overdue', () => {
