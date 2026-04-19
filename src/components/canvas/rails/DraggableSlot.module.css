@@ -21,3 +21,68 @@
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
+
+.zoneIndicator {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--color-accent) 14%, transparent);
+  color: var(--color-accent);
+  z-index: 2;
+  border-radius: var(--radius-sm);
+  user-select: none;
+}
+
+.zoneIndicator.center {
+  inset: 22% 0;
+}
+
+.zoneIndicator.above {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 22%;
+}
+
+.zoneIndicator.below {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22%;
+}
+
+.zoneIndicator.left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 22%;
+}
+
+.zoneIndicator.right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 22%;
+}
+
+.zoneGlyph {
+  font-size: 36px;
+  line-height: 1;
+  font-weight: var(--font-weight-semibold);
+}
+
+.zoneIndicator.center .zoneGlyph {
+  font-size: 44px;
+}
+
+.zoneLabel {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}

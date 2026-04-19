@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { RailsState, Slot } from '../../../../models/canvas-rails'
 import {
+  applyCenterSwap,
   applyDropToSide,
   applyEdgeDrop,
   applySplitDrop,
@@ -197,13 +198,26 @@ describe('applySplitDrop', () => {
     expect(next.top?.slots.map((s) => s.id)).toEqual(['b', 'a'])
   })
 
-  it('treats "center" as insert-before target', () => {
+  it('treats "center" as a swap — same-rail source and target trade positions', () => {
     const a = lensSlot('a')
     const b = lensSlot('b')
     const c = lensSlot('c')
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a, b, c] } })
     const next = applySplitDrop(rails, 'a', 'c', 'center')
-    expect(next.right?.slots.map((s) => s.id)).toEqual(['b', 'a', 'c'])
+    expect(next.right?.slots.map((s) => s.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('center swap across rails swaps one slot between rails, preserving counts', () => {
+    const a = lensSlot('a')
+    const b = lensSlot('b')
+    const c = lensSlot('c')
+    const rails = railsWith({
+      left: { orientation: 'vertical', slots: [a, b] },
+      right: { orientation: 'vertical', slots: [c] },
+    })
+    const next = applySplitDrop(rails, 'b', 'c', 'center')
+    expect(next.left?.slots.map((s) => s.id)).toEqual(['a', 'c'])
+    expect(next.right?.slots.map((s) => s.id)).toEqual(['b'])
   })
 
   it('moves a slot across rails', () => {
@@ -228,6 +242,42 @@ describe('applySplitDrop', () => {
     const a = lensSlot('a')
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
     expect(applySplitDrop(rails, 'a', 'nope', 'above')).toBe(rails)
+  })
+})
+
+describe('applyCenterSwap', () => {
+  it('swaps two slots on the same rail', () => {
+    const a = lensSlot('a')
+    const b = lensSlot('b')
+    const c = lensSlot('c')
+    const rails = railsWith({ right: { orientation: 'vertical', slots: [a, b, c] } })
+    const next = applyCenterSwap(rails, 'a', 'c')
+    expect(next.right?.slots.map((s) => s.id)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('swaps two slots across rails without changing rail counts', () => {
+    const a = lensSlot('a')
+    const b = notesSlot('b')
+    const rails = railsWith({
+      left: { orientation: 'vertical', slots: [a] },
+      right: { orientation: 'vertical', slots: [b] },
+    })
+    const next = applyCenterSwap(rails, 'a', 'b')
+    expect(next.left?.slots.map((s) => s.id)).toEqual(['b'])
+    expect(next.right?.slots.map((s) => s.id)).toEqual(['a'])
+  })
+
+  it('is a no-op when source and target are the same slot', () => {
+    const a = lensSlot('a')
+    const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
+    expect(applyCenterSwap(rails, 'a', 'a')).toBe(rails)
+  })
+
+  it('is a no-op when either slot id is unknown', () => {
+    const a = lensSlot('a')
+    const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
+    expect(applyCenterSwap(rails, 'a', 'nope')).toBe(rails)
+    expect(applyCenterSwap(rails, 'nope', 'a')).toBe(rails)
   })
 })
 

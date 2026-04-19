@@ -121,6 +121,7 @@ export function applySplitDrop(
   zone: SplitZone,
 ): RailsState {
   if (slotId === targetSlotId) return rails
+  if (zone === 'center') return applyCenterSwap(rails, slotId, targetSlotId)
   const targetLoc = findSlotLocation(rails, targetSlotId)
   if (!targetLoc) return rails
 
@@ -133,10 +134,7 @@ export function applySplitDrop(
 
   const orientation = dest.orientation
   let insertIdx: number
-  if (zone === 'center') {
-    // Treat center as "insert before target" — a no-data-loss fallback.
-    insertIdx = targetIdx
-  } else if (orientation === 'vertical') {
+  if (orientation === 'vertical') {
     // Vertical rails: above = before, below = after. left/right map to the same axis.
     insertIdx = zone === 'above' || zone === 'left' ? targetIdx : targetIdx + 1
   } else {
@@ -146,6 +144,42 @@ export function applySplitDrop(
 
   const next: RailsState = { ...afterRemove }
   next[targetLoc.side] = insertSlot(dest, slot, insertIdx)
+  return next
+}
+
+/**
+ * Center-quadrant drop: swap source and target slots in place. Both slot
+ * payloads trade positions; rail identities and orientations stay put. If
+ * the slots live on different rails, each rail keeps its own slot count —
+ * we just exchange one element between them.
+ */
+export function applyCenterSwap(
+  rails: RailsState,
+  slotId: string,
+  targetSlotId: string,
+): RailsState {
+  if (slotId === targetSlotId) return rails
+  const src = findSlotLocation(rails, slotId)
+  const tgt = findSlotLocation(rails, targetSlotId)
+  if (!src || !tgt) return rails
+  const srcRail = rails[src.side]!
+  const tgtRail = rails[tgt.side]!
+  const srcSlot = srcRail.slots[src.index]
+  const tgtSlot = tgtRail.slots[tgt.index]
+  const next: RailsState = { ...rails }
+  if (src.side === tgt.side) {
+    const slots = srcRail.slots.slice()
+    slots[src.index] = tgtSlot
+    slots[tgt.index] = srcSlot
+    next[src.side] = { ...srcRail, slots }
+    return next
+  }
+  const srcSlots = srcRail.slots.slice()
+  srcSlots[src.index] = tgtSlot
+  const tgtSlots = tgtRail.slots.slice()
+  tgtSlots[tgt.index] = srcSlot
+  next[src.side] = { ...srcRail, slots: srcSlots }
+  next[tgt.side] = { ...tgtRail, slots: tgtSlots }
   return next
 }
 
@@ -186,16 +220,17 @@ function defaultSlotIdGen(): string {
 
 /**
  * Computes which quadrant zone of a slot's bounding rectangle a pointer hit.
- * Outer 12% on each edge → above/below/left/right. Inner 28% on an axis →
- * preferred to center; the actual precedence picks the axis that matches the
- * rail's orientation when the pointer falls inside the inner region.
+ * Outer 22% on each end along the rail axis → above/below/left/right.
+ * Inner ~56% → center (swap). Wide center keeps swap easy to target on tall
+ * single-slot rails where equal-thirds would make the insert bands feel
+ * large enough to hit by accident.
  */
 export function pointerToSplitZone(
   pointer: { x: number; y: number },
   rect: { left: number; top: number; width: number; height: number },
   orientation: 'vertical' | 'horizontal',
 ): SplitZone {
-  const edgeRatio = 0.28
+  const edgeRatio = 0.22
   const rx = (pointer.x - rect.left) / rect.width
   const ry = (pointer.y - rect.top) / rect.height
   // Clamp

@@ -86,6 +86,15 @@ describe('rails dragSlot — split quadrant', () => {
     expect(h.getRails().right?.slots.map((s) => s.id)).toEqual(['slot-B', 'slot-A'])
     h.cleanup()
   })
+
+  it('center of a target slot on another rail → swaps the two slots in place', async () => {
+    const h = await setupRailsHarness(leftLensRightNotes())
+    await h.dragSlot('slot-A', { kind: 'slot', slotId: 'slot-B', quadrant: 'center' })
+    const rails = h.getRails()
+    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-B'])
+    expect(rails.right?.slots.map((s) => s.id)).toEqual(['slot-A'])
+    h.cleanup()
+  })
 })
 
 describe('rails dragSlot — cancel path', () => {
