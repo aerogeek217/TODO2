@@ -264,14 +264,6 @@ function AppShell() {
               <line x1="6" y1="14" x2="22" y2="14" />
             </svg>
           </button>
-          {!isMobile && location.pathname === '/' && (
-            <button className={styles.fab} onClick={createFloatingNote} title="New Note (N)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
-                <polyline points="14 3 14 9 21 9" />
-              </svg>
-            </button>
-          )}
         </div>
       )}
       {!isMobile && showPalette && <CommandPalette commands={commands} onSearchDynamic={handleSearchDynamic} onClose={handleClosePalette} />}
