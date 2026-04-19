@@ -20,7 +20,7 @@
  */
 
 import { render, type RenderResult, act, fireEvent } from '@testing-library/react'
-import { DndContext } from '@dnd-kit/core'
+import { DndContext, pointerWithin, type CollisionDetection } from '@dnd-kit/core'
 import type { RailSide, RailsState } from '../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
@@ -28,7 +28,9 @@ import { RailsFrame } from '../../components/canvas/rails/RailsFrame'
 import {
   decodeRailsDropId,
   encodeRailsDropId,
+  isRailsDropId,
   pointerToSplitZone,
+  RAILS_DRAG_TYPE,
   type RailsDropZone,
   type SplitZone,
 } from '../../components/canvas/rails/rail-dnd'
@@ -96,8 +98,19 @@ export async function setupRailsHarness(initial: RailsState): Promise<RailsHarne
   // DockOverlay) resolve to real rects the moment they register with dnd-kit.
   const restoreRects = installBoundingRectMock(makeDefaultResolver(DEFAULT_LAYOUT))
 
+  // Mirror CanvasPage's production collision detection: pointerWithin
+  // filtered to rails droppables. Default rectIntersection would favor the
+  // source slot's own droppable (translated active rect still overlaps it
+  // at small pointer deltas), making near-source drops no-op.
+  const railsCollisionDetection: CollisionDetection = (args) => {
+    const type = args.active?.data.current?.type
+    const hits = pointerWithin(args)
+    if (type === RAILS_DRAG_TYPE) return hits.filter((h) => isRailsDropId(String(h.id)))
+    return hits.filter((h) => !isRailsDropId(String(h.id)))
+  }
+
   const result = render(
-    <DndContext>
+    <DndContext collisionDetection={railsCollisionDetection}>
       <RailsFrame>
         <div data-testid="canvas-host" />
       </RailsFrame>

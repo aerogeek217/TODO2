@@ -42,6 +42,21 @@ function leftLensRightNotes(): RailsState {
   }
 }
 
+function leftLensTopTwo(): RailsState {
+  return {
+    left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
+    right: null,
+    top: {
+      orientation: 'horizontal',
+      slots: [
+        { id: 'slot-T1', kind: 'lens' },
+        { id: 'slot-T2', kind: 'notes' },
+      ],
+    },
+    bottom: null,
+  }
+}
+
 describe('rails dragSlot — empty-side dock', () => {
   it('drags slot-A from left rail onto empty top rail', async () => {
     const h = await setupRailsHarness(leftLens())
@@ -106,6 +121,45 @@ describe('rails dragSlot — cancel path', () => {
     expect(rails.top).toBeNull()
     const status = document.querySelector('[role="status"]')?.textContent
     expect(status).toBe('Drop cancelled')
+    h.cleanup()
+  })
+})
+
+describe('rails dragSlot — populated Top rail + TopBar coexistence', () => {
+  // Phase 7: verify a populated horizontal Top rail accepts drops on every
+  // zone. The DockOverlay's empty-side 'top' zone is intentionally gone when
+  // top is populated; edge + split drops route through the rail's own
+  // droppables, which sit in document flow below the TopBar + FileSyncBanner
+  // (canvasHost is position:relative and the overlay is inset:0 inside it —
+  // no fixed 48px offset anywhere in production rails code).
+
+  it('drop on top-edge head inserts the source at index 0', async () => {
+    const h = await setupRailsHarness(leftLensTopTwo())
+    await h.dragSlot('slot-A', { kind: 'edge', side: 'top', edge: 'head' })
+    const rails = h.getRails()
+    expect(rails.left).toBeNull()
+    expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-A', 'slot-T1', 'slot-T2'])
+    h.cleanup()
+  })
+
+  it('drop on top-edge tail appends the source', async () => {
+    const h = await setupRailsHarness(leftLensTopTwo())
+    await h.dragSlot('slot-A', { kind: 'edge', side: 'top', edge: 'tail' })
+    expect(h.getRails().top?.slots.map((s) => s.id)).toEqual(['slot-T1', 'slot-T2', 'slot-A'])
+    h.cleanup()
+  })
+
+  it('split-left of a top slot inserts before target', async () => {
+    const h = await setupRailsHarness(leftLensTopTwo())
+    await h.dragSlot('slot-A', { kind: 'slot', slotId: 'slot-T1', quadrant: 'left' })
+    expect(h.getRails().top?.slots.map((s) => s.id)).toEqual(['slot-A', 'slot-T1', 'slot-T2'])
+    h.cleanup()
+  })
+
+  it('split-right of the last top slot inserts after target', async () => {
+    const h = await setupRailsHarness(leftLensTopTwo())
+    await h.dragSlot('slot-A', { kind: 'slot', slotId: 'slot-T2', quadrant: 'right' })
+    expect(h.getRails().top?.slots.map((s) => s.id)).toEqual(['slot-T1', 'slot-T2', 'slot-A'])
     h.cleanup()
   })
 })
