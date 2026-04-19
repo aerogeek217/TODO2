@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   useDraggable,
+  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
@@ -297,6 +298,29 @@ export function DashboardView() {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
+
+  // Scope collisions per-active so (a) a task drag only sees the taskboard
+  // droppable, (b) a top-row sortable only sees the two top slots — not the
+  // taskboard's inner useDroppable which shares the same rect, (c) a user-list
+  // sortable only sees other user-list sortables.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const activeId = args.active.id
+    const activeType = args.active.data.current?.type
+    let keep: (id: string | number) => boolean
+    if (activeId === 'top:taskboard' || activeId === 'top:horizon') {
+      keep = (id) => id === 'top:taskboard' || id === 'top:horizon'
+    } else if (activeType === 'dashboard-task') {
+      keep = (id) => id === 'dashboard-taskboard-drop'
+    } else if (typeof activeId === 'number') {
+      keep = (id) => typeof id === 'number'
+    } else {
+      return closestCenter(args)
+    }
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => keep(c.id as string | number)),
+    })
+  }, [])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
@@ -699,7 +723,7 @@ export function DashboardView() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
