@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Tag, Org, Status, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor, RelativeDateToken } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Tag, Org, Status, Project, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor, RelativeDateToken } from '../models'
 import { RELATIVE_DATE_TOKENS } from '../models'
 import { startOfDay, startOfToday } from '../utils/date'
 import { effectiveDate, resolveDateAnchor, resolveScheduled, getConfiguredWeekStart } from '../utils/effective-date'
+import { matchTodoText, type TextMatchContext } from '../utils/filter'
 
 export type { DateField, PersonFilterMode, OrgFilterMode }
 
@@ -146,6 +147,7 @@ export function matchesFilter(
   filterPersonOrgIds?: Set<number>,
   statuses?: Status[],
   today: Date = startOfToday(),
+  searchCtx?: TextMatchContext,
 ): boolean {
   if (todo.isCompleted && !filters.showCompleted) return false
 
@@ -161,7 +163,10 @@ export function matchesFilter(
     }
   }
 
-  if (filters.searchText && !todo.title.toLowerCase().includes(filters.searchText.toLowerCase())) return false
+  if (filters.searchText) {
+    const { matched } = matchTodoText(todo, filters.searchText, searchCtx)
+    if (!matched) return false
+  }
 
   if (filters.personIds !== null) {
     const hasPerson = !!assignedPersonIds && assignedPersonIds.length > 0
@@ -253,15 +258,28 @@ export function applyFilter(
   assignedOrgsMap?: Map<number, Org[]>,
   statuses?: Status[],
   today: Date = startOfToday(),
+  projectsById?: Map<number, Project>,
 ): PersistedTodoItem[] {
   const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
+  const needsSearchCtx = !!filters.searchText
   return todos.filter((t) => {
     const people = assignedPeopleMap?.get(t.id) ?? []
     const personIds = people.map((p) => p.id!)
-    const tagIds = (assignedTagsMap?.get(t.id) ?? []).map((tg) => tg.id!)
+    const tags = assignedTagsMap?.get(t.id) ?? []
+    const tagIds = tags.map((tg) => tg.id!)
     const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
-    const directOrgIds = (assignedOrgsMap?.get(t.id) ?? []).map((o) => o.id!)
-    return matchesFilter(filters, t, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
+    const orgs = assignedOrgsMap?.get(t.id) ?? []
+    const directOrgIds = orgs.map((o) => o.id!)
+    const searchCtx: TextMatchContext | undefined = needsSearchCtx
+      ? {
+          projectName: t.projectId != null ? projectsById?.get(t.projectId)?.name : undefined,
+          personNames: people.map(p => p.name),
+          orgNames: orgs.map(o => o.name),
+          tagNames: tags.map(tg => tg.name),
+          statusName: t.statusId != null ? statuses?.find(s => s.id === t.statusId)?.name : undefined,
+        }
+      : undefined
+    return matchesFilter(filters, t, personIds, tagIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, searchCtx)
   })
 }
 

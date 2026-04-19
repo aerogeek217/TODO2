@@ -87,7 +87,7 @@ export function CalendarView() {
   const { people, load: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
   const { load: loadTags, assignedTagsMap, loadAssignments: loadTagAssignments } = useTagStore()
   const { orgs, personOrgMap, assignedOrgsMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
-  const { loadAll: loadAllProjects } = useProjectStore()
+  const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { openEditPopup } = useUIStore()
   const { filters } = useFilterStore()
   const { statuses } = useStatusStore()
@@ -120,9 +120,10 @@ export function CalendarView() {
     loadPersonOrgMap()
   }, [people, orgs, loadPersonOrgMap])
 
+  const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const activeTodos = useMemo(() => {
-    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses])
+    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, projectsById])
 
   const [today, setToday] = useState(() => startOfDay(new Date()))
 

@@ -225,16 +225,28 @@ export function CanvasPage() {
         const s = statuses.find(x => x.id === todo.statusId)
         if (s?.hideByDefault) continue
       }
-      const personIds = (assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
-      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
-      const pOrgIds = (assignedPeopleMap.get(todo.id) ?? []).flatMap((p) => personOrgMap.get(p.id!) ?? [])
-      const dOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
-      if (!matchesFilter(filters, todo, personIds, tagIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses)) {
+      const people = assignedPeopleMap.get(todo.id) ?? []
+      const tags = assignedTagsMap.get(todo.id) ?? []
+      const orgs = assignedOrgsMap.get(todo.id) ?? []
+      const personIds = people.map((p) => p.id!)
+      const tagIds = tags.map((t) => t.id!)
+      const pOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
+      const dOrgIds = orgs.map((o) => o.id!)
+      const searchCtx = filters.searchText
+        ? {
+            projectName: todo.projectId != null ? projects.find(p => p.id === todo.projectId)?.name : undefined,
+            personNames: people.map(p => p.name),
+            orgNames: orgs.map(o => o.name),
+            tagNames: tags.map(tg => tg.name),
+            statusName: todo.statusId != null ? statuses.find(s => s.id === todo.statusId)?.name : undefined,
+          }
+        : undefined
+      if (!matchesFilter(filters, todo, personIds, tagIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses, undefined, searchCtx)) {
         ghost.add(todo.id)
       }
     }
     return ghost.size > 0 ? ghost : undefined
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses])
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, personOrgMap, statuses, projects])
 
   // Merge filter ghosts and drag-child ghosts
   const ghostTodoIds = useMemo(() => {

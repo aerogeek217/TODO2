@@ -1,20 +1,145 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
 import { useLocation } from 'react-router'
 import { useFilterStore, fixedAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
-import type { DateAnchor } from '../../models'
+import type { DateAnchor, PersistedTodoItem } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useProjectStore } from '../../stores/project-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { startOfToday, formatDateShort } from '../../utils/date'
 import { scheduledLabel } from '../../utils/effective-date'
-import { toggleItem } from '../../utils/filter'
+import { toggleItem, matchTodoText, type TextMatchField } from '../../utils/filter'
 import { StatusIcon } from '../shared/StatusIcon'
 import { DateAnchorInput } from '../shared/DateAnchorInput'
 import styles from './TopBar.module.css'
+
+const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status', 'tag']
+const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
+  title: 'Title',
+  notes: 'Notes',
+  project: 'Project',
+  person: 'Person',
+  org: 'Org',
+  status: 'Status',
+  tag: 'Tag',
+}
+const MAX_GROUP_PREVIEW = 5
+
+function SearchFieldIcon({ field }: { field: TextMatchField }) {
+  const common = { width: 12, height: 12, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  switch (field) {
+    case 'title':
+      return <svg {...common}><path d="M3 3h10M3 6h10M3 9h7M3 12h10" /></svg>
+    case 'notes':
+      return <svg {...common}><path d="M4 2h6l2 2v10H4z" /><path d="M6 6h4M6 8h4M6 10h3" /></svg>
+    case 'project':
+      return <svg {...common}><path d="M2 4.5l6-3 6 3v7l-6 3-6-3z" /><path d="M2 4.5l6 3 6-3M8 7.5v7" /></svg>
+    case 'person':
+      return <span className={styles.miniListGroupIcon} style={{ fontSize: 12 }}>@</span>
+    case 'org':
+      return <svg {...common}><rect x="3" y="5" width="10" height="9" /><path d="M6 14v-3h4v3M6 8h.01M10 8h.01" /></svg>
+    case 'status':
+      return <svg {...common}><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none" /></svg>
+    case 'tag':
+      return <span className={styles.miniListGroupIcon} style={{ fontSize: 12 }}>#</span>
+  }
+}
+
+const SearchResultsGroups = forwardRef<HTMLDivElement, {
+  groups: Record<TextMatchField, PersistedTodoItem[]>
+  query: string
+  searchInputRef: React.RefObject<HTMLInputElement | null>
+  onOpen: (todoId: number) => void
+  onBlur: (e: React.FocusEvent<HTMLDivElement>) => void
+}>(function SearchResultsGroups({ groups, query, searchInputRef, onOpen, onBlur }, ref) {
+  const [expanded, setExpanded] = useState<Set<TextMatchField>>(() => new Set())
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setExpanded(new Set())
+  }, [query])
+
+  const setRefs = (el: HTMLDivElement | null) => {
+    containerRef.current = el
+    if (typeof ref === 'function') ref(el)
+    else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el
+  }
+
+  const focusSibling = (current: HTMLElement, dir: 1 | -1) => {
+    const options = Array.from(containerRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])
+    const i = options.indexOf(current as HTMLButtonElement)
+    if (dir === -1 && i <= 0) { searchInputRef.current?.focus(); return }
+    const next = options[i + dir]
+    next?.focus()
+  }
+
+  const onItemKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, todoId: number) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusSibling(e.currentTarget, 1) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusSibling(e.currentTarget, -1) }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(todoId) }
+    else if (e.key === 'Escape') { e.preventDefault(); searchInputRef.current?.focus() }
+  }
+
+  return (
+    <div
+      ref={setRefs}
+      className={styles.searchMiniList}
+      id="search-results"
+      role="listbox"
+      aria-label="Search results"
+      tabIndex={-1}
+      onBlur={onBlur}
+    >
+      {SEARCH_FIELD_ORDER.map(field => {
+        const items = groups[field]
+        if (items.length === 0) return null
+        const shown = expanded.has(field) ? items : items.slice(0, MAX_GROUP_PREVIEW)
+        return (
+          <div key={field} role="group" aria-label={SEARCH_FIELD_LABELS[field]}>
+            <div className={styles.miniListGroupHeader}>
+              <SearchFieldIcon field={field} />
+              <span>{SEARCH_FIELD_LABELS[field]}</span>
+              <span className={styles.miniListGroupCount}>{items.length}</span>
+            </div>
+            {shown.map((todo, localIdx) => (
+              <button
+                key={`${field}-${todo.id}-${localIdx}`}
+                role="option"
+                aria-selected={false}
+                className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}
+                onMouseDown={(e) => { e.preventDefault(); onOpen(todo.id) }}
+                onKeyDown={(e) => onItemKeyDown(e, todo.id)}
+              >
+                <span className={styles.miniListTitle}>{todo.title}</span>
+                {field === 'notes' && todo.notes && (
+                  <span className={styles.miniListMatchSnippet}>{todo.notes.replace(/\s+/g, ' ').trim()}</span>
+                )}
+                {todo.scheduledDate && (
+                  <span className={styles.miniListDue}>{scheduledLabel(todo.scheduledDate, startOfToday())}</span>
+                )}
+                {todo.dueDate && (
+                  <span className={styles.miniListDue}>{formatDateShort(todo.dueDate)}</span>
+                )}
+              </button>
+            ))}
+            {items.length > MAX_GROUP_PREVIEW && !expanded.has(field) && (
+              <button
+                className={styles.miniListShowAll}
+                onMouseDown={(e) => { e.preventDefault(); setExpanded(prev => new Set(prev).add(field)) }}
+              >
+                Show all {items.length}
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+})
 
 function FilterDropdown({
   label,
@@ -345,6 +470,10 @@ export function TopBar() {
   const [searchFocused, setSearchFocused] = useState(false)
   const miniListRef = useRef<HTMLDivElement>(null)
   const todos = useTodoStore((s) => s.todos)
+  const projects = useProjectStore((s) => s.projects)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
   const handleSearchChange = useCallback((value: string) => {
@@ -434,20 +563,34 @@ export function TopBar() {
   const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
   const statusNone = previewEmpty === 'status' || (filters.statusIds !== null && filters.statusIds.size === 0)
 
-  const miniListResults = useMemo(() => {
-    if (!localSearch || !searchFocused) return []
-    const q = localSearch.toLowerCase()
-    const results = []
-    for (const t of todos) {
-      if (t.title.toLowerCase().includes(q)) {
-        results.push(t)
-        if (results.length >= 10) break
-      }
-    }
-    return results
-  }, [localSearch, searchFocused, todos])
+  const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
+  const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
 
-  const showMiniList = searchFocused && localSearch.length > 0 && miniListResults.length > 0
+  const miniListGroups = useMemo(() => {
+    if (!localSearch || !searchFocused) return null
+    const groups: Record<TextMatchField, PersistedTodoItem[]> = {
+      title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
+    }
+    for (const t of todos) {
+      const people = assignedPeopleMap.get(t.id) ?? []
+      const orgs = assignedOrgsMap.get(t.id) ?? []
+      const tags = assignedTagsMap.get(t.id) ?? []
+      const { fields } = matchTodoText(t, localSearch, {
+        projectName: t.projectId != null ? projectsById.get(t.projectId)?.name : undefined,
+        personNames: people.map(p => p.name),
+        orgNames: orgs.map(o => o.name),
+        tagNames: tags.map(tg => tg.name),
+        statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
+      })
+      for (const f of fields) groups[f].push(t)
+    }
+    return groups
+  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, projectsById, statusesById])
+
+  const totalMatchCount = miniListGroups
+    ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
+    : 0
+  const showMiniList = searchFocused && localSearch.length > 0 && !!miniListGroups && totalMatchCount > 0
 
   const { isConnected, isSupported } = useFileStorageStore()
   const location = useLocation()
@@ -469,6 +612,8 @@ export function TopBar() {
           placeholder="Search..."
           value={localSearch}
           onChange={(e) => handleSearchChange(e.target.value)}
+          aria-controls="search-results"
+          aria-expanded={showMiniList}
           onFocus={() => setSearchFocused(true)}
           onBlur={(e) => {
             if (miniListRef.current?.contains(e.relatedTarget as Node)) return
@@ -479,6 +624,10 @@ export function TopBar() {
               handleSearchChange('')
               setSearchFocused(false)
               searchInputRef.current?.blur()
+            } else if (e.key === 'ArrowDown' && showMiniList) {
+              e.preventDefault()
+              const first = miniListRef.current?.querySelector<HTMLButtonElement>('[role="option"]')
+              first?.focus()
             }
           }}
           data-search-input
@@ -491,34 +640,24 @@ export function TopBar() {
             &times;
           </button>
         )}
-        {showMiniList && (
-          <div className={styles.searchMiniList} ref={miniListRef} tabIndex={-1} onBlur={(e) => {
-            if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
+        {showMiniList && miniListGroups && (
+          <SearchResultsGroups
+            ref={miniListRef}
+            groups={miniListGroups}
+            query={localSearch}
+            searchInputRef={searchInputRef}
+            onOpen={(todoId) => {
+              openEditPopup(todoId)
+              handleSearchChange('')
               setSearchFocused(false)
-            }
-          }}>
-            {miniListResults.map((todo) => (
-              <button
-                key={todo.id}
-                className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  openEditPopup(todo.id)
-                  handleSearchChange('')
-                  setSearchFocused(false)
-                  searchInputRef.current?.blur()
-                }}
-              >
-                <span className={styles.miniListTitle}>{todo.title}</span>
-                {todo.scheduledDate && (
-                  <span className={styles.miniListDue}>{scheduledLabel(todo.scheduledDate, startOfToday())}</span>
-                )}
-                {todo.dueDate && (
-                  <span className={styles.miniListDue}>{formatDateShort(todo.dueDate)}</span>
-                )}
-              </button>
-            ))}
-          </div>
+              searchInputRef.current?.blur()
+            }}
+            onBlur={(e) => {
+              if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
+                setSearchFocused(false)
+              }
+            }}
+          />
         )}
       </div>
 

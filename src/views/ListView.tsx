@@ -694,9 +694,10 @@ export function ListView() {
     loadPersonOrgMap()
   }, [people, orgs, loadPersonOrgMap])
 
+  const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const activeTodos = useMemo(() => {
-    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses)
-  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses])
+    return applyFilter(filters, todos, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById)
+  }, [todos, filters, assignedPeopleMap, assignedTagsMap, personOrgMap, assignedOrgsMap, statuses, projectsById])
 
   const sections = useMemo(() => {
     switch (listGroupBy) {

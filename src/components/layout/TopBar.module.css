@@ -133,6 +133,74 @@
   flex-shrink: 0;
 }
 
+/* ═══ Grouped search results ═══ */
+
+.miniListGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 3px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.miniListGroupHeader svg,
+.miniListGroupIcon {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.miniListGroupCount {
+  margin-left: auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.miniListItemFocused {
+  background: var(--color-surface-high);
+  outline: 1px solid var(--color-accent-dim);
+  outline-offset: -1px;
+}
+
+.miniListMatchSnippet {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.miniListShowAll {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  padding: 4px 10px;
+  background: none;
+  border: none;
+  font-size: var(--font-size-meta);
+  color: var(--color-accent);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.miniListShowAll:hover {
+  background: var(--color-surface-high);
+  text-decoration: underline;
+}
+
+.miniListEmpty {
+  padding: 10px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
 /* ═══ Filter label icons ═══ */
 
 .filterIcon {
