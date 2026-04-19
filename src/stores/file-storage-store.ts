@@ -10,6 +10,8 @@ import { useListInsetStore } from './list-inset-store'
 import { useOrgStore } from './org-store'
 import { useSavedViewStore } from './saved-view-store'
 import { useNoteStore } from './note-store'
+import { useFloatingNoteStore } from './floating-note-store'
+import { useFloatingCalendarStore } from './floating-calendar-store'
 import { useTaskboardStore } from './taskboard-store'
 import { useStatusStore } from './status-store'
 import { useUndoStore } from './undo-store'
@@ -35,7 +37,8 @@ async function refreshAllStores() {
     useNoteStore.getState().load(),
     ...(canvasId != null ? [
       useListInsetStore.getState().loadByCanvas(canvasId),
-      useNoteStore.getState().loadByCanvas(canvasId),
+      useFloatingNoteStore.getState().loadByCanvas(canvasId),
+      useFloatingCalendarStore.getState().loadByCanvas(canvasId),
     ] : []),
   ])
   // Reload assignment maps after entities and todos are loaded

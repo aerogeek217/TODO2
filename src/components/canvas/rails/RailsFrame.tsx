@@ -3,9 +3,9 @@ import { useDndMonitor } from '@dnd-kit/core'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useCanvasStore } from '../../../stores/canvas-store'
-import { useNoteStore } from '../../../stores/note-store'
 import { useListInsetStore } from '../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../stores/floating-calendar-store'
+import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
 import { railSize } from '../../../models/canvas-rails'
@@ -95,14 +95,7 @@ export async function popSlotToCanvas(slot: Slot): Promise<boolean> {
   const pos = computePopOutFlowPosition()
 
   if (slot.kind === 'notes') {
-    const noteStore = useNoteStore.getState()
-    const activeId = noteStore.activeId
-    const content = activeId != null ? (noteStore.notes.get(activeId)?.content ?? '') : ''
-    const newId = await noteStore.addFloating(canvasId, pos.x, pos.y)
-    if (content) {
-      noteStore.setContent(newId, content)
-      await noteStore.flush()
-    }
+    await useFloatingNoteStore.getState().add(canvasId, pos.x, pos.y)
     return true
   }
   if (slot.kind === 'lens') {

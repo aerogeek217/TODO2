@@ -17,7 +17,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useFilterStore, computeFilterPersonOrgIds, matchesFilter } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
-import { useNoteStore } from '../stores/note-store'
+import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
@@ -55,17 +55,12 @@ export function CanvasPage() {
   const loadDefinitions = useListDefinitionStore((s) => s.load)
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
   const [showListEditor, setShowListEditor] = useState(false)
-  const notesMap = useNoteStore((s) => s.notes)
-  const loadNotes = useNoteStore((s) => s.loadByCanvas)
-  const addFloatingNote = useNoteStore((s) => s.addFloating)
-  const updateNotePosition = useNoteStore((s) => s.updatePosition)
-  const updateNoteSize = useNoteStore((s) => s.updateSize)
-  const updateNoteColor = useNoteStore((s) => s.updateColor)
-  const removeNote = useNoteStore((s) => s.remove)
-  const floatingNotes = useMemo(
-    () => Array.from(notesMap.values()).filter((n) => n.canvasId === selectedCanvasId),
-    [notesMap, selectedCanvasId],
-  )
+  const floatingNotes = useFloatingNoteStore((s) => s.notes)
+  const loadFloatingNotes = useFloatingNoteStore((s) => s.loadByCanvas)
+  const addFloatingNote = useFloatingNoteStore((s) => s.add)
+  const updateFloatingNotePosition = useFloatingNoteStore((s) => s.updatePosition)
+  const updateFloatingNoteSize = useFloatingNoteStore((s) => s.updateSize)
+  const removeFloatingNote = useFloatingNoteStore((s) => s.remove)
   const floatingCalendars = useFloatingCalendarStore((s) => s.calendars)
   const loadFloatingCalendars = useFloatingCalendarStore((s) => s.loadByCanvas)
   const updateFloatingCalendarPosition = useFloatingCalendarStore((s) => s.updatePosition)
@@ -104,10 +99,10 @@ export function CanvasPage() {
       loadProjects(selectedCanvasId)
       loadTodos(selectedCanvasId)
       loadInsets(selectedCanvasId)
-      loadNotes(selectedCanvasId)
+      loadFloatingNotes(selectedCanvasId)
       loadFloatingCalendars(selectedCanvasId)
     }
-  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadNotes, loadFloatingCalendars])
+  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadFloatingNotes, loadFloatingCalendars])
 
   // Reset normalization guard when file-storage completes an operation (e.g. import)
   const normalizedRef = useRef(false)
@@ -381,13 +376,6 @@ export function CanvasPage() {
     [insets, updateInset]
   )
 
-  const handleResizeNote = useCallback(
-    async (id: number, width: number, height: number) => {
-      await updateNoteSize(id, width, height)
-    },
-    [updateNoteSize]
-  )
-
   const handleRequestAddList = useCallback(
     (flowX: number, flowY: number) => {
       // Best-effort screen coords for the picker anchor; we already captured
@@ -434,6 +422,13 @@ export function CanvasPage() {
     if (selectedCanvasId) await addFloatingNote(selectedCanvasId, x, y)
   }, [selectedCanvasId, addFloatingNote])
 
+  const handleResizeFloatingNote = useCallback(
+    async (id: number, width: number, height: number) => {
+      await updateFloatingNoteSize(id, width, height)
+    },
+    [updateFloatingNoteSize],
+  )
+
   const projectHandlers = useMemo(() => ({
     onAddTask: handleAddTask,
     onInsertTask: handleInsertTask,
@@ -455,11 +450,10 @@ export function CanvasPage() {
 
   const noteHandlers = useMemo(() => ({
     onAddFloatingNote: handleAddFloatingNote,
-    onDeleteNote: removeNote,
-    onUpdateNoteColor: updateNoteColor,
-    onNoteDragStop: updateNotePosition,
-    onResizeNote: handleResizeNote,
-  }), [handleAddFloatingNote, removeNote, updateNoteColor, updateNotePosition, handleResizeNote])
+    onDeleteNote: removeFloatingNote,
+    onNoteDragStop: updateFloatingNotePosition,
+    onResizeNote: handleResizeFloatingNote,
+  }), [handleAddFloatingNote, removeFloatingNote, updateFloatingNotePosition, handleResizeFloatingNote])
 
   const handleResizeFloatingCalendar = useCallback(
     async (id: number, width: number, height: number) => {

@@ -16,32 +16,42 @@ export const canvasRepository = {
 
   /** Reassign all data from duplicate canvases to the keeper, then delete duplicates. */
   async consolidate(keepId: number, removeIds: number[]): Promise<void> {
-    await db.transaction('rw', [db.canvases, db.projects, db.todos, db.listInsets, db.notes], async () => {
-      for (const oldId of removeIds) {
-        await db.todos.where('canvasId').equals(oldId).modify({ canvasId: keepId })
-        await db.projects.where('canvasId').equals(oldId).modify({ canvasId: keepId })
-        await db.listInsets.where('canvasId').equals(oldId).modify({ canvasId: keepId })
-        await db.notes.where('canvasId').equals(oldId).modify({ canvasId: keepId })
-        await db.canvases.delete(oldId)
-      }
-    })
+    await db.transaction(
+      'rw',
+      [db.canvases, db.projects, db.todos, db.listInsets, db.floatingNotes, db.floatingCalendars],
+      async () => {
+        for (const oldId of removeIds) {
+          await db.todos.where('canvasId').equals(oldId).modify({ canvasId: keepId })
+          await db.projects.where('canvasId').equals(oldId).modify({ canvasId: keepId })
+          await db.listInsets.where('canvasId').equals(oldId).modify({ canvasId: keepId })
+          await db.floatingNotes.where('canvasId').equals(oldId).modify({ canvasId: keepId })
+          await db.floatingCalendars.where('canvasId').equals(oldId).modify({ canvasId: keepId })
+          await db.canvases.delete(oldId)
+        }
+      },
+    )
   },
 
   async delete(id: number): Promise<void> {
-    // Cascade: delete projects, todos, floating notes, list insets belonging to this canvas
-    await db.transaction('rw', [db.canvases, db.projects, db.todos, db.todoTags, db.todoPeople, db.todoOrgs, db.taskboardEntries, db.notes, db.listInsets], async () => {
-      const todoIds = await db.todos.where('canvasId').equals(id).primaryKeys()
-      if (todoIds.length > 0) {
-        await db.todoTags.where('todoId').anyOf(todoIds).delete()
-        await db.todoPeople.where('todoId').anyOf(todoIds).delete()
-        await db.todoOrgs.where('todoId').anyOf(todoIds).delete()
-        await db.taskboardEntries.where('todoId').anyOf(todoIds).delete()
-      }
-      await db.todos.where('canvasId').equals(id).delete()
-      await db.projects.where('canvasId').equals(id).delete()
-      await db.notes.where('canvasId').equals(id).delete()
-      await db.listInsets.where('canvasId').equals(id).delete()
-      await db.canvases.delete(id)
-    })
+    // Cascade: delete projects, todos, floating notes/calendars, list insets belonging to this canvas
+    await db.transaction(
+      'rw',
+      [db.canvases, db.projects, db.todos, db.todoTags, db.todoPeople, db.todoOrgs, db.taskboardEntries, db.floatingNotes, db.floatingCalendars, db.listInsets],
+      async () => {
+        const todoIds = await db.todos.where('canvasId').equals(id).primaryKeys()
+        if (todoIds.length > 0) {
+          await db.todoTags.where('todoId').anyOf(todoIds).delete()
+          await db.todoPeople.where('todoId').anyOf(todoIds).delete()
+          await db.todoOrgs.where('todoId').anyOf(todoIds).delete()
+          await db.taskboardEntries.where('todoId').anyOf(todoIds).delete()
+        }
+        await db.todos.where('canvasId').equals(id).delete()
+        await db.projects.where('canvasId').equals(id).delete()
+        await db.floatingNotes.where('canvasId').equals(id).delete()
+        await db.floatingCalendars.where('canvasId').equals(id).delete()
+        await db.listInsets.where('canvasId').equals(id).delete()
+        await db.canvases.delete(id)
+      },
+    )
   },
 }

@@ -27,6 +27,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     listDefinitions: [],
     notes: [],
     floatingCalendars: [],
+    floatingNotes: [],
     ...overrides,
   }
 }
@@ -113,10 +114,10 @@ describe('restoreFromImportData', () => {
       expect(tags[0].name).toBe('feature')
     })
 
-    it('restoreFromImportData_withLegacyStickyNotes_translatesIntoNotes', async () => {
-      // Pre-v26 backups carry a `stickyNotes` array. Restore should translate
-      // each row into a matching `notes` row (title prepended as H1), since
-      // the `stickyNotes` table has been retired.
+    it('restoreFromImportData_withLegacyStickyNotes_translatesIntoFloatingNotePlacements', async () => {
+      // Pre-v26 backups carry a `stickyNotes` array. Post-v28, each row
+      // becomes a placement-only `floatingNotes` row — content + color are
+      // dropped (floating notes now view the single global note).
       const data = makeImportData({
         stickyNotes: [
           { id: 1, canvasId: 1, title: 'Reminder', text: 'Remember this', x: 100, y: 200, width: 240, height: 200, color: '#FFF3B0', createdAt: now, modifiedAt: now },
@@ -125,12 +126,17 @@ describe('restoreFromImportData', () => {
 
       await restoreFromImportData(data)
 
-      const notes = await db.notes.where('canvasId').equals(1).toArray()
-      expect(notes).toHaveLength(1)
-      expect(notes[0].content).toBe('# Reminder\n\nRemember this')
-      expect(notes[0].x).toBe(100)
-      expect(notes[0].y).toBe(200)
-      expect(notes[0].color).toBe('#FFF3B0')
+      // No per-sticky content rows in `notes`.
+      const canvasNotes = await db.notes.filter((n) => (n as unknown as Record<string, unknown>).canvasId != null).toArray()
+      expect(canvasNotes).toHaveLength(0)
+
+      // A placement row in `floatingNotes`.
+      const placements = await db.floatingNotes.where('canvasId').equals(1).toArray()
+      expect(placements).toHaveLength(1)
+      expect(placements[0].x).toBe(100)
+      expect(placements[0].y).toBe(200)
+      expect(placements[0].width).toBe(240)
+      expect(placements[0].height).toBe(200)
     })
 
     it('restoreFromImportData_withJoinTables_persistsTodoPeopleAndTodoTags', async () => {

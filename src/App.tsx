@@ -18,7 +18,7 @@ import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
-import { useNoteStore } from './stores/note-store'
+import { useFloatingNoteStore } from './stores/floating-note-store'
 import { useStatusStore } from './stores/status-store'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
@@ -133,7 +133,7 @@ function AppShell() {
     const zoom = vp?.zoom ?? 1
     const cx = (-(vp?.x ?? 0) + w / 2) / zoom
     const cy = (-(vp?.y ?? 0) + h / 2) / zoom
-    useNoteStore.getState().addFloating(canvasId, cx - 120, cy - 100)
+    void useFloatingNoteStore.getState().add(canvasId, cx - 120, cy - 100)
   }, [location.pathname])
 
   // Fit-to-view: dispatch a custom event that CanvasPage can listen to,

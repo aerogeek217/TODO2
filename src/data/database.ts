@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note, FloatingCalendar } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
@@ -29,6 +29,7 @@ export class Todo2Database extends Dexie {
   listDefinitions!: Table<ListDefinition, number>
   notes!: Table<Note, number>
   floatingCalendars!: Table<FloatingCalendar, number>
+  floatingNotes!: Table<FloatingNote, number>
 
   constructor() {
     super('todo2')
@@ -136,6 +137,18 @@ export class Todo2Database extends Dexie {
     // migration; the table starts empty.
     this.version(27).stores({
       floatingCalendars: '++id, canvasId',
+    })
+
+    // v28: floating-notes refactor. Canvas floating notes are now placement-
+    // only widgets that render the single global note (same pattern as
+    // FloatingCalendar / ListInset). Every existing `notes` row with
+    // canvasId != null becomes a `floatingNotes` row (dropping content +
+    // color — only placement survives). The `notes` table retains only
+    // global rows (canvasId == null).
+    this.version(28).stores({
+      floatingNotes: '++id, canvasId',
+    }).upgrade(async (tx) => {
+      await runV28Migration(tx)
     })
   }
 }
@@ -678,7 +691,53 @@ export function parseHorizonSlots(value: string | undefined | null): Partial<Rec
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes] as const
+
+/**
+ * Translate a legacy note row carrying canvasId + placement fields (post-v26
+ * shape) into a placement-only `floatingNotes` row. Content and color are
+ * dropped — v28 collapses all canvas floating notes into views of the single
+ * global note, so per-row content no longer exists.
+ *
+ * Pure function — shared between `runV28Migration` and restore-time handling
+ * of pre-v28 backups.
+ */
+export function translateNoteToFloatingNote(note: Record<string, unknown>): Omit<FloatingNote, 'id'> | null {
+  if (typeof note.canvasId !== 'number') return null
+  return {
+    canvasId: note.canvasId,
+    x: typeof note.x === 'number' ? note.x : 0,
+    y: typeof note.y === 'number' ? note.y : 0,
+    width: typeof note.width === 'number' ? note.width : 240,
+    height: typeof note.height === 'number' ? note.height : 200,
+  }
+}
+
+/**
+ * v28 upgrade: split canvas floating notes out of the `notes` table into a
+ * dedicated `floatingNotes` placement table. Existing canvas-scoped rows get
+ * moved (content + color dropped); global rows (canvasId == null) are left
+ * alone. Idempotent — a re-run with no canvas-scoped rows is a no-op.
+ */
+export async function runV28Migration(tx: Transaction): Promise<void> {
+  const notesTable = tx.table('notes')
+  const floatingNotesTable = tx.table<FloatingNote>('floatingNotes')
+  const canvasScoped = await notesTable
+    .filter((n: Record<string, unknown>) => typeof n.canvasId === 'number')
+    .toArray() as Record<string, unknown>[]
+  if (canvasScoped.length === 0) return
+
+  const placements: Omit<FloatingNote, 'id'>[] = []
+  const toDelete: number[] = []
+  for (const row of canvasScoped) {
+    const placement = translateNoteToFloatingNote(row)
+    if (placement) placements.push(placement)
+    if (typeof row.id === 'number') toDelete.push(row.id)
+  }
+  if (placements.length > 0) await floatingNotesTable.bulkAdd(placements as FloatingNote[])
+  if (toDelete.length > 0) await notesTable.bulkDelete(toDelete)
+  console.info(`v28 migration: moved ${placements.length} canvas floating note(s) to floatingNotes (content dropped)`)
+}
 
 /**
  * Translate a legacy sticky-note row (title, text, canvasId, x/y/w/h, color,
@@ -688,14 +747,30 @@ export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInset
  * Pure function — shared between `runV26Migration` and restore-time
  * translation of legacy backups.
  */
-export function translateStickyToNote(sticky: Record<string, unknown>): Omit<Note, 'id'> {
+/**
+ * Shape of a sticky-note row after normalization: content + placement
+ * fields. Post-v28 the placement fields live in `floatingNotes`, so callers
+ * that write into the `notes` table should use the content-only subset; the
+ * placement fields are carried along for the subsequent sticky → floating
+ * note translation.
+ */
+export type LegacyStickyNote = Omit<Note, 'id'> & {
+  canvasId?: number
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  color?: string
+}
+
+export function translateStickyToNote(sticky: Record<string, unknown>): LegacyStickyNote {
   const title = typeof sticky.title === 'string' ? sticky.title.trim() : ''
   const text = typeof sticky.text === 'string' ? sticky.text : ''
   const content = title
     ? text ? `# ${title}\n\n${text}` : `# ${title}`
     : text
 
-  const note: Omit<Note, 'id'> = {
+  const note: LegacyStickyNote = {
     content,
     createdAt: (sticky.createdAt as Date) ?? new Date(),
     modifiedAt: (sticky.modifiedAt as Date) ?? new Date(),

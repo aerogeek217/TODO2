@@ -22,7 +22,7 @@ import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
 import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from './cascade-shift'
-import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, PersistedNote, TaskboardEntry, FloatingCalendar } from '../../models'
+import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, TaskboardEntry, FloatingCalendar, FloatingNote } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
@@ -113,7 +113,6 @@ export interface InsetHandlers {
 export interface NoteHandlers {
   onAddFloatingNote?: (x: number, y: number) => void
   onDeleteNote?: (id: number) => void
-  onUpdateNoteColor?: (id: number, color: string | undefined) => void
   onNoteDragStop?: (id: number, x: number, y: number) => void
   onResizeNote?: (id: number, width: number, height: number) => void
 }
@@ -139,7 +138,7 @@ interface CanvasViewProps {
   listInsets?: ListInset[]
   allTodos?: PersistedTodoItem[]
   insetHandlers: InsetHandlers
-  floatingNotes?: PersistedNote[]
+  floatingNotes?: FloatingNote[]
   noteHandlers: NoteHandlers
   floatingCalendars?: FloatingCalendar[]
   floatingCalendarHandlers?: FloatingCalendarHandlers
@@ -197,7 +196,7 @@ export function CanvasView({
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddList, onResizeInset } = insetHandlers
-  const { onAddFloatingNote, onDeleteNote, onUpdateNoteColor, onNoteDragStop, onResizeNote } = noteHandlers
+  const { onAddFloatingNote, onDeleteNote, onNoteDragStop, onResizeNote } = noteHandlers
   const { onDeleteCalendar, onCalendarDragStop, onResizeCalendar } = floatingCalendarHandlers ?? {}
   const { activeDragTodoId } = useContext(DragInsertContext)
   const isNavOpen = useUIStore((s) => s.isProjectNavigatorOpen)
@@ -352,13 +351,12 @@ export function CanvasView({
       const data: FloatingNoteNodeData = {
         note,
         onDelete: onDeleteNote ?? NOOP,
-        onUpdateColor: onUpdateNoteColor ?? NOOP,
         onResize: onResizeNote,
       }
       return {
         id,
         type: 'floatingNote',
-        position: { x: note.x ?? 0, y: note.y ?? 0 },
+        position: { x: note.x, y: note.y },
         zIndex: 10,
         data: stabilize(id, data as unknown as Record<string, unknown>),
       }
@@ -414,7 +412,7 @@ export function CanvasView({
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
     onResizeProject, onSetProjectColor, handleResizeSnap, getBringToFrontFn,
     listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset, handleResizeSnapByNodeId,
-    floatingNotes, onDeleteNote, onUpdateNoteColor, onResizeNote,
+    floatingNotes, onDeleteNote, onResizeNote,
     floatingCalendars, onDeleteCalendar, onResizeCalendar,
     allPeople, allTags, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
@@ -804,7 +802,7 @@ export function CanvasView({
               pannable
               zoomable
               nodeColor={(node) => {
-                if (node.type === 'floatingNote') return (node.data as { note?: { color?: string } })?.note?.color || 'var(--color-surface-bright, #2a2a2a)'
+                if (node.type === 'floatingNote') return 'var(--color-surface-bright, #2a2a2a)'
                 if (node.type === 'project') return (node.data as { project?: { color?: string } })?.project?.color || 'var(--color-surface-bright, #2a2a2a)'
                 return 'var(--color-accent-bg-subtle, #1a3a3a)'
               }}

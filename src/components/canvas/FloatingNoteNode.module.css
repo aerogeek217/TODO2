@@ -25,16 +25,6 @@
   cursor: grabbing;
 }
 
-.colorDot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  flex-shrink: 0;
-  position: relative;
-}
-
 .noteLabel {
   flex: 1;
   font-size: var(--font-size-meta);
@@ -98,36 +88,4 @@
 
 .resizeHandle:hover {
   opacity: 0.8;
-}
-
-.palette {
-  position: absolute;
-  top: 100%;
-  left: 4px;
-  z-index: 10;
-  display: flex;
-  gap: 4px;
-  padding: 4px 6px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
-}
-
-.paletteSwatch {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  cursor: pointer;
-  transition: transform 0.1s;
-}
-
-.paletteSwatch:hover {
-  transform: scale(1.2);
-}
-
-.paletteSwatchActive {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 1px var(--color-accent);
 }

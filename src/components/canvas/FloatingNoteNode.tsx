@@ -1,106 +1,52 @@
-import { memo, useRef, useState, useCallback } from 'react'
+import { memo, useRef, useCallback } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import type { PersistedNote } from '../../models'
-import { useClickOutside } from '../../hooks/use-click-outside'
-import { useUIStore } from '../../stores/ui-store'
+import type { FloatingNote } from '../../models'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { NotesBody } from '../shared/notes/NotesBody'
 import styles from './FloatingNoteNode.module.css'
 
-const PRESET_COLORS = [
-  { label: 'Default', value: undefined, css: 'var(--color-surface)' },
-  { label: 'Yellow', value: '#FFF3B0', css: '#FFF3B0' },
-  { label: 'Green', value: '#B8F0C0', css: '#B8F0C0' },
-  { label: 'Blue', value: '#B0D4FF', css: '#B0D4FF' },
-  { label: 'Pink', value: '#FFB8D0', css: '#FFB8D0' },
-  { label: 'Purple', value: '#D4B8FF', css: '#D4B8FF' },
-]
-
 export interface FloatingNoteNodeData {
-  note: PersistedNote
+  note: FloatingNote
   onDelete: (id: number) => void
-  onUpdateColor: (id: number, color: string | undefined) => void
   onResize?: (id: number, width: number, height: number) => void
 }
 
 function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeData }) {
-  const { note, onDelete, onUpdateColor, onResize } = data
+  const { note, onDelete, onResize } = data
   const { getZoom } = useReactFlow()
-  const [showPalette, setShowPalette] = useState(false)
-  const paletteRef = useRef<HTMLDivElement>(null)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
-  useClickOutside(paletteRef, () => setShowPalette(false), showPalette)
+  const width = note.width
+  const height = note.height
 
-  const bgColor = note.color
-  const noteStyle: React.CSSProperties = bgColor
-    ? { backgroundColor: bgColor, color: '#1a1a1a' }
-    : {}
-
-  const width = note.width ?? 240
-  const height = note.height ?? 200
-
-  const handleDelete = useCallback(() => {
+  const handleClose = useCallback(() => {
     if (note.id == null) return
-    const preview = note.content.trim().split('\n')[0]?.slice(0, 40) || 'note'
-    if (note.content.trim()) {
-      useUIStore.getState().showBulkConfirmation('custom', [note.id], {
-        title: 'Delete note',
-        message: `Delete "${preview}"? This cannot be undone.`,
-        confirmLabel: 'Delete',
-        onConfirm: () => onDelete(note.id!),
-      })
-    } else {
-      onDelete(note.id)
-    }
-  }, [note.id, note.content, onDelete])
+    onDelete(note.id)
+  }, [note.id, onDelete])
+
+  const handleDock = useCallback(() => {
+    if (note.id == null) return
+    useCanvasRailsStore.getState().createAndDockSlot('notes')
+    onDelete(note.id)
+  }, [note.id, onDelete])
 
   return (
-    <div className={styles.note} style={{ width, height, ...noteStyle }}>
+    <div className={styles.note} style={{ width, height }}>
       <div className={styles.titleBar}>
-        <div style={{ position: 'relative' }} ref={paletteRef}>
-          <div
-            className={`${styles.colorDot} nopan nodrag`}
-            style={{ backgroundColor: note.color || 'var(--color-surface)' }}
-            onClick={(e) => { e.stopPropagation(); setShowPalette(!showPalette) }}
-            onDoubleClick={(e) => { e.stopPropagation(); if (note.id != null) onUpdateColor(note.id, undefined) }}
-            title="Set color (double-click to reset)"
-          />
-          {showPalette && (
-            <div className={`${styles.palette} nopan nodrag`}>
-              {PRESET_COLORS.map((c) => (
-                <div
-                  key={c.label}
-                  className={`${styles.paletteSwatch} ${note.color === c.value || (!note.color && !c.value) ? styles.paletteSwatchActive : ''}`}
-                  style={{ backgroundColor: c.css }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (note.id != null) onUpdateColor(note.id, c.value)
-                    setShowPalette(false)
-                  }}
-                  title={c.label}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        <span className={styles.noteLabel}>Note</span>
+        <span className={styles.noteLabel}>◰ Notes · Inbox</span>
         <button
           className={`${styles.deleteButton} nopan nodrag`}
-          onClick={() => {
-            if (note.id == null) return
-            useCanvasRailsStore.getState().createAndDockSlot('notes')
-            onDelete(note.id)
-          }}
+          onClick={handleDock}
           aria-label="Dock notes to rail"
-          title="Dock to rail (opens rail notes; this floating note is moved to undo)"
+          title="Dock to rail"
         >
           ↙
         </button>
         <button
           className={`${styles.deleteButton} nopan nodrag`}
-          onClick={handleDelete}
-          aria-label="Delete note"
+          onClick={handleClose}
+          aria-label="Close floating note"
+          title="Close"
         >
           &times;
         </button>
@@ -109,7 +55,6 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
       <div className={`${styles.body} nopan nodrag nowheel`}>
         <NotesBody
           dock="floating"
-          activeIdOverride={note.id}
           showToolbar
           hideFooter
         />

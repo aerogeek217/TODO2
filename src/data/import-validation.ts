@@ -1,4 +1,4 @@
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note, FloatingCalendar } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
@@ -427,12 +427,26 @@ function checkNote(v: unknown): CheckResult {
     ['content', typeof v.content === 'string' && (v.content as string).length <= 500000],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
+    // Pre-v28 rows carry optional placement + color fields for canvas floating
+    // notes. We tolerate them here so legacy backups still validate; the
+    // restore pass translates the canvas-scoped rows into `floatingNotes`.
     ['canvasId', isOptNum(v.canvasId)],
     ['x', isOptNum(v.x)],
     ['y', isOptNum(v.y)],
     ['width', isOptNum(v.width)],
     ['height', isOptNum(v.height)],
     ['color', isOptColor(v.color)],
+  ])
+}
+
+function checkFloatingNote(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['canvasId', isFiniteNum(v.canvasId)],
+    ['x', isFiniteNum(v.x)],
+    ['y', isFiniteNum(v.y)],
+    ['width', isFiniteNum(v.width)],
+    ['height', isFiniteNum(v.height)],
   ])
 }
 
@@ -766,7 +780,23 @@ function pickSetting(v: Record<string, unknown>): SettingRow {
   return { key: v.key as string, value: v.value as string }
 }
 
-function pickNote(v: Record<string, unknown>): Note {
+/**
+ * Parsed note shape. Post-v28 `Note` is content-only; pre-v28 rows may carry
+ * canvasId + placement + color. We keep those fields here (`LegacyNoteFields`)
+ * so restore can split them out into `floatingNotes` before the cleaned-up
+ * row lands in the `notes` table.
+ */
+export type LegacyNoteFields = {
+  canvasId?: number
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  color?: string
+}
+export type ImportNote = Note & LegacyNoteFields
+
+function pickNote(v: Record<string, unknown>): ImportNote {
   return {
     id: v.id as number | undefined,
     content: v.content as string,
@@ -778,6 +808,17 @@ function pickNote(v: Record<string, unknown>): Note {
     ...(v.width != null ? { width: v.width as number } : {}),
     ...(v.height != null ? { height: v.height as number } : {}),
     ...(v.color != null ? { color: v.color as string } : {}),
+  }
+}
+
+function pickFloatingNote(v: Record<string, unknown>): FloatingNote {
+  return {
+    id: v.id as number | undefined,
+    canvasId: v.canvasId as number,
+    x: v.x as number,
+    y: v.y as number,
+    width: v.width as number,
+    height: v.height as number,
   }
 }
 
@@ -833,6 +874,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'listDefinitions', check: checkListDefinition },
   { key: 'notes', check: checkNote },
   { key: 'floatingCalendars', check: checkFloatingCalendar },
+  { key: 'floatingNotes', check: checkFloatingNote },
 ]
 
 export interface ImportData {
@@ -853,8 +895,9 @@ export interface ImportData {
   taskboardEntries: TaskboardEntry[]
   statuses: Status[]
   listDefinitions: ListDefinition[]
-  notes: Note[]
+  notes: ImportNote[]
   floatingCalendars: FloatingCalendar[]
+  floatingNotes: FloatingNote[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -938,6 +981,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       listDefinitions: ((raw.listDefinitions ?? []) as Record<string, unknown>[]).map(pickListDefinition),
       notes: ((raw.notes ?? []) as Record<string, unknown>[]).map(pickNote),
       floatingCalendars: ((raw.floatingCalendars ?? []) as Record<string, unknown>[]).map(pickFloatingCalendar),
+      floatingNotes: ((raw.floatingNotes ?? []) as Record<string, unknown>[]).map(pickFloatingNote),
     },
   }
 }

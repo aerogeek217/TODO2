@@ -3,6 +3,7 @@ import { db } from '../../../../data/database'
 import { popSlotToCanvas } from '../../../../components/canvas/rails/RailsFrame'
 import { useCanvasStore } from '../../../../stores/canvas-store'
 import { useNoteStore } from '../../../../stores/note-store'
+import { useFloatingNoteStore } from '../../../../stores/floating-note-store'
 import { useListInsetStore } from '../../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../../stores/floating-calendar-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
@@ -17,6 +18,7 @@ beforeEach(async () => {
   useNoteStore.setState({ notes: new Map(), activeId: null, lastSavedAt: null })
   useListInsetStore.setState({ insets: [], loading: false, error: null })
   useFloatingCalendarStore.setState({ calendars: [], loading: false, error: null })
+  useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
   useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
   useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
 })
@@ -35,10 +37,10 @@ describe('popSlotToCanvas', () => {
     expect(useFloatingCalendarStore.getState().calendars.length).toBe(0)
   })
 
-  it('pops a notes slot into a floating note with copied content', async () => {
+  it('pops a notes slot into a placement-only floating note (no content fork)', async () => {
     const canvasId = await seedCanvas()
     const now = new Date()
-    const globalId = await db.notes.add({ content: 'RAIL NOTES COPY', createdAt: now, modifiedAt: now })
+    const globalId = await db.notes.add({ content: 'GLOBAL NOTE STAYS PUT', createdAt: now, modifiedAt: now })
     await useNoteStore.getState().load()
     expect(useNoteStore.getState().activeId).toBe(globalId)
 
@@ -46,12 +48,15 @@ describe('popSlotToCanvas', () => {
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(true)
 
-    const floating = Array.from(useNoteStore.getState().notes.values()).filter((n) => n.canvasId === canvasId)
+    // A placement row was created — no content, just x/y/w/h.
+    const floating = useFloatingNoteStore.getState().notes.filter((n) => n.canvasId === canvasId)
     expect(floating.length).toBe(1)
-    expect(floating[0].content).toBe('RAIL NOTES COPY')
-    // Global note survives unchanged
-    const global = useNoteStore.getState().notes.get(globalId)
-    expect(global?.content).toBe('RAIL NOTES COPY')
+    expect(floating[0].width).toBeGreaterThan(0)
+    expect(floating[0].height).toBeGreaterThan(0)
+    // The global note is unchanged; the floating widget will view it via NotesBody.
+    expect(useNoteStore.getState().notes.get(globalId)?.content).toBe('GLOBAL NOTE STAYS PUT')
+    // And no per-floating content row was created in the notes table.
+    expect(await db.notes.where('id').notEqual(globalId).count()).toBe(0)
   })
 
   it('pops a lens slot into a list inset pointing at the same definition', async () => {

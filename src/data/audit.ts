@@ -21,7 +21,7 @@ export async function auditData(): Promise<AuditReport> {
   const [
     todos, projects, canvases, people, tags, orgs, statuses,
     todoPeople, todoTags, todoOrgs, personOrgs, taskboardEntries,
-    listInsets, notes,
+    listInsets, floatingNotes, floatingCalendars,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
@@ -36,7 +36,8 @@ export async function auditData(): Promise<AuditReport> {
     db.personOrgs.toArray(),
     db.taskboardEntries.toArray(),
     db.listInsets.toArray(),
-    db.notes.toArray(),
+    db.floatingNotes.toArray(),
+    db.floatingCalendars.toArray(),
   ])
 
   const todoIds = new Set(todos.map((t) => t.id!))
@@ -201,15 +202,28 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const notesWithBadCanvas = notes.filter(
-    (n) => n.canvasId != null && !canvasIds.has(n.canvasId),
+  const floatingNotesWithBadCanvas = floatingNotes.filter(
+    (n) => !canvasIds.has(n.canvasId),
   )
-  if (notesWithBadCanvas.length > 0) {
+  if (floatingNotesWithBadCanvas.length > 0) {
     issues.push({
-      table: 'notes',
+      table: 'floatingNotes',
       description: 'Floating notes referencing deleted canvases',
-      count: notesWithBadCanvas.length,
-      ids: notesWithBadCanvas.map((n) => n.id!),
+      count: floatingNotesWithBadCanvas.length,
+      ids: floatingNotesWithBadCanvas.map((n) => n.id!),
+      fix: 'delete',
+    })
+  }
+
+  const floatingCalendarsWithBadCanvas = floatingCalendars.filter(
+    (c) => !canvasIds.has(c.canvasId),
+  )
+  if (floatingCalendarsWithBadCanvas.length > 0) {
+    issues.push({
+      table: 'floatingCalendars',
+      description: 'Floating calendars referencing deleted canvases',
+      count: floatingCalendarsWithBadCanvas.length,
+      ids: floatingCalendarsWithBadCanvas.map((c) => c.id!),
       fix: 'delete',
     })
   }
@@ -243,7 +257,8 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   await db.transaction(
     'rw',
     [db.todos, db.projects, db.todoPeople, db.todoTags, db.todoOrgs,
-     db.personOrgs, db.taskboardEntries, db.listInsets, db.notes, db.statuses],
+     db.personOrgs, db.taskboardEntries, db.listInsets, db.notes,
+     db.floatingNotes, db.floatingCalendars, db.statuses],
     async () => {
       for (const issue of issues) {
         if (issue.fix === 'delete') {
