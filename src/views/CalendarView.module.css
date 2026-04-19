@@ -159,6 +159,8 @@
 
 /* Task items in cells */
 .taskItem {
+  --date-intensity: 1;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -186,6 +188,56 @@
   font-style: italic;
 }
 
+/*
+ * Date-type tints — mirror TaskRow's chip palette so a task reads the same
+ * colour on the calendar that its chip does on the row. --date-intensity
+ * fades the tint toward greyscale the further the date is from today.
+ */
+.taskItemScheduled {
+  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
+}
+.taskItemScheduled:hover {
+  background: color-mix(in srgb, var(--color-scheduled) 18%, transparent);
+}
+
+.taskItemDeadline {
+  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
+}
+.taskItemDeadline:hover {
+  background: color-mix(in srgb, var(--color-deadline) 18%, transparent);
+}
+
+/* Both set → scheduled-primary tint with a thin deadline-coloured accent edge. */
+.taskItemBoth {
+  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
+  box-shadow: inset -2px 0 0 color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+}
+.taskItemBoth:hover {
+  background: color-mix(in srgb, var(--color-scheduled) 18%, transparent);
+}
+
+/* Past scheduled → dashed outline, weight 600, bumped bg. */
+.taskItemPastScheduled {
+  background: color-mix(in srgb, var(--color-scheduled) 18%, transparent);
+  outline: 1px dashed var(--color-scheduled);
+  outline-offset: -1px;
+  font-weight: 600;
+}
+.taskItemPastScheduled:hover {
+  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
+}
+
+/* Past deadline → stamped solid fill, weight 700, soft glow. Overrides other tints. */
+.taskItemPastDeadline {
+  background: var(--color-deadline);
+  color: var(--color-surface);
+  font-weight: 700;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-deadline) 35%, transparent);
+}
+.taskItemPastDeadline:hover {
+  background: color-mix(in srgb, var(--color-deadline) 92%, var(--color-text-primary));
+}
+
 .recurrenceIndicator {
   color: var(--color-text-muted);
   font-size: 10px;
@@ -199,7 +251,7 @@
 .scheduledMarker {
   display: inline-flex;
   align-items: center;
-  color: var(--color-accent);
+  color: var(--color-scheduled);
   margin-right: 2px;
   flex-shrink: 0;
   position: relative;
@@ -209,11 +261,44 @@
 .deadlineMarker {
   display: inline-flex;
   align-items: center;
-  color: var(--color-danger);
+  color: var(--color-deadline);
   margin-right: 2px;
   flex-shrink: 0;
 }
 .deadlineMarker svg { width: 10px; height: 10px; }
+
+/*
+ * Secondary deadline badge rendered when both scheduled + deadline are set —
+ * mirrors TaskRow's `.dateStackSecondary` dimensions so a glance at the
+ * calendar tells the same story as a glance at the row.
+ */
+.deadlineBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  line-height: 10px;
+  font-size: 9px;
+  letter-spacing: 0.1px;
+  border-radius: var(--radius-chip);
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+.deadlineBadge svg { width: 8px; height: 8px; }
+
+/* Inside a stamped past-deadline item, children track the item's surface-coloured text. */
+.taskItemPastDeadline .scheduledMarker,
+.taskItemPastDeadline .deadlineMarker,
+.taskItemPastDeadline .deadlineBadge,
+.taskItemPastDeadline .recurrenceIndicator,
+.taskItemPastDeadline .taskInitials {
+  color: currentColor;
+}
+.taskItemPastDeadline .deadlineBadge {
+  background: color-mix(in srgb, var(--color-surface) 22%, transparent);
+}
 
 .markerExpired {
   position: absolute;
@@ -222,7 +307,7 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--color-danger);
+  background: var(--color-scheduled);
 }
 
 .taskTitle {

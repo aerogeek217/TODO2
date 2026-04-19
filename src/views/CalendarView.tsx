@@ -12,8 +12,8 @@ import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
-import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
-import { effectiveDate, scheduledLabel, isScheduledExpired } from '../utils/effective-date'
+import { startOfDay, isSameDay, MS_PER_DAY, formatDateShort } from '../utils/date'
+import { effectiveDate, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
 import { StatusIcon } from '../components/shared/StatusIcon'
 import styles from './CalendarView.module.css'
@@ -352,6 +352,24 @@ export function CalendarView() {
                   const assigned = assignedPeopleMap.get(todo.id)
                   const initials = assigned?.map((p) => p.initials || generateInitials(p.name)).join(', ')
 
+                  const hasSched = !!todo.scheduledDate
+                  const hasDead = !!todo.dueDate
+                  // Past states don't apply to virtual recurring instances — they
+                  // represent future occurrences whose parent's dates are the past
+                  // anchor, not the instance's day.
+                  const pastSched = !isVirtual && isScheduledPast(todo, today)
+                  const pastDead = !isVirtual && isDeadlinePast(todo, today)
+
+                  let tintClass: string | false = false
+                  if (hasDead && pastDead) tintClass = styles.taskItemPastDeadline
+                  else if (hasSched && pastSched) tintClass = styles.taskItemPastScheduled
+                  else if (hasSched && hasDead) tintClass = styles.taskItemBoth
+                  else if (hasSched) tintClass = styles.taskItemScheduled
+                  else if (hasDead) tintClass = styles.taskItemDeadline
+
+                  const intensityDate = isVirtual ? day : effectiveDate(todo, today)
+                  const intensity = dateIntensity(daysUntil(intensityDate, today))
+
                   return (
                     <div
                       key={displayKey}
@@ -360,29 +378,41 @@ export function CalendarView() {
                         isWeek && styles.weekTaskItem,
                         todo.isCompleted && styles.taskItemCompleted,
                         isVirtual && styles.taskItemVirtual,
+                        tintClass,
                       ].filter(Boolean).join(' ')}
+                      style={{ ['--date-intensity' as string]: intensity }}
                       onClick={(e) => handleTaskClick(e, todo.id)}
                       draggable={!isVirtual}
                       onDragStart={(e) => !isVirtual && handleDragStart(e, todo.id)}
                       title={isVirtual ? `Recurring instance — click to edit parent task "${todo.title}"` : undefined}
                     >
-                      {todo.scheduledDate && (
+                      {hasSched && (
                         <span
                           className={styles.scheduledMarker}
-                          title={`Scheduled: ${scheduledLabel(todo.scheduledDate, today)}`}
+                          title={`Scheduled: ${scheduledLabel(todo.scheduledDate!, today)}`}
                           aria-label="Scheduled"
                         >
                           <StatusIcon icon="calendar" />
                           {isScheduledExpired(todo, today) && <span className={styles.markerExpired} />}
                         </span>
                       )}
-                      {todo.dueDate && (
+                      {hasDead && !hasSched && (
                         <span
                           className={styles.deadlineMarker}
-                          title={`Deadline: ${new Date(todo.dueDate).toLocaleDateString()}`}
+                          title={`Deadline: ${new Date(todo.dueDate!).toLocaleDateString()}`}
                           aria-label="Deadline"
                         >
                           <StatusIcon icon="clock" />
+                        </span>
+                      )}
+                      {hasDead && hasSched && (
+                        <span
+                          className={styles.deadlineBadge}
+                          title={`Deadline: ${new Date(todo.dueDate!).toLocaleDateString()}`}
+                          aria-label="Deadline"
+                        >
+                          <StatusIcon icon="clock" />
+                          {formatDateShort(new Date(todo.dueDate!))}
                         </span>
                       )}
                       {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
