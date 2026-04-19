@@ -8,6 +8,7 @@ import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotHeader } from './SlotHeader'
 import { LensSlotContent } from './LensSlotContent'
+import { CalendarSlotContent } from './CalendarSlotContent'
 import { LensTitleButton } from './LensTitleButton'
 import { DockOverlay } from './DockOverlay'
 import { SlotMenu } from './SlotMenu'
@@ -62,8 +63,10 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const [showEditor, setShowEditor] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
 
-  const header = slot.kind === 'lens'
-    ? (
+  let header: ReactNode
+  let body: ReactNode
+  if (slot.kind === 'lens') {
+    header = (
       <SlotHeader
         title={(
           <LensTitleButton
@@ -76,16 +79,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         onClose={() => closeSlot(slot.id)}
       />
     )
-    : (
-      <SlotHeader
-        title={slot.kind}
-        onMore={(anchor) => setMenuAnchor(anchor)}
-        onClose={() => closeSlot(slot.id)}
-      />
-    )
-
-  const body = slot.kind === 'lens'
-    ? (
+    body = (
       <LensSlotContent
         listDefinitionId={slot.listDefinitionId}
         onTitleChange={(t, c) => {
@@ -94,11 +88,29 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         }}
       />
     )
-    : (
+  } else if (slot.kind === 'calendar') {
+    header = (
+      <SlotHeader
+        title="📅 Calendar · next 2 wks"
+        onMore={(anchor) => setMenuAnchor(anchor)}
+        onClose={() => closeSlot(slot.id)}
+      />
+    )
+    body = <CalendarSlotContent />
+  } else {
+    header = (
+      <SlotHeader
+        title={slot.kind}
+        onMore={(anchor) => setMenuAnchor(anchor)}
+        onClose={() => closeSlot(slot.id)}
+      />
+    )
+    body = (
       <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-meta)' }}>
         Coming soon
       </div>
     )
+  }
 
   return (
     <>

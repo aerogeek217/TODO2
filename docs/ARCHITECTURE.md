@@ -25,7 +25,7 @@ main.tsx (entry point)
 ├── components/
 │   ├── layout/            → Sidebar, TopBar (filter bar + search + storage status), FileSyncBanner, BottomTabBar (mobile)
 │   ├── task/              → TaskRow, TaskList, TaskEditPopup, MobileTaskRow
-│   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, ListDefinitionBody (shared filter→buildDashboardLists body for inset + rail lens), StickyNoteNode, SortableTaskList, ProjectNavigator, alignment; rails/ (RailsFrame, RailContainer, Slot, SlotHeader, LensSlotContent, LensTitleButton, DraggableSlot, DockOverlay, SlotMenu, rail-dnd — Phase 4A scaffolding + 4B lens wiring + 4C slot drag-dock via dnd-kit, session-only)
+│   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, ListDefinitionBody (shared filter→buildDashboardLists body for inset + rail lens), StickyNoteNode, SortableTaskList, ProjectNavigator, alignment; rails/ (RailsFrame, RailContainer, Slot, SlotHeader, LensSlotContent, LensTitleButton, CalendarSlotContent + TwoWeekCalendarStrip, DraggableSlot, DockOverlay, SlotMenu, rail-dnd — Phase 4A scaffolding + 4B lens wiring + 4C slot drag-dock + 4D 2-week calendar slot, session-only)
 │   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node)
 │   ├── dashboard/         → HorizonRibbon + HorizonCell (5-cell horizon chart; reads settings `horizonSlots` + `listDefinitions`); NotesPanel (Inbox chrome + dock buttons; body = shared `NotesBody`)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)

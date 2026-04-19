@@ -1,0 +1,115 @@
+.strip {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+  align-items: start;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowToday {
+  background: var(--color-accent-bg-light);
+}
+
+.rowPast .dateBlock {
+  opacity: 0.55;
+}
+
+.dateBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  padding-top: 2px;
+}
+
+.dow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.dayNum {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.rowToday .dow,
+.rowToday .dayNum {
+  color: var(--color-accent);
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.event {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-meta);
+  color: var(--color-text);
+  background: var(--color-tint-2);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.event:hover {
+  background: var(--color-tint-3);
+}
+
+.eventCompleted {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.eventVirtual {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.eventTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.marker {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.markerScheduled {
+  color: var(--color-scheduled);
+}
+
+.markerDeadline {
+  color: var(--color-deadline);
+}
+
+.emptyDash {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  padding: 2px 4px;
+}
