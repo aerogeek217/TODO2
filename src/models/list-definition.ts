@@ -13,6 +13,7 @@ export type ListMembership =
 
 export type ListSort =
   | { kind: 'effective-date-asc' }
+  | { kind: 'scheduled-asc' }
   | { kind: 'deadline-asc' }
   | { kind: 'sort-order' }
   | { kind: 'sortBy'; by: ListSortBy }

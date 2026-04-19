@@ -413,4 +413,22 @@ describe('validateImportData', () => {
     }))
     expect(result.ok).toBe(true)
   })
+
+  it('listDefinition with scheduled-asc sort kind passes validation', () => {
+    const result = validateImportData(validData({
+      listDefinitions: [{
+        id: 1, name: 'Scheduled', sortOrder: 0, pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            showCompleted: false, showHiddenStatuses: false,
+            searchText: '', dateRangeIncludeNoDate: false,
+          },
+        },
+        sort: { kind: 'scheduled-asc' },
+        grouping: { kind: 'none' },
+      }],
+    }))
+    expect(result.ok).toBe(true)
+  })
 })

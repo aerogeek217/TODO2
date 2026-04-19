@@ -51,6 +51,7 @@ interface Props {
 
 const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
   { value: 'effective-date-asc', label: 'Effective date' },
+  { value: 'scheduled-asc', label: 'Scheduled date' },
   { value: 'deadline-asc', label: 'Deadline' },
   { value: 'sort-order', label: 'Manual order' },
   { value: 'sortBy', label: 'Group attribute' },
@@ -95,6 +96,7 @@ function resolveItemSortBy(def: PersistedListDefinition): ListItemSortBy {
   const s = def.sort
   if (s.kind === 'sort-order') return 'manual'
   if (s.kind === 'effective-date-asc') return 'date'
+  if (s.kind === 'scheduled-asc') return 'scheduled'
   if (s.kind === 'deadline-asc') return 'deadline'
   if (s.kind === 'sortBy') {
     if (s.by === 'date' || s.by === 'scheduled' || s.by === 'deadline') return s.by
@@ -190,6 +192,7 @@ function ConfigPanel({
     let next: ListSort
     switch (kind) {
       case 'effective-date-asc': next = { kind: 'effective-date-asc' }; break
+      case 'scheduled-asc': next = { kind: 'scheduled-asc' }; break
       case 'deadline-asc': next = { kind: 'deadline-asc' }; break
       case 'sort-order': next = { kind: 'sort-order' }; break
       case 'sortBy': next = { kind: 'sortBy', by: 'date' }; break

@@ -176,6 +176,25 @@ describe('buildDashboardLists — sort', () => {
     const lists = buildDashboardLists([customDef()], [later, earlier], makeCtx())
     expect(lists[0].todos.map((t) => t.id)).toEqual([1, 2])
   })
+
+  it('sorts by scheduled-asc ascending, nulls last', () => {
+    const earlier = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 1 * MS_PER_DAY) },
+      dueDate: new Date(today.getTime() + 30 * MS_PER_DAY),
+    })
+    const later = makeTodo({
+      id: 2,
+      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 5 * MS_PER_DAY) },
+    })
+    const noScheduled = makeTodo({
+      id: 3,
+      dueDate: new Date(today.getTime() + 1 * MS_PER_DAY),
+    })
+    const def = customDef({ sort: { kind: 'scheduled-asc' } })
+    const lists = buildDashboardLists([def], [noScheduled, later, earlier], makeCtx())
+    expect(lists[0].todos.map((t) => t.id)).toEqual([1, 2, 3])
+  })
 })
 
 describe('buildDashboardLists — grouping', () => {

@@ -147,7 +147,7 @@ const LEGACY_LIST_MEMBERSHIP_KINDS = ['today', 'upcoming', 'deadlines', 'someday
 export function isLegacyMembershipKind(kind: string): boolean {
   return LEGACY_LIST_MEMBERSHIP_KINDS.includes(kind)
 }
-const VALID_LIST_SORT_KINDS = ['effective-date-asc', 'deadline-asc', 'sort-order', 'sortBy']
+const VALID_LIST_SORT_KINDS = ['effective-date-asc', 'scheduled-asc', 'deadline-asc', 'sort-order', 'sortBy']
 const VALID_LIST_GROUPING_KINDS = ['none', 'relative-effective', 'relative-deadline', 'by-sortBy', 'by-field']
 // v22→v21 back-compat: old exports may still carry `seededKey`; accepted but
 // stripped at reconstruction time. Not validated against a strict enum —

@@ -93,6 +93,9 @@ export function interpretSort(
     case 'effective-date-asc':
       return compareEffectiveDateAsc(a, b, ctx)
 
+    case 'scheduled-asc':
+      return compareScheduledAsc(a, b, ctx)
+
     case 'deadline-asc':
       return compareDeadlineAsc(a, b)
 
