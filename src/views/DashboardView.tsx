@@ -66,12 +66,31 @@ function DashboardDraggableRow({
   )
 }
 
+export type DashboardDragHandleProps = React.HTMLAttributes<HTMLElement> & {
+  ref?: (el: HTMLElement | null) => void
+}
+
+function DashboardDragHandleIcon() {
+  return (
+    <span className={styles.cardDragHandleIcon} aria-hidden="true" title="Drag to reorder">
+      <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
+        <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
+        <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
+        <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
+      </svg>
+    </span>
+  )
+}
+
 function SortableCardWrapper({
   id,
   render,
 }: {
   id: string | number
-  render: (args: { handle: React.ReactNode }) => React.ReactNode
+  render: (args: {
+    handleIcon: React.ReactNode
+    dragHandleProps: DashboardDragHandleProps
+  }) => React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const style = {
@@ -79,25 +98,14 @@ function SortableCardWrapper({
     transition,
     opacity: isDragging ? 0.4 : 1,
   }
-  const handle = (
-    <button
-      type="button"
-      className={styles.cardDragHandle}
-      title="Drag to reorder"
-      aria-label="Drag to reorder"
-      {...attributes}
-      {...listeners}
-    >
-      <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden="true">
-        <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
-        <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
-        <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
-      </svg>
-    </button>
-  )
+  const dragHandleProps: DashboardDragHandleProps = {
+    ...attributes,
+    ...listeners,
+    className: styles.cardDragHandleArea,
+  }
   return (
     <div ref={setNodeRef} style={style} className={styles.sortableCardWrapper}>
-      {render({ handle })}
+      {render({ handleIcon: <DashboardDragHandleIcon />, dragHandleProps })}
     </div>
   )
 }
@@ -194,7 +202,8 @@ function DashboardListCard({
   tabpanelLabelledBy,
   addTaskLabel,
   onAddTask,
-  dragHandle,
+  dragHandleIcon,
+  dragHandleProps,
 }: {
   list: DashboardList
   variant: 'hero' | 'secondary'
@@ -207,20 +216,25 @@ function DashboardListCard({
   /** When provided, renders an inline "+ Add task to {label}" button at the bottom of the card. */
   addTaskLabel?: string
   onAddTask?: (title: string) => Promise<void> | void
-  /** Drag handle rendered in the card header (left of the title). */
-  dragHandle?: React.ReactNode
+  dragHandleIcon?: React.ReactNode
+  /** Spread onto the card header so the whole header acts as a drag surface. */
+  dragHandleProps?: DashboardDragHandleProps
 }) {
   const panelProps = tabpanelId
     ? { role: 'tabpanel' as const, id: tabpanelId, 'aria-labelledby': tabpanelLabelledBy }
     : {}
+  const headerProps = dragHandleProps ?? {}
   return (
     <div
       className={`${styles.card} ${styles.listCard} ${variant === 'hero' ? styles.heroCard : ''}`}
       data-list-key={list.key}
       {...panelProps}
     >
-      <div className={styles.cardHeader}>
-        {dragHandle}
+      <div
+        {...headerProps}
+        className={`${styles.cardHeader} ${headerProps.className ?? ''}`.trim()}
+      >
+        {dragHandleIcon}
         <span className={`${styles.cardTitle} ${variant === 'hero' ? styles.cardTitleHero : ''}`}>{list.label}</span>
         <span className={styles.cardCount}>{list.todos.length}</span>
       </div>
@@ -528,7 +542,9 @@ export function DashboardView() {
                     <SortableCardWrapper
                       key="taskboard"
                       id="top:taskboard"
-                      render={({ handle }) => <TaskboardPanel dragHandle={handle} />}
+                      render={({ handleIcon, dragHandleProps }) => (
+                        <TaskboardPanel dragHandleIcon={handleIcon} dragHandleProps={dragHandleProps} />
+                      )}
                     />
                   )
                 }
@@ -537,7 +553,7 @@ export function DashboardView() {
                   <SortableCardWrapper
                     key="horizon"
                     id="top:horizon"
-                    render={({ handle }) => (
+                    render={({ handleIcon, dragHandleProps }) => (
                       <DashboardListCard
                         list={heroList}
                         variant="hero"
@@ -549,7 +565,8 @@ export function DashboardView() {
                         tabpanelLabelledBy={tabIdFor(selectedHorizon)}
                         addTaskLabel={heroList.label}
                         onAddTask={handleCreateHorizonTask}
-                        dragHandle={handle}
+                        dragHandleIcon={handleIcon}
+                        dragHandleProps={dragHandleProps}
                       />
                     )}
                   />
@@ -572,7 +589,7 @@ export function DashboardView() {
                     <SortableCardWrapper
                       key={list.id}
                       id={list.id}
-                      render={({ handle }) => (
+                      render={({ handleIcon, dragHandleProps }) => (
                         <DashboardListCard
                           list={list}
                           variant="secondary"
@@ -580,7 +597,8 @@ export function DashboardView() {
                           assignedPeopleMap={assignedPeopleMap}
                           assignedTagsMap={assignedTagsMap}
                           isMobile={isMobile}
-                          dragHandle={handle}
+                          dragHandleIcon={handleIcon}
+                          dragHandleProps={dragHandleProps}
                         />
                       )}
                     />

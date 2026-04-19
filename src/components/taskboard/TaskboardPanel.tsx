@@ -1,3 +1,4 @@
+import type React from 'react'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   DndContext,
@@ -48,7 +49,12 @@ function SortableEntry({ entryId, index, todo, assignedPeople, assignedTags, onO
   )
 }
 
-export function TaskboardPanel({ dragHandle }: { dragHandle?: ReactNode } = {}) {
+type HeaderDragProps = React.HTMLAttributes<HTMLDivElement>
+
+export function TaskboardPanel({
+  dragHandleIcon,
+  dragHandleProps,
+}: { dragHandleIcon?: ReactNode; dragHandleProps?: HeaderDragProps } = {}) {
   const { entries, reorder } = useTaskboardStore()
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -94,8 +100,11 @@ export function TaskboardPanel({ dragHandle }: { dragHandle?: ReactNode } = {}) 
 
   return (
     <div ref={setDropRef} className={`${styles.panel} ${isOver ? styles.dropTarget : ''}`}>
-      <div className={styles.header}>
-        {dragHandle}
+      <div
+        {...(dragHandleProps ?? {})}
+        className={`${styles.header} ${dragHandleProps?.className ?? ''}`.trim()}
+      >
+        {dragHandleIcon}
         <span className={styles.headerTitle}>Taskboard</span>
         <span className={styles.headerCount}>{visibleEntries.length}</span>
       </div>

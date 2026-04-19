@@ -84,33 +84,32 @@
   min-width: 0;
 }
 
-.cardDragHandle {
+.cardDragHandleArea {
+  cursor: grab;
+  touch-action: none;
+}
+
+.cardDragHandleArea:active {
+  cursor: grabbing;
+}
+
+.cardDragHandleIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
+  width: 12px;
   height: 16px;
-  padding: 0;
-  background: transparent;
-  border: none;
   color: var(--color-text-muted);
-  cursor: grab;
   opacity: 0.5;
   transition: opacity var(--transition-fast), color var(--transition-fast);
   flex-shrink: 0;
+  pointer-events: none;
 }
 
-.sortableCardWrapper:hover .cardDragHandle,
-.cardDragHandle:focus-visible {
+.sortableCardWrapper:hover .cardDragHandleIcon,
+.cardDragHandleArea:focus-visible .cardDragHandleIcon {
   opacity: 1;
-}
-
-.cardDragHandle:hover {
   color: var(--color-accent);
-}
-
-.cardDragHandle:active {
-  cursor: grabbing;
 }
 
 .heroCard .cardHeader {
@@ -331,8 +330,12 @@
     gap: 12px;
   }
 
-  .cardDragHandle {
+  .cardDragHandleIcon {
     display: none;
+  }
+  .cardDragHandleArea {
+    cursor: default;
+    touch-action: auto;
   }
 
   .cardBody {

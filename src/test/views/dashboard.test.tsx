@@ -387,7 +387,7 @@ describe('DashboardView — Phase 5 polish', () => {
   })
 
 
-  it('renders a drag handle inside the hero card header', () => {
+  it('makes the hero card header a drag surface with a visual handle icon', () => {
     render(
       <MemoryRouter>
         <DashboardView />
@@ -395,7 +395,10 @@ describe('DashboardView — Phase 5 polish', () => {
     )
     const hero = document.getElementById('horizon-hero-panel')!
     const header = hero.querySelector<HTMLElement>('[class*="cardHeader"]')!
-    const handle = header.querySelector<HTMLElement>('[aria-label="Drag to reorder"]')
-    expect(handle).not.toBeNull()
+    // The sortable attribute lives on the header itself.
+    expect(header.getAttribute('aria-roledescription')).toBe('sortable')
+    // And there's a visual handle-icon child to hint at the affordance.
+    const icon = header.querySelector('[class*="cardDragHandleIcon"]')
+    expect(icon).not.toBeNull()
   })
 })
