@@ -772,6 +772,22 @@
   color: var(--color-text-muted);
 }
 
+.notesBodyWrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  max-height: 320px;
+  background: var(--color-inset-light);
+  border: 1px solid var(--color-tint-5);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.notesBodyWrap:focus-within {
+  border-color: var(--color-accent-glow);
+  box-shadow: 0 0 0 3px var(--color-accent-bg-subtle);
+}
+
 /* ── Footer (Edit Mode) ── */
 
 .footer {

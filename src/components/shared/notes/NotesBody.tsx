@@ -10,6 +10,16 @@ import { NotesEditor } from './NotesEditor'
 import { NotesToolbar } from './NotesToolbar'
 import styles from './NotesBody.module.css'
 
+/**
+ * Pluggable content adapter. When provided, `NotesBody` reads/writes this
+ * source instead of the note-store. `flush` is awaited before copy-rich.
+ */
+export interface NotesSource {
+  get: () => string
+  set: (next: string) => void
+  flush?: () => Promise<void>
+}
+
 interface NotesBodyProps {
   dock?: 'right' | 'bottom' | 'floating' | 'slot'
   onConvertToast?: (message: string) => void
@@ -23,6 +33,14 @@ interface NotesBodyProps {
   activeIdOverride?: number | null
   /** Hide the footer chrome entirely (used by floating notes for a compact look). */
   hideFooter?: boolean
+  /**
+   * External content source (task notes, etc.). When supplied, the note-store
+   * bindings are bypassed entirely — the editor reads `source.get()` and
+   * writes via `source.set()`. `source.flush` is awaited before copy-rich.
+   */
+  source?: NotesSource
+  /** Placeholder text for the editor. */
+  placeholder?: string
 }
 
 const CONVERTIBLE_LINE_RE = /^(\s*)([—–\-•]|\[[ xX]\])(\s+)(.*)$/
@@ -46,14 +64,14 @@ function formatRelativeTime(from: Date | null, now: Date): string {
  * and the footer saved-time indicator — but not the outer chrome / dock
  * buttons, which each surface supplies.
  */
-export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, hideFooter = false }: NotesBodyProps) {
+export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, hideFooter = false, source, placeholder }: NotesBodyProps) {
   const storeActiveId = useNoteStore((s) => s.activeId)
   const activeId = activeIdOverride !== undefined ? activeIdOverride : storeActiveId
   const notes = useNoteStore((s) => s.notes)
   const lastSavedAt = useNoteStore((s) => s.lastSavedAt)
-  const setContent = useNoteStore((s) => s.setContent)
+  const storeSetContent = useNoteStore((s) => s.setContent)
   const load = useNoteStore((s) => s.load)
-  const flush = useNoteStore((s) => s.flush)
+  const storeFlush = useNoteStore((s) => s.flush)
 
   const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
   const selectedCanvasId = useCanvasStore((s) => s.selectedCanvasId)
@@ -65,9 +83,10 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const viewRef = useRef<EditorView | null>(null)
 
   useEffect(() => {
-    // Only auto-seed the global note when no override was specified.
-    if (activeIdOverride === undefined && activeId == null) void load()
-  }, [activeId, activeIdOverride, load])
+    // Only auto-seed the global note when no override was specified and
+    // we aren't bound to an external source.
+    if (source == null && activeIdOverride === undefined && activeId == null) void load()
+  }, [activeId, activeIdOverride, load, source])
 
   // Re-render the "saved Xm ago" footer once a minute while mounted.
   useEffect(() => {
@@ -75,14 +94,20 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     return () => clearInterval(id)
   }, [])
 
-  const content = activeId != null ? (notes.get(activeId)?.content ?? '') : ''
+  const content = source
+    ? source.get()
+    : activeId != null ? (notes.get(activeId)?.content ?? '') : ''
 
   const handleChange = useCallback((next: string) => {
-    if (activeId != null) setContent(activeId, next)
-  }, [activeId, setContent])
+    if (source) {
+      source.set(next)
+      return
+    }
+    if (activeId != null) storeSetContent(activeId, next)
+  }, [source, activeId, storeSetContent])
 
   const convertLineToTask = useCallback(async (view: EditorView) => {
-    if (activeId == null) return false
+    if (source == null && activeId == null) return false
     const state = view.state
     const head = state.selection.main.head
     const line = state.doc.lineAt(head)
@@ -109,7 +134,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
       },
     })
     return true
-  }, [activeId, addTodo, selectedCanvasId, defaultProjectId, onConvertToast])
+  }, [activeId, addTodo, selectedCanvasId, defaultProjectId, onConvertToast, source])
 
   const extraKeymap = useMemo(
     () => [
@@ -133,18 +158,24 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const convertShortcut = formatShortcut('Mod-t')
 
   const handleCopy = useCallback(async () => {
-    if (activeId == null) return
     setCopying(true)
     try {
       // Flush any pending debounced write so the copy reflects the latest keystrokes.
-      await flush()
-      const latest = useNoteStore.getState().notes.get(activeId)?.content ?? ''
+      let latest: string
+      if (source) {
+        if (source.flush) await source.flush()
+        latest = source.get()
+      } else {
+        if (activeId == null) return
+        await storeFlush()
+        latest = useNoteStore.getState().notes.get(activeId)?.content ?? ''
+      }
       const ok = await copyNotesRich(latest)
       onConvertToast?.(ok ? 'Copied rich text — paste into OneNote/Word' : 'Copy failed')
     } finally {
       setCopying(false)
     }
-  }, [activeId, flush, onConvertToast])
+  }, [source, activeId, storeFlush, onConvertToast])
 
   return (
     <div className={`${styles.body} ${styles[`body_${dock}`] ?? ''}`}>
@@ -156,7 +187,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
         onChange={handleChange}
         onLineChange={setCaretLine}
         extraKeymap={extraKeymap}
-        placeholder="Jot notes here…"
+        placeholder={placeholder ?? 'Jot notes here…'}
         viewRef={viewRef}
       />
       {!hideFooter && (

@@ -14,6 +14,7 @@ import { makeRecurrenceRule } from '../../services/recurrence'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
+import { NotesBody, type NotesSource } from '../shared/notes/NotesBody'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditPopupBaseProps {
@@ -82,6 +83,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
   const [title, setTitle] = useState(todo?.title ?? '')
   const [notes, setNotes] = useState(todo?.notes ?? '')
+  const notesRef = useRef<string>(todo?.notes ?? '')
   const [progress, setProgress] = useState(todo?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(
     todo?.statusId ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
@@ -139,6 +141,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (todo) {
       setTitle(todo.title)
       setNotes(todo.notes ?? '')
+      notesRef.current = todo.notes ?? ''
       setProgress(todo.progress ?? '')
       setStatusId(todo.statusId ?? undefined)
       setProjectId(todo.projectId)
@@ -250,7 +253,27 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (e.key === 'Escape') titleRef.current?.blur()
   }
 
-  const handleNotesBlur = () => { if (isEdit) saveEdit() }
+  const todoRef = useRef(todo)
+  todoRef.current = todo
+  const onUpdateRef = useRef(isEdit ? props.onUpdate : undefined)
+  onUpdateRef.current = isEdit ? props.onUpdate : undefined
+
+  const notesSource = useMemo<NotesSource>(() => ({
+    get: () => notesRef.current,
+    set: (next) => {
+      notesRef.current = next
+      setNotes(next)
+      const current = todoRef.current
+      const update = onUpdateRef.current
+      if (current && update) {
+        update({
+          ...current,
+          notes: next ? next : undefined,
+          modifiedAt: new Date(),
+        })
+      }
+    },
+  }), [])
 
   const handleScheduledChange = (next: ScheduledValue | null) => {
     setScheduledDate(next)
@@ -562,14 +585,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           {/* Notes */}
           <div className={styles.notesSection}>
             <div className={styles.notesLabel}>Notes</div>
-            <textarea
-              className={styles.notesTextarea}
-              value={notes}
-              maxLength={50000}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={handleNotesBlur}
-              placeholder="Add notes..."
-            />
+            <div className={styles.notesBodyWrap}>
+              <NotesBody
+                source={notesSource}
+                showToolbar
+                hideFooter
+                placeholder="Add notes..."
+              />
+            </div>
           </div>
         </div>
 

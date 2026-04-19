@@ -1,0 +1,22 @@
+.popover {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  min-height: 180px;
+  max-height: 60vh;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  overflow: hidden;
+}
+
+.toast {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-high);
+  border-top: 1px solid var(--color-border);
+}

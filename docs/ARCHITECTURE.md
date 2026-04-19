@@ -24,7 +24,7 @@ main.tsx (entry point)
 │   └── SettingsPage       → Theme toggle, manage buttons, task defaults, database location, import/export
 ├── components/
 │   ├── layout/            → Sidebar, TopBar (filter bar + search + storage status), FileSyncBanner, BottomTabBar (mobile)
-│   ├── task/              → TaskRow, TaskList, TaskEditPopup, MobileTaskRow
+│   ├── task/              → TaskRow (notes-icon button opens `TaskNotePopover` via shared `NotesBody`), TaskList, TaskEditPopup (notes field uses shared `NotesBody`), MobileTaskRow, TaskNotePopover
 │   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, ListDefinitionBody (shared filter→buildDashboardLists body for inset + rail lens), FloatingNoteNode (canvas note widget — drag/resize chrome wrapping shared `NotesBody`), SortableTaskList, ProjectNavigator, alignment; rails/ (RailsFrame, RailContainer, Slot, SlotHeader, LensSlotContent, LensTitleButton, CalendarSlotContent + TwoWeekCalendarStrip, NotesSlotContent, DraggableSlot, DockOverlay, SlotMenu, rail-dnd — Phase 4A scaffolding + 4B lens wiring + 4C slot drag-dock + 4D 2-week calendar strip + 4E notes slot + 4F persistence through `settings.canvasRails`)
 │   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node)
 │   ├── dashboard/         → HorizonRibbon + HorizonCell (5-cell horizon chart; reads settings `horizonSlots` + `listDefinitions`); NotesPanel (Inbox chrome + dock buttons; body = shared `NotesBody`)

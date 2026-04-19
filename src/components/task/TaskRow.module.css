@@ -237,12 +237,23 @@
   min-width: 0;
 }
 
-/* Notes indicator */
+/* Notes indicator — clickable button when the row isn't a ghost */
 .notesIndicator {
   display: flex;
   align-items: center;
   color: var(--color-text-muted);
   flex-shrink: 0;
+  background: transparent;
+  border: none;
+  padding: 2px;
+  margin: 0;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.notesIndicator:hover {
+  color: var(--color-text);
+  background: var(--color-surface-high);
 }
 
 /* Progress chip */
