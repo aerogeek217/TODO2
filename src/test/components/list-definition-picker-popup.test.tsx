@@ -128,14 +128,23 @@ describe('ListDefinitionPickerPopup', () => {
       expect(onClose).toHaveBeenCalled()
     })
 
-    it('shows "all are pinned" empty state when every def is already pinned', () => {
+    it('when every def is pinned, shows a primary "Create new list…" CTA', () => {
       useListDefinitionStore.setState({
         listDefinitions: [makeDef({ id: 1, name: 'A', pinnedToDashboard: true })],
       })
-      const { getByText } = render(
-        <ListDefinitionPickerPopup x={10} y={10} onCreateNew={vi.fn()} onClose={vi.fn()} />,
+      const onCreateNew = vi.fn()
+      const onClose = vi.fn()
+      const { getAllByText, container } = render(
+        <ListDefinitionPickerPopup x={10} y={10} onCreateNew={onCreateNew} onClose={onClose} />,
       )
-      expect(getByText(/already pinned/i)).toBeInTheDocument()
+      // The dim "already pinned" label is gone — the primary create button is the
+      // only affordance.
+      expect(container.textContent).not.toMatch(/already pinned/i)
+      const ctas = getAllByText(/create new list/i)
+      expect(ctas.length).toBeGreaterThan(0)
+      fireEvent.click(ctas[0])
+      expect(onCreateNew).toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalled()
     })
   })
 

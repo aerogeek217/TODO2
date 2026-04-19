@@ -60,6 +60,8 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
   const emptyLabel = mode === 'canvas' ? 'No lists yet.' : 'All lists are already pinned.'
   const actionLabel = mode === 'canvas' ? 'Add' : 'Pin'
 
+  const isEmpty = items.length === 0
+
   return (
     <div
       ref={popupRef}
@@ -67,34 +69,49 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
       style={{ left: Math.max(MARGIN_PX, clampedX), top: Math.max(MARGIN_PX, clampedY), width: WIDTH_PX }}
     >
       <div className={styles.header}>{headerLabel}</div>
-      {items.length === 0 ? (
-        <div className={styles.empty}>{emptyLabel}</div>
-      ) : (
-        <div className={styles.list}>
-          {items.map(d => (
-            <button
-              key={d.id}
-              className={styles.item}
-              onClick={async () => {
-                if (mode === 'canvas') {
-                  onSelect?.(d.id)
-                } else {
-                  await setPinned(d.id, true)
-                }
-                onClose()
-              }}
-            >
-              <span className={styles.itemName}>{d.name}</span>
-              <span className={styles.itemAction}>{actionLabel}</span>
-            </button>
-          ))}
+      {isEmpty && mode === 'dashboard' ? (
+        <div className={styles.emptyCta}>
+          <button
+            type="button"
+            className={styles.primaryCreateBtn}
+            onClick={() => { onCreateNew(); onClose() }}
+            autoFocus
+          >
+            + Create new list…
+          </button>
         </div>
+      ) : (
+        <>
+          {isEmpty ? (
+            <div className={styles.empty}>{emptyLabel}</div>
+          ) : (
+            <div className={styles.list}>
+              {items.map(d => (
+                <button
+                  key={d.id}
+                  className={styles.item}
+                  onClick={async () => {
+                    if (mode === 'canvas') {
+                      onSelect?.(d.id)
+                    } else {
+                      await setPinned(d.id, true)
+                    }
+                    onClose()
+                  }}
+                >
+                  <span className={styles.itemName}>{d.name}</span>
+                  <span className={styles.itemAction}>{actionLabel}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={styles.footer}>
+            <button className={styles.createBtn} onClick={() => { onCreateNew(); onClose() }}>
+              + Create new list…
+            </button>
+          </div>
+        </>
       )}
-      <div className={styles.footer}>
-        <button className={styles.createBtn} onClick={() => { onCreateNew(); onClose() }}>
-          + Create new list…
-        </button>
-      </div>
     </div>
   )
 }

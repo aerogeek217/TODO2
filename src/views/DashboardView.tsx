@@ -378,6 +378,7 @@ export function DashboardView() {
   const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null)
   const setPinned = useListDefinitionStore((s) => s.setPinned)
   const removeListDef = useListDefinitionStore((s) => s.remove)
+  const addListDef = useListDefinitionStore((s) => s.add)
   const pushUndo = useUndoStore((s) => s.push)
 
   const sensors = useSensors(
@@ -639,6 +640,19 @@ export function DashboardView() {
     await removeListDef(id)
   }, [pendingDelete, removeListDef])
 
+  const handleCreateNewList = useCallback(async () => {
+    const defs = useListDefinitionStore.getState().listDefinitions
+    let candidate = 'New list'
+    let n = 2
+    const lower = new Set(defs.map((d) => d.name.toLowerCase()))
+    while (lower.has(candidate.toLowerCase())) {
+      candidate = `New list ${n++}`
+    }
+    const id = await addListDef({ name: candidate, pinnedToDashboard: true })
+    setEditorInitialId(id)
+    setShowEditor(true)
+  }, [addListDef])
+
   const pageContent = (
     <>
       <div className={styles.page}>
@@ -820,7 +834,7 @@ export function DashboardView() {
           x={addListPickerPos.x}
           y={addListPickerPos.y}
           onClose={() => setAddListPickerPos(null)}
-          onCreateNew={() => setShowEditor(true)}
+          onCreateNew={() => { void handleCreateNewList() }}
         />
       )}
       {slotPickerAt && (
@@ -830,7 +844,7 @@ export function DashboardView() {
           mode="canvas"
           onClose={() => setSlotPickerAt(null)}
           onSelect={handleSlotPick}
-          onCreateNew={() => { setShowEditor(true); setSlotPickerAt(null) }}
+          onCreateNew={() => { void handleCreateNewList(); setSlotPickerAt(null) }}
         />
       )}
       {showEditor && (
