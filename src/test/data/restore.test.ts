@@ -26,6 +26,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     statuses: [],
     listDefinitions: [],
     notes: [],
+    floatingCalendars: [],
     ...overrides,
   }
 }

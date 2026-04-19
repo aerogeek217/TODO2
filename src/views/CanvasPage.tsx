@@ -18,6 +18,7 @@ import { useFilterStore, computeFilterPersonOrgIds, matchesFilter } from '../sto
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useNoteStore } from '../stores/note-store'
+import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -65,6 +66,11 @@ export function CanvasPage() {
     () => Array.from(notesMap.values()).filter((n) => n.canvasId === selectedCanvasId),
     [notesMap, selectedCanvasId],
   )
+  const floatingCalendars = useFloatingCalendarStore((s) => s.calendars)
+  const loadFloatingCalendars = useFloatingCalendarStore((s) => s.loadByCanvas)
+  const updateFloatingCalendarPosition = useFloatingCalendarStore((s) => s.updatePosition)
+  const updateFloatingCalendarSize = useFloatingCalendarStore((s) => s.updateSize)
+  const removeFloatingCalendar = useFloatingCalendarStore((s) => s.remove)
 
 
 
@@ -99,8 +105,9 @@ export function CanvasPage() {
       loadTodos(selectedCanvasId)
       loadInsets(selectedCanvasId)
       loadNotes(selectedCanvasId)
+      loadFloatingCalendars(selectedCanvasId)
     }
-  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadNotes])
+  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadNotes, loadFloatingCalendars])
 
   // Reset normalization guard when file-storage completes an operation (e.g. import)
   const normalizedRef = useRef(false)
@@ -454,6 +461,19 @@ export function CanvasPage() {
     onResizeNote: handleResizeNote,
   }), [handleAddFloatingNote, removeNote, updateNoteColor, updateNotePosition, handleResizeNote])
 
+  const handleResizeFloatingCalendar = useCallback(
+    async (id: number, width: number, height: number) => {
+      await updateFloatingCalendarSize(id, width, height)
+    },
+    [updateFloatingCalendarSize],
+  )
+
+  const floatingCalendarHandlers = useMemo(() => ({
+    onDeleteCalendar: removeFloatingCalendar,
+    onCalendarDragStop: updateFloatingCalendarPosition,
+    onResizeCalendar: handleResizeFloatingCalendar,
+  }), [removeFloatingCalendar, updateFloatingCalendarPosition, handleResizeFloatingCalendar])
+
   const handleTaskboardDragStop = useCallback((x: number, y: number) => {
     setTaskboardPosition({ x, y })
     localStorage.setItem('taskboardPosition', JSON.stringify({ x, y }))
@@ -540,6 +560,8 @@ export function CanvasPage() {
           insetHandlers={insetHandlers}
           floatingNotes={floatingNotes}
           noteHandlers={noteHandlers}
+          floatingCalendars={floatingCalendars}
+          floatingCalendarHandlers={floatingCalendarHandlers}
           allPeople={people}
           allTags={tags}
           allOrgs={orgs}

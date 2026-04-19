@@ -36,6 +36,7 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.statuses, key: 'statuses' },
   { table: db.listDefinitions, key: 'listDefinitions' },
   { table: db.notes, key: 'notes' },
+  { table: db.floatingCalendars, key: 'floatingCalendars' },
 ]
 
 /**
@@ -89,6 +90,7 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     for (const { table } of TABLE_KEY_PAIRS) await table.clear()
     await db.listInsets.clear()
     await db.notes.clear()
+    await db.floatingCalendars.clear()
 
     for (const { table, key } of TABLE_KEY_PAIRS) {
       const rows = v[key]

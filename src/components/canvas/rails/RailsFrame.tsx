@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { useCanvasStore } from '../../../stores/canvas-store'
+import { useNoteStore } from '../../../stores/note-store'
+import { useListInsetStore } from '../../../stores/list-inset-store'
+import { useFloatingCalendarStore } from '../../../stores/floating-calendar-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
 import { railSize } from '../../../models/canvas-rails'
@@ -61,6 +65,56 @@ function useDefaultRails() {
   }, [rails, hydrated, setCanvasRails])
 
   return rails
+}
+
+/**
+ * Compute a flow-space position in the upper-left of the current viewport for
+ * placing a popped-out node. Reads the persisted viewport from settings; if
+ * absent (fresh install), falls back to origin. Adds a small random jitter so
+ * successive pop-outs don't stack perfectly on top of each other.
+ */
+function computePopOutFlowPosition(): { x: number; y: number } {
+  const vp = useSettingsStore.getState().canvasViewport
+  const baseX = vp ? -vp.x / vp.zoom : 50
+  const baseY = vp ? -vp.y / vp.zoom : 50
+  const jitterX = Math.round(Math.random() * 40)
+  const jitterY = Math.round(Math.random() * 40)
+  return { x: baseX + 40 + jitterX, y: baseY + 40 + jitterY }
+}
+
+/**
+ * Pop a rail slot out to the canvas as a free-floating node. Resolves to true
+ * when a node was created (and the caller should close the slot), false if the
+ * operation was a no-op (no canvas / lens without a list definition).
+ *
+ * Exported for testing.
+ */
+export async function popSlotToCanvas(slot: Slot): Promise<boolean> {
+  const canvasId = useCanvasStore.getState().selectedCanvasId
+  if (canvasId == null) return false
+  const pos = computePopOutFlowPosition()
+
+  if (slot.kind === 'notes') {
+    const noteStore = useNoteStore.getState()
+    const activeId = noteStore.activeId
+    const content = activeId != null ? (noteStore.notes.get(activeId)?.content ?? '') : ''
+    const newId = await noteStore.addFloating(canvasId, pos.x, pos.y)
+    if (content) {
+      noteStore.setContent(newId, content)
+      await noteStore.flush()
+    }
+    return true
+  }
+  if (slot.kind === 'lens') {
+    if (slot.listDefinitionId == null) return false
+    await useListInsetStore.getState().add(slot.listDefinitionId, canvasId, pos.x, pos.y)
+    return true
+  }
+  if (slot.kind === 'calendar') {
+    await useFloatingCalendarStore.getState().add(canvasId, pos.x, pos.y)
+    return true
+  }
+  return false
 }
 
 interface SlotRendererProps {
@@ -206,6 +260,9 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           currentKind={slot.kind}
           onChangeKind={(kind) => updateSlot(slot.id, { kind })}
           onSplit={(dir) => splitSlot(slot.id, dir)}
+          onPopOut={slot.kind === 'lens' && slot.listDefinitionId == null ? undefined : () => {
+            void popSlotToCanvas(slot).then((moved) => { if (moved) closeSlot(slot.id) })
+          }}
           onClose={closeMenuAndFocusTrigger}
         />
       )}

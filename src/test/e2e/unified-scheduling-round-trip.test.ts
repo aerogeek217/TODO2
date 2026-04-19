@@ -159,6 +159,7 @@ function makeLegacyImport(): ImportData {
     // Empty — restore should auto-seed the four rows
     listDefinitions: [],
     notes: [],
+    floatingCalendars: [],
   }
 }
 
@@ -287,6 +288,7 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       statuses: firstPass.statuses,
       listDefinitions: firstPass.listDefinitions,
       notes: firstPass.notes as unknown as ImportData['notes'],
+      floatingCalendars: [],
     }
 
     // 4) Clear DB via a fresh open then bulk re-import

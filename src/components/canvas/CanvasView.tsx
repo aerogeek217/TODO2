@@ -17,11 +17,12 @@ import '@xyflow/react/dist/style.css'
 import { ProjectNode, type ProjectNodeData } from './ProjectNode'
 import { ListInsetNode, type ListInsetNodeData } from './ListInsetNode'
 import { FloatingNoteNode, type FloatingNoteNodeData } from './FloatingNoteNode'
+import { FloatingCalendarNode, type FloatingCalendarNodeData } from './FloatingCalendarNode'
 import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
 import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from './cascade-shift'
-import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, PersistedNote, TaskboardEntry } from '../../models'
+import type { Project, PersistedTodoItem, Person, Tag, Org, ListInset, PersistedNote, TaskboardEntry, FloatingCalendar } from '../../models'
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
@@ -58,6 +59,7 @@ function AlignmentGuides({ lines }: { lines: AlignmentLine[] }) {
 
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
+const CALENDAR_PREFIX = 'calendar-'
 const TASKBOARD_NODE_ID = 'taskboard'
 
 /** Stable no-op used as a fallback for optional callback props so that omitted
@@ -85,6 +87,7 @@ const nodeTypes: NodeTypes = {
   project: ProjectNode as unknown as NodeTypes[string],
   listInset: ListInsetNode as unknown as NodeTypes[string],
   floatingNote: FloatingNoteNode as unknown as NodeTypes[string],
+  floatingCalendar: FloatingCalendarNode as unknown as NodeTypes[string],
   taskboard: TaskboardNode as unknown as NodeTypes[string],
 }
 
@@ -115,6 +118,12 @@ export interface NoteHandlers {
   onResizeNote?: (id: number, width: number, height: number) => void
 }
 
+export interface FloatingCalendarHandlers {
+  onDeleteCalendar?: (id: number) => void
+  onCalendarDragStop?: (id: number, x: number, y: number) => void
+  onResizeCalendar?: (id: number, width: number, height: number) => void
+}
+
 interface CanvasViewProps {
   projects: Project[]
   todosByProject: Map<number, PersistedTodoItem[]>
@@ -132,6 +141,8 @@ interface CanvasViewProps {
   insetHandlers: InsetHandlers
   floatingNotes?: PersistedNote[]
   noteHandlers: NoteHandlers
+  floatingCalendars?: FloatingCalendar[]
+  floatingCalendarHandlers?: FloatingCalendarHandlers
   allPeople?: Person[]
   allTags?: Tag[]
   allOrgs?: Org[]
@@ -166,6 +177,8 @@ export function CanvasView({
   insetHandlers,
   floatingNotes,
   noteHandlers,
+  floatingCalendars,
+  floatingCalendarHandlers,
   allPeople,
   allTags,
   allOrgs,
@@ -185,6 +198,7 @@ export function CanvasView({
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddList, onResizeInset } = insetHandlers
   const { onAddFloatingNote, onDeleteNote, onUpdateNoteColor, onNoteDragStop, onResizeNote } = noteHandlers
+  const { onDeleteCalendar, onCalendarDragStop, onResizeCalendar } = floatingCalendarHandlers ?? {}
   const { activeDragTodoId } = useContext(DragInsertContext)
   const isNavOpen = useUIStore((s) => s.isProjectNavigatorOpen)
   const isMinimapOpen = useUIStore((s) => s.isMinimapOpen)
@@ -350,6 +364,22 @@ export function CanvasView({
       }
     })
 
+    const calendarNodes: Node[] = (floatingCalendars ?? []).map((cal) => {
+      const id = `${CALENDAR_PREFIX}${cal.id}`
+      const data: FloatingCalendarNodeData = {
+        calendar: cal,
+        onDelete: onDeleteCalendar ?? NOOP,
+        onResize: onResizeCalendar,
+      }
+      return {
+        id,
+        type: 'floatingCalendar',
+        position: { x: cal.x, y: cal.y },
+        zIndex: 10,
+        data: stabilize(id, data as unknown as Record<string, unknown>),
+      }
+    })
+
     const showTaskboard = (taskboardEntries && taskboardEntries.length > 0) || activeDragTodoId != null
     const tbNode: Node[] = []
     if (showTaskboard) {
@@ -378,13 +408,14 @@ export function CanvasView({
     }
 
     nodeDataCacheRef.current = nextCache
-    return [...projectNodes, ...insetNodes, ...noteNodes, ...tbNode]
+    return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...tbNode]
   }, [
     projects, todosByProject, assignedPeopleMap, assignedTagsMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
     onResizeProject, onSetProjectColor, handleResizeSnap, getBringToFrontFn,
     listInsets, allTodos, personOrgMap, onDeleteInset, onToggleCollapseInset, onResizeInset, handleResizeSnapByNodeId,
     floatingNotes, onDeleteNote, onUpdateNoteColor, onResizeNote,
+    floatingCalendars, onDeleteCalendar, onResizeCalendar,
     allPeople, allTags, allOrgs,
     taskboardEntries, taskboardPosition, isTaskboardCollapsed, onToggleTaskboardCollapse, onCloseTaskboard, taskboardWidth, taskboardHeight, onResizeTaskboard,
     showCompleted, showHiddenStatuses, activeDragTodoId,
@@ -483,6 +514,8 @@ export function CanvasView({
                 onInsetDragStop?.(Number(id.slice(INSET_PREFIX.length)), change.position.x, change.position.y)
               } else if (id.startsWith(NOTE_PREFIX)) {
                 onNoteDragStop?.(Number(id.slice(NOTE_PREFIX.length)), change.position.x, change.position.y)
+              } else if (id.startsWith(CALENDAR_PREFIX)) {
+                onCalendarDragStop?.(Number(id.slice(CALENDAR_PREFIX.length)), change.position.x, change.position.y)
               } else {
                 onNodeDragStop(Number(id), change.position.x, change.position.y)
               }
@@ -497,7 +530,7 @@ export function CanvasView({
         for (const change of changes) {
           if (change.type === 'dimensions' && !change.resizing && change.dimensions) {
             const id = change.id
-            if (id.startsWith(INSET_PREFIX) || id.startsWith(NOTE_PREFIX) || id === TASKBOARD_NODE_ID) continue
+            if (id.startsWith(INSET_PREFIX) || id.startsWith(NOTE_PREFIX) || id.startsWith(CALENDAR_PREFIX) || id === TASKBOARD_NODE_ID) continue
             const prevH = prevHeightsRef.current.get(id)
             const newH = change.dimensions.height
             if (prevH != null && Math.abs(newH - prevH) > 1) {
@@ -541,7 +574,7 @@ export function CanvasView({
                   width: internal?.measured?.width ?? 280,
                   height: internal?.measured?.height ?? 200,
                 })
-                if (!n.id.startsWith(INSET_PREFIX) && !n.id.startsWith(NOTE_PREFIX) && n.id !== TASKBOARD_NODE_ID) {
+                if (!n.id.startsWith(INSET_PREFIX) && !n.id.startsWith(NOTE_PREFIX) && !n.id.startsWith(CALENDAR_PREFIX) && n.id !== TASKBOARD_NODE_ID) {
                   projectIds.add(n.id)
                 }
               }
@@ -632,7 +665,7 @@ export function CanvasView({
         }, 300)
       }
     },
-    [onNodeDragStop, onTaskboardDragStop, onInsetDragStop, onNoteDragStop, getNodeAbsoluteRect, onCascadeShift]
+    [onNodeDragStop, onTaskboardDragStop, onInsetDragStop, onNoteDragStop, onCalendarDragStop, getNodeAbsoluteRect, onCascadeShift]
   )
 
   const handleInit = useCallback((instance: ReactFlowInstance) => {

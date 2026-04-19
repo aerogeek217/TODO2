@@ -7,6 +7,7 @@ interface SlotMenuProps {
   currentKind: SlotKind
   onChangeKind: (kind: SlotKind) => void
   onSplit: (dir: 'above' | 'below' | 'left' | 'right') => void
+  onPopOut?: () => void
   onClose: () => void
 }
 
@@ -29,7 +30,7 @@ const SPLITS: { dir: 'above' | 'below' | 'left' | 'right'; label: string }[] = [
   { dir: 'right', label: 'Split right' },
 ]
 
-export function SlotMenu({ anchor, currentKind, onChangeKind, onSplit, onClose }: SlotMenuProps) {
+export function SlotMenu({ anchor, currentKind, onChangeKind, onSplit, onPopOut, onClose }: SlotMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null)
 
   const getItems = useCallback((): HTMLButtonElement[] => {
@@ -127,6 +128,19 @@ export function SlotMenu({ anchor, currentKind, onChangeKind, onSplit, onClose }
           {s.label}
         </button>
       ))}
+      {onPopOut && (
+        <>
+          <div className={styles.separator} />
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.item}
+            onClick={() => { onPopOut(); onClose() }}
+          >
+            Pop out to canvas
+          </button>
+        </>
+      )}
     </div>
   )
 }

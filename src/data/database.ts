@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note, FloatingCalendar } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
@@ -28,6 +28,7 @@ export class Todo2Database extends Dexie {
   statuses!: Table<Status, number>
   listDefinitions!: Table<ListDefinition, number>
   notes!: Table<Note, number>
+  floatingCalendars!: Table<FloatingCalendar, number>
 
   constructor() {
     super('todo2')
@@ -128,6 +129,13 @@ export class Todo2Database extends Dexie {
       stickyNotes: null,
     }).upgrade(async (tx) => {
       await runV26Migration(tx)
+    })
+
+    // v27: add `floatingCalendars` table — backing store for rail calendar
+    // slots popped out to the canvas (P6 of canvas-rails-polish). No data
+    // migration; the table starts empty.
+    this.version(27).stores({
+      floatingCalendars: '++id, canvasId',
     })
   }
 }
@@ -670,7 +678,7 @@ export function parseHorizonSlots(value: string | undefined | null): Partial<Rec
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.tags, db.todoTags, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars] as const
 
 /**
  * Translate a legacy sticky-note row (title, text, canvasId, x/y/w/h, color,

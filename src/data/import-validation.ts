@@ -1,4 +1,4 @@
-import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note } from '../models'
+import type { TodoItem, Project, Canvas, Person, Tag, TodoTag, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note, FloatingCalendar } from '../models'
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
@@ -436,6 +436,17 @@ function checkNote(v: unknown): CheckResult {
   ])
 }
 
+function checkFloatingCalendar(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['canvasId', isFiniteNum(v.canvasId)],
+    ['x', isFiniteNum(v.x)],
+    ['y', isFiniteNum(v.y)],
+    ['width', isFiniteNum(v.width)],
+    ['height', isFiniteNum(v.height)],
+  ])
+}
+
 function checkTaskboardEntry(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -770,6 +781,17 @@ function pickNote(v: Record<string, unknown>): Note {
   }
 }
 
+function pickFloatingCalendar(v: Record<string, unknown>): FloatingCalendar {
+  return {
+    id: v.id as number | undefined,
+    canvasId: v.canvasId as number,
+    x: v.x as number,
+    y: v.y as number,
+    width: v.width as number,
+    height: v.height as number,
+  }
+}
+
 function pickListDefinition(v: Record<string, unknown>): ListDefinition {
   return {
     id: v.id as number | undefined,
@@ -810,6 +832,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'statuses', check: checkStatus },
   { key: 'listDefinitions', check: checkListDefinition },
   { key: 'notes', check: checkNote },
+  { key: 'floatingCalendars', check: checkFloatingCalendar },
 ]
 
 export interface ImportData {
@@ -831,6 +854,7 @@ export interface ImportData {
   statuses: Status[]
   listDefinitions: ListDefinition[]
   notes: Note[]
+  floatingCalendars: FloatingCalendar[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -913,6 +937,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       statuses: ((raw.statuses ?? []) as Record<string, unknown>[]).map(pickStatus),
       listDefinitions: ((raw.listDefinitions ?? []) as Record<string, unknown>[]).map(pickListDefinition),
       notes: ((raw.notes ?? []) as Record<string, unknown>[]).map(pickNote),
+      floatingCalendars: ((raw.floatingCalendars ?? []) as Record<string, unknown>[]).map(pickFloatingCalendar),
     },
   }
 }
