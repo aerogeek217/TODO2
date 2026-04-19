@@ -13,7 +13,7 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { startOfDay, isSameDay, MS_PER_DAY, formatDateShort } from '../utils/date'
-import { effectiveDate, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
+import { effectiveDate, resolveScheduled, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
 import { StatusIcon } from '../components/shared/StatusIcon'
 import styles from './CalendarView.module.css'
@@ -170,10 +170,15 @@ export function CalendarView() {
     const rangeStart = days.length > 0 ? startOfDay(days[0]) : new Date()
     const rangeEnd = days.length > 0 ? new Date(startOfDay(days[days.length - 1]).getTime() + MS_PER_DAY) : new Date()
 
+    // When both scheduled + deadline are set, render on the scheduled day —
+    // matches the tint logic ("both picks scheduled primary") and keeps the
+    // card on the day the user dragged it to even though min(sched, due)
+    // would clamp it back to the deadline.
     for (const t of scheduled) {
-      const ed = effectiveDate(t, today)
-      if (!ed) continue
-      const primaryDay = startOfDay(ed)
+      const sched = resolveScheduled(t.scheduledDate, today)
+      const primary = sched ?? (t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
+      if (!primary) continue
+      const primaryDay = startOfDay(primary)
       addEntry(primaryDay, t, false)
 
       // Generate virtual future instances for recurring tasks.

@@ -218,6 +218,31 @@ describe('CalendarView — date-type tinting', () => {
     }
   })
 
+  it('renders both-set tasks on their scheduled day even when scheduled > deadline', () => {
+    // Regression: effectiveDate = min(sched, due) previously clamped a
+    // dragged both-set task back to the deadline cell, making drag feel
+    // broken. Render primary = scheduledDay when set.
+    useTodoStore.setState({
+      todos: [
+        makeTodo({
+          id: 9,
+          scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) },
+          dueDate: new Date(2026, 3, 20),
+        }),
+      ],
+    })
+    const { container } = render(<CalendarView />)
+    const cells = Array.from(container.querySelectorAll('[class*="dayCell"]')) as HTMLElement[]
+    const dayOf = (el: HTMLElement) => {
+      // Each cell's first child is the day number span.
+      const numEl = el.querySelector('[class*="dayNumber"]')
+      return numEl ? parseInt(numEl.textContent ?? '', 10) : NaN
+    }
+    const cellWithTask = cells.find((c) => (c.textContent ?? '').includes('Task 9'))
+    expect(cellWithTask).toBeDefined()
+    expect(dayOf(cellWithTask!)).toBe(25)
+  })
+
   it('wires --date-intensity inline style on each tinted item', () => {
     useTodoStore.setState({
       todos: [
