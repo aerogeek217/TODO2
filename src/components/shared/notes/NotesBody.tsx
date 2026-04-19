@@ -59,10 +59,10 @@ function formatRelativeTime(from: Date | null, now: Date): string {
 }
 
 /**
- * Presentation-neutral notes body used by the dashboard `NotesPanel` and
- * (in Phase 4E) the canvas rail Notes slot. Owns the editor, ⌘T conversion,
- * and the footer saved-time indicator — but not the outer chrome / dock
- * buttons, which each surface supplies.
+ * Presentation-neutral notes body used by the dashboard Notes tile, the
+ * canvas rail Notes slot, and task note popovers. Owns the editor, ⌘T
+ * conversion, and the footer saved-time indicator — but not the outer
+ * chrome, which each surface supplies.
  */
 export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, hideFooter = false, source, placeholder }: NotesBodyProps) {
   const storeActiveId = useNoteStore((s) => s.activeId)

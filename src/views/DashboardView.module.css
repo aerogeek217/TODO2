@@ -4,59 +4,9 @@
   padding: 24px;
 }
 
-.pageLayout {
-  display: flex;
-  gap: 20px;
-  align-items: stretch;
-}
-
-.pageLayout_right {
-  flex-direction: row;
-}
-
-.pageLayout_bottom {
-  flex-direction: column;
-}
-
-.pageLayout_floating {
-  /* Notes panel absolutely positioned; main content unaffected. */
-}
-
-.mainColumn {
-  flex: 1;
-  min-width: 0;
-}
-
-.notesDock {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
 .container {
   max-width: 1100px;
   margin: 0 auto;
-}
-
-.containerWide {
-  max-width: 1500px;
-}
-
-.showNotesBtn {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 5px;
-  cursor: pointer;
-  margin-left: auto;
-}
-
-.showNotesBtn:hover {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
 }
 
 .pageHeader {
@@ -290,6 +240,22 @@
   box-sizing: border-box;
 }
 
+/* ── Notes tile (replaces the retired NotesPanel dock) ── */
+
+.notesTile {
+  display: flex;
+  flex-direction: column;
+  min-height: 320px;
+}
+
+.notesTileBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* ── Per-card overflow menu ── */
 
 .cardMenuWrapper {
@@ -482,9 +448,5 @@
 
   .cardBody {
     max-height: 320px;
-  }
-
-  .pageLayout {
-    flex-direction: column;
   }
 }

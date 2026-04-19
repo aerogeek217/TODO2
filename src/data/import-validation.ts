@@ -458,7 +458,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesDock', 'notesVisible', 'canvasRails', 'dashboardTopOrder']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardTopOrder']
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -495,13 +495,8 @@ function checkSetting(v: unknown): CheckResult {
     const n = Number(v.value)
     return n === 0 || n === 1 ? true : 'value (weekStartsOn must be 0 or 1)'
   }
-  if (v.key === 'notesDock') {
-    return v.value === 'right' || v.value === 'bottom' || v.value === 'floating'
-      ? true
-      : 'value (notesDock must be right/bottom/floating)'
-  }
-  if (v.key === 'notesVisible') {
-    return v.value === 'true' || v.value === 'false' ? true : 'value (notesVisible must be true/false)'
+  if (v.key === 'notesPinnedToDashboard') {
+    return v.value === 'true' || v.value === 'false' ? true : 'value (notesPinnedToDashboard must be true/false)'
   }
   if (v.key === 'canvasRails') {
     try {

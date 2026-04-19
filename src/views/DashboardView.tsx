@@ -42,7 +42,7 @@ import { HorizonRibbon } from '../components/dashboard/HorizonRibbon'
 import { TaskboardPanel } from '../components/taskboard/TaskboardPanel'
 import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
-import { NotesPanel } from '../components/dashboard/NotesPanel'
+import { NotesBody } from '../components/shared/notes/NotesBody'
 import { useNoteStore } from '../stores/note-store'
 import { useUndoStore } from '../stores/undo-store'
 import styles from './DashboardView.module.css'
@@ -144,6 +144,9 @@ function CardOverflowMenu({
   onEdit,
   onUnpin,
   onDelete,
+  hideEdit = false,
+  hideDelete = false,
+  label = 'List options',
 }: {
   open: boolean
   onToggle: () => void
@@ -151,6 +154,9 @@ function CardOverflowMenu({
   onEdit: () => void
   onUnpin: () => void
   onDelete: () => void
+  hideEdit?: boolean
+  hideDelete?: boolean
+  label?: string
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null)
 
@@ -184,27 +190,31 @@ function CardOverflowMenu({
         onPointerDown={stopDrag}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="List options"
-        title="List options"
+        aria-label={label}
+        title={label}
       >
         ⋯
       </button>
       {open && (
         <div className={styles.cardMenu} role="menu" onPointerDown={stopDrag} onClick={stopDrag}>
-          <button type="button" role="menuitem" className={styles.cardMenuItem} onClick={onEdit}>
-            Edit list…
-          </button>
+          {!hideEdit && (
+            <button type="button" role="menuitem" className={styles.cardMenuItem} onClick={onEdit}>
+              Edit list…
+            </button>
+          )}
           <button type="button" role="menuitem" className={styles.cardMenuItem} onClick={onUnpin}>
             Unpin from dashboard
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            className={`${styles.cardMenuItem} ${styles.cardMenuItemDanger}`}
-            onClick={onDelete}
-          >
-            Delete list…
-          </button>
+          {!hideDelete && (
+            <button
+              type="button"
+              role="menuitem"
+              className={`${styles.cardMenuItem} ${styles.cardMenuItemDanger}`}
+              onClick={onDelete}
+            >
+              Delete list…
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -359,9 +369,8 @@ export function DashboardView() {
   const setSelectedHorizon = useSettingsStore((s) => s.setSelectedHorizon)
   const setHorizonSlot = useSettingsStore((s) => s.setHorizonSlot)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const notesDock = useSettingsStore((s) => s.notesDock)
-  const notesVisible = useSettingsStore((s) => s.notesVisible)
-  const setNotesVisible = useSettingsStore((s) => s.setNotesVisible)
+  const notesPinnedToDashboard = useSettingsStore((s) => s.notesPinnedToDashboard)
+  const setNotesPinnedToDashboard = useSettingsStore((s) => s.setNotesPinnedToDashboard)
   const dashboardTopOrder = useSettingsStore((s) => s.dashboardTopOrder)
   const setDashboardTopOrder = useSettingsStore((s) => s.setDashboardTopOrder)
   const reorderListDefinitions = useListDefinitionStore((s) => s.reorder)
@@ -374,7 +383,7 @@ export function DashboardView() {
   const [showEditor, setShowEditor] = useState(false)
   const [editorInitialId, setEditorInitialId] = useState<number | null>(null)
   const [showHorizonEditor, setShowHorizonEditor] = useState(false)
-  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<number | 'notes' | null>(null)
   const [pendingDelete, setPendingDelete] = useState<{ id: number; name: string } | null>(null)
   const setPinned = useListDefinitionStore((s) => s.setPinned)
   const removeListDef = useListDefinitionStore((s) => s.remove)
@@ -593,9 +602,7 @@ export function DashboardView() {
     }
   }, [slotPickerAt, setHorizonSlot])
 
-  const showNotesDock = notesVisible && !isMobile
-  const notesDocked = showNotesDock && (notesDock === 'right' || notesDock === 'bottom')
-  const layoutClass = notesDocked ? (styles[`pageLayout_${notesDock}`] ?? styles.pageLayout_right) : ''
+  const showNotesTile = notesPinnedToDashboard && !isMobile
 
   const HERO_PANEL_ID = 'horizon-hero-panel'
   const tabIdFor = useCallback((key: HorizonKey) => `horizon-tab-${key}`, [])
@@ -640,6 +647,19 @@ export function DashboardView() {
     await removeListDef(id)
   }, [pendingDelete, removeListDef])
 
+  const handleUnpinNotes = useCallback(async () => {
+    setOpenMenuId(null)
+    await setNotesPinnedToDashboard(false)
+    pushUndo(
+      {
+        description: 'Unpinned Notes',
+        undo: async () => { await setNotesPinnedToDashboard(true) },
+        redo: async () => { await setNotesPinnedToDashboard(false) },
+      },
+      true,
+    )
+  }, [setNotesPinnedToDashboard, pushUndo])
+
   const handleCreateNewList = useCallback(async () => {
     const defs = useListDefinitionStore.getState().listDefinitions
     let candidate = 'New list'
@@ -656,19 +676,9 @@ export function DashboardView() {
   const pageContent = (
     <>
       <div className={styles.page}>
-        <div className={`${styles.container} ${notesDocked ? `${styles.pageLayout} ${styles.containerWide}` : ''} ${layoutClass}`}>
-          <div className={styles.mainColumn}>
+        <div className={styles.container}>
           <div className={styles.pageHeader}>
             <div className={styles.pageTitle}>Dashboard</div>
-            {!notesVisible && !isMobile && (
-              <button
-                type="button"
-                className={styles.showNotesBtn}
-                onClick={() => void setNotesVisible(true)}
-              >
-                Show notes
-              </button>
-            )}
           </div>
 
           <HorizonRibbon
@@ -729,9 +739,9 @@ export function DashboardView() {
             </div>
           </SortableContext>
 
-          {(userLists.length > 0 || !isMobile) && (
+          {(userLists.length > 0 || showNotesTile || !isMobile) && (
             <>
-              {userLists.length > 0 && (
+              {(userLists.length > 0 || showNotesTile) && (
                 <div className={styles.sectionDivider}>Your lists</div>
               )}
               <SortableContext
@@ -767,6 +777,28 @@ export function DashboardView() {
                       )}
                     />
                   ))}
+                  {showNotesTile && (
+                    <div className={`${styles.card} ${styles.listCard} ${styles.notesTile}`}>
+                      <div className={styles.cardHeader}>
+                        <span className={styles.cardTitle}>Notes</span>
+                        <span className={styles.cardCount} aria-hidden />
+                        <CardOverflowMenu
+                          open={openMenuId === 'notes'}
+                          onToggle={() => setOpenMenuId((cur) => (cur === 'notes' ? null : 'notes'))}
+                          onClose={() => setOpenMenuId((cur) => (cur === 'notes' ? null : cur))}
+                          onEdit={() => setOpenMenuId(null)}
+                          onUnpin={() => { void handleUnpinNotes() }}
+                          onDelete={() => setOpenMenuId(null)}
+                          hideEdit
+                          hideDelete
+                          label="Notes options"
+                        />
+                      </div>
+                      <div className={styles.notesTileBody}>
+                        <NotesBody dock="slot" hideFooter />
+                      </div>
+                    </div>
+                  )}
                   {!isMobile && (
                     <button
                       type="button"
@@ -786,14 +818,7 @@ export function DashboardView() {
             </>
           )}
 
-          </div>
-          {notesDocked && (
-            <div className={styles.notesDock}>
-              <NotesPanel />
-            </div>
-          )}
         </div>
-        {showNotesDock && notesDock === 'floating' && <NotesPanel />}
 
         {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
           <TaskEditPopup
@@ -835,6 +860,8 @@ export function DashboardView() {
           y={addListPickerPos.y}
           onClose={() => setAddListPickerPos(null)}
           onCreateNew={() => { void handleCreateNewList() }}
+          showNotesEntry={!notesPinnedToDashboard}
+          onPinNotes={() => { void setNotesPinnedToDashboard(true) }}
         />
       )}
       {slotPickerAt && (

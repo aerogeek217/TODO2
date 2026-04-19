@@ -14,13 +14,16 @@ interface Props {
   onSelect?: (listDefinitionId: number) => void
   onCreateNew: () => void
   onClose: () => void
+  /** Dashboard mode: render a "Notes" pseudo-entry that triggers `onPinNotes`. */
+  showNotesEntry?: boolean
+  onPinNotes?: () => void
 }
 
 const WIDTH_PX = 280
 const EST_HEIGHT_PX = 320
 const MARGIN_PX = 8
 
-export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, onCreateNew, onClose }: Props) {
+export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, onCreateNew, onClose, showNotesEntry = false, onPinNotes }: Props) {
   const popupRef = useRef<HTMLDivElement>(null)
   const { listDefinitions, setPinned } = useListDefinitionStore()
 
@@ -60,7 +63,8 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
   const emptyLabel = mode === 'canvas' ? 'No lists yet.' : 'All lists are already pinned.'
   const actionLabel = mode === 'canvas' ? 'Add' : 'Pin'
 
-  const isEmpty = items.length === 0
+  const showNotes = mode === 'dashboard' && showNotesEntry && onPinNotes != null
+  const isEmpty = items.length === 0 && !showNotes
 
   return (
     <div
@@ -86,6 +90,16 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
             <div className={styles.empty}>{emptyLabel}</div>
           ) : (
             <div className={styles.list}>
+              {showNotes && (
+                <button
+                  key="__notes__"
+                  className={styles.item}
+                  onClick={() => { onPinNotes?.(); onClose() }}
+                >
+                  <span className={styles.itemName}>Notes</span>
+                  <span className={styles.itemAction}>Pin</span>
+                </button>
+              )}
               {items.map(d => (
                 <button
                   key={d.id}
