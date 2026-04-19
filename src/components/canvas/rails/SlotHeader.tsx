@@ -7,6 +7,7 @@ interface SlotHeaderProps {
   meta?: ReactNode
   slotKind: SlotKind
   onMore?: (anchor: { x: number; y: number }) => void
+  onPopOut?: () => void
   menuOpen?: boolean
   onClose?: () => void
   dragHandleProps?: HTMLAttributes<HTMLSpanElement> & { ref?: React.Ref<HTMLSpanElement> }
@@ -24,6 +25,7 @@ export function SlotHeader({
   meta,
   slotKind,
   onMore,
+  onPopOut,
   menuOpen,
   onClose,
   dragHandleProps,
@@ -45,6 +47,17 @@ export function SlotHeader({
       </span>
       <span className={styles.title}>{title}</span>
       {meta != null && <span className={styles.meta}>{meta}</span>}
+      {onPopOut && (
+        <button
+          type="button"
+          className={styles.iconButton}
+          onClick={onPopOut}
+          aria-label={`Pop out ${kindLabel} slot to canvas`}
+          title="Pop out to canvas"
+        >
+          ⇱
+        </button>
+      )}
       {onMore && (
         <button
           ref={moreButtonRef}

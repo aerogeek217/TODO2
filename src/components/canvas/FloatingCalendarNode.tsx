@@ -7,6 +7,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useFilterStore, applyFilter } from '../../stores/filter-store'
 import { startOfDay } from '../../utils/date'
 import { TwoWeekCalendarStrip } from './rails/TwoWeekCalendarStrip'
@@ -72,6 +73,18 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
     <div className={styles.calendar} style={{ width, height }}>
       <div className={styles.titleBar}>
         <span className={styles.label}>📅 Calendar · next 2 wks</span>
+        <button
+          className={`${styles.deleteButton} nopan nodrag`}
+          onClick={() => {
+            if (calendar.id == null) return
+            useCanvasRailsStore.getState().createAndDockSlot('calendar')
+            onDelete(calendar.id)
+          }}
+          aria-label="Dock calendar to rail"
+          title="Dock to rail"
+        >
+          ↙
+        </button>
         <button
           className={`${styles.deleteButton} nopan nodrag`}
           onClick={handleDelete}

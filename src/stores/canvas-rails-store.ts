@@ -35,9 +35,18 @@ interface CanvasRailsState {
   edgeDropSlot: (slotId: string, toSide: RailSide, edge: 'head' | 'tail') => void
   splitDropSlot: (slotId: string, targetSlotId: string, zone: SplitZone) => void
   splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right') => void
+  /**
+   * Create a new slot of the given kind and dock it into the first empty rail
+   * (preference order: right, left, top, bottom). If no rails are empty, append
+   * the new slot to the right rail. Used by canvas floating-node dock-back.
+   * Returns the new slot's id.
+   */
+  createAndDockSlot: (kind: SlotKind, listDefinitionId?: number) => string
   setRailSize: (side: RailSide, px: number) => void
   clearPendingFocus: () => void
 }
+
+const DOCK_PRIORITY: RailSide[] = ['right', 'left', 'top', 'bottom']
 
 export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
   rails: EMPTY_RAILS,
@@ -117,6 +126,26 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
     if (next === state.rails) return state
     return { rails: next, pendingFocusSlotId: newId }
   }),
+
+  createAndDockSlot: (kind, listDefinitionId) => {
+    const slot: Slot = { id: genSlotId(), kind, ...(listDefinitionId != null ? { listDefinitionId } : {}) }
+    set((state) => {
+      const next: RailsState = { ...state.rails }
+      const emptySide = DOCK_PRIORITY.find((side) => !next[side])
+      if (emptySide) {
+        next[emptySide] = { orientation: railOrientationForSide(emptySide), slots: [slot] }
+      } else {
+        const rail = next.right
+        if (!rail) {
+          next.right = { orientation: railOrientationForSide('right'), slots: [slot] }
+        } else {
+          next.right = { ...rail, slots: [...rail.slots, slot] }
+        }
+      }
+      return { rails: next, pendingFocusSlotId: slot.id }
+    })
+    return slot.id
+  },
 
   setRailSize: (side, px) => set((state) => {
     const clamped = clampRailSize(px)

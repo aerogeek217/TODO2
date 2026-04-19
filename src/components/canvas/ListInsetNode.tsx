@@ -4,6 +4,7 @@ import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Tag, Org, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { TaskRow } from '../task/TaskRow'
 import { ListDefinitionBody } from './ListDefinitionBody'
 import styles from './ListInsetNode.module.css'
@@ -100,6 +101,18 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         <span className={styles.presetIcon}>{'\u{1F4CB}'}</span>
         <span className={styles.insetName}>{headerLabel}</span>
         <span className={styles.taskCount}>{count}</span>
+        <button
+          className={styles.deleteButton}
+          aria-label="Dock list to rail"
+          title="Dock to rail"
+          onClick={() => {
+            if (inset.id == null) return
+            useCanvasRailsStore.getState().createAndDockSlot('lens', inset.listDefinitionId)
+            onDelete(inset.id)
+          }}
+        >
+          ↙
+        </button>
         <button
           className={styles.deleteButton}
           onClick={() => inset.id && onDelete(inset.id)}

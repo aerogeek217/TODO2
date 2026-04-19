@@ -3,6 +3,7 @@ import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { PersistedNote } from '../../models'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useUIStore } from '../../stores/ui-store'
+import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { NotesBody } from '../shared/notes/NotesBody'
 import styles from './FloatingNoteNode.module.css'
 
@@ -84,6 +85,18 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
           )}
         </div>
         <span className={styles.noteLabel}>Note</span>
+        <button
+          className={`${styles.deleteButton} nopan nodrag`}
+          onClick={() => {
+            if (note.id == null) return
+            useCanvasRailsStore.getState().createAndDockSlot('notes')
+            onDelete(note.id)
+          }}
+          aria-label="Dock notes to rail"
+          title="Dock to rail (opens rail notes; this floating note is moved to undo)"
+        >
+          ↙
+        </button>
         <button
           className={`${styles.deleteButton} nopan nodrag`}
           onClick={handleDelete}

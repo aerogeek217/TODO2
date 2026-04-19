@@ -6,6 +6,8 @@ import { useNoteStore } from '../../../../stores/note-store'
 import { useListInsetStore } from '../../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../../stores/floating-calendar-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
+import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
+import { EMPTY_RAILS } from '../../../../models/canvas-rails'
 import type { Slot } from '../../../../models/canvas-rails'
 
 beforeEach(async () => {
@@ -16,6 +18,7 @@ beforeEach(async () => {
   useListInsetStore.setState({ insets: [], loading: false, error: null })
   useFloatingCalendarStore.setState({ calendars: [], loading: false, error: null })
   useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
+  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
 })
 
 async function seedCanvas(): Promise<number> {
@@ -105,5 +108,44 @@ describe('popSlotToCanvas', () => {
     expect(calendars.length).toBe(1)
     expect(calendars[0].width).toBeGreaterThan(0)
     expect(calendars[0].height).toBeGreaterThan(0)
+  })
+})
+
+describe('createAndDockSlot', () => {
+  it('docks into the first empty rail, preferring right', () => {
+    const id = useCanvasRailsStore.getState().createAndDockSlot('calendar')
+    const { rails } = useCanvasRailsStore.getState()
+    expect(rails.right?.slots.map((s) => s.id)).toEqual([id])
+    expect(rails.left).toBeNull()
+    expect(rails.top).toBeNull()
+    expect(rails.bottom).toBeNull()
+  })
+
+  it('falls back to left when right is occupied', () => {
+    useCanvasRailsStore.getState().createAndDockSlot('calendar')
+    const id = useCanvasRailsStore.getState().createAndDockSlot('notes')
+    const { rails } = useCanvasRailsStore.getState()
+    expect(rails.left?.slots.map((s) => s.id)).toEqual([id])
+  })
+
+  it('appends to the right rail when all four rails are occupied', () => {
+    const store = useCanvasRailsStore.getState()
+    store.createAndDockSlot('calendar')
+    store.createAndDockSlot('notes')
+    store.createAndDockSlot('calendar')
+    store.createAndDockSlot('notes')
+    // All four rails now each have one slot. Next dock appends to right.
+    const id = useCanvasRailsStore.getState().createAndDockSlot('calendar')
+    const { rails } = useCanvasRailsStore.getState()
+    expect(rails.right?.slots.length).toBe(2)
+    expect(rails.right?.slots[1].id).toBe(id)
+  })
+
+  it('carries listDefinitionId through for lens slots', () => {
+    const id = useCanvasRailsStore.getState().createAndDockSlot('lens', 42)
+    const { rails } = useCanvasRailsStore.getState()
+    const slot = rails.right?.slots.find((s) => s.id === id)
+    expect(slot?.kind).toBe('lens')
+    expect(slot?.listDefinitionId).toBe(42)
   })
 })

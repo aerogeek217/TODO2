@@ -168,6 +168,11 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     }
   }, [pendingFocusSlotId, slot.id, clearPendingFocus])
 
+  const canPopOut = !(slot.kind === 'lens' && slot.listDefinitionId == null)
+  const handlePopOut = canPopOut
+    ? () => { void popSlotToCanvas(slot).then((moved) => { if (moved) closeSlot(slot.id) }) }
+    : undefined
+
   let header: ReactNode
   let body: ReactNode
   if (slot.kind === 'lens') {
@@ -182,6 +187,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         )}
         meta={count > 0 ? count : undefined}
         onMore={(anchor) => setMenuAnchor(anchor)}
+        onPopOut={handlePopOut}
         menuOpen={menuOpen}
         moreButtonRef={moreButtonRef}
         onClose={closeThisSlot}
@@ -202,6 +208,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         slotKind={slot.kind}
         title="📅 Calendar · next 2 wks"
         onMore={(anchor) => setMenuAnchor(anchor)}
+        onPopOut={handlePopOut}
         menuOpen={menuOpen}
         moreButtonRef={moreButtonRef}
         onClose={closeThisSlot}
@@ -214,6 +221,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         slotKind={slot.kind}
         title="◰ Notes · Inbox"
         onMore={(anchor) => setMenuAnchor(anchor)}
+        onPopOut={handlePopOut}
         menuOpen={menuOpen}
         moreButtonRef={moreButtonRef}
         onClose={closeThisSlot}
@@ -260,9 +268,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           currentKind={slot.kind}
           onChangeKind={(kind) => updateSlot(slot.id, { kind })}
           onSplit={(dir) => splitSlot(slot.id, dir)}
-          onPopOut={slot.kind === 'lens' && slot.listDefinitionId == null ? undefined : () => {
-            void popSlotToCanvas(slot).then((moved) => { if (moved) closeSlot(slot.id) })
-          }}
+          onPopOut={handlePopOut}
           onClose={closeMenuAndFocusTrigger}
         />
       )}
