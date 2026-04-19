@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EditorView } from '@codemirror/view'
 import { useNoteStore } from '../../../stores/note-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useCanvasStore } from '../../../stores/canvas-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { formatShortcut } from '../../../utils/platform'
+import { copyNotesRich } from '../../../services/notes-export'
 import { NotesEditor } from './NotesEditor'
+import { NotesToolbar } from './NotesToolbar'
 import styles from './NotesBody.module.css'
 
 interface NotesBodyProps {
   dock?: 'right' | 'bottom' | 'floating' | 'slot'
   onConvertToast?: (message: string) => void
+  /** Show the inline formatting toolbar. Defaults to true. */
+  showToolbar?: boolean
 }
 
 const CONVERTIBLE_LINE_RE = /^(\s*)([—–\-•]|\[[ xX]\])(\s+)(.*)$/
@@ -33,12 +38,13 @@ function formatRelativeTime(from: Date | null, now: Date): string {
  * and the footer saved-time indicator — but not the outer chrome / dock
  * buttons, which each surface supplies.
  */
-export function NotesBody({ dock = 'right', onConvertToast }: NotesBodyProps) {
+export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true }: NotesBodyProps) {
   const activeId = useNoteStore((s) => s.activeId)
   const notes = useNoteStore((s) => s.notes)
   const lastSavedAt = useNoteStore((s) => s.lastSavedAt)
   const setContent = useNoteStore((s) => s.setContent)
   const load = useNoteStore((s) => s.load)
+  const flush = useNoteStore((s) => s.flush)
 
   const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
   const selectedCanvasId = useCanvasStore((s) => s.selectedCanvasId)
@@ -46,6 +52,8 @@ export function NotesBody({ dock = 'right', onConvertToast }: NotesBodyProps) {
 
   const [, setTick] = useState(0)
   const [caretLine, setCaretLine] = useState(0)
+  const [copying, setCopying] = useState(false)
+  const viewRef = useRef<EditorView | null>(null)
 
   useEffect(() => {
     if (activeId == null) void load()
@@ -112,20 +120,39 @@ export function NotesBody({ dock = 'right', onConvertToast }: NotesBodyProps) {
   const lines = content.split('\n')
   const currentLineText = lines[caretLine] ?? ''
   const canConvert = CONVERTIBLE_LINE_RE.test(currentLineText) && currentLineText.trim().length > 0
+  const convertShortcut = formatShortcut('Mod-t')
+
+  const handleCopy = useCallback(async () => {
+    if (activeId == null) return
+    setCopying(true)
+    try {
+      // Flush any pending debounced write so the copy reflects the latest keystrokes.
+      await flush()
+      const latest = useNoteStore.getState().notes.get(activeId)?.content ?? ''
+      const ok = await copyNotesRich(latest)
+      onConvertToast?.(ok ? 'Copied rich text — paste into OneNote/Word' : 'Copy failed')
+    } finally {
+      setCopying(false)
+    }
+  }, [activeId, flush, onConvertToast])
 
   return (
     <div className={`${styles.body} ${styles[`body_${dock}`] ?? ''}`}>
+      {showToolbar && (
+        <NotesToolbar viewRef={viewRef} onCopy={handleCopy} copying={copying} />
+      )}
       <NotesEditor
         value={content}
         onChange={handleChange}
         onLineChange={setCaretLine}
         extraKeymap={extraKeymap}
         placeholder="Jot notes here…"
+        viewRef={viewRef}
       />
       <div className={styles.footer}>
-        <span className={styles.footerChip}>⌘T convert</span>
+        <span className={styles.footerChip}>{convertShortcut} convert</span>
         <span className={styles.footerChip}>MD shorthand</span>
-        {canConvert && <span className={styles.footerHint}>Press ⌘T to convert current line</span>}
+        {canConvert && <span className={styles.footerHint}>Press {convertShortcut} to convert current line</span>}
         <span className={styles.footerSpacer} />
         <span className={styles.footerSaved}>{savedLabel}</span>
       </div>

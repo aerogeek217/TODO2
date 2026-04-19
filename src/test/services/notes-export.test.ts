@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { normalizeToMarkdown, mdToHtml, copyNotesRich } from '../../services/notes-export'
+import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown } from '../../services/notes-export'
 
 describe('normalizeToMarkdown', () => {
   it('converts ALL-CAPS lines into H2 headings', () => {
@@ -62,6 +62,65 @@ describe('mdToHtml', () => {
   it('escapes HTML special chars inside plain text', () => {
     const html = mdToHtml('<script>alert(1)</script>')
     expect(html).toContain('&lt;script&gt;')
+  })
+})
+
+describe('htmlToMarkdown', () => {
+  it('converts headings h1–h3', () => {
+    expect(htmlToMarkdown('<h1>A</h1><h2>B</h2><h3>C</h3>')).toBe('# A\n\n## B\n\n### C')
+  })
+
+  it('converts <ul><li> to dash bullets', () => {
+    const md = htmlToMarkdown('<ul><li>one</li><li>two</li></ul>')
+    expect(md).toBe('- one\n- two')
+  })
+
+  it('converts <ol><li> to numbered list', () => {
+    const md = htmlToMarkdown('<ol><li>one</li><li>two</li></ol>')
+    expect(md).toBe('1. one\n2. two')
+  })
+
+  it('converts checkbox list items to [ ] / [x]', () => {
+    const md = htmlToMarkdown(
+      '<ul><li><input type="checkbox"> open</li><li><input type="checkbox" checked> done</li></ul>',
+    )
+    expect(md).toContain('- [ ] open')
+    expect(md).toContain('- [x] done')
+  })
+
+  it('converts <strong>/<b> to ** and <em>/<i> to *', () => {
+    expect(htmlToMarkdown('<p><strong>bold</strong> and <em>italic</em></p>')).toBe('**bold** and *italic*')
+    expect(htmlToMarkdown('<p><b>bold</b> and <i>italic</i></p>')).toBe('**bold** and *italic*')
+  })
+
+  it('converts inline <code> to backticks', () => {
+    expect(htmlToMarkdown('<p>see <code>fn()</code></p>')).toBe('see `fn()`')
+  })
+
+  it('converts <a href> to Markdown link', () => {
+    expect(htmlToMarkdown('<p><a href="https://x.com">X</a></p>')).toBe('[X](https://x.com)')
+  })
+
+  it('strips <script> tags', () => {
+    const md = htmlToMarkdown('<p>before</p><script>alert(1)</script><p>after</p>')
+    expect(md).not.toContain('alert')
+    expect(md).not.toContain('script')
+    expect(md).toContain('before')
+    expect(md).toContain('after')
+  })
+
+  it('passes through unknown tags to their text content', () => {
+    expect(htmlToMarkdown('<custom>text</custom>')).toBe('text')
+  })
+
+  it('round-trips mdToHtml(htmlToMarkdown(html)) for a known-good fixture', () => {
+    const html = '<h2>Title</h2><ul><li>alpha</li><li>beta</li></ul><p><strong>bold</strong></p>'
+    const md = htmlToMarkdown(html)
+    const roundTripped = mdToHtml(md)
+    expect(roundTripped).toContain('<h2>Title</h2>')
+    expect(roundTripped).toContain('<li>alpha</li>')
+    expect(roundTripped).toContain('<li>beta</li>')
+    expect(roundTripped).toContain('<strong>bold</strong>')
   })
 })
 

@@ -3,6 +3,7 @@ import { EditorState, Compartment } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
+import { htmlToMarkdown } from '../../../services/notes-export'
 import styles from './NotesEditor.module.css'
 
 interface NotesEditorProps {
@@ -12,6 +13,12 @@ interface NotesEditorProps {
   /** Extra key bindings added to the editor (e.g. ⌘T convert-to-task). */
   extraKeymap?: Array<{ key: string; run: (view: EditorView) => boolean }>
   placeholder?: string
+  /**
+   * Optional external ref — populated with the live `EditorView` after mount
+   * and cleared on unmount. Lets a parent dispatch commands (toolbar buttons,
+   * imperative API) without exposing a ref-forwarding ladder.
+   */
+  viewRef?: { current: EditorView | null }
 }
 
 /**
@@ -29,6 +36,7 @@ export function NotesEditor({
   onLineChange,
   extraKeymap = [],
   placeholder,
+  viewRef: externalViewRef,
 }: NotesEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -52,12 +60,33 @@ export function NotesEditor({
       ...historyKeymap,
     ])
 
+    const pasteHandler = EditorView.domEventHandlers({
+      paste(event, view) {
+        const clip = event.clipboardData
+        if (!clip) return false
+        const types = Array.from(clip.types ?? [])
+        if (!types.includes('text/html')) return false
+        const html = clip.getData('text/html')
+        if (!html) return false
+        const md = htmlToMarkdown(html)
+        if (!md) return false
+        const { from, to } = view.state.selection.main
+        view.dispatch({
+          changes: { from, to, insert: md },
+          selection: { anchor: from + md.length },
+        })
+        event.preventDefault()
+        return true
+      },
+    })
+
     const state = EditorState.create({
       doc: value,
       extensions: [
         history(),
         markdown(),
         EditorView.lineWrapping,
+        pasteHandler,
         keymapCompartment.current.of(buildKeymap()),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
@@ -78,10 +107,12 @@ export function NotesEditor({
 
     const view = new EditorView({ state, parent: hostRef.current })
     viewRef.current = view
+    if (externalViewRef) externalViewRef.current = view
 
     return () => {
       view.destroy()
       viewRef.current = null
+      if (externalViewRef) externalViewRef.current = null
     }
     // Only build the editor once — later prop changes flow through the refs
     // and the `value` sync effect below.
@@ -117,6 +148,11 @@ export function NotesEditor({
   }, [extraKeymap])
 
   return (
-    <div className={styles.host} ref={hostRef} data-placeholder={placeholder ?? undefined} />
+    <div
+      className={styles.host}
+      ref={hostRef}
+      data-placeholder={placeholder ?? undefined}
+      data-shortcut-scope="none"
+    />
   )
 }

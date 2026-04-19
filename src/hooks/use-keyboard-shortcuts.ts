@@ -30,8 +30,19 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
     if (!enabled) return
     const handleKeyDown = async (e: KeyboardEvent) => {
       const { openCreatePopup, openPalette, closePalette, navigate, createStickyNote, openShortcutsModal, fitView, toggleProjectNavigator } = cbRef.current
-      const tag = (e.target as HTMLElement).tagName
-      const isInput = tag === 'INPUT' || tag === 'TEXTAREA'
+      const target = e.target as HTMLElement | null
+      const active = document.activeElement as HTMLElement | null
+      const isTextField = (el: HTMLElement | null): boolean => {
+        if (!el || typeof el.tagName !== 'string') return false
+        const tag = el.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return true
+        if (el.isContentEditable) return true
+        if (typeof el.closest !== 'function') return false
+        if (el.closest('[contenteditable="true"], [contenteditable=""]')) return true
+        if (el.closest('[data-shortcut-scope="none"]')) return true
+        return false
+      }
+      const isInput = isTextField(target) || isTextField(active)
 
       // Undo/Redo — skip when focus is in a text input (native undo handles it)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !isInput) {

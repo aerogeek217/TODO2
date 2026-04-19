@@ -106,6 +106,107 @@ export function mdToHtml(md: string): string {
 }
 
 /**
+ * Best-effort HTML → Markdown converter for clipboard paste. Parses via
+ * `DOMParser` into an inert document (scripts/styles never execute) and
+ * walks the tree, emitting Markdown for the tags we support. Unknown tags
+ * fall through to their text content.
+ *
+ * Intentionally narrow: supports the subset we also *produce* in
+ * `mdToHtml`, so a round-trip `mdToHtml(htmlToMarkdown(x))` preserves the
+ * structure of pasted content from OneNote / Google Docs / webpages.
+ */
+export function htmlToMarkdown(html: string): string {
+  if (typeof DOMParser === 'undefined') return html
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  // Drop script / style nodes outright — never evaluate, never emit.
+  doc.querySelectorAll('script, style, noscript').forEach((n) => n.remove())
+  const out = walkNode(doc.body).replace(/\n{3,}/g, '\n\n').trim()
+  return out
+}
+
+function walkNode(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    // Collapse whitespace the way HTML rendering would, but keep single spaces.
+    return (node.textContent ?? '').replace(/\s+/g, ' ')
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) return ''
+  const el = node as Element
+  const tag = el.tagName.toLowerCase()
+  const inner = () => Array.from(el.childNodes).map(walkNode).join('')
+
+  switch (tag) {
+    case 'h1': return `\n# ${inner().trim()}\n\n`
+    case 'h2': return `\n## ${inner().trim()}\n\n`
+    case 'h3': return `\n### ${inner().trim()}\n\n`
+    case 'h4':
+    case 'h5':
+    case 'h6': return `\n#### ${inner().trim()}\n\n`
+    case 'br': return '\n'
+    case 'p':
+    case 'div':
+    case 'section':
+    case 'article': return `${inner()}\n\n`
+    case 'strong':
+    case 'b': {
+      const text = inner().trim()
+      return text ? `**${text}**` : ''
+    }
+    case 'em':
+    case 'i': {
+      const text = inner().trim()
+      return text ? `*${text}*` : ''
+    }
+    case 'code': return `\`${inner()}\``
+    case 'pre': {
+      // <pre><code>…</code></pre> — emit fenced block.
+      const codeChild = el.querySelector(':scope > code')
+      const body = (codeChild?.textContent ?? el.textContent ?? '').replace(/\n+$/, '')
+      return `\n\`\`\`\n${body}\n\`\`\`\n\n`
+    }
+    case 'a': {
+      const href = el.getAttribute('href') ?? ''
+      const text = inner().trim() || href
+      if (!href) return text
+      return `[${text}](${href})`
+    }
+    case 'ul':
+    case 'ol': {
+      const ordered = tag === 'ol'
+      const items = Array.from(el.children).filter((c) => c.tagName.toLowerCase() === 'li')
+      const lines = items.map((li, idx) => {
+        const checkbox = li.querySelector(':scope > input[type="checkbox"]')
+        if (checkbox) {
+          const checked = (checkbox as HTMLInputElement).checked || checkbox.hasAttribute('checked')
+          // Remove the checkbox from the walked content so it doesn't double-emit.
+          const clone = li.cloneNode(true) as HTMLElement
+          clone.querySelector(':scope > input[type="checkbox"]')?.remove()
+          const text = Array.from(clone.childNodes).map(walkNode).join('').trim()
+          return `- [${checked ? 'x' : ' '}] ${text}`
+        }
+        const text = Array.from(li.childNodes).map(walkNode).join('').trim()
+        return ordered ? `${idx + 1}. ${text}` : `- ${text}`
+      })
+      return `\n${lines.join('\n')}\n\n`
+    }
+    case 'li': {
+      // Stray <li> outside a list — treat as bullet.
+      return `- ${inner().trim()}\n`
+    }
+    case 'input': {
+      const type = (el.getAttribute('type') ?? '').toLowerCase()
+      if (type === 'checkbox') {
+        const checked = (el as HTMLInputElement).checked || el.hasAttribute('checked')
+        return `[${checked ? 'x' : ' '}] `
+      }
+      return ''
+    }
+    case 'blockquote': return `\n> ${inner().trim()}\n\n`
+    case 'hr': return '\n---\n\n'
+    default: return inner()
+  }
+}
+
+/**
  * Copy the note content as rich text + plain text onto the clipboard.
  * Returns true on success. Falls back to plain-text-only if the
  * `ClipboardItem` API is unavailable or rejects (older browsers).

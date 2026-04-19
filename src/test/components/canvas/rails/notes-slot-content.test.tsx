@@ -33,6 +33,6 @@ describe('NotesSlotContent', () => {
     expect(container).toBeTruthy()
     expect(container!.textContent).toContain('SLOT SHARED NOTES')
     // Footer is present (body renders with `dock="slot"`).
-    expect(screen.getByText(/⌘T convert/i)).toBeInTheDocument()
+    expect(screen.getByText(/(⌘T|Ctrl\+T) convert/i)).toBeInTheDocument()
   })
 })

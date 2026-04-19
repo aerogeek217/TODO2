@@ -53,32 +53,10 @@
   border-radius: 4px;
 }
 
-.copyBtn {
-  margin-left: auto;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.copyBtn:hover:not(:disabled) {
-  color: var(--color-text-primary);
-  border-color: var(--color-text-secondary);
-}
-
-.copyBtn:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-
 .dockBtns {
   display: flex;
   gap: 2px;
-  margin-left: 4px;
+  margin-left: auto;
 }
 
 .dockBtn {

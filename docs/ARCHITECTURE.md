@@ -30,13 +30,13 @@ main.tsx (entry point)
 │   ├── dashboard/         → HorizonRibbon + HorizonCell (5-cell horizon chart; reads settings `horizonSlots` + `listDefinitions`); NotesPanel (Inbox chrome + dock buttons; body = shared `NotesBody`)
 │   ├── overlays/          → CommandPalette, ReassignDialog, BulkConfirmDialog, UndoSnackbar, FilterSheet (mobile)
 │   ├── settings/          → PeopleEditor, OrgEditor, TagEditor, StatusEditor, ThemeColorsEditor, KeyboardShortcutsModal, DashboardListsEditor
-│   └── shared/            → Chip, SectionHeader, ChipSelector, ColorInput, StatusIcon, AvatarStack, notes/NotesEditor (CM6 wrapper) + notes/NotesBody (shared editor + ⌘T-to-task), selection.module.css, dropdown.module.css
+│   └── shared/            → Chip, SectionHeader, ChipSelector, ColorInput, StatusIcon, AvatarStack, notes/NotesEditor (CM6 wrapper + HTML→Markdown paste via `htmlToMarkdown`) + notes/NotesBody (shared editor + ⌘T-to-task + platform-aware shortcut labels via `utils/platform.formatShortcut`) + notes/NotesToolbar (Bold/Italic/H1/H2/Bullet/Checkbox + ⧉ copy-rich; dispatches CM commands via viewRef; parent owns copy handler that flushes note-store first), selection.module.css, dropdown.module.css
 ├── stores/                → Zustand (canvas, canvas-rails, todo, project, person, tag, org, status, list-inset, sticky-note, taskboard, ui, filter, undo, saved-view, list-definition, settings, file-storage, note)
 ├── data/                  → Dexie repositories + migrations + restore + audit
 ├── models/                → TypeScript interfaces
 ├── hooks/                 → Custom React hooks
-├── utils/                 → Shared pure utilities (hierarchy, dates, effective-date, filter)
-└── services/              → NLP, command registry, file storage, undoable, backup scheduler, dashboard-lists interpreter, horizons (ribbon bin geometry), notes-export (Markdown → HTML clipboard helpers)
+├── utils/                 → Shared pure utilities (hierarchy, dates, effective-date, filter, platform — `isMacLike()` + `formatShortcut('Mod-t')` for ⌘/Ctrl-aware shortcut labels)
+└── services/              → NLP, command registry, file storage, undoable, backup scheduler, dashboard-lists interpreter, horizons (ribbon bin geometry), notes-export (Markdown ⇄ HTML clipboard helpers: `mdToHtml`, `htmlToMarkdown`, `copyNotesRich`)
 ```
 
 ## Data Flow
