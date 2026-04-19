@@ -24,6 +24,7 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 ## Working Principles
 - **Verify before acting.** Never assume how code works — read the actual implementation before making changes. Trace the real call chain, check actual types, confirm actual behavior. If you're not sure, read the code; don't guess.
 - If a fix touches logic you haven't read, read it first. Wrong assumptions produce slop.
+- **No shortcuts dressed as architecture.** When a task feels hard, don't rationalize skipping it as "too brittle" or "architecturally complex" unless you have actually tried it and hit a concrete wall. Spike for ~15 minutes before deferring. If you're skipping for time, say so explicitly ("~N more minutes for the full version") — don't rebrand it as an architectural constraint. Plan-doc hedges ("this is brittle") are prompts to try, not licenses to skip.
 
 ## Code Conventions
 - Components in `src/components/`, route pages in `src/views/`
