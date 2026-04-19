@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { RailSide, RailsState, Slot, SlotKind } from '../models/canvas-rails'
-import { EMPTY_RAILS, railOrientationForSide } from '../models/canvas-rails'
+import { EMPTY_RAILS, clampRailSize, railOrientationForSide } from '../models/canvas-rails'
 import {
   applyDropToSide,
   applyEdgeDrop,
@@ -35,6 +35,7 @@ interface CanvasRailsState {
   edgeDropSlot: (slotId: string, toSide: RailSide, edge: 'head' | 'tail') => void
   splitDropSlot: (slotId: string, targetSlotId: string, zone: SplitZone) => void
   splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right') => void
+  setRailSize: (side: RailSide, px: number) => void
   clearPendingFocus: () => void
 }
 
@@ -115,5 +116,19 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
     const next = applySplitButton(state.rails, slotId, dir, { genSlotId: () => newId })
     if (next === state.rails) return state
     return { rails: next, pendingFocusSlotId: newId }
+  }),
+
+  setRailSize: (side, px) => set((state) => {
+    const clamped = clampRailSize(px)
+    if (side === 'left' || side === 'right') {
+      const prev = state.rails.widths?.[side]
+      if (prev === clamped) return state
+      const widths = { ...(state.rails.widths ?? {}), [side]: clamped }
+      return { rails: { ...state.rails, widths } }
+    }
+    const prev = state.rails.heights?.[side]
+    if (prev === clamped) return state
+    const heights = { ...(state.rails.heights ?? {}), [side]: clamped }
+    return { rails: { ...state.rails, heights } }
   }),
 }))

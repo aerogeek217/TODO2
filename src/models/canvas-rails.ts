@@ -13,7 +13,44 @@ export interface Rail {
   slots: Slot[]
 }
 
-export type RailsState = Record<RailSide, Rail | null>
+export interface RailsState {
+  left: Rail | null
+  right: Rail | null
+  top: Rail | null
+  bottom: Rail | null
+  /**
+   * Persisted widths for vertical rails (left/right). Absent = default.
+   * Kept here even when the rail is null so closing/reopening preserves size.
+   */
+  widths?: { left?: number; right?: number }
+  /** Persisted heights for horizontal rails (top/bottom). */
+  heights?: { top?: number; bottom?: number }
+}
+
+export const RAIL_SIZE_MIN = 200
+export const RAIL_SIZE_MAX = 600
+export const DEFAULT_VERTICAL_RAIL_WIDTH = 340
+export const DEFAULT_HORIZONTAL_RAIL_HEIGHT = 260
+
+export function defaultRailSize(side: RailSide): number {
+  return side === 'left' || side === 'right'
+    ? DEFAULT_VERTICAL_RAIL_WIDTH
+    : DEFAULT_HORIZONTAL_RAIL_HEIGHT
+}
+
+export function clampRailSize(px: number): number {
+  if (!Number.isFinite(px)) return DEFAULT_VERTICAL_RAIL_WIDTH
+  return Math.max(RAIL_SIZE_MIN, Math.min(RAIL_SIZE_MAX, Math.round(px)))
+}
+
+export function railSize(rails: RailsState, side: RailSide): number {
+  if (side === 'left' || side === 'right') {
+    const persisted = rails.widths?.[side]
+    return typeof persisted === 'number' ? clampRailSize(persisted) : defaultRailSize(side)
+  }
+  const persisted = rails.heights?.[side]
+  return typeof persisted === 'number' ? clampRailSize(persisted) : defaultRailSize(side)
+}
 
 export const EMPTY_RAILS: RailsState = {
   left: null,
@@ -57,6 +94,21 @@ function parseRail(raw: unknown, side: RailSide): Rail | null {
   return { orientation, slots }
 }
 
+function parseSizeBag<K extends string>(raw: unknown, keys: readonly K[]): Partial<Record<K, number>> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const r = raw as Record<string, unknown>
+  const out: Partial<Record<K, number>> = {}
+  let touched = false
+  for (const k of keys) {
+    const v = r[k]
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[k] = clampRailSize(v)
+      touched = true
+    }
+  }
+  return touched ? out : undefined
+}
+
 export function serializeRailsState(rails: RailsState): string {
   return JSON.stringify(rails)
 }
@@ -68,10 +120,15 @@ export function parseRailsState(value: string | undefined | null): RailsState | 
   try { parsed = JSON.parse(value) } catch { return null }
   if (!parsed || typeof parsed !== 'object') return null
   const r = parsed as Record<string, unknown>
-  return {
+  const state: RailsState = {
     left: parseRail(r.left, 'left'),
     right: parseRail(r.right, 'right'),
     top: parseRail(r.top, 'top'),
     bottom: parseRail(r.bottom, 'bottom'),
   }
+  const widths = parseSizeBag(r.widths, ['left', 'right'] as const)
+  if (widths) state.widths = widths
+  const heights = parseSizeBag(r.heights, ['top', 'bottom'] as const)
+  if (heights) state.heights = heights
+  return state
 }

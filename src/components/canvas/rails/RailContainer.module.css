@@ -9,12 +9,10 @@
 
 .rail.vertical {
   flex-direction: column;
-  width: 340px;
 }
 
 .rail.horizontal {
   flex-direction: row;
-  height: 260px;
 }
 
 .rail.left {
@@ -55,3 +53,38 @@
   background: color-mix(in oklab, var(--color-accent) 35%, transparent);
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
+
+.resize {
+  position: absolute;
+  z-index: 3;
+  background: transparent;
+  transition: background 0.15s ease;
+  touch-action: none;
+}
+
+.resize:hover,
+.resize:focus-visible {
+  background: color-mix(in oklab, var(--color-accent) 40%, transparent);
+}
+
+.resizeRight,
+.resizeLeft {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+}
+
+.resizeRight { right: -3px; }
+.resizeLeft { left: -3px; }
+
+.resizeTop,
+.resizeBottom {
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+}
+
+.resizeBottom { bottom: -3px; }
+.resizeTop { top: -3px; }

@@ -172,6 +172,28 @@ describe('canvas-rails-store', () => {
     expect(slots[1].kind).toBe('lens')
   })
 
+  it('setRailSize persists per-side widths/heights and clamps out-of-range values', () => {
+    useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true })
+    const store = useCanvasRailsStore.getState()
+    store.setRailSize('left', 420)
+    store.setRailSize('right', 9999)
+    store.setRailSize('top', 10)
+    store.setRailSize('bottom', 300)
+    const rails = useCanvasRailsStore.getState().rails
+    expect(rails.widths).toEqual({ left: 420, right: 600 })
+    expect(rails.heights).toEqual({ top: 200, bottom: 300 })
+  })
+
+  it('setRailSize returns the same rails ref when the value is unchanged', () => {
+    useCanvasRailsStore.setState({
+      rails: { ...EMPTY_RAILS, widths: { left: 420 } },
+      hydrated: true,
+    })
+    const before = useCanvasRailsStore.getState().rails
+    useCanvasRailsStore.getState().setRailSize('left', 420)
+    expect(useCanvasRailsStore.getState().rails).toBe(before)
+  })
+
   it('closeSlot and updateSlot are no-ops when the slotId is unknown', () => {
     const slot = createLensSlot(1)
     const before = {

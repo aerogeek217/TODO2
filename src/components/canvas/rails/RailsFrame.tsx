@@ -4,6 +4,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
+import { railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotHeader } from './SlotHeader'
@@ -311,6 +312,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
 
 export function RailsFrame({ children }: RailsFrameProps) {
   const rails = useDefaultRails()
+  const setRailSize = useCanvasRailsStore((s) => s.setRailSize)
   const { draggingSlot, announcement } = useRailsDragMonitor()
   const railsDragging = draggingSlot !== null
 
@@ -326,7 +328,13 @@ export function RailsFrame({ children }: RailsFrameProps) {
     const rail = rails[side]
     if (!rail) return null
     return (
-      <RailContainer side={side} rail={rail} railsDragging={railsDragging}>
+      <RailContainer
+        side={side}
+        rail={rail}
+        size={railSize(rails, side)}
+        onResize={(px) => setRailSize(side, px)}
+        railsDragging={railsDragging}
+      >
         {rail.slots.map((slot) => (
           <SlotRenderer key={slot.id} slot={slot} fromSide={side} />
         ))}
