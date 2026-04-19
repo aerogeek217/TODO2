@@ -23,7 +23,7 @@ main.tsx (entry point)
 │   ├── CalendarView       → Month/week calendar grid, drag-to-reschedule, overdue highlights, recurring virtual instances
 │   └── SettingsPage       → Theme toggle, manage buttons, task defaults, database location, import/export
 ├── components/
-│   ├── layout/            → Sidebar, TopBar (filter bar + search + storage status), FileSyncBanner, BottomTabBar (mobile)
+│   ├── layout/            → Sidebar, TopBar (filter bar + grouped search dropdown — `role=listbox` per-field `role=group` groups for Title/Notes/Project/Person/Org/Status/Tag, driven by `utils/filter.matchTodoText`; arrow-key roving; inline "Show all {n}"), FileSyncBanner, BottomTabBar (mobile)
 │   ├── task/              → TaskRow (notes-icon button opens `TaskNotePopover` via shared `NotesBody`), TaskList, TaskEditPopup (notes field uses shared `NotesBody`), MobileTaskRow, TaskNotePopover
 │   ├── canvas/            → CanvasView, ProjectNode, ListInsetNode, ListDefinitionBody (shared filter→buildDashboardLists body for inset + rail lens), FloatingNoteNode (placement-only canvas widget — renders the single global note via `NotesBody` with no content/color of its own), FloatingCalendarNode (canvas calendar widget — drag/resize chrome wrapping `TwoWeekCalendarStrip`; backs slot→canvas pop-outs), SortableTaskList, ProjectNavigator, alignment; rails/ (RailsFrame, RailContainer, Slot, SlotHeader, LensSlotContent, LensTitleButton, CalendarSlotContent + TwoWeekCalendarStrip, NotesSlotContent, TaskboardSlotContent, DraggableSlot, DockOverlay, SlotMenu, rail-dnd — Phase 4A scaffolding + 4B lens wiring + 4C slot drag-dock + 4D 2-week calendar strip + 4E notes slot + 4F persistence through `settings.canvasRails` (extended with `widths`/`heights` bags for per-side rail sizes, clamped to [200, 600], persisted through the same settings pipeline); RailContainer renders a pointer-driven `ResizeHandle` on the canvas-facing edge — rAF-throttled via `scheduledRef`, invokes `useCanvasRailsStore.setRailSize`; `SlotMenu` "Pop out to canvas" invokes `RailsFrame.popSlotToCanvas(slot)` which dispatches per kind into floating-note/list-inset/floating-calendar stores and closes the source slot — spawn position reads `settings.canvasViewport` upper-left + jitter)
 │   ├── taskboard/         → TaskboardPanel (dashboard card), TaskboardNode (canvas node)
@@ -35,7 +35,7 @@ main.tsx (entry point)
 ├── data/                  → Dexie repositories + migrations + restore + audit
 ├── models/                → TypeScript interfaces
 ├── hooks/                 → Custom React hooks
-├── utils/                 → Shared pure utilities (hierarchy, dates, effective-date, filter, platform — `isMacLike()` + `formatShortcut('Mod-t')` for ⌘/Ctrl-aware shortcut labels)
+├── utils/                 → Shared pure utilities (hierarchy, dates, effective-date, filter — `toggleItem` + `matchTodoText(todo, query, ctx)`/`TextMatchField` for multi-field text search used by TopBar + `filter-store.matchesFilter`, platform — `isMacLike()` + `formatShortcut('Mod-t')` for ⌘/Ctrl-aware shortcut labels)
 └── services/              → NLP, command registry, file storage, undoable, backup scheduler, dashboard-lists interpreter, horizons (ribbon bin geometry), notes-export (Markdown ⇄ HTML clipboard helpers: `mdToHtml`, `htmlToMarkdown`, `copyNotesRich`)
 ```
 
