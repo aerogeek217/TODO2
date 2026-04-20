@@ -84,12 +84,14 @@ interface TaskRowProps {
   extraLabel?: string
   /** Render an `in <project>` sub-line under the title (rail lens / search). */
   showContext?: boolean
+  /** When set, the × button removes the task from this taskboard instead of deleting it. */
+  taskboardId?: number
 }
 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, indentLevel = 0,
   hasChildren, isExpanded, isSelected, ghost,
-  onSelect, onToggleExpand, onOpenDetail, cut, extraLabel, showContext,
+  onSelect, onToggleExpand, onOpenDetail, cut, extraLabel, showContext, taskboardId,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
@@ -156,7 +158,14 @@ export const TaskRow = memo(function TaskRow({
   }, [bulk, todo.id])
   // Ghost rows are non-interactive (drag overlay visuals)
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
-  const handleDelete = useCallback(() => { if (!ghost) bulk.remove(todo.id) }, [ghost, bulk, todo.id])
+  const handleDelete = useCallback(() => {
+    if (ghost) return
+    if (taskboardId != null) {
+      void useTaskboardStore.getState().removeEntry(taskboardId, todo.id)
+      return
+    }
+    bulk.remove(todo.id)
+  }, [ghost, bulk, todo.id, taskboardId])
 
   const togglePerson = (id: number) => {
     if (ghost) return
@@ -511,7 +520,12 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
-      <button className={styles.deleteButton} onClick={(e) => { e.stopPropagation(); handleDelete() }} aria-label="Delete task">
+      <button
+        className={styles.deleteButton}
+        onClick={(e) => { e.stopPropagation(); handleDelete() }}
+        aria-label={taskboardId != null ? 'Remove from taskboard' : 'Delete task'}
+        title={taskboardId != null ? 'Remove from taskboard' : 'Delete task'}
+      >
         ×
       </button>
 

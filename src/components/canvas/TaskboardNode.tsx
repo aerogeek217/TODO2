@@ -41,18 +41,19 @@ export interface TaskboardNodeData {
 type TaskboardNodeType = TaskboardNodeData
 
 function SortableTaskboardEntry({
-  entryId, index, todo, assignedPeople, ghost, onOpenDetail,
+  entryId, index, todo, assignedPeople, ghost, taskboardId, onOpenDetail,
 }: {
   entryId: string
   index: number
   todo: PersistedTodoItem
   assignedPeople: Person[] | undefined
   ghost?: boolean
+  taskboardId: number
   onOpenDetail?: (todoId: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entryId,
-    data: { type: 'taskboard-task', todo, entryId },
+    data: { type: 'taskboard-task', todo, entryId, taskboardId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -60,7 +61,7 @@ function SortableTaskboardEntry({
     <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} />
+        <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} taskboardId={taskboardId} />
       </div>
     </div>
   )
@@ -236,6 +237,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
                     ghost={ghostTodoIds?.has(todo.id)}
+                    taskboardId={taskboardId}
                     onOpenDetail={onOpenDetail}
                   />
                 </Fragment>

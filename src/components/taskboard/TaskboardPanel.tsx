@@ -30,18 +30,22 @@ interface SortableEntryProps {
   index: number
   todo: PersistedTodoItem
   assignedPeople: import('../../models').Person[] | undefined
+  taskboardId: number
   onOpenDetail: (todoId: number) => void
 }
 
-function SortableEntry({ entryId, index, todo, assignedPeople, onOpenDetail }: SortableEntryProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entryId })
+function SortableEntry({ entryId, index, todo, assignedPeople, taskboardId, onOpenDetail }: SortableEntryProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: entryId,
+    data: { type: 'taskboard-task', todo, entryId, taskboardId },
+  })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
     <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} compact onOpenDetail={onOpenDetail} />
+        <TaskRow todo={todo} assignedPeople={assignedPeople} compact onOpenDetail={onOpenDetail} taskboardId={taskboardId} />
       </div>
     </div>
   )
@@ -61,6 +65,7 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps }:
   const defaultBoardId = useTaskboardStore((s) => s.defaultBoardId)
   const ensureDefault = useTaskboardStore((s) => s.ensureDefault)
   const reorder = useTaskboardStore((s) => s.reorder)
+  const removeEntry = useTaskboardStore((s) => s.removeEntry)
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const { openEditPopup } = useUIStore()
@@ -105,14 +110,21 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps }:
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     if (resolvedId == null) return
     const { active, over } = event
-    if (!over || active.id === over.id) return
     const fromIndex = entries.findIndex((e) => `tbp-${e.todoId}` === active.id)
+    if (fromIndex === -1) return
+    // Dropped outside any sortable → remove from the board
+    if (!over) {
+      void removeEntry(resolvedId, entries[fromIndex].todoId)
+      setReorderKey((k) => k + 1)
+      return
+    }
+    if (active.id === over.id) return
     const toIndex = entries.findIndex((e) => `tbp-${e.todoId}` === over.id)
-    if (fromIndex !== -1 && toIndex !== -1) {
+    if (toIndex !== -1) {
       reorder(resolvedId, fromIndex, toIndex)
       setReorderKey((k) => k + 1)
     }
-  }, [entries, reorder, resolvedId])
+  }, [entries, reorder, removeEntry, resolvedId])
 
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
 
@@ -137,7 +149,7 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps }:
             <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
               {visibleEntries.map((entry, i) => {
                 const todo = todoMap.get(entry.todoId)
-                if (!todo) return null
+                if (!todo || resolvedId == null) return null
                 return (
                   <SortableEntry
                     key={entry.todoId}
@@ -145,6 +157,7 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps }:
                     index={i}
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
+                    taskboardId={resolvedId}
                     onOpenDetail={handleOpenDetail}
                   />
                 )
