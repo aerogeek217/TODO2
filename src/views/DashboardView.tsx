@@ -26,8 +26,6 @@ import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
-import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
-import { useCanvasStore } from '../stores/canvas-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -368,9 +366,6 @@ export function DashboardView() {
   const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
   const showCompleted = useFilterStore((s) => s.filters.showCompleted)
   const { load: loadTaskboard, defaultBoardId, ensureDefault } = useTaskboardStore()
-  const selectedCanvasId = useCanvasStore((s) => s.selectedCanvasId)
-  const floatingTaskboards = useFloatingTaskboardStore((s) => s.taskboards)
-  const loadFloatingTaskboards = useFloatingTaskboardStore((s) => s.loadByCanvas)
   const { listDefinitions, load: loadDefinitions } = useListDefinitionStore()
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
   const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
@@ -489,18 +484,6 @@ export function DashboardView() {
     loadDefinitions()
     void loadNotes()
   }, [loadAll, loadPeople, loadOrgs, loadStatuses, loadTaskboard, loadDefinitions, loadNotes])
-
-  useEffect(() => {
-    if (selectedCanvasId != null) void loadFloatingTaskboards(selectedCanvasId)
-  }, [selectedCanvasId, loadFloatingTaskboards])
-
-  // Dashboard mirrors whichever taskboard the canvas shows. When a canvas
-  // floating taskboard exists (even if user picked a non-default board via
-  // the taskboard picker), use its id so both surfaces stay in sync.
-  const dashboardTaskboardId = useMemo(() => {
-    const first = floatingTaskboards[0]
-    return first?.taskboardId ?? defaultBoardId ?? undefined
-  }, [floatingTaskboards, defaultBoardId])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
@@ -820,11 +803,7 @@ export function DashboardView() {
                       key="taskboard"
                       id="top:taskboard"
                       render={({ handleIcon, dragHandleProps }) => (
-                        <TaskboardPanel
-                          taskboardId={dashboardTaskboardId}
-                          dragHandleIcon={handleIcon}
-                          dragHandleProps={dragHandleProps}
-                        />
+                        <TaskboardPanel dragHandleIcon={handleIcon} dragHandleProps={dragHandleProps} />
                       )}
                     />
                   )

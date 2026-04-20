@@ -35,10 +35,7 @@ interface SortableEntryProps {
 }
 
 function SortableEntry({ entryId, index, todo, assignedPeople, taskboardId, onOpenDetail }: SortableEntryProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: entryId,
-    data: { type: 'taskboard-task', todo, entryId, taskboardId },
-  })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entryId })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
@@ -58,9 +55,11 @@ interface TaskboardPanelProps {
   taskboardId?: number
   dragHandleIcon?: ReactNode
   dragHandleProps?: HeaderDragProps
+  /** Hide the panel's own "Taskboard" header — used when a caller (e.g. a rail slot) already renders its own chrome. */
+  hideHeader?: boolean
 }
 
-export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps }: TaskboardPanelProps = {}) {
+export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, hideHeader }: TaskboardPanelProps = {}) {
   const boards = useTaskboardStore((s) => s.boards)
   const defaultBoardId = useTaskboardStore((s) => s.defaultBoardId)
   const ensureDefault = useTaskboardStore((s) => s.ensureDefault)
@@ -129,15 +128,17 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps }:
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
 
   return (
-    <div ref={setDropRef} className={`${styles.panel} ${isOver ? styles.dropTarget : ''}`}>
-      <div
-        {...(dragHandleProps ?? {})}
-        className={`${styles.header} ${dragHandleProps?.className ?? ''}`.trim()}
-      >
-        {dragHandleIcon}
-        <span className={styles.headerTitle}>Taskboard</span>
-        <span className={styles.headerCount}>{visibleEntries.length}</span>
-      </div>
+    <div ref={setDropRef} className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${isOver ? styles.dropTarget : ''}`}>
+      {!hideHeader && (
+        <div
+          {...(dragHandleProps ?? {})}
+          className={`${styles.header} ${dragHandleProps?.className ?? ''}`.trim()}
+        >
+          {dragHandleIcon}
+          <span className={styles.headerTitle}>Taskboard</span>
+          <span className={styles.headerCount}>{visibleEntries.length}</span>
+        </div>
+      )}
       <div className={styles.list}>
         {visibleEntries.length === 0 ? (
           <div className={styles.empty}>

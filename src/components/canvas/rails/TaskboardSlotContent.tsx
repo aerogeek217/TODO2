@@ -7,5 +7,5 @@ import { TaskboardPanel } from '../../taskboard/TaskboardPanel'
  * dashboard surfaces can render different taskboards independently.
  */
 export function TaskboardSlotContent({ taskboardId }: { taskboardId?: number }) {
-  return <TaskboardPanel taskboardId={taskboardId} />
+  return <TaskboardPanel taskboardId={taskboardId} hideHeader />
 }
