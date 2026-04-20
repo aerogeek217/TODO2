@@ -7,6 +7,8 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
+import { useOrgStore } from '../../stores/org-store'
+import { resolvePersonColor } from '../../utils/person-color'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
@@ -112,7 +114,17 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const projectSearchRef = useRef<HTMLInputElement>(null)
   const statusMenuRef = useRef<HTMLDivElement>(null)
 
-  const acPeople = useMemo(() => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [allPeople])
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const orgsForColor = useOrgStore((s) => s.orgs)
+  const acPeople = useMemo(
+    () => allPeople.map((p) => ({
+      id: p.id!,
+      name: p.name,
+      color: resolvePersonColor(p.id, personOrgMap, orgsForColor),
+      kind: 'person' as const,
+    })),
+    [allPeople, personOrgMap, orgsForColor],
+  )
   const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
   const acOrgs = useMemo(() => allOrgs.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [allOrgs])
   const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs })

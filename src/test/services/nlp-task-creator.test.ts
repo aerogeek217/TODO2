@@ -3,8 +3,8 @@ import { parseTaskInput, applyNlpMetadata } from '../../services/nlp-task-creato
 import type { Person, Project, PersistedTodoItem } from '../../models'
 
 const people: Person[] = [
-  { id: 1, name: 'Alice Smith', initials: 'AS', color: '#ff0000' },
-  { id: 2, name: 'Bob Jones', initials: 'BJ', color: '#00ff00' },
+  { id: 1, name: 'Alice Smith', initials: 'AS' },
+  { id: 2, name: 'Bob Jones', initials: 'BJ' },
 ]
 
 const projects: Project[] = [

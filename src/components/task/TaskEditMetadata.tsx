@@ -5,6 +5,8 @@ import { SchedulePicker } from '../shared/SchedulePicker'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
 import { scheduledLabel } from '../../utils/effective-date'
 import { formatDate, startOfToday } from '../../utils/date'
+import { useOrgStore } from '../../stores/org-store'
+import { resolvePersonColor } from '../../utils/person-color'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditMetadataProps {
@@ -59,6 +61,8 @@ export function TaskEditMetadata({
   openDropdown, setOpenDropdown,
   todo, onUpdate,
 }: TaskEditMetadataProps) {
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const orgs = useOrgStore((s) => s.orgs)
   return (
     <div className={styles.metaSection}>
       {/* Scheduled */}
@@ -173,14 +177,16 @@ export function TaskEditMetadata({
       <div className={styles.metaRow}>
         <span className={styles.metaLabel}>People</span>
         <div className={styles.chipArea} ref={peopleRef}>
-          {assignedPeople.map((person) => (
+          {assignedPeople.map((person) => {
+            const derived = resolvePersonColor(person.id, personOrgMap, orgs)
+            return (
             <button key={`p-${person.id}`} className={styles.personTag}
-              style={person.color ? { color: person.color, borderColor: person.color } : undefined}
+              style={derived ? { color: derived, borderColor: derived } : undefined}
               onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
               @{person.name}
               <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onTogglePerson(person.id!) }}>&times;</span>
             </button>
-          ))}
+          )})}
           {assignedOrgs.map((org) => (
             <button key={`o-${org.id}`} className={styles.orgChip} style={org.color ? { borderColor: org.color, color: org.color } : undefined}
               onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>

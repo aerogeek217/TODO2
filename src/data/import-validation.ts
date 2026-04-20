@@ -264,7 +264,9 @@ function checkPerson(v: unknown): CheckResult {
   return checkFields(v, [
     ['name', isStr(v.name, 200)],
     ['initials', isStr(v.initials, 4)],
-    ['color', isValidCssColor(v.color)],
+    // v31+: color no longer stored on people. Tolerate legacy exports that still
+    // carry it (must be a valid color if present) and strip at pickPerson time.
+    ['color', isOptColor(v.color)],
     ['orgId', isOptNum(v.orgId)], // backward compat: old exports may have orgId
   ])
 }
@@ -655,7 +657,7 @@ function pickStatus(v: Record<string, unknown>): Status {
 }
 
 function pickPerson(v: Record<string, unknown>): Person {
-  return { id: v.id as number | undefined, name: v.name as string, initials: v.initials as string, color: v.color as string }
+  return { id: v.id as number | undefined, name: v.name as string, initials: v.initials as string }
 }
 
 function pickOrg(v: Record<string, unknown>): Org {

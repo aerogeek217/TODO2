@@ -12,7 +12,7 @@ interface PersonState {
   error: string | null
 
   load: () => Promise<void>
-  add: (name: string, initials: string, color?: string) => Promise<number>
+  add: (name: string, initials: string) => Promise<number>
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
   loadAssignments: (todoIds: number[]) => Promise<void>
@@ -51,9 +51,9 @@ export const usePersonStore = create<PersonState>((set, get) => {
       if (people) set({ people })
     },
 
-    async add(name: string, initials: string, color = '#ffffff') {
-      const id = await personRepository.insert({ name, initials, color })
-      set({ people: [...get().people, { id, name, initials, color }] })
+    async add(name: string, initials: string) {
+      const id = await personRepository.insert({ name, initials })
+      set({ people: [...get().people, { id, name, initials }] })
       return id
     },
 

@@ -81,7 +81,7 @@ describe('restoreFromImportData', () => {
 
     it('restoreFromImportData_withExistingPeople_clearsAll', async () => {
       // Arrange
-      await db.people.bulkAdd([{ name: 'Alice', initials: 'AL', color: '#537FE7' }])
+      await db.people.bulkAdd([{ name: 'Alice', initials: 'AL' }])
 
       // Act — import with empty people
       await restoreFromImportData(makeImportData())
@@ -95,7 +95,7 @@ describe('restoreFromImportData', () => {
     it('restoreFromImportData_withPeople_persistsTable', async () => {
       // Arrange
       const data = makeImportData({
-        people: [{ id: 1, name: 'Bob', initials: 'BO', color: '#aabbcc' }],
+        people: [{ id: 1, name: 'Bob', initials: 'BO' }],
       })
 
       // Act
@@ -138,7 +138,7 @@ describe('restoreFromImportData', () => {
         todos: [
           { id: 1, title: 'Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],
-        people: [{ id: 1, name: 'Alice', initials: 'AL', color: '#537FE7' }],
+        people: [{ id: 1, name: 'Alice', initials: 'AL' }],
         todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
       })
 

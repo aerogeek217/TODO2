@@ -17,15 +17,15 @@ async function addTodo(title = 'Task'): Promise<number> {
 
 describe('usePersonStore', () => {
   it('load populates from DB', async () => {
-    await db.people.add({ name: 'Alice', initials: 'A', color: '#000' })
-    await db.people.add({ name: 'Bob', initials: 'B', color: '#000' })
+    await db.people.add({ name: 'Alice', initials: 'A' })
+    await db.people.add({ name: 'Bob', initials: 'B' })
 
     await usePersonStore.getState().load()
     expect(usePersonStore.getState().people).toHaveLength(2)
   })
 
   it('add creates person', async () => {
-    const id = await usePersonStore.getState().add('Alice', 'A', '#ff0000')
+    const id = await usePersonStore.getState().add('Alice', 'A')
     expect(usePersonStore.getState().people).toHaveLength(1)
     expect(usePersonStore.getState().people[0].name).toBe('Alice')
     expect(id).toBeGreaterThan(0)
@@ -33,7 +33,7 @@ describe('usePersonStore', () => {
 
   it('update modifies in store', async () => {
     const id = await usePersonStore.getState().add('Alice', 'A')
-    await usePersonStore.getState().update({ id, name: 'Alice Smith', initials: 'AS', color: '#00ff00' })
+    await usePersonStore.getState().update({ id, name: 'Alice Smith', initials: 'AS' })
     expect(usePersonStore.getState().people[0].name).toBe('Alice Smith')
   })
 

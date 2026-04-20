@@ -81,8 +81,8 @@ describe('buildDateSections', () => {
 describe('buildPeopleSections', () => {
   it('groups by assigned person with unassigned fallback', () => {
     const people: Person[] = [
-      { id: 1, name: 'Alice', initials: 'A', color: '#f00' },
-      { id: 2, name: 'Bob', initials: 'B', color: '#00f' },
+      { id: 1, name: 'Alice', initials: 'A' },
+      { id: 2, name: 'Bob', initials: 'B' },
     ]
     const todos = [
       makeTodo({ id: 10 }),
@@ -106,8 +106,8 @@ describe('buildPeopleSections', () => {
 
   it('shows todo in multiple sections when assigned to multiple people', () => {
     const people: Person[] = [
-      { id: 1, name: 'Alice', initials: 'A', color: '#f00' },
-      { id: 2, name: 'Bob', initials: 'B', color: '#00f' },
+      { id: 1, name: 'Alice', initials: 'A' },
+      { id: 2, name: 'Bob', initials: 'B' },
     ]
     const todos = [makeTodo({ id: 10 })]
     const assignedPeopleMap = new Map<number, Person[]>([

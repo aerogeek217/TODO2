@@ -34,7 +34,7 @@ describe('orgRepository', () => {
 
   it('delete removes org, clears personOrgs, removes todoOrgs', async () => {
     const orgId = await orgRepository.insert({ name: 'Engineering' })
-    const personId = (await db.people.add({ name: 'Alice', initials: 'A', color: '#000' })) as number
+    const personId = (await db.people.add({ name: 'Alice', initials: 'A' })) as number
     await orgRepository.assignPersonToOrg(personId, orgId)
     const todoId = (await db.todos.add({
       title: 'Task', isCompleted: false,
@@ -54,9 +54,9 @@ describe('orgRepository', () => {
 
   it('getPersonCount returns count of people in org', async () => {
     const orgId = await orgRepository.insert({ name: 'Engineering' })
-    const p1 = (await db.people.add({ name: 'Alice', initials: 'A', color: '#000' })) as number
-    const p2 = (await db.people.add({ name: 'Bob', initials: 'B', color: '#000' })) as number
-    await db.people.add({ name: 'Charlie', initials: 'C', color: '#000' }) // no org
+    const p1 = (await db.people.add({ name: 'Alice', initials: 'A' })) as number
+    const p2 = (await db.people.add({ name: 'Bob', initials: 'B' })) as number
+    await db.people.add({ name: 'Charlie', initials: 'C' }) // no org
     await orgRepository.assignPersonToOrg(p1, orgId)
     await orgRepository.assignPersonToOrg(p2, orgId)
 
@@ -66,7 +66,7 @@ describe('orgRepository', () => {
   it('multi-org: person can belong to multiple orgs', async () => {
     const org1 = await orgRepository.insert({ name: 'Engineering' })
     const org2 = await orgRepository.insert({ name: 'Design' })
-    const personId = (await db.people.add({ name: 'Alice', initials: 'A', color: '#000' })) as number
+    const personId = (await db.people.add({ name: 'Alice', initials: 'A' })) as number
 
     await orgRepository.setPersonOrgs(personId, [org1, org2])
     const orgs = await orgRepository.getOrgsForPerson(personId)
@@ -77,8 +77,8 @@ describe('orgRepository', () => {
   it('getPersonOrgMap returns map of personId → orgId[]', async () => {
     const org1 = await orgRepository.insert({ name: 'Eng' })
     const org2 = await orgRepository.insert({ name: 'Design' })
-    const p1 = (await db.people.add({ name: 'Alice', initials: 'A', color: '#000' })) as number
-    const p2 = (await db.people.add({ name: 'Bob', initials: 'B', color: '#000' })) as number
+    const p1 = (await db.people.add({ name: 'Alice', initials: 'A' })) as number
+    const p2 = (await db.people.add({ name: 'Bob', initials: 'B' })) as number
 
     await orgRepository.setPersonOrgs(p1, [org1, org2])
     await orgRepository.setPersonOrgs(p2, [org1])
@@ -91,7 +91,7 @@ describe('orgRepository', () => {
   it('setPersonOrgs replaces existing assignments', async () => {
     const org1 = await orgRepository.insert({ name: 'Eng' })
     const org2 = await orgRepository.insert({ name: 'Design' })
-    const personId = (await db.people.add({ name: 'Alice', initials: 'A', color: '#000' })) as number
+    const personId = (await db.people.add({ name: 'Alice', initials: 'A' })) as number
 
     await orgRepository.setPersonOrgs(personId, [org1])
     expect(await orgRepository.getOrgsForPerson(personId)).toHaveLength(1)

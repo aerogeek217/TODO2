@@ -176,6 +176,14 @@ export class Todo2Database extends Dexie {
     }).upgrade(async (tx) => {
       await runV30Migration(tx)
     })
+
+    // v31: drop `color` from `people`. Person color is now derived from the
+    // person's first assigned org (`personOrgs` join + `orgs.color`). Strips
+    // the key from every row; no data loss beyond the color itself. Idempotent
+    // on post-v31 rows (no-op when the key is already absent).
+    this.version(31).stores({}).upgrade(async (tx) => {
+      await runV31Migration(tx)
+    })
   }
 }
 
@@ -1036,4 +1044,20 @@ export async function runV30Migration(tx: Transaction): Promise<void> {
   }
 
   console.info(`v30 migration: seeded Default taskboard (id=${defaultId}) with ${legacyEntries.length} entries`)
+}
+
+/**
+ * v31 upgrade: strip the legacy `color` key from every person row. Color is
+ * now derived at render time from the person's first assigned org. Rows that
+ * never had a color (post-v31 inserts) are skipped.
+ */
+export async function runV31Migration(tx: Transaction): Promise<void> {
+  let stripped = 0
+  await tx.table('people').toCollection().modify((row: Record<string, unknown>) => {
+    if ('color' in row) {
+      delete row.color
+      stripped++
+    }
+  })
+  if (stripped > 0) console.info(`v31 migration: stripped color from ${stripped} person row(s)`)
 }

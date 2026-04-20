@@ -5,6 +5,7 @@ import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useOrgStore } from '../../stores/org-store'
+import { resolvePersonColor } from '../../utils/person-color'
 import styles from './InsertTrigger.module.css'
 
 interface InsertTriggerProps {
@@ -25,8 +26,17 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const people = usePersonStore((s) => s.people)
   const projects = useProjectStore((s) => s.projects)
   const orgsFromStore = useOrgStore((s) => s.orgs)
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
 
-  const acPeople = useMemo(() => people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })), [people])
+  const acPeople = useMemo(
+    () => people.map((p) => ({
+      id: p.id!,
+      name: p.name,
+      color: resolvePersonColor(p.id, personOrgMap, orgsFromStore),
+      kind: 'person' as const,
+    })),
+    [people, personOrgMap, orgsFromStore],
+  )
   const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
   const acOrgs = useMemo(() => orgsFromStore.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [orgsFromStore])
 

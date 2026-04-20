@@ -18,7 +18,6 @@ export function makePerson(overrides: Partial<Person> & { id: number }): Person 
   return {
     name: `Person ${overrides.id}`,
     initials: `P${overrides.id}`,
-    color: '#537FE7',
     ...overrides,
   }
 }

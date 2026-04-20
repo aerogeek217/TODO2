@@ -44,6 +44,7 @@ import type { ListGrouping, ListSort } from '../models/list-definition'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
 import { buildHierarchy } from '../utils/hierarchy'
+import { resolvePersonColor } from '../utils/person-color'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { IconSelect } from '../components/shared/IconSelect'
 import { groupByIcons, itemSortByIcons } from '../components/shared/list-option-icons'
@@ -189,7 +190,9 @@ export function buildPeopleSections(
       personSections.push({
         key: `person-${person.id}`,
         label: person.name,
-        accentColor: person.color,
+        accentColor: (orgs && personOrgMap)
+          ? resolvePersonColor(person.id, personOrgMap, orgs)
+          : undefined,
         todos: personTodos,
       })
     }

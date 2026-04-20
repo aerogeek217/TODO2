@@ -4,9 +4,9 @@ import { parseInput } from '../../services/natural-language-parser'
 import type { Person, Project, Org } from '../../models'
 
 const people: Person[] = [
-  { id: 1, name: 'John Smith', initials: 'JS', color: '#ff0000' },
-  { id: 2, name: 'Sarah Connor', initials: 'SC', color: '#00ff00' },
-  { id: 3, name: 'Mike', initials: 'M', color: '#0000ff' },
+  { id: 1, name: 'John Smith', initials: 'JS' },
+  { id: 2, name: 'Sarah Connor', initials: 'SC' },
+  { id: 3, name: 'Mike', initials: 'M' },
 ]
 
 const projects: Project[] = [

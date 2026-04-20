@@ -1,7 +1,12 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { AvatarStack } from '../../components/shared/AvatarStack'
+import { useOrgStore } from '../../stores/org-store'
 import { makePerson } from '../helpers'
+
+beforeEach(() => {
+  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
+})
 
 afterEach(cleanup)
 
@@ -74,6 +79,30 @@ describe('AvatarStack', () => {
     const orgs = [{ id: 1, name: 'Acme', initials: 'AC' }]
     render(<AvatarStack people={orgs} variant="hollow" />)
     expect(screen.getByRole('button', { name: '1 org assigned' })).toBeInTheDocument()
+  })
+
+  it('derives person fill color from first assigned org', () => {
+    useOrgStore.setState({
+      orgs: [
+        { id: 10, name: 'Acme', color: '#123456' },
+        { id: 11, name: 'Beta', color: '#abcdef' },
+      ],
+      personOrgMap: new Map([[1, [10, 11]]]),
+      assignedOrgsMap: new Map(),
+    })
+    const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' })]
+    const { container } = render(<AvatarStack people={people} />)
+    const avatar = container.querySelector('[class*="avatar"]') as HTMLElement
+    // First assigned org's color wins.
+    expect(avatar.style.background).toMatch(/#123456|rgb\(18,\s*52,\s*86\)/i)
+  })
+
+  it('falls back to default entity color when person has no org', () => {
+    const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' })]
+    const { container } = render(<AvatarStack people={people} />)
+    const avatar = container.querySelector('[class*="avatar"]') as HTMLElement
+    // Non-empty background (DEFAULT_ENTITY_COLOR = #537FE7).
+    expect(avatar.style.background).toBeTruthy()
   })
 
   it('invokes onPersonContextMenu with the source person on right-click', () => {

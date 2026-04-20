@@ -1,8 +1,20 @@
 import { memo } from 'react'
 import type { Person } from '../../models'
+import { useOrgStore } from '../../stores/org-store'
+import { resolvePersonColor } from '../../utils/person-color'
+import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import styles from './AvatarStack.module.css'
 
-type AvatarEntity = Pick<Person, 'name'> & Partial<Pick<Person, 'id' | 'color' | 'initials'>>
+/**
+ * AvatarEntity — a person or org avatar. Person entities no longer carry
+ * their own color (dropped in v31); fill-variant color is derived from the
+ * person's first assigned org via `resolvePersonColor`. Orgs keep their
+ * explicit color for the hollow variant.
+ */
+type AvatarEntity = Pick<Person, 'name'> & Partial<Pick<Person, 'id' | 'initials'>> & {
+  /** Hollow-variant (org) color. Ignored for person fill avatars. */
+  color?: string
+}
 
 interface AvatarStackProps {
   people: AvatarEntity[]
@@ -25,6 +37,8 @@ interface AvatarStackProps {
 export const AvatarStack = memo(function AvatarStack({
   people, max = 3, size = 'md', variant = 'fill', onClick, onPersonContextMenu,
 }: AvatarStackProps) {
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const orgs = useOrgStore((s) => s.orgs)
   if (!people.length) return null
   const visible = people.slice(0, max)
   const overflow = people.length - visible.length
@@ -39,9 +53,14 @@ export const AvatarStack = memo(function AvatarStack({
       aria-label={label}
     >
       {visible.map((p) => {
+        // Fill variant = person avatar: derive from first assigned org.
+        // Hollow variant = org avatar: use the entity's own color.
+        const fillColor = variant === 'fill'
+          ? (resolvePersonColor(p.id, personOrgMap, orgs) ?? DEFAULT_ENTITY_COLOR)
+          : undefined
         const style: React.CSSProperties = variant === 'hollow'
           ? (p.color ? { borderColor: p.color, color: p.color } : {})
-          : (p.color ? { background: p.color, color: 'var(--color-text-on-accent)' } : {})
+          : { background: fillColor, color: 'var(--color-text-on-accent)' }
         return (
           <span
             key={p.id}

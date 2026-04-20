@@ -9,7 +9,7 @@ beforeEach(async () => {
 
 describe('personRepository', () => {
   it('insert and retrieve person', async () => {
-    const id = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#ff0000' })
+    const id = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const person = await personRepository.getById(id)
     expect(person).toBeDefined()
     expect(person!.name).toBe('Alice')
@@ -17,24 +17,24 @@ describe('personRepository', () => {
   })
 
   it('getAll returns sorted by name', async () => {
-    await personRepository.insert({ name: 'Zara', initials: 'Z', color: '#000' })
-    await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
-    await personRepository.insert({ name: 'Mike', initials: 'M', color: '#000' })
+    await personRepository.insert({ name: 'Zara', initials: 'Z' })
+    await personRepository.insert({ name: 'Alice', initials: 'A' })
+    await personRepository.insert({ name: 'Mike', initials: 'M' })
 
     const all = await personRepository.getAll()
     expect(all.map(p => p.name)).toEqual(['Alice', 'Mike', 'Zara'])
   })
 
   it('update modifies fields', async () => {
-    const id = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#ff0000' })
-    await personRepository.update({ id, name: 'Alice Smith', initials: 'AS', color: '#00ff00' })
+    const id = await personRepository.insert({ name: 'Alice', initials: 'A' })
+    await personRepository.update({ id, name: 'Alice Smith', initials: 'AS' })
     const person = await personRepository.getById(id)
     expect(person!.name).toBe('Alice Smith')
-    expect(person!.color).toBe('#00ff00')
+    expect(person!.initials).toBe('AS')
   })
 
   it('delete removes person AND todoPeople join entries', async () => {
-    const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
+    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
       title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
@@ -48,8 +48,8 @@ describe('personRepository', () => {
   })
 
   it('getAssignedPeople returns people for a todo', async () => {
-    const p1 = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
-    const p2 = await personRepository.insert({ name: 'Bob', initials: 'B', color: '#000' })
+    const p1 = await personRepository.insert({ name: 'Alice', initials: 'A' })
+    const p2 = await personRepository.insert({ name: 'Bob', initials: 'B' })
     const todoId = (await db.todos.add({
       title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
@@ -63,7 +63,7 @@ describe('personRepository', () => {
   })
 
   it('assignPerson creates link; idempotent on duplicate', async () => {
-    const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
+    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
       title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
@@ -76,7 +76,7 @@ describe('personRepository', () => {
   })
 
   it('unassignPerson removes link', async () => {
-    const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
+    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const todoId = (await db.todos.add({
       title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
@@ -89,8 +89,8 @@ describe('personRepository', () => {
   })
 
   it('removeAllAssignments clears links for a todo', async () => {
-    const p1 = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
-    const p2 = await personRepository.insert({ name: 'Bob', initials: 'B', color: '#000' })
+    const p1 = await personRepository.insert({ name: 'Alice', initials: 'A' })
+    const p2 = await personRepository.insert({ name: 'Bob', initials: 'B' })
     const todoId = (await db.todos.add({
       title: 'Task', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
@@ -104,7 +104,7 @@ describe('personRepository', () => {
   })
 
   it('getTodoIdsForPerson returns linked todo ids', async () => {
-    const personId = await personRepository.insert({ name: 'Alice', initials: 'A', color: '#000' })
+    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
     const t1 = (await db.todos.add({
       title: 'Task 1', isCompleted: false,
       createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
