@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ReactFlow,
@@ -30,7 +30,7 @@ import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import styles from './CanvasView.module.css'
 import './drag-preview.css'
 
-function AlignmentGuides({ lines }: { lines: AlignmentLine[] }) {
+const AlignmentGuides = memo(function AlignmentGuides({ lines }: { lines: AlignmentLine[] }) {
   const { x, y, zoom } = useViewport()
   if (lines.length === 0) return null
 
@@ -55,7 +55,7 @@ function AlignmentGuides({ lines }: { lines: AlignmentLine[] }) {
       })}
     </svg>
   )
-}
+})
 
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'

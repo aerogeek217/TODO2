@@ -145,11 +145,7 @@ export function buildPeopleSections(
   personOrgMap?: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
 ): Section[] {
-  const orgSections: Section[] = []
-  const personSections: Section[] = []
-  const orgClaimedIds = new Set<number>()
-
-  // When an org filter is active, only show people who belong to at least one filtered org
+  // Visible people: when org filter active, only those belonging to a filtered org.
   const visiblePeople = (filteredOrgIds && personOrgMap)
     ? people.filter((p) => {
         const memberOrgIds = personOrgMap.get(p.id!) ?? []
@@ -157,53 +153,66 @@ export function buildPeopleSections(
       })
     : people
 
-  // 1. Tasks with direct org assignment go into org sections first
-  if (orgs && assignedOrgsMap) {
-    const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
-    for (const org of visibleOrgs) {
-      const orgTodos = todos.filter((t) => {
-        const todoOrgs = assignedOrgsMap.get(t.id) ?? []
-        return todoOrgs.some((o) => o.id === org.id)
-      })
-      if (orgTodos.length > 0) {
-        for (const t of orgTodos) orgClaimedIds.add(t.id)
-        orgSections.push({
-          key: `org-${org.id}`,
-          label: org.name,
-          accentColor: org.color,
-          todos: orgTodos,
-        })
+  const visibleOrgs = (orgs && assignedOrgsMap)
+    ? (filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs)
+    : []
+
+  const orgBuckets = new Map<number, PersistedTodoItem[]>()
+  for (const o of visibleOrgs) orgBuckets.set(o.id!, [])
+  const personBuckets = new Map<number, PersistedTodoItem[]>()
+  for (const p of visiblePeople) personBuckets.set(p.id!, [])
+  const unassigned: PersistedTodoItem[] = []
+
+  // Single pass: org first (short-circuits person grouping), else all assigned visible people.
+  for (const t of todos) {
+    let orgHit = false
+    if (assignedOrgsMap) {
+      const directOrgs = assignedOrgsMap.get(t.id) ?? []
+      for (const o of directOrgs) {
+        const bucket = orgBuckets.get(o.id!)
+        if (bucket) {
+          bucket.push(t)
+          orgHit = true
+        }
       }
     }
+    if (orgHit) continue
+
+    const assigned = assignedPeopleMap.get(t.id) ?? []
+    let personHit = false
+    for (const p of assigned) {
+      const bucket = personBuckets.get(p.id!)
+      if (bucket) {
+        bucket.push(t)
+        personHit = true
+      }
+    }
+    if (!personHit) unassigned.push(t)
   }
 
-  // 2. Remaining tasks (no direct org) grouped by person
-  const personClaimedIds = new Set<number>()
-  for (const person of visiblePeople) {
-    const personTodos = todos.filter((t) => {
-      if (orgClaimedIds.has(t.id)) return false
-      const assigned = assignedPeopleMap.get(t.id) ?? []
-      return assigned.some((p) => p.id === person.id)
-    })
-    if (personTodos.length > 0) {
-      for (const t of personTodos) personClaimedIds.add(t.id)
+  const orgSections: Section[] = []
+  for (const o of visibleOrgs) {
+    const ts = orgBuckets.get(o.id!)!
+    if (ts.length > 0) {
+      orgSections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: ts })
+    }
+  }
+  const personSections: Section[] = []
+  for (const p of visiblePeople) {
+    const ts = personBuckets.get(p.id!)!
+    if (ts.length > 0) {
       personSections.push({
-        key: `person-${person.id}`,
-        label: person.name,
-        accentColor: (orgs && personOrgMap)
-          ? resolvePersonColor(person.id, personOrgMap, orgs)
-          : undefined,
-        todos: personTodos,
+        key: `person-${p.id}`,
+        label: p.name,
+        accentColor: (orgs && personOrgMap) ? resolvePersonColor(p.id, personOrgMap, orgs) : undefined,
+        todos: ts,
       })
     }
   }
-
-  // 3. Unassigned: neither org-assigned nor person-assigned
-  const remaining = todos.filter((t) => !orgClaimedIds.has(t.id) && !personClaimedIds.has(t.id))
   return [
     ...orgSections,
     ...personSections,
-    ...(remaining.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: remaining }] : []),
+    ...(unassigned.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: unassigned }] : []),
   ]
 }
 
@@ -211,25 +220,24 @@ export function buildProjectSections(
   todos: PersistedTodoItem[],
   projects: Project[],
 ): Section[] {
-  const sections: Section[] = []
-  const projectMap = new Map(projects.map((p) => [p.id!, p]))
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const p of projects) buckets.set(p.id!, [])
+  const noProject: PersistedTodoItem[] = []
 
-  for (const project of projects) {
-    const projectTodos = todos.filter((t) => t.projectId === project.id)
-    if (projectTodos.length > 0) {
-      sections.push({
-        key: `project-${project.id}`,
-        label: project.name,
-        accentColor: 'var(--color-accent)',
-        todos: projectTodos,
-      })
+  for (const t of todos) {
+    const bucket = t.projectId != null ? buckets.get(t.projectId) : undefined
+    if (bucket) bucket.push(t)
+    else noProject.push(t)
+  }
+
+  const sections: Section[] = []
+  for (const p of projects) {
+    const ts = buckets.get(p.id!)!
+    if (ts.length > 0) {
+      sections.push({ key: `project-${p.id}`, label: p.name, accentColor: 'var(--color-accent)', todos: ts })
     }
   }
-
-  const noProject = todos.filter((t) => !t.projectId || !projectMap.has(t.projectId))
-  if (noProject.length > 0) {
-    sections.push({ key: 'no-project', label: 'No Project', todos: noProject })
-  }
+  if (noProject.length > 0) sections.push({ key: 'no-project', label: 'No Project', todos: noProject })
   return sections
 }
 
@@ -241,49 +249,41 @@ export function buildOrgSections(
   personOrgMap: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
 ): Section[] {
-  const sections: Section[] = []
-  const orgTodoIds = new Set<number>()
-  // Build reverse map: orgId -> Set<personId>
-  const peopleByOrg = new Map<number, Set<number>>()
-  for (const [personId, orgIds] of personOrgMap) {
-    for (const orgId of orgIds) {
-      const set = peopleByOrg.get(orgId) ?? new Set()
-      set.add(personId)
-      peopleByOrg.set(orgId, set)
-    }
-  }
-
-  // Only show sections for filtered orgs when an org filter is active
   const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const o of visibleOrgs) buckets.set(o.id!, [])
+  const showNoOrg = !filteredOrgIds || filteredOrgIds.has(0)
+  const noOrg: PersistedTodoItem[] = []
 
-  for (const org of visibleOrgs) {
-    const orgPersonIds = peopleByOrg.get(org.id!) ?? new Set()
-    const orgTodos = todos.filter((t) => {
-      // Match by direct org assignment
-      const directOrgs = assignedOrgsMap.get(t.id) ?? []
-      if (directOrgs.some((o) => o.id === org.id)) return true
-      // Match by assigned person's org
-      const assignedPeople = assignedPeopleMap.get(t.id) ?? []
-      return assignedPeople.some((p) => orgPersonIds.has(p.id!))
-    })
-    if (orgTodos.length > 0) {
-      for (const t of orgTodos) orgTodoIds.add(t.id)
-      sections.push({
-        key: `org-${org.id}`,
-        label: org.name,
-        accentColor: org.color,
-        todos: orgTodos,
-      })
+  // Single pass: direct org assignments + person→org membership, deduped per todo.
+  for (const t of todos) {
+    const matchedOrgs = new Set<number>()
+    const directOrgs = assignedOrgsMap.get(t.id) ?? []
+    for (const o of directOrgs) {
+      if (buckets.has(o.id!)) matchedOrgs.add(o.id!)
+    }
+    const assignedPeople = assignedPeopleMap.get(t.id) ?? []
+    for (const p of assignedPeople) {
+      const personOrgs = personOrgMap.get(p.id!) ?? []
+      for (const oid of personOrgs) {
+        if (buckets.has(oid)) matchedOrgs.add(oid)
+      }
+    }
+    if (matchedOrgs.size === 0) {
+      if (showNoOrg) noOrg.push(t)
+    } else {
+      for (const oid of matchedOrgs) buckets.get(oid)!.push(t)
     }
   }
 
-  // Show "No Organization" section when filter includes unaffiliated (id 0) or no filter is active
-  if (!filteredOrgIds || filteredOrgIds.has(0)) {
-    const noOrg = todos.filter((t) => !orgTodoIds.has(t.id))
-    if (noOrg.length > 0) {
-      sections.push({ key: 'no-org', label: 'No Organization', todos: noOrg })
+  const sections: Section[] = []
+  for (const o of visibleOrgs) {
+    const ts = buckets.get(o.id!)!
+    if (ts.length > 0) {
+      sections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: ts })
     }
   }
+  if (noOrg.length > 0) sections.push({ key: 'no-org', label: 'No Organization', todos: noOrg })
   return sections
 }
 
@@ -291,26 +291,25 @@ export function buildStatusSections(
   todos: PersistedTodoItem[],
   statuses: Status[],
 ): Section[] {
-  const sections: Section[] = []
-  const statusMap = new Map(statuses.map(s => [s.id!, s]))
   const sorted = [...statuses].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const s of sorted) buckets.set(s.id!, [])
+  const noStatus: PersistedTodoItem[] = []
 
-  for (const status of sorted) {
-    const statusTodos = todos.filter(t => t.statusId === status.id)
-    if (statusTodos.length > 0) {
-      sections.push({
-        key: `status-${status.id}`,
-        label: status.name,
-        accentColor: status.color,
-        todos: statusTodos,
-      })
+  for (const t of todos) {
+    const bucket = t.statusId != null ? buckets.get(t.statusId) : undefined
+    if (bucket) bucket.push(t)
+    else noStatus.push(t)
+  }
+
+  const sections: Section[] = []
+  for (const s of sorted) {
+    const ts = buckets.get(s.id!)!
+    if (ts.length > 0) {
+      sections.push({ key: `status-${s.id}`, label: s.name, accentColor: s.color, todos: ts })
     }
   }
-
-  const noStatus = todos.filter(t => !t.statusId || !statusMap.has(t.statusId))
-  if (noStatus.length > 0) {
-    sections.push({ key: 'no-status', label: 'No Status', todos: noStatus })
-  }
+  if (noStatus.length > 0) sections.push({ key: 'no-status', label: 'No Status', todos: noStatus })
   return sections
 }
 
@@ -640,13 +639,20 @@ export function ListView() {
     loadListDefinitions()
   }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadStatuses, loadSavedViews, loadListDefinitions])
 
+  // Re-load assignment joins only when the set of todo ids changes.
+  // Identity-based dep on `todos` would re-fire on every attribute edit;
+  // sort-join lets us no-op when the composition is unchanged.
+  const todoIdsKey = useMemo(() => {
+    const ids = todos.map((t) => t.id)
+    ids.sort((a, b) => a - b)
+    return ids.join(',')
+  }, [todos])
   useEffect(() => {
-    const todoIds = todos.map((t) => t.id)
-    if (todoIds.length > 0) {
-      loadPeopleAssignments(todoIds)
-      loadOrgAssignments(todoIds)
-    }
-  }, [todos, loadPeopleAssignments, loadOrgAssignments])
+    if (todoIdsKey.length === 0) return
+    const ids = todoIdsKey.split(',').map(Number)
+    loadPeopleAssignments(ids)
+    loadOrgAssignments(ids)
+  }, [todoIdsKey, loadPeopleAssignments, loadOrgAssignments])
 
   useEffect(() => {
     setCollapsed({})

@@ -123,12 +123,6 @@ export const todoRepository = {
 }
 
 /**
- * Remove every occurrence of the given `todoIds` from each Taskboard's inline
- * entries list. Runs inside the caller's transaction (must include
- * `db.taskboards` in the transaction's table list). No-op on boards that held
- * nothing matching.
- */
-/**
  * Run a callback inside a Dexie rw transaction over `todos + todoPeople + todoOrgs`.
  * Lets services (e.g. nlp-task-creator) compose multi-table writes atomically
  * without importing `db` directly.
@@ -137,6 +131,11 @@ export async function runNlpMetadataTransaction<T>(fn: () => Promise<T>): Promis
   return db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs], fn)
 }
 
+// Full-scan is intentional: taskboards are inherently few (users rarely exceed
+// a handful) and `entries` is an array of objects, which Dexie can't index
+// directly. Adding a parallel scalar `entryTodoIds[]` index would require a
+// migration + keep-in-sync discipline on every entry mutation — cost/benefit
+// not worth it at current scale.
 export async function stripTodoFromTaskboards(todoIds: number[]): Promise<void> {
   if (todoIds.length === 0) return
   const remove = new Set(todoIds)
