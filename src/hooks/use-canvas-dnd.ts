@@ -18,6 +18,7 @@ import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { getFlatVisualOrder, bySortOrder } from '../utils/hierarchy'
+import { computeTaskboardInsertIndex } from '../utils/taskboard-insert'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -561,6 +562,15 @@ export function useCanvasDnD({
               if (activeCenter > overCenter) targetIndex++
             }
           }
+        } else if (overData?.type === 'taskboard' && typeof over?.id === 'string') {
+          // Panel-level drop (rail-docked TaskboardPanel): compute insertion
+          // from pointer Y vs entry rects so the drop matches the indicator.
+          const translated = active.rect.current.translated
+          const initialRect = active.rect.current.initial
+          let pointerY = 0
+          if (translated) pointerY = translated.top + translated.height / 2
+          else if (initialRect) pointerY = initialRect.top + initialRect.height / 2 + delta.y
+          targetIndex = computeTaskboardInsertIndex(over.id, pointerY)
         }
 
         if (dragIds) {

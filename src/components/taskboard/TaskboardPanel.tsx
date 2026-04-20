@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -8,7 +8,9 @@ import {
   useSensor,
   useSensors,
   useDroppable,
+  useDndMonitor,
   type DragEndEvent,
+  type DragMoveEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -23,6 +25,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import type { PersistedTodoItem, TaskboardEntry } from '../../models'
+import { computeTaskboardInsertIndex } from '../../utils/taskboard-insert'
 import styles from './TaskboardPanel.module.css'
 
 interface SortableEntryProps {
@@ -39,7 +42,7 @@ function SortableEntry({ entryId, index, todo, assignedPeople, taskboardId, onOp
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} data-tbp-entry className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} compact onOpenDetail={onOpenDetail} taskboardId={taskboardId} />
@@ -87,6 +90,24 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
     id: droppableId,
     data: { type: 'taskboard', taskboardId: resolvedId },
   })
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const [insertIndex, setInsertIndex] = useState<number | null>(null)
+
+  // Track external drags (not taskboard-task reorders) over the panel so we
+  // can surface an insertion line. Mirrors TaskboardNode's behaviour — the
+  // panel has its own nested DndContext for reorder, so entry rects are
+  // resolved from the DOM via `data-tbp-entry` attributes.
+  const onDragMove = useCallback((event: DragMoveEvent) => {
+    const activeType = event.active.data.current?.type
+    if (activeType === 'taskboard-task') { setInsertIndex(null); return }
+    if (!isOver) { setInsertIndex(null); return }
+    const translated = event.active.rect.current.translated
+    const pointerY = translated ? translated.top + translated.height / 2 : 0
+    setInsertIndex(computeTaskboardInsertIndex(droppableId, pointerY))
+  }, [isOver, droppableId])
+
+  const onDragClear = useCallback(() => { setInsertIndex(null) }, [])
+  useDndMonitor({ onDragMove, onDragEnd: onDragClear, onDragCancel: onDragClear })
 
   const todoMap = useMemo(() => {
     const map = new Map<number, PersistedTodoItem>()
@@ -128,7 +149,11 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
 
   return (
-    <div ref={setDropRef} className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${isOver ? styles.dropTarget : ''}`}>
+    <div
+      ref={setDropRef}
+      data-taskboard-panel-id={droppableId}
+      className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${isOver ? styles.dropTarget : ''}`}
+    >
       {!hideHeader && (
         <div
           {...(dragHandleProps ?? {})}
@@ -139,12 +164,15 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
           <span className={styles.headerCount}>{visibleEntries.length}</span>
         </div>
       )}
-      <div className={styles.list}>
+      <div ref={listRef} className={styles.list}>
         {visibleEntries.length === 0 ? (
-          <div className={styles.empty}>
-            No tasks queued
-            <span className={styles.dropHint}>Drag a task here or right-click to add</span>
-          </div>
+          <>
+            {isOver && insertIndex !== null && <div className={styles.dropPreview} />}
+            <div className={styles.empty}>
+              No tasks queued
+              <span className={styles.dropHint}>Drag a task here or right-click to add</span>
+            </div>
+          </>
         ) : (
           <DndContext key={reorderKey} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
@@ -152,17 +180,20 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
                 const todo = todoMap.get(entry.todoId)
                 if (!todo || resolvedId == null) return null
                 return (
-                  <SortableEntry
-                    key={entry.todoId}
-                    entryId={`tbp-${entry.todoId}`}
-                    index={i}
-                    todo={todo}
-                    assignedPeople={assignedPeopleMap.get(todo.id)}
-                    taskboardId={resolvedId}
-                    onOpenDetail={handleOpenDetail}
-                  />
+                  <Fragment key={entry.todoId}>
+                    {insertIndex === i && <div className={styles.dropPreview} />}
+                    <SortableEntry
+                      entryId={`tbp-${entry.todoId}`}
+                      index={i}
+                      todo={todo}
+                      assignedPeople={assignedPeopleMap.get(todo.id)}
+                      taskboardId={resolvedId}
+                      onOpenDetail={handleOpenDetail}
+                    />
+                  </Fragment>
                 )
               })}
+              {insertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
             </SortableContext>
           </DndContext>
         )}

@@ -122,3 +122,9 @@
   box-shadow: inset 0 0 0 2px var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
 }
+
+.dropPreview {
+  height: 2px;
+  margin: 2px 8px;
+  background: var(--color-accent);
+}
