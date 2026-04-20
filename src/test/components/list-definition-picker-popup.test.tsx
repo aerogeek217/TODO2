@@ -80,10 +80,10 @@ describe('ListDefinitionPickerPopup', () => {
           makeDef({ id: 2, name: 'Second', sortOrder: 2 }),
         ],
       })
-      const { container } = render(
+      render(
         <ListDefinitionPickerPopup x={10} y={10} mode="canvas" onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
       )
-      const names = Array.from(container.querySelectorAll('button'))
+      const names = Array.from(document.body.querySelectorAll('button'))
         .map(b => b.textContent ?? '')
         .filter(t => t.includes('First') || t.includes('Second') || t.includes('Third'))
       expect(names[0]).toContain('First')

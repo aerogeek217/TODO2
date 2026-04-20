@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import styles from './ListDefinitionPickerPopup.module.css'
 
@@ -60,7 +61,7 @@ export function TaskboardPickerPopup({ x, y, currentTaskboardId, onSelect, onClo
     onClose()
   }
 
-  return (
+  return createPortal(
     <div
       ref={popupRef}
       className={styles.popup}
@@ -106,6 +107,7 @@ export function TaskboardPickerPopup({ x, y, currentTaskboardId, onSelect, onClo
           </button>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

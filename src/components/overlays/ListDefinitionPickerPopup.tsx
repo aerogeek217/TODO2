@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import styles from './ListDefinitionPickerPopup.module.css'
 
@@ -83,7 +84,7 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
   const showNotes = mode === 'dashboard' && showNotesEntry && onPinNotes != null
   const isEmpty = items.length === 0 && !showNotes
 
-  return (
+  return createPortal(
     <div
       ref={popupRef}
       className={styles.popup}
@@ -145,6 +146,7 @@ export function ListDefinitionPickerPopup({ x, y, mode = 'dashboard', onSelect, 
           </div>
         </>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }

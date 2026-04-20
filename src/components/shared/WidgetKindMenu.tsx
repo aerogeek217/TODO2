@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { SlotKind } from '../../models/canvas-rails'
 import { KIND_ICON } from '../../utils/slot-kind'
 import styles from './WidgetKindMenu.module.css'
@@ -97,7 +98,7 @@ export function WidgetKindMenu({
     : currentKind === 'taskboard' ? 'Change taskboard…'
     : null
 
-  return (
+  return createPortal(
     <div
       ref={ref}
       className={styles.menu}
@@ -138,6 +139,7 @@ export function WidgetKindMenu({
           </button>
         </>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }
