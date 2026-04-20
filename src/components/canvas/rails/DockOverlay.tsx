@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core'
 import type { RailSide } from '../../../models/canvas-rails'
-import { encodeRailsDropId, RAILS_DRAG_TYPE } from './rail-dnd'
+import { encodeRailsDropId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
 import styles from './DockOverlay.module.css'
 
 interface DockOverlayProps {

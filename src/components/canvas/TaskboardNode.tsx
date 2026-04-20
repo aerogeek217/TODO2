@@ -18,7 +18,7 @@ import { TaskRow } from '../task/TaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { TaskboardPickerPopup } from '../overlays/TaskboardPickerPopup'
-import { convertFloatingKind } from '../../utils/float-kind-switch'
+import { convertFloatingKind } from '../../services/float-kind-switch'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {

@@ -30,7 +30,7 @@ import {
   pointerToSplitZone,
   RAILS_DRAG_TYPE,
   type RailsDragData,
-} from './rail-dnd'
+} from '../../../utils/rail-dnd'
 import styles from './RailsFrame.module.css'
 
 interface RailsFrameProps {

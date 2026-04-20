@@ -1,7 +1,7 @@
 import { parseInput } from './natural-language-parser'
 import { resolveInput, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
-import { db } from '../data/database'
+import { runNlpMetadataTransaction } from '../data'
 import type { Person, Project, Org, PersistedTodoItem } from '../models'
 
 export interface NlpCreateResult {
@@ -37,7 +37,7 @@ export async function applyNlpMetadata(
   const hasAssignments = resolved.personIds.length > 0 || resolved.orgIds.length > 0
   if (!hasUpdates && !hasAssignments) return
 
-  await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs], async () => {
+  await runNlpMetadataTransaction(async () => {
     // Update task properties if any were parsed
     if (hasUpdates) {
       const todo = getTodo(todoId)

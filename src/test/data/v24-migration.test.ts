@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   db,
   ensureSeededListDefinitions,
-  parseHorizonSlots,
   persistHorizonSlots,
   runV24Migration,
 } from '../../data/database'
+import { parseHorizonSlots } from '../../utils/horizon-slots'
 import type { ListDefinition } from '../../models/list-definition'
 import { HORIZON_KEYS } from '../../services/horizons'
 

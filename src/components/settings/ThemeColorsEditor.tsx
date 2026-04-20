@@ -1,7 +1,7 @@
 import { useSettingsStore, type ThemeColors } from '../../stores/settings-store'
 import { ColorInput } from '../shared/ColorInput'
 import styles from './EntityEditor.module.css'
-import settingsStyles from '../../views/SettingsPage.module.css'
+import settingsStyles from './modal-chrome.module.css'
 
 const colorLabels: Record<keyof ThemeColors, string> = {
   accent: 'Accent',

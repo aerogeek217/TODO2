@@ -1,5 +1,5 @@
 import styles from './EntityEditor.module.css'
-import settingsStyles from '../../views/SettingsPage.module.css'
+import settingsStyles from './modal-chrome.module.css'
 import { formatShortcut } from '../../utils/platform'
 
 interface KeyboardShortcutsModalProps {

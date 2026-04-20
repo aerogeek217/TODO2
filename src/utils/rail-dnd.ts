@@ -1,5 +1,5 @@
-import type { Rail, RailSide, RailsState, Slot, SlotKind } from '../../../models/canvas-rails'
-import { railOrientationForSide } from '../../../models/canvas-rails'
+import type { Rail, RailSide, RailsState, Slot, SlotKind } from '../models/canvas-rails'
+import { railOrientationForSide } from '../models/canvas-rails'
 
 export const RAILS_DRAG_TYPE = 'rails-slot' as const
 export const RAILS_DROP_ID_PREFIX = 'rails:' as const

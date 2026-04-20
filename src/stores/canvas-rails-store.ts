@@ -7,7 +7,7 @@ import {
   applySplitDrop,
   applySplitButton,
   type SplitZone,
-} from '../components/canvas/rails/rail-dnd'
+} from '../utils/rail-dnd'
 
 function genSlotId(): string {
   return `slot-${Math.random().toString(36).slice(2, 10)}`

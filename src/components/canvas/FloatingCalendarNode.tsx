@@ -14,7 +14,7 @@ import { startOfDay } from '../../utils/date'
 import { TwoWeekCalendarStrip } from './rails/TwoWeekCalendarStrip'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { convertFloatingKind } from '../../utils/float-kind-switch'
+import { convertFloatingKind } from '../../services/float-kind-switch'
 import styles from './FloatingCalendarNode.module.css'
 
 export interface FloatingCalendarNodeData {

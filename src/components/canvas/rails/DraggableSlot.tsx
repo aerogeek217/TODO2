@@ -3,7 +3,7 @@ import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { RailSide } from '../../../models/canvas-rails'
 import { railOrientationForSide } from '../../../models/canvas-rails'
 import { Slot } from './Slot'
-import { encodeRailsDropId, pointerToSplitZone, RAILS_DRAG_TYPE, type RailsDragData, type SplitZone } from './rail-dnd'
+import { encodeRailsDropId, pointerToSplitZone, RAILS_DRAG_TYPE, type RailsDragData, type SplitZone } from '../../../utils/rail-dnd'
 import styles from './DraggableSlot.module.css'
 
 interface DraggableSlotProps {

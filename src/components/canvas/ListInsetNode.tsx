@@ -13,7 +13,7 @@ import { ListDefinitionBody } from './ListDefinitionBody'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
-import { convertFloatingKind } from '../../utils/float-kind-switch'
+import { convertFloatingKind } from '../../services/float-kind-switch'
 import styles from './ListInsetNode.module.css'
 
 export function DraggableTaskRow({

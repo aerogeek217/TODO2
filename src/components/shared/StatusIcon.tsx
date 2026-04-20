@@ -1,9 +1,4 @@
-export const STATUS_ICON_KEYS = [
-  'person', 'message-bubble', 'circle', 'star', 'stop-sign', 'exclamation',
-  'clock', 'check', 'question', 'flag', 'eye', 'bookmark', 'snooze', 'arrow',
-  'calendar',
-] as const
-export type StatusIconKey = (typeof STATUS_ICON_KEYS)[number]
+export { STATUS_ICON_KEYS, type StatusIconKey } from '../../models/status'
 
 const svgBase = { width: '1em', height: '1em', viewBox: '0 0 16 16', style: { verticalAlign: '-0.125em' } as const }
 

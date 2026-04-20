@@ -1,4 +1,5 @@
 export { db } from './database'
+export { runNlpMetadataTransaction } from './todo-repository'
 export { todoRepository } from './todo-repository'
 export { projectRepository } from './project-repository'
 export { canvasRepository } from './canvas-repository'

@@ -17,7 +17,7 @@ export interface ImportTodoTag {
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
-import { STATUS_ICON_KEYS } from '../components/shared/StatusIcon'
+import { STATUS_ICON_KEYS } from '../models/status'
 import { SLOT_KINDS } from '../models/canvas-rails'
 import { HORIZON_KEYS } from '../services/horizons'
 
@@ -34,13 +34,8 @@ function isOptRecurrenceRule(v: unknown): boolean {
 }
 import type { SettingRow } from './database'
 
-// --- Color validation ---
-
-const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
-
-export function isValidCssColor(value: unknown): value is string {
-  return typeof value === 'string' && HEX_COLOR_RE.test(value)
-}
+export { isValidCssColor } from '../utils/css'
+import { isValidCssColor } from '../utils/css'
 
 // --- Field helpers ---
 

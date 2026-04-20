@@ -1,20 +1,17 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useSettingsStore, type ThemeMode } from '../stores/settings-store'
-import { useFileStorageStore, refreshAllStores } from '../stores/file-storage-store'
+import { useFileStorageStore } from '../stores/file-storage-store'
+import { useFileOpsStore } from '../stores/file-ops-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 import type { ImportData } from '../data/import-validation'
-import { restoreFromImportData } from '../data/restore'
 import { detectLegacyFormat } from '../services/migration-check'
 import type { LegacyImportInfo } from '../services/migration-check'
 import { MigrationDialog } from '../components/overlays/MigrationDialog'
-import { auditData, cleanupIssues, type AuditReport } from '../data/audit'
 import { buildExportData, buildMarkdownExport } from '../services/export-import'
-import { backupScheduler } from '../services/backup-scheduler'
-import { backupRepository, type BackupSummary } from '../data/backup-repository'
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
@@ -65,10 +62,19 @@ export function SettingsPage() {
   const [showDashboardListsEditor, setShowDashboardListsEditor] = useState(false)
   const listDefinitionCount = useListDefinitionStore((s) => s.listDefinitions.length)
   const loadListDefinitions = useListDefinitionStore((s) => s.load)
-  const [backups, setBackups] = useState<BackupSummary[]>([])
+  const backups = useFileOpsStore((s) => s.backups)
+  const auditReport = useFileOpsStore((s) => s.auditReport)
+  const loadBackups = useFileOpsStore((s) => s.loadBackups)
+  const createBackup = useFileOpsStore((s) => s.createBackup)
+  const deleteBackup = useFileOpsStore((s) => s.deleteBackup)
+  const peekBackupData = useFileOpsStore((s) => s.peekBackupData)
+  const restoreBackup = useFileOpsStore((s) => s.restoreBackup)
+  const runAudit = useFileOpsStore((s) => s.runAudit)
+  const setAuditReport = useFileOpsStore((s) => s.setAuditReport)
+  const cleanupCurrentAudit = useFileOpsStore((s) => s.cleanupCurrentAudit)
+  const restoreFromImport = useFileOpsStore((s) => s.restoreFromImport)
   const [backupMsg, setBackupMsg] = useState('')
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
-  const [auditReport, setAuditReport] = useState<AuditReport | null>(null)
   const [auditMsg, setAuditMsg] = useState('')
   const [auditRunning, setAuditRunning] = useState(false)
   const [showCleanupPopup, setShowCleanupPopup] = useState(false)
@@ -84,10 +90,6 @@ export function SettingsPage() {
   const loadPeople = usePersonStore((s) => s.load)
   const loadOrgs = useOrgStore((s) => s.load)
 
-  const loadBackups = async () => {
-    setBackups(await backupRepository.listSnapshots())
-  }
-
   useEffect(() => {
     load()
     loadProjects()
@@ -99,7 +101,7 @@ export function SettingsPage() {
     return () => {
       timerRefs.current.forEach(clearTimeout)
     }
-  }, [load, loadProjects, loadPeople, loadOrgs, loadStatuses, loadListDefinitions])
+  }, [load, loadProjects, loadPeople, loadOrgs, loadStatuses, loadListDefinitions, loadBackups])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -214,9 +216,7 @@ export function SettingsPage() {
   }
 
   const executeImport = async (data: ImportData) => {
-    await backupScheduler.snapshotBeforeDestructive().catch(() => {})
-    await restoreFromImportData(data)
-    await refreshAllStores()
+    await restoreFromImport(data)
     setExportMsg('Imported successfully!')
     track(() => setExportMsg(''), 4000)
   }
@@ -545,7 +545,7 @@ export function SettingsPage() {
                 onClick={async () => {
                   setAuditRunning(true)
                   try {
-                    setAuditReport(await auditData())
+                    await runAudit()
                   } finally {
                     setAuditRunning(false)
                   }
@@ -581,9 +581,7 @@ export function SettingsPage() {
                 <button
                   className={`${styles.button} ${styles.buttonPrimary}`}
                   onClick={async () => {
-                    const cleaned = await cleanupIssues(auditReport.issues)
-                    await refreshAllStores()
-                    setAuditReport(null)
+                    const cleaned = await cleanupCurrentAudit()
                     setAuditMsg(`Cleaned up ${cleaned} orphaned record${cleaned !== 1 ? 's' : ''}.`)
                     track(() => setAuditMsg(''), 4000)
                   }}
@@ -629,30 +627,26 @@ export function SettingsPage() {
                           className={styles.backupBtn}
                           onClick={async () => {
                             setConfirmRestoreId(null)
-                            const backup = await backupRepository.getSnapshot(b.id)
-                            if (!backup) { setBackupMsg('Backup not found'); track(() => setBackupMsg(''), 3000); return }
+                            const data = await peekBackupData(b.id)
+                            if (!data) { setBackupMsg('Backup not found'); track(() => setBackupMsg(''), 3000); return }
                             let parsed: unknown
-                            try { parsed = JSON.parse(backup.data) } catch { parsed = null }
+                            try { parsed = JSON.parse(data) } catch { parsed = null }
                             const legacyInfo = parsed ? detectLegacyFormat(parsed) : null
                             if (legacyInfo) {
                               setPendingMigration({
                                 info: legacyInfo,
                                 action: async () => {
-                                  const result = await backupRepository.restoreSnapshot(b.id)
-                                  if (result.ok) { await refreshAllStores(); setBackupMsg('Restored successfully!') }
-                                  else { setBackupMsg(`Restore failed: ${result.error}`) }
+                                  const result = await restoreBackup(b.id)
+                                  if (result.ok) setBackupMsg('Restored successfully!')
+                                  else setBackupMsg(`Restore failed: ${result.error}`)
                                   track(() => setBackupMsg(''), 3000)
                                 },
                               })
                               return
                             }
-                            const result = await backupRepository.restoreSnapshot(b.id)
-                            if (result.ok) {
-                              await refreshAllStores()
-                              setBackupMsg('Restored successfully!')
-                            } else {
-                              setBackupMsg(`Restore failed: ${result.error}`)
-                            }
+                            const result = await restoreBackup(b.id)
+                            if (result.ok) setBackupMsg('Restored successfully!')
+                            else setBackupMsg(`Restore failed: ${result.error}`)
                             track(() => setBackupMsg(''), 3000)
                           }}
                         >
@@ -670,8 +664,7 @@ export function SettingsPage() {
                         <button
                           className={`${styles.backupBtn} ${styles.backupBtnDanger}`}
                           onClick={async () => {
-                            await backupRepository.deleteSnapshot(b.id)
-                            await loadBackups()
+                            await deleteBackup(b.id)
                           }}
                         >
                           Delete
@@ -687,8 +680,7 @@ export function SettingsPage() {
             <button
               className={`${styles.button} ${styles.buttonSecondary}`}
               onClick={async () => {
-                await backupRepository.createSnapshot('manual')
-                await loadBackups()
+                await createBackup('manual')
                 setBackupMsg('Backup created!')
                 track(() => setBackupMsg(''), 2000)
               }}

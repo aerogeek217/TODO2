@@ -7,7 +7,7 @@ import { useCanvasStore } from '../../stores/canvas-store'
 import { NotesBody } from '../shared/notes/NotesBody'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { convertFloatingKind } from '../../utils/float-kind-switch'
+import { convertFloatingKind } from '../../services/float-kind-switch'
 import styles from './FloatingNoteNode.module.css'
 
 export interface FloatingNoteNodeData {

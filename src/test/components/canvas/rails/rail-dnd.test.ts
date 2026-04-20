@@ -11,7 +11,7 @@ import {
   findSlotLocation,
   isRailsDropId,
   pointerToSplitZone,
-} from '../../../../components/canvas/rails/rail-dnd'
+} from '../../../../utils/rail-dnd'
 
 function lensSlot(id: string, listDefinitionId?: number): Slot {
   return { id, kind: 'lens', listDefinitionId }

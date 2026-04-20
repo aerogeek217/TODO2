@@ -33,7 +33,7 @@ import {
   RAILS_DRAG_TYPE,
   type RailsDropZone,
   type SplitZone,
-} from '../../components/canvas/rails/rail-dnd'
+} from '../../utils/rail-dnd'
 import { installBoundingRectMock, type RectResolver } from './bounding-rect-mock'
 
 export interface TestRect {

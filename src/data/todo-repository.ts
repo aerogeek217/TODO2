@@ -128,6 +128,15 @@ export const todoRepository = {
  * `db.taskboards` in the transaction's table list). No-op on boards that held
  * nothing matching.
  */
+/**
+ * Run a callback inside a Dexie rw transaction over `todos + todoPeople + todoOrgs`.
+ * Lets services (e.g. nlp-task-creator) compose multi-table writes atomically
+ * without importing `db` directly.
+ */
+export async function runNlpMetadataTransaction<T>(fn: () => Promise<T>): Promise<T> {
+  return db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs], fn)
+}
+
 export async function stripTodoFromTaskboards(todoIds: number[]): Promise<void> {
   if (todoIds.length === 0) return
   const remove = new Set(todoIds)

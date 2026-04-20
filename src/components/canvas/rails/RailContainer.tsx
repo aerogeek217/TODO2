@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, type CSSProperties, type PointerEvent a
 import { useDroppable } from '@dnd-kit/core'
 import type { Rail, RailSide } from '../../../models/canvas-rails'
 import { RAIL_SIZE_MAX, RAIL_SIZE_MIN, clampRailSize } from '../../../models/canvas-rails'
-import { encodeRailsDropId, RAILS_DRAG_TYPE } from './rail-dnd'
+import { encodeRailsDropId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
 import styles from './RailContainer.module.css'
 
 interface RailContainerProps {

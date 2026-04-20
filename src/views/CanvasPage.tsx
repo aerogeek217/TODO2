@@ -5,7 +5,7 @@ import {
   pointerWithin,
   type CollisionDetection,
 } from '@dnd-kit/core'
-import { RAILS_DRAG_TYPE, isRailsDropId } from '../components/canvas/rails/rail-dnd'
+import { RAILS_DRAG_TYPE, isRailsDropId } from '../utils/rail-dnd'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'

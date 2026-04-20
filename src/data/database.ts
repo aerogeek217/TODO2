@@ -2,7 +2,7 @@ import Dexie, { type Table, type Transaction } from 'dexie'
 import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
-import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
+import type { HorizonKey } from '../services/horizons'
 
 export interface SettingRow {
   key: string
@@ -704,27 +704,6 @@ export async function persistHorizonSlots(
   slots: Partial<Record<HorizonKey, number | null>>,
 ): Promise<void> {
   await settingsTable.put({ key: 'horizonSlots', value: JSON.stringify(slots) })
-}
-
-/**
- * Parse `settings.horizonSlots`. Returns `{}` when absent / invalid. Invalid
- * slot keys are silently dropped (never throw — a bad settings row should not
- * break dashboard rendering).
- */
-export function parseHorizonSlots(value: string | undefined | null): Partial<Record<HorizonKey, number>> {
-  if (!value) return {}
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!parsed || typeof parsed !== 'object') return {}
-    const out: Partial<Record<HorizonKey, number>> = {}
-    for (const key of HORIZON_KEYS) {
-      const v = (parsed as Record<string, unknown>)[key]
-      if (typeof v === 'number' && Number.isFinite(v)) out[key] = v
-    }
-    return out
-  } catch {
-    return {}
-  }
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */

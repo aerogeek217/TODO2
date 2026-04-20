@@ -1,0 +1,119 @@
+/* Shared chrome for settings-page subviews and modal editors. Lives in
+   components/settings/ so settings modals do not import from views/.
+   SettingsPage.tsx also reads these for the button-row pattern. */
+
+.buttonRow {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.button {
+  padding: 6px 14px;
+  border-radius: var(--radius-card);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.button:hover {
+  opacity: 0.85;
+}
+
+.buttonPrimary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border: none;
+  font-weight: var(--font-weight-semibold);
+}
+
+.buttonSecondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.buttonDanger {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+.buttonDanger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: var(--color-bg);
+}
+
+.buttonDanger:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.buttonDanger:disabled:hover {
+  opacity: 0.4;
+}
+
+/* ── Color rows (ThemeColorsEditor) ── */
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface-high);
+  border-radius: var(--radius-card);
+}
+
+.colorLabel {
+  flex: 1;
+  font-size: var(--font-size-task);
+  color: var(--color-text-secondary);
+}
+
+/* ── Shortcut grid (KeyboardShortcutsModal) ── */
+
+.shortcutCategory {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+
+.shortcutCategory:first-of-type {
+  margin-top: 0;
+}
+
+.shortcutGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+}
+
+.shortcutKey {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  padding: 1px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-family: monospace;
+  text-align: center;
+}
+
+.shortcutDesc {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 2px 0;
+}
+
+@media (max-width: 640px) {
+  .button {
+    min-height: var(--touch-target-min);
+    padding: 10px 16px;
+  }
+
+  .buttonRow {
+    flex-wrap: wrap;
+  }
+}
