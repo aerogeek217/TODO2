@@ -48,6 +48,22 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, statuses)).toBe(true)
   })
 
+  it('matchesFilter checks project membership', () => {
+    useFilterStore.getState().setProjectIds(new Set([7]))
+
+    expect(matchesFilter(f(), makeTodo({ id: 1, projectId: 7 }))).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 2, projectId: 9 }))).toBe(false)
+    expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
+  })
+
+  it('matchesFilter honors no-project (0) sentinel', () => {
+    useFilterStore.getState().setProjectIds(new Set([0, 7]))
+
+    expect(matchesFilter(f(), makeTodo({ id: 1, projectId: 7 }))).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 3, projectId: 9 }))).toBe(false)
+  })
+
   it('matchesFilter checks person assignment', () => {
     useFilterStore.getState().setPersonIds(new Set([5]))
 
@@ -550,6 +566,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       personFilterMode: 'direct-only' as const,
       orgIds: null,
       orgFilterMode: 'include-people' as const,
+      projectIds: null,
       statusIds: new Set([0, 3]),
       searchText: 'x',
       dateField: 'deadline' as const,

@@ -459,7 +459,7 @@ function EntityDropdownItems({
 
 
 export function TopBar() {
-  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setProjectIds, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -489,10 +489,11 @@ export function TopBar() {
   // Track which filter dropdown is in "preview empty" mode:
   // when opened with all selected, show unchecked visually but don't commit to store
   // until user clicks an item. If closed without selection, stays at all (null).
-  const [previewEmpty, setPreviewEmpty] = useState<'people' | 'org' | 'status' | null>(null)
+  const [previewEmpty, setPreviewEmpty] = useState<'project' | 'people' | 'org' | 'status' | null>(null)
 
   const peopleActive = filters.personIds !== null
   const orgsActive = filters.orgIds !== null
+  const projectsActive = filters.projectIds !== null
   const statusActive = filters.statusIds !== null
   const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null || filters.hasScheduled !== null || filters.hasDeadline !== null
 
@@ -534,12 +535,27 @@ export function TopBar() {
     [filters.statusIds, statuses, setStatusIds, previewEmpty],
   )
 
+  const handleProjectToggle = useCallback(
+    (projectId: number) => {
+      if (previewEmpty === 'project') {
+        setPreviewEmpty(null)
+        setProjectIds(new Set([projectId]))
+        return
+      }
+      const allIds = [0, ...projects.map((p) => p.id!)]
+      setProjectIds(toggleItem(filters.projectIds, projectId, allIds))
+    },
+    [filters.projectIds, projects, setProjectIds, previewEmpty],
+  )
+
   const isPersonChecked = (id: number) => previewEmpty === 'people' ? false : filters.personIds === null || filters.personIds.has(id)
   const isOrgChecked = (id: number) => previewEmpty === 'org' ? false : filters.orgIds === null || filters.orgIds.has(id)
+  const isProjectChecked = (id: number) => previewEmpty === 'project' ? false : filters.projectIds === null || filters.projectIds.has(id)
   const isStatusChecked = (id: number) => previewEmpty === 'status' ? false : filters.statusIds === null || filters.statusIds.has(id)
 
   const peopleNone = previewEmpty === 'people' || (filters.personIds !== null && filters.personIds.size === 0)
   const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
+  const projectsNone = previewEmpty === 'project' || (filters.projectIds !== null && filters.projectIds.size === 0)
   const statusNone = previewEmpty === 'status' || (filters.statusIds !== null && filters.statusIds.size === 0)
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
@@ -637,6 +653,37 @@ export function TopBar() {
           />
         )}
       </div>
+
+          {projects.length > 0 && (
+            <FilterDropdown
+              label={
+                <>
+                  <svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 4.5l6-3 6 3v7l-6 3-6-3z" />
+                    <path d="M2 4.5l6 3 6-3M8 7.5v7" />
+                  </svg>
+                  {' '}Project
+                </>
+              }
+              active={projectsActive || previewEmpty === 'project'}
+              allSelected={!projectsActive && previewEmpty !== 'project'}
+              noneSelected={projectsNone}
+              onSelectAll={() => { setPreviewEmpty(null); setProjectIds(null) }}
+              onDeselectAll={() => { setPreviewEmpty(null); setProjectIds(new Set()) }}
+              onOpen={() => { if (!projectsActive) setPreviewEmpty('project') }}
+              onClose={() => { if (previewEmpty === 'project') setPreviewEmpty(null) }}
+              searchable
+            >
+              {(searchText: string) => (
+                <EntityDropdownItems
+                  searchText={searchText}
+                  entities={projects}
+                  isChecked={isProjectChecked}
+                  onToggle={handleProjectToggle}
+                />
+              )}
+            </FilterDropdown>
+          )}
 
           {people.length > 0 && (
             <FilterDropdown

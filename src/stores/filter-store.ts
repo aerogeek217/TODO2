@@ -31,6 +31,8 @@ export interface FilterCriteria {
   orgIds: Set<number> | null
   /** 'include-people' (default) matches person-org + direct-org; 'direct-only' matches only direct org assignment */
   orgFilterMode: OrgFilterMode
+  /** null = no filter; Set = only todos in these projects shown (0 = no project) */
+  projectIds: Set<number> | null
   /** null = no filter; Set = only those statuses shown (0 = no status) */
   statusIds: Set<number> | null
   /** Empty string = no filter; non-empty = case-insensitive substring match on title */
@@ -67,6 +69,7 @@ interface FilterState {
   setPersonFilterMode: (mode: PersonFilterMode) => void
   setOrgIds: (orgIds: Set<number> | null) => void
   setOrgFilterMode: (mode: OrgFilterMode) => void
+  setProjectIds: (projectIds: Set<number> | null) => void
   setStatusIds: (statusIds: Set<number> | null) => void
   setSearchText: (text: string) => void
   setDateField: (field: DateField) => void
@@ -87,6 +90,7 @@ const defaultFilters: FilterCriteria = {
   personFilterMode: 'include-orgs',
   orgIds: null,
   orgFilterMode: 'include-people',
+  projectIds: null,
   statusIds: null,
   searchText: '',
   dateField: 'date',
@@ -103,6 +107,7 @@ function isFilterActive(f: FilterCriteria): boolean {
     f.showHiddenStatuses ||
     f.personIds !== null ||
     f.orgIds !== null ||
+    f.projectIds !== null ||
     f.statusIds !== null ||
     f.searchText !== '' ||
     f.dateRangeStart !== null ||
@@ -182,6 +187,12 @@ export function matchesFilter(
       const directOrgMatch = directOrgIds?.some((orgId) => filters.orgIds!.has(orgId)) ?? false
       if (!personOrgMatch && !directOrgMatch) return false
     }
+  }
+  if (filters.projectIds !== null) {
+    const pid = todo.projectId
+    if (pid == null) {
+      if (!filters.projectIds.has(0)) return false
+    } else if (!filters.projectIds.has(pid)) return false
   }
   if (filters.hasScheduled !== null) {
     const has = todo.scheduledDate !== undefined
@@ -298,6 +309,7 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     personFilterMode: f.personFilterMode,
     orgIds: f.orgIds ? Array.from(f.orgIds) : null,
     orgFilterMode: f.orgFilterMode,
+    projectIds: f.projectIds ? Array.from(f.projectIds) : null,
     statusIds: f.statusIds ? Array.from(f.statusIds) : null,
     searchText: f.searchText,
     dateField: f.dateField,
@@ -318,6 +330,7 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     personFilterMode: p.personFilterMode,
     orgIds: p.orgIds ? new Set(p.orgIds) : null,
     orgFilterMode: p.orgFilterMode,
+    projectIds: p.projectIds ? new Set(p.projectIds) : null,
     statusIds: p.statusIds ? new Set(p.statusIds) : null,
     searchText: p.searchText,
     dateField: p.dateField,
@@ -359,6 +372,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setOrgFilterMode(orgFilterMode: OrgFilterMode) {
     commit(set, { ...get().filters, orgFilterMode })
+  },
+
+  setProjectIds(projectIds: Set<number> | null) {
+    commit(set, { ...get().filters, projectIds })
   },
 
   setStatusIds(statusIds: Set<number> | null) {

@@ -206,6 +206,7 @@ export function CanvasPage() {
   const filterGhostIds = useMemo(() => {
     const hasGhostFilter =
       filters.personIds !== null || filters.orgIds !== null ||
+      filters.projectIds !== null ||
       filters.statusIds !== null || filters.searchText !== '' ||
       filters.dateRangeStart !== null || filters.dateRangeEnd !== null
     if (!hasGhostFilter) return undefined

@@ -20,6 +20,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useFilterStore, predicateToCriteria } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -115,6 +116,7 @@ interface PredicateChip {
 function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
   const people = usePersonStore((s) => s.people)
   const orgs = useOrgStore((s) => s.orgs)
+  const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
 
   return useMemo(() => {
@@ -137,6 +139,14 @@ function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
         return o ? o.name : '?'
       })
       chips.push({ key: 'orgs', label: names.join(', ') })
+    }
+    if (predicate.projectIds && predicate.projectIds.length > 0) {
+      const names = predicate.projectIds.map((id) => {
+        if (id === 0) return 'No project'
+        const p = projects.find((x) => x.id === id)
+        return p ? p.name : '?'
+      })
+      chips.push({ key: 'projects', label: names.join(', ') })
     }
     if (predicate.statusIds && predicate.statusIds.length > 0) {
       const names = predicate.statusIds.map((id) => {
@@ -163,7 +173,7 @@ function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
     if (predicate.showCompleted) chips.push({ key: 'completed', label: 'Show completed' })
     if (predicate.showHiddenStatuses) chips.push({ key: 'hidden', label: 'Show hidden statuses' })
     return chips
-  }, [predicate, people, orgs, statuses])
+  }, [predicate, people, orgs, projects, statuses])
 }
 
 function ConfigPanel({

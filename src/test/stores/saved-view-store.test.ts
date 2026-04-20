@@ -10,6 +10,7 @@ const defaultFilters: FilterCriteria = {
   personFilterMode: 'include-orgs',
   orgIds: null,
   orgFilterMode: 'include-people',
+  projectIds: null,
   statusIds: null,
   searchText: '',
   dateField: 'date',

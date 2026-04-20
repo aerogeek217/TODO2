@@ -26,7 +26,7 @@ Detail reference for `src/stores/`. Load when touching store APIs, filter semant
 
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
-| useFilterStore | stores/filter-store.ts | Filter criteria (personIds, orgIds, statusIds as null\|Set; showCompleted, showHiddenStatuses (overrides hideByDefault), searchText, dateField, dateRangeStart/End, dateRangeIncludeNoDate; personFilterMode (include-orgs/direct-only), orgFilterMode (include-people/direct-only)); displayed in TopBar filter bar |
+| useFilterStore | stores/filter-store.ts | Filter criteria (personIds, orgIds, projectIds, statusIds as null\|Set; showCompleted, showHiddenStatuses (overrides hideByDefault), searchText, dateField, dateRangeStart/End, dateRangeIncludeNoDate; personFilterMode (include-orgs/direct-only), orgFilterMode (include-people/direct-only)); displayed in TopBar filter bar |
 | matchesFilter / applyFilter | stores/filter-store.ts | Top-level evaluators (not store methods). Take `filters: FilterCriteria` explicitly so the dashboard interpreter can synthesize a runtime FilterCriteria from a stored `TodoPredicate`. `statuses[]` drives hideByDefault exclusion; optional `today` anchors fuzzy-scheduled resolution |
 | criteriaToPredicate / predicateToCriteria | stores/filter-store.ts | Converters between runtime `FilterCriteria` (Sets + Dates) and serializable `TodoPredicate` (arrays + ISO strings). Crossed at storage/evaluation boundaries (save-view serialize, dashboard-lists custom-membership evaluate) |
 | OrgFilterMode | stores/filter-store.ts | Type: include-people, direct-only — include-people matches person-org + direct-org; direct-only matches only direct org assignment |

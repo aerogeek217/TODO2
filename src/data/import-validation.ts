@@ -794,6 +794,7 @@ function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] 
     // v29 retired tags; pre-v29 backups may carry tagIds — silently dropped here.
     orgIds: v.orgIds as number[] | null,
     ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as SavedView['filters']['orgFilterMode'] } : {}),
+    ...(v.projectIds !== undefined ? { projectIds: v.projectIds as number[] | null } : {}),
     ...(v.statusIds !== undefined ? { statusIds: v.statusIds as number[] | null } : {}),
     ...(v.dateField !== undefined ? { dateField: v.dateField as SavedView['filters']['dateField'] } : {}),
     ...(v.dateRangeStart !== undefined ? { dateRangeStart: v.dateRangeStart as SavedView['filters']['dateRangeStart'] } : {}),

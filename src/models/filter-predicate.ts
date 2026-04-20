@@ -62,6 +62,8 @@ export interface TodoPredicate {
   personFilterMode: PersonFilterMode
   orgIds: number[] | null
   orgFilterMode: OrgFilterMode
+  /** null = no filter; array = only todos in these projects shown (0 = "no project" sentinel) */
+  projectIds: number[] | null
   statusIds: number[] | null
   searchText: string
   dateField: DateField
