@@ -18,6 +18,12 @@ export interface WidgetHeaderProps {
   dragHandleProps?: HTMLAttributes<HTMLSpanElement> & { ref?: Ref<HTMLSpanElement> }
   /** When true, buttons are hover-revealed and receive react-flow `nopan nodrag` classes. */
   floating?: boolean
+  /**
+   * When provided, the title renders as a button that fires this callback with
+   * its bottom-left anchor point. Used by the kind/list selector (P3).
+   */
+  onTitleClick?: (anchor: { x: number; y: number }) => void
+  titleMenuOpen?: boolean
 }
 
 export function WidgetHeader({
@@ -34,6 +40,8 @@ export function WidgetHeader({
   onClose,
   dragHandleProps,
   floating = false,
+  onTitleClick,
+  titleMenuOpen,
 }: WidgetHeaderProps) {
   const { ref: dragRef, ...dragRest } = dragHandleProps ?? {}
   const kindLabel = KIND_LABEL[kind] ?? kind
@@ -68,7 +76,25 @@ export function WidgetHeader({
         </button>
       )}
       <span className={styles.kindIcon} aria-hidden="true">{kindIcon}</span>
-      <span className={styles.title}>{title}</span>
+      {onTitleClick ? (
+        <button
+          type="button"
+          className={`${styles.titleButton} ${floating ? 'nopan nodrag' : ''}`}
+          onClick={(e) => {
+            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+            onTitleClick({ x: rect.left, y: rect.bottom + 4 })
+          }}
+          aria-haspopup="menu"
+          aria-expanded={titleMenuOpen ? true : false}
+          aria-label={`Change ${kindLabel}`}
+          title="Change widget"
+        >
+          <span className={styles.titleLabel}>{title}</span>
+          <span className={styles.titleCaret} aria-hidden="true">▾</span>
+        </button>
+      ) : (
+        <span className={styles.title}>{title}</span>
+      )}
       {meta != null && <span className={styles.meta}>{meta}</span>}
       {onPopOut && (
         <button

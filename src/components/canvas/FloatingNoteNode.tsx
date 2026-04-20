@@ -1,9 +1,13 @@
-import { memo, useRef, useCallback } from 'react'
+import { memo, useRef, useCallback, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { FloatingNote } from '../../models'
+import type { SlotKind } from '../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
+import { useCanvasStore } from '../../stores/canvas-store'
 import { NotesBody } from '../shared/notes/NotesBody'
 import { WidgetHeader } from '../shared/WidgetHeader'
+import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import { convertFloatingKind } from '../../utils/float-kind-switch'
 import styles from './FloatingNoteNode.module.css'
 
 export interface FloatingNoteNodeData {
@@ -16,6 +20,7 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
   const { note, onDelete, onResize } = data
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
+  const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
 
   const width = note.width
   const height = note.height
@@ -31,6 +36,20 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
     onDelete(note.id)
   }, [note.id, onDelete])
 
+  const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
+    if (note.id == null) return
+    if (nextKind === 'notes') return
+    const canvasId = useCanvasStore.getState().selectedCanvasId
+    if (canvasId == null) return
+    await convertFloatingKind({
+      sourceKind: 'notes',
+      sourceId: note.id,
+      canvasId,
+      rect: { x: note.x, y: note.y, width, height },
+      nextKind,
+    })
+  }, [note.id, note.x, note.y, width, height])
+
   return (
     <div className={styles.note} style={{ width, height }}>
       <WidgetHeader
@@ -38,6 +57,8 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
         title="Notes · Inbox"
         onDock={handleDock}
         onClose={handleClose}
+        onTitleClick={(a) => setKindAnchor(a)}
+        titleMenuOpen={kindAnchor !== null}
         floating
       />
 
@@ -89,6 +110,14 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
           window.addEventListener('mouseup', onMouseUp)
         }}
       />
+      {kindAnchor && (
+        <WidgetKindMenu
+          anchor={kindAnchor}
+          currentKind="notes"
+          onChangeKind={(k) => { void handleChangeKind(k) }}
+          onClose={() => setKindAnchor(null)}
+        />
+      )}
     </div>
   )
 }

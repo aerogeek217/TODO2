@@ -38,13 +38,12 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="lens"
-        onChangeKind={() => {}}
         onSplit={() => {}}
         onClose={() => {}}
       />,
     )
-    // "Lens" is disabled (current kind); first enabled is "Notes".
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Notes' }))
+    // Post-P3: kind switching moved to WidgetKindMenu; first enabled here is "Split above".
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Split above' }))
   })
 
   it('moves focus with ArrowDown / ArrowUp and wraps', () => {
@@ -52,16 +51,15 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="lens"
-        onChangeKind={() => {}}
         onSplit={() => {}}
         onClose={() => {}}
       />,
     )
     const menu = screen.getByRole('menu')
     fireEvent.keyDown(menu, { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Calendar' }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Split below' }))
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Notes' }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Split above' }))
   })
 
   it('closes on Escape', () => {
@@ -70,7 +68,6 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="lens"
-        onChangeKind={() => {}}
         onSplit={() => {}}
         onClose={onClose}
       />,
@@ -84,7 +81,6 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="calendar"
-        onChangeKind={() => {}}
         onSplit={() => {}}
         onClose={() => {}}
       />,

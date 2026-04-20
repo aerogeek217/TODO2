@@ -8,9 +8,16 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem, Person, FloatingTaskboard, TaskboardEntry } from '../../models'
+import type { SlotKind } from '../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
+import { useCanvasStore } from '../../stores/canvas-store'
+import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
+import { floatingTaskboardRepository } from '../../data'
 import { TaskRow } from '../task/TaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
+import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import { TaskboardPickerPopup } from '../overlays/TaskboardPickerPopup'
+import { convertFloatingKind } from '../../utils/float-kind-switch'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
@@ -85,8 +92,39 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     data: { type: 'taskboard', taskboardId, floatingId },
   })
 
+  const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
+    if (nextKind === 'taskboard') return
+    const canvasId = useCanvasStore.getState().selectedCanvasId
+    if (canvasId == null) return
+    const row = useFloatingTaskboardStore.getState().taskboards.find((t) => t.id === floatingId)
+    if (!row) return
+    await convertFloatingKind({
+      sourceKind: 'taskboard',
+      sourceId: floatingId,
+      canvasId,
+      rect: { x: row.x, y: row.y, width, height },
+      nextKind,
+    })
+  }, [floatingId, width, height])
+
+  const handleOpenSecondary = () => {
+    if (!kindAnchor) return
+    setTbPickerAnchor(kindAnchor)
+    setKindAnchor(null)
+  }
+
+  const handleSelectTaskboard = async (newTaskboardId: number) => {
+    const row = useFloatingTaskboardStore.getState().taskboards.find((t) => t.id === floatingId)
+    if (!row || row.taskboardId === newTaskboardId) return
+    await floatingTaskboardRepository.update({ ...row, taskboardId: newTaskboardId })
+    const canvasId = useCanvasStore.getState().selectedCanvasId
+    if (canvasId != null) await useFloatingTaskboardStore.getState().loadByCanvas(canvasId)
+  }
+
   const [isExternalDragOver, setIsExternalDragOver] = useState(false)
   const [tbInsertIndex, setTbInsertIndex] = useState<number | null>(null)
+  const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [tbPickerAnchor, setTbPickerAnchor] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
@@ -173,6 +211,8 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
           onClose()
         }}
         onClose={onClose}
+        onTitleClick={(a) => setKindAnchor(a)}
+        titleMenuOpen={kindAnchor !== null}
         floating
       />
 
@@ -239,6 +279,24 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
           window.addEventListener('mouseup', onMouseUp)
         }}
       />
+      {kindAnchor && (
+        <WidgetKindMenu
+          anchor={kindAnchor}
+          currentKind="taskboard"
+          onChangeKind={(k) => { void handleChangeKind(k) }}
+          onOpenSecondary={handleOpenSecondary}
+          onClose={() => setKindAnchor(null)}
+        />
+      )}
+      {tbPickerAnchor && (
+        <TaskboardPickerPopup
+          x={tbPickerAnchor.x}
+          y={tbPickerAnchor.y}
+          currentTaskboardId={taskboardId}
+          onSelect={(id) => { void handleSelectTaskboard(id) }}
+          onClose={() => setTbPickerAnchor(null)}
+        />
+      )}
     </div>
   )
 }

@@ -1,13 +1,19 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Org, TodoPredicate } from '../../models'
+import type { SlotKind } from '../../models/canvas-rails'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useListInsetStore } from '../../stores/list-inset-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
+import { useCanvasStore } from '../../stores/canvas-store'
 import { TaskRow } from '../task/TaskRow'
 import { ListDefinitionBody } from './ListDefinitionBody'
 import { WidgetHeader } from '../shared/WidgetHeader'
+import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
+import { convertFloatingKind } from '../../utils/float-kind-switch'
 import styles from './ListInsetNode.module.css'
 
 export function DraggableTaskRow({
@@ -79,11 +85,42 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const definition = useListDefinitionStore((s) => s.listDefinitions.find(d => d.id === inset.listDefinitionId))
   const [count, setCount] = useState(0)
+  const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [listPickerAnchor, setListPickerAnchor] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
   const headerLabel = definition?.name ?? '(Deleted list)'
   const subtitle = definition ? describeMembership(definition) : 'Referenced list was deleted'
+  const height = inset.height ?? 300
+
+  const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
+    if (inset.id == null) return
+    if (nextKind === 'lens') return
+    const canvasId = useCanvasStore.getState().selectedCanvasId
+    if (canvasId == null) return
+    await convertFloatingKind({
+      sourceKind: 'lens',
+      sourceId: inset.id,
+      canvasId,
+      rect: { x: inset.x, y: inset.y, width: inset.width, height },
+      nextKind,
+    })
+  }, [inset.id, inset.x, inset.y, inset.width, height])
+
+  const handleOpenSecondary = () => {
+    if (!kindAnchor) return
+    setListPickerAnchor(kindAnchor)
+    setKindAnchor(null)
+  }
+
+  const handleSelectList = (listDefinitionId: number) => {
+    if (inset.id == null) return
+    const store = useListInsetStore.getState()
+    const current = store.insets.find((i) => i.id === inset.id)
+    if (!current) return
+    void store.update({ ...current, listDefinitionId })
+  }
 
   return (
     <div className={styles.inset} style={{ width: inset.width }}>
@@ -99,6 +136,8 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           onDelete(inset.id)
         }}
         onClose={() => inset.id && onDelete(inset.id)}
+        onTitleClick={(a) => setKindAnchor(a)}
+        titleMenuOpen={kindAnchor !== null}
         floating
       />
 
@@ -251,6 +290,26 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           window.addEventListener('mouseup', onMouseUp)
         }}
       />
+      {kindAnchor && (
+        <WidgetKindMenu
+          anchor={kindAnchor}
+          currentKind="lens"
+          onChangeKind={(k) => { void handleChangeKind(k) }}
+          onOpenSecondary={handleOpenSecondary}
+          onClose={() => setKindAnchor(null)}
+          secondaryLabel={definition ? `Change list (${definition.name})…` : undefined}
+        />
+      )}
+      {listPickerAnchor && (
+        <ListDefinitionPickerPopup
+          x={listPickerAnchor.x}
+          y={listPickerAnchor.y}
+          mode="canvas"
+          onSelect={handleSelectList}
+          onCreateNew={() => { /* inset doesn't host the editor; user can use dashboard */ }}
+          onClose={() => setListPickerAnchor(null)}
+        />
+      )}
     </div>
   )
 }

@@ -99,4 +99,21 @@ describe('WidgetHeader', () => {
     const btn = screen.getByRole('button', { name: /close lens/i })
     expect(btn.className).not.toMatch(/nopan/)
   })
+
+  it('renders title as a button when onTitleClick is provided', () => {
+    const onTitleClick = vi.fn()
+    render(<WidgetHeader kind="lens" title="This week" onTitleClick={onTitleClick} />)
+    const titleBtn = screen.getByRole('button', { name: /change lens/i })
+    expect(titleBtn.textContent).toContain('This week')
+    expect(titleBtn).toHaveAttribute('aria-haspopup', 'menu')
+    fireEvent.click(titleBtn)
+    expect(onTitleClick).toHaveBeenCalled()
+    expect(typeof onTitleClick.mock.calls[0][0].x).toBe('number')
+    expect(typeof onTitleClick.mock.calls[0][0].y).toBe('number')
+  })
+
+  it('exposes aria-expanded on the title button when menu is open', () => {
+    render(<WidgetHeader kind="notes" title="N" onTitleClick={() => {}} titleMenuOpen />)
+    expect(screen.getByRole('button', { name: /change notes/i })).toHaveAttribute('aria-expanded', 'true')
+  })
 })

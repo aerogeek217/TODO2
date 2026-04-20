@@ -18,10 +18,11 @@ import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
 import { NotesSlotContent } from './NotesSlotContent'
 import { TaskboardSlotContent } from './TaskboardSlotContent'
-import { LensTitleButton } from './LensTitleButton'
 import { DockOverlay } from './DockOverlay'
 import { SlotMenu } from './SlotMenu'
+import { WidgetKindMenu } from '../../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPopup'
+import { TaskboardPickerPopup } from '../../overlays/TaskboardPickerPopup'
 import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 import {
   decodeRailsDropId,
@@ -128,6 +129,7 @@ interface SlotRendererProps {
 function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const closeSlot = useCanvasRailsStore((s) => s.closeSlot)
   const updateSlot = useCanvasRailsStore((s) => s.updateSlot)
+  const setSlotKind = useCanvasRailsStore((s) => s.setSlotKind)
   const splitSlot = useCanvasRailsStore((s) => s.splitSlot)
   const pendingFocusSlotId = useCanvasRailsStore((s) => s.pendingFocusSlotId)
   const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
@@ -135,11 +137,14 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const [title, setTitle] = useState<string>('')
   const [count, setCount] = useState<number>(0)
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
+  const [taskboardPickerPos, setTaskboardPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [kindMenuAnchor, setKindMenuAnchor] = useState<{ x: number; y: number } | null>(null)
 
   const moreButtonRef = useRef<HTMLButtonElement | null>(null)
   const menuOpen = menuAnchor !== null
+  const kindMenuOpen = kindMenuAnchor !== null
 
   const closeMenuAndFocusTrigger = () => {
     setMenuAnchor(null)
@@ -176,26 +181,31 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     ? () => { void popSlotToCanvas(slot).then((moved) => { if (moved) closeSlot(slot.id) }) }
     : undefined
 
-  let header: ReactNode
+  const handleTitleClick = (anchor: { x: number; y: number }) => setKindMenuAnchor(anchor)
+
+  const handleOpenSecondary = () => {
+    if (!kindMenuAnchor) return
+    const anchor = kindMenuAnchor
+    setKindMenuAnchor(null)
+    if (slot.kind === 'lens') setPickerPos(anchor)
+    else if (slot.kind === 'taskboard') setTaskboardPickerPos(anchor)
+  }
+
+  const handleChangeKind = async (nextKind: typeof slot.kind) => {
+    if (nextKind === slot.kind) return
+    if (nextKind === 'taskboard') {
+      const tbId = useTaskboardStore.getState().defaultBoardId
+        ?? (await useTaskboardStore.getState().ensureDefault())
+      setSlotKind(slot.id, nextKind, { taskboardId: tbId })
+      return
+    }
+    setSlotKind(slot.id, nextKind)
+  }
+
+  let headerTitle: ReactNode
   let body: ReactNode
   if (slot.kind === 'lens') {
-    header = (
-      <SlotHeader
-        slotKind={slot.kind}
-        title={(
-          <LensTitleButton
-            label={title || 'Lens'}
-            onOpen={(x, y) => setPickerPos({ x, y })}
-          />
-        )}
-        meta={count > 0 ? count : undefined}
-        onMore={(anchor) => setMenuAnchor(anchor)}
-        onPopOut={handlePopOut}
-        menuOpen={menuOpen}
-        moreButtonRef={moreButtonRef}
-        onClose={closeThisSlot}
-      />
-    )
+    headerTitle = title || 'Lens'
     body = (
       <LensSlotContent
         listDefinitionId={slot.listDefinitionId}
@@ -206,61 +216,37 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       />
     )
   } else if (slot.kind === 'calendar') {
-    header = (
-      <SlotHeader
-        slotKind={slot.kind}
-        title="Calendar · next 2 wks"
-        onMore={(anchor) => setMenuAnchor(anchor)}
-        onPopOut={handlePopOut}
-        menuOpen={menuOpen}
-        moreButtonRef={moreButtonRef}
-        onClose={closeThisSlot}
-      />
-    )
+    headerTitle = 'Calendar · next 2 wks'
     body = <CalendarSlotContent />
   } else if (slot.kind === 'notes') {
-    header = (
-      <SlotHeader
-        slotKind={slot.kind}
-        title="Notes · Inbox"
-        onMore={(anchor) => setMenuAnchor(anchor)}
-        onPopOut={handlePopOut}
-        menuOpen={menuOpen}
-        moreButtonRef={moreButtonRef}
-        onClose={closeThisSlot}
-      />
-    )
+    headerTitle = 'Notes · Inbox'
     body = <NotesSlotContent />
   } else if (slot.kind === 'taskboard') {
-    header = (
-      <SlotHeader
-        slotKind={slot.kind}
-        title="Taskboard"
-        onMore={(anchor) => setMenuAnchor(anchor)}
-        onPopOut={handlePopOut}
-        menuOpen={menuOpen}
-        moreButtonRef={moreButtonRef}
-        onClose={closeThisSlot}
-      />
-    )
+    headerTitle = 'Taskboard'
     body = <TaskboardSlotContent taskboardId={slot.taskboardId} />
   } else {
-    header = (
-      <SlotHeader
-        slotKind={slot.kind}
-        title={slot.kind}
-        onMore={(anchor) => setMenuAnchor(anchor)}
-        menuOpen={menuOpen}
-        moreButtonRef={moreButtonRef}
-        onClose={closeThisSlot}
-      />
-    )
+    headerTitle = slot.kind
     body = (
       <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-meta)' }}>
         Coming soon
       </div>
     )
   }
+
+  const header = (
+    <SlotHeader
+      slotKind={slot.kind}
+      title={headerTitle}
+      meta={slot.kind === 'lens' && count > 0 ? count : undefined}
+      onMore={(anchor) => setMenuAnchor(anchor)}
+      onPopOut={handlePopOut}
+      menuOpen={menuOpen}
+      moreButtonRef={moreButtonRef}
+      onClose={closeThisSlot}
+      onTitleClick={handleTitleClick}
+      titleMenuOpen={kindMenuOpen}
+    />
+  )
 
   return (
     <>
@@ -278,18 +264,28 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         />
       )}
       {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
+      {slot.kind === 'taskboard' && taskboardPickerPos && (
+        <TaskboardPickerPopup
+          x={taskboardPickerPos.x}
+          y={taskboardPickerPos.y}
+          currentTaskboardId={slot.taskboardId}
+          onSelect={(taskboardId) => updateSlot(slot.id, { taskboardId })}
+          onClose={() => setTaskboardPickerPos(null)}
+        />
+      )}
+      {kindMenuAnchor && (
+        <WidgetKindMenu
+          anchor={kindMenuAnchor}
+          currentKind={slot.kind}
+          onChangeKind={(kind) => { void handleChangeKind(kind) }}
+          onOpenSecondary={handleOpenSecondary}
+          onClose={() => setKindMenuAnchor(null)}
+        />
+      )}
       {menuAnchor && (
         <SlotMenu
           anchor={menuAnchor}
           currentKind={slot.kind}
-          onChangeKind={async (kind) => {
-            const patch: Partial<Slot> = { kind }
-            if (kind === 'taskboard' && slot.taskboardId == null) {
-              patch.taskboardId = useTaskboardStore.getState().defaultBoardId
-                ?? (await useTaskboardStore.getState().ensureDefault())
-            }
-            updateSlot(slot.id, patch)
-          }}
           onSplit={(dir) => splitSlot(slot.id, dir)}
           onPopOut={handlePopOut}
           onClose={closeMenuAndFocusTrigger}

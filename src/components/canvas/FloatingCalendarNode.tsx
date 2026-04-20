@@ -1,16 +1,20 @@
 import { memo, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { FloatingCalendar, PersistedTodoItem, Person, Org, Status } from '../../models'
+import type { SlotKind } from '../../models/canvas-rails'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
+import { useCanvasStore } from '../../stores/canvas-store'
 import { useFilterStore, applyFilter } from '../../stores/filter-store'
 import { startOfDay } from '../../utils/date'
 import { TwoWeekCalendarStrip } from './rails/TwoWeekCalendarStrip'
 import { WidgetHeader } from '../shared/WidgetHeader'
+import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import { convertFloatingKind } from '../../utils/float-kind-switch'
 import styles from './FloatingCalendarNode.module.css'
 
 export interface FloatingCalendarNodeData {
@@ -73,6 +77,22 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
     onDelete(calendar.id)
   }, [calendar.id, onDelete])
 
+  const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
+
+  const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
+    if (calendar.id == null) return
+    if (nextKind === 'calendar') return
+    const canvasId = useCanvasStore.getState().selectedCanvasId
+    if (canvasId == null) return
+    await convertFloatingKind({
+      sourceKind: 'calendar',
+      sourceId: calendar.id,
+      canvasId,
+      rect: { x: calendar.x, y: calendar.y, width, height },
+      nextKind,
+    })
+  }, [calendar.id, calendar.x, calendar.y, width, height])
+
   return (
     <div className={styles.calendar} style={{ width, height }}>
       <WidgetHeader
@@ -80,6 +100,8 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
         title="Calendar · next 2 wks"
         onDock={handleDock}
         onClose={handleDelete}
+        onTitleClick={(a) => setKindAnchor(a)}
+        titleMenuOpen={kindAnchor !== null}
         floating
       />
 
@@ -127,6 +149,14 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
           window.addEventListener('mouseup', onMouseUp)
         }}
       />
+      {kindAnchor && (
+        <WidgetKindMenu
+          anchor={kindAnchor}
+          currentKind="calendar"
+          onChangeKind={(k) => { void handleChangeKind(k) }}
+          onClose={() => setKindAnchor(null)}
+        />
+      )}
     </div>
   )
 }

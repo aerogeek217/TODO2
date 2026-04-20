@@ -12,6 +12,8 @@ interface SlotHeaderProps {
   onClose?: () => void
   dragHandleProps?: HTMLAttributes<HTMLSpanElement> & { ref?: React.Ref<HTMLSpanElement> }
   moreButtonRef?: React.Ref<HTMLButtonElement>
+  onTitleClick?: (anchor: { x: number; y: number }) => void
+  titleMenuOpen?: boolean
 }
 
 export function SlotHeader({
@@ -24,6 +26,8 @@ export function SlotHeader({
   onClose,
   dragHandleProps,
   moreButtonRef,
+  onTitleClick,
+  titleMenuOpen,
 }: SlotHeaderProps) {
   return (
     <WidgetHeader
@@ -36,6 +40,8 @@ export function SlotHeader({
       onPopOut={onPopOut}
       onClose={onClose}
       dragHandleProps={dragHandleProps ?? {}}
+      onTitleClick={onTitleClick}
+      titleMenuOpen={titleMenuOpen}
     />
   )
 }

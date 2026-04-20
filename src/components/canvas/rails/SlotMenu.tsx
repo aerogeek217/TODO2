@@ -5,7 +5,6 @@ import styles from './SlotMenu.module.css'
 interface SlotMenuProps {
   anchor: { x: number; y: number }
   currentKind: SlotKind
-  onChangeKind: (kind: SlotKind) => void
   onSplit: (dir: 'above' | 'below' | 'left' | 'right') => void
   onPopOut?: () => void
   onClose: () => void
@@ -18,13 +17,6 @@ const KIND_LABEL: Record<SlotKind, string> = {
   taskboard: 'taskboard',
 }
 
-const KINDS: { kind: SlotKind; label: string }[] = [
-  { kind: 'lens', label: 'Lens' },
-  { kind: 'notes', label: 'Notes' },
-  { kind: 'calendar', label: 'Calendar' },
-  { kind: 'taskboard', label: 'Taskboard' },
-]
-
 const SPLITS: { dir: 'above' | 'below' | 'left' | 'right'; label: string }[] = [
   { dir: 'above', label: 'Split above' },
   { dir: 'below', label: 'Split below' },
@@ -32,7 +24,7 @@ const SPLITS: { dir: 'above' | 'below' | 'left' | 'right'; label: string }[] = [
   { dir: 'right', label: 'Split right' },
 ]
 
-export function SlotMenu({ anchor, currentKind, onChangeKind, onSplit, onPopOut, onClose }: SlotMenuProps) {
+export function SlotMenu({ anchor, currentKind, onSplit, onPopOut, onClose }: SlotMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null)
 
   const getItems = useCallback((): HTMLButtonElement[] => {
@@ -104,20 +96,6 @@ export function SlotMenu({ anchor, currentKind, onChangeKind, onSplit, onPopOut,
       aria-label={`${KIND_LABEL[currentKind]} slot options`}
       onKeyDown={onKeyDown}
     >
-      <div className={styles.groupLabel}>Change type</div>
-      {KINDS.map((k) => (
-        <button
-          type="button"
-          key={k.kind}
-          role="menuitem"
-          className={`${styles.item} ${k.kind === currentKind ? styles.active : ''}`}
-          onClick={() => { onChangeKind(k.kind); onClose() }}
-          disabled={k.kind === currentKind}
-        >
-          {k.label}
-        </button>
-      ))}
-      <div className={styles.separator} />
       <div className={styles.groupLabel}>Split</div>
       {SPLITS.map((s) => (
         <button

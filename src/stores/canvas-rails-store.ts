@@ -38,6 +38,14 @@ interface CanvasRailsState {
   addRail: (side: RailSide, defaultSlot?: Slot) => void
   closeSlot: (slotId: string) => void
   updateSlot: (slotId: string, patch: Partial<Slot>) => void
+  /**
+   * Switch a slot's kind in place. Clears seed fields that don't apply to the
+   * new kind (e.g. switching from `lens → notes` drops `listDefinitionId`) so
+   * the slot record reflects the active kind. Callers own picking the seed
+   * when the new kind requires one (taskboard / lens) — this method does not
+   * auto-seed.
+   */
+  setSlotKind: (slotId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
   dropSlotToSide: (slotId: string, toSide: RailSide) => void
   edgeDropSlot: (slotId: string, toSide: RailSide, edge: 'head' | 'tail') => void
   splitDropSlot: (slotId: string, targetSlotId: string, zone: SplitZone) => void
@@ -106,6 +114,32 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
       const merged: Slot = { ...current, ...patch, id: current.id }
       const nextSlots = rail.slots.slice()
       nextSlots[idx] = merged
+      next[side] = { ...rail, slots: nextSlots }
+      touched = true
+    }
+    return touched ? { rails: next } : state
+  }),
+
+  setSlotKind: (slotId, nextKind, seed) => set((state) => {
+    let touched = false
+    const next: RailsState = { ...state.rails }
+    for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+      const rail = next[side]
+      if (!rail) continue
+      const idx = rail.slots.findIndex((s) => s.id === slotId)
+      if (idx === -1) continue
+      const current = rail.slots[idx]
+      if (current.kind === nextKind && !seed) return state
+      const rebuilt: Slot = { id: current.id, kind: nextKind }
+      if (nextKind === 'lens') {
+        const listId = seed?.listDefinitionId ?? current.listDefinitionId
+        if (listId != null) rebuilt.listDefinitionId = listId
+      } else if (nextKind === 'taskboard') {
+        const tbId = seed?.taskboardId ?? current.taskboardId
+        if (tbId != null) rebuilt.taskboardId = tbId
+      }
+      const nextSlots = rail.slots.slice()
+      nextSlots[idx] = rebuilt
       next[side] = { ...rail, slots: nextSlots }
       touched = true
     }
