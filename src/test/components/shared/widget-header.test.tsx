@@ -28,24 +28,24 @@ describe('WidgetHeader', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('fires onDock on ↙ click (floating surface)', () => {
+  it('fires onDock on ↗ click (floating surface)', () => {
     const onDock = vi.fn()
     render(<WidgetHeader kind="calendar" title="Calendar" onDock={onDock} floating />)
     fireEvent.click(screen.getByRole('button', { name: /dock calendar to rail/i }))
     expect(onDock).toHaveBeenCalledTimes(1)
   })
 
-  it('fires onPopOut on ⇱ click (rails surface)', () => {
+  it('fires onPopOut on ↙ click (rails surface)', () => {
     const onPopOut = vi.fn()
     render(<WidgetHeader kind="lens" title="L" onPopOut={onPopOut} />)
-    fireEvent.click(screen.getByRole('button', { name: /pop out lens slot/i }))
+    fireEvent.click(screen.getByRole('button', { name: /pop out list slot/i }))
     expect(onPopOut).toHaveBeenCalledTimes(1)
   })
 
   it('fires onMore with a button-rect anchor', () => {
     const onMore = vi.fn()
     render(<WidgetHeader kind="lens" title="L" onMore={onMore} />)
-    fireEvent.click(screen.getByRole('button', { name: /lens options/i }))
+    fireEvent.click(screen.getByRole('button', { name: /list options/i }))
     expect(onMore).toHaveBeenCalledTimes(1)
     const [anchor] = onMore.mock.calls[0]!
     expect(anchor).toHaveProperty('x')
@@ -62,7 +62,7 @@ describe('WidgetHeader', () => {
         onToggleCollapse={onToggleCollapse}
       />,
     )
-    const btn = screen.getByRole('button', { name: /collapse lens/i })
+    const btn = screen.getByRole('button', { name: /collapse list/i })
     fireEvent.click(btn)
     expect(onToggleCollapse).toHaveBeenCalledTimes(1)
   })
@@ -76,7 +76,7 @@ describe('WidgetHeader', () => {
         onToggleCollapse={() => {}}
       />,
     )
-    expect(screen.getByRole('button', { name: /expand lens/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /expand list/i })).toBeInTheDocument()
   })
 
   it('omits optional buttons when their callbacks are absent', () => {
@@ -96,14 +96,14 @@ describe('WidgetHeader', () => {
 
   it('does not add nopan/nodrag on rails surface', () => {
     render(<WidgetHeader kind="lens" title="L" onClose={() => {}} />)
-    const btn = screen.getByRole('button', { name: /close lens/i })
+    const btn = screen.getByRole('button', { name: /close list/i })
     expect(btn.className).not.toMatch(/nopan/)
   })
 
   it('renders title as a button when onTitleClick is provided', () => {
     const onTitleClick = vi.fn()
     render(<WidgetHeader kind="lens" title="This week" onTitleClick={onTitleClick} />)
-    const titleBtn = screen.getByRole('button', { name: /change lens/i })
+    const titleBtn = screen.getByRole('button', { name: /change list/i })
     expect(titleBtn.textContent).toContain('This week')
     expect(titleBtn).toHaveAttribute('aria-haspopup', 'menu')
     fireEvent.click(titleBtn)

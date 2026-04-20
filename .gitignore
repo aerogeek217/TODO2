@@ -38,6 +38,7 @@ coverage/
 
 # Local docs (planning, not published)
 docs/plans/
+docs/reviews/
 
 # Obsidian vault
 .obsidian/

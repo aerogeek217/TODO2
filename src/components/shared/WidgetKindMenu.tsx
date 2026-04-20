@@ -5,7 +5,7 @@ import { KIND_ICON } from '../../utils/slot-kind'
 import styles from './WidgetKindMenu.module.css'
 
 const KINDS: { kind: SlotKind; label: string }[] = [
-  { kind: 'lens', label: 'Lens' },
+  { kind: 'lens', label: 'List' },
   { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
   { kind: 'taskboard', label: 'Taskboard' },
@@ -13,13 +13,16 @@ const KINDS: { kind: SlotKind; label: string }[] = [
 
 export interface WidgetKindMenuProps {
   anchor: { x: number; y: number }
-  currentKind: SlotKind
+  /** Current widget kind. Omit in "add" mode — no row is marked active and no secondary row is shown. */
+  currentKind?: SlotKind
   onChangeKind: (kind: SlotKind) => void
   /** Fires when the user clicks the "Change list…" (lens) or "Change taskboard…" (taskboard) row. */
   onOpenSecondary?: () => void
   onClose: () => void
   /** Optional label override for the secondary row (e.g. the current list-def name). */
   secondaryLabel?: string
+  /** Group-label heading. Defaults to "Change widget"; use "Add widget" in add mode. */
+  heading?: string
 }
 
 export function WidgetKindMenu({
@@ -29,6 +32,7 @@ export function WidgetKindMenu({
   onOpenSecondary,
   onClose,
   secondaryLabel,
+  heading = 'Change widget',
 }: WidgetKindMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null)
 
@@ -104,10 +108,10 @@ export function WidgetKindMenu({
       className={styles.menu}
       style={{ left: anchor.x, top: anchor.y }}
       role="menu"
-      aria-label="Change widget"
+      aria-label={heading}
       onKeyDown={onKeyDown}
     >
-      <div className={styles.groupLabel}>Change widget</div>
+      <div className={styles.groupLabel}>{heading}</div>
       {KINDS.map((k) => {
         const active = k.kind === currentKind
         return (

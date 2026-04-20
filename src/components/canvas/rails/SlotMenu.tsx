@@ -11,7 +11,7 @@ interface SlotMenuProps {
 }
 
 const KIND_LABEL: Record<SlotKind, string> = {
-  lens: 'lens',
+  lens: 'list',
   notes: 'notes',
   calendar: 'calendar',
   taskboard: 'taskboard',

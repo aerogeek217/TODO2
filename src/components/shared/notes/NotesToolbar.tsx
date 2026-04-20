@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { EditorSelection } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { formatShortcut } from '../../../utils/platform'
 import styles from './NotesToolbar.module.css'
@@ -63,6 +64,14 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, onConvertToTask
       }
     }
     view.dispatch({ changes })
+    // For single-line invocations (the common bullet / checkbox add on an
+    // empty line), the caret would otherwise stay pinned at the original
+    // offset — which is *before* the newly inserted prefix. Move it to the
+    // end of the (now-prefixed) line so the user can just start typing.
+    if (startLine.number === endLine.number) {
+      const lineNow = view.state.doc.line(startLine.number)
+      view.dispatch({ selection: EditorSelection.cursor(lineNow.to) })
+    }
     view.focus()
   }, [viewRef])
 

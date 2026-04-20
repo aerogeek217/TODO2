@@ -3,6 +3,11 @@
   min-height: 0;
   display: flex;
   overflow: hidden;
+  /* React Flow's default stylesheet sets `cursor: grab` on draggable nodes,
+     which inherits into the editor body when this lives inside a floating
+     (undocked) Notes widget. Restore the text cursor so the editor reads as
+     editable text, not as a drag handle. */
+  cursor: text;
 }
 
 .host :global(.cm-editor) {

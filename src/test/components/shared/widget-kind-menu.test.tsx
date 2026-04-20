@@ -16,7 +16,7 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getByRole('menuitem', { name: /Lens/ })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /List/ })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('menuitem', { name: /Calendar/ })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Taskboard/ })).toBeInTheDocument()
@@ -98,8 +98,8 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    // First focused item is Lens.
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /Lens/ }))
+    // First focused item is List.
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /List/ }))
     const menu = screen.getByRole('menu')
     fireEvent.keyDown(menu, { key: 'ArrowDown' })
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /Notes/ }))

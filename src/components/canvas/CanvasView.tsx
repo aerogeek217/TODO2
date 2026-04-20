@@ -106,7 +106,8 @@ export interface InsetHandlers {
   onDeleteInset?: (id: number) => void
   onToggleCollapseInset?: (id: number) => void
   onInsetDragStop?: (id: number, x: number, y: number) => void
-  onRequestAddList?: (x: number, y: number) => void
+  /** Opens the widget-kind picker (notes / calendar / list / taskboard). `screenX`/`screenY` anchor the menu; `flowX`/`flowY` are the canvas-space coords where the widget will be placed. */
+  onRequestAddWidget?: (screenX: number, screenY: number, flowX: number, flowY: number) => void
   onResizeInset?: (id: number, width: number, height: number) => void
 }
 
@@ -184,7 +185,7 @@ export function CanvasView({
   showHiddenStatuses,
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
-  const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddList, onResizeInset } = insetHandlers
+  const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddWidget, onResizeInset } = insetHandlers
   const { onDeleteNote, onNoteDragStop, onResizeNote } = noteHandlers
   const { onDeleteCalendar, onCalendarDragStop, onResizeCalendar } = floatingCalendarHandlers ?? {}
   const { activeDragTodoId } = useContext(DragInsertContext)
@@ -678,14 +679,14 @@ export function CanvasView({
     if (onAddProject && pos) {
       items.push({ label: 'New Project', action: () => onAddProject(pos.x, pos.y) })
     }
-    if (onRequestAddList && pos) {
+    if (onRequestAddWidget && pos) {
       items.push({ separator: true, label: '', action: () => {} })
-      items.push({ label: 'Add list…', action: () => onRequestAddList(pos.x, pos.y) })
+      items.push({ label: 'Add widget…', action: () => onRequestAddWidget(e.clientX, e.clientY, pos.x, pos.y) })
     }
     if (items.length > 0) {
       setContextMenu({ x: e.clientX, y: e.clientY, items })
     }
-  }, [onAddProject, onRequestAddList])
+  }, [onAddProject, onRequestAddWidget])
 
   return (
     <div className={styles.canvasWrapper} onContextMenu={handleContextMenu}>

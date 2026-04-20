@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import type { SlotKind } from '../../models/canvas-rails'
 import { KIND_ICON, KIND_LABEL } from '../../utils/slot-kind'
@@ -45,6 +46,10 @@ export function WidgetHeader({
 }: WidgetHeaderProps) {
   const { ref: dragRef, ...dragRest } = dragHandleProps ?? {}
   const kindLabel = KIND_LABEL[kind] ?? kind
+  // Track press-down position on the title so a drag (via React Flow on the
+  // floating node) doesn't accidentally fire the menu-open click when the
+  // pointer comes back up on the same button after movement.
+  const titlePressRef = useRef<{ x: number; y: number } | null>(null)
   const kindIcon = KIND_ICON[kind] ?? ''
   const btnClass = floating
     ? `${styles.iconButton} ${styles.iconButtonFloating} nopan nodrag`
@@ -79,8 +84,25 @@ export function WidgetHeader({
       {onTitleClick ? (
         <button
           type="button"
-          className={`${styles.titleButton} ${floating ? 'nopan nodrag' : ''}`}
+          // In floating mode we deliberately omit `nodrag` so the title
+          // area behaves like `ProjectNode`'s name span: a plain click
+          // still opens the kind menu, but a press-and-drag lets React
+          // Flow move the node — giving the user the whole header as a
+          // drag surface.
+          className={styles.titleButton}
+          onPointerDown={(e) => {
+            titlePressRef.current = { x: e.clientX, y: e.clientY }
+          }}
           onClick={(e) => {
+            const start = titlePressRef.current
+            titlePressRef.current = null
+            if (start) {
+              const dx = e.clientX - start.x
+              const dy = e.clientY - start.y
+              // Suppress the click if the pointer moved enough to count as a
+              // drag — the node was being repositioned, not opened.
+              if (Math.hypot(dx, dy) > 4) return
+            }
             const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
             onTitleClick({ x: rect.left, y: rect.bottom + 4 })
           }}
@@ -104,7 +126,7 @@ export function WidgetHeader({
           aria-label={`Pop out ${kindLabel} slot to canvas`}
           title="Pop out to canvas"
         >
-          ⇱
+          ↙
         </button>
       )}
       {onDock && (
@@ -115,7 +137,7 @@ export function WidgetHeader({
           aria-label={`Dock ${kindLabel} to rail`}
           title="Dock to rail"
         >
-          ↙
+          ↗
         </button>
       )}
       {onMore && (

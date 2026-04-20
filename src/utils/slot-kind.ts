@@ -1,14 +1,14 @@
 import type { SlotKind } from '../models/canvas-rails'
 
 export const KIND_ICON: Record<SlotKind, string> = {
-  lens: '\u{1F4CB}',      // 📋
+  lens: '\u25A4',          // ▤
   notes: '\u25F0',         // ◰
-  calendar: '\u{1F4C5}',   // 📅
+  calendar: '\u229E',      // ⊞
   taskboard: '\u2630',     // ☰
 }
 
 export const KIND_LABEL: Record<SlotKind, string> = {
-  lens: 'lens',
+  lens: 'list',
   notes: 'notes',
   calendar: 'calendar',
   taskboard: 'taskboard',

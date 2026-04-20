@@ -206,7 +206,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   let headerTitle: ReactNode
   let body: ReactNode
   if (slot.kind === 'lens') {
-    headerTitle = title || 'Lens'
+    headerTitle = title || 'List'
     body = (
       <LensSlotContent
         listDefinitionId={slot.listDefinitionId}

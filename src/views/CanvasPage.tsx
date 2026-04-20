@@ -29,6 +29,8 @@ import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
+import { WidgetKindMenu } from '../components/shared/WidgetKindMenu'
+import type { SlotKind } from '../models/canvas-rails'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import type { PersistedTodoItem } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
@@ -52,8 +54,11 @@ export function CanvasPage() {
   const { filters } = useFilterStore()
   const { insets, loadByCanvas: loadInsets, add: addInset, update: updateInset, updatePosition: updateInsetPosition, remove: removeInset } = useListInsetStore()
   const loadDefinitions = useListDefinitionStore((s) => s.load)
+  const addListDefinition = useListDefinitionStore((s) => s.add)
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
+  const [addWidgetMenuPos, setAddWidgetMenuPos] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
   const [showListEditor, setShowListEditor] = useState(false)
+  const [listEditorInitialId, setListEditorInitialId] = useState<number | null>(null)
   const floatingNotes = useFloatingNoteStore((s) => s.notes)
   const loadFloatingNotes = useFloatingNoteStore((s) => s.loadByCanvas)
   const updateFloatingNotePosition = useFloatingNoteStore((s) => s.updatePosition)
@@ -380,16 +385,35 @@ export function CanvasPage() {
     [insets, updateInset]
   )
 
-  const handleRequestAddList = useCallback(
-    (flowX: number, flowY: number) => {
-      // Best-effort screen coords for the picker anchor; we already captured
-      // the flow-space coords used when creating the inset.
-      const rect = document.querySelector('.react-flow')?.getBoundingClientRect()
-      const anchorX = rect ? rect.left + Math.min(rect.width - 16, 120) : 120
-      const anchorY = rect ? rect.top + Math.min(rect.height - 16, 120) : 120
-      setAddListPickerPos({ x: anchorX, y: anchorY, flowX, flowY })
+  const handleRequestAddWidget = useCallback(
+    (screenX: number, screenY: number, flowX: number, flowY: number) => {
+      setAddWidgetMenuPos({ x: screenX, y: screenY, flowX, flowY })
     },
     [],
+  )
+
+  const handlePickWidgetKind = useCallback(
+    async (kind: SlotKind) => {
+      if (!selectedCanvasId || !addWidgetMenuPos) return
+      const { x, y, flowX, flowY } = addWidgetMenuPos
+      if (kind === 'lens') {
+        // Defer to the list-definition picker to finish placement.
+        setAddWidgetMenuPos(null)
+        setAddListPickerPos({ x, y, flowX, flowY })
+        return
+      }
+      setAddWidgetMenuPos(null)
+      if (kind === 'notes') {
+        await useFloatingNoteStore.getState().add(selectedCanvasId, flowX, flowY)
+      } else if (kind === 'calendar') {
+        await useFloatingCalendarStore.getState().add(selectedCanvasId, flowX, flowY)
+      } else if (kind === 'taskboard') {
+        const tbStore = useTaskboardStore.getState()
+        const boardId = tbStore.defaultBoardId ?? (await tbStore.ensureDefault())
+        await useFloatingTaskboardStore.getState().add(selectedCanvasId, boardId, flowX, flowY)
+      }
+    },
+    [selectedCanvasId, addWidgetMenuPos],
   )
 
   const handlePickListDef = useCallback(
@@ -399,6 +423,23 @@ export function CanvasPage() {
     },
     [selectedCanvasId, addInset, addListPickerPos],
   )
+
+  // One-click "Create new list" from the canvas list picker: create a blank
+  // list definition, drop it on the canvas at the captured flow position, and
+  // open the list editor targeting the new def so the user can configure it.
+  const handleCreateNewListOnCanvas = useCallback(async () => {
+    if (!selectedCanvasId || !addListPickerPos) return
+    const defs = useListDefinitionStore.getState().listDefinitions
+    let candidate = 'New list'
+    let n = 2
+    const lower = new Set(defs.map((d) => d.name.toLowerCase()))
+    while (lower.has(candidate.toLowerCase())) candidate = `New list ${n++}`
+    const id = await addListDefinition({ name: candidate })
+    await addInset(id, selectedCanvasId, addListPickerPos.flowX, addListPickerPos.flowY)
+    setAddListPickerPos(null)
+    setListEditorInitialId(id)
+    setShowListEditor(true)
+  }, [selectedCanvasId, addListPickerPos, addListDefinition, addInset])
 
   const handleClickTask = useCallback(
     (todoId: number) => openEditPopup(todoId),
@@ -444,9 +485,9 @@ export function CanvasPage() {
     onDeleteInset: removeInset,
     onToggleCollapseInset: handleToggleCollapseInset,
     onInsetDragStop: updateInsetPosition,
-    onRequestAddList: handleRequestAddList,
+    onRequestAddWidget: handleRequestAddWidget,
     onResizeInset: handleResizeInset,
-  }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleRequestAddList, handleResizeInset])
+  }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleRequestAddWidget, handleResizeInset])
 
   const noteHandlers = useMemo(() => ({
     onDeleteNote: removeFloatingNote,
@@ -621,17 +662,30 @@ export function CanvasPage() {
 
       <FilteredListPopup />
 
+      {addWidgetMenuPos && (
+        <WidgetKindMenu
+          anchor={{ x: addWidgetMenuPos.x, y: addWidgetMenuPos.y }}
+          heading="Add widget"
+          onChangeKind={handlePickWidgetKind}
+          onClose={() => setAddWidgetMenuPos(null)}
+        />
+      )}
       {addListPickerPos && (
         <ListDefinitionPickerPopup
           x={addListPickerPos.x}
           y={addListPickerPos.y}
           mode="canvas"
           onSelect={handlePickListDef}
-          onCreateNew={() => setShowListEditor(true)}
+          onCreateNew={() => { void handleCreateNewListOnCanvas() }}
           onClose={() => setAddListPickerPos(null)}
         />
       )}
-      {showListEditor && <DashboardListsEditor onClose={() => setShowListEditor(false)} />}
+      {showListEditor && (
+        <DashboardListsEditor
+          onClose={() => { setShowListEditor(false); setListEditorInitialId(null) }}
+          initialSelectedId={listEditorInitialId ?? undefined}
+        />
+      )}
     </DndContext>
   )
 }
