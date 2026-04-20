@@ -44,8 +44,18 @@ function PortalDropdown({ anchorRef, onClickOutside, children }: {
     const tick = () => {
       const rect = anchorRef.current?.getBoundingClientRect()
       if (rect) {
-        const top = rect.bottom + 4
-        const left = rect.left
+        const margin = 8
+        let top = rect.bottom + 4
+        let left = rect.left
+        // Clamp to viewport once the dropdown has a measurable size so
+        // chip popups near the right edge don't spill off-screen.
+        const dd = dropdownRef.current?.getBoundingClientRect()
+        if (dd && dd.width > 0) {
+          const maxLeft = window.innerWidth - dd.width - margin
+          if (left > maxLeft) left = Math.max(margin, maxLeft)
+          const maxTop = window.innerHeight - dd.height - margin
+          if (top > maxTop) top = Math.max(margin, maxTop)
+        }
         if (top !== prevTop || left !== prevLeft) {
           prevTop = top
           prevLeft = left

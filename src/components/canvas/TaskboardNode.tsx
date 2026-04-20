@@ -12,6 +12,7 @@ import type { SlotKind } from '../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
+import { useStatusStore } from '../../stores/status-store'
 import { floatingTaskboardRepository } from '../../data'
 import { TaskRow } from '../task/TaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
@@ -77,6 +78,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     assignedPeopleMap,
     ghostTodoIds,
     showCompleted,
+    showHiddenStatuses,
     onOpenDetail,
     isCollapsed,
     onToggleCollapse,
@@ -136,14 +138,21 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     return map
   }, [allTodos])
 
+  const statuses = useStatusStore((s) => s.statuses)
+  const hiddenStatusIds = useMemo(
+    () => new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!)),
+    [statuses],
+  )
+
   const visibleEntries = useMemo(
     () => entries.filter((e) => {
       const t = todoMap.get(e.todoId)
       if (!t) return false
       if (!showCompleted && t.isCompleted) return false
+      if (!showHiddenStatuses && t.statusId != null && hiddenStatusIds.has(t.statusId)) return false
       return true
     }),
-    [entries, todoMap, showCompleted],
+    [entries, todoMap, showCompleted, showHiddenStatuses, hiddenStatusIds],
   )
 
   const entryIds = useMemo(

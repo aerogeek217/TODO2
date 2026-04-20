@@ -22,6 +22,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
+import { useStatusStore } from '../../stores/status-store'
+import { useFilterStore } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import type { PersistedTodoItem, TaskboardEntry } from '../../models'
@@ -70,6 +72,9 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
   const removeEntry = useTaskboardStore((s) => s.removeEntry)
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const statuses = useStatusStore((s) => s.statuses)
+  const showCompleted = useFilterStore((s) => s.filters.showCompleted)
+  const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
   const { openEditPopup } = useUIStore()
   const [reorderKey, setReorderKey] = useState(0)
 
@@ -115,9 +120,20 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
     return map
   }, [todos])
 
+  const hiddenStatusIds = useMemo(
+    () => new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!)),
+    [statuses],
+  )
+
   const visibleEntries = useMemo(
-    () => entries.filter((e) => todoMap.has(e.todoId)),
-    [entries, todoMap],
+    () => entries.filter((e) => {
+      const t = todoMap.get(e.todoId)
+      if (!t) return false
+      if (!showCompleted && t.isCompleted) return false
+      if (!showHiddenStatuses && t.statusId != null && hiddenStatusIds.has(t.statusId)) return false
+      return true
+    }),
+    [entries, todoMap, showCompleted, showHiddenStatuses, hiddenStatusIds],
   )
 
   const entryIds = useMemo(() => visibleEntries.map((e) => `tbp-${e.todoId}`), [visibleEntries])
