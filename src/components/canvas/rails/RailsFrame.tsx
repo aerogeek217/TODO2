@@ -6,6 +6,8 @@ import { useCanvasStore } from '../../../stores/canvas-store'
 import { useListInsetStore } from '../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../stores/floating-calendar-store'
 import { useFloatingNoteStore } from '../../../stores/floating-note-store'
+import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
+import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
 import { railSize } from '../../../models/canvas-rails'
@@ -109,8 +111,10 @@ export async function popSlotToCanvas(slot: Slot): Promise<boolean> {
     return true
   }
   if (slot.kind === 'taskboard') {
-    // Taskboard is a singleton — removing the rail slot lets the canvas
-    // TaskboardNode re-render (visibility is derived from rails state).
+    const tbId = slot.taskboardId
+      ?? useTaskboardStore.getState().defaultBoardId
+      ?? (await useTaskboardStore.getState().ensureDefault())
+    await useFloatingTaskboardStore.getState().add(canvasId, tbId, pos.x, pos.y)
     return true
   }
   return false
@@ -239,7 +243,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         onClose={closeThisSlot}
       />
     )
-    body = <TaskboardSlotContent />
+    body = <TaskboardSlotContent taskboardId={slot.taskboardId} />
   } else {
     header = (
       <SlotHeader
@@ -278,7 +282,14 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         <SlotMenu
           anchor={menuAnchor}
           currentKind={slot.kind}
-          onChangeKind={(kind) => updateSlot(slot.id, { kind })}
+          onChangeKind={async (kind) => {
+            const patch: Partial<Slot> = { kind }
+            if (kind === 'taskboard' && slot.taskboardId == null) {
+              patch.taskboardId = useTaskboardStore.getState().defaultBoardId
+                ?? (await useTaskboardStore.getState().ensureDefault())
+            }
+            updateSlot(slot.id, patch)
+          }}
           onSplit={(dir) => splitSlot(slot.id, dir)}
           onPopOut={handlePopOut}
           onClose={closeMenuAndFocusTrigger}

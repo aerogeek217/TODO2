@@ -1,39 +1,36 @@
 import { db } from './database'
-import { createRepository } from './create-repository'
-import type { TaskboardEntry } from '../models'
+import type { Taskboard, TaskboardEntry } from '../models'
 
-const base = createRepository<TaskboardEntry>(db.taskboardEntries, 'sortOrder')
-
+/**
+ * CRUD over the `taskboards` table. Entries live inline on each row — every
+ * entry-level mutation reads the board, rewrites `entries` + `updatedAt`, and
+ * writes the whole row back. That keeps the model simple at the cost of
+ * rewriting a small array per op; at the queue sizes we expect (tens) the
+ * write is cheap and keeps the 1:1 store shape (one board = one row).
+ */
 export const taskboardRepository = {
-  ...base,
-
-  async getAll(): Promise<TaskboardEntry[]> {
-    return db.taskboardEntries.orderBy('sortOrder').toArray()
+  async getAll(): Promise<Taskboard[]> {
+    return db.taskboards.orderBy('id').toArray()
   },
 
-  async findByTodoId(todoId: number): Promise<TaskboardEntry | undefined> {
-    return db.taskboardEntries.where('todoId').equals(todoId).first()
+  async getById(id: number): Promise<Taskboard | undefined> {
+    return db.taskboards.get(id)
   },
 
-  async addEntry(todoId: number): Promise<number> {
-    const all = await db.taskboardEntries.orderBy('sortOrder').toArray()
-    const maxSort = all.length > 0 ? all[all.length - 1].sortOrder : 0
-    return db.taskboardEntries.add({ todoId, sortOrder: maxSort + 1000 })
+  async create(name: string): Promise<number> {
+    const now = new Date()
+    return db.taskboards.add({ name, entries: [], createdAt: now, updatedAt: now } as Taskboard)
   },
 
-  async addEntryAt(todoId: number, sortOrder: number): Promise<number> {
-    return db.taskboardEntries.add({ todoId, sortOrder })
+  async rename(id: number, name: string): Promise<void> {
+    await db.taskboards.update(id, { name, updatedAt: new Date() })
   },
 
-  async removeByTodoId(todoId: number): Promise<void> {
-    await db.taskboardEntries.where('todoId').equals(todoId).delete()
+  async remove(id: number): Promise<void> {
+    await db.taskboards.delete(id)
   },
 
-  async reorder(entries: Array<{ id: number; sortOrder: number }>): Promise<void> {
-    await db.transaction('rw', db.taskboardEntries, async () => {
-      for (const { id, sortOrder } of entries) {
-        await db.taskboardEntries.update(id, { sortOrder })
-      }
-    })
+  async writeEntries(id: number, entries: TaskboardEntry[]): Promise<void> {
+    await db.taskboards.update(id, { entries, updatedAt: new Date() })
   },
 }

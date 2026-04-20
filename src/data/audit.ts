@@ -20,8 +20,8 @@ export interface AuditReport {
 export async function auditData(): Promise<AuditReport> {
   const [
     todos, projects, canvases, people, orgs, statuses,
-    todoPeople, todoOrgs, personOrgs, taskboardEntries,
-    listInsets, floatingNotes, floatingCalendars,
+    todoPeople, todoOrgs, personOrgs, taskboards,
+    listInsets, floatingNotes, floatingCalendars, floatingTaskboards,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
@@ -32,10 +32,11 @@ export async function auditData(): Promise<AuditReport> {
     db.todoPeople.toArray(),
     db.todoOrgs.toArray(),
     db.personOrgs.toArray(),
-    db.taskboardEntries.toArray(),
+    db.taskboards.toArray(),
     db.listInsets.toArray(),
     db.floatingNotes.toArray(),
     db.floatingCalendars.toArray(),
+    db.floatingTaskboards.toArray(),
   ])
 
   const todoIds = new Set(todos.map((t) => t.id!))
@@ -88,15 +89,49 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const orphanedTaskboard = taskboardEntries.filter(
-    (r) => !todoIds.has(r.todoId),
+  const taskboardIds = new Set(taskboards.map((t) => t.id!))
+
+  // Entries inside each taskboard pointing at deleted todos are reported per-board
+  // (fix: 'clear-field' writes back a filtered entries list).
+  const taskboardsWithOrphanedEntries = taskboards.filter((t) =>
+    t.entries.some((e) => !todoIds.has(e.todoId)),
   )
-  if (orphanedTaskboard.length > 0) {
+  if (taskboardsWithOrphanedEntries.length > 0) {
     issues.push({
-      table: 'taskboardEntries',
+      table: 'taskboards',
       description: 'Taskboard entries referencing deleted todos',
-      count: orphanedTaskboard.length,
-      ids: orphanedTaskboard.map((r) => r.id!),
+      count: taskboardsWithOrphanedEntries.reduce(
+        (n, t) => n + t.entries.filter((e) => !todoIds.has(e.todoId)).length,
+        0,
+      ),
+      ids: taskboardsWithOrphanedEntries.map((t) => t.id!),
+      fix: 'clear-field',
+      field: 'entries',
+    })
+  }
+
+  const floatingTaskboardsWithBadCanvas = floatingTaskboards.filter(
+    (t) => !canvasIds.has(t.canvasId),
+  )
+  if (floatingTaskboardsWithBadCanvas.length > 0) {
+    issues.push({
+      table: 'floatingTaskboards',
+      description: 'Floating taskboards referencing deleted canvases',
+      count: floatingTaskboardsWithBadCanvas.length,
+      ids: floatingTaskboardsWithBadCanvas.map((t) => t.id!),
+      fix: 'delete',
+    })
+  }
+
+  const floatingTaskboardsWithBadBoard = floatingTaskboards.filter(
+    (t) => !taskboardIds.has(t.taskboardId),
+  )
+  if (floatingTaskboardsWithBadBoard.length > 0) {
+    issues.push({
+      table: 'floatingTaskboards',
+      description: 'Floating taskboards referencing deleted taskboards',
+      count: floatingTaskboardsWithBadBoard.length,
+      ids: floatingTaskboardsWithBadBoard.map((t) => t.id!),
       fix: 'delete',
     })
   }
@@ -241,13 +276,23 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   await db.transaction(
     'rw',
     [db.todos, db.projects, db.todoPeople, db.todoOrgs,
-     db.personOrgs, db.taskboardEntries, db.listInsets, db.notes,
+     db.personOrgs, db.taskboards, db.floatingTaskboards, db.listInsets, db.notes,
      db.floatingNotes, db.floatingCalendars, db.statuses],
     async () => {
+      // Taskboards need a special per-row entry filter rather than a blind field-clear.
+      const todoIds = new Set((await db.todos.toArray()).map((t) => t.id!))
       for (const issue of issues) {
         if (issue.fix === 'delete') {
           const table = db.table(issue.table)
           await table.bulkDelete(issue.ids)
+          cleaned += issue.count
+        } else if (issue.table === 'taskboards' && issue.field === 'entries') {
+          for (const id of issue.ids) {
+            const row = await db.taskboards.get(id)
+            if (!row) continue
+            const filtered = row.entries.filter((e) => todoIds.has(e.todoId))
+            await db.taskboards.update(id, { entries: filtered, updatedAt: new Date() })
+          }
           cleaned += issue.count
         } else if (issue.fix === 'clear-field' && issue.field) {
           const table = db.table(issue.table)

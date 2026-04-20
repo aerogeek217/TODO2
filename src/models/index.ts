@@ -23,7 +23,9 @@ export {
   RELATIVE_DATE_TOKENS,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'
+export { type Taskboard, type PersistedTaskboard } from './taskboard'
 export { type TaskboardEntry } from './taskboard-entry'
+export { type FloatingTaskboard } from './floating-taskboard'
 export { type Status, type PersistedStatus } from './status'
 export { type ScheduledValue, type FuzzyToken, FUZZY_TOKENS, isScheduledValue } from './scheduled-value'
 export {

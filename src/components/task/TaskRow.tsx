@@ -197,7 +197,12 @@ export const TaskRow = memo(function TaskRow({
         if (ghost) return
         e.preventDefault()
         e.stopPropagation()
-        setContextMenu({ x: e.clientX, y: e.clientY, onBoard: useTaskboardStore.getState().has(todo.id) })
+        {
+          const tb = useTaskboardStore.getState()
+          const defaultId = tb.defaultBoardId
+          const onBoard = defaultId != null && tb.has(defaultId, todo.id)
+          setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
+        }
       }}
     >
       <span className={styles.dragHandle} aria-hidden="true">
@@ -516,8 +521,22 @@ export const TaskRow = memo(function TaskRow({
           y={contextMenu.y}
           items={[
             contextMenu.onBoard
-              ? { label: 'Remove from Taskboard', action: () => useTaskboardStore.getState().remove(todo.id) }
-              : { label: 'Add to Taskboard', action: () => useTaskboardStore.getState().add(todo.id) },
+              ? {
+                  label: 'Remove from Taskboard',
+                  action: async () => {
+                    const tb = useTaskboardStore.getState()
+                    const id = tb.defaultBoardId
+                    if (id != null) await tb.removeEntry(id, todo.id)
+                  },
+                }
+              : {
+                  label: 'Add to Taskboard',
+                  action: async () => {
+                    const tb = useTaskboardStore.getState()
+                    const id = tb.defaultBoardId ?? (await tb.ensureDefault())
+                    await tb.add(id, todo.id)
+                  },
+                },
             {
               label: 'Move to project…',
               action: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),

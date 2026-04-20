@@ -484,6 +484,34 @@ function checkTaskboardEntry(v: unknown): CheckResult {
   ])
 }
 
+function checkTaskboard(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  const basic = checkFields(v, [
+    ['name', isStr(v.name, 200)],
+    ['entries', Array.isArray(v.entries)],
+    ['createdAt', isDateLike(v.createdAt)],
+    ['modifiedAt-or-updatedAt', isDateLike(v.updatedAt)],
+  ])
+  if (basic !== true) return basic
+  for (const entry of v.entries as unknown[]) {
+    const res = checkTaskboardEntry(entry)
+    if (res !== true) return `entries: ${res}`
+  }
+  return true
+}
+
+function checkFloatingTaskboard(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['canvasId', isFiniteNum(v.canvasId)],
+    ['taskboardId', isFiniteNum(v.taskboardId)],
+    ['x', isFiniteNum(v.x)],
+    ['y', isFiniteNum(v.y)],
+    ['width', isFiniteNum(v.width)],
+    ['height', isFiniteNum(v.height)],
+  ])
+}
+
 function checkSavedView(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   const basic = checkFields(v, [
@@ -498,7 +526,7 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardTopOrder', 'dashboardUserLists']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardTopOrder', 'dashboardUserLists', 'defaultTaskboardId']
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -520,9 +548,9 @@ function checkSetting(v: unknown): CheckResult {
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
   }
-  if (v.key === 'defaultProjectId') {
+  if (v.key === 'defaultProjectId' || v.key === 'defaultTaskboardId') {
     const n = Number(v.value)
-    return Number.isFinite(n) ? true : 'value (defaultProjectId must be numeric)'
+    return Number.isFinite(n) ? true : `value (${v.key} must be numeric)`
   }
   if (v.key === 'defaultStatusId' || v.key === 'quickStatusId' || v.key === 'seededAssignedStatusId' || v.key === 'seededFollowupStatusId') {
     const n = Number(v.value)
@@ -788,7 +816,30 @@ function pickSavedView(v: Record<string, unknown>): SavedView {
 }
 
 function pickTaskboardEntry(v: Record<string, unknown>): TaskboardEntry {
-  return { id: v.id as number | undefined, todoId: v.todoId as number, sortOrder: v.sortOrder as number }
+  return { todoId: v.todoId as number, sortOrder: v.sortOrder as number }
+}
+
+function pickTaskboard(v: Record<string, unknown>): import('../models').Taskboard {
+  return {
+    id: v.id as number | undefined,
+    name: v.name as string,
+    entries: ((v.entries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
+    createdAt: v.createdAt as Date,
+    updatedAt: v.updatedAt as Date,
+  }
+}
+
+function pickFloatingTaskboard(v: Record<string, unknown>): import('../models').FloatingTaskboard {
+  return {
+    id: v.id as number | undefined,
+    canvasId: v.canvasId as number,
+    taskboardId: v.taskboardId as number,
+    x: v.x as number,
+    y: v.y as number,
+    width: v.width as number,
+    height: v.height as number,
+    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
+  }
 }
 
 function pickSetting(v: Record<string, unknown>): SettingRow {
@@ -885,6 +936,8 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'savedViews', check: checkSavedView },
   { key: 'stickyNotes', check: checkStickyNote },
   { key: 'taskboardEntries', check: checkTaskboardEntry },
+  { key: 'taskboards', check: checkTaskboard },
+  { key: 'floatingTaskboards', check: checkFloatingTaskboard },
   { key: 'statuses', check: checkStatus },
   { key: 'listDefinitions', check: checkListDefinition },
   { key: 'notes', check: checkNote },
@@ -909,7 +962,10 @@ export interface ImportData {
   orgs: Org[]
   savedViews: SavedView[]
   stickyNotes: ImportStickyNote[]
+  /** Pre-v30 queue rows. Restore path collapses them into `taskboards[0].entries`. */
   taskboardEntries: TaskboardEntry[]
+  taskboards: import('../models').Taskboard[]
+  floatingTaskboards: import('../models').FloatingTaskboard[]
   statuses: Status[]
   listDefinitions: ListDefinition[]
   notes: ImportNote[]
@@ -998,6 +1054,8 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       savedViews: ((raw.savedViews ?? []) as Record<string, unknown>[]).map(pickSavedView),
       stickyNotes: ((raw.stickyNotes ?? []) as Record<string, unknown>[]).map(pickStickyNote),
       taskboardEntries: ((raw.taskboardEntries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
+      taskboards: ((raw.taskboards ?? []) as Record<string, unknown>[]).map(pickTaskboard),
+      floatingTaskboards: ((raw.floatingTaskboards ?? []) as Record<string, unknown>[]).map(pickFloatingTaskboard),
       statuses: ((raw.statuses ?? []) as Record<string, unknown>[]).map(pickStatus),
       listDefinitions: ((raw.listDefinitions ?? []) as Record<string, unknown>[]).map(pickListDefinition),
       notes: ((raw.notes ?? []) as Record<string, unknown>[]).map(pickNote),

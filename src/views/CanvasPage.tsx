@@ -18,6 +18,7 @@ import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
+import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -65,27 +66,24 @@ export function CanvasPage() {
   const updateFloatingCalendarSize = useFloatingCalendarStore((s) => s.updateSize)
   const removeFloatingCalendar = useFloatingCalendarStore((s) => s.remove)
 
+  const floatingTaskboards = useFloatingTaskboardStore((s) => s.taskboards)
+  const loadFloatingTaskboards = useFloatingTaskboardStore((s) => s.loadByCanvas)
+  const updateFloatingTaskboardPosition = useFloatingTaskboardStore((s) => s.updatePosition)
+  const updateFloatingTaskboardSize = useFloatingTaskboardStore((s) => s.updateSize)
+  const setFloatingTaskboardCollapsed = useFloatingTaskboardStore((s) => s.setCollapsed)
+  const removeFloatingTaskboard = useFloatingTaskboardStore((s) => s.remove)
 
-
-  const { entries: taskboardEntries, load: loadTaskboard } = useTaskboardStore()
-  const [taskboardPosition, setTaskboardPosition] = useState<{ x: number; y: number }>(() => {
-    const saved = localStorage.getItem('taskboardPosition')
-    return saved ? JSON.parse(saved) : { x: -400, y: 0 }
-  })
-  const [isTaskboardCollapsed, setIsTaskboardCollapsed] = useState(() => localStorage.getItem('taskboardCollapsed') === 'true')
-  const [taskboardSize, setTaskboardSize] = useState<{ w: number; h: number }>(() => {
-    const saved = localStorage.getItem('taskboardSize')
-    return saved ? JSON.parse(saved) : { w: 320, h: 400 }
-  })
+  const taskboards = useTaskboardStore((s) => s.boards)
+  const loadTaskboards = useTaskboardStore((s) => s.load)
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
   const isProjectNavigatorOpen = useUIStore((s) => s.isProjectNavigatorOpen)
 
   useEffect(() => {
     loadPeople()
     loadOrgs()
-    loadTaskboard()
+    loadTaskboards()
     loadDefinitions()
-  }, [loadPeople, loadOrgs, loadTaskboard, loadDefinitions])
+  }, [loadPeople, loadOrgs, loadTaskboards, loadDefinitions])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -98,8 +96,9 @@ export function CanvasPage() {
       loadInsets(selectedCanvasId)
       loadFloatingNotes(selectedCanvasId)
       loadFloatingCalendars(selectedCanvasId)
+      loadFloatingTaskboards(selectedCanvasId)
     }
-  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadFloatingNotes, loadFloatingCalendars])
+  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadFloatingNotes, loadFloatingCalendars, loadFloatingTaskboards])
 
   // Reset normalization guard when file-storage completes an operation (e.g. import)
   const normalizedRef = useRef(false)
@@ -473,33 +472,25 @@ export function CanvasPage() {
     onResizeCalendar: handleResizeFloatingCalendar,
   }), [removeFloatingCalendar, updateFloatingCalendarPosition, handleResizeFloatingCalendar])
 
-  const handleTaskboardDragStop = useCallback((x: number, y: number) => {
-    setTaskboardPosition({ x, y })
-    localStorage.setItem('taskboardPosition', JSON.stringify({ x, y }))
-  }, [])
+  const handleTaskboardDragStop = useCallback((id: number, x: number, y: number) => {
+    updateFloatingTaskboardPosition(id, x, y)
+  }, [updateFloatingTaskboardPosition])
 
-  const handleToggleTaskboardCollapse = useCallback(() => {
-    setIsTaskboardCollapsed(prev => {
-      const next = !prev
-      localStorage.setItem('taskboardCollapsed', String(next))
-      return next
-    })
-  }, [])
+  const handleToggleTaskboardCollapse = useCallback((id: number) => {
+    const current = useFloatingTaskboardStore.getState().taskboards.find((n) => n.id === id)
+    if (!current) return
+    setFloatingTaskboardCollapsed(id, !current.collapsed)
+  }, [setFloatingTaskboardCollapsed])
 
-  const handleCloseTaskboard = useCallback(() => {
-    const count = useTaskboardStore.getState().entries.length
-    showBulkConfirmation('custom', [], {
-      title: 'Clear taskboard',
-      message: `Remove all ${count} task${count !== 1 ? 's' : ''} from the taskboard?`,
-      confirmLabel: 'Clear',
-      onConfirm: () => useTaskboardStore.getState().clear(),
-    })
-  }, [showBulkConfirmation])
+  const handleCloseTaskboard = useCallback((id: number) => {
+    removeFloatingTaskboard(id)
+  }, [removeFloatingTaskboard])
+  // showBulkConfirmation kept available for future clear-entries affordance.
+  void showBulkConfirmation
 
-  const handleResizeTaskboard = useCallback((w: number, h: number) => {
-    setTaskboardSize({ w, h })
-    localStorage.setItem('taskboardSize', JSON.stringify({ w, h }))
-  }, [])
+  const handleResizeTaskboard = useCallback((id: number, w: number, h: number) => {
+    updateFloatingTaskboardSize(id, w, h)
+  }, [updateFloatingTaskboardSize])
 
   const dragInsertValue = useMemo(
     () => ({
@@ -562,14 +553,11 @@ export function CanvasPage() {
           floatingCalendarHandlers={floatingCalendarHandlers}
           allPeople={people}
           allOrgs={orgs}
-          taskboardEntries={taskboardEntries}
-          isTaskboardCollapsed={isTaskboardCollapsed}
+          floatingTaskboards={floatingTaskboards}
+          taskboards={taskboards}
           onToggleTaskboardCollapse={handleToggleTaskboardCollapse}
           onCloseTaskboard={handleCloseTaskboard}
           onTaskboardDragStop={handleTaskboardDragStop}
-          taskboardPosition={taskboardPosition}
-          taskboardWidth={taskboardSize.w}
-          taskboardHeight={taskboardSize.h}
           onResizeTaskboard={handleResizeTaskboard}
           onCascadeShift={handleCascadeShift}
           showCompleted={filters.showCompleted}

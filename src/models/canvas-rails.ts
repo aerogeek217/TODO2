@@ -6,6 +6,7 @@ export interface Slot {
   id: string
   kind: SlotKind
   listDefinitionId?: number
+  taskboardId?: number
 }
 
 export interface Rail {
@@ -73,6 +74,9 @@ function parseSlot(raw: unknown): Slot | null {
   const slot: Slot = { id: r.id, kind: r.kind as SlotKind }
   if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
     slot.listDefinitionId = r.listDefinitionId
+  }
+  if (typeof r.taskboardId === 'number' && Number.isFinite(r.taskboardId)) {
+    slot.taskboardId = r.taskboardId
   }
   return slot
 }

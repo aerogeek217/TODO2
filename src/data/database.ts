@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
@@ -22,12 +22,13 @@ export class Todo2Database extends Dexie {
   personOrgs!: Table<PersonOrg, number>
   backups!: Table<Backup, number>
   savedViews!: Table<SavedView, number>
-  taskboardEntries!: Table<TaskboardEntry, number>
+  taskboards!: Table<Taskboard, number>
   statuses!: Table<Status, number>
   listDefinitions!: Table<ListDefinition, number>
   notes!: Table<Note, number>
   floatingCalendars!: Table<FloatingCalendar, number>
   floatingNotes!: Table<FloatingNote, number>
+  floatingTaskboards!: Table<FloatingTaskboard, number>
 
   constructor() {
     super('todo2')
@@ -159,6 +160,21 @@ export class Todo2Database extends Dexie {
       todoTags: null,
     }).upgrade(async (tx) => {
       await runV29Migration(tx)
+    })
+
+    // v30: taskboard-as-instance. Taskboards are now reusable records (name +
+    // inline entries list) keyed by id; rail slots and floating canvas widgets
+    // reference a taskboard by id. The old `taskboardEntries` join table is
+    // collapsed into a single seeded "Default" taskboard. Adds a
+    // `floatingTaskboards` placement table (parallels floatingNotes /
+    // floatingCalendars) and tags any pre-existing rail taskboard slot with
+    // the seeded id.
+    this.version(30).stores({
+      taskboardEntries: null,
+      taskboards: '++id',
+      floatingTaskboards: '++id, canvasId, taskboardId',
+    }).upgrade(async (tx) => {
+      await runV30Migration(tx)
     })
   }
 }
@@ -702,7 +718,7 @@ export function parseHorizonSlots(value: string | undefined | null): Partial<Rec
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboardEntries, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards] as const
 
 /**
  * Append `" #tagname"` for every assigned tag to each todo's title. Mutates
@@ -918,4 +934,106 @@ export async function runV26Migration(tx: Transaction): Promise<void> {
   const translated = rows.map(translateStickyToNote)
   await notesTable.bulkAdd(translated as Note[])
   console.info(`v26 migration: moved ${translated.length} sticky note(s) into notes table`)
+}
+
+/**
+ * Seed the single "Default" taskboard iff `taskboards` is empty. `entries`
+ * carries any pre-existing queue (from the pre-v30 `taskboardEntries` join).
+ * Persists the resulting id under `settings.defaultTaskboardId` so the runtime
+ * + rail-slot migration can find it.
+ *
+ * Shared between `runV30Migration` (in-place migration) and
+ * `restoreFromImportData` (legacy JSON restore path).
+ */
+export async function ensureSeededDefaultTaskboard(
+  taskboardsTable: Table<Taskboard, number>,
+  settingsTable: Table<SettingRow, string>,
+  entries: TaskboardEntry[] = [],
+): Promise<number> {
+  const existing = await settingsTable.get('defaultTaskboardId')
+  if (existing) {
+    const id = Number(existing.value)
+    const row = await taskboardsTable.get(id)
+    if (row) return id
+  }
+  const count = await taskboardsTable.count()
+  if (count > 0) {
+    const first = await taskboardsTable.orderBy('id').first()
+    if (first?.id != null) {
+      await settingsTable.put({ key: 'defaultTaskboardId', value: String(first.id) })
+      return first.id
+    }
+  }
+  const now = new Date()
+  const id = (await taskboardsTable.add({
+    name: 'Default',
+    entries: sortEntries(entries),
+    createdAt: now,
+    updatedAt: now,
+  } as Taskboard)) as number
+  await settingsTable.put({ key: 'defaultTaskboardId', value: String(id) })
+  return id
+}
+
+function sortEntries(entries: TaskboardEntry[]): TaskboardEntry[] {
+  return [...entries].sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
+/**
+ * Rewrite `settings.canvasRails`: any slot with `kind === 'taskboard'` gains
+ * `taskboardId: <defaultId>`. Pure over input — returns the updated JSON string
+ * (or the original value when no change is needed). Invalid JSON is left as-is.
+ */
+export function tagRailsTaskboardSlots(railsJson: string | undefined, defaultTaskboardId: number): string | undefined {
+  if (!railsJson) return railsJson
+  let parsed: unknown
+  try { parsed = JSON.parse(railsJson) } catch { return railsJson }
+  if (!parsed || typeof parsed !== 'object') return railsJson
+  let touched = false
+  const sides = ['left', 'right', 'top', 'bottom'] as const
+  for (const side of sides) {
+    const rail = (parsed as Record<string, unknown>)[side]
+    if (!rail || typeof rail !== 'object') continue
+    const slots = (rail as Record<string, unknown>).slots
+    if (!Array.isArray(slots)) continue
+    for (const s of slots) {
+      if (!s || typeof s !== 'object') continue
+      const slot = s as Record<string, unknown>
+      if (slot.kind === 'taskboard' && slot.taskboardId == null) {
+        slot.taskboardId = defaultTaskboardId
+        touched = true
+      }
+    }
+  }
+  return touched ? JSON.stringify(parsed) : railsJson
+}
+
+/**
+ * v30 upgrade: collapse `taskboardEntries` rows into a single "Default"
+ * `Taskboard`, persist the new id under `settings.defaultTaskboardId`, and tag
+ * any existing rail taskboard slot with that id. Safe when run on a DB whose
+ * `taskboardEntries` table is already gone (first load after a fresh
+ * install): the default taskboard is still seeded with an empty entries list.
+ */
+export async function runV30Migration(tx: Transaction): Promise<void> {
+  const taskboardsTable = tx.table<Taskboard>('taskboards')
+  const settingsTable = tx.table<SettingRow>('settings')
+
+  let legacyEntries: TaskboardEntry[] = []
+  try {
+    const rows = await tx.table('taskboardEntries').toArray() as Array<{ todoId: number; sortOrder: number }>
+    legacyEntries = rows.map((r) => ({ todoId: r.todoId, sortOrder: r.sortOrder }))
+  } catch { /* table already gone */ }
+
+  const defaultId = await ensureSeededDefaultTaskboard(taskboardsTable, settingsTable, legacyEntries)
+
+  const railsSetting = await settingsTable.get('canvasRails')
+  if (railsSetting) {
+    const next = tagRailsTaskboardSlots(railsSetting.value, defaultId)
+    if (next !== railsSetting.value) {
+      await settingsTable.put({ key: 'canvasRails', value: next! })
+    }
+  }
+
+  console.info(`v30 migration: seeded Default taskboard (id=${defaultId}) with ${legacyEntries.length} entries`)
 }

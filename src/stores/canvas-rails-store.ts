@@ -17,8 +17,15 @@ export function createLensSlot(listDefinitionId?: number): Slot {
   return { id: genSlotId(), kind: 'lens', listDefinitionId }
 }
 
-export function createSlot(kind: SlotKind, listDefinitionId?: number): Slot {
-  return { id: genSlotId(), kind, listDefinitionId }
+export function createSlot(kind: SlotKind, listDefinitionId?: number, taskboardId?: number): Slot {
+  const slot: Slot = { id: genSlotId(), kind }
+  if (listDefinitionId != null) slot.listDefinitionId = listDefinitionId
+  if (taskboardId != null) slot.taskboardId = taskboardId
+  return slot
+}
+
+export function createTaskboardSlot(taskboardId: number): Slot {
+  return { id: genSlotId(), kind: 'taskboard', taskboardId }
 }
 
 interface CanvasRailsState {
@@ -41,7 +48,7 @@ interface CanvasRailsState {
    * the new slot to the right rail. Used by canvas floating-node dock-back.
    * Returns the new slot's id.
    */
-  createAndDockSlot: (kind: SlotKind, listDefinitionId?: number) => string
+  createAndDockSlot: (kind: SlotKind, listDefinitionId?: number, taskboardId?: number) => string
   setRailSize: (side: RailSide, px: number) => void
   clearPendingFocus: () => void
 }
@@ -127,8 +134,13 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
     return { rails: next, pendingFocusSlotId: newId }
   }),
 
-  createAndDockSlot: (kind, listDefinitionId) => {
-    const slot: Slot = { id: genSlotId(), kind, ...(listDefinitionId != null ? { listDefinitionId } : {}) }
+  createAndDockSlot: (kind, listDefinitionId, taskboardId) => {
+    const slot: Slot = {
+      id: genSlotId(),
+      kind,
+      ...(listDefinitionId != null ? { listDefinitionId } : {}),
+      ...(taskboardId != null ? { taskboardId } : {}),
+    }
     set((state) => {
       const next: RailsState = { ...state.rails }
       const emptySide = DOCK_PRIORITY.find((side) => !next[side])

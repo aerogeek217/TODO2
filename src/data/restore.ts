@@ -3,6 +3,7 @@ import {
   db,
   ensureSeededStatuses,
   ensureSeededListDefinitions,
+  ensureSeededDefaultTaskboard,
   persistHorizonSlots,
   translateTodoV20ToV21,
   translateStickyToNote,
@@ -14,7 +15,7 @@ import {
 import type { ImportData, ImportListInset, ImportNote } from './import-validation'
 import { validateImportData, isLegacyMembershipKind } from './import-validation'
 import type { ListDefinition } from '../models/list-definition'
-import type { ListInset, Note, FloatingNote } from '../models'
+import type { ListInset, Note, FloatingNote, Taskboard } from '../models'
 
 /** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
 const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
@@ -33,7 +34,9 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.savedViews, key: 'savedViews' },
   // Legacy `stickyNotes` from pre-v26 backups are translated into `notes` rows
   // after the bulk-add pass below (see translateLegacyStickyNotes).
-  { table: db.taskboardEntries, key: 'taskboardEntries' },
+  // `taskboards` (post-v30) + legacy `taskboardEntries` (pre-v30) are handled
+  // separately — see the taskboard-restore pass below.
+  { table: db.floatingTaskboards, key: 'floatingTaskboards' },
   { table: db.statuses, key: 'statuses' },
   { table: db.listDefinitions, key: 'listDefinitions' },
   // `notes` is handled separately — pre-v28 rows may carry canvasId +
@@ -151,11 +154,12 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     if (svRow.groupBy === 'tag') svRow.groupBy = 'none'
   }
 
-  const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes])
+  const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes, db.taskboards])
   await db.transaction('rw', tables, async () => {
     for (const { table } of TABLE_KEY_PAIRS) await table.clear()
     await db.listInsets.clear()
     await db.notes.clear()
+    await db.taskboards.clear()
 
     for (const { table, key } of TABLE_KEY_PAIRS) {
       const rows = v[key]
@@ -210,6 +214,18 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       await db.listDefinitions.bulkDelete(legacyDefRows.map((d) => d.id!))
       console.info(`Restore: dropped ${legacyDefRows.length} legacy-kind listDefinition(s)`)
     }
+
+    // Taskboards: prefer post-v30 `taskboards` rows; fall back to collapsing
+    // pre-v30 `taskboardEntries` into a seeded Default taskboard. Idempotent.
+    if (v.taskboards?.length) {
+      await db.taskboards.bulkAdd(v.taskboards as Taskboard[])
+      // Re-point settings.defaultTaskboardId at the first imported row when missing.
+      const existing = await db.settings.get('defaultTaskboardId')
+      if (!existing && v.taskboards[0]?.id != null) {
+        await db.settings.put({ key: 'defaultTaskboardId', value: String(v.taskboards[0].id) })
+      }
+    }
+    await ensureSeededDefaultTaskboard(db.taskboards, db.settings, v.taskboards?.length ? [] : (v.taskboardEntries ?? []))
 
     // Seed missing defaults (idempotent). ensureSeededStatuses must run before
     // the v19→v20 todo walk below (statusId lookup). Order vs.

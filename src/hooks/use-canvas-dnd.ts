@@ -493,44 +493,61 @@ export function useCanvasDnD({
 
       // ── Taskboard entry being dragged ──
       if (activeType === 'taskboard-task') {
-        const activeEntryId = active.data.current?.entryId as number
+        // Taskboard id travels with the drop target. Entries dragged *from* a
+        // taskboard carry their source board via active.data.current.todo…
+        // but simpler: reorder/remove decisions are scoped to the target board
+        // (if any) rather than the source.
+        const targetBoardId = (overData?.taskboardId as number | undefined)
+          ?? useTaskboardStore.getState().defaultBoardId
+        if (targetBoardId == null) return
 
         if (overData?.type === 'taskboard-task') {
-          // Dropped on another taskboard entry → reorder (SortableContext handles visual)
-          const overEntryId = overData.entryId as number
-          const entries = useTaskboardStore.getState().entries
-          const fromIndex = entries.findIndex(e => e.id === activeEntryId)
-          const toIndex = entries.findIndex(e => e.id === overEntryId)
+          const entries = useTaskboardStore.getState().getEntries(targetBoardId)
+          const fromIndex = entries.findIndex(e => e.todoId === activeTodo.id)
+          const overEntryId = overData.entryId as string
+          // overEntryId format: `tb-<floatingId>-<todoId>` or `tbp-<todoId>`
+          const overTodoId = Number(overEntryId.split('-').pop())
+          const toIndex = entries.findIndex(e => e.todoId === overTodoId)
           if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-            useTaskboardStore.getState().reorder(fromIndex, toIndex)
+            await useTaskboardStore.getState().reorder(targetBoardId, fromIndex, toIndex)
           }
           return
         }
 
         if (overData?.type === 'taskboard') {
-          // Dropped on taskboard zone → move to end
-          const entries = useTaskboardStore.getState().entries
-          const fromIndex = entries.findIndex(e => e.id === activeEntryId)
+          const entries = useTaskboardStore.getState().getEntries(targetBoardId)
+          const fromIndex = entries.findIndex(e => e.todoId === activeTodo.id)
           if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
-            useTaskboardStore.getState().reorder(fromIndex, entries.length - 1)
+            await useTaskboardStore.getState().reorder(targetBoardId, fromIndex, entries.length - 1)
           }
           return
         }
 
-        // Dropped anywhere else → remove from taskboard
-        await useTaskboardStore.getState().remove(activeTodo.id)
+        // Dropped anywhere else → remove from every board that holds it.
+        for (const [boardId, board] of useTaskboardStore.getState().boards) {
+          if (board.entries.some(e => e.todoId === activeTodo.id)) {
+            await useTaskboardStore.getState().removeEntry(boardId, activeTodo.id)
+          }
+        }
         return
       }
 
       // Dropped onto the taskboard — add task(s) at drop position
       if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
         const tbState = useTaskboardStore.getState()
+        const targetBoardId = (overData?.taskboardId as number | undefined) ?? tbState.defaultBoardId
+        if (targetBoardId == null) {
+          const created = await tbState.ensureDefault()
+          if (created == null) return
+        }
+        const boardId = targetBoardId ?? tbState.defaultBoardId!
+        const entries = tbState.getEntries(boardId)
 
-        // Determine insert index
-        let targetIndex = tbState.entries.length
+        let targetIndex = entries.length
         if (overData?.type === 'taskboard-task') {
-          const overEntryId = overData.entryId as number
-          const idx = tbState.entries.findIndex(e => e.id === overEntryId)
+          const overEntryId = overData.entryId as string
+          const overTodoId = Number(overEntryId.split('-').pop())
+          const idx = entries.findIndex(e => e.todoId === overTodoId)
           if (idx !== -1) {
             targetIndex = idx
             const overRect = over?.rect
@@ -547,9 +564,9 @@ export function useCanvasDnD({
         }
 
         if (dragIds) {
-          await tbState.addMultipleAt([...dragIds], targetIndex)
+          await tbState.addMultipleAt(boardId, [...dragIds], targetIndex)
         } else {
-          await tbState.addAt(activeTodo.id, targetIndex)
+          await tbState.addAt(boardId, activeTodo.id, targetIndex)
         }
         return
       }

@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -22,11 +22,11 @@ import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
-import type { PersistedTodoItem } from '../../models'
+import type { PersistedTodoItem, TaskboardEntry } from '../../models'
 import styles from './TaskboardPanel.module.css'
 
 interface SortableEntryProps {
-  entryId: number
+  entryId: string
   index: number
   todo: PersistedTodoItem
   assignedPeople: import('../../models').Person[] | undefined
@@ -49,19 +49,39 @@ function SortableEntry({ entryId, index, todo, assignedPeople, onOpenDetail }: S
 
 type HeaderDragProps = React.HTMLAttributes<HTMLDivElement>
 
-export function TaskboardPanel({
-  dragHandleIcon,
-  dragHandleProps,
-}: { dragHandleIcon?: ReactNode; dragHandleProps?: HeaderDragProps } = {}) {
-  const { entries, reorder } = useTaskboardStore()
+interface TaskboardPanelProps {
+  /** When omitted, falls back to the store's defaultBoardId (seeding one if needed). */
+  taskboardId?: number
+  dragHandleIcon?: ReactNode
+  dragHandleProps?: HeaderDragProps
+}
+
+export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps }: TaskboardPanelProps = {}) {
+  const boards = useTaskboardStore((s) => s.boards)
+  const defaultBoardId = useTaskboardStore((s) => s.defaultBoardId)
+  const ensureDefault = useTaskboardStore((s) => s.ensureDefault)
+  const reorder = useTaskboardStore((s) => s.reorder)
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const { openEditPopup } = useUIStore()
   const [reorderKey, setReorderKey] = useState(0)
 
+  const resolvedId = taskboardId ?? defaultBoardId
+  useEffect(() => {
+    if (taskboardId == null && defaultBoardId == null) {
+      void ensureDefault()
+    }
+  }, [taskboardId, defaultBoardId, ensureDefault])
+
+  const entries: TaskboardEntry[] = useMemo(
+    () => (resolvedId != null ? boards.get(resolvedId)?.entries ?? [] : []),
+    [boards, resolvedId],
+  )
+
+  const droppableId = resolvedId != null ? `dashboard-taskboard-drop-${resolvedId}` : 'dashboard-taskboard-drop'
   const { isOver, setNodeRef: setDropRef } = useDroppable({
-    id: 'dashboard-taskboard-drop',
-    data: { type: 'taskboard' },
+    id: droppableId,
+    data: { type: 'taskboard', taskboardId: resolvedId },
   })
 
   const todoMap = useMemo(() => {
@@ -71,11 +91,11 @@ export function TaskboardPanel({
   }, [todos])
 
   const visibleEntries = useMemo(
-    () => entries.filter(e => todoMap.has(e.todoId)),
+    () => entries.filter((e) => todoMap.has(e.todoId)),
     [entries, todoMap],
   )
 
-  const entryIds = useMemo(() => visibleEntries.map(e => e.id!), [visibleEntries])
+  const entryIds = useMemo(() => visibleEntries.map((e) => `tbp-${e.todoId}`), [visibleEntries])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -83,15 +103,16 @@ export function TaskboardPanel({
   )
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    if (resolvedId == null) return
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const fromIndex = entries.findIndex(e => e.id === active.id)
-    const toIndex = entries.findIndex(e => e.id === over.id)
+    const fromIndex = entries.findIndex((e) => `tbp-${e.todoId}` === active.id)
+    const toIndex = entries.findIndex((e) => `tbp-${e.todoId}` === over.id)
     if (fromIndex !== -1 && toIndex !== -1) {
-      reorder(fromIndex, toIndex)
-      setReorderKey(k => k + 1)
+      reorder(resolvedId, fromIndex, toIndex)
+      setReorderKey((k) => k + 1)
     }
-  }, [entries, reorder])
+  }, [entries, reorder, resolvedId])
 
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
 
@@ -119,8 +140,8 @@ export function TaskboardPanel({
                 if (!todo) return null
                 return (
                   <SortableEntry
-                    key={entry.id}
-                    entryId={entry.id!}
+                    key={entry.todoId}
+                    entryId={`tbp-${entry.todoId}`}
                     index={i}
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}

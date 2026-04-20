@@ -1,5 +1,6 @@
 import { db } from './database'
 import type { Canvas } from '../models'
+import { stripTodoFromTaskboards } from './todo-repository'
 
 export const canvasRepository = {
   async getAll(): Promise<Canvas[]> {
@@ -18,7 +19,7 @@ export const canvasRepository = {
   async consolidate(keepId: number, removeIds: number[]): Promise<void> {
     await db.transaction(
       'rw',
-      [db.canvases, db.projects, db.todos, db.listInsets, db.floatingNotes, db.floatingCalendars],
+      [db.canvases, db.projects, db.todos, db.listInsets, db.floatingNotes, db.floatingCalendars, db.floatingTaskboards],
       async () => {
         for (const oldId of removeIds) {
           await db.todos.where('canvasId').equals(oldId).modify({ canvasId: keepId })
@@ -26,6 +27,7 @@ export const canvasRepository = {
           await db.listInsets.where('canvasId').equals(oldId).modify({ canvasId: keepId })
           await db.floatingNotes.where('canvasId').equals(oldId).modify({ canvasId: keepId })
           await db.floatingCalendars.where('canvasId').equals(oldId).modify({ canvasId: keepId })
+          await db.floatingTaskboards.where('canvasId').equals(oldId).modify({ canvasId: keepId })
           await db.canvases.delete(oldId)
         }
       },
@@ -33,21 +35,22 @@ export const canvasRepository = {
   },
 
   async delete(id: number): Promise<void> {
-    // Cascade: delete projects, todos, floating notes/calendars, list insets belonging to this canvas
+    // Cascade: delete projects, todos, floating notes/calendars, list insets, floating taskboards belonging to this canvas
     await db.transaction(
       'rw',
-      [db.canvases, db.projects, db.todos, db.todoPeople, db.todoOrgs, db.taskboardEntries, db.floatingNotes, db.floatingCalendars, db.listInsets],
+      [db.canvases, db.projects, db.todos, db.todoPeople, db.todoOrgs, db.taskboards, db.floatingNotes, db.floatingCalendars, db.floatingTaskboards, db.listInsets],
       async () => {
-        const todoIds = await db.todos.where('canvasId').equals(id).primaryKeys()
+        const todoIds = (await db.todos.where('canvasId').equals(id).primaryKeys()) as number[]
         if (todoIds.length > 0) {
           await db.todoPeople.where('todoId').anyOf(todoIds).delete()
           await db.todoOrgs.where('todoId').anyOf(todoIds).delete()
-          await db.taskboardEntries.where('todoId').anyOf(todoIds).delete()
+          await stripTodoFromTaskboards(todoIds)
         }
         await db.todos.where('canvasId').equals(id).delete()
         await db.projects.where('canvasId').equals(id).delete()
         await db.floatingNotes.where('canvasId').equals(id).delete()
         await db.floatingCalendars.where('canvasId').equals(id).delete()
+        await db.floatingTaskboards.where('canvasId').equals(id).delete()
         await db.listInsets.where('canvasId').equals(id).delete()
         await db.canvases.delete(id)
       },

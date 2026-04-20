@@ -28,14 +28,14 @@ async function readAllTables() {
   const [
     todos, projects, canvases, listInsets, people, settings,
     todoPeople, todoOrgs, personOrgs, orgs, savedViews, notes,
-    taskboardEntries, statuses, listDefinitions,
+    taskboards, statuses, listDefinitions,
   ] = await Promise.all([
     db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(),
     db.listInsets.toArray(), db.people.toArray(), db.settings.toArray(),
     db.todoPeople.toArray(),
     db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
     db.savedViews.toArray(), db.notes.toArray(),
-    db.taskboardEntries.toArray(), db.statuses.toArray(),
+    db.taskboards.toArray(), db.statuses.toArray(),
     db.listDefinitions.toArray(),
   ])
   return {
@@ -51,7 +51,7 @@ async function readAllTables() {
     orgs: snapshotTable(orgs),
     savedViews: snapshotTable(savedViews),
     notes: snapshotTable(notes),
-    taskboardEntries: snapshotTable(taskboardEntries),
+    taskboards: snapshotTable(taskboards),
     statuses: snapshotTable(statuses),
     listDefinitions: snapshotTable(listDefinitions),
   }
@@ -151,6 +151,8 @@ function makeLegacyImport(): ImportData {
     savedViews: [],
     stickyNotes: [],
     taskboardEntries: [],
+    taskboards: [],
+    floatingTaskboards: [],
     statuses: [],
     // Empty — restore should auto-seed the four rows
     listDefinitions: [],
@@ -279,7 +281,9 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       orgs: firstPass.orgs,
       savedViews: firstPass.savedViews as unknown as ImportData['savedViews'],
       stickyNotes: [],
-      taskboardEntries: firstPass.taskboardEntries,
+      taskboardEntries: [],
+      taskboards: firstPass.taskboards as unknown as ImportData['taskboards'],
+      floatingTaskboards: [],
       statuses: firstPass.statuses,
       listDefinitions: firstPass.listDefinitions,
       notes: firstPass.notes as unknown as ImportData['notes'],

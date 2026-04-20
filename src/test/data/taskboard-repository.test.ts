@@ -8,96 +8,56 @@ beforeEach(async () => {
 })
 
 describe('taskboardRepository', () => {
+  describe('create + getById', () => {
+    it('creates an empty board and reads it back', async () => {
+      const id = await taskboardRepository.create('Work')
+      const row = await taskboardRepository.getById(id)
+      expect(row?.name).toBe('Work')
+      expect(row?.entries).toEqual([])
+      expect(row?.createdAt).toBeInstanceOf(Date)
+    })
+  })
+
   describe('getAll', () => {
-    it('returns entries sorted by sortOrder', async () => {
-      await db.taskboardEntries.bulkAdd([
-        { todoId: 10, sortOrder: 3000 },
-        { todoId: 20, sortOrder: 1000 },
-        { todoId: 30, sortOrder: 2000 },
+    it('returns all boards ordered by id', async () => {
+      const idA = await taskboardRepository.create('A')
+      const idB = await taskboardRepository.create('B')
+      const all = await taskboardRepository.getAll()
+      expect(all.map((t) => t.id)).toEqual([idA, idB])
+    })
+  })
+
+  describe('writeEntries', () => {
+    it('replaces the entries list and bumps updatedAt', async () => {
+      const id = await taskboardRepository.create('Queue')
+      const before = (await taskboardRepository.getById(id))!.updatedAt.getTime()
+      await new Promise((r) => setTimeout(r, 2))
+      await taskboardRepository.writeEntries(id, [
+        { todoId: 10, sortOrder: 1000 },
+        { todoId: 20, sortOrder: 2000 },
       ])
-
-      const entries = await taskboardRepository.getAll()
-      expect(entries.map(e => e.todoId)).toEqual([20, 30, 10])
-    })
-
-    it('returns empty array when no entries', async () => {
-      const entries = await taskboardRepository.getAll()
-      expect(entries).toEqual([])
+      const after = await taskboardRepository.getById(id)
+      expect(after!.entries.map((e) => e.todoId)).toEqual([10, 20])
+      expect(after!.updatedAt.getTime()).toBeGreaterThan(before)
     })
   })
 
-  describe('findByTodoId', () => {
-    it('returns the entry matching the todoId', async () => {
-      await db.taskboardEntries.add({ todoId: 42, sortOrder: 1000 })
-
-      const entry = await taskboardRepository.findByTodoId(42)
-      expect(entry).toBeDefined()
-      expect(entry!.todoId).toBe(42)
-    })
-
-    it('returns undefined for non-existent todoId', async () => {
-      const entry = await taskboardRepository.findByTodoId(999)
-      expect(entry).toBeUndefined()
+  describe('rename', () => {
+    it('renames and bumps updatedAt, leaves entries alone', async () => {
+      const id = await taskboardRepository.create('Old')
+      await taskboardRepository.writeEntries(id, [{ todoId: 1, sortOrder: 1000 }])
+      await taskboardRepository.rename(id, 'New')
+      const row = await taskboardRepository.getById(id)
+      expect(row?.name).toBe('New')
+      expect(row?.entries).toHaveLength(1)
     })
   })
 
-  describe('addEntry', () => {
-    it('adds entry with sortOrder after the highest existing', async () => {
-      await db.taskboardEntries.add({ todoId: 1, sortOrder: 2000 })
-
-      const id = await taskboardRepository.addEntry(5)
-
-      const entry = await db.taskboardEntries.get(id)
-      expect(entry).toBeDefined()
-      expect(entry!.todoId).toBe(5)
-      expect(entry!.sortOrder).toBe(3000) // 2000 + 1000
-    })
-
-    it('adds first entry with sortOrder 1000', async () => {
-      const id = await taskboardRepository.addEntry(1)
-
-      const entry = await db.taskboardEntries.get(id)
-      expect(entry!.sortOrder).toBe(1000) // 0 + 1000
-    })
-  })
-
-  describe('removeByTodoId', () => {
-    it('removes the entry with the given todoId', async () => {
-      await db.taskboardEntries.add({ todoId: 7, sortOrder: 1000 })
-
-      await taskboardRepository.removeByTodoId(7)
-
-      const entry = await taskboardRepository.findByTodoId(7)
-      expect(entry).toBeUndefined()
-    })
-
-    it('does not affect other entries', async () => {
-      await db.taskboardEntries.bulkAdd([
-        { todoId: 1, sortOrder: 1000 },
-        { todoId: 2, sortOrder: 2000 },
-      ])
-
-      await taskboardRepository.removeByTodoId(1)
-
-      const entries = await taskboardRepository.getAll()
-      expect(entries).toHaveLength(1)
-      expect(entries[0].todoId).toBe(2)
-    })
-  })
-
-  describe('reorder', () => {
-    it('updates sortOrder for specified entries', async () => {
-      const id1 = await db.taskboardEntries.add({ todoId: 1, sortOrder: 1000 })
-      const id2 = await db.taskboardEntries.add({ todoId: 2, sortOrder: 2000 })
-
-      await taskboardRepository.reorder([
-        { id: id1, sortOrder: 2000 },
-        { id: id2, sortOrder: 1000 },
-      ])
-
-      const entries = await taskboardRepository.getAll()
-      expect(entries[0].todoId).toBe(2) // sortOrder 1000 first
-      expect(entries[1].todoId).toBe(1) // sortOrder 2000 second
+  describe('remove', () => {
+    it('deletes the board row', async () => {
+      const id = await taskboardRepository.create('Temp')
+      await taskboardRepository.remove(id)
+      expect(await taskboardRepository.getById(id)).toBeUndefined()
     })
   })
 })

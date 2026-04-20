@@ -365,7 +365,7 @@ export function DashboardView() {
   const { statuses, load: loadStatuses } = useStatusStore()
   const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
   const showCompleted = useFilterStore((s) => s.filters.showCompleted)
-  const { load: loadTaskboard } = useTaskboardStore()
+  const { load: loadTaskboard, defaultBoardId, ensureDefault } = useTaskboardStore()
   const { listDefinitions, load: loadDefinitions } = useListDefinitionStore()
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
   const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
@@ -409,7 +409,7 @@ export function DashboardView() {
     if (activeId === 'top:taskboard' || activeId === 'top:horizon') {
       keep = (id) => id === 'top:taskboard' || id === 'top:horizon'
     } else if (activeType === 'dashboard-task') {
-      keep = (id) => id === 'dashboard-taskboard-drop'
+      keep = (id) => typeof id === 'string' && id.startsWith('dashboard-taskboard-drop')
     } else if (typeof activeId === 'number') {
       keep = (id) => typeof id === 'number'
     } else {
@@ -435,7 +435,10 @@ export function DashboardView() {
     const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
     const overData = event.over?.data.current
     if (todo && overData?.type === 'taskboard') {
-      await useTaskboardStore.getState().add(todo.id)
+      const tbId = (overData.taskboardId as number | undefined)
+        ?? defaultBoardId
+        ?? (await ensureDefault())
+      await useTaskboardStore.getState().add(tbId, todo.id)
       return
     }
 

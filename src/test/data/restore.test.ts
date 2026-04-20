@@ -21,6 +21,8 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     savedViews: [],
     stickyNotes: [],
     taskboardEntries: [],
+    taskboards: [],
+    floatingTaskboards: [],
     statuses: [],
     listDefinitions: [],
     notes: [],

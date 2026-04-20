@@ -36,7 +36,7 @@ describe('auditData', () => {
     await db.todoPeople.add({ todoId, personId })
     await db.todoOrgs.add({ todoId, orgId })
     await db.personOrgs.add({ personId, orgId })
-    await db.taskboardEntries.add({ todoId, sortOrder: 0 })
+    await db.taskboards.add({ name: 'Default', entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(0)
@@ -85,13 +85,21 @@ describe('auditData', () => {
     expect(report.issues.find((i) => i.table === 'personOrgs')!.count).toBe(1)
   })
 
-  it('detects orphaned taskboardEntries', async () => {
-    await db.taskboardEntries.add({ todoId: 999, sortOrder: 0 })
-    await db.taskboardEntries.add({ todoId: 888, sortOrder: 1 })
+  it('detects orphaned taskboard entries referencing deleted todos', async () => {
+    await db.taskboards.add({
+      name: 'A',
+      entries: [
+        { todoId: 999, sortOrder: 0 },
+        { todoId: 888, sortOrder: 1 },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    })
 
     const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'taskboardEntries')!
+    const issue = report.issues.find((i) => i.table === 'taskboards')!
     expect(issue.count).toBe(2)
+    expect(issue.fix).toBe('clear-field')
   })
 
   // --- Dangling foreign keys ---
@@ -191,11 +199,11 @@ describe('auditData', () => {
   it('detects multiple issue types in one scan', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    await db.taskboardEntries.add({ todoId: 999, sortOrder: 0 })
+    await db.taskboards.add({ name: 'A', entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
     await db.todos.add(makeTodo({ projectId: 777 }) as any)
 
     const report = await auditData()
-    expect(report.issues.length).toBeGreaterThanOrEqual(4)
+    expect(report.issues.length).toBeGreaterThanOrEqual(3)
     expect(report.totalOrphans).toBeGreaterThanOrEqual(4)
   })
 
@@ -220,10 +228,10 @@ describe('auditData', () => {
 })
 
 describe('cleanupIssues', () => {
-  it('deletes orphaned join rows', async () => {
+  it('deletes orphaned join rows and strips orphaned taskboard entries', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    await db.taskboardEntries.add({ todoId: 999, sortOrder: 0 })
+    const boardId = await db.taskboards.add({ name: 'A', entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(3)
@@ -233,7 +241,8 @@ describe('cleanupIssues', () => {
 
     expect(await db.todoPeople.count()).toBe(0)
     expect(await db.todoOrgs.count()).toBe(0)
-    expect(await db.taskboardEntries.count()).toBe(0)
+    const board = await db.taskboards.get(boardId)
+    expect(board?.entries).toEqual([])
   })
 
   it('clears dangling projectId on todos', async () => {
@@ -306,7 +315,7 @@ describe('cleanupIssues', () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoOrgs.add({ todoId: 999, orgId: 888 })
     await db.personOrgs.add({ personId: 999, orgId: 888 })
-    await db.taskboardEntries.add({ todoId: 999, sortOrder: 0 })
+    await db.taskboards.add({ name: 'A', entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
     // No canvasId so clearing dangling projectId won't create a new unplaced-task issue
     await db.todos.add(makeTodo({ projectId: 777, parentId: 666 }) as any)
 

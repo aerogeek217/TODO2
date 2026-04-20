@@ -7,13 +7,15 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { PersistedTodoItem, Person } from '../../models'
+import type { PersistedTodoItem, Person, FloatingTaskboard, TaskboardEntry } from '../../models'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { TaskRow } from '../task/TaskRow'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
-  entries: import('../../models').TaskboardEntry[]
+  floatingId: number
+  taskboardId: number
+  entries: TaskboardEntry[]
   allTodos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>
   ghostTodoIds?: Set<number>
@@ -33,7 +35,7 @@ type TaskboardNodeType = TaskboardNodeData
 function SortableTaskboardEntry({
   entryId, index, todo, assignedPeople, ghost, onOpenDetail,
 }: {
-  entryId: number
+  entryId: string
   index: number
   todo: PersistedTodoItem
   assignedPeople: Person[] | undefined
@@ -41,7 +43,7 @@ function SortableTaskboardEntry({
   onOpenDetail?: (todoId: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: `tb-${entryId}`,
+    id: entryId,
     data: { type: 'taskboard-task', todo, entryId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
@@ -57,16 +59,31 @@ function SortableTaskboardEntry({
 }
 
 function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
-  const { entries, allTodos, assignedPeopleMap, ghostTodoIds, showCompleted, onOpenDetail, isCollapsed, onToggleCollapse, onClose, width, height, onResize } = data
+  const {
+    floatingId,
+    taskboardId,
+    entries,
+    allTodos,
+    assignedPeopleMap,
+    ghostTodoIds,
+    showCompleted,
+    onOpenDetail,
+    isCollapsed,
+    onToggleCollapse,
+    onClose,
+    width,
+    height,
+    onResize,
+  } = data
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
+  const droppableId = `taskboard-drop-${floatingId}`
   const { isOver, setNodeRef: setDropRef } = useDroppable({
-    id: 'taskboard-drop',
-    data: { type: 'taskboard' },
+    id: droppableId,
+    data: { type: 'taskboard', taskboardId, floatingId },
   })
 
-  // Track drag state: external drag highlight + insert position indicator
   const [isExternalDragOver, setIsExternalDragOver] = useState(false)
   const [tbInsertIndex, setTbInsertIndex] = useState<number | null>(null)
 
@@ -79,7 +96,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   }, [allTodos])
 
   const visibleEntries = useMemo(
-    () => entries.filter(e => {
+    () => entries.filter((e) => {
       const t = todoMap.get(e.todoId)
       if (!t) return false
       if (!showCompleted && t.isCompleted) return false
@@ -88,27 +105,32 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     [entries, todoMap, showCompleted],
   )
 
+  const entryIds = useMemo(
+    () => visibleEntries.map((e) => `tb-${floatingId}-${e.todoId}`),
+    [visibleEntries, floatingId],
+  )
+
   const onDragMove = useCallback((event: DragMoveEvent) => {
     const activeType = event.active.data.current?.type
     const overData = event.over?.data.current
     const overType = overData?.type
 
-    // External drag highlight (not for taskboard-internal reorder)
     setIsExternalDragOver(activeType !== 'taskboard-task' && (overType === 'taskboard' || overType === 'taskboard-task'))
 
-    // Insert position indicator — only for external drops (SortableContext handles reorder visuals)
     if (activeType === 'taskboard-task' || (overType !== 'taskboard' && overType !== 'taskboard-task')) {
       setTbInsertIndex(null)
       return
     }
+    // Only surface the insert indicator when the over-target belongs to this floating instance.
+    if (overData?.floatingId !== floatingId) { setTbInsertIndex(null); return }
+
     if (overType === 'taskboard') {
       setTbInsertIndex(visibleEntries.length)
       return
     }
 
-    // Over a specific entry — determine top/bottom half
-    const overEntryId = overData!.entryId as number
-    const idx = visibleEntries.findIndex(e => e.id === overEntryId)
+    const overEntryId = overData!.entryId as string
+    const idx = visibleEntries.findIndex((e) => `tb-${floatingId}-${e.todoId}` === overEntryId)
     if (idx === -1) { setTbInsertIndex(null); return }
 
     const overRect = event.over?.rect
@@ -124,7 +146,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     } else {
       setTbInsertIndex(idx)
     }
-  }, [visibleEntries])
+  }, [visibleEntries, floatingId])
 
   const onDragClear = useCallback(() => {
     setIsExternalDragOver(false)
@@ -137,8 +159,6 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   )
   useDndMonitor(dndListeners)
 
-  const entryIds = useMemo(() => visibleEntries.map(e => `tb-${e.id}`), [visibleEntries])
-
   return (
     <div ref={setDropRef} className={`${styles.node} ${isOver || isExternalDragOver ? styles.dropTarget : ''}`} style={{ width }}>
       <div className={styles.titleBar}>
@@ -148,7 +168,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         <span className={styles.taskCount}>{visibleEntries.length}</span>
         <button
           className={styles.closeButton}
-          onClick={() => useCanvasRailsStore.getState().createAndDockSlot('taskboard')}
+          onClick={() => useCanvasRailsStore.getState().createAndDockSlot('taskboard', undefined, taskboardId)}
           aria-label="Dock taskboard to rail"
           title="Dock to rail"
         >
@@ -169,10 +189,10 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
               const todo = todoMap.get(entry.todoId)
               if (!todo) return null
               return (
-                <Fragment key={entry.id}>
+                <Fragment key={entry.todoId}>
                   {tbInsertIndex === i && <div className={styles.dropPreview} />}
                   <SortableTaskboardEntry
-                    entryId={entry.id!}
+                    entryId={`tb-${floatingId}-${entry.todoId}`}
                     index={i}
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
@@ -225,3 +245,6 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
 }
 
 export const TaskboardNode = memo(TaskboardNodeInner)
+
+/** Floating placement row referenced by CanvasPage when building node data. */
+export type FloatingTaskboardRow = FloatingTaskboard

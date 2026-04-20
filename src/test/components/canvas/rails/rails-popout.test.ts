@@ -6,6 +6,8 @@ import { useNoteStore } from '../../../../stores/note-store'
 import { useFloatingNoteStore } from '../../../../stores/floating-note-store'
 import { useListInsetStore } from '../../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../../stores/floating-calendar-store'
+import { useFloatingTaskboardStore } from '../../../../stores/floating-taskboard-store'
+import { useTaskboardStore } from '../../../../stores/taskboard-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
 import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
 import { EMPTY_RAILS } from '../../../../models/canvas-rails'
@@ -19,6 +21,8 @@ beforeEach(async () => {
   useListInsetStore.setState({ insets: [], loading: false, error: null })
   useFloatingCalendarStore.setState({ calendars: [], loading: false, error: null })
   useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
+  useFloatingTaskboardStore.setState({ taskboards: [], loading: false, error: null })
+  useTaskboardStore.setState({ boards: new Map(), defaultBoardId: null, loading: false, error: null })
   useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
   useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
 })
@@ -102,14 +106,24 @@ describe('popSlotToCanvas', () => {
     expect(useListInsetStore.getState().insets.length).toBe(0)
   })
 
-  it('pops a taskboard slot (no-op; rail slot removal lets canvas re-show)', async () => {
-    await seedCanvas()
-    const slot: Slot = { id: 'slot-tb', kind: 'taskboard' }
+  it('pops a taskboard slot into a floating taskboard that references the same board', async () => {
+    const canvasId = await seedCanvas()
+    const boardId = await db.taskboards.add({
+      name: 'Default',
+      entries: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await db.settings.put({ key: 'defaultTaskboardId', value: String(boardId) })
+    await useTaskboardStore.getState().load()
+
+    const slot: Slot = { id: 'slot-tb', kind: 'taskboard', taskboardId: boardId }
     const moved = await popSlotToCanvas(slot)
-    // Taskboard is a singleton — popSlotToCanvas returns true so the caller
-    // removes the rail slot; the canvas TaskboardNode's visibility is derived
-    // from rails state so it re-shows automatically.
     expect(moved).toBe(true)
+
+    const floating = useFloatingTaskboardStore.getState().taskboards.filter((t) => t.canvasId === canvasId)
+    expect(floating.length).toBe(1)
+    expect(floating[0].taskboardId).toBe(boardId)
   })
 
   it('pops a calendar slot into a floating calendar node', async () => {

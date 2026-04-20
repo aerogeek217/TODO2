@@ -78,7 +78,7 @@ export const todoRepository = {
   },
 
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboardEntries], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboards], async () => {
       // Clear parentId on children so they don't become orphaned
       const children = await db.todos.where('parentId').equals(id).toArray()
       for (const child of children) {
@@ -86,14 +86,14 @@ export const todoRepository = {
       }
       await db.todoPeople.where('todoId').equals(id).delete()
       await db.todoOrgs.where('todoId').equals(id).delete()
-      await db.taskboardEntries.where('todoId').equals(id).delete()
+      await stripTodoFromTaskboards([id])
       await db.todos.delete(id)
     })
   },
 
   async bulkDelete(ids: number[]): Promise<void> {
     if (ids.length === 0) return
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboardEntries], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboards], async () => {
       for (const id of ids) {
         const children = await db.todos.where('parentId').equals(id).toArray()
         for (const child of children) {
@@ -101,9 +101,9 @@ export const todoRepository = {
         }
         await db.todoPeople.where('todoId').equals(id).delete()
         await db.todoOrgs.where('todoId').equals(id).delete()
-        await db.taskboardEntries.where('todoId').equals(id).delete()
         await db.todos.delete(id)
       }
+      await stripTodoFromTaskboards(ids)
     })
   },
 
@@ -120,4 +120,23 @@ export const todoRepository = {
       }
     })
   },
+}
+
+/**
+ * Remove every occurrence of the given `todoIds` from each Taskboard's inline
+ * entries list. Runs inside the caller's transaction (must include
+ * `db.taskboards` in the transaction's table list). No-op on boards that held
+ * nothing matching.
+ */
+export async function stripTodoFromTaskboards(todoIds: number[]): Promise<void> {
+  if (todoIds.length === 0) return
+  const remove = new Set(todoIds)
+  const boards = await db.taskboards.toArray()
+  const now = new Date()
+  for (const b of boards) {
+    const filtered = b.entries.filter((e) => !remove.has(e.todoId))
+    if (filtered.length !== b.entries.length) {
+      await db.taskboards.update(b.id!, { entries: filtered, updatedAt: now })
+    }
+  }
 }
