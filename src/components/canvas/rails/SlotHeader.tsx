@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 import type { SlotKind } from '../../../models/canvas-rails'
-import styles from './SlotHeader.module.css'
+import { WidgetHeader } from '../../shared/WidgetHeader'
 
 interface SlotHeaderProps {
   title: ReactNode
@@ -14,13 +14,6 @@ interface SlotHeaderProps {
   moreButtonRef?: React.Ref<HTMLButtonElement>
 }
 
-const KIND_LABEL: Record<SlotKind, string> = {
-  lens: 'lens',
-  notes: 'notes',
-  calendar: 'calendar',
-  taskboard: 'taskboard',
-}
-
 export function SlotHeader({
   title,
   meta,
@@ -32,61 +25,17 @@ export function SlotHeader({
   dragHandleProps,
   moreButtonRef,
 }: SlotHeaderProps) {
-  const { ref: dragRef, ...dragRest } = dragHandleProps ?? {}
-  const kindLabel = KIND_LABEL[slotKind] ?? slotKind
   return (
-    <header className={styles.header}>
-      <span
-        {...dragRest}
-        ref={dragRef}
-        className={styles.dragHandle}
-        aria-label={`Reorder slot: ${kindLabel}`}
-        role="button"
-        tabIndex={-1}
-      >
-        ⋮⋮
-      </span>
-      <span className={styles.title}>{title}</span>
-      {meta != null && <span className={styles.meta}>{meta}</span>}
-      {onPopOut && (
-        <button
-          type="button"
-          className={styles.iconButton}
-          onClick={onPopOut}
-          aria-label={`Pop out ${kindLabel} slot to canvas`}
-          title="Pop out to canvas"
-        >
-          ⇱
-        </button>
-      )}
-      {onMore && (
-        <button
-          ref={moreButtonRef}
-          type="button"
-          className={styles.iconButton}
-          onClick={(e) => {
-            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-            onMore({ x: rect.left, y: rect.bottom + 4 })
-          }}
-          aria-label={`Slot options: ${kindLabel}`}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen ? true : false}
-          title="Slot options"
-        >
-          ⋯
-        </button>
-      )}
-      {onClose && (
-        <button
-          type="button"
-          className={styles.iconButton}
-          onClick={onClose}
-          aria-label={`Close ${kindLabel} slot`}
-          title="Close slot"
-        >
-          ×
-        </button>
-      )}
-    </header>
+    <WidgetHeader
+      kind={slotKind}
+      title={title}
+      meta={meta}
+      onMore={onMore}
+      menuOpen={menuOpen}
+      moreButtonRef={moreButtonRef}
+      onPopOut={onPopOut}
+      onClose={onClose}
+      dragHandleProps={dragHandleProps ?? {}}
+    />
   )
 }

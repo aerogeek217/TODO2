@@ -10,6 +10,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem, Person, FloatingTaskboard, TaskboardEntry } from '../../models'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { TaskRow } from '../task/TaskRow'
+import { WidgetHeader } from '../shared/WidgetHeader'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
@@ -161,21 +162,16 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
 
   return (
     <div ref={setDropRef} className={`${styles.node} ${isOver || isExternalDragOver ? styles.dropTarget : ''}`} style={{ width }}>
-      <div className={styles.titleBar}>
-        <button className={`${styles.collapseButton} ${isCollapsed ? styles.collapsed : ''}`} onClick={onToggleCollapse}>&#9662;</button>
-        <span className={styles.icon}>&#9776;</span>
-        <span className={styles.name}>Taskboard</span>
-        <span className={styles.taskCount}>{visibleEntries.length}</span>
-        <button
-          className={styles.closeButton}
-          onClick={() => useCanvasRailsStore.getState().createAndDockSlot('taskboard', undefined, taskboardId)}
-          aria-label="Dock taskboard to rail"
-          title="Dock to rail"
-        >
-          ↙
-        </button>
-        <button className={styles.closeButton} onClick={onClose}>&times;</button>
-      </div>
+      <WidgetHeader
+        kind="taskboard"
+        title="Taskboard"
+        meta={visibleEntries.length}
+        collapsed={isCollapsed}
+        onToggleCollapse={onToggleCollapse}
+        onDock={() => useCanvasRailsStore.getState().createAndDockSlot('taskboard', undefined, taskboardId)}
+        onClose={onClose}
+        floating
+      />
 
       <div
         className={`${isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}

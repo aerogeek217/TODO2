@@ -209,7 +209,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     header = (
       <SlotHeader
         slotKind={slot.kind}
-        title="📅 Calendar · next 2 wks"
+        title="Calendar · next 2 wks"
         onMore={(anchor) => setMenuAnchor(anchor)}
         onPopOut={handlePopOut}
         menuOpen={menuOpen}
@@ -222,7 +222,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     header = (
       <SlotHeader
         slotKind={slot.kind}
-        title="◰ Notes · Inbox"
+        title="Notes · Inbox"
         onMore={(anchor) => setMenuAnchor(anchor)}
         onPopOut={handlePopOut}
         menuOpen={menuOpen}
@@ -235,7 +235,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     header = (
       <SlotHeader
         slotKind={slot.kind}
-        title="☰ Taskboard"
+        title="Taskboard"
         onMore={(anchor) => setMenuAnchor(anchor)}
         onPopOut={handlePopOut}
         menuOpen={menuOpen}

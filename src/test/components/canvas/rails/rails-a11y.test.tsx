@@ -17,8 +17,8 @@ describe('SlotHeader a11y', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getByLabelText('Slot options: lens')).toBeInTheDocument()
-    expect(screen.getByLabelText('Close lens slot')).toBeInTheDocument()
+    expect(screen.getByLabelText('lens options')).toBeInTheDocument()
+    expect(screen.getByLabelText('Close lens')).toBeInTheDocument()
     expect(screen.getByLabelText('Reorder slot: lens')).toBeInTheDocument()
   })
 
@@ -26,9 +26,9 @@ describe('SlotHeader a11y', () => {
     const { rerender } = render(
       <SlotHeader slotKind="notes" title="Notes" onMore={() => {}} menuOpen={false} />,
     )
-    expect(screen.getByLabelText('Slot options: notes')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByLabelText('notes options')).toHaveAttribute('aria-expanded', 'false')
     rerender(<SlotHeader slotKind="notes" title="Notes" onMore={() => {}} menuOpen={true} />)
-    expect(screen.getByLabelText('Slot options: notes')).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByLabelText('notes options')).toHaveAttribute('aria-expanded', 'true')
   })
 })
 

@@ -7,6 +7,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { TaskRow } from '../task/TaskRow'
 import { ListDefinitionBody } from './ListDefinitionBody'
+import { WidgetHeader } from '../shared/WidgetHeader'
 import styles from './ListInsetNode.module.css'
 
 export function DraggableTaskRow({
@@ -86,35 +87,20 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
 
   return (
     <div className={styles.inset} style={{ width: inset.width }}>
-      <div className={styles.titleBar}>
-        <button
-          className={`${styles.collapseButton} ${inset.isCollapsed ? styles.collapsed : ''}`}
-          onClick={() => inset.id && onToggleCollapse(inset.id)}
-        >
-          &#9662;
-        </button>
-        <span className={styles.presetIcon}>{'\u{1F4CB}'}</span>
-        <span className={styles.insetName}>{headerLabel}</span>
-        <span className={styles.taskCount}>{count}</span>
-        <button
-          className={styles.deleteButton}
-          aria-label="Dock list to rail"
-          title="Dock to rail"
-          onClick={() => {
-            if (inset.id == null) return
-            useCanvasRailsStore.getState().createAndDockSlot('lens', inset.listDefinitionId)
-            onDelete(inset.id)
-          }}
-        >
-          ↙
-        </button>
-        <button
-          className={styles.deleteButton}
-          onClick={() => inset.id && onDelete(inset.id)}
-        >
-          &times;
-        </button>
-      </div>
+      <WidgetHeader
+        kind="lens"
+        title={headerLabel}
+        meta={count}
+        collapsed={inset.isCollapsed}
+        onToggleCollapse={() => inset.id && onToggleCollapse(inset.id)}
+        onDock={() => {
+          if (inset.id == null) return
+          useCanvasRailsStore.getState().createAndDockSlot('lens', inset.listDefinitionId)
+          onDelete(inset.id)
+        }}
+        onClose={() => inset.id && onDelete(inset.id)}
+        floating
+      />
 
       {!inset.isCollapsed && <div className={styles.filterDesc}>{subtitle}</div>}
 

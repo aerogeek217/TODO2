@@ -10,6 +10,7 @@ import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useFilterStore, applyFilter } from '../../stores/filter-store'
 import { startOfDay } from '../../utils/date'
 import { TwoWeekCalendarStrip } from './rails/TwoWeekCalendarStrip'
+import { WidgetHeader } from '../shared/WidgetHeader'
 import styles from './FloatingCalendarNode.module.css'
 
 export interface FloatingCalendarNodeData {
@@ -66,30 +67,21 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
     if (calendar.id != null) onDelete(calendar.id)
   }, [calendar.id, onDelete])
 
+  const handleDock = useCallback(() => {
+    if (calendar.id == null) return
+    useCanvasRailsStore.getState().createAndDockSlot('calendar')
+    onDelete(calendar.id)
+  }, [calendar.id, onDelete])
+
   return (
     <div className={styles.calendar} style={{ width, height }}>
-      <div className={styles.titleBar}>
-        <span className={styles.label}>📅 Calendar · next 2 wks</span>
-        <button
-          className={`${styles.deleteButton} nopan nodrag`}
-          onClick={() => {
-            if (calendar.id == null) return
-            useCanvasRailsStore.getState().createAndDockSlot('calendar')
-            onDelete(calendar.id)
-          }}
-          aria-label="Dock calendar to rail"
-          title="Dock to rail"
-        >
-          ↙
-        </button>
-        <button
-          className={`${styles.deleteButton} nopan nodrag`}
-          onClick={handleDelete}
-          aria-label="Close calendar"
-        >
-          &times;
-        </button>
-      </div>
+      <WidgetHeader
+        kind="calendar"
+        title="Calendar · next 2 wks"
+        onDock={handleDock}
+        onClose={handleDelete}
+        floating
+      />
 
       <div className={`${styles.body} nopan nodrag nowheel`}>
         <TwoWeekCalendarStrip todos={activeTodos} today={today} onOpenTodo={openEditPopup} />

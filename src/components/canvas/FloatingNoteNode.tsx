@@ -3,6 +3,7 @@ import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { FloatingNote } from '../../models'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { NotesBody } from '../shared/notes/NotesBody'
+import { WidgetHeader } from '../shared/WidgetHeader'
 import styles from './FloatingNoteNode.module.css'
 
 export interface FloatingNoteNodeData {
@@ -32,25 +33,13 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
 
   return (
     <div className={styles.note} style={{ width, height }}>
-      <div className={styles.titleBar}>
-        <span className={styles.noteLabel}>◰ Notes · Inbox</span>
-        <button
-          className={`${styles.deleteButton} nopan nodrag`}
-          onClick={handleDock}
-          aria-label="Dock notes to rail"
-          title="Dock to rail"
-        >
-          ↙
-        </button>
-        <button
-          className={`${styles.deleteButton} nopan nodrag`}
-          onClick={handleClose}
-          aria-label="Close floating note"
-          title="Close"
-        >
-          &times;
-        </button>
-      </div>
+      <WidgetHeader
+        kind="notes"
+        title="Notes · Inbox"
+        onDock={handleDock}
+        onClose={handleClose}
+        floating
+      />
 
       <div className={`${styles.body} nopan nodrag nowheel`}>
         <NotesBody
