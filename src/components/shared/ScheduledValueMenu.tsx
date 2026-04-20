@@ -82,6 +82,10 @@ export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: 
 
   return (
     <div className={styles.menu} role="dialog" aria-label="Schedule" onClick={(e) => e.stopPropagation()}>
+      <div className={styles.header}>
+        <StatusIcon icon="calendar" />
+        <span>Scheduled</span>
+      </div>
       <div className={styles.grid}>
         <div className={styles.gutter}>Day</div>
         <PresetChip selected={isActive('today')}    onClick={() => selectFuzzy('today')}>Today</PresetChip>
