@@ -168,7 +168,10 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         meta={visibleEntries.length}
         collapsed={isCollapsed}
         onToggleCollapse={onToggleCollapse}
-        onDock={() => useCanvasRailsStore.getState().createAndDockSlot('taskboard', undefined, taskboardId)}
+        onDock={() => {
+          useCanvasRailsStore.getState().createAndDockSlot('taskboard', undefined, taskboardId)
+          onClose()
+        }}
         onClose={onClose}
         floating
       />
