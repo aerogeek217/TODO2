@@ -5,3 +5,7 @@
   min-height: 0;
   background: var(--color-canvas-bg);
 }
+
+:global([data-theme="light"]) .body {
+  background: #ffffff;
+}
