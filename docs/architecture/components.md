@@ -91,4 +91,5 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people and orgs |
+| UNAFFILIATED_PERSON_COLOR | constants.ts | Neutral grey '#9CA3AF' used as fallback for people with no assigned org (PeopleEditor swatch + AvatarStack fill) |
 | INDENT_PX, TASK_ROW_PADDING_LEFT | constants.ts | Shared UI constants for task indentation |

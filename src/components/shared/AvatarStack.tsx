@@ -2,7 +2,7 @@ import { memo } from 'react'
 import type { Person } from '../../models'
 import { useOrgStore } from '../../stores/org-store'
 import { resolvePersonColor } from '../../utils/person-color'
-import { DEFAULT_ENTITY_COLOR } from '../../constants'
+import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
 import styles from './AvatarStack.module.css'
 
 /**
@@ -56,7 +56,7 @@ export const AvatarStack = memo(function AvatarStack({
         // Fill variant = person avatar: derive from first assigned org.
         // Hollow variant = org avatar: use the entity's own color.
         const fillColor = variant === 'fill'
-          ? (resolvePersonColor(p.id, personOrgMap, orgs) ?? DEFAULT_ENTITY_COLOR)
+          ? (resolvePersonColor(p.id, personOrgMap, orgs) ?? UNAFFILIATED_PERSON_COLOR)
           : undefined
         const style: React.CSSProperties = variant === 'hollow'
           ? (p.color ? { borderColor: p.color, color: p.color } : {})

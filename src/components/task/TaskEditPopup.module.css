@@ -271,7 +271,7 @@
 .metaLabel {
   font-size: 11px;
   color: var(--color-text-muted);
-  width: 56px;
+  width: 76px;
   flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.06em;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { personRepository, orgRepository } from '../../data'
@@ -7,7 +7,7 @@ import { resolvePersonColor } from '../../utils/person-color'
 import { ChipSelector } from '../shared/ChipSelector'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import type { Person } from '../../models'
-import { DEFAULT_ENTITY_COLOR } from '../../constants'
+import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
 
 interface PersonEditState {
@@ -23,15 +23,10 @@ interface PeopleEditorProps {
 
 export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const { people, load: loadPeople, add: addPerson, update: updatePerson, remove: removePerson } = usePersonStore()
-  const { orgs, load: loadOrgs } = useOrgStore()
-
-  // Person-org map: personId -> orgId[]
-  const [personOrgMap, setPersonOrgMap] = useState<Map<number, number[]>>(new Map())
-
-  const loadPersonOrgs = useCallback(async () => {
-    const map = await orgRepository.getPersonOrgMap()
-    setPersonOrgMap(map)
-  }, [])
+  const orgs = useOrgStore((s) => s.orgs)
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const loadOrgs = useOrgStore((s) => s.load)
+  const loadPersonOrgMap = useOrgStore((s) => s.loadPersonOrgMap)
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
   const [editInitialsManual, setEditInitialsManual] = useState(false)
@@ -49,7 +44,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const orgDropdownRef = useRef<HTMLDivElement>(null)
   useClickOutside(orgDropdownRef, () => setShowOrgDropdown(null), showOrgDropdown !== null)
 
-  useEffect(() => { loadPeople(); loadOrgs(); loadPersonOrgs() }, [loadPeople, loadOrgs, loadPersonOrgs])
+  useEffect(() => { loadPeople(); loadOrgs(); loadPersonOrgMap() }, [loadPeople, loadOrgs, loadPersonOrgMap])
 
   const clearState = () => {
     setEditing(null)
@@ -70,7 +65,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     if (!editing || !editing.name.trim()) return
     await updatePerson({ id: editing.id, name: editing.name.trim(), initials: editing.initials || generateInitials(editing.name) })
     await orgRepository.setPersonOrgs(editing.id, editing.orgIds)
-    await loadPersonOrgs()
+    await loadPersonOrgMap()
     setEditing(null)
   }
 
@@ -98,7 +93,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     const id = await addPerson(newName.trim(), newInitials || generateInitials(newName))
     if (newOrgIds.length > 0) {
       await orgRepository.setPersonOrgs(id, newOrgIds)
-      await loadPersonOrgs()
+      await loadPersonOrgMap()
     }
     setAdding(false)
   }
@@ -151,7 +146,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   }
 
   const renderPersonRow = (p: Person) => {
-    const derived = resolvePersonColor(p.id, personOrgMap, orgs) ?? DEFAULT_ENTITY_COLOR
+    const derived = resolvePersonColor(p.id, personOrgMap, orgs) ?? UNAFFILIATED_PERSON_COLOR
     if (deleteId === p.id) {
       return (
         <div key={p.id} className={styles.deleteConfirm}>
@@ -244,7 +239,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
             const previewColor = newOrgIds
               .map((id) => orgs.find((o) => o.id === id)?.color)
               .find((c): c is string => !!c)
-              ?? DEFAULT_ENTITY_COLOR
+              ?? UNAFFILIATED_PERSON_COLOR
             return (
             <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => setAdding(false))}>
               <div className={styles.colorSwatch} style={{ background: previewColor }} title="Color derived from assigned org" />

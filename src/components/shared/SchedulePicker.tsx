@@ -48,6 +48,13 @@ export function SchedulePicker({ value, onChange, today }: SchedulePickerProps) 
         <StatusIcon icon="calendar" />
         <span className={styles.triggerLabel}>{label}</span>
         {expired && <span className={styles.expiredMarker} aria-label="Expired" />}
+        {value && (
+          <span
+            className={styles.clearButton}
+            onClick={(e) => { e.stopPropagation(); onChange(null) }}
+            title="Clear scheduled date"
+          >&times;</span>
+        )}
       </button>
       {open && (
         <ScheduledValueMenu
