@@ -4,7 +4,15 @@ import { useNoteStore } from '../../../stores/note-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useCanvasStore } from '../../../stores/canvas-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useFilterStore } from '../../../stores/filter-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { usePersonStore } from '../../../stores/person-store'
+import { useOrgStore } from '../../../stores/org-store'
+import { useProjectStore } from '../../../stores/project-store'
+import { AppView, type PersistedTodoItem } from '../../../models'
 import { formatShortcut } from '../../../utils/platform'
+import { getFilterDefaults, supplementWithFilterDefaults } from '../../../utils/filter-defaults'
+import { parseTaskInput, applyNlpMetadata } from '../../../services/nlp-task-creator'
 import { copyNotesRich } from '../../../services/notes-export'
 import { NotesEditor } from './NotesEditor'
 import { NotesToolbar } from './NotesToolbar'
@@ -60,6 +68,9 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
   const selectedCanvasId = useCanvasStore((s) => s.selectedCanvasId)
   const addTodo = useTodoStore((s) => s.add)
+  const updateTodo = useTodoStore((s) => s.update)
+  const assignPerson = usePersonStore((s) => s.assignPerson)
+  const assignOrg = useOrgStore((s) => s.assignOrg)
 
   const [caretLine, setCaretLine] = useState(0)
   const [copying, setCopying] = useState(false)
@@ -91,28 +102,62 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     if (ALREADY_CONVERTED_RE.test(line.text)) return false
     const match = line.text.match(LINE_PREFIX_RE)
     if (!match) return false
-    const [, leading, rest] = match
-    const title = rest.trim()
-    if (!title) return false
+    const [, leading, rawRest] = match
+    const rawTitle = rawRest.trim()
+    if (!rawTitle) return false
 
+    // Parse line via NLP + apply active filter defaults (matches CanvasPage's
+    // handleAddTask path). Filter defaults are skipped on views without a
+    // visible filter bar, matching TaskEditPopup's create-mode rule.
+    const people = usePersonStore.getState().people
+    const orgs = useOrgStore.getState().orgs
+    const projects = useProjectStore.getState().projects
+    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, projects, orgs)
+    const activeView = useUIStore.getState().activeView
+    const applyFilters = activeView !== AppView.Dashboard && activeView !== AppView.Settings
+    const fd = applyFilters ? getFilterDefaults(useFilterStore.getState().filters) : null
+    if (fd) supplementWithFilterDefaults(resolved, fd)
+    const effectiveTitle = parsedTitle || rawTitle
+    const pid = resolved.projectId ?? defaultProjectId ?? undefined
+
+    let newId: number
     try {
-      await addTodo(title, selectedCanvasId ?? undefined, defaultProjectId ?? undefined)
-      onConvertToast?.('Converted line to task')
+      newId = await addTodo(effectiveTitle, selectedCanvasId ?? undefined, pid)
     } catch {
       onConvertToast?.('Failed to convert line')
       return true
     }
+
+    try {
+      await applyNlpMetadata(
+        newId,
+        resolved,
+        (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
+        updateTodo,
+        assignPerson,
+        assignOrg,
+      )
+      // Filter-inferred status only applies when no settings default pre-filled
+      // the row (matching TaskEditPopup's priority: settings default wins).
+      if (fd?.statusId != null && useSettingsStore.getState().defaultStatusId == null) {
+        const todo = useTodoStore.getState().todos.find((t) => t.id === newId) as PersistedTodoItem | undefined
+        if (todo) await updateTodo({ ...todo, statusId: fd.statusId })
+      }
+    } catch {
+      // Task was created; metadata failure is non-fatal for the user flow.
+    }
+    onConvertToast?.('Converted line to task')
 
     // Replace the line's prefix with `✓ ` so the author sees it's been pulled.
     view.dispatch({
       changes: {
         from: line.from,
         to: line.to,
-        insert: `${leading}✓ ${title}`,
+        insert: `${leading}✓ ${effectiveTitle}`,
       },
     })
     return true
-  }, [activeId, addTodo, selectedCanvasId, defaultProjectId, onConvertToast, source])
+  }, [activeId, addTodo, updateTodo, assignPerson, assignOrg, selectedCanvasId, defaultProjectId, onConvertToast, source])
 
   const extraKeymap = useMemo(
     () => [

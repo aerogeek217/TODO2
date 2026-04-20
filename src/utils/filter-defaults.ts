@@ -5,6 +5,7 @@ export interface FilterDefaults {
   personIds: number[]
   orgIds: number[]
   statusId: number | undefined
+  projectId: number | undefined
 }
 
 /**
@@ -21,12 +22,18 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) statusId = only
   }
 
-  return { personIds, orgIds, statusId }
+  let projectId: number | undefined
+  if (filters.projectIds && filters.projectIds.size === 1) {
+    const [only] = filters.projectIds
+    if (only !== 0) projectId = only
+  }
+
+  return { personIds, orgIds, statusId, projectId }
 }
 
 /**
  * Supplement resolved NLP output with filter-inferred defaults.
- * Mutates `resolved` in place for person/org fields.
+ * Mutates `resolved` in place for person/org/project fields.
  */
 export function supplementWithFilterDefaults(
   resolved: ResolvedInput,
@@ -34,4 +41,7 @@ export function supplementWithFilterDefaults(
 ): void {
   if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
   if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
+  if (resolved.projectId === undefined && fd.projectId !== undefined) {
+    resolved.projectId = fd.projectId
+  }
 }

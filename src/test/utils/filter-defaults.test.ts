@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { getFilterDefaults } from '../../utils/filter-defaults'
+import { getFilterDefaults, supplementWithFilterDefaults } from '../../utils/filter-defaults'
 import type { FilterCriteria } from '../../stores/filter-store'
+import type { ResolvedInput } from '../../services/nlp-resolver'
 
 function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
   return {
@@ -29,6 +30,7 @@ describe('getFilterDefaults', () => {
     expect(result.personIds).toEqual([])
     expect(result.orgIds).toEqual([])
     expect(result.statusId).toBeUndefined()
+    expect(result.projectId).toBeUndefined()
   })
 
   it('returns single person filter', () => {
@@ -78,9 +80,65 @@ describe('getFilterDefaults', () => {
       personIds: new Set([5, 10]),
       orgIds: new Set([0, 30]),
       statusIds: new Set([7]),
+      projectIds: new Set([42]),
     }))
     expect(result.personIds).toHaveLength(2)
     expect(result.orgIds).toEqual([30])
     expect(result.statusId).toBe(7)
+    expect(result.projectId).toBe(42)
+  })
+
+  it('single project returns that project', () => {
+    const result = getFilterDefaults(makeFilters({ projectIds: new Set([9]) }))
+    expect(result.projectId).toBe(9)
+  })
+
+  it('single project 0 returns undefined', () => {
+    const result = getFilterDefaults(makeFilters({ projectIds: new Set([0]) }))
+    expect(result.projectId).toBeUndefined()
+  })
+
+  it('multiple projects returns undefined', () => {
+    const result = getFilterDefaults(makeFilters({ projectIds: new Set([3, 5]) }))
+    expect(result.projectId).toBeUndefined()
+  })
+})
+
+function makeResolved(overrides: Partial<ResolvedInput> = {}): ResolvedInput {
+  return {
+    title: 'test',
+    personIds: [],
+    orgIds: [],
+    unmatchedPersons: [],
+    unmatchedOrgs: [],
+    unmatchedProjects: [],
+    ...overrides,
+  }
+}
+
+describe('supplementWithFilterDefaults', () => {
+  it('fills empty person/org from filter defaults', () => {
+    const resolved = makeResolved()
+    supplementWithFilterDefaults(resolved, { personIds: [1, 2], orgIds: [3], statusId: undefined, projectId: undefined })
+    expect(resolved.personIds).toEqual([1, 2])
+    expect(resolved.orgIds).toEqual([3])
+  })
+
+  it('does not overwrite NLP-resolved people', () => {
+    const resolved = makeResolved({ personIds: [99] })
+    supplementWithFilterDefaults(resolved, { personIds: [1, 2], orgIds: [], statusId: undefined, projectId: undefined })
+    expect(resolved.personIds).toEqual([99])
+  })
+
+  it('fills undefined projectId from filter default', () => {
+    const resolved = makeResolved()
+    supplementWithFilterDefaults(resolved, { personIds: [], orgIds: [], statusId: undefined, projectId: 7 })
+    expect(resolved.projectId).toBe(7)
+  })
+
+  it('does not overwrite NLP-resolved projectId', () => {
+    const resolved = makeResolved({ projectId: 55 })
+    supplementWithFilterDefaults(resolved, { personIds: [], orgIds: [], statusId: undefined, projectId: 7 })
+    expect(resolved.projectId).toBe(55)
   })
 })
