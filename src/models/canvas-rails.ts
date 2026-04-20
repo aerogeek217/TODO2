@@ -7,7 +7,16 @@ export interface Slot {
   kind: SlotKind
   listDefinitionId?: number
   taskboardId?: number
+  /**
+   * Flex-grow weight used to distribute rail space among sibling slots.
+   * Undefined means the default weight of 1 (equal share). Once the user
+   * drags a divider, the batch update writes pixel-derived weights so the
+   * non-adjacent slots keep their measured size.
+   */
+  flex?: number
 }
+
+export const SLOT_MIN_PX = 80
 
 export interface Rail {
   orientation: RailOrientation
@@ -77,6 +86,9 @@ function parseSlot(raw: unknown): Slot | null {
   }
   if (typeof r.taskboardId === 'number' && Number.isFinite(r.taskboardId)) {
     slot.taskboardId = r.taskboardId
+  }
+  if (typeof r.flex === 'number' && Number.isFinite(r.flex) && r.flex > 0) {
+    slot.flex = r.flex
   }
   return slot
 }

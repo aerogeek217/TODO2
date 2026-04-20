@@ -58,6 +58,13 @@ interface CanvasRailsState {
    */
   createAndDockSlot: (kind: SlotKind, listDefinitionId?: number, taskboardId?: number) => string
   setRailSize: (side: RailSide, px: number) => void
+  /**
+   * Atomically set `flex` weights for slots in a rail. Keys not present in
+   * `flexBySlotId` are left unchanged. Non-positive / non-finite values are
+   * skipped. Used by the slot divider so every slot's weight updates together
+   * when the user drags between two siblings.
+   */
+  setSlotFlexBatch: (side: RailSide, flexBySlotId: Record<string, number>) => void
   clearPendingFocus: () => void
 }
 
@@ -192,6 +199,21 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
     })
     return slot.id
   },
+
+  setSlotFlexBatch: (side, flexBySlotId) => set((state) => {
+    const rail = state.rails[side]
+    if (!rail) return state
+    let touched = false
+    const nextSlots = rail.slots.map((s) => {
+      const v = flexBySlotId[s.id]
+      if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return s
+      if (s.flex === v) return s
+      touched = true
+      return { ...s, flex: v }
+    })
+    if (!touched) return state
+    return { rails: { ...state.rails, [side]: { ...rail, slots: nextSlots } } }
+  }),
 
   setRailSize: (side, px) => set((state) => {
     const clamped = clampRailSize(px)

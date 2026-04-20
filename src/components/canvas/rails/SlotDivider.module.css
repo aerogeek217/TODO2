@@ -1,0 +1,55 @@
+.divider {
+  flex-shrink: 0;
+  flex-grow: 0;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+  touch-action: none;
+  transition: background 0.15s ease;
+}
+
+.divider::after {
+  content: "";
+  position: absolute;
+  background: var(--color-border);
+  transition: background 0.15s ease;
+}
+
+.divider:hover,
+.divider:focus-visible,
+.divider:active {
+  background: color-mix(in oklab, var(--color-accent) 30%, transparent);
+}
+
+.divider:hover::after,
+.divider:active::after {
+  background: var(--color-accent);
+}
+
+/* Horizontal divider: spans full rail width, splits rows. */
+.horizontal {
+  height: 6px;
+  cursor: row-resize;
+}
+
+.horizontal::after {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-0.5px);
+}
+
+/* Vertical divider: spans full rail height, splits columns. */
+.vertical {
+  width: 6px;
+  cursor: col-resize;
+}
+
+.vertical::after {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-0.5px);
+}

@@ -1,4 +1,4 @@
-import { cloneElement, isValidElement, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { cloneElement, isValidElement, useEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { RailSide } from '../../../models/canvas-rails'
 import { railOrientationForSide } from '../../../models/canvas-rails'
@@ -11,9 +11,10 @@ interface DraggableSlotProps {
   fromSide: RailSide
   header: ReactElement
   children: ReactNode
+  flex?: number
 }
 
-export function DraggableSlot({ slotId, fromSide, header, children }: DraggableSlotProps) {
+export function DraggableSlot({ slotId, fromSide, header, children, flex }: DraggableSlotProps) {
   const dragId = `rails-slot-drag:${slotId}`
   const dropId = encodeRailsDropId({ kind: 'slot', slotId })
   const dragData: RailsDragData = { type: RAILS_DRAG_TYPE, slotId, fromSide }
@@ -66,6 +67,10 @@ export function DraggableSlot({ slotId, fromSide, header, children }: DraggableS
     droppable.isOver ? styles.over : '',
   ].filter(Boolean).join(' ')
 
+  const style = flex != null && Number.isFinite(flex) && flex > 0
+    ? ({ '--slot-flex': flex } as CSSProperties)
+    : undefined
+
   return (
     <div
       ref={(el) => {
@@ -76,6 +81,7 @@ export function DraggableSlot({ slotId, fromSide, header, children }: DraggableS
       className={classes}
       data-slot-id={slotId}
       data-drop-id={dropId}
+      style={style}
     >
       <Slot header={headerWithHandle}>{children}</Slot>
       {hoverZone && <ZoneIndicator zone={hoverZone} />}

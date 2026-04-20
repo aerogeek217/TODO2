@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -13,6 +13,7 @@ import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
 import { railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
+import { SlotDivider } from './SlotDivider'
 import { SlotHeader } from './SlotHeader'
 import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
@@ -250,7 +251,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
 
   return (
     <>
-      <DraggableSlot slotId={slot.id} fromSide={fromSide} header={header}>
+      <DraggableSlot slotId={slot.id} fromSide={fromSide} header={header} flex={slot.flex}>
         {body}
       </DraggableSlot>
       {slot.kind === 'lens' && pickerPos && (
@@ -417,8 +418,17 @@ export function RailsFrame({ children }: RailsFrameProps) {
         onResize={(px) => setRailSize(side, px)}
         railsDragging={railsDragging}
       >
-        {rail.slots.map((slot) => (
-          <SlotRenderer key={slot.id} slot={slot} fromSide={side} />
+        {rail.slots.map((slot, idx) => (
+          <Fragment key={slot.id}>
+            <SlotRenderer slot={slot} fromSide={side} />
+            {idx < rail.slots.length - 1 && (
+              <SlotDivider
+                side={side}
+                aboveSlotId={slot.id}
+                belowSlotId={rail.slots[idx + 1].id}
+              />
+            )}
+          </Fragment>
         ))}
       </RailContainer>
     )
