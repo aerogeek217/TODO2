@@ -65,6 +65,20 @@ export function WidgetKindMenu({
     }
   }, [onClose])
 
+  // Clamp within viewport so right-rail menus don't spill off-screen.
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const margin = 8
+    if (rect.right > window.innerWidth - margin) {
+      el.style.left = `${Math.max(margin, window.innerWidth - rect.width - margin)}px`
+    }
+    if (rect.bottom > window.innerHeight - margin) {
+      el.style.top = `${Math.max(margin, window.innerHeight - rect.height - margin)}px`
+    }
+  }, [anchor.x, anchor.y])
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault()
