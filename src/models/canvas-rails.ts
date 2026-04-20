@@ -73,7 +73,7 @@ export function railOrientationForSide(side: RailSide): RailOrientation {
   return side === 'left' || side === 'right' ? 'vertical' : 'horizontal'
 }
 
-const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard']
+export const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard']
 
 function parseSlot(raw: unknown): Slot | null {
   if (!raw || typeof raw !== 'object') return null

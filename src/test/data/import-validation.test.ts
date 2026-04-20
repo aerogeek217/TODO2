@@ -163,6 +163,106 @@ describe('validateImportData', () => {
     }
   })
 
+  // canvasViewport
+  it('accepts canvasViewport with finite x/y/zoom', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'canvasViewport', value: JSON.stringify({ x: 10, y: -20, zoom: 1.5 }) }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects canvasViewport with non-finite numbers', () => {
+    const bad = [
+      JSON.stringify({ x: 'NaN', y: 0, zoom: 1 }),  // string
+      '{"x":1e999,"y":0,"zoom":1}',                   // Infinity after parse
+      JSON.stringify({ x: 0, y: 0 }),                 // missing zoom
+      JSON.stringify([1, 2, 3]),                      // array
+      'not-json',
+    ]
+    for (const value of bad) {
+      const result = validateImportData(validData({
+        settings: [{ key: 'canvasViewport', value }],
+      }))
+      expect(result.ok).toBe(false)
+    }
+  })
+
+  // horizonSlots
+  it('accepts horizonSlots with known keys and integer ids', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1, someday: 5 }) }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects horizonSlots with unknown key or non-integer value', () => {
+    const bad = [
+      JSON.stringify({ bogus: 1 }),
+      JSON.stringify({ thisweek: 'not-a-number' }),
+      JSON.stringify({ thisweek: 1.5 }),
+      JSON.stringify([1, 2, 3]),
+      'not-json',
+    ]
+    for (const value of bad) {
+      const result = validateImportData(validData({
+        settings: [{ key: 'horizonSlots', value }],
+      }))
+      expect(result.ok).toBe(false)
+    }
+  })
+
+  // horizonCollapsed
+  it('accepts horizonCollapsed with boolean values', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'horizonCollapsed', value: JSON.stringify({ thisweek: true, later: false }) }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects horizonCollapsed with non-boolean or oversized payload', () => {
+    const oversized: Record<string, boolean> = {}
+    for (let i = 0; i < 20; i++) oversized[`k${i}`] = true
+    const bad = [
+      JSON.stringify({ thisweek: 1 }),                  // non-boolean
+      JSON.stringify({ unknown: true }),                // unknown key
+      JSON.stringify(oversized),                        // too many entries
+      JSON.stringify([true, false]),                    // array
+    ]
+    for (const value of bad) {
+      const result = validateImportData(validData({
+        settings: [{ key: 'horizonCollapsed', value }],
+      }))
+      expect(result.ok).toBe(false)
+    }
+  })
+
+  // canvasRails
+  it('accepts structurally valid canvasRails', () => {
+    const rails = {
+      left: { orientation: 'vertical', slots: [{ id: 'a', kind: 'lens' }] },
+      right: null,
+      top: null,
+      bottom: null,
+    }
+    const result = validateImportData(validData({
+      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects canvasRails with an invalid slot kind', () => {
+    const rails = {
+      left: { orientation: 'vertical', slots: [{ id: 'a', kind: 'evil' }] },
+      right: null,
+      top: null,
+      bottom: null,
+    }
+    const result = validateImportData(validData({
+      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
   it('rejects dashboardTopOrder with wrong length, duplicates, or unknown slots', () => {
     const bad = [
       ['taskboard'],

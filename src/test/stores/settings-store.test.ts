@@ -121,6 +121,26 @@ describe('useSettingsStore.dashboardUserLists', () => {
   })
 })
 
+describe('useSettingsStore.load canvasViewport parse', () => {
+  it('accepts finite numbers', async () => {
+    await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 10, y: -5, zoom: 1.5 }) })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().canvasViewport).toEqual({ x: 10, y: -5, zoom: 1.5 })
+  })
+
+  it('rejects Infinity (non-finite after JSON.parse of 1e999)', async () => {
+    await db.settings.put({ key: 'canvasViewport', value: '{"x":1e999,"y":0,"zoom":1}' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().canvasViewport).toBeNull()
+  })
+
+  it('rejects missing fields', async () => {
+    await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 0, y: 0 }) })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().canvasViewport).toBeNull()
+  })
+})
+
 describe('useSettingsStore.setCanvasViewport debouncing', () => {
   beforeEach(() => {
     vi.useFakeTimers()

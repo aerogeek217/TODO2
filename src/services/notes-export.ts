@@ -39,12 +39,58 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
 }
 
+function escapeHtmlAttr(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+const SAFE_URL_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:']
+
+/**
+ * Returns a safe href for clipboard HTML. Uses an allowlist: only
+ * `http(s)`, `mailto`, `tel`, and schemeless values (relative paths,
+ * `#anchor`, `//host`) pass through. Everything else — `javascript:`,
+ * `data:`, `vbscript:`, `file:`, `blob:`, etc. — is replaced with `'#'`.
+ *
+ * Normalises for known obfuscation tricks before the scheme compare:
+ * strips ASCII whitespace + control chars, decodes a leading numeric
+ * entity (`&#106;avascript:` → `javascript:`) so entity-encoded schemes
+ * don't slip past the filter when the consumer later decodes them.
+ */
+export function sanitizeHref(raw: string): string {
+  if (!raw) return '#'
+  let s = raw
+  // Decode any leading numeric entity (hex or decimal) so `&#106;avascript:`
+  // etc. can't evade the allowlist. We don't need a full entity decoder —
+  // just enough to un-hide the scheme byte(s).
+  s = s.replace(/&#x?([0-9a-fA-F]+);/g, (_m, code) => {
+    const n = /^[0-9]+$/.test(code) ? parseInt(code, 10) : parseInt(code, 16)
+    return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : ''
+  })
+  // Strip ASCII whitespace + control chars (incl. \t, \n, \r, \0).
+  s = s.replace(/[\u0000-\u001f\u007f\s]/g, '')
+  const lower = s.toLowerCase()
+  const colonIdx = lower.indexOf(':')
+  const slashIdx = lower.indexOf('/')
+  // Schemeless (relative path, anchor, //host) — no colon before first slash.
+  if (colonIdx === -1) return raw
+  if (slashIdx !== -1 && slashIdx < colonIdx) return raw
+  const scheme = lower.slice(0, colonIdx + 1)
+  return SAFE_URL_SCHEMES.includes(scheme) ? raw : '#'
+}
+
 function inlineMd(s: string): string {
   return escapeHtml(s)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
+      const safe = sanitizeHref(href)
+      return `<a href="${escapeHtmlAttr(safe)}">${text}</a>`
+    })
 }
 
 /**
@@ -164,9 +210,10 @@ function walkNode(node: Node): string {
       return `\n\`\`\`\n${body}\n\`\`\`\n\n`
     }
     case 'a': {
-      const href = el.getAttribute('href') ?? ''
+      const rawHref = el.getAttribute('href') ?? ''
+      const href = sanitizeHref(rawHref)
       const text = inner().trim() || href
-      if (!href) return text
+      if (!rawHref) return text
       return `[${text}](${href})`
     }
     case 'ul':

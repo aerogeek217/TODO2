@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown } from '../../services/notes-export'
+import { normalizeToMarkdown, mdToHtml, copyNotesRich, htmlToMarkdown, sanitizeHref } from '../../services/notes-export'
 
 describe('normalizeToMarkdown', () => {
   it('converts ALL-CAPS lines into H2 headings', () => {
@@ -121,6 +121,88 @@ describe('htmlToMarkdown', () => {
     expect(roundTripped).toContain('<li>alpha</li>')
     expect(roundTripped).toContain('<li>beta</li>')
     expect(roundTripped).toContain('<strong>bold</strong>')
+  })
+})
+
+describe('sanitizeHref', () => {
+  it('returns # for javascript: scheme', () => {
+    expect(sanitizeHref('javascript:alert(1)')).toBe('#')
+  })
+
+  it('is case-insensitive on the scheme', () => {
+    expect(sanitizeHref('JAVASCRIPT:alert(1)')).toBe('#')
+    expect(sanitizeHref('JavaScript:void(0)')).toBe('#')
+  })
+
+  it('strips leading whitespace / control chars before scheme check', () => {
+    expect(sanitizeHref(' javascript:alert(1)')).toBe('#')
+    expect(sanitizeHref('\tjavascript:alert(1)')).toBe('#')
+    expect(sanitizeHref('java\tscript:alert(1)')).toBe('#')
+    expect(sanitizeHref('\u0000javascript:alert(1)')).toBe('#')
+  })
+
+  it('rejects data:, vbscript:, file:, blob: schemes', () => {
+    expect(sanitizeHref('data:text/html,<script>alert(1)</script>')).toBe('#')
+    expect(sanitizeHref('vbscript:msgbox(1)')).toBe('#')
+    expect(sanitizeHref('file:///etc/passwd')).toBe('#')
+    expect(sanitizeHref('blob:https://x.com/abc')).toBe('#')
+  })
+
+  it('decodes numeric entities before scheme check', () => {
+    expect(sanitizeHref('&#106;avascript:alert(1)')).toBe('#')
+    expect(sanitizeHref('&#x6A;avascript:alert(1)')).toBe('#')
+  })
+
+  it('allows http, https, mailto, tel', () => {
+    expect(sanitizeHref('https://example.com')).toBe('https://example.com')
+    expect(sanitizeHref('http://x.com')).toBe('http://x.com')
+    expect(sanitizeHref('mailto:a@b.com')).toBe('mailto:a@b.com')
+    expect(sanitizeHref('tel:+15551234')).toBe('tel:+15551234')
+  })
+
+  it('allows schemeless values (relative, anchor, protocol-relative)', () => {
+    expect(sanitizeHref('/path/to/x')).toBe('/path/to/x')
+    expect(sanitizeHref('#anchor')).toBe('#anchor')
+    expect(sanitizeHref('//cdn.example.com/a')).toBe('//cdn.example.com/a')
+    expect(sanitizeHref('relative.html')).toBe('relative.html')
+  })
+
+  it('returns # for empty input', () => {
+    expect(sanitizeHref('')).toBe('#')
+  })
+})
+
+describe('notes-export XSS hardening', () => {
+  it('mdToHtml neutralises javascript: URLs', () => {
+    const html = mdToHtml('[click](javascript:alert(1))')
+    expect(html).toContain('<a href="#">click</a>')
+    expect(html).not.toContain('javascript:')
+  })
+
+  it('mdToHtml HTML-attribute-escapes quotes in URLs', () => {
+    const html = mdToHtml('[t](https://x.com/"a)')
+    expect(html).toContain('&quot;')
+    expect(html).not.toMatch(/href="https:\/\/x\.com\/"a"/)
+  })
+
+  it('htmlToMarkdown strips javascript: from pasted anchors', () => {
+    const md = htmlToMarkdown('<a href="javascript:alert(1)">click</a>')
+    expect(md).not.toContain('javascript:')
+    expect(md).toContain('[click](#)')
+  })
+
+  it('round-trip mdToHtml(htmlToMarkdown(hostile)) yields inert href', () => {
+    const hostile = '<a href="javascript:alert(1)">x</a>'
+    const roundTripped = mdToHtml(htmlToMarkdown(hostile))
+    expect(roundTripped).not.toContain('javascript:')
+    expect(roundTripped).toContain('href="#"')
+  })
+
+  it('preserves legitimate links through the converters', () => {
+    const html = mdToHtml('[X](https://example.com)')
+    expect(html).toContain('href="https://example.com"')
+    const md = htmlToMarkdown('<a href="https://example.com">X</a>')
+    expect(md).toBe('[X](https://example.com)')
   })
 })
 

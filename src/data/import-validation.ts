@@ -18,6 +18,8 @@ import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../components/shared/StatusIcon'
+import { SLOT_KINDS } from '../models/canvas-rails'
+import { HORIZON_KEYS } from '../services/horizons'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -534,6 +536,51 @@ const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
   canvasRails: 8000,
   dashboardUserLists: 4000,
+  canvasViewport: 200,
+  horizonSlots: 500,
+  horizonCollapsed: 500,
+}
+
+const MAX_HORIZON_ENTRIES = 16
+const HORIZON_KEYS_SET = new Set<string>(HORIZON_KEYS as readonly string[])
+const SLOT_KINDS_SET = new Set<string>(SLOT_KINDS as readonly string[])
+const MAX_SLOTS_PER_RAIL = 16
+const RAIL_SIDES = ['left', 'right', 'top', 'bottom'] as const
+
+function validateRailsShape(parsed: unknown): true | string {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 'must be an object'
+  const r = parsed as Record<string, unknown>
+  for (const side of RAIL_SIDES) {
+    const rail = r[side]
+    if (rail === null || rail === undefined) continue
+    if (typeof rail !== 'object' || Array.isArray(rail)) return `${side}: not an object`
+    const railObj = rail as Record<string, unknown>
+    if (railObj.orientation !== 'vertical' && railObj.orientation !== 'horizontal') {
+      return `${side}.orientation`
+    }
+    if (!Array.isArray(railObj.slots)) return `${side}.slots must be an array`
+    if ((railObj.slots as unknown[]).length > MAX_SLOTS_PER_RAIL) {
+      return `${side}.slots exceeds ${MAX_SLOTS_PER_RAIL}`
+    }
+    for (const slot of railObj.slots as unknown[]) {
+      if (!slot || typeof slot !== 'object') return `${side}.slot: not an object`
+      const s = slot as Record<string, unknown>
+      if (typeof s.id !== 'string' || s.id.length === 0 || s.id.length > 100) return `${side}.slot.id`
+      if (typeof s.kind !== 'string' || !SLOT_KINDS_SET.has(s.kind)) return `${side}.slot.kind`
+      if (s.listDefinitionId !== undefined && !Number.isFinite(s.listDefinitionId)) return `${side}.slot.listDefinitionId`
+      if (s.taskboardId !== undefined && !Number.isFinite(s.taskboardId)) return `${side}.slot.taskboardId`
+      if (s.flex !== undefined && !Number.isFinite(s.flex)) return `${side}.slot.flex`
+    }
+  }
+  for (const bag of ['widths', 'heights'] as const) {
+    const v = r[bag]
+    if (v === undefined || v === null) continue
+    if (typeof v !== 'object' || Array.isArray(v)) return `${bag}: not an object`
+    for (const [k, n] of Object.entries(v as Record<string, unknown>)) {
+      if (n !== undefined && !Number.isFinite(n)) return `${bag}.${k}`
+    }
+  }
+  return true
 }
 
 function isValidSettingKey(key: string): boolean {
@@ -570,11 +617,62 @@ function checkSetting(v: unknown): CheckResult {
     return v.value === 'true' || v.value === 'false' ? true : 'value (notesPinnedToDashboard must be true/false)'
   }
   if (v.key === 'canvasRails') {
+    let parsed: unknown
     try {
-      const parsed = JSON.parse(v.value as string) as unknown
-      return parsed !== null && typeof parsed === 'object' ? true : 'value (canvasRails must be an object)'
+      parsed = JSON.parse(v.value as string)
     } catch {
       return 'value (canvasRails must be valid JSON)'
+    }
+    const res = validateRailsShape(parsed)
+    return res === true ? true : `value (canvasRails: ${res})`
+  }
+  if (v.key === 'canvasViewport') {
+    try {
+      const parsed = JSON.parse(v.value as string) as unknown
+      if (!parsed || typeof parsed !== 'object') return 'value (canvasViewport must be an object)'
+      const o = parsed as Record<string, unknown>
+      if (!Number.isFinite(o.x) || !Number.isFinite(o.y) || !Number.isFinite(o.zoom)) {
+        return 'value (canvasViewport x/y/zoom must be finite numbers)'
+      }
+      return true
+    } catch {
+      return 'value (canvasViewport must be valid JSON)'
+    }
+  }
+  if (v.key === 'horizonSlots') {
+    try {
+      const parsed = JSON.parse(v.value as string) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return 'value (horizonSlots must be an object)'
+      }
+      const entries = Object.entries(parsed as Record<string, unknown>)
+      if (entries.length > MAX_HORIZON_ENTRIES) return 'value (horizonSlots has too many entries)'
+      for (const [k, val] of entries) {
+        if (!HORIZON_KEYS_SET.has(k)) return `value (horizonSlots: unknown key "${k}")`
+        if (typeof val !== 'number' || !Number.isInteger(val)) {
+          return `value (horizonSlots.${k} must be an integer id)`
+        }
+      }
+      return true
+    } catch {
+      return 'value (horizonSlots must be valid JSON)'
+    }
+  }
+  if (v.key === 'horizonCollapsed') {
+    try {
+      const parsed = JSON.parse(v.value as string) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return 'value (horizonCollapsed must be an object)'
+      }
+      const entries = Object.entries(parsed as Record<string, unknown>)
+      if (entries.length > MAX_HORIZON_ENTRIES) return 'value (horizonCollapsed has too many entries)'
+      for (const [k, val] of entries) {
+        if (!HORIZON_KEYS_SET.has(k)) return `value (horizonCollapsed: unknown key "${k}")`
+        if (typeof val !== 'boolean') return `value (horizonCollapsed.${k} must be boolean)`
+      }
+      return true
+    } catch {
+      return 'value (horizonCollapsed must be valid JSON)'
     }
   }
   if (v.key === 'dashboardUserLists') {
