@@ -164,6 +164,26 @@
   color: var(--color-accent);
 }
 
+.exportButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.titleBar:hover .exportButton {
+  opacity: 1;
+}
+
+.exportButton:hover {
+  color: var(--color-text-secondary);
+}
+
 .deleteProject {
   background: transparent;
   border: none;

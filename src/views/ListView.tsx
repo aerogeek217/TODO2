@@ -1084,7 +1084,7 @@ export function ListView() {
                 onClick={() => setShowExport(true)}
                 title="Export as plain text"
               >
-                Export
+                ⧉
               </button>
             </div>
           </div>

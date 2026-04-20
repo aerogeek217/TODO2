@@ -17,6 +17,10 @@
   min-height: 0;
 }
 
+.body :global(.cm-editor) {
+  font-size: var(--font-size-task);
+}
+
 .resizeHandle {
   position: absolute;
   bottom: 0;

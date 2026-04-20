@@ -258,6 +258,14 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
           </div>
         )}
 
+        <button
+          className={`${styles.exportButton} nopan nodrag`}
+          onClick={(e) => { e.stopPropagation(); setShowExport(true) }}
+          title="Export as plain text"
+        >
+          ⧉
+        </button>
+
         {onSetColor && (
           <input
             type="color"
