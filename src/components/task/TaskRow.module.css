@@ -305,6 +305,7 @@
   flex-shrink: 0;
   width: var(--date-slot-w, 80px);
   line-height: 1;
+  position: relative;
 }
 
 /*
@@ -452,9 +453,13 @@
   background: var(--color-tint-12);
 }
 
-/* Hidden native date input used by inline deadline editing (showPicker trigger) */
+/* Hidden native date input used by inline deadline editing (showPicker trigger).
+ * Anchored to the top-left of its date-slot container so the native picker
+ * pops up adjacent to the deadline chip. */
 .hiddenDateInput {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   opacity: 0;
@@ -658,6 +663,7 @@
   align-items: center;
   flex-shrink: 0;
   width: var(--date-slot-w, 80px);
+  position: relative;
 }
 
 /* Calendar icon (hover-reveal when no date) */

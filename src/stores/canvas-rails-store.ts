@@ -99,11 +99,18 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
       const rail = next[side]
       if (!rail) continue
       const filtered = rail.slots.filter((s) => s.id !== slotId)
-      if (filtered.length !== rail.slots.length) {
-        touched = true
-        next[side] = filtered.length === 0
-          ? null
-          : { ...rail, slots: filtered }
+      if (filtered.length === rail.slots.length) continue
+      touched = true
+      if (filtered.length === 0) {
+        next[side] = null
+      } else if (filtered.length === 1) {
+        // Sole remaining slot's flex weight is meaningless for layout and
+        // will bias the next sibling insertion — strip it.
+        const { flex: _ignore, ...rest } = filtered[0]
+        void _ignore
+        next[side] = { ...rail, slots: [rest as typeof filtered[0]] }
+      } else {
+        next[side] = { ...rail, slots: filtered }
       }
     }
     return touched ? { rails: next } : state

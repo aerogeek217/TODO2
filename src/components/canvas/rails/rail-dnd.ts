@@ -74,15 +74,45 @@ function removeSlot(rails: RailsState, slotId: string): { rails: RailsState; slo
     const slot = rail.slots[idx]
     const nextSlots = rail.slots.slice(0, idx).concat(rail.slots.slice(idx + 1))
     const next: RailsState = { ...rails }
-    next[side] = nextSlots.length === 0 ? null : { ...rail, slots: nextSlots }
+    if (nextSlots.length === 0) {
+      next[side] = null
+    } else if (nextSlots.length === 1) {
+      // Sole remaining slot: strip stale flex so the rail doesn't bias a
+      // later insertion (see closeSlot for the same invariant).
+      const { flex: _ignore, ...rest } = nextSlots[0]
+      void _ignore
+      next[side] = { ...rail, slots: [rest as Slot] }
+    } else {
+      next[side] = { ...rail, slots: nextSlots }
+    }
     return { rails: next, slot, fromSide: side }
   }
   return { rails, slot: null, fromSide: null }
 }
 
+/**
+ * Ensure a slot joining `rail` has a flex weight comparable to its new
+ * siblings. Once any sibling has a (pixel-derived) flex from a prior divider
+ * drag, a new slot with `flex: undefined` falls back to `flex-grow: 1` and
+ * collapses against flex=150+ neighbors. We hand the joining slot the mean of
+ * present sibling weights so it lands at roughly an equal share; if no
+ * sibling carries flex, we leave the joining slot untouched (all slots share
+ * the default weight of 1).
+ */
+function reconcileIncomingFlex(rail: Rail, slot: Slot): Slot {
+  const values: number[] = []
+  for (const s of rail.slots) {
+    if (typeof s.flex === 'number' && Number.isFinite(s.flex) && s.flex > 0) values.push(s.flex)
+  }
+  if (values.length === 0) return slot
+  const mean = values.reduce((a, b) => a + b, 0) / values.length
+  return { ...slot, flex: mean }
+}
+
 function insertSlot(rail: Rail, slot: Slot, index: number): Rail {
   const clamped = Math.max(0, Math.min(index, rail.slots.length))
-  const nextSlots = rail.slots.slice(0, clamped).concat([slot]).concat(rail.slots.slice(clamped))
+  const reconciled = reconcileIncomingFlex(rail, slot)
+  const nextSlots = rail.slots.slice(0, clamped).concat([reconciled]).concat(rail.slots.slice(clamped))
   return { ...rail, slots: nextSlots }
 }
 
@@ -95,7 +125,11 @@ export function applyDropToSide(rails: RailsState, slotId: string, toSide: RailS
   if (!slot) return rails
   if (afterRemove[toSide]) return rails // target side is not empty post-removal
   const next: RailsState = { ...afterRemove }
-  next[toSide] = { orientation: railOrientationForSide(toSide), slots: [slot] }
+  // Slot is becoming the sole occupant of a fresh rail — drop any stale flex
+  // weight it was carrying so later additions start from an unbiased state.
+  const { flex: _ignore, ...rest } = slot
+  void _ignore
+  next[toSide] = { orientation: railOrientationForSide(toSide), slots: [rest as Slot] }
   return next
 }
 
@@ -105,12 +139,16 @@ export function applyEdgeDrop(rails: RailsState, slotId: string, toSide: RailSid
   const dest = afterRemove[toSide]
   const next: RailsState = { ...afterRemove }
   if (!dest) {
-    next[toSide] = { orientation: railOrientationForSide(toSide), slots: [slot] }
+    // Single-slot rail — drop the joining slot's flex so it fills the rail cleanly.
+    const { flex: _ignore, ...rest } = slot
+    void _ignore
+    next[toSide] = { orientation: railOrientationForSide(toSide), slots: [rest as Slot] }
     return next
   }
+  const reconciled = reconcileIncomingFlex(dest, slot)
   next[toSide] = edge === 'head'
-    ? { ...dest, slots: [slot, ...dest.slots] }
-    : { ...dest, slots: [...dest.slots, slot] }
+    ? { ...dest, slots: [reconciled, ...dest.slots] }
+    : { ...dest, slots: [...dest.slots, reconciled] }
   return next
 }
 

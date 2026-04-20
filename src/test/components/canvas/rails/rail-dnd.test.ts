@@ -319,6 +319,59 @@ describe('applySplitButton', () => {
   })
 })
 
+describe('flex reconciliation on insert/remove', () => {
+  it('hands a split-inserted slot the mean flex of its new siblings', () => {
+    const a: Slot = { ...lensSlot('a'), flex: 160 }
+    const b: Slot = { ...lensSlot('b'), flex: 140 }
+    const rails = railsWith({ right: { orientation: 'vertical', slots: [a, b] } })
+    const next = applySplitButton(rails, 'b', 'below', { genSlotId: () => 'c' })
+    const inserted = next.right!.slots.find((s) => s.id === 'c')!
+    expect(inserted.flex).toBe(150)
+  })
+
+  it('leaves split-inserted slot without flex when no sibling carries flex', () => {
+    const a = lensSlot('a')
+    const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
+    const next = applySplitButton(rails, 'a', 'below', { genSlotId: () => 'c' })
+    expect(next.right!.slots.find((s) => s.id === 'c')!.flex).toBeUndefined()
+  })
+
+  it('reconciles flex when moving a slot to an existing rail via edge drop', () => {
+    const a: Slot = { ...lensSlot('a'), flex: 200 }
+    const b: Slot = { ...lensSlot('b'), flex: 100 }
+    const c = lensSlot('c')
+    const rails = railsWith({
+      right: { orientation: 'vertical', slots: [a, b] },
+      left: { orientation: 'vertical', slots: [c] },
+    })
+    const next = applyEdgeDrop(rails, 'c', 'right', 'tail')
+    const moved = next.right!.slots.find((s) => s.id === 'c')!
+    expect(moved.flex).toBe(150)
+  })
+
+  it('strips flex when a moved slot becomes the sole occupant of a fresh rail', () => {
+    const a: Slot = { ...lensSlot('a'), flex: 250 }
+    const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
+    const next = applyDropToSide(rails, 'a', 'left')
+    expect(next.left!.slots[0].flex).toBeUndefined()
+  })
+
+  it('strips flex from the sole remaining slot after removal via split-drop', () => {
+    const a: Slot = { ...lensSlot('a'), flex: 180 }
+    const b: Slot = { ...lensSlot('b'), flex: 120 }
+    const c = lensSlot('c')
+    const rails = railsWith({
+      right: { orientation: 'vertical', slots: [a, b] },
+      left: { orientation: 'vertical', slots: [c] },
+    })
+    // Move b out to the left rail. Right should be left with only a, and a's flex should be cleared.
+    const next = applySplitDrop(rails, 'b', 'c', 'above')
+    expect(next.right!.slots).toHaveLength(1)
+    expect(next.right!.slots[0].id).toBe('a')
+    expect(next.right!.slots[0].flex).toBeUndefined()
+  })
+})
+
 describe('pointerToSplitZone', () => {
   const rect = { left: 0, top: 0, width: 100, height: 100 }
 

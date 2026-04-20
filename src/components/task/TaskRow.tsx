@@ -405,6 +405,13 @@ export const TaskRow = memo(function TaskRow({
       {/* Date chips stack — scheduled on top, deadline beneath when both present */}
       {!ghost && (todo.scheduledDate || todo.dueDate) && (
         <div className={styles.dateStack}>
+          <input
+            ref={deadlineInputRef}
+            type="date"
+            className={styles.hiddenDateInput}
+            value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
+            onChange={handleDeadlineInputChange}
+          />
           {todo.scheduledDate && (
             <button
               ref={scheduledAnchorRef}
@@ -448,6 +455,13 @@ export const TaskRow = memo(function TaskRow({
          trigger so people/org avatars stay aligned across rows. */}
       {!todo.scheduledDate && !todo.dueDate && !ghost && (
         <div className={styles.dateStackEmpty}>
+          <input
+            ref={deadlineInputRef}
+            type="date"
+            className={styles.hiddenDateInput}
+            value=""
+            onChange={handleDeadlineInputChange}
+          />
           <button
             ref={scheduledAnchorRef}
             type="button"
@@ -471,17 +485,6 @@ export const TaskRow = memo(function TaskRow({
           />
         </PortalDropdown>,
         document.body,
-      )}
-
-      {/* Hidden native date input for inline deadline editing */}
-      {!ghost && (
-        <input
-          ref={deadlineInputRef}
-          type="date"
-          className={styles.hiddenDateInput}
-          value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
-          onChange={handleDeadlineInputChange}
-        />
       )}
 
       {extraLabel && <span className={styles.extraLabel}>{extraLabel}</span>}
