@@ -51,4 +51,14 @@ describe('formatShortcut', () => {
     stubPlatform('MacIntel')
     expect(formatShortcut('Mod-Shift-k')).toBe('⌘⇧K')
   })
+
+  it('renders Alt-T as ⌥T on Mac', () => {
+    stubPlatform('MacIntel')
+    expect(formatShortcut('Alt-t')).toBe('⌥T')
+  })
+
+  it('renders Alt-T as Alt+T on Windows', () => {
+    stubPlatform('Win32')
+    expect(formatShortcut('Alt-t')).toBe('Alt+T')
+  })
 })

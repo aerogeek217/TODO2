@@ -66,7 +66,6 @@ function FloatingNoteNodeInner({ data }: NodeProps & { data: FloatingNoteNodeDat
         <NotesBody
           dock="floating"
           showToolbar
-          hideFooter
         />
       </div>
 

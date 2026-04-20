@@ -56,7 +56,6 @@ export function CanvasPage() {
   const [showListEditor, setShowListEditor] = useState(false)
   const floatingNotes = useFloatingNoteStore((s) => s.notes)
   const loadFloatingNotes = useFloatingNoteStore((s) => s.loadByCanvas)
-  const addFloatingNote = useFloatingNoteStore((s) => s.add)
   const updateFloatingNotePosition = useFloatingNoteStore((s) => s.updatePosition)
   const updateFloatingNoteSize = useFloatingNoteStore((s) => s.updateSize)
   const removeFloatingNote = useFloatingNoteStore((s) => s.remove)
@@ -422,10 +421,6 @@ export function CanvasPage() {
     if (selectedCanvasId) await addProject('New Project', selectedCanvasId, x, y)
   }, [selectedCanvasId, addProject])
 
-  const handleAddFloatingNote = useCallback(async (x: number, y: number) => {
-    if (selectedCanvasId) await addFloatingNote(selectedCanvasId, x, y)
-  }, [selectedCanvasId, addFloatingNote])
-
   const handleResizeFloatingNote = useCallback(
     async (id: number, width: number, height: number) => {
       await updateFloatingNoteSize(id, width, height)
@@ -453,11 +448,10 @@ export function CanvasPage() {
   }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleRequestAddList, handleResizeInset])
 
   const noteHandlers = useMemo(() => ({
-    onAddFloatingNote: handleAddFloatingNote,
     onDeleteNote: removeFloatingNote,
     onNoteDragStop: updateFloatingNotePosition,
     onResizeNote: handleResizeFloatingNote,
-  }), [handleAddFloatingNote, removeFloatingNote, updateFloatingNotePosition, handleResizeFloatingNote])
+  }), [removeFloatingNote, updateFloatingNotePosition, handleResizeFloatingNote])
 
   const handleResizeFloatingCalendar = useCallback(
     async (id: number, width: number, height: number) => {

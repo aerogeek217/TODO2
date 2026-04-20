@@ -97,7 +97,6 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
       <NotesBody
         source={source}
         showToolbar
-        hideFooter
         placeholder="Add notes…"
         onConvertToast={handleToast}
       />

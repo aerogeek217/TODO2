@@ -22,23 +22,35 @@ afterEach(() => {
 })
 
 describe('NotesBody', () => {
-  it('renders the footer with ⌘T convert on Mac-like platforms', async () => {
-    vi.stubGlobal('navigator', { platform: 'MacIntel' } as Navigator)
+  it('renders no footer chrome (editor + toolbar only)', async () => {
     await act(async () => {
       await useNoteStore.getState().load()
     })
     render(<NotesBody />)
-    expect(screen.getByText(/⌘T convert/i)).toBeInTheDocument()
-    expect(screen.getByText(/MD shorthand/i)).toBeInTheDocument()
+    // No legacy chips/hints, no save-status line.
+    expect(screen.queryByText(/MD shorthand/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/convert current line/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/saved|unsaved|saving/i)).not.toBeInTheDocument()
   })
 
-  it('renders Ctrl+T convert on Windows', async () => {
+  it('exposes the convert-to-task shortcut as Alt+T on Windows', async () => {
     vi.stubGlobal('navigator', { platform: 'Win32' } as Navigator)
     await act(async () => {
       await useNoteStore.getState().load()
     })
     render(<NotesBody />)
-    expect(screen.getByText(/Ctrl\+T convert/i)).toBeInTheDocument()
+    const btn = screen.getByLabelText('Convert line to task')
+    expect(btn.getAttribute('title')).toMatch(/Alt\+T/)
+  })
+
+  it('exposes the convert-to-task shortcut as ⌥T on Mac', async () => {
+    vi.stubGlobal('navigator', { platform: 'MacIntel' } as Navigator)
+    await act(async () => {
+      await useNoteStore.getState().load()
+    })
+    render(<NotesBody />)
+    const btn = screen.getByLabelText('Convert line to task')
+    expect(btn.getAttribute('title')).toMatch(/⌥T/)
   })
 
   it('renders the toolbar by default', async () => {

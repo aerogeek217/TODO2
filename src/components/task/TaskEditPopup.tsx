@@ -542,7 +542,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
               <NotesBody
                 source={notesSource}
                 showToolbar
-                hideFooter
                 placeholder="Add notes..."
               />
             </div>

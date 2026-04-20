@@ -7,6 +7,11 @@ interface NotesToolbarProps {
   viewRef: { current: EditorView | null }
   onCopy: () => void
   copying?: boolean
+  /** Convert the current line/block into a task. Hidden when omitted. */
+  onConvertToTask?: () => void
+  canConvertToTask?: boolean
+  /** Pre-formatted platform-aware shortcut label (e.g. "⌥T", "Alt+T"). */
+  convertShortcutLabel?: string
 }
 
 /**
@@ -15,7 +20,7 @@ interface NotesToolbarProps {
  * no knowledge of the backing note source. `onCopy` is owned by the parent
  * (it needs the current content string + the note-store flush hook).
  */
-export function NotesToolbar({ viewRef, onCopy, copying = false }: NotesToolbarProps) {
+export function NotesToolbar({ viewRef, onCopy, copying = false, onConvertToTask, canConvertToTask = false, convertShortcutLabel }: NotesToolbarProps) {
   const wrapSelection = useCallback((marker: string) => {
     const view = viewRef.current
     if (!view) return
@@ -120,6 +125,18 @@ export function NotesToolbar({ viewRef, onCopy, copying = false }: NotesToolbarP
         ☐
       </button>
       <span className={styles.spacer} />
+      {onConvertToTask && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={onConvertToTask}
+          disabled={!canConvertToTask}
+          title={convertShortcutLabel ? `Convert line to task (${convertShortcutLabel})` : 'Convert line to task'}
+          aria-label="Convert line to task"
+        >
+          → ✓
+        </button>
+      )}
       <button
         type="button"
         className={styles.copyBtn}

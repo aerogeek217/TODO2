@@ -111,7 +111,6 @@ export interface InsetHandlers {
 }
 
 export interface NoteHandlers {
-  onAddFloatingNote?: (x: number, y: number) => void
   onDeleteNote?: (id: number) => void
   onNoteDragStop?: (id: number, x: number, y: number) => void
   onResizeNote?: (id: number, width: number, height: number) => void
@@ -186,7 +185,7 @@ export function CanvasView({
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddList, onResizeInset } = insetHandlers
-  const { onAddFloatingNote, onDeleteNote, onNoteDragStop, onResizeNote } = noteHandlers
+  const { onDeleteNote, onNoteDragStop, onResizeNote } = noteHandlers
   const { onDeleteCalendar, onCalendarDragStop, onResizeCalendar } = floatingCalendarHandlers ?? {}
   const { activeDragTodoId } = useContext(DragInsertContext)
   void activeDragTodoId
@@ -679,9 +678,6 @@ export function CanvasView({
     if (onAddProject && pos) {
       items.push({ label: 'New Project', action: () => onAddProject(pos.x, pos.y) })
     }
-    if (onAddFloatingNote && pos) {
-      items.push({ label: 'New Note', action: () => onAddFloatingNote(pos.x, pos.y) })
-    }
     if (onRequestAddList && pos) {
       items.push({ separator: true, label: '', action: () => {} })
       items.push({ label: 'Add list…', action: () => onRequestAddList(pos.x, pos.y) })
@@ -689,7 +685,7 @@ export function CanvasView({
     if (items.length > 0) {
       setContextMenu({ x: e.clientX, y: e.clientY, items })
     }
-  }, [onAddProject, onAddFloatingNote, onRequestAddList])
+  }, [onAddProject, onRequestAddList])
 
   return (
     <div className={styles.canvasWrapper} onContextMenu={handleContextMenu}>

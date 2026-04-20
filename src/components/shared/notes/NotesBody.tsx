@@ -31,8 +31,6 @@ interface NotesBodyProps {
    * `activeId`. Caller is responsible for ensuring the row is loaded.
    */
   activeIdOverride?: number | null
-  /** Hide the footer chrome entirely (used by floating notes for a compact look). */
-  hideFooter?: boolean
   /**
    * External content source (task notes, etc.). When supplied, the note-store
    * bindings are bypassed entirely — the editor reads `source.get()` and
@@ -45,30 +43,15 @@ interface NotesBodyProps {
 
 const CONVERTIBLE_LINE_RE = /^(\s*)([—–\-•]|\[[ xX]\])(\s+)(.*)$/
 
-function formatRelativeTime(from: Date | null, now: Date): string {
-  if (!from) return ''
-  const diff = Math.max(0, now.getTime() - from.getTime())
-  const seconds = Math.round(diff / 1000)
-  if (seconds < 5) return 'saved just now'
-  if (seconds < 60) return `saved ${seconds}s ago`
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `saved ${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `saved ${hours}h ago`
-  return from.toLocaleDateString()
-}
-
 /**
  * Presentation-neutral notes body used by the dashboard Notes tile, the
- * canvas rail Notes slot, and task note popovers. Owns the editor, ⌘T
- * conversion, and the footer saved-time indicator — but not the outer
- * chrome, which each surface supplies.
+ * canvas rail Notes slot, and task note popovers. Owns the editor + Alt-T
+ * convert action; the outer chrome is supplied by each surface.
  */
-export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, hideFooter = false, source, placeholder }: NotesBodyProps) {
+export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, source, placeholder }: NotesBodyProps) {
   const storeActiveId = useNoteStore((s) => s.activeId)
   const activeId = activeIdOverride !== undefined ? activeIdOverride : storeActiveId
   const notes = useNoteStore((s) => s.notes)
-  const lastSavedAt = useNoteStore((s) => s.lastSavedAt)
   const storeSetContent = useNoteStore((s) => s.setContent)
   const load = useNoteStore((s) => s.load)
   const storeFlush = useNoteStore((s) => s.flush)
@@ -77,7 +60,6 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const selectedCanvasId = useCanvasStore((s) => s.selectedCanvasId)
   const addTodo = useTodoStore((s) => s.add)
 
-  const [, setTick] = useState(0)
   const [caretLine, setCaretLine] = useState(0)
   const [copying, setCopying] = useState(false)
   const viewRef = useRef<EditorView | null>(null)
@@ -87,12 +69,6 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     // we aren't bound to an external source.
     if (source == null && activeIdOverride === undefined && activeId == null) void load()
   }, [activeId, activeIdOverride, load, source])
-
-  // Re-render the "saved Xm ago" footer once a minute while mounted.
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30_000)
-    return () => clearInterval(id)
-  }, [])
 
   const content = source
     ? source.get()
@@ -139,7 +115,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const extraKeymap = useMemo(
     () => [
       {
-        key: 'Mod-t',
+        key: 'Alt-t',
         run: (view: EditorView) => {
           void convertLineToTask(view)
           return true
@@ -149,13 +125,17 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     [convertLineToTask],
   )
 
-  const now = new Date()
-  const savedLabel = formatRelativeTime(lastSavedAt, now)
-
   const lines = content.split('\n')
   const currentLineText = lines[caretLine] ?? ''
   const canConvert = CONVERTIBLE_LINE_RE.test(currentLineText) && currentLineText.trim().length > 0
-  const convertShortcut = formatShortcut('Mod-t')
+  const convertShortcut = formatShortcut('Alt-t')
+
+  const handleConvertClick = useCallback(() => {
+    const view = viewRef.current
+    if (!view) return
+    void convertLineToTask(view)
+    view.focus()
+  }, [convertLineToTask])
 
   const handleCopy = useCallback(async () => {
     setCopying(true)
@@ -180,7 +160,14 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   return (
     <div className={`${styles.body} ${styles[`body_${dock}`] ?? ''}`}>
       {showToolbar && (
-        <NotesToolbar viewRef={viewRef} onCopy={handleCopy} copying={copying} />
+        <NotesToolbar
+          viewRef={viewRef}
+          onCopy={handleCopy}
+          copying={copying}
+          onConvertToTask={handleConvertClick}
+          canConvertToTask={canConvert}
+          convertShortcutLabel={convertShortcut}
+        />
       )}
       <NotesEditor
         value={content}
@@ -190,15 +177,6 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
         placeholder={placeholder ?? 'Jot notes here…'}
         viewRef={viewRef}
       />
-      {!hideFooter && (
-        <div className={styles.footer}>
-          <span className={styles.footerChip}>{convertShortcut} convert</span>
-          <span className={styles.footerChip}>MD shorthand</span>
-          {canConvert && <span className={styles.footerHint}>Press {convertShortcut} to convert current line</span>}
-          <span className={styles.footerSpacer} />
-          <span className={styles.footerSaved}>{savedLabel}</span>
-        </div>
-      )}
     </div>
   )
 }

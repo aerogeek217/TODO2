@@ -1,11 +1,15 @@
 import styles from './EntityEditor.module.css'
 import settingsStyles from '../../views/SettingsPage.module.css'
+import { formatShortcut } from '../../utils/platform'
 
 interface KeyboardShortcutsModalProps {
   onClose: () => void
 }
 
 export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps) {
+  const convertShortcut = formatShortcut('Alt-t')
+  const boldShortcut = formatShortcut('Mod-b')
+  const italicShortcut = formatShortcut('Mod-i')
   return (
     <>
       <div className={styles.backdrop} onClick={onClose} />
@@ -76,6 +80,16 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
             <span className={settingsStyles.shortcutDesc}>Outdent task (promote)</span>
             <span className={settingsStyles.shortcutKey}>Ctrl+] / [</span>
             <span className={settingsStyles.shortcutDesc}>Indent / Outdent (alias)</span>
+          </div>
+
+          <div className={settingsStyles.shortcutCategory}>Notes</div>
+          <div className={settingsStyles.shortcutGrid}>
+            <span className={settingsStyles.shortcutKey}>{convertShortcut}</span>
+            <span className={settingsStyles.shortcutDesc}>Convert current line to task</span>
+            <span className={settingsStyles.shortcutKey}>{boldShortcut}</span>
+            <span className={settingsStyles.shortcutDesc}>Bold</span>
+            <span className={settingsStyles.shortcutKey}>{italicShortcut}</span>
+            <span className={settingsStyles.shortcutDesc}>Italic</span>
           </div>
         </div>
       </div>

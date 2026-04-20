@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, act } from '@testing-library/react'
+import { render, cleanup, act } from '@testing-library/react'
 import { db } from '../../../../data/database'
 import { NotesSlotContent } from '../../../../components/canvas/rails/NotesSlotContent'
 import { useNoteStore } from '../../../../stores/note-store'
@@ -32,7 +32,5 @@ describe('NotesSlotContent', () => {
     const container = document.querySelector('.cm-content')
     expect(container).toBeTruthy()
     expect(container!.textContent).toContain('SLOT SHARED NOTES')
-    // Footer is present (body renders with `dock="slot"`).
-    expect(screen.getByText(/(⌘T|Ctrl\+T) convert/i)).toBeInTheDocument()
   })
 })

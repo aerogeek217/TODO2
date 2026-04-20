@@ -875,7 +875,7 @@ export function DashboardView() {
                                 />
                               </div>
                               <div className={styles.notesTileBody}>
-                                <NotesBody dock="slot" hideFooter />
+                                <NotesBody dock="slot" />
                               </div>
                             </div>
                           )}
