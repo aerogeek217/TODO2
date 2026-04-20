@@ -372,7 +372,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     return mutate(set, async () => {
       if (ids.length > 5) {
         const { backupScheduler } = await import('../services/backup-scheduler')
-        await backupScheduler.snapshotBeforeDestructive().catch(() => {})
+        await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
       }
       const snapshots = get().todos.filter((t) => ids.includes(t.id)).map(t => ({ ...t }))
       const assignments = await captureAssignmentsBulk(ids)
@@ -551,7 +551,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     if (expired.length === 0) return 0
     // Snapshot before destructive purge
     const { backupScheduler } = await import('../services/backup-scheduler')
-    await backupScheduler.snapshotBeforeDestructive().catch(() => {})
+    await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
     const ids = expired.map((t) => t.id)
     await todoRepository.bulkDelete(ids)
     const idSet = new Set(ids)

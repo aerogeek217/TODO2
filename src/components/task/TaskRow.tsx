@@ -36,36 +36,43 @@ function PortalDropdown({ anchorRef, onClickOutside, children }: {
 
   useClickOutside(dropdownRef, onClickOutside, true)
 
-  // Continuously track anchor position (handles scroll, canvas pan, etc.)
+  // Track anchor position: reposition on resize, scroll (any container, via capture),
+  // and canvas pan/zoom (React Flow viewport transform mutation).
   useEffect(() => {
-    let raf: number
-    let prevTop = -9999
-    let prevLeft = -9999
-    const tick = () => {
+    const update = () => {
       const rect = anchorRef.current?.getBoundingClientRect()
-      if (rect) {
-        const margin = 8
-        let top = rect.bottom + 4
-        let left = rect.left
-        // Clamp to viewport once the dropdown has a measurable size so
-        // chip popups near the right edge don't spill off-screen.
-        const dd = dropdownRef.current?.getBoundingClientRect()
-        if (dd && dd.width > 0) {
-          const maxLeft = window.innerWidth - dd.width - margin
-          if (left > maxLeft) left = Math.max(margin, maxLeft)
-          const maxTop = window.innerHeight - dd.height - margin
-          if (top > maxTop) top = Math.max(margin, maxTop)
-        }
-        if (top !== prevTop || left !== prevLeft) {
-          prevTop = top
-          prevLeft = left
-          setPos({ top, left })
-        }
+      if (!rect) return
+      const margin = 8
+      let top = rect.bottom + 4
+      let left = rect.left
+      const dd = dropdownRef.current?.getBoundingClientRect()
+      if (dd && dd.width > 0) {
+        const maxLeft = window.innerWidth - dd.width - margin
+        if (left > maxLeft) left = Math.max(margin, maxLeft)
+        const maxTop = window.innerHeight - dd.height - margin
+        if (top > maxTop) top = Math.max(margin, maxTop)
       }
-      raf = requestAnimationFrame(tick)
+      setPos(prev => (prev.top === top && prev.left === left ? prev : { top, left }))
     }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    update()
+
+    const ro = new ResizeObserver(update)
+    if (anchorRef.current) ro.observe(anchorRef.current)
+    if (dropdownRef.current) ro.observe(dropdownRef.current)
+
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+
+    const transformEl = anchorRef.current?.closest('.react-flow')?.querySelector('.react-flow__viewport') as HTMLElement | null
+    const mo = transformEl ? new MutationObserver(update) : null
+    if (mo && transformEl) mo.observe(transformEl, { attributes: true, attributeFilter: ['style'] })
+
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+      mo?.disconnect()
+    }
   }, [anchorRef])
 
   return (

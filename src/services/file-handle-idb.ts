@@ -1,7 +1,9 @@
 const DB_NAME = 'todo2-meta'
 const STORE_NAME = 'handles'
-const KEY = 'primary'
-const DIR_KEY = 'last-directory'
+const KEY = 'todo2-primary'
+const LEGACY_KEY = 'primary'
+const DIR_KEY = 'todo2-last-directory'
+const LEGACY_DIR_KEY = 'last-directory'
 
 let cachedDB: IDBDatabase | null = null
 
@@ -33,19 +35,39 @@ export async function saveFileHandle(handle: FileSystemFileHandle): Promise<void
 
 export async function loadFileHandle(): Promise<FileSystemFileHandle | null> {
   const db = await openMetaDB()
-  return new Promise((resolve, reject) => {
+  const current = await new Promise<FileSystemFileHandle | null>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly')
     const req = tx.objectStore(STORE_NAME).get(KEY)
     req.onsuccess = () => resolve(req.result ?? null)
     req.onerror = () => reject(req.error)
   })
+  if (current) return current
+  const legacy = await new Promise<FileSystemFileHandle | null>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).get(LEGACY_KEY)
+    req.onsuccess = () => resolve(req.result ?? null)
+    req.onerror = () => reject(req.error)
+  })
+  if (legacy) {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      store.put(legacy, KEY)
+      store.delete(LEGACY_KEY)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+  return legacy
 }
 
 export async function clearFileHandle(): Promise<void> {
   const db = await openMetaDB()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite')
-    tx.objectStore(STORE_NAME).delete(KEY)
+    const store = tx.objectStore(STORE_NAME)
+    store.delete(KEY)
+    store.delete(LEGACY_KEY)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })
@@ -63,10 +85,28 @@ export async function saveLastPickerHandle(handle: FileSystemHandle): Promise<vo
 
 export async function loadLastPickerHandle(): Promise<FileSystemHandle | null> {
   const db = await openMetaDB()
-  return new Promise((resolve, reject) => {
+  const current = await new Promise<FileSystemHandle | null>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly')
     const req = tx.objectStore(STORE_NAME).get(DIR_KEY)
     req.onsuccess = () => resolve(req.result ?? null)
     req.onerror = () => reject(req.error)
   })
+  if (current) return current
+  const legacy = await new Promise<FileSystemHandle | null>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).get(LEGACY_DIR_KEY)
+    req.onsuccess = () => resolve(req.result ?? null)
+    req.onerror = () => reject(req.error)
+  })
+  if (legacy) {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      const store = tx.objectStore(STORE_NAME)
+      store.put(legacy, DIR_KEY)
+      store.delete(LEGACY_DIR_KEY)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  }
+  return legacy
 }

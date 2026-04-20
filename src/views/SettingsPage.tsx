@@ -182,7 +182,7 @@ export function SettingsPage() {
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 100)
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
     setExportMsg('Exported!')
     track(() => setExportMsg(''), 2000)
   }
@@ -287,7 +287,7 @@ export function SettingsPage() {
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 100)
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
     setExportMsg('Markdown exported!')
     track(() => setExportMsg(''), 2000)
   }

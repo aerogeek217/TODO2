@@ -68,7 +68,7 @@ export function MigrationDialog(props: MigrationDialogProps) {
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 100)
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
       setExported(true)
     } catch (err) {
       setExportError(err instanceof Error ? err.message : String(err))
