@@ -95,6 +95,20 @@ export async function optimistic(
 }
 
 /**
+ * Shallow-merge `patch` into the item in `list` with matching `id`. Non-matching
+ * items pass through by identity. Returns a new array. Used by floating-* and
+ * list-inset stores to deduplicate the `.map(i => i.id === id ? {...i, ...} : i)`
+ * pattern across optimistic update + rollback paths.
+ */
+export function updateItemInList<T extends { id?: number }>(
+  list: T[],
+  id: number,
+  patch: Partial<T>,
+): T[] {
+  return list.map((item) => (item.id === id ? { ...item, ...patch } : item))
+}
+
+/**
  * DUP-2: Update an entity in an assignment map (Map<todoId, Entity[]>).
  * When an entity is edited, all references in the map must be refreshed.
  */

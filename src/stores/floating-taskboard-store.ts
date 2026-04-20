@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { FloatingTaskboard } from '../models'
 import { floatingTaskboardRepository } from '../data'
 import { undoable } from '../services/undoable'
-import { mutate, optimistic } from './store-helpers'
+import { mutate, optimistic, updateItemInList } from './store-helpers'
 
 /**
  * Placement-only widgets that render a specific Taskboard on a canvas.
@@ -64,13 +64,11 @@ export const useFloatingTaskboardStore = create<FloatingTaskboardState>((set, ge
   async updatePosition(id, x, y) {
     const prev = get().taskboards.find((n) => n.id === id)
     if (!prev) return
-    const prevX = prev.x
-    const prevY = prev.y
     return optimistic(
       set,
-      () => set({ taskboards: get().taskboards.map((n) => (n.id === id ? { ...n, x, y } : n)) }),
+      () => set({ taskboards: updateItemInList(get().taskboards, id, { x, y }) }),
       () => floatingTaskboardRepository.updatePosition(id, x, y),
-      () => set({ taskboards: get().taskboards.map((n) => (n.id === id ? { ...n, x: prevX, y: prevY } : n)) }),
+      () => set({ taskboards: updateItemInList(get().taskboards, id, { x: prev.x, y: prev.y }) }),
       'Failed to update floating taskboard position',
     )
   },
@@ -78,12 +76,11 @@ export const useFloatingTaskboardStore = create<FloatingTaskboardState>((set, ge
   async updateSize(id, width, height) {
     const prev = get().taskboards.find((n) => n.id === id)
     if (!prev) return
-    const next: FloatingTaskboard = { ...prev, width, height }
     return optimistic(
       set,
-      () => set({ taskboards: get().taskboards.map((n) => (n.id === id ? next : n)) }),
-      () => floatingTaskboardRepository.update(next),
-      () => set({ taskboards: get().taskboards.map((n) => (n.id === id ? prev : n)) }),
+      () => set({ taskboards: updateItemInList(get().taskboards, id, { width, height }) }),
+      () => floatingTaskboardRepository.update({ ...prev, width, height }),
+      () => set({ taskboards: updateItemInList(get().taskboards, id, { width: prev.width, height: prev.height }) }),
       'Failed to update floating taskboard size',
     )
   },
@@ -91,12 +88,11 @@ export const useFloatingTaskboardStore = create<FloatingTaskboardState>((set, ge
   async setCollapsed(id, collapsed) {
     const prev = get().taskboards.find((n) => n.id === id)
     if (!prev) return
-    const next: FloatingTaskboard = { ...prev, collapsed }
     return optimistic(
       set,
-      () => set({ taskboards: get().taskboards.map((n) => (n.id === id ? next : n)) }),
-      () => floatingTaskboardRepository.update(next),
-      () => set({ taskboards: get().taskboards.map((n) => (n.id === id ? prev : n)) }),
+      () => set({ taskboards: updateItemInList(get().taskboards, id, { collapsed }) }),
+      () => floatingTaskboardRepository.update({ ...prev, collapsed }),
+      () => set({ taskboards: updateItemInList(get().taskboards, id, { collapsed: prev.collapsed }) }),
       'Failed to update floating taskboard',
     )
   },

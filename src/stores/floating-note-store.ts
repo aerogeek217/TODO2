@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { FloatingNote } from '../models'
 import { floatingNoteRepository } from '../data'
 import { undoable } from '../services/undoable'
-import { mutate, optimistic } from './store-helpers'
+import { mutate, optimistic, updateItemInList } from './store-helpers'
 
 /**
  * Placement-only widgets that render the single global note on a canvas.
@@ -61,13 +61,11 @@ export const useFloatingNoteStore = create<FloatingNoteState>((set, get) => ({
   async updatePosition(id, x, y) {
     const prev = get().notes.find((n) => n.id === id)
     if (!prev) return
-    const prevX = prev.x
-    const prevY = prev.y
     return optimistic(
       set,
-      () => set({ notes: get().notes.map((n) => (n.id === id ? { ...n, x, y } : n)) }),
+      () => set({ notes: updateItemInList(get().notes, id, { x, y }) }),
       () => floatingNoteRepository.updatePosition(id, x, y),
-      () => set({ notes: get().notes.map((n) => (n.id === id ? { ...n, x: prevX, y: prevY } : n)) }),
+      () => set({ notes: updateItemInList(get().notes, id, { x: prev.x, y: prev.y }) }),
       'Failed to update floating note position',
     )
   },
@@ -75,12 +73,11 @@ export const useFloatingNoteStore = create<FloatingNoteState>((set, get) => ({
   async updateSize(id, width, height) {
     const prev = get().notes.find((n) => n.id === id)
     if (!prev) return
-    const next: FloatingNote = { ...prev, width, height }
     return optimistic(
       set,
-      () => set({ notes: get().notes.map((n) => (n.id === id ? next : n)) }),
-      () => floatingNoteRepository.update(next),
-      () => set({ notes: get().notes.map((n) => (n.id === id ? prev : n)) }),
+      () => set({ notes: updateItemInList(get().notes, id, { width, height }) }),
+      () => floatingNoteRepository.update({ ...prev, width, height }),
+      () => set({ notes: updateItemInList(get().notes, id, { width: prev.width, height: prev.height }) }),
       'Failed to update floating note size',
     )
   },

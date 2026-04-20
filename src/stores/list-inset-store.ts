@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ListInset } from '../models'
 import { listInsetRepository } from '../data'
 import { undoable } from '../services/undoable'
-import { mutate, optimistic } from './store-helpers'
+import { mutate, optimistic, updateItemInList } from './store-helpers'
 
 interface ListInsetState {
   insets: ListInset[]
@@ -55,17 +55,12 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
 
   async update(inset: ListInset) {
     const prev = get().insets.find((i) => i.id === inset.id)
-    if (!prev) return
-    const snapshot = { ...prev }
+    if (!prev || inset.id == null) return
     return optimistic(
       set,
-      () => set({
-        insets: get().insets.map((i) => (i.id === inset.id ? { ...inset } : i)),
-      }),
+      () => set({ insets: updateItemInList(get().insets, inset.id!, inset) }),
       () => listInsetRepository.update(inset),
-      () => set({
-        insets: get().insets.map((i) => (i.id === inset.id ? snapshot : i)),
-      }),
+      () => set({ insets: updateItemInList(get().insets, inset.id!, prev) }),
       'Failed to update list inset',
     )
   },
@@ -73,17 +68,11 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
   async updatePosition(id: number, x: number, y: number) {
     const prev = get().insets.find((i) => i.id === id)
     if (!prev) return
-    const prevX = prev.x
-    const prevY = prev.y
     return optimistic(
       set,
-      () => set({
-        insets: get().insets.map((i) => (i.id === id ? { ...i, x, y } : i)),
-      }),
+      () => set({ insets: updateItemInList(get().insets, id, { x, y }) }),
       () => listInsetRepository.updatePosition(id, x, y),
-      () => set({
-        insets: get().insets.map((i) => (i.id === id ? { ...i, x: prevX, y: prevY } : i)),
-      }),
+      () => set({ insets: updateItemInList(get().insets, id, { x: prev.x, y: prev.y }) }),
       'Failed to update list inset position',
     )
   },

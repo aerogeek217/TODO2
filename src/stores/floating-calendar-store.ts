@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { FloatingCalendar } from '../models'
 import { floatingCalendarRepository } from '../data'
 import { undoable } from '../services/undoable'
-import { mutate, optimistic } from './store-helpers'
+import { mutate, optimistic, updateItemInList } from './store-helpers'
 
 const DEFAULT_WIDTH = 380
 const DEFAULT_HEIGHT = 320
@@ -55,13 +55,11 @@ export const useFloatingCalendarStore = create<FloatingCalendarState>((set, get)
   async updatePosition(id, x, y) {
     const prev = get().calendars.find((c) => c.id === id)
     if (!prev) return
-    const prevX = prev.x
-    const prevY = prev.y
     return optimistic(
       set,
-      () => set({ calendars: get().calendars.map((c) => (c.id === id ? { ...c, x, y } : c)) }),
+      () => set({ calendars: updateItemInList(get().calendars, id, { x, y }) }),
       () => floatingCalendarRepository.updatePosition(id, x, y),
-      () => set({ calendars: get().calendars.map((c) => (c.id === id ? { ...c, x: prevX, y: prevY } : c)) }),
+      () => set({ calendars: updateItemInList(get().calendars, id, { x: prev.x, y: prev.y }) }),
       'Failed to update floating calendar position',
     )
   },
@@ -69,12 +67,11 @@ export const useFloatingCalendarStore = create<FloatingCalendarState>((set, get)
   async updateSize(id, width, height) {
     const prev = get().calendars.find((c) => c.id === id)
     if (!prev) return
-    const next: FloatingCalendar = { ...prev, width, height }
     return optimistic(
       set,
-      () => set({ calendars: get().calendars.map((c) => (c.id === id ? next : c)) }),
-      () => floatingCalendarRepository.update(next),
-      () => set({ calendars: get().calendars.map((c) => (c.id === id ? prev : c)) }),
+      () => set({ calendars: updateItemInList(get().calendars, id, { width, height }) }),
+      () => floatingCalendarRepository.update({ ...prev, width, height }),
+      () => set({ calendars: updateItemInList(get().calendars, id, { width: prev.width, height: prev.height }) }),
       'Failed to update floating calendar size',
     )
   },

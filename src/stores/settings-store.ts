@@ -249,10 +249,31 @@ function parseHorizonCollapsed(value: string | undefined | null): Partial<Record
 
 /** Track which color keys have user-customized values in IndexedDB */
 let customizedColorKeys = new Set<string>()
-let vpPersistTimer: ReturnType<typeof setTimeout> | undefined
-let vpSetTimer: ReturnType<typeof setTimeout> | undefined
-let railsPersistTimer: ReturnType<typeof setTimeout> | undefined
-let railsSetTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Build a twin-debounced setter for high-frequency settings writes (viewport,
+ * rails). The inner set is debounced at `setMs`; the repo persist is debounced
+ * at the longer `persistMs`. Collapses React Flow's ~60/sec onViewportChange
+ * and rapid slot operations to a handful of Zustand set() + one repo.put.
+ */
+function createDebouncedPersist<T>(opts: {
+  setMs: number
+  persistMs: number
+  apply: (value: T) => void
+  persist: (value: T) => void
+}): (value: T) => void {
+  let setTimer: ReturnType<typeof setTimeout> | undefined
+  let persistTimer: ReturnType<typeof setTimeout> | undefined
+  return (value: T) => {
+    if (setTimer) clearTimeout(setTimer)
+    setTimer = setTimeout(() => {
+      opts.apply(value)
+      setTimer = undefined
+    }, opts.setMs)
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = setTimeout(() => opts.persist(value), opts.persistMs)
+  }
+}
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: { ...defaultColors },
@@ -492,37 +513,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ dashboardUserLists: clean })
   },
 
-  setCanvasRails(rails: RailsState) {
-    // Debounced twin of setCanvasViewport: rapid slot operations (drag, split)
-    // coalesce into a single Zustand set + single repo write.
-    if (railsSetTimer) clearTimeout(railsSetTimer)
-    railsSetTimer = setTimeout(() => {
-      set({ canvasRails: rails })
-      railsSetTimer = undefined
-    }, 150)
+  setCanvasRails: createDebouncedPersist<RailsState>({
+    setMs: 150,
+    persistMs: 500,
+    apply: (rails) => set({ canvasRails: rails }),
+    persist: (rails) => { settingsRepository.put('canvasRails', serializeRailsState(rails)) },
+  }),
 
-    if (railsPersistTimer) clearTimeout(railsPersistTimer)
-    railsPersistTimer = setTimeout(() => {
-      settingsRepository.put('canvasRails', serializeRailsState(rails))
-    }, 500)
-  },
-
-  setCanvasViewport(vp: CanvasViewport) {
-    // Debounce the Zustand write — React Flow fires onViewportChange ~60/sec
-    // during pan/zoom. Subscribers (CanvasView) re-render on every set(), which
-    // is wasteful since the value is only read as defaultViewport on mount.
-    // 150ms trailing debounce collapses the re-render storm to a handful while
-    // keeping getState() callers (App.createFloatingNote, FilteredListPopup) close
-    // to current — the viewport has almost always settled before these fire.
-    if (vpSetTimer) clearTimeout(vpSetTimer)
-    vpSetTimer = setTimeout(() => {
-      set({ canvasViewport: vp })
-      vpSetTimer = undefined
-    }, 150)
-
-    if (vpPersistTimer) clearTimeout(vpPersistTimer)
-    vpPersistTimer = setTimeout(() => {
-      settingsRepository.put('canvasViewport', JSON.stringify(vp))
-    }, 500)
-  },
+  // React Flow fires onViewportChange ~60/sec during pan/zoom; subscribers
+  // (CanvasView) re-render on every set(), which is wasteful since the value
+  // is only read as defaultViewport on mount. 150ms trailing debounce collapses
+  // the re-render storm to a handful while keeping getState() callers
+  // (App.createFloatingNote, FilteredListPopup) close to current — the viewport
+  // has almost always settled before these fire.
+  setCanvasViewport: createDebouncedPersist<CanvasViewport>({
+    setMs: 150,
+    persistMs: 500,
+    apply: (vp) => set({ canvasViewport: vp }),
+    persist: (vp) => { settingsRepository.put('canvasViewport', JSON.stringify(vp)) },
+  }),
 }))

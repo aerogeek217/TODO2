@@ -17,9 +17,9 @@ describe('SlotHeader a11y', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getByLabelText('lens options')).toBeInTheDocument()
-    expect(screen.getByLabelText('Close lens')).toBeInTheDocument()
-    expect(screen.getByLabelText('Reorder slot: lens')).toBeInTheDocument()
+    expect(screen.getByLabelText('list options')).toBeInTheDocument()
+    expect(screen.getByLabelText('Close list')).toBeInTheDocument()
+    expect(screen.getByLabelText('Reorder slot: list')).toBeInTheDocument()
   })
 
   it('reflects menu open state on aria-expanded', () => {
