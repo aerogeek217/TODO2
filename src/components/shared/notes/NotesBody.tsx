@@ -41,7 +41,8 @@ interface NotesBodyProps {
   placeholder?: string
 }
 
-const CONVERTIBLE_LINE_RE = /^(\s*)([—–\-•]|\[[ xX]\])(\s+)(.*)$/
+const LINE_PREFIX_RE = /^(\s*)(?:(?:[—–\-•]|\[[ xX]\])\s+)?(.*)$/
+const ALREADY_CONVERTED_RE = /^\s*✓\s/
 
 /**
  * Presentation-neutral notes body used by the dashboard Notes tile, the
@@ -87,9 +88,10 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     const state = view.state
     const head = state.selection.main.head
     const line = state.doc.lineAt(head)
-    const match = line.text.match(CONVERTIBLE_LINE_RE)
+    if (ALREADY_CONVERTED_RE.test(line.text)) return false
+    const match = line.text.match(LINE_PREFIX_RE)
     if (!match) return false
-    const [, leading, , , rest] = match
+    const [, leading, rest] = match
     const title = rest.trim()
     if (!title) return false
 
@@ -127,7 +129,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
 
   const lines = content.split('\n')
   const currentLineText = lines[caretLine] ?? ''
-  const canConvert = CONVERTIBLE_LINE_RE.test(currentLineText) && currentLineText.trim().length > 0
+  const canConvert = currentLineText.trim().length > 0 && !ALREADY_CONVERTED_RE.test(currentLineText)
   const convertShortcut = formatShortcut('Alt-t')
 
   const handleConvertClick = useCallback(() => {
