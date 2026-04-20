@@ -51,6 +51,7 @@ Detail reference for `src/services/` (non-UI logic), `src/hooks/` (custom React 
 | buildHierarchy | utils/hierarchy.ts | Groups flat todo list into parent/child hierarchy (max 2 levels), sorts roots and children by sortOrder by default or by a custom `rootComparator` when supplied; promotes grandchildren to root ancestor to prevent invisible tasks |
 | getFlatVisualOrder | utils/hierarchy.ts | Returns todos in visual display order (parent, children, parent, children, ...) |
 | generateInitials | utils/person.ts | Generates 1-3 character uppercase initials from a name |
+| resolvePersonColor | utils/person-color.ts | Returns the first assigned org's color for a person (`personId + personOrgMap + orgs`), or `undefined` when no org is assigned / has a color. Replaces the retired `Person.color` field (dropped in Dexie v31); used by `AvatarStack`, `TaskEditMetadata`, `ListView`, and NLP autocomplete pipelines |
 | toggleItem | utils/filter.ts | Toggle an item in a null-or-Set filter (null = all shown, Set = explicit selection) |
 | getFilterDefaults | utils/filter-defaults.ts | Extract task creation defaults (people, orgs, status) from active filter criteria; strips sentinel 0 values |
 | supplementWithFilterDefaults | utils/filter-defaults.ts | Supplement resolved NLP output with filter-inferred defaults (person/org); mutates resolved in place (void return) |

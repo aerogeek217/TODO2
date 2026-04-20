@@ -14,7 +14,7 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | RecurrenceRule | models/recurrence.ts | Recurrence pattern: type (daily/weekly/biweekly/monthly/quarterly/yearly), optional originalDayOfMonth to prevent drift |
 | ListDefinition | models/list-definition.ts | Dashboard list definition: name, sortOrder, `pinnedToDashboard`, membership (today/upcoming/deadlines/someday/custom), sort, grouping. `today`/`upcoming` accept optional `warningWindowDays`; `custom` carries a `TodoPredicate` |
 | TodoPredicate | models/filter-predicate.ts | Serializable predicate DSL mirroring live filter fields (number arrays + ISO strings — no Sets, no Dates). Stored inside `ListMembership.custom` and `SavedViewFilters`; runtime converts to `FilterCriteria` via `predicateToCriteria` at evaluation time |
-| Person | models/person.ts | Assignable person with name, initials, color |
+| Person | models/person.ts | Assignable person with name + initials. Display color is derived at render time from the person's first assigned org via `utils/person-color.resolvePersonColor` (the legacy `color` field was dropped in Dexie v31) |
 | PersistedPerson | models/person.ts | Person with guaranteed id (post-insert) |
 | Org | models/org.ts | Organization/group for people (name, optional initials, optional color) |
 | PersonOrg | models/person-org.ts | Many-to-many join: person ↔ org |
@@ -60,6 +60,7 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | translateStickyToNote | data/database.ts | Pure function: legacy sticky row → Note row (title prepended as H1; placement + color carried over). Shared by v26 migration and legacy-import restore |
 | runV26Migration | data/database.ts | v26 upgrade: move every `stickyNotes` row into the `notes` table via `translateStickyToNote`, then drop the `stickyNotes` store |
 | runV29Migration / appendTagNamesToTitle / buildTagNamesByTodo | data/database.ts | v29 upgrade: bake every assigned tag's name into the host todo's title as ` #tagname`, strip `tagIds` from any persisted custom predicate / saved-view filters, drop the `tags` + `todoTags` tables. Pure helpers reused by `restoreFromImportData` for legacy JSON imports |
+| runV31Migration | data/database.ts | v31 upgrade: strip the legacy `color` key from every `people` row. Person color is now derived at render time from the person's first assigned org (`resolvePersonColor`) |
 | taskboardRepository | data/taskboard-repository.ts | CRUD for TaskboardEntry (add, addAt with sortOrder, remove by todoId, reorder) |
 | statusRepository | data/status-repository.ts | CRUD for Status (transactional cascade delete clears statusId from todos) |
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |

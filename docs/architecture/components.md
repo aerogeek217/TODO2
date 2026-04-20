@@ -58,7 +58,7 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
-| AvatarStack | components/shared/AvatarStack.tsx | Overlapping circle avatars with `+N` overflow (default max=3); per-person color fill; `sm` variant; click bubbles to `onClick` (opens picker in TaskRow), right-click on a visible avatar surfaces per-person context menu. Used by TaskRow + MobileTaskRow in place of the legacy `.personChip` row |
+| AvatarStack | components/shared/AvatarStack.tsx | Overlapping circle avatars with `+N` overflow (default max=3); fill-variant color derived from the person's first assigned org via `utils/person-color.resolvePersonColor` (subscribes to `useOrgStore`; falls back to `DEFAULT_ENTITY_COLOR`); hollow variant uses the org's own color. `sm` variant; click bubbles to `onClick` (opens picker in TaskRow), right-click on a visible avatar surfaces per-person context menu. Used by TaskRow + MobileTaskRow in place of the legacy `.personChip` row |
 | ChipSelector | components/shared/ChipSelector.tsx | Reusable autocomplete dropdown for assigning people/orgs; search input, filtered list, create-new option |
 | IconSelect | components/shared/IconSelect.tsx | Generic `<select>` replacement showing a per-option icon in the trigger and each menu row; handles click-outside, Enter/Space/Escape and ArrowUp/Down cycling. Used by ListView's Group / Sort dropdowns |
 | groupByIcons, itemSortByIcons | components/shared/list-option-icons.tsx | Icon registry for `ListGroupBy` / `ListItemSortBy` values; reuses `StatusIcon` (calendar/clock/flag/person/circle) + inline SVGs for project/org/none/manual |
