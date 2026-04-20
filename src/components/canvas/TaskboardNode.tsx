@@ -41,7 +41,7 @@ export interface TaskboardNodeData {
 type TaskboardNodeType = TaskboardNodeData
 
 function SortableTaskboardEntry({
-  entryId, index, todo, assignedPeople, ghost, taskboardId, onOpenDetail,
+  entryId, index, todo, assignedPeople, ghost, taskboardId, floatingId, onOpenDetail,
 }: {
   entryId: string
   index: number
@@ -49,11 +49,12 @@ function SortableTaskboardEntry({
   assignedPeople: Person[] | undefined
   ghost?: boolean
   taskboardId: number
+  floatingId: number
   onOpenDetail?: (todoId: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entryId,
-    data: { type: 'taskboard-task', todo, entryId, taskboardId },
+    data: { type: 'taskboard-task', todo, entryId, taskboardId, floatingId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -238,6 +239,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                     assignedPeople={assignedPeopleMap.get(todo.id)}
                     ghost={ghostTodoIds?.has(todo.id)}
                     taskboardId={taskboardId}
+                    floatingId={floatingId}
                     onOpenDetail={onOpenDetail}
                   />
                 </Fragment>
