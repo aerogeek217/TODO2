@@ -133,6 +133,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const updateSlot = useCanvasRailsStore((s) => s.updateSlot)
   const setSlotKind = useCanvasRailsStore((s) => s.setSlotKind)
   const setSlotOrientation = useCanvasRailsStore((s) => s.setSlotOrientation)
+  const setSlotWeekOffset = useCanvasRailsStore((s) => s.setSlotWeekOffset)
   const splitSlot = useCanvasRailsStore((s) => s.splitSlot)
   const pendingFocusSlotId = useCanvasRailsStore((s) => s.pendingFocusSlotId)
   const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
@@ -228,7 +229,13 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         onChange={(o) => setSlotOrientation(slot.id, o)}
       />
     )
-    body = <CalendarSlotContent orientation={orientation} weekOffset={slot.weekOffset ?? 0} />
+    body = (
+      <CalendarSlotContent
+        orientation={orientation}
+        weekOffset={slot.weekOffset ?? 0}
+        onWeekOffsetChange={(n) => setSlotWeekOffset(slot.id, n)}
+      />
+    )
   } else if (slot.kind === 'notes') {
     headerTitle = 'Notes · Inbox'
     body = <NotesSlotContent />

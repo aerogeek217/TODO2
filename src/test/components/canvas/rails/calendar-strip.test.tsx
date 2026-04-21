@@ -164,6 +164,113 @@ describe('CalendarStrip', () => {
     expect(dashes.length).toBe(STRIP_DAY_COUNT)
   })
 
+  it('renders the range bar only when onWeekOffsetChange is provided', () => {
+    const today = new Date(2026, 3, 19)
+    const { rerender } = render(
+      <CalendarStrip
+        todos={[]}
+        today={today}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    expect(document.querySelector('[data-testid="calendar-range-bar"]')).toBeNull()
+    rerender(
+      <CalendarStrip
+        todos={[]}
+        today={today}
+        onWeekOffsetChange={() => {}}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    expect(document.querySelector('[data-testid="calendar-range-bar"]')).toBeTruthy()
+  })
+
+  it('range bar nav buttons call onWeekOffsetChange with the new offset', () => {
+    const today = new Date(2026, 3, 19)
+    const onChange = vi.fn()
+    render(
+      <CalendarStrip
+        todos={[]}
+        today={today}
+        weekOffset={2}
+        onWeekOffsetChange={onChange}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    fireEvent.click(screen.getByLabelText('Previous week'))
+    fireEvent.click(screen.getByLabelText('Next week'))
+    fireEvent.click(screen.getByText('Today'))
+    expect(onChange).toHaveBeenNthCalledWith(1, 1)
+    expect(onChange).toHaveBeenNthCalledWith(2, 3)
+    expect(onChange).toHaveBeenNthCalledWith(3, 0)
+  })
+
+  it('Today button appears only off-week; This wk hint appears only on-week', () => {
+    const today = new Date(2026, 3, 19)
+    const { rerender } = render(
+      <CalendarStrip
+        todos={[]}
+        today={today}
+        weekOffset={0}
+        onWeekOffsetChange={() => {}}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    expect(screen.queryByText('Today')).toBeNull()
+    expect(screen.getByText('This wk')).toBeTruthy()
+    rerender(
+      <CalendarStrip
+        todos={[]}
+        today={today}
+        weekOffset={-1}
+        onWeekOffsetChange={() => {}}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    expect(screen.getByText('Today')).toBeTruthy()
+    expect(screen.queryByText('This wk')).toBeNull()
+  })
+
+  it('range label formats same-month and cross-month ranges', () => {
+    // Sunday 2026-04-19 → Monday of week = Apr 13; weekOffset 0 = Apr 13–19.
+    const today = new Date(2026, 3, 19)
+    const { rerender } = render(
+      <CalendarStrip
+        todos={[]}
+        today={today}
+        weekOffset={0}
+        onWeekOffsetChange={() => {}}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    expect(screen.getByText('Apr 13 – 19')).toBeTruthy()
+    // weekOffset 2 from today's week: Mon Apr 27 – Sun May 3.
+    rerender(
+      <CalendarStrip
+        todos={[]}
+        today={today}
+        weekOffset={2}
+        onWeekOffsetChange={() => {}}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    expect(screen.getByText('Apr 27 – May 3')).toBeTruthy()
+  })
+
   it('invokes onOpenTodo when a task is clicked', () => {
     const today = new Date(2026, 3, 19)
     const onOpenTodo = vi.fn()

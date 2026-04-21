@@ -12,9 +12,10 @@ import { CalendarStrip } from './CalendarStrip'
 interface CalendarSlotContentProps {
   orientation?: CalendarOrientation
   weekOffset?: number
+  onWeekOffsetChange?: (n: number) => void
 }
 
-export function CalendarSlotContent({ orientation, weekOffset }: CalendarSlotContentProps) {
+export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChange }: CalendarSlotContentProps) {
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
@@ -55,6 +56,7 @@ export function CalendarSlotContent({ orientation, weekOffset }: CalendarSlotCon
       assignedOrgsMap={assignedOrgsMap}
       statuses={statuses}
       onOpenTodo={openEditPopup}
+      onWeekOffsetChange={onWeekOffsetChange}
     />
   )
 }

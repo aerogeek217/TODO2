@@ -8,6 +8,8 @@ import styles from './CalendarStrip.module.css'
 
 export const STRIP_DAY_COUNT = 7
 
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 interface CalendarStripProps {
   todos: PersistedTodoItem[]
   today: Date
@@ -18,6 +20,53 @@ interface CalendarStripProps {
   assignedOrgsMap: Map<number, Org[]>
   statuses: Status[]
   onOpenTodo?: (todoId: number) => void
+  onWeekOffsetChange?: (n: number) => void
+}
+
+function formatRange(days: Date[]): string {
+  const first = days[0]
+  const last = days[days.length - 1]
+  const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()
+  return sameMonth
+    ? `${MONTH_NAMES[first.getMonth()]} ${first.getDate()} – ${last.getDate()}`
+    : `${MONTH_NAMES[first.getMonth()]} ${first.getDate()} – ${MONTH_NAMES[last.getMonth()]} ${last.getDate()}`
+}
+
+interface RangeBarProps {
+  days: Date[]
+  weekOffset: number
+  onWeekOffsetChange: (n: number) => void
+}
+
+function RangeBar({ days, weekOffset, onWeekOffsetChange }: RangeBarProps) {
+  return (
+    <div className={styles.rangeBar} data-testid="calendar-range-bar">
+      <button
+        type="button"
+        className={styles.navBtn}
+        onClick={() => onWeekOffsetChange(weekOffset - 1)}
+        aria-label="Previous week"
+        title="Previous week"
+      >‹</button>
+      <button
+        type="button"
+        className={styles.navBtn}
+        onClick={() => onWeekOffsetChange(weekOffset + 1)}
+        aria-label="Next week"
+        title="Next week"
+      >›</button>
+      {weekOffset !== 0 && (
+        <button
+          type="button"
+          className={styles.todayBtn}
+          onClick={() => onWeekOffsetChange(0)}
+          title="Jump to this week"
+        >Today</button>
+      )}
+      <span className={styles.rangeLabel}>{formatRange(days)}</span>
+      {weekOffset === 0 && <span className={styles.rangeHint}>This wk</span>}
+    </div>
+  )
 }
 
 /** Monday of the week containing `d`, at 00:00. */
@@ -46,6 +95,7 @@ export function CalendarStrip({
   assignedOrgsMap,
   statuses,
   onOpenTodo,
+  onWeekOffsetChange,
 }: CalendarStripProps) {
   const days = useMemo(() => buildDayRange(today, weekOffset), [today, weekOffset])
   const entriesByDay = useMemo(
@@ -54,14 +104,20 @@ export function CalendarStrip({
   )
   const todayKey = dayKey(today)
 
+  const rangeBar = onWeekOffsetChange
+    ? <RangeBar days={days} weekOffset={weekOffset} onWeekOffsetChange={onWeekOffsetChange} />
+    : null
+
   if (orientation === 'horizontal') {
     return (
-      <div
-        className={styles.horizontal}
-        role="list"
-        aria-label="Week calendar (horizontal)"
-        data-orientation="horizontal"
-      >
+      <div className={styles.root}>
+        {rangeBar}
+        <div
+          className={styles.horizontal}
+          role="list"
+          aria-label="Week calendar (horizontal)"
+          data-orientation="horizontal"
+        >
         {days.map((day) => {
           const key = dayKey(day)
           const isToday = key === todayKey
@@ -101,17 +157,20 @@ export function CalendarStrip({
             </div>
           )
         })}
+        </div>
       </div>
     )
   }
 
   return (
-    <div
-      className={styles.strip}
-      role="list"
-      aria-label="Week calendar"
-      data-orientation="vertical"
-    >
+    <div className={styles.root}>
+      {rangeBar}
+      <div
+        className={styles.strip}
+        role="list"
+        aria-label="Week calendar"
+        data-orientation="vertical"
+      >
       {days.map((day) => {
         const key = dayKey(day)
         const isToday = key === todayKey
@@ -152,6 +211,7 @@ export function CalendarStrip({
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

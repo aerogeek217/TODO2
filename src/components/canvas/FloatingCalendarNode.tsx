@@ -72,6 +72,7 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
   const weekOffset = calendar.weekOffset ?? 0
 
   const updateOrientation = useFloatingCalendarStore((s) => s.updateOrientation)
+  const updateWeekOffset = useFloatingCalendarStore((s) => s.updateWeekOffset)
 
   const handleDelete = useCallback(() => {
     if (calendar.id != null) onDelete(calendar.id)
@@ -127,6 +128,7 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
           assignedOrgsMap={assignedOrgsMap as Map<number, Org[]>}
           statuses={statuses as Status[]}
           onOpenTodo={openEditPopup}
+          onWeekOffsetChange={(n) => { if (calendar.id != null) void updateWeekOffset(calendar.id, n) }}
         />
       </div>
 
