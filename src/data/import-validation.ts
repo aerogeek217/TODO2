@@ -464,6 +464,10 @@ function checkFloatingNote(v: unknown): CheckResult {
   ])
 }
 
+function isOptCalendarOrientation(v: unknown): boolean {
+  return v === undefined || v === null || v === 'vertical' || v === 'horizontal'
+}
+
 function checkFloatingCalendar(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -472,6 +476,8 @@ function checkFloatingCalendar(v: unknown): CheckResult {
     ['y', isFiniteNum(v.y)],
     ['width', isFiniteNum(v.width)],
     ['height', isFiniteNum(v.height)],
+    ['orientation', isOptCalendarOrientation(v.orientation)],
+    ['weekOffset', isOptNum(v.weekOffset)],
   ])
 }
 
@@ -565,6 +571,10 @@ function validateRailsShape(parsed: unknown): true | string {
       if (s.listDefinitionId !== undefined && !Number.isFinite(s.listDefinitionId)) return `${side}.slot.listDefinitionId`
       if (s.taskboardId !== undefined && !Number.isFinite(s.taskboardId)) return `${side}.slot.taskboardId`
       if (s.flex !== undefined && !Number.isFinite(s.flex)) return `${side}.slot.flex`
+      if (s.orientation !== undefined && s.orientation !== 'vertical' && s.orientation !== 'horizontal') {
+        return `${side}.slot.orientation`
+      }
+      if (s.weekOffset !== undefined && !Number.isFinite(s.weekOffset)) return `${side}.slot.weekOffset`
     }
   }
   for (const bag of ['widths', 'heights'] as const) {
@@ -992,6 +1002,12 @@ function pickFloatingCalendar(v: Record<string, unknown>): FloatingCalendar {
     y: v.y as number,
     width: v.width as number,
     height: v.height as number,
+    ...(v.orientation === 'vertical' || v.orientation === 'horizontal'
+      ? { orientation: v.orientation as FloatingCalendar['orientation'] }
+      : {}),
+    ...(typeof v.weekOffset === 'number' && Number.isFinite(v.weekOffset)
+      ? { weekOffset: v.weekOffset as number }
+      : {}),
   }
 }
 

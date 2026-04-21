@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import type { RailSide, RailsState, Slot, SlotKind } from '../models/canvas-rails'
-import { EMPTY_RAILS, clampRailSize, railOrientationForSide } from '../models/canvas-rails'
+import type { CalendarOrientation, RailSide, RailsState, Slot, SlotKind } from '../models/canvas-rails'
+import { EMPTY_RAILS, WEEK_OFFSET_MAX, clampRailSize, railOrientationForSide } from '../models/canvas-rails'
 import {
   applyDropToSide,
   applyEdgeDrop,
@@ -46,6 +46,10 @@ interface CanvasRailsState {
    * auto-seed.
    */
   setSlotKind: (slotId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
+  /** Calendar-slot only: set the row/column orientation. No-op for non-calendar slots. */
+  setSlotOrientation: (slotId: string, orientation: CalendarOrientation) => void
+  /** Calendar-slot only: set the week offset (clamped to ±WEEK_OFFSET_MAX). */
+  setSlotWeekOffset: (slotId: string, weekOffset: number) => void
   dropSlotToSide: (slotId: string, toSide: RailSide) => void
   edgeDropSlot: (slotId: string, toSide: RailSide, edge: 'head' | 'tail') => void
   splitDropSlot: (slotId: string, targetSlotId: string, zone: SplitZone) => void
@@ -70,7 +74,17 @@ interface CanvasRailsState {
 
 const DOCK_PRIORITY: RailSide[] = ['right', 'left', 'top', 'bottom']
 
-export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
+function findSlot(rails: RailsState, slotId: string): Slot | null {
+  for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+    const rail = rails[side]
+    if (!rail) continue
+    const slot = rail.slots.find((s) => s.id === slotId)
+    if (slot) return slot
+  }
+  return null
+}
+
+export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
   rails: EMPTY_RAILS,
   hydrated: false,
   pendingFocusSlotId: null,
@@ -115,6 +129,24 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
     }
     return touched ? { rails: next } : state
   }),
+
+  setSlotOrientation: (slotId, orientation) => {
+    const s = get()
+    const slot = findSlot(s.rails, slotId)
+    if (!slot || slot.kind !== 'calendar') return
+    if (slot.orientation === orientation) return
+    s.updateSlot(slotId, { orientation })
+  },
+
+  setSlotWeekOffset: (slotId, weekOffset) => {
+    const s = get()
+    const slot = findSlot(s.rails, slotId)
+    if (!slot || slot.kind !== 'calendar') return
+    if (!Number.isFinite(weekOffset)) return
+    const clamped = Math.max(-WEEK_OFFSET_MAX, Math.min(WEEK_OFFSET_MAX, Math.trunc(weekOffset)))
+    if (slot.weekOffset === clamped) return
+    s.updateSlot(slotId, { weekOffset: clamped })
+  },
 
   updateSlot: (slotId, patch) => set((state) => {
     let touched = false

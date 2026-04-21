@@ -184,6 +184,12 @@ export class Todo2Database extends Dexie {
     this.version(31).stores({}).upgrade(async (tx) => {
       await runV31Migration(tx)
     })
+
+    // v32: add optional `orientation` + `weekOffset` to calendar widgets
+    // (rail `Slot` rows stored inside `settings.canvasRails`, plus
+    // `floatingCalendars` rows). Both fields are stored inline and default to
+    // 'vertical' / 0 at read time; existing rows need no rewriting.
+    this.version(32).stores({})
   }
 }
 

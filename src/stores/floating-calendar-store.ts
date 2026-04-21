@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { FloatingCalendar } from '../models'
+import type { CalendarOrientation } from '../models/canvas-rails'
+import { WEEK_OFFSET_MAX } from '../models/canvas-rails'
 import { floatingCalendarRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { mutate, optimistic, updateItemInList } from './store-helpers'
@@ -16,6 +18,8 @@ interface FloatingCalendarState {
   add: (canvasId: number, x: number, y: number) => Promise<number>
   updatePosition: (id: number, x: number, y: number) => Promise<void>
   updateSize: (id: number, width: number, height: number) => Promise<void>
+  updateOrientation: (id: number, orientation: CalendarOrientation) => Promise<void>
+  updateWeekOffset: (id: number, weekOffset: number) => Promise<void>
   remove: (id: number) => Promise<void>
 }
 
@@ -73,6 +77,34 @@ export const useFloatingCalendarStore = create<FloatingCalendarState>((set, get)
       () => floatingCalendarRepository.update({ ...prev, width, height }),
       () => set({ calendars: updateItemInList(get().calendars, id, { width: prev.width, height: prev.height }) }),
       'Failed to update floating calendar size',
+    )
+  },
+
+  async updateOrientation(id, orientation) {
+    const prev = get().calendars.find((c) => c.id === id)
+    if (!prev) return
+    if (prev.orientation === orientation) return
+    return optimistic(
+      set,
+      () => set({ calendars: updateItemInList(get().calendars, id, { orientation }) }),
+      () => floatingCalendarRepository.update({ ...prev, orientation }),
+      () => set({ calendars: updateItemInList(get().calendars, id, { orientation: prev.orientation }) }),
+      'Failed to update floating calendar orientation',
+    )
+  },
+
+  async updateWeekOffset(id, weekOffset) {
+    const prev = get().calendars.find((c) => c.id === id)
+    if (!prev) return
+    if (!Number.isFinite(weekOffset)) return
+    const clamped = Math.max(-WEEK_OFFSET_MAX, Math.min(WEEK_OFFSET_MAX, Math.trunc(weekOffset)))
+    if (prev.weekOffset === clamped) return
+    return optimistic(
+      set,
+      () => set({ calendars: updateItemInList(get().calendars, id, { weekOffset: clamped }) }),
+      () => floatingCalendarRepository.update({ ...prev, weekOffset: clamped }),
+      () => set({ calendars: updateItemInList(get().calendars, id, { weekOffset: prev.weekOffset }) }),
+      'Failed to update floating calendar week offset',
     )
   },
 

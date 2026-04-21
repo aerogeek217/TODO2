@@ -1,6 +1,10 @@
 export type RailSide = 'left' | 'right' | 'top' | 'bottom'
 export type RailOrientation = 'vertical' | 'horizontal'
 export type SlotKind = 'lens' | 'notes' | 'calendar' | 'taskboard'
+export type CalendarOrientation = 'vertical' | 'horizontal'
+
+/** Max absolute week offset a calendar widget can persist; clamps runaway state. */
+export const WEEK_OFFSET_MAX = 104
 
 export interface Slot {
   id: string
@@ -14,6 +18,10 @@ export interface Slot {
    * non-adjacent slots keep their measured size.
    */
   flex?: number
+  /** Calendar-slot only: row/column orientation. Undefined = default 'vertical'. */
+  orientation?: CalendarOrientation
+  /** Calendar-slot only: week offset from today's week (0 = this week). Clamped to ±WEEK_OFFSET_MAX on parse. */
+  weekOffset?: number
 }
 
 export const SLOT_MIN_PX = 80
@@ -89,6 +97,13 @@ function parseSlot(raw: unknown): Slot | null {
   }
   if (typeof r.flex === 'number' && Number.isFinite(r.flex) && r.flex > 0) {
     slot.flex = r.flex
+  }
+  if (r.orientation === 'vertical' || r.orientation === 'horizontal') {
+    slot.orientation = r.orientation
+  }
+  if (typeof r.weekOffset === 'number' && Number.isFinite(r.weekOffset)) {
+    const n = Math.trunc(r.weekOffset)
+    slot.weekOffset = Math.max(-WEEK_OFFSET_MAX, Math.min(WEEK_OFFSET_MAX, n))
   }
   return slot
 }
