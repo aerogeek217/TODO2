@@ -82,6 +82,8 @@ export function resolveRelativeToken(
   const endOfMonth = () => new Date(base.getFullYear(), base.getMonth() + 1, 0)
 
   switch (token) {
+    case 'yesterday':
+      return addDays(base, -1)
     case 'today':
       return base
     case 'tomorrow':

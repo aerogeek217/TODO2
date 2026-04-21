@@ -10,6 +10,7 @@ export type PersonFilterMode = 'include-orgs' | 'direct-only'
  * without rewriting the stored predicate.
  */
 export type RelativeDateToken =
+  | 'yesterday'
   | 'today'
   | 'tomorrow'
   | 'start-of-week'
@@ -23,6 +24,7 @@ export type RelativeDateToken =
   | 'end-of-month-plus-3'
 
 export const RELATIVE_DATE_TOKENS: readonly RelativeDateToken[] = [
+  'yesterday',
   'today',
   'tomorrow',
   'start-of-week',

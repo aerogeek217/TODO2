@@ -4,6 +4,7 @@ import { RELATIVE_DATE_TOKENS } from '../../models'
 import styles from './DateAnchorInput.module.css'
 
 const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
+  'yesterday': 'Yesterday',
   'today': 'Today',
   'tomorrow': 'Tomorrow',
   'start-of-week': 'Start of week',
@@ -16,6 +17,8 @@ const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
   'end-of-next-month': 'End of next month',
   'end-of-month-plus-3': 'End of (month + 3)',
 }
+
+const NONE_SENTINEL = '__none__'
 
 export interface DateAnchorInputProps {
   value: DateAnchor | null
@@ -32,7 +35,9 @@ export interface DateAnchorInputProps {
  */
 export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnchorInputProps) {
   const dateStr = value && value.kind === 'fixed' ? value.iso.slice(0, 10) : ''
-  const tokenStr = value && value.kind === 'relative' ? value.token : ''
+  const tokenStr = value === null
+    ? NONE_SENTINEL
+    : value.kind === 'relative' ? value.token : ''
 
   const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value
@@ -45,12 +50,12 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
 
   const handleTokenChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value
-    if (!v) {
-      if (value && value.kind === 'relative') onChange(null)
+    if (v === NONE_SENTINEL || !v) {
+      onChange(null)
       return
     }
     onChange({ kind: 'relative', token: v as RelativeDateToken })
-  }, [onChange, value])
+  }, [onChange])
 
   return (
     <div className={`${styles.wrapper} ${className ?? ''}`}>
@@ -68,7 +73,8 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
         aria-label={aria['aria-label'] ? `${aria['aria-label']} (relative)` : 'Relative date'}
         title="Relative date"
       >
-        <option value="">Custom…</option>
+        {value && value.kind === 'fixed' && <option value="">Custom…</option>}
+        <option value={NONE_SENTINEL}>None</option>
         {RELATIVE_DATE_TOKENS.map(t => (
           <option key={t} value={t}>{RELATIVE_TOKEN_LABELS[t]}</option>
         ))}

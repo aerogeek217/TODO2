@@ -399,7 +399,8 @@ describe('resolveRelativeToken', () => {
 
   const wed = d('2026-04-15') // Wednesday
 
-  it('today and tomorrow', () => {
+  it('yesterday, today and tomorrow', () => {
+    expect(resolveRelativeToken('yesterday', wed).getDate()).toBe(14)
     expect(resolveRelativeToken('today', wed).getDate()).toBe(15)
     expect(resolveRelativeToken('tomorrow', wed).getDate()).toBe(16)
   })
