@@ -129,7 +129,7 @@ describe('TabStrip', () => {
     expect(onAdd).toHaveBeenCalledWith('calendar')
   })
 
-  it('shows a ⋯ button on the active pill when pop-out or change-type is wired', () => {
+  it('shows a caret button on the active pill when onOpenChangeType is wired', () => {
     render(
       <TabStrip
         slot={makeSlot()}
@@ -137,16 +137,14 @@ describe('TabStrip', () => {
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={() => {}}
-        onPopOut={() => {}}
         onOpenChangeType={() => {}}
       />,
     )
-    // Active pill's tab options button exists.
-    const moreBtns = screen.queryAllByLabelText(/tab options$/i)
-    expect(moreBtns.length).toBe(1)
+    const caretBtns = screen.queryAllByLabelText(/tab options$/i)
+    expect(caretBtns.length).toBe(1)
   })
 
-  it('does not render the ⋯ button on inactive pills', () => {
+  it('does not render the caret on inactive pills', () => {
     render(
       <TabStrip
         slot={makeSlot()}
@@ -154,38 +152,15 @@ describe('TabStrip', () => {
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={() => {}}
-        onPopOut={() => {}}
         onOpenChangeType={() => {}}
       />,
     )
-    // Only one more button total; it belongs to the active (first) pill.
-    const moreBtns = screen.getAllByLabelText(/tab options$/i)
-    expect(moreBtns.length).toBe(1)
-    // The second pill's Notes close button exists but no Notes tab options.
+    const caretBtns = screen.getAllByLabelText(/tab options$/i)
+    expect(caretBtns.length).toBe(1)
     expect(screen.queryByLabelText(/Notes tab options/i)).toBeNull()
   })
 
-  it('pill ⋯ menu fires onPopOut when "Pop out to canvas" is clicked', () => {
-    const onPopOut = vi.fn()
-    render(
-      <TabStrip
-        slot={makeSlot()}
-        fromSide="right"
-        onActivateTab={() => {}}
-        onCloseTab={() => {}}
-        onAddTab={() => {}}
-        onPopOut={onPopOut}
-        onOpenChangeType={() => {}}
-      />,
-    )
-    fireEvent.click(screen.getByLabelText(/tab options$/i))
-    const menu = screen.getByRole('menu', { name: 'Tab options' })
-    expect(menu).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('menuitem', { name: /pop out to canvas/i }))
-    expect(onPopOut).toHaveBeenCalled()
-  })
-
-  it('pill ⋯ menu fires onOpenChangeType with the anchor when "Change type…" is clicked', () => {
+  it('active-pill caret fires onOpenChangeType with its anchor', () => {
     const onOpenChangeType = vi.fn()
     render(
       <TabStrip
@@ -194,12 +169,10 @@ describe('TabStrip', () => {
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={() => {}}
-        onPopOut={() => {}}
         onOpenChangeType={onOpenChangeType}
       />,
     )
     fireEvent.click(screen.getByLabelText(/tab options$/i))
-    fireEvent.click(screen.getByRole('menuitem', { name: /change type/i }))
     expect(onOpenChangeType).toHaveBeenCalledTimes(1)
     const anchor = onOpenChangeType.mock.calls[0][0]
     expect(typeof anchor.x).toBe('number')
@@ -320,7 +293,7 @@ describe('TabStrip', () => {
     expect(inactiveBtn.tabIndex).toBe(-1)
   })
 
-  it('pill ⋯ menu omits items whose callback is not provided', () => {
+  it('caret is only rendered when onOpenChangeType is provided', () => {
     render(
       <TabStrip
         slot={makeSlot()}
@@ -328,12 +301,8 @@ describe('TabStrip', () => {
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={() => {}}
-        onOpenChangeType={() => {}}
       />,
     )
-    fireEvent.click(screen.getByLabelText(/tab options$/i))
-    // Only "Change type…" is present since onPopOut was omitted.
-    expect(screen.queryByRole('menuitem', { name: /pop out/i })).toBeNull()
-    expect(screen.getByRole('menuitem', { name: /change type/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/tab options$/i)).toBeNull()
   })
 })

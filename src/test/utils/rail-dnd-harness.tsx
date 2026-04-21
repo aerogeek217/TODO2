@@ -247,7 +247,16 @@ function makeDefaultResolver(layout: Required<RailsLayout>): RectResolver {
 
 function rectForZone(zone: RailsDropZone, layout: Required<RailsLayout>): TestRect | null {
   if (zone.kind === 'empty-side') return layout[zone.side]
-  return rectForSlot(zone.slotId, layout)
+  const slotRect = rectForSlot(zone.slotId, layout)
+  if (!slotRect) return null
+  // Tab strip is a narrow band at the top of the slot — roughly 32 px in prod.
+  // Return a proportional strip so split-quadrant drops (upper/lower/center of
+  // the slot body) don't collide with the tab-strip droppable in jsdom.
+  if (zone.kind === 'tab-strip') {
+    const stripHeight = Math.min(32, slotRect.height * 0.15)
+    return { left: slotRect.left, top: slotRect.top, width: slotRect.width, height: stripHeight }
+  }
+  return slotRect
 }
 
 function rectForSlot(slotId: string, layout: Required<RailsLayout>): TestRect | null {

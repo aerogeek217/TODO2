@@ -1,36 +1,10 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { SlotMenu } from '../../../../components/canvas/rails/SlotMenu'
-import { SlotHeader } from '../../../../components/canvas/rails/SlotHeader'
 import { DockOverlay } from '../../../../components/canvas/rails/DockOverlay'
 import { DndContext } from '@dnd-kit/core'
 
 afterEach(cleanup)
-
-describe('SlotHeader a11y', () => {
-  it('labels the menu trigger and close button with the slot kind', () => {
-    render(
-      <SlotHeader
-        slotKind="lens"
-        title="My lens"
-        onMore={() => {}}
-        onClose={() => {}}
-      />,
-    )
-    expect(screen.getByLabelText('list options')).toBeInTheDocument()
-    expect(screen.getByLabelText('Close list')).toBeInTheDocument()
-    expect(screen.getByLabelText('Reorder slot: list')).toBeInTheDocument()
-  })
-
-  it('reflects menu open state on aria-expanded', () => {
-    const { rerender } = render(
-      <SlotHeader slotKind="notes" title="Notes" onMore={() => {}} menuOpen={false} />,
-    )
-    expect(screen.getByLabelText('notes options')).toHaveAttribute('aria-expanded', 'false')
-    rerender(<SlotHeader slotKind="notes" title="Notes" onMore={() => {}} menuOpen={true} />)
-    expect(screen.getByLabelText('notes options')).toHaveAttribute('aria-expanded', 'true')
-  })
-})
 
 describe('SlotMenu keyboard nav', () => {
   it('focuses the first enabled item on open', () => {

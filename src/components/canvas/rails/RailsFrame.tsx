@@ -14,7 +14,6 @@ import { getActiveTab, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotDivider } from './SlotDivider'
-import { SlotHeader } from './SlotHeader'
 import { TabStrip } from './TabStrip'
 import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
@@ -155,7 +154,6 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const pendingFocusSlotId = useCanvasRailsStore((s) => s.pendingFocusSlotId)
   const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
   const rails = useCanvasRailsStore((s) => s.rails)
-  const [title, setTitle] = useState<string>('')
   const [count, setCount] = useState<number>(0)
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [taskboardPickerPos, setTaskboardPickerPos] = useState<{ x: number; y: number } | null>(null)
@@ -204,8 +202,6 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     ? () => { void popTabToCanvas(slot, activeTab.id).then((moved) => { if (moved) closeTab(slot.id, activeTab.id) }) }
     : undefined
 
-  const handleTitleClick = (anchor: { x: number; y: number }) => setKindMenuAnchor(anchor)
-
   const handleOpenSecondary = () => {
     if (!kindMenuAnchor) return
     const anchor = kindMenuAnchor
@@ -225,23 +221,17 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     setSlotKind(slot.id, nextKind)
   }
 
-  let headerTitle: ReactNode
   let body: ReactNode
   let headerMeta: ReactNode = undefined
   if (activeTab.type === 'lens') {
-    headerTitle = title || 'List'
     body = (
       <LensSlotContent
         listDefinitionId={activeTab.listDefinitionId}
-        onTitleChange={(t, c) => {
-          setTitle(t)
-          setCount(c)
-        }}
+        onTitleChange={(_t, c) => setCount(c)}
       />
     )
   } else if (activeTab.type === 'calendar') {
     const orientation = slot.orientation ?? 'vertical'
-    headerTitle = 'Calendar'
     headerMeta = (
       <CalendarOrientationToggle
         orientation={orientation}
@@ -256,13 +246,10 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       />
     )
   } else if (activeTab.type === 'notes') {
-    headerTitle = 'Notes · Inbox'
     body = <NotesSlotContent />
   } else if (activeTab.type === 'taskboard') {
-    headerTitle = 'Taskboard'
     body = <TaskboardSlotContent taskboardId={activeTab.taskboardId} />
   } else {
-    headerTitle = activeTab.type
     body = (
       <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-meta)' }}>
         Coming soon
@@ -280,8 +267,11 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     addTab(slot.id, kind)
   }
 
-  const multiTab = slot.tabs.length >= 2
-  const header = multiTab ? (
+  const lensCountBadge = activeTab.type === 'lens' && count > 0 ? (
+    <span aria-label={`${count} items`}>{count}</span>
+  ) : null
+  const metaContent = headerMeta ?? lensCountBadge
+  const header = (
     <TabStrip
       slot={slot}
       fromSide={fromSide}
@@ -289,25 +279,12 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       onCloseTab={(tabId) => closeTab(slot.id, tabId)}
       onAddTab={(kind) => { void handleAddTab(kind) }}
       onMore={(anchor) => setMenuAnchor(anchor)}
-      onPopOut={handlePopOut}
       onClose={closeThisSlot}
       onOpenChangeType={(anchor) => setKindMenuAnchor(anchor)}
+      meta={metaContent}
       menuOpen={menuOpen}
+      changeTypeMenuOpen={kindMenuOpen}
       moreButtonRef={moreButtonRef}
-    />
-  ) : (
-    <SlotHeader
-      slotKind={activeTab.type}
-      title={headerTitle}
-      meta={headerMeta ?? (activeTab.type === 'lens' && count > 0 ? count : undefined)}
-      onMore={(anchor) => setMenuAnchor(anchor)}
-      onPopOut={handlePopOut}
-      menuOpen={menuOpen}
-      moreButtonRef={moreButtonRef}
-      onClose={closeThisSlot}
-      onTitleClick={handleTitleClick}
-      titleMenuOpen={kindMenuOpen}
-      onAddTab={(kind) => { void handleAddTab(kind) }}
     />
   )
 
@@ -318,8 +295,8 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         fromSide={fromSide}
         header={header}
         flex={slot.flex}
-        bodyRole={multiTab ? 'tabpanel' : undefined}
-        bodyLabelledBy={multiTab ? slot.activeTabId : undefined}
+        bodyRole="tabpanel"
+        bodyLabelledBy={slot.activeTabId}
       >
         {body}
       </DraggableSlot>
@@ -349,6 +326,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           currentKind={activeTab.type}
           onChangeKind={(kind) => { void handleChangeKind(kind) }}
           onOpenSecondary={handleOpenSecondary}
+          onPopOut={handlePopOut}
           onClose={() => setKindMenuAnchor(null)}
         />
       )}
@@ -482,7 +460,6 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
         if (zone.kind === 'empty-side') {
           detachTabToNewSlot(data.slotId, data.tabId, { kind: 'empty-side', side: zone.side })
         } else if (zone.kind === 'slot') {
-          if (zone.slotId === data.slotId) return // dropped onto own body — ignore
           const pointer = pointerRef.current
           const rect = over.rect
           if (!pointer || !rect) return
@@ -501,6 +478,21 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
             width: rect.width,
             height: rect.height,
           }, orientation)
+          // Same-slot drop: only a split-edge quadrant splits the tab off into
+          // a new adjacent slot. A center drop on own body is a no-op (would
+          // otherwise try to merge the tab back into itself).
+          if (zone.slotId === data.slotId) {
+            if (splitZone === 'center') return
+            // Single-tab source → detaching would remove the source before
+            // placing relative to it; skip rather than losing the tab.
+            const srcLoc = (['left', 'right', 'top', 'bottom'] as RailSide[])
+              .map((s) => rails[s]?.slots.find((sl) => sl.id === data.slotId))
+              .find(Boolean)
+            if (!srcLoc || srcLoc.tabs.length <= 1) return
+            const target: TabDropTarget = { kind: 'slot', slotId: zone.slotId, zone: splitZone }
+            detachTabToNewSlot(data.slotId, data.tabId, target)
+            return
+          }
           // Center on another slot → merge as tab into that slot's strip (resolved decision).
           if (splitZone === 'center') {
             const dest = rails[(['left', 'right', 'top', 'bottom'] as RailSide[]).find((side) => rails[side]?.slots.some((s) => s.id === zone.slotId)) ?? 'right']
