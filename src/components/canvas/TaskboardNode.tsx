@@ -19,6 +19,7 @@ import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { TaskboardPickerPopup } from '../overlays/TaskboardPickerPopup'
 import { convertFloatingKind } from '../../services/float-kind-switch'
+import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
@@ -60,7 +61,7 @@ function SortableTaskboardEntry({
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} data-tbp-entry className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} taskboardId={taskboardId} />
@@ -209,8 +210,26 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   )
   useDndMonitor(dndListeners)
 
+  // Native HTML5 drop path for non-dnd-kit sources (e.g. calendar events).
+  const {
+    externalInsertIndex,
+    isExternalDragOver: isNativeDragOver,
+    onDragOver: onExternalDragOver,
+    onDragLeave: onExternalDragLeave,
+    onDrop: onExternalDrop,
+  } = useExternalTaskboardDrop(taskboardId, droppableId)
+  const effectiveInsertIndex = tbInsertIndex ?? externalInsertIndex
+
   return (
-    <div ref={setDropRef} className={`${styles.node} ${isOver || isExternalDragOver ? styles.dropTarget : ''}`} style={{ width }}>
+    <div
+      ref={setDropRef}
+      data-taskboard-panel-id={droppableId}
+      className={`${styles.node} ${isOver || isExternalDragOver || isNativeDragOver ? styles.dropTarget : ''}`}
+      style={{ width }}
+      onDragOver={onExternalDragOver}
+      onDragLeave={onExternalDragLeave}
+      onDrop={onExternalDrop}
+    >
       <WidgetHeader
         kind="taskboard"
         title="Taskboard"
@@ -240,7 +259,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
               if (!todo) return null
               return (
                 <Fragment key={entry.todoId}>
-                  {tbInsertIndex === i && <div className={styles.dropPreview} />}
+                  {effectiveInsertIndex === i && <div className={styles.dropPreview} />}
                   <SortableTaskboardEntry
                     entryId={`tb-${floatingId}-${entry.todoId}`}
                     index={i}
@@ -254,7 +273,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                 </Fragment>
               )
             })}
-            {tbInsertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
+            {effectiveInsertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
           </SortableContext>
         )}
       </div>

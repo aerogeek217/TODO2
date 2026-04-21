@@ -28,6 +28,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import type { PersistedTodoItem, TaskboardEntry } from '../../models'
 import { computeTaskboardInsertIndex } from '../../utils/taskboard-insert'
+import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
 import styles from './TaskboardPanel.module.css'
 
 interface SortableEntryProps {
@@ -114,6 +115,17 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
   const onDragClear = useCallback(() => { setInsertIndex(null) }, [])
   useDndMonitor({ onDragMove, onDragEnd: onDragClear, onDragCancel: onDragClear })
 
+  // Native HTML5 drop path for non-dnd-kit sources (e.g. calendar events).
+  const {
+    externalInsertIndex,
+    isExternalDragOver,
+    onDragOver: onExternalDragOver,
+    onDragLeave: onExternalDragLeave,
+    onDrop: onExternalDrop,
+  } = useExternalTaskboardDrop(resolvedId ?? null, droppableId)
+  const effectiveInsertIndex = insertIndex ?? externalInsertIndex
+  const isAnyDragOver = isOver || isExternalDragOver
+
   const todoMap = useMemo(() => {
     const map = new Map<number, PersistedTodoItem>()
     for (const t of todos) map.set(t.id, t)
@@ -168,7 +180,10 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
     <div
       ref={setDropRef}
       data-taskboard-panel-id={droppableId}
-      className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${isOver ? styles.dropTarget : ''}`}
+      className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${isAnyDragOver ? styles.dropTarget : ''}`}
+      onDragOver={onExternalDragOver}
+      onDragLeave={onExternalDragLeave}
+      onDrop={onExternalDrop}
     >
       {!hideHeader && (
         <div
@@ -183,7 +198,7 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
       <div ref={listRef} className={styles.list}>
         {visibleEntries.length === 0 ? (
           <>
-            {isOver && insertIndex !== null && <div className={styles.dropPreview} />}
+            {isAnyDragOver && effectiveInsertIndex !== null && <div className={styles.dropPreview} />}
             <div className={styles.empty}>
               No tasks queued
               <span className={styles.dropHint}>Drag a task here or right-click to add</span>
@@ -197,7 +212,7 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
                 if (!todo || resolvedId == null) return null
                 return (
                   <Fragment key={entry.todoId}>
-                    {insertIndex === i && <div className={styles.dropPreview} />}
+                    {effectiveInsertIndex === i && <div className={styles.dropPreview} />}
                     <SortableEntry
                       entryId={`tbp-${entry.todoId}`}
                       index={i}
@@ -209,7 +224,7 @@ export function TaskboardPanel({ taskboardId, dragHandleIcon, dragHandleProps, h
                   </Fragment>
                 )
               })}
-              {insertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
+              {effectiveInsertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
             </SortableContext>
           </DndContext>
         )}
