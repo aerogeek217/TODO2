@@ -87,6 +87,8 @@ interface TaskRowProps {
   assignedPeople?: Person[]
   indentLevel?: number
   hasChildren?: boolean
+  /** True when this is the last sibling under its parent — draws an L-connector instead of T. */
+  isLastChild?: boolean
   isSelected?: boolean
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
@@ -105,7 +107,7 @@ interface TaskRowProps {
 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, indentLevel = 0,
-  hasChildren, isSelected, ghost,
+  hasChildren, isLastChild, isSelected, ghost,
   onSelect, onOpenDetail, cut, extraLabel, showContext, taskboardId,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
@@ -229,6 +231,13 @@ export const TaskRow = memo(function TaskRow({
         }
       }}
     >
+      {indentLevel > 0 && (
+        <span
+          className={`${styles.treeConnector} ${isLastChild ? styles.treeConnectorLast : ''}`}
+          aria-hidden="true"
+        />
+      )}
+
       <span className={styles.dragHandle} aria-hidden="true">
         <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
           <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />

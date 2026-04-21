@@ -69,15 +69,22 @@ export function TaskList({
   const hierarchy = useMemo(() => buildHierarchy(todos, rootComparator), [todos, rootComparator])
 
   // Flatten hierarchy into a visible list so each row is a direct sibling (for CSS selection rectangle)
-  const flatItems: { todo: PersistedTodoItem; assignedPeople?: Person[]; indentLevel: number; hasChildren: boolean; isExpanded: boolean }[] = []
+  const flatItems: { todo: PersistedTodoItem; assignedPeople?: Person[]; indentLevel: number; hasChildren: boolean; isLastChild: boolean; isExpanded: boolean }[] = []
   for (const { parent, children } of hierarchy) {
     const hasChildren = children.length > 0
     const isExpanded = !collapsedParents.has(parent.id)
-    flatItems.push({ todo: parent, assignedPeople: assignedPeopleMap?.get(parent.id), indentLevel: 0, hasChildren, isExpanded })
+    flatItems.push({ todo: parent, assignedPeople: assignedPeopleMap?.get(parent.id), indentLevel: 0, hasChildren, isLastChild: false, isExpanded })
     if (hasChildren && isExpanded) {
-      for (const child of children) {
-        flatItems.push({ todo: child, assignedPeople: assignedPeopleMap?.get(child.id), indentLevel: 1, hasChildren: false, isExpanded: false })
-      }
+      children.forEach((child, i) => {
+        flatItems.push({
+          todo: child,
+          assignedPeople: assignedPeopleMap?.get(child.id),
+          indentLevel: 1,
+          hasChildren: false,
+          isLastChild: i === children.length - 1,
+          isExpanded: false,
+        })
+      })
     }
   }
 
@@ -116,6 +123,7 @@ export function TaskList({
             assignedPeople={item.assignedPeople}
             indentLevel={item.indentLevel}
             hasChildren={item.hasChildren}
+            isLastChild={item.isLastChild}
             isSelected={isSel}
             ghost={ghostIds?.has(item.todo.id)}
             cut={clipboardSet.has(item.todo.id)}

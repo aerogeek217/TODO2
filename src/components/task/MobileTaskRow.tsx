@@ -17,6 +17,8 @@ interface MobileTaskRowProps {
   assignedPeople?: Person[]
   indentLevel?: number
   hasChildren?: boolean
+  /** True when this is the last sibling under its parent — draws an L-connector instead of T. */
+  isLastChild?: boolean
   isSelected?: boolean
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
@@ -26,7 +28,7 @@ interface MobileTaskRowProps {
 
 export const MobileTaskRow = memo(function MobileTaskRow({
   todo, assignedPeople, indentLevel = 0,
-  hasChildren, isSelected, ghost,
+  hasChildren, isLastChild, isSelected, ghost,
   onSelect, onOpenDetail, cut,
 }: MobileTaskRowProps) {
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
@@ -79,6 +81,13 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowTap(e as unknown as React.MouseEvent) } }}
     >
+      {indentLevel > 0 && (
+        <span
+          className={`${styles.treeConnector} ${isLastChild ? styles.treeConnectorLast : ''}`}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Line 1 */}
       <div className={styles.primaryRow}>
         <input

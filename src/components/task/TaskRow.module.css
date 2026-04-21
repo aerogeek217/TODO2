@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: 1px var(--space-4);
+  padding: 1px var(--space-4) 1px 4px;
   border-radius: var(--radius-chip);
   transition: background 0.1s, opacity 0.3s ease;
   position: relative;
@@ -79,6 +79,59 @@
   flex-shrink: 0;
   position: relative;
   transition: border-color 0.15s, background 0.15s;
+}
+
+/*
+ * Treeview connector drawn on each child row: a vertical stem down the
+ * parent's checkbox column plus a short horizontal branch pointing at the
+ * child's own checkbox. Parents intentionally don't render a stem — the
+ * connector attaches visually to the parent row via its top edge.
+ *
+ * --tree-line-x: x-offset of the parent's checkbox center from the row's left
+ * edge (padding 4px + dragHandle 8px + gap 10px + half-checkbox 9px). Keep
+ * in sync with .row padding + .dragHandle width if those change.
+ */
+.row {
+  --tree-line-x: 31px;
+  --tree-line-color: var(--color-border);
+  --tree-line-width: 1.5px;
+}
+
+.treeConnector {
+  position: absolute;
+  left: var(--tree-line-x);
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  pointer-events: none;
+}
+
+.treeConnector::before {
+  /* Vertical line: top → bottom through the row; clipped at the center for last child. */
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--tree-line-width);
+  background: var(--tree-line-color);
+}
+
+.treeConnectorLast::before {
+  bottom: 50%;
+}
+
+.treeConnector::after {
+  /* Horizontal branch reaching toward the child's checkbox column
+   * (from the parent stem at `--tree-line-x` to the child checkbox left edge). */
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 18px;
+  height: var(--tree-line-width);
+  background: var(--tree-line-color);
+  transform: translateY(calc(var(--tree-line-width) / -2));
 }
 
 .checkbox:hover {

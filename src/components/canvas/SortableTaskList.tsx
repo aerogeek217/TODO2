@@ -28,6 +28,7 @@ function SortableTaskRow({
   assignedPeople,
   indentLevel,
   hasChildren,
+  isLastChild,
   isSelected,
   ghost,
   cut,
@@ -39,6 +40,7 @@ function SortableTaskRow({
   assignedPeople?: Person[]
   indentLevel?: number
   hasChildren?: boolean
+  isLastChild?: boolean
   isSelected?: boolean
   ghost?: boolean
   cut?: boolean
@@ -72,6 +74,7 @@ function SortableTaskRow({
         assignedPeople={assignedPeople}
         indentLevel={indentLevel}
         hasChildren={hasChildren}
+        isLastChild={isLastChild}
         isSelected={isSelected}
         ghost={ghost}
         cut={cut}
@@ -122,15 +125,21 @@ export function SortableTaskList({
 
   // Build flat visible list for sortable context
   const visibleItems = useMemo(() => {
-    const items: { todo: PersistedTodoItem; indentLevel: number; hasChildren: boolean; isExpanded: boolean }[] = []
+    const items: { todo: PersistedTodoItem; indentLevel: number; hasChildren: boolean; isLastChild: boolean; isExpanded: boolean }[] = []
     for (const { parent, children } of hierarchy) {
       const hasChildren = children.length > 0
       const isExpanded = !collapsedParents.has(parent.id)
-      items.push({ todo: parent, indentLevel: 0, hasChildren, isExpanded })
+      items.push({ todo: parent, indentLevel: 0, hasChildren, isLastChild: false, isExpanded })
       if (hasChildren && isExpanded) {
-        for (const child of children) {
-          items.push({ todo: child, indentLevel: 1, hasChildren: false, isExpanded: false })
-        }
+        children.forEach((child, i) => {
+          items.push({
+            todo: child,
+            indentLevel: 1,
+            hasChildren: false,
+            isLastChild: i === children.length - 1,
+            isExpanded: false,
+          })
+        })
       }
     }
     return items
@@ -379,6 +388,7 @@ export function SortableTaskList({
             assignedPeople={assignedPeopleMap?.get(item.todo.id)}
             indentLevel={item.indentLevel}
             hasChildren={item.hasChildren}
+            isLastChild={item.isLastChild}
             isSelected={isSel}
             ghost={ghostTodoIds?.has(item.todo.id)}
             cut={clipboardSet.has(item.todo.id)}
