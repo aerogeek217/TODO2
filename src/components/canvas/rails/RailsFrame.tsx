@@ -307,6 +307,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       onClose={closeThisSlot}
       onTitleClick={handleTitleClick}
       titleMenuOpen={kindMenuOpen}
+      onAddTab={(kind) => { void handleAddTab(kind) }}
     />
   )
 

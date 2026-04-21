@@ -14,6 +14,7 @@ interface SlotHeaderProps {
   moreButtonRef?: React.Ref<HTMLButtonElement>
   onTitleClick?: (anchor: { x: number; y: number }) => void
   titleMenuOpen?: boolean
+  onAddTab?: (kind: SlotKind) => void
 }
 
 export function SlotHeader({
@@ -28,6 +29,7 @@ export function SlotHeader({
   moreButtonRef,
   onTitleClick,
   titleMenuOpen,
+  onAddTab,
 }: SlotHeaderProps) {
   return (
     <WidgetHeader
@@ -42,6 +44,7 @@ export function SlotHeader({
       dragHandleProps={dragHandleProps ?? {}}
       onTitleClick={onTitleClick}
       titleMenuOpen={titleMenuOpen}
+      onAddTab={onAddTab}
     />
   )
 }

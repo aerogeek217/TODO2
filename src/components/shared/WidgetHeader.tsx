@@ -1,7 +1,8 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import type { SlotKind } from '../../models/canvas-rails'
 import { KIND_ICON, KIND_LABEL } from '../../utils/slot-kind'
+import { WidgetKindMenu } from './WidgetKindMenu'
 import styles from './WidgetHeader.module.css'
 
 export interface WidgetHeaderProps {
@@ -25,6 +26,12 @@ export interface WidgetHeaderProps {
    */
   onTitleClick?: (anchor: { x: number; y: number }) => void
   titleMenuOpen?: boolean
+  /**
+   * When provided, renders a + button in the chrome row that opens a kind
+   * picker and calls this with the chosen kind. Used by single-tab rail slot
+   * headers so users can start a tab group without going through the ⋯ menu.
+   */
+  onAddTab?: (kind: SlotKind) => void
 }
 
 export function WidgetHeader({
@@ -43,9 +50,11 @@ export function WidgetHeader({
   floating = false,
   onTitleClick,
   titleMenuOpen,
+  onAddTab,
 }: WidgetHeaderProps) {
   const { ref: dragRef, ...dragRest } = dragHandleProps ?? {}
   const kindLabel = KIND_LABEL[kind] ?? kind
+  const [addAnchor, setAddAnchor] = useState<{ x: number; y: number } | null>(null)
   // Track press-down position on the title so a drag (via React Flow on the
   // floating node) doesn't accidentally fire the menu-open click when the
   // pointer comes back up on the same button after movement.
@@ -140,6 +149,22 @@ export function WidgetHeader({
           ↗
         </button>
       )}
+      {onAddTab && (
+        <button
+          type="button"
+          className={btnClass}
+          onClick={(e) => {
+            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+            setAddAnchor({ x: rect.left, y: rect.bottom + 4 })
+          }}
+          aria-label="Add tab"
+          aria-haspopup="menu"
+          aria-expanded={addAnchor !== null}
+          title="Add tab"
+        >
+          +
+        </button>
+      )}
       {onMore && (
         <button
           ref={moreButtonRef}
@@ -167,6 +192,14 @@ export function WidgetHeader({
         >
           ×
         </button>
+      )}
+      {addAnchor && onAddTab && (
+        <WidgetKindMenu
+          anchor={addAnchor}
+          onChangeKind={(nextKind) => { onAddTab(nextKind); setAddAnchor(null) }}
+          onClose={() => setAddAnchor(null)}
+          heading="Add tab"
+        />
       )}
     </header>
   )
