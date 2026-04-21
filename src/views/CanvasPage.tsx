@@ -36,7 +36,7 @@ import type { PersistedTodoItem } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
 import { DragInsertContext, DragPreviewContext } from '../components/canvas/DragInsertContext'
 import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
-import { bySortOrder } from '../utils/hierarchy'
+import { bySortOrder, expandWithGhostParents } from '../utils/hierarchy'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { parseTaskInput, applyNlpMetadata } from '../services/nlp-task-creator'
 import { getFilterDefaults, supplementWithFilterDefaults } from '../utils/filter-defaults'
@@ -161,39 +161,55 @@ export function CanvasPage() {
   // array reference. This lets downstream useMemo + React.memo short-circuit
   // for nodes whose data truly didn't change (see CanvasView dataNodes cache).
   const prevTodosByProjectRef = useRef<Map<number, PersistedTodoItem[]>>(new Map())
-  const todosByProject = useMemo(() => {
+  const todosByProjectResult = useMemo(() => {
     const prev = prevTodosByProjectRef.current
-    const map = new Map<number, PersistedTodoItem[]>()
+    // Pre-bucket the full (unfiltered) set per project so we can look up hidden
+    // parents when expanding ghosts below.
+    const fullByProject = new Map<number, PersistedTodoItem[]>()
+    const visibleByProject = new Map<number, PersistedTodoItem[]>()
     for (const todo of todos) {
       if (todo.projectId == null) continue
+      const fullList = fullByProject.get(todo.projectId) ?? []
+      fullList.push(todo)
+      fullByProject.set(todo.projectId, fullList)
       if (!filters.showCompleted && todo.isCompleted) continue
       if (!filters.showHiddenStatuses) {
         const s = statuses.find(x => x.id === todo.statusId)
         if (s?.hideByDefault) continue
       }
-      const list = map.get(todo.projectId) ?? []
-      list.push(todo)
-      map.set(todo.projectId, list)
+      const visList = visibleByProject.get(todo.projectId) ?? []
+      visList.push(todo)
+      visibleByProject.set(todo.projectId, visList)
     }
-    // Sort each bucket and reuse prior array reference when content is identical
-    // (same todos in same order, by reference equality).
+
+    // Expand each project's visible list with ghost parents so children of
+    // hidden parents render under their real parent and promote/demote logic
+    // sees the true hierarchy. Track the aggregated ghost-id set for styling.
     const stable = new Map<number, PersistedTodoItem[]>()
-    for (const [pid, list] of map) {
-      list.sort(bySortOrder)
+    const ghostIds = new Set<number>()
+    for (const [pid, vis] of visibleByProject) {
+      const { todos: expanded, ghostIds: pidGhosts } = expandWithGhostParents(
+        vis,
+        fullByProject.get(pid) ?? vis,
+      )
+      expanded.sort(bySortOrder)
+      for (const id of pidGhosts) ghostIds.add(id)
       const prevList = prev.get(pid)
       if (
         prevList &&
-        prevList.length === list.length &&
-        prevList.every((t, i) => t === list[i])
+        prevList.length === expanded.length &&
+        prevList.every((t, i) => t === expanded[i])
       ) {
         stable.set(pid, prevList)
       } else {
-        stable.set(pid, list)
+        stable.set(pid, expanded)
       }
     }
     prevTodosByProjectRef.current = stable
-    return stable
+    return { todosByProject: stable, hiddenParentGhostIds: ghostIds }
   }, [todos, filters.showCompleted, filters.showHiddenStatuses, statuses])
+  const todosByProject = todosByProjectResult.todosByProject
+  const hiddenParentGhostIds = todosByProjectResult.hiddenParentGhostIds
 
   // --- DnD (extracted to useCanvasDnD hook) ---
   const dnd = useCanvasDnD({
@@ -245,14 +261,16 @@ export function CanvasPage() {
     return ghost.size > 0 ? ghost : undefined
   }, [todos, filters, assignedPeopleMap, assignedOrgsMap, personOrgMap, statuses, projects])
 
-  // Merge filter ghosts and drag-child ghosts
+  // Merge filter ghosts, drag-child ghosts, and hidden-parent (completed+filtered) ghosts.
   const ghostTodoIds = useMemo(() => {
     const dragChildIds = dnd.activeDragChildren.map(c => c.id)
-    if (!filterGhostIds && dragChildIds.length === 0) return undefined
+    const hasHiddenParents = hiddenParentGhostIds.size > 0
+    if (!filterGhostIds && dragChildIds.length === 0 && !hasHiddenParents) return undefined
     const merged = new Set(filterGhostIds)
     for (const id of dragChildIds) merged.add(id)
+    for (const id of hiddenParentGhostIds) merged.add(id)
     return merged.size > 0 ? merged : undefined
-  }, [filterGhostIds, dnd.activeDragChildren])
+  }, [filterGhostIds, dnd.activeDragChildren, hiddenParentGhostIds])
 
   const handleNodeDragStop = useCallback(
     (projectId: number, x: number, y: number) => {

@@ -11,6 +11,7 @@ import {
   shouldNormalize,
   moveTasksInDirection,
 } from '../../services/task-placement'
+import { expandWithGhostParents } from '../../utils/hierarchy'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
   return {
@@ -262,6 +263,45 @@ describe('outdentTasks', () => {
     const mutations = outdentTasks(todos, new Set([2, 4]))
     expect(mutations).toHaveLength(2)
     expect(mutations.every(m => m.changes.parentId === undefined)).toBe(true)
+  })
+
+  it('outdents an orphan child (parent completed+hidden) to root after ghost parent', () => {
+    // Simulates the canvas filtered pipeline: full data includes a completed
+    // parent C with an incomplete child D. The filtered visible list excludes
+    // C; after expandWithGhostParents, C rejoins as a ghost root, and outdent
+    // should place D between C and the next real root.
+    const full = [
+      makeTodo({ id: 1, sortOrder: 1, projectId: 10 }),                        // A — root
+      makeTodo({ id: 2, sortOrder: 2, projectId: 10, parentId: 1 }),           // B — child of A
+      makeTodo({ id: 3, sortOrder: 3, projectId: 10, isCompleted: true }),     // C — hidden
+      makeTodo({ id: 4, sortOrder: 4, projectId: 10, parentId: 3 }),           // D — orphan child of C
+      makeTodo({ id: 5, sortOrder: 5, projectId: 10 }),                        // E — next root
+    ]
+    const visible = full.filter(t => !t.isCompleted)
+    const { todos: expanded } = expandWithGhostParents(visible, full)
+
+    const mutations = outdentTasks(expanded, new Set([4]))
+    expect(mutations).toHaveLength(1)
+    expect(mutations[0].todoId).toBe(4)
+    expect(mutations[0].changes.parentId).toBeUndefined()
+    // D's new sortOrder should land strictly between C (3) and E (5).
+    expect(mutations[0].changes.sortOrder!).toBeGreaterThan(3)
+    expect(mutations[0].changes.sortOrder!).toBeLessThan(5)
+  })
+})
+
+describe('ghost-parent aware hierarchy', () => {
+  it('indent on an orphan child is a no-op (already a child of ghost parent)', () => {
+    const full = [
+      makeTodo({ id: 1, sortOrder: 1, projectId: 10 }),                        // A
+      makeTodo({ id: 2, sortOrder: 2, projectId: 10, isCompleted: true }),     // C — hidden parent
+      makeTodo({ id: 3, sortOrder: 3, projectId: 10, parentId: 2 }),           // D — orphan
+    ]
+    const visible = full.filter(t => !t.isCompleted)
+    const { todos: expanded } = expandWithGhostParents(visible, full)
+    // D is still a child in the data model → indent returns no mutations.
+    const mutations = indentTasks(expanded, new Set([3]))
+    expect(mutations).toHaveLength(0)
   })
 })
 

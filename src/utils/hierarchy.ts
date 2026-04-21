@@ -84,3 +84,48 @@ export function getFlatVisualOrder(todos: PersistedTodoItem[]): PersistedTodoIte
   return flat
 }
 
+/**
+ * Expand a filter-pruned list by re-injecting any parents that are missing
+ * from `visible` but have children in `visible`. The returned todos include
+ * these "ghost parents" so callers render children under their real parent
+ * instead of as orphaned roots, and so promote/demote logic sees the true
+ * hierarchy. `ghostIds` identifies the injected items for dimmed styling /
+ * interaction gating.
+ *
+ * `scope` should be the unfiltered list in the same logical scope (e.g. all
+ * todos in the same project) — this is where missing parents are looked up.
+ */
+export function expandWithGhostParents(
+  visible: PersistedTodoItem[],
+  scope: PersistedTodoItem[],
+): { todos: PersistedTodoItem[]; ghostIds: Set<number> } {
+  const visibleIds = new Set<number>()
+  for (const t of visible) visibleIds.add(t.id)
+
+  const byId = new Map<number, PersistedTodoItem>()
+  for (const t of scope) byId.set(t.id, t)
+
+  const ghostIds = new Set<number>()
+  const extras: PersistedTodoItem[] = []
+
+  for (const t of visible) {
+    let pid = t.parentId ?? null
+    // Walk up the parent chain, injecting any hidden ancestor that still
+    // exists in `scope`. Max 10 hops matches buildHierarchy's depth guard.
+    for (let d = 0; d < 10 && pid != null; d++) {
+      if (visibleIds.has(pid)) break
+      const ancestor = byId.get(pid)
+      if (!ancestor) break
+      if (!ghostIds.has(ancestor.id)) {
+        ghostIds.add(ancestor.id)
+        extras.push(ancestor)
+        visibleIds.add(ancestor.id)
+      }
+      pid = ancestor.parentId ?? null
+    }
+  }
+
+  if (extras.length === 0) return { todos: visible, ghostIds }
+  return { todos: [...visible, ...extras], ghostIds }
+}
+
