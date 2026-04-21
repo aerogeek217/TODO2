@@ -3,12 +3,15 @@ import {
   parseRailsState,
   serializeRailsState,
   clampRailSize,
+  computeRailGridArea,
   defaultRailSize,
   railSize,
+  resolveCorner,
   EMPTY_RAILS,
   RAIL_SIZE_MAX,
   RAIL_SIZE_MIN,
   WEEK_OFFSET_MAX,
+  type Rail,
   type RailsState,
 } from '../../models/canvas-rails'
 
@@ -299,6 +302,103 @@ describe('canvas-rails model', () => {
       expect(railSize(withSizes, 'right')).toBe(340)
       expect(railSize(withSizes, 'top')).toBe(300)
       expect(railSize(withSizes, 'bottom')).toBe(260)
+    })
+  })
+
+  describe('corner ownership', () => {
+    const makeRail = (orientation: 'vertical' | 'horizontal'): Rail => ({
+      orientation,
+      slots: [{ id: 's', tabs: [{ id: 't', type: 'notes' }], activeTabId: 't' }],
+    })
+    const allRails: RailsState = {
+      left: makeRail('vertical'),
+      right: makeRail('vertical'),
+      top: makeRail('horizontal'),
+      bottom: makeRail('horizontal'),
+    }
+
+    describe('parseRailsState', () => {
+      it('round-trips a corners bag', () => {
+        const state: RailsState = {
+          ...EMPTY_RAILS,
+          corners: { nw: 'h', se: 'v' },
+        }
+        const parsed = parseRailsState(serializeRailsState(state))
+        expect(parsed!.corners).toEqual({ nw: 'h', se: 'v' })
+      })
+
+      it('drops unknown corner keys and invalid owner values', () => {
+        const raw = JSON.stringify({
+          ...EMPTY_RAILS,
+          corners: { nw: 'h', ne: 'bogus', sw: 42, se: 'v', bogus: 'h' },
+        })
+        const parsed = parseRailsState(raw)
+        expect(parsed!.corners).toEqual({ nw: 'h', se: 'v' })
+      })
+
+      it('omits corners when the persisted bag is empty or malformed', () => {
+        expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, corners: 'not-an-object' }))!.corners).toBeUndefined()
+        expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, corners: {} }))!.corners).toBeUndefined()
+        expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, corners: { nw: 'bogus' } }))!.corners).toBeUndefined()
+      })
+    })
+
+    describe('resolveCorner', () => {
+      it('defaults to vertical ownership when corners bag is absent', () => {
+        expect(resolveCorner(allRails, 'nw')).toBe('v')
+        expect(resolveCorner(allRails, 'se')).toBe('v')
+      })
+
+      it('honors stored ownership when both rails exist', () => {
+        const rails: RailsState = { ...allRails, corners: { nw: 'h', se: 'h' } }
+        expect(resolveCorner(rails, 'nw')).toBe('h')
+        expect(resolveCorner(rails, 'se')).toBe('h')
+        expect(resolveCorner(rails, 'ne')).toBe('v')
+      })
+
+      it('falls back to vertical when stored "h" owner is absent', () => {
+        const rails: RailsState = { ...allRails, top: null, corners: { nw: 'h', ne: 'h' } }
+        expect(resolveCorner(rails, 'nw')).toBe('v')
+        expect(resolveCorner(rails, 'ne')).toBe('v')
+      })
+
+      it('falls back to horizontal when stored "v" owner is absent but "h" exists', () => {
+        const rails: RailsState = { ...allRails, left: null, corners: { nw: 'v' } }
+        expect(resolveCorner(rails, 'nw')).toBe('h')
+      })
+
+      it('stays "v" when both adjacent rails are absent', () => {
+        expect(resolveCorner(EMPTY_RAILS, 'nw')).toBe('v')
+      })
+    })
+
+    describe('computeRailGridArea', () => {
+      it('default layout: vertical rails span all rows, horizontal rails span middle column', () => {
+        expect(computeRailGridArea(allRails, 'left')).toEqual({ colStart: 1, colEnd: 2, rowStart: 1, rowEnd: 4 })
+        expect(computeRailGridArea(allRails, 'right')).toEqual({ colStart: 3, colEnd: 4, rowStart: 1, rowEnd: 4 })
+        expect(computeRailGridArea(allRails, 'top')).toEqual({ rowStart: 1, rowEnd: 2, colStart: 2, colEnd: 3 })
+        expect(computeRailGridArea(allRails, 'bottom')).toEqual({ rowStart: 3, rowEnd: 4, colStart: 2, colEnd: 3 })
+      })
+
+      it('top claims both upper corners: spans full width, left/right start at row 2', () => {
+        const rails: RailsState = { ...allRails, corners: { nw: 'h', ne: 'h' } }
+        expect(computeRailGridArea(rails, 'top')).toEqual({ rowStart: 1, rowEnd: 2, colStart: 1, colEnd: 4 })
+        expect(computeRailGridArea(rails, 'left')).toEqual({ colStart: 1, colEnd: 2, rowStart: 2, rowEnd: 4 })
+        expect(computeRailGridArea(rails, 'right')).toEqual({ colStart: 3, colEnd: 4, rowStart: 2, rowEnd: 4 })
+      })
+
+      it('bottom claims SW only: bottom extends into col 1, left ends at row 3, right unchanged', () => {
+        const rails: RailsState = { ...allRails, corners: { sw: 'h' } }
+        expect(computeRailGridArea(rails, 'bottom')).toEqual({ rowStart: 3, rowEnd: 4, colStart: 1, colEnd: 3 })
+        expect(computeRailGridArea(rails, 'left')).toEqual({ colStart: 1, colEnd: 2, rowStart: 1, rowEnd: 3 })
+        expect(computeRailGridArea(rails, 'right')).toEqual({ colStart: 3, colEnd: 4, rowStart: 1, rowEnd: 4 })
+      })
+
+      it('dangling claim: top absent, NW claim falls back to vertical', () => {
+        const rails: RailsState = { ...allRails, top: null, corners: { nw: 'h' } }
+        // Left rail still owns NW because top doesn't exist.
+        expect(computeRailGridArea(rails, 'left')).toEqual({ colStart: 1, colEnd: 2, rowStart: 1, rowEnd: 4 })
+      })
     })
   })
 })

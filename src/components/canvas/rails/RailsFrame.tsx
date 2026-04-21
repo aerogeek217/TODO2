@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -10,7 +10,7 @@ import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-st
 import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
-import { getActiveTab, railSize } from '../../../models/canvas-rails'
+import { computeRailGridArea, getActiveTab, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotDivider } from './SlotDivider'
@@ -561,12 +561,18 @@ export function RailsFrame({ children }: RailsFrameProps) {
   const renderRail = (side: RailSide) => {
     const rail = rails[side]
     if (!rail) return null
+    const area = computeRailGridArea(rails, side)
+    const gridStyle: CSSProperties = {
+      gridColumn: `${area.colStart} / ${area.colEnd}`,
+      gridRow: `${area.rowStart} / ${area.rowEnd}`,
+    }
     return (
       <RailContainer
         side={side}
         rail={rail}
         size={railSize(rails, side)}
         onResize={(px) => setRailSize(side, px)}
+        style={gridStyle}
       >
         {rail.slots.map((slot, idx) => (
           <Fragment key={slot.id}>
@@ -584,17 +590,22 @@ export function RailsFrame({ children }: RailsFrameProps) {
     )
   }
 
+  const frameStyle: CSSProperties = {
+    '--left-size': rails.left ? `${railSize(rails, 'left')}px` : '0px',
+    '--right-size': rails.right ? `${railSize(rails, 'right')}px` : '0px',
+    '--top-size': rails.top ? `${railSize(rails, 'top')}px` : '0px',
+    '--bottom-size': rails.bottom ? `${railSize(rails, 'bottom')}px` : '0px',
+  } as CSSProperties
+
   return (
-    <div className={styles.frame}>
+    <div className={styles.frame} style={frameStyle}>
       {renderRail('left')}
-      <div className={styles.center}>
-        {renderRail('top')}
-        <div className={styles.canvasHost}>
-          {children}
-          {railsDragging && <DockOverlay emptySides={emptySides} />}
-        </div>
-        {renderRail('bottom')}
+      {renderRail('top')}
+      <div className={styles.canvasHost}>
+        {children}
+        {railsDragging && <DockOverlay emptySides={emptySides} />}
       </div>
+      {renderRail('bottom')}
       {renderRail('right')}
       <div
         className={styles.srOnly}

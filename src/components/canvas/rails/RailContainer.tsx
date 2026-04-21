@@ -9,6 +9,8 @@ interface RailContainerProps {
   size: number
   onResize: (px: number) => void
   children: ReactNode
+  /** Extra inline styles (e.g. `grid-area` from the frame grid). Merged over the size style. */
+  style?: CSSProperties
 }
 
 interface ResizeHandleProps {
@@ -104,13 +106,14 @@ function ResizeHandle({ side, size, onResize }: ResizeHandleProps) {
   )
 }
 
-export function RailContainer({ side, rail, size, onResize, children }: RailContainerProps) {
+export function RailContainer({ side, rail, size, onResize, children, style }: RailContainerProps) {
   const orientClass = rail.orientation === 'vertical' ? styles.vertical : styles.horizontal
-  const style: CSSProperties = rail.orientation === 'vertical' ? { width: size } : { height: size }
+  const sizeStyle: CSSProperties = rail.orientation === 'vertical' ? { width: size } : { height: size }
+  const mergedStyle: CSSProperties = style ? { ...sizeStyle, ...style } : sizeStyle
   return (
     <aside
       className={`${styles.rail} ${orientClass} ${styles[side]}`}
-      style={style}
+      style={mergedStyle}
       data-rail-side={side}
       aria-label={`Canvas ${side} rail`}
     >

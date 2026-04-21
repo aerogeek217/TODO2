@@ -44,6 +44,11 @@ export interface Rail {
   slots: Slot[]
 }
 
+/** Which rail owns a frame corner. `'h'` = top/bottom, `'v'` = left/right. */
+export type CornerOwner = 'h' | 'v'
+export type Corner = 'nw' | 'ne' | 'sw' | 'se'
+export const CORNERS: readonly Corner[] = ['nw', 'ne', 'sw', 'se']
+
 export interface RailsState {
   left: Rail | null
   right: Rail | null
@@ -56,6 +61,15 @@ export interface RailsState {
   widths?: { left?: number; right?: number }
   /** Persisted heights for horizontal rails (top/bottom). */
   heights?: { top?: number; bottom?: number }
+  /**
+   * Per-corner ownership. Absent / undefined value = `'v'` (vertical rail owns),
+   * which reproduces the legacy layout where left/right rails span the full
+   * viewport height and horizontal rails are pinched between them. Stored
+   * values are preserved even when the claiming rail is absent so the claim
+   * reappears if the rail is recreated; `resolveCorner` handles the dangling
+   * case at render time.
+   */
+  corners?: Partial<Record<Corner, CornerOwner>>
 }
 
 export const RAIL_SIZE_MIN = 200
@@ -184,6 +198,80 @@ function parseRail(raw: unknown, side: RailSide): Rail | null {
   return { orientation, slots }
 }
 
+function parseCorners(raw: unknown): Partial<Record<Corner, CornerOwner>> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const r = raw as Record<string, unknown>
+  const out: Partial<Record<Corner, CornerOwner>> = {}
+  let touched = false
+  for (const c of CORNERS) {
+    const v = r[c]
+    if (v === 'h' || v === 'v') {
+      out[c] = v
+      touched = true
+    }
+  }
+  return touched ? out : undefined
+}
+
+/**
+ * Resolve which rail actually owns a corner, given the current rails state.
+ * Falls back to the orthogonal side when the stored owner's rail is absent,
+ * so the layout is always well-defined.
+ */
+export function resolveCorner(rails: RailsState, corner: Corner): CornerOwner {
+  const stored = rails.corners?.[corner]
+  const horizontalSide: RailSide = corner === 'nw' || corner === 'ne' ? 'top' : 'bottom'
+  const verticalSide: RailSide = corner === 'nw' || corner === 'sw' ? 'left' : 'right'
+  const hasHorizontal = rails[horizontalSide] != null
+  const hasVertical = rails[verticalSide] != null
+  const want: CornerOwner = stored ?? 'v'
+  if (want === 'h' && !hasHorizontal) return 'v'
+  if (want === 'v' && !hasVertical) return hasHorizontal ? 'h' : 'v'
+  return want
+}
+
+export interface GridArea {
+  /** 1-based CSS grid line numbers in a fixed 3×3 grid. */
+  colStart: number
+  colEnd: number
+  rowStart: number
+  rowEnd: number
+}
+
+/**
+ * Compute the CSS grid-area for a rail in the 3×3 `RailsFrame` grid (lines
+ * 1..4). The rail extends into corner cells when it owns them per the
+ * resolved corner bag. `canvas-host` always occupies 2/2→3/3.
+ */
+export function computeRailGridArea(rails: RailsState, side: RailSide): GridArea {
+  const nw = resolveCorner(rails, 'nw')
+  const ne = resolveCorner(rails, 'ne')
+  const sw = resolveCorner(rails, 'sw')
+  const se = resolveCorner(rails, 'se')
+  switch (side) {
+    case 'top': return {
+      rowStart: 1, rowEnd: 2,
+      colStart: nw === 'h' ? 1 : 2,
+      colEnd: ne === 'h' ? 4 : 3,
+    }
+    case 'bottom': return {
+      rowStart: 3, rowEnd: 4,
+      colStart: sw === 'h' ? 1 : 2,
+      colEnd: se === 'h' ? 4 : 3,
+    }
+    case 'left': return {
+      colStart: 1, colEnd: 2,
+      rowStart: nw === 'v' ? 1 : 2,
+      rowEnd: sw === 'v' ? 4 : 3,
+    }
+    case 'right': return {
+      colStart: 3, colEnd: 4,
+      rowStart: ne === 'v' ? 1 : 2,
+      rowEnd: se === 'v' ? 4 : 3,
+    }
+  }
+}
+
 function parseSizeBag<K extends string>(raw: unknown, keys: readonly K[]): Partial<Record<K, number>> | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const r = raw as Record<string, unknown>
@@ -220,5 +308,7 @@ export function parseRailsState(value: string | undefined | null): RailsState | 
   if (widths) state.widths = widths
   const heights = parseSizeBag(r.heights, ['top', 'bottom'] as const)
   if (heights) state.heights = heights
+  const corners = parseCorners(r.corners)
+  if (corners) state.corners = corners
   return state
 }
