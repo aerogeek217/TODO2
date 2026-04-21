@@ -39,22 +39,21 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 6px 5px 8px;
+  padding: 4px 8px 4px 9px;
   max-width: 160px;
   min-width: 0;
   border: 1px solid transparent;
-  border-bottom: none;
   border-top-left-radius: var(--radius-md);
   border-top-right-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
   position: relative;
-  top: 1px;
+  font-weight: 500;
 }
 
 .pill:hover {
-  background: var(--color-tint-4);
+  background: var(--color-surface-high);
   color: var(--color-text-primary);
 }
 
@@ -62,9 +61,11 @@
   background: var(--color-surface);
   border-color: var(--color-border);
   color: var(--color-text-primary);
-  /* lift onto the body — bottom sits under the strip's border */
+  font-weight: var(--font-weight-semibold);
+  /* Lift onto the body: a surface-colored bottom border paints over the
+     strip's border-bottom where this pill overhangs it. */
+  border-bottom-color: var(--color-surface);
   margin-bottom: -1px;
-  padding-bottom: 6px;
 }
 
 .active:hover {

@@ -52,7 +52,7 @@ interface TabPillProps {
   menuOpen?: boolean
 }
 
-function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onMore, menuOpen }: TabPillProps) {
+function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onMore, menuOpen, buttonRef }: TabPillProps & { buttonRef?: Ref<HTMLButtonElement> }) {
   const listName = useListDefinitionStore((s) =>
     tab.type === 'lens' && tab.listDefinitionId != null
       ? s.listDefinitions.find((d) => d.id === tab.listDefinitionId)?.name
@@ -80,15 +80,18 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onMore, m
       {...draggable.listeners}
       className={`${styles.pill} ${active ? styles.active : ''} ${draggable.isDragging ? styles.dragging : ''}`}
       role="tab"
+      id={tab.id}
       aria-selected={active}
       data-tab-id={tab.id}
     >
       <button
+        ref={buttonRef}
         type="button"
         className={styles.pillButton}
         onClick={onActivate}
         aria-label={ariaLabel}
         title={label}
+        tabIndex={active ? 0 : -1}
       >
         <span className={styles.kindIcon} aria-hidden="true">{KIND_ICON[tab.type]}</span>
         <span className={styles.label}>{label}</span>
@@ -257,7 +260,51 @@ export function TabStrip({
   const { ref: dragRef, ...dragRest } = dragHandleProps ?? {}
 
   const tabsContainerRef = useRef<HTMLDivElement | null>(null)
+  const pillButtonRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map())
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+
+  const focusPillAt = (idx: number) => {
+    const tab = slot.tabs[idx]
+    if (!tab) return
+    const btn = pillButtonRefs.current.get(tab.id)
+    btn?.focus()
+  }
+
+  const onTabsKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement
+    const pillEl = target.closest('[data-tab-id]') as HTMLElement | null
+    if (!pillEl) return
+    const currentTabId = pillEl.dataset.tabId
+    if (!currentTabId) return
+    const currentIdx = slot.tabs.findIndex((t) => t.id === currentTabId)
+    if (currentIdx === -1) return
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      const nextIdx = (currentIdx - 1 + slot.tabs.length) % slot.tabs.length
+      const nextTab = slot.tabs[nextIdx]
+      onActivateTab(nextTab.id)
+      // Focus moves on next render when tabIndex flips; defer.
+      queueMicrotask(() => focusPillAt(nextIdx))
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const nextIdx = (currentIdx + 1) % slot.tabs.length
+      const nextTab = slot.tabs[nextIdx]
+      onActivateTab(nextTab.id)
+      queueMicrotask(() => focusPillAt(nextIdx))
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      onActivateTab(slot.tabs[0].id)
+      queueMicrotask(() => focusPillAt(0))
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      const lastIdx = slot.tabs.length - 1
+      onActivateTab(slot.tabs[lastIdx].id)
+      queueMicrotask(() => focusPillAt(lastIdx))
+    } else if (e.key === 'Delete') {
+      e.preventDefault()
+      onCloseTab(currentTabId)
+    }
+  }
 
   const dropId = encodeRailsDropId({ kind: 'tab-strip', slotId: slot.id })
   const droppable = useDroppable({
@@ -303,7 +350,11 @@ export function TabStrip({
           ⋮⋮
         </span>
       )}
-      <div className={styles.tabs} ref={tabsContainerRef}>
+      <div
+        className={styles.tabs}
+        ref={tabsContainerRef}
+        onKeyDown={onTabsKeyDown}
+      >
         {slot.tabs.map((tab, idx) => {
           const isActive = tab.id === slot.activeTabId
           const canShowPillMenu = isActive && (Boolean(onPopOut) || Boolean(onOpenChangeType))
@@ -319,6 +370,10 @@ export function TabStrip({
                 onClose={() => onCloseTab(tab.id)}
                 onMore={canShowPillMenu ? (anchor) => setPillMenuAnchor(anchor) : undefined}
                 menuOpen={canShowPillMenu && pillMenuAnchor !== null}
+                buttonRef={(el) => {
+                  if (el) pillButtonRefs.current.set(tab.id, el)
+                  else pillButtonRefs.current.delete(tab.id)
+                }}
               />
             </Fragment>
           )

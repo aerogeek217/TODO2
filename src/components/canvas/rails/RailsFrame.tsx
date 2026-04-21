@@ -312,7 +312,14 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
 
   return (
     <>
-      <DraggableSlot slotId={slot.id} fromSide={fromSide} header={header} flex={slot.flex}>
+      <DraggableSlot
+        slotId={slot.id}
+        fromSide={fromSide}
+        header={header}
+        flex={slot.flex}
+        bodyRole={multiTab ? 'tabpanel' : undefined}
+        bodyLabelledBy={multiTab ? slot.activeTabId : undefined}
+      >
         {body}
       </DraggableSlot>
       {activeTab.type === 'lens' && pickerPos && (

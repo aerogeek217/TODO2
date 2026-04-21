@@ -206,6 +206,120 @@ describe('TabStrip', () => {
     expect(typeof anchor.y).toBe('number')
   })
 
+  it('sets role=tab + id on each pill so aria-labelledby can link a tabpanel', () => {
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={() => {}}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+      />,
+    )
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs[0]).toHaveAttribute('id', 'slot-a-t0')
+    expect(tabs[1]).toHaveAttribute('id', 'slot-a-t1')
+  })
+
+  it('ArrowRight moves focus + activates the next tab', () => {
+    const onActivate = vi.fn()
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={onActivate}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+      />,
+    )
+    const activePill = screen.getAllByRole('tab')[0]
+    const activeBtn = activePill.querySelector('button') as HTMLButtonElement
+    activeBtn.focus()
+    fireEvent.keyDown(activeBtn, { key: 'ArrowRight' })
+    expect(onActivate).toHaveBeenCalledWith('slot-a-t1')
+  })
+
+  it('ArrowLeft wraps to the last tab', () => {
+    const onActivate = vi.fn()
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={onActivate}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+      />,
+    )
+    const activePill = screen.getAllByRole('tab')[0]
+    const activeBtn = activePill.querySelector('button') as HTMLButtonElement
+    activeBtn.focus()
+    fireEvent.keyDown(activeBtn, { key: 'ArrowLeft' })
+    expect(onActivate).toHaveBeenCalledWith('slot-a-t1')
+  })
+
+  it('Home activates the first tab, End activates the last', () => {
+    const onActivate = vi.fn()
+    const slot: Slot = {
+      id: 's',
+      activeTabId: 's-t1',
+      tabs: [
+        { id: 's-t0', type: 'lens' },
+        { id: 's-t1', type: 'notes' },
+        { id: 's-t2', type: 'calendar' },
+      ],
+    }
+    render(
+      <TabStrip
+        slot={slot}
+        fromSide="right"
+        onActivateTab={onActivate}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+      />,
+    )
+    const middle = screen.getAllByRole('tab')[1].querySelector('button') as HTMLButtonElement
+    middle.focus()
+    fireEvent.keyDown(middle, { key: 'Home' })
+    expect(onActivate).toHaveBeenLastCalledWith('s-t0')
+    fireEvent.keyDown(middle, { key: 'End' })
+    expect(onActivate).toHaveBeenLastCalledWith('s-t2')
+  })
+
+  it('Delete on a focused tab fires onCloseTab for that tab', () => {
+    const onClose = vi.fn()
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={() => {}}
+        onCloseTab={onClose}
+        onAddTab={() => {}}
+      />,
+    )
+    const secondPill = screen.getAllByRole('tab')[1]
+    const secondBtn = secondPill.querySelector('button') as HTMLButtonElement
+    secondBtn.focus()
+    fireEvent.keyDown(secondBtn, { key: 'Delete' })
+    expect(onClose).toHaveBeenCalledWith('slot-a-t1')
+  })
+
+  it('only the active pill button is in tab order (roving tabindex)', () => {
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={() => {}}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+      />,
+    )
+    const tabs = screen.getAllByRole('tab')
+    const activeBtn = tabs[0].querySelector('button') as HTMLButtonElement
+    const inactiveBtn = tabs[1].querySelector('button') as HTMLButtonElement
+    expect(activeBtn.tabIndex).toBe(0)
+    expect(inactiveBtn.tabIndex).toBe(-1)
+  })
+
   it('pill ⋯ menu omits items whose callback is not provided', () => {
     render(
       <TabStrip

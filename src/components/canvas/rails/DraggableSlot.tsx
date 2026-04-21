@@ -12,9 +12,11 @@ interface DraggableSlotProps {
   header: ReactElement
   children: ReactNode
   flex?: number
+  bodyRole?: string
+  bodyLabelledBy?: string
 }
 
-export function DraggableSlot({ slotId, fromSide, header, children, flex }: DraggableSlotProps) {
+export function DraggableSlot({ slotId, fromSide, header, children, flex, bodyRole, bodyLabelledBy }: DraggableSlotProps) {
   const dragId = `rails-slot-drag:${slotId}`
   const dropId = encodeRailsDropId({ kind: 'slot', slotId })
   const dragData: RailsDragData = { type: RAILS_DRAG_TYPE, kind: 'slot', slotId, fromSide }
@@ -83,7 +85,7 @@ export function DraggableSlot({ slotId, fromSide, header, children, flex }: Drag
       data-drop-id={dropId}
       style={style}
     >
-      <Slot header={headerWithHandle}>{children}</Slot>
+      <Slot header={headerWithHandle} bodyRole={bodyRole} bodyLabelledBy={bodyLabelledBy}>{children}</Slot>
       {hoverZone && <ZoneIndicator zone={hoverZone} />}
     </div>
   )
