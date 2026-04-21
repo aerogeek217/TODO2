@@ -34,19 +34,14 @@ export const EventRow = memo(function EventRow({ entry, compact = false, onClick
       onClick={onClick}
       title={isVirtual ? `Recurring instance of "${todo.title}"` : todo.title}
     >
-      <span className={styles.status} style={status ? { color: status.color } : undefined} aria-label={status ? `Status: ${status.name}` : 'No status'}>
-        {status
-          ? <StatusIcon icon={status.icon || 'circle'} filled />
-          : <span className={styles.statusEmpty} aria-hidden="true" />}
-      </span>
-      {todo.scheduledDate && (
-        <span className={`${styles.marker} ${styles.markerScheduled}`} aria-label="Scheduled">
-          <StatusIcon icon="calendar" />
-        </span>
-      )}
       {todo.dueDate && (
         <span className={`${styles.marker} ${styles.markerDeadline}`} aria-label="Deadline">
           <StatusIcon icon="clock" />
+        </span>
+      )}
+      {todo.scheduledDate && (
+        <span className={`${styles.marker} ${styles.markerScheduled}`} aria-label="Scheduled">
+          <StatusIcon icon="calendar" />
         </span>
       )}
       {todo.recurrenceRule && (
@@ -59,6 +54,11 @@ export const EventRow = memo(function EventRow({ entry, compact = false, onClick
       {!compact && orgs.length > 0 && (
         <AvatarStack people={orgs} max={2} size="sm" variant="hollow" />
       )}
+      <span className={styles.status} style={status ? { color: status.color } : undefined} aria-label={status ? `Status: ${status.name}` : 'No status'}>
+        {status
+          ? <StatusIcon icon={status.icon || 'circle'} filled />
+          : <span className={styles.statusEmpty} aria-hidden="true" />}
+      </span>
     </div>
   )
 })

@@ -7,9 +7,9 @@
 
 .row {
   display: grid;
-  grid-template-columns: 44px 1fr;
-  column-gap: 6px;
-  padding: 3px 8px 4px;
+  grid-template-columns: 38px 1fr;
+  column-gap: 2px;
+  padding: 2px 6px 2px 4px;
   border-bottom: 1px solid var(--color-border);
   align-items: start;
 }
