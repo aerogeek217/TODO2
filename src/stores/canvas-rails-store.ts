@@ -144,7 +144,11 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set) => ({
       if (idx === -1) continue
       const current = rail.slots[idx]
       if (current.kind === nextKind && !seed) return state
+      // Preserve sizing (`flex`) across kind changes — cross-kind seed fields
+      // (listDefinitionId / taskboardId) are cleared explicitly below so they
+      // don't leak into kinds that don't use them.
       const rebuilt: Slot = { id: current.id, kind: nextKind }
+      if (current.flex != null) rebuilt.flex = current.flex
       if (nextKind === 'lens') {
         const listId = seed?.listDefinitionId ?? current.listDefinitionId
         if (listId != null) rebuilt.listDefinitionId = listId

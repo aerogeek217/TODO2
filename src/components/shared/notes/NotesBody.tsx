@@ -49,7 +49,7 @@ interface NotesBodyProps {
   placeholder?: string
 }
 
-const LINE_PREFIX_RE = /^(\s*)(?:(?:[—–\-•]|\[[ xX]\])\s+)?(.*)$/
+const LINE_PREFIX_RE = /^(\s*)(?:[—–\-•]\s+)?(?:\[[ xX]\]\s+)?(.*)$/
 const ALREADY_CONVERTED_RE = /^\s*✓\s/
 
 /**
