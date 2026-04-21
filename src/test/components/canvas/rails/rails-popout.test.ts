@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../../../data/database'
-import { popSlotToCanvas } from '../../../../components/canvas/rails/RailsFrame'
+import { popSlotToCanvas, popTabToCanvas } from '../../../../components/canvas/rails/RailsFrame'
 import { useCanvasStore } from '../../../../stores/canvas-store'
 import { useNoteStore } from '../../../../stores/note-store'
 import { useFloatingNoteStore } from '../../../../stores/floating-note-store'
@@ -142,6 +142,105 @@ describe('popSlotToCanvas', () => {
     expect(calendars.length).toBe(1)
     expect(calendars[0].width).toBeGreaterThan(0)
     expect(calendars[0].height).toBeGreaterThan(0)
+  })
+})
+
+describe('popTabToCanvas', () => {
+  it('returns false when tabId is not in the slot', async () => {
+    await seedCanvas()
+    const slot = makeSlot('slot-x', 'calendar')
+    const moved = await popTabToCanvas(slot, 'nonexistent-tab')
+    expect(moved).toBe(false)
+    expect(useFloatingCalendarStore.getState().calendars.length).toBe(0)
+  })
+
+  it('dispatches by the tab\'s own type, not the active tab\'s', async () => {
+    const canvasId = await seedCanvas()
+    // Build a multi-tab slot where the active tab is notes, but we pop the
+    // non-active calendar tab. The calendar floating store should get the add.
+    const notesTab = { id: 'slot-mt-t0', type: 'notes' as const }
+    const calTab = { id: 'slot-mt-t1', type: 'calendar' as const }
+    const slot = { id: 'slot-mt', tabs: [notesTab, calTab], activeTabId: notesTab.id }
+    const moved = await popTabToCanvas(slot, calTab.id)
+    expect(moved).toBe(true)
+    // Calendar got an add.
+    const cals = useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId)
+    expect(cals.length).toBe(1)
+    // Notes did not.
+    expect(useFloatingNoteStore.getState().notes.filter((n) => n.canvasId === canvasId).length).toBe(0)
+  })
+
+  it('skips a lens tab without a listDefinitionId', async () => {
+    await seedCanvas()
+    const tab = { id: 'slot-x-t0', type: 'lens' as const }
+    const slot = { id: 'slot-x', tabs: [tab], activeTabId: tab.id }
+    const moved = await popTabToCanvas(slot, tab.id)
+    expect(moved).toBe(false)
+    expect(useListInsetStore.getState().insets.length).toBe(0)
+  })
+})
+
+describe('pop-out + closeTab cascade', () => {
+  it('popping the active tab of a 2-tab slot leaves the slot open with one tab', async () => {
+    const canvasId = await seedCanvas()
+
+    // Seed a 2-tab slot: calendar (active) + notes.
+    const activeTab = { id: 'slot-m-t0', type: 'calendar' as const }
+    const otherTab = { id: 'slot-m-t1', type: 'notes' as const }
+    useCanvasRailsStore.setState({
+      rails: {
+        left: null,
+        right: { orientation: 'vertical', slots: [{
+          id: 'slot-m',
+          tabs: [activeTab, otherTab],
+          activeTabId: activeTab.id,
+        }] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+
+    const slot = useCanvasRailsStore.getState().rails.right!.slots[0]
+    const moved = await popTabToCanvas(slot, activeTab.id)
+    expect(moved).toBe(true)
+    // Floating calendar got the add.
+    expect(useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId).length).toBe(1)
+
+    // Caller is responsible for closing the tab after a successful pop.
+    useCanvasRailsStore.getState().closeTab(slot.id, activeTab.id)
+
+    // Slot survives, now with only the notes tab; activation moved to it.
+    const right = useCanvasRailsStore.getState().rails.right
+    expect(right?.slots.length).toBe(1)
+    const remaining = right!.slots[0]
+    expect(remaining.tabs.length).toBe(1)
+    expect(remaining.tabs[0].id).toBe(otherTab.id)
+    expect(remaining.activeTabId).toBe(otherTab.id)
+  })
+
+  it('popping the only tab of a slot cascade-closes the slot', async () => {
+    const canvasId = await seedCanvas()
+
+    const tab = { id: 'slot-s-t0', type: 'calendar' as const }
+    useCanvasRailsStore.setState({
+      rails: {
+        left: null,
+        right: { orientation: 'vertical', slots: [{ id: 'slot-s', tabs: [tab], activeTabId: tab.id }] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+
+    const slot = useCanvasRailsStore.getState().rails.right!.slots[0]
+    const moved = await popTabToCanvas(slot, tab.id)
+    expect(moved).toBe(true)
+    expect(useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId).length).toBe(1)
+
+    useCanvasRailsStore.getState().closeTab(slot.id, tab.id)
+    // Rail collapsed to null because the sole slot's sole tab was closed.
+    expect(useCanvasRailsStore.getState().rails.right).toBeNull()
   })
 })
 
