@@ -403,7 +403,7 @@ export function TabStrip({
             aria-label="Pop out to canvas"
             title="Pop out to canvas"
           >
-            ↙
+            ↗
           </button>
         )}
         {onMore && (

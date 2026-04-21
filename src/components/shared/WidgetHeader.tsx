@@ -152,7 +152,7 @@ export function WidgetHeader({
           aria-label={`Pop out ${kindLabel} slot to canvas`}
           title="Pop out to canvas"
         >
-          ↙
+          ↗
         </button>
       )}
       {onDock && (
@@ -163,7 +163,7 @@ export function WidgetHeader({
           aria-label={`Dock ${kindLabel} to rail`}
           title="Dock to rail"
         >
-          ↗
+          ↙
         </button>
       )}
       {onMore && (

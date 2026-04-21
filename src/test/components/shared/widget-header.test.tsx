@@ -28,14 +28,14 @@ describe('WidgetHeader', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('fires onDock on ↗ click (floating surface)', () => {
+  it('fires onDock on ↙ click (floating surface)', () => {
     const onDock = vi.fn()
     render(<WidgetHeader kind="calendar" title="Calendar" onDock={onDock} floating />)
     fireEvent.click(screen.getByRole('button', { name: /dock calendar to rail/i }))
     expect(onDock).toHaveBeenCalledTimes(1)
   })
 
-  it('fires onPopOut on ↙ click (rails surface)', () => {
+  it('fires onPopOut on ↗ click (rails surface)', () => {
     const onPopOut = vi.fn()
     render(<WidgetHeader kind="lens" title="L" onPopOut={onPopOut} />)
     fireEvent.click(screen.getByRole('button', { name: /pop out list slot/i }))
