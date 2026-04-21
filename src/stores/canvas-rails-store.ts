@@ -150,6 +150,12 @@ interface CanvasRailsState {
    * and resolved at render time by `resolveCorner`.
    */
   setCornerOwner: (corner: Corner, owner: CornerOwner) => void
+  /**
+   * Remove a corner entry so it reverts to the default (`'v'`). Used by the
+   * empty-side drop handler to wipe stale claims that would otherwise
+   * resurrect when a rail is re-docked via a center sub-zone.
+   */
+  clearCornerOwner: (corner: Corner) => void
   clearPendingFocus: () => void
 }
 
@@ -453,6 +459,15 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     if (current === owner) return state
     const corners: Partial<Record<Corner, CornerOwner>> = { ...(state.rails.corners ?? {}), [corner]: owner }
     return { rails: { ...state.rails, corners } }
+  }),
+
+  clearCornerOwner: (corner) => set((state) => {
+    const current = state.rails.corners
+    if (!current || current[corner] === undefined) return state
+    const next: Partial<Record<Corner, CornerOwner>> = { ...current }
+    delete next[corner]
+    const hasAny = Object.keys(next).length > 0
+    return { rails: { ...state.rails, corners: hasAny ? next : undefined } }
   }),
 
   setRailSize: (side, px) => set((state) => {

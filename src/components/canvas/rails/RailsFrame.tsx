@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -9,8 +9,9 @@ import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
 import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
-import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
-import { computeRailGridArea, cornerForSideClaim, getActiveTab, railSize } from '../../../models/canvas-rails'
+import type { Corner, CornerOwner, RailSide, RailsState, Slot } from '../../../models/canvas-rails'
+import { CORNERS, computeRailGridArea, cornerForSideClaim, getActiveTab, railSize } from '../../../models/canvas-rails'
+import { FrameCornerToggle } from './FrameCornerToggle'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotDivider } from './SlotDivider'
@@ -407,7 +408,50 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
   const moveTabToSlot = useCanvasRailsStore((s) => s.moveTabToSlot)
   const detachTabToNewSlot = useCanvasRailsStore((s) => s.detachTabToNewSlot)
   const setCornerOwner = useCanvasRailsStore((s) => s.setCornerOwner)
+  const clearCornerOwner = useCanvasRailsStore((s) => s.clearCornerOwner)
   const rails = useCanvasRailsStore((s) => s.rails)
+
+  /**
+   * Apply the corner-ownership implied by an empty-side drop. Two roles per
+   * adjacent corner:
+   *   - claimed: dropped rail extends into the corner → owner matches the
+   *     dropped rail's axis (`'h'` for top/bottom, `'v'` for left/right).
+   *   - pinched: dropped rail does NOT extend into the corner → owner is
+   *     the opposite axis, so perpendicular rails own the corner when
+   *     present (and `resolveCorner` falls back cleanly when absent).
+   *
+   * Claim dispatch:
+   *   - `claim='start'` → start corner claimed, end corner pinched
+   *   - `claim='end'`   → end corner claimed, start corner pinched
+   *   - no claim        → both corners pinched (the dropped rail is pinched
+   *     between its perpendicular neighbors)
+   *
+   * Writes via `setCornerOwner` / `clearCornerOwner`: when the target owner
+   * equals the default (`'v'`), we clear the entry instead of storing it,
+   * so the persisted bag stays minimal (and single-side-present layouts
+   * keep `rails.corners === undefined`).
+   */
+  const applyEmptySideCorners = (side: RailSide, claim: 'start' | 'end' | undefined) => {
+    const isHorizontal = side === 'top' || side === 'bottom'
+    const claimedOwner: CornerOwner = isHorizontal ? 'h' : 'v'
+    const pinchedOwner: CornerOwner = isHorizontal ? 'v' : 'h'
+    const startCorner = cornerForSideClaim(side, 'start')
+    const endCorner = cornerForSideClaim(side, 'end')
+    const apply = (corner: Corner, owner: CornerOwner) => {
+      if (owner === 'v') clearCornerOwner(corner)
+      else setCornerOwner(corner, owner)
+    }
+    if (claim === 'start') {
+      apply(startCorner, claimedOwner)
+      apply(endCorner, pinchedOwner)
+    } else if (claim === 'end') {
+      apply(startCorner, pinchedOwner)
+      apply(endCorner, claimedOwner)
+    } else {
+      apply(startCorner, pinchedOwner)
+      apply(endCorner, pinchedOwner)
+    }
+  }
 
   useDndMonitor({
     onDragStart: ({ active }) => {
@@ -460,7 +504,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
         // Tab dropped onto a slot-level zone → detach to a new slot.
         if (zone.kind === 'empty-side') {
           detachTabToNewSlot(data.slotId, data.tabId, { kind: 'empty-side', side: zone.side })
-          if (zone.claim) setCornerOwner(cornerForSideClaim(zone.side, zone.claim), 'h')
+          applyEmptySideCorners(zone.side, zone.claim)
         } else if (zone.kind === 'slot') {
           const pointer = pointerRef.current
           const rect = over.rect
@@ -511,7 +555,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
       // Slot drag (existing behavior, unchanged).
       if (zone.kind === 'empty-side') {
         dropSlotToSide(data.slotId, zone.side)
-        if (zone.claim) setCornerOwner(cornerForSideClaim(zone.side, zone.claim), 'h')
+        applyEmptySideCorners(zone.side, zone.claim)
       } else if (zone.kind === 'slot') {
         const pointer = pointerRef.current
         const rect = over.rect
@@ -547,11 +591,42 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
   return { draggingSlot, announcement }
 }
 
+/**
+ * Arrow-key navigation graph between the four frame corner toggles. Each key
+ * moves within a row (Left/Right) or column (Up/Down) of the 2×2 corner grid,
+ * wrapping at the edges so repeated presses cycle through all four.
+ */
+const CORNER_NAV: Record<Corner, Record<'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown', Corner>> = {
+  nw: { ArrowLeft: 'ne', ArrowRight: 'ne', ArrowUp: 'sw', ArrowDown: 'sw' },
+  ne: { ArrowLeft: 'nw', ArrowRight: 'nw', ArrowUp: 'se', ArrowDown: 'se' },
+  sw: { ArrowLeft: 'se', ArrowRight: 'se', ArrowUp: 'nw', ArrowDown: 'nw' },
+  se: { ArrowLeft: 'sw', ArrowRight: 'sw', ArrowUp: 'ne', ArrowDown: 'ne' },
+}
+
 export function RailsFrame({ children }: RailsFrameProps) {
   const rails = useDefaultRails()
   const setRailSize = useCanvasRailsStore((s) => s.setRailSize)
+  const setCornerOwner = useCanvasRailsStore((s) => s.setCornerOwner)
   const { draggingSlot, announcement } = useRailsDragMonitor()
   const railsDragging = draggingSlot !== null
+
+  const toggleRefs = useRef<Record<Corner, HTMLButtonElement | null>>({
+    nw: null,
+    ne: null,
+    sw: null,
+    se: null,
+  })
+  const [focusedCorner, setFocusedCorner] = useState<Corner>('nw')
+
+  const handleCornerToggle = useCallback((corner: Corner, next: CornerOwner) => {
+    setCornerOwner(corner, next)
+  }, [setCornerOwner])
+
+  const handleCornerArrowNav = useCallback((from: Corner, key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown') => {
+    const to = CORNER_NAV[from][key]
+    setFocusedCorner(to)
+    queueMicrotask(() => toggleRefs.current[to]?.focus())
+  }, [])
 
   const emptySides = useMemo(() => {
     const out: RailSide[] = []
@@ -609,6 +684,17 @@ export function RailsFrame({ children }: RailsFrameProps) {
       </div>
       {renderRail('bottom')}
       {renderRail('right')}
+      {CORNERS.map((corner) => (
+        <FrameCornerToggle
+          key={corner}
+          ref={(el) => { toggleRefs.current[corner] = el }}
+          corner={corner}
+          rails={rails}
+          onToggle={handleCornerToggle}
+          onArrowNav={handleCornerArrowNav}
+          tabIndex={focusedCorner === corner ? 0 : -1}
+        />
+      ))}
       {railsDragging && <DockOverlay emptySides={emptySides} />}
       <div
         className={styles.srOnly}

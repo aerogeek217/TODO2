@@ -14,9 +14,14 @@
   z-index: 1000;
 }
 
+/*
+ * `.strip` is a semantic wrapper around the three sub-zones per empty side.
+ * `display: contents` removes it from layout so each sub-zone's absolute
+ * positioning resolves against `.overlay` (the frame-spanning grid item),
+ * not against the 0-sized strip.
+ */
 .strip {
-  position: absolute;
-  pointer-events: none;
+  display: contents;
 }
 
 .zone {

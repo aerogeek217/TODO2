@@ -91,6 +91,63 @@ describe('rails dragSlot — empty-side dock', () => {
     expect(rails.corners).toEqual({ ne: 'h' })
     h.cleanup()
   })
+
+  it('center drop on top wipes stale horizontal claims (pinched = default)', async () => {
+    // Prior 'h' claims from a since-closed top rail must not resurrect into
+    // the new rail and make it full-width. For top/bottom drops pinched='v'
+    // is the default, so the bag stays empty.
+    const h = await setupRailsHarness({ ...leftLensRightNotes(), corners: { nw: 'h', ne: 'h' } })
+    await h.dragSlot('slot-A', { kind: 'empty-side', side: 'top' })
+    const rails = h.getRails()
+    expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-A'])
+    expect(rails.corners).toBeUndefined()
+    h.cleanup()
+  })
+
+  it('center drop on left pinches against perpendicular rails (sets h on adjacent corners)', async () => {
+    // User scenario: top + bottom rails exist; user drags bottom to dock left
+    // via the center sub-zone. Left must NOT extend into NW (top owns) or
+    // SW (bottom doesn't exist after the move, so `resolveCorner` falls back
+    // to 'v' → left owns SW anyway). Stored corners: `{ nw: 'h', sw: 'h' }`.
+    const h = await setupRailsHarness({
+      left: null,
+      right: null,
+      top: { orientation: 'horizontal', slots: [s('slot-T', 'lens')] },
+      bottom: { orientation: 'horizontal', slots: [s('slot-B', 'notes')] },
+    })
+    await h.dragSlot('slot-B', { kind: 'empty-side', side: 'left' })
+    const rails = h.getRails()
+    expect(rails.bottom).toBeNull()
+    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-B'])
+    expect(rails.corners).toEqual({ nw: 'h', sw: 'h' })
+    h.cleanup()
+  })
+
+  it('claim=start on top pinches the non-claimed (east) corner', async () => {
+    // Prior ne='h' claim should be cleared when the user explicitly picks start.
+    const h = await setupRailsHarness({ ...leftLensRightNotes(), corners: { ne: 'h' } })
+    await h.dragSlot('slot-A', { kind: 'empty-side', side: 'top', claim: 'start' })
+    // start → nw='h' (claimed); end → ne pinched='v' (default, cleared).
+    expect(h.getRails().corners).toEqual({ nw: 'h' })
+    h.cleanup()
+  })
+
+  it('claim=start on left rail pinches SW (stores sw=h; clears default nw=v)', async () => {
+    // Left claim=start means left extends into NW only. Pre-existing nw='h'
+    // (a stale top claim) is overwritten with the dropped rail's axis 'v',
+    // which for verticals is default — so the entry is cleared, not stored.
+    const h = await setupRailsHarness({
+      left: null,
+      right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
+      top: { orientation: 'horizontal', slots: [s('slot-T', 'lens')] },
+      bottom: null,
+      corners: { nw: 'h' },
+    })
+    await h.dragSlot('slot-T', { kind: 'empty-side', side: 'left', claim: 'start' })
+    // start claimed → nw='v' (default → cleared). end pinched → sw='h' stored.
+    expect(h.getRails().corners).toEqual({ sw: 'h' })
+    h.cleanup()
+  })
 })
 
 describe('rails dragSlot — split quadrant', () => {
