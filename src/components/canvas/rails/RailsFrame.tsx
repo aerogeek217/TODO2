@@ -15,6 +15,7 @@ import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotDivider } from './SlotDivider'
 import { SlotHeader } from './SlotHeader'
+import { TabStrip } from './TabStrip'
 import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
 import { CalendarOrientationToggle } from './calendar/CalendarOrientationToggle'
@@ -136,6 +137,9 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const setSlotOrientation = useCanvasRailsStore((s) => s.setSlotOrientation)
   const setSlotWeekOffset = useCanvasRailsStore((s) => s.setSlotWeekOffset)
   const splitSlot = useCanvasRailsStore((s) => s.splitSlot)
+  const addTab = useCanvasRailsStore((s) => s.addTab)
+  const closeTab = useCanvasRailsStore((s) => s.closeTab)
+  const activateTab = useCanvasRailsStore((s) => s.activateTab)
   const pendingFocusSlotId = useCanvasRailsStore((s) => s.pendingFocusSlotId)
   const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
   const rails = useCanvasRailsStore((s) => s.rails)
@@ -254,7 +258,30 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     )
   }
 
-  const header = (
+  const handleAddTab = async (kind: typeof activeTab.type) => {
+    if (kind === 'taskboard') {
+      const tbId = useTaskboardStore.getState().defaultBoardId
+        ?? (await useTaskboardStore.getState().ensureDefault())
+      addTab(slot.id, kind, { taskboardId: tbId })
+      return
+    }
+    addTab(slot.id, kind)
+  }
+
+  const multiTab = slot.tabs.length >= 2
+  const header = multiTab ? (
+    <TabStrip
+      slot={slot}
+      onActivateTab={(tabId) => activateTab(slot.id, tabId)}
+      onCloseTab={(tabId) => closeTab(slot.id, tabId)}
+      onAddTab={(kind) => { void handleAddTab(kind) }}
+      onMore={(anchor) => setMenuAnchor(anchor)}
+      onPopOut={handlePopOut}
+      onClose={closeThisSlot}
+      menuOpen={menuOpen}
+      moreButtonRef={moreButtonRef}
+    />
+  ) : (
     <SlotHeader
       slotKind={activeTab.type}
       title={headerTitle}
@@ -307,8 +334,10 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         <SlotMenu
           anchor={menuAnchor}
           currentKind={activeTab.type}
+          orientation={fromSide === 'left' || fromSide === 'right' ? 'vertical' : 'horizontal'}
           onSplit={(dir) => splitSlot(slot.id, dir)}
           onPopOut={handlePopOut}
+          onAddTab={() => addTab(slot.id, 'lens')}
           onClose={closeMenuAndFocusTrigger}
         />
       )}

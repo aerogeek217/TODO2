@@ -5,8 +5,10 @@ import styles from './SlotMenu.module.css'
 interface SlotMenuProps {
   anchor: { x: number; y: number }
   currentKind: SlotKind
+  orientation: 'vertical' | 'horizontal'
   onSplit: (dir: 'above' | 'below' | 'left' | 'right') => void
   onPopOut?: () => void
+  onAddTab?: () => void
   onClose: () => void
 }
 
@@ -17,14 +19,18 @@ const KIND_LABEL: Record<SlotKind, string> = {
   taskboard: 'taskboard',
 }
 
-const SPLITS: { dir: 'above' | 'below' | 'left' | 'right'; label: string }[] = [
+type SplitItem = { dir: 'above' | 'below' | 'left' | 'right'; label: string }
+const VERTICAL_SPLITS: SplitItem[] = [
   { dir: 'above', label: 'Split above' },
   { dir: 'below', label: 'Split below' },
+]
+const HORIZONTAL_SPLITS: SplitItem[] = [
   { dir: 'left', label: 'Split left' },
   { dir: 'right', label: 'Split right' },
 ]
 
-export function SlotMenu({ anchor, currentKind, onSplit, onPopOut, onClose }: SlotMenuProps) {
+export function SlotMenu({ anchor, currentKind, orientation, onSplit, onPopOut, onAddTab, onClose }: SlotMenuProps) {
+  const splits = orientation === 'horizontal' ? HORIZONTAL_SPLITS : VERTICAL_SPLITS
   const ref = useRef<HTMLDivElement | null>(null)
 
   const getItems = useCallback((): HTMLButtonElement[] => {
@@ -111,7 +117,7 @@ export function SlotMenu({ anchor, currentKind, onSplit, onPopOut, onClose }: Sl
       onKeyDown={onKeyDown}
     >
       <div className={styles.groupLabel}>Split</div>
-      {SPLITS.map((s) => (
+      {splits.map((s) => (
         <button
           type="button"
           key={s.dir}
@@ -122,6 +128,19 @@ export function SlotMenu({ anchor, currentKind, onSplit, onPopOut, onClose }: Sl
           {s.label}
         </button>
       ))}
+      {onAddTab && (
+        <>
+          <div className={styles.separator} />
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.item}
+            onClick={() => { onAddTab(); onClose() }}
+          >
+            Add tab
+          </button>
+        </>
+      )}
       {onPopOut && (
         <>
           <div className={styles.separator} />

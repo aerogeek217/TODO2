@@ -38,6 +38,7 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="lens"
+        orientation="vertical"
         onSplit={() => {}}
         onClose={() => {}}
       />,
@@ -51,6 +52,7 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="lens"
+        orientation="vertical"
         onSplit={() => {}}
         onClose={() => {}}
       />,
@@ -68,6 +70,7 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="lens"
+        orientation="vertical"
         onSplit={() => {}}
         onClose={onClose}
       />,
@@ -81,11 +84,44 @@ describe('SlotMenu keyboard nav', () => {
       <SlotMenu
         anchor={{ x: 0, y: 0 }}
         currentKind="calendar"
+        orientation="vertical"
         onSplit={() => {}}
         onClose={() => {}}
       />,
     )
     expect(screen.getByRole('menu', { name: 'calendar slot options' })).toBeInTheDocument()
+  })
+
+  it('shows only above/below splits in vertical rails', () => {
+    render(
+      <SlotMenu
+        anchor={{ x: 0, y: 0 }}
+        currentKind="lens"
+        orientation="vertical"
+        onSplit={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.getByRole('menuitem', { name: 'Split above' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Split below' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Split left' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Split right' })).not.toBeInTheDocument()
+  })
+
+  it('shows only left/right splits in horizontal rails', () => {
+    render(
+      <SlotMenu
+        anchor={{ x: 0, y: 0 }}
+        currentKind="lens"
+        orientation="horizontal"
+        onSplit={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.getByRole('menuitem', { name: 'Split left' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Split right' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Split above' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Split below' })).not.toBeInTheDocument()
   })
 })
 

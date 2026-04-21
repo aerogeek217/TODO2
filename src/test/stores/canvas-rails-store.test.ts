@@ -208,4 +208,99 @@ describe('canvas-rails-store', () => {
     useCanvasRailsStore.getState().updateSlot('nope', { listDefinitionId: 7 })
     expect(useCanvasRailsStore.getState().rails).toBe(original)
   })
+
+  describe('tab reducers', () => {
+    function seedOneSlot(slot = createLensSlot(1)) {
+      useCanvasRailsStore.setState({
+        rails: {
+          left: null,
+          right: { orientation: 'vertical', slots: [slot] },
+          top: null,
+          bottom: null,
+        },
+        hydrated: true,
+      })
+      return slot
+    }
+
+    it('addTab appends a tab and activates it', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'notes')
+      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(updated.tabs).toHaveLength(2)
+      expect(updated.tabs[1].type).toBe('notes')
+      expect(updated.activeTabId).toBe(updated.tabs[1].id)
+    })
+
+    it('addTab seeds listDefinitionId for lens tabs', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'lens', { listDefinitionId: 42 })
+      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(updated.tabs[1].listDefinitionId).toBe(42)
+    })
+
+    it('addTab seeds taskboardId for taskboard tabs', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'taskboard', { taskboardId: 7 })
+      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(updated.tabs[1].taskboardId).toBe(7)
+    })
+
+    it('activateTab switches active tab when the id exists', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'notes')
+      const s1 = useCanvasRailsStore.getState().rails.right!.slots[0]
+      const firstTabId = s1.tabs[0].id
+      useCanvasRailsStore.getState().activateTab(slot.id, firstTabId)
+      const s2 = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(s2.activeTabId).toBe(firstTabId)
+    })
+
+    it('activateTab ignores unknown tabIds', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'notes')
+      const before = useCanvasRailsStore.getState().rails
+      useCanvasRailsStore.getState().activateTab(slot.id, 'unknown')
+      expect(useCanvasRailsStore.getState().rails).toBe(before)
+    })
+
+    it('closeTab removes a tab and activates the left sibling', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'notes')
+      useCanvasRailsStore.getState().addTab(slot.id, 'calendar')
+      const mid = useCanvasRailsStore.getState().rails.right!.slots[0].tabs[1].id
+      // Active tab is the 'calendar' tab (last added). Close the middle ('notes') tab.
+      useCanvasRailsStore.getState().closeTab(slot.id, mid)
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(s.tabs).toHaveLength(2)
+      expect(s.tabs.find((t) => t.id === mid)).toBeUndefined()
+    })
+
+    it('closeTab closes the whole slot when only one tab remains', () => {
+      const slot = seedOneSlot()
+      const onlyTabId = slot.tabs[0].id
+      useCanvasRailsStore.getState().closeTab(slot.id, onlyTabId)
+      expect(useCanvasRailsStore.getState().rails.right).toBeNull()
+    })
+
+    it('closeTab activates the left sibling when the active tab is closed', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'notes') // index 1, now active
+      const activeBefore = useCanvasRailsStore.getState().rails.right!.slots[0].activeTabId
+      useCanvasRailsStore.getState().closeTab(slot.id, activeBefore)
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(s.activeTabId).toBe(s.tabs[0].id)
+    })
+
+    it('changeTabType rewrites a specific tab', () => {
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'notes')
+      const firstTabId = slot.tabs[0].id
+      useCanvasRailsStore.getState().changeTabType(slot.id, firstTabId, 'calendar')
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(s.tabs[0].type).toBe('calendar')
+      // Cross-kind seed cleared.
+      expect(s.tabs[0].listDefinitionId).toBeUndefined()
+    })
+  })
 })

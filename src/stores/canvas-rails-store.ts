@@ -83,6 +83,26 @@ interface CanvasRailsState {
    * Slot-level `flex` / `orientation` / `weekOffset` are preserved.
    */
   setSlotKind: (slotId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
+  /**
+   * Append a new tab of the given kind to the slot and activate it. Seed
+   * fields (list id / taskboard id) follow the same rules as `setSlotKind`:
+   * `lens` uses `seed.listDefinitionId`, `taskboard` uses `seed.taskboardId`,
+   * others ignore seeds.
+   */
+  addTab: (slotId: string, kind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
+  /**
+   * Remove a tab from a slot. Activation cascades to the left sibling (then
+   * right) if the closed tab was active. If the last tab is closed, the whole
+   * slot is closed via `closeSlot`.
+   */
+  closeTab: (slotId: string, tabId: string) => void
+  /** Set the slot's active tab. No-op if the tabId isn't in the slot. */
+  activateTab: (slotId: string, tabId: string) => void
+  /**
+   * Change a specific tab's type in place. Same seed semantics as
+   * `setSlotKind` but targets an arbitrary tab rather than the active one.
+   */
+  changeTabType: (slotId: string, tabId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
   /** Calendar-slot only: set the row/column orientation. No-op when active tab is not calendar. */
   setSlotOrientation: (slotId: string, orientation: CalendarOrientation) => void
   /** Calendar-slot only: set the week offset (clamped to ±WEEK_OFFSET_MAX). */
@@ -255,6 +275,74 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
         if (current.weekOffset != null) nextSlot.weekOffset = current.weekOffset
       }
       return nextSlot
+    })
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  addTab: (slotId, kind, seed) => set((state) => {
+    const next = mapSlot(state.rails, slotId, (current) => {
+      const newTab: Tab = { id: genTabId(current.id), type: kind }
+      if (kind === 'lens' && seed?.listDefinitionId != null) newTab.listDefinitionId = seed.listDefinitionId
+      else if (kind === 'taskboard' && seed?.taskboardId != null) newTab.taskboardId = seed.taskboardId
+      return { ...current, tabs: [...current.tabs, newTab], activeTabId: newTab.id }
+    })
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  closeTab: (slotId, tabId) => {
+    const state = get()
+    const slot = findSlot(state.rails, slotId)
+    if (!slot) return
+    const idx = slot.tabs.findIndex((t) => t.id === tabId)
+    if (idx === -1) return
+    if (slot.tabs.length === 1) {
+      state.closeSlot(slotId)
+      return
+    }
+    set((s) => {
+      const next = mapSlot(s.rails, slotId, (current) => {
+        const i = current.tabs.findIndex((t) => t.id === tabId)
+        if (i === -1) return current
+        const tabs = current.tabs.slice()
+        tabs.splice(i, 1)
+        let activeTabId = current.activeTabId
+        if (current.activeTabId === tabId) {
+          // Prefer left sibling, else right.
+          const fallback = current.tabs[i - 1] ?? current.tabs[i + 1]
+          activeTabId = fallback.id
+        }
+        return { ...current, tabs, activeTabId }
+      })
+      return next === s.rails ? s : { rails: next }
+    })
+  },
+
+  activateTab: (slotId, tabId) => set((state) => {
+    const next = mapSlot(state.rails, slotId, (current) => {
+      if (current.activeTabId === tabId) return current
+      if (!current.tabs.some((t) => t.id === tabId)) return current
+      return { ...current, activeTabId: tabId }
+    })
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  changeTabType: (slotId, tabId, nextKind, seed) => set((state) => {
+    const next = mapSlot(state.rails, slotId, (current) => {
+      const idx = current.tabs.findIndex((t) => t.id === tabId)
+      if (idx === -1) return current
+      const tab = current.tabs[idx]
+      if (tab.type === nextKind && !seed) return current
+      const rebuilt: Tab = { id: tab.id, type: nextKind }
+      if (nextKind === 'lens') {
+        const listId = seed?.listDefinitionId ?? tab.listDefinitionId
+        if (listId != null) rebuilt.listDefinitionId = listId
+      } else if (nextKind === 'taskboard') {
+        const tbId = seed?.taskboardId ?? tab.taskboardId
+        if (tbId != null) rebuilt.taskboardId = tbId
+      }
+      const tabs = current.tabs.slice()
+      tabs[idx] = rebuilt
+      return { ...current, tabs }
     })
     return next === state.rails ? state : { rails: next }
   }),
