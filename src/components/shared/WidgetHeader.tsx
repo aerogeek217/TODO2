@@ -98,7 +98,7 @@ export function WidgetHeader({
           // still opens the kind menu, but a press-and-drag lets React
           // Flow move the node — giving the user the whole header as a
           // drag surface.
-          className={styles.titleButton}
+          className={`${styles.titleButton} ${onAddTab ? styles.titlePackLeft : ''}`}
           onPointerDown={(e) => {
             titlePressRef.current = { x: e.clientX, y: e.clientY }
           }}
@@ -124,8 +124,25 @@ export function WidgetHeader({
           <span className={styles.titleCaret} aria-hidden="true">▾</span>
         </button>
       ) : (
-        <span className={styles.title}>{title}</span>
+        <span className={`${styles.title} ${onAddTab ? styles.titlePackLeft : ''}`}>{title}</span>
       )}
+      {onAddTab && (
+        <button
+          type="button"
+          className={`${btnClass} ${styles.addTabButton}`}
+          onClick={(e) => {
+            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+            setAddAnchor({ x: rect.left, y: rect.bottom + 4 })
+          }}
+          aria-label="Add tab"
+          aria-haspopup="menu"
+          aria-expanded={addAnchor !== null}
+          title="Add tab"
+        >
+          +
+        </button>
+      )}
+      {onAddTab && <span className={styles.flexSpacer} aria-hidden="true" />}
       {meta != null && <span className={styles.meta}>{meta}</span>}
       {onPopOut && (
         <button
@@ -147,22 +164,6 @@ export function WidgetHeader({
           title="Dock to rail"
         >
           ↗
-        </button>
-      )}
-      {onAddTab && (
-        <button
-          type="button"
-          className={btnClass}
-          onClick={(e) => {
-            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-            setAddAnchor({ x: rect.left, y: rect.bottom + 4 })
-          }}
-          aria-label="Add tab"
-          aria-haspopup="menu"
-          aria-expanded={addAnchor !== null}
-          title="Add tab"
-        >
-          +
         </button>
       )}
       {onMore && (
