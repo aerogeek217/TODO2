@@ -9,9 +9,11 @@ import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useCanvasStore } from '../../stores/canvas-store'
+import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
 import { useFilterStore, applyFilter } from '../../stores/filter-store'
 import { startOfDay } from '../../utils/date'
-import { TwoWeekCalendarStrip } from './rails/TwoWeekCalendarStrip'
+import { CalendarStrip } from './rails/CalendarStrip'
+import { CalendarOrientationToggle } from './rails/calendar/CalendarOrientationToggle'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { convertFloatingKind } from '../../services/float-kind-switch'
@@ -66,6 +68,10 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
 
   const width = calendar.width
   const height = calendar.height
+  const orientation = calendar.orientation ?? 'vertical'
+  const weekOffset = calendar.weekOffset ?? 0
+
+  const updateOrientation = useFloatingCalendarStore((s) => s.updateOrientation)
 
   const handleDelete = useCallback(() => {
     if (calendar.id != null) onDelete(calendar.id)
@@ -97,7 +103,13 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
     <div className={styles.calendar} style={{ width, height }}>
       <WidgetHeader
         kind="calendar"
-        title="Calendar · next 2 wks"
+        title="Calendar"
+        meta={(
+          <CalendarOrientationToggle
+            orientation={orientation}
+            onChange={(o) => { if (calendar.id != null) void updateOrientation(calendar.id, o) }}
+          />
+        )}
         onDock={handleDock}
         onClose={handleDelete}
         onTitleClick={(a) => setKindAnchor(a)}
@@ -106,9 +118,11 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
       />
 
       <div className={`${styles.body} nopan nodrag nowheel`}>
-        <TwoWeekCalendarStrip
+        <CalendarStrip
           todos={activeTodos}
           today={today}
+          orientation={orientation}
+          weekOffset={weekOffset}
           assignedPeopleMap={assignedPeopleMap as Map<number, Person[]>}
           assignedOrgsMap={assignedOrgsMap as Map<number, Org[]>}
           statuses={statuses as Status[]}

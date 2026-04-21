@@ -1,0 +1,31 @@
+.toggle {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.btn,
+.btnActive {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
+.btnActive {
+  background: var(--color-accent-bg-medium);
+  border-color: var(--color-accent-dim);
+  color: var(--color-accent);
+}

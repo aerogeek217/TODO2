@@ -1,0 +1,126 @@
+/* ─── Vertical mode ──────────────────────────────────────────────── */
+
+.strip {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  column-gap: 6px;
+  padding: 3px 8px 4px;
+  border-bottom: 1px solid var(--color-border);
+  align-items: start;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowToday {
+  background: var(--color-accent-bg-light);
+}
+
+.rowPast {
+  opacity: 0.7;
+}
+
+.dateBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  padding-top: 2px;
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+/* ─── Horizontal mode ────────────────────────────────────────────── */
+
+.horizontal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-height: 0;
+  height: 100%;
+}
+
+.hCol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--color-border);
+}
+
+.hCol:last-child {
+  border-right: none;
+}
+
+.hColToday {
+  background: var(--color-accent-bg-light);
+}
+
+.hColPast {
+  opacity: 0.7;
+}
+
+.hColHeader {
+  padding: 5px 8px 4px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex: 0 0 auto;
+  background: var(--color-surface-high);
+  font-variant-numeric: tabular-nums;
+}
+
+.hColToday .hColHeader {
+  background: transparent;
+}
+
+.hColEvents {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 3px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* ─── Shared ─────────────────────────────────────────────────────── */
+
+.dow {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.dayNum {
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.rowToday .dow,
+.rowToday .dayNum,
+.hColToday .dow,
+.hColToday .dayNum {
+  color: var(--color-accent);
+}
+
+.emptyDash {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  padding: 2px 4px;
+  opacity: 0.6;
+}

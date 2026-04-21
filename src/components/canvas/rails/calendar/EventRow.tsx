@@ -14,13 +14,16 @@ export interface EventRowEntry {
 
 interface EventRowProps {
   entry: EventRowEntry
+  /** Compact variant: tighter padding, hides org chip, limits people to 2. Used by the horizontal calendar column where space is narrow. */
+  compact?: boolean
   onClick?: () => void
 }
 
-export const EventRow = memo(function EventRow({ entry, onClick }: EventRowProps) {
+export const EventRow = memo(function EventRow({ entry, compact = false, onClick }: EventRowProps) {
   const { todo, isVirtual, people, orgs, status } = entry
   const className = [
     styles.event,
+    compact && styles.eventCompact,
     todo.isCompleted && styles.eventCompleted,
     isVirtual && styles.eventVirtual,
   ].filter(Boolean).join(' ')
@@ -51,9 +54,9 @@ export const EventRow = memo(function EventRow({ entry, onClick }: EventRowProps
       )}
       <span className={styles.title}>{todo.title}</span>
       {people.length > 0 && (
-        <AvatarStack people={people} max={3} size="sm" />
+        <AvatarStack people={people} max={compact ? 2 : 3} size="sm" />
       )}
-      {orgs.length > 0 && (
+      {!compact && orgs.length > 0 && (
         <AvatarStack people={orgs} max={2} size="sm" variant="hollow" />
       )}
     </div>

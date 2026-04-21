@@ -17,6 +17,7 @@ import { SlotDivider } from './SlotDivider'
 import { SlotHeader } from './SlotHeader'
 import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
+import { CalendarOrientationToggle } from './calendar/CalendarOrientationToggle'
 import { NotesSlotContent } from './NotesSlotContent'
 import { TaskboardSlotContent } from './TaskboardSlotContent'
 import { DockOverlay } from './DockOverlay'
@@ -131,6 +132,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const closeSlot = useCanvasRailsStore((s) => s.closeSlot)
   const updateSlot = useCanvasRailsStore((s) => s.updateSlot)
   const setSlotKind = useCanvasRailsStore((s) => s.setSlotKind)
+  const setSlotOrientation = useCanvasRailsStore((s) => s.setSlotOrientation)
   const splitSlot = useCanvasRailsStore((s) => s.splitSlot)
   const pendingFocusSlotId = useCanvasRailsStore((s) => s.pendingFocusSlotId)
   const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
@@ -205,6 +207,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
 
   let headerTitle: ReactNode
   let body: ReactNode
+  let headerMeta: ReactNode = undefined
   if (slot.kind === 'lens') {
     headerTitle = title || 'List'
     body = (
@@ -217,8 +220,15 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       />
     )
   } else if (slot.kind === 'calendar') {
-    headerTitle = 'Calendar · next 2 wks'
-    body = <CalendarSlotContent />
+    const orientation = slot.orientation ?? 'vertical'
+    headerTitle = 'Calendar'
+    headerMeta = (
+      <CalendarOrientationToggle
+        orientation={orientation}
+        onChange={(o) => setSlotOrientation(slot.id, o)}
+      />
+    )
+    body = <CalendarSlotContent orientation={orientation} weekOffset={slot.weekOffset ?? 0} />
   } else if (slot.kind === 'notes') {
     headerTitle = 'Notes · Inbox'
     body = <NotesSlotContent />
@@ -238,7 +248,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     <SlotHeader
       slotKind={slot.kind}
       title={headerTitle}
-      meta={slot.kind === 'lens' && count > 0 ? count : undefined}
+      meta={headerMeta ?? (slot.kind === 'lens' && count > 0 ? count : undefined)}
       onMore={(anchor) => setMenuAnchor(anchor)}
       onPopOut={handlePopOut}
       menuOpen={menuOpen}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useOrgStore } from '../../../stores/org-store'
@@ -6,9 +7,14 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useFilterStore, applyFilter } from '../../../stores/filter-store'
 import { startOfDay } from '../../../utils/date'
-import { TwoWeekCalendarStrip } from './TwoWeekCalendarStrip'
+import { CalendarStrip } from './CalendarStrip'
 
-export function CalendarSlotContent() {
+interface CalendarSlotContentProps {
+  orientation?: CalendarOrientation
+  weekOffset?: number
+}
+
+export function CalendarSlotContent({ orientation, weekOffset }: CalendarSlotContentProps) {
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
@@ -40,9 +46,11 @@ export function CalendarSlotContent() {
   )
 
   return (
-    <TwoWeekCalendarStrip
+    <CalendarStrip
       todos={activeTodos}
       today={today}
+      orientation={orientation}
+      weekOffset={weekOffset}
       assignedPeopleMap={assignedPeopleMap}
       assignedOrgsMap={assignedOrgsMap}
       statuses={statuses}

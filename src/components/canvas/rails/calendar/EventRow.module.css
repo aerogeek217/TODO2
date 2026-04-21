@@ -10,6 +10,11 @@
   cursor: pointer;
 }
 
+.eventCompact {
+  gap: 4px;
+  padding: 2px 4px;
+}
+
 .event:hover {
   background: var(--color-tint-3);
 }
