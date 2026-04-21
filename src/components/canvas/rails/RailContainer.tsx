@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { useDroppable } from '@dnd-kit/core'
 import type { Rail, RailSide } from '../../../models/canvas-rails'
 import { RAIL_SIZE_MAX, RAIL_SIZE_MIN, clampRailSize } from '../../../models/canvas-rails'
-import { encodeRailsDropId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
 import styles from './RailContainer.module.css'
 
 interface RailContainerProps {
@@ -11,22 +9,6 @@ interface RailContainerProps {
   size: number
   onResize: (px: number) => void
   children: ReactNode
-  railsDragging?: boolean
-}
-
-function EdgeDrop({ side, edge, orientation }: { side: RailSide; edge: 'head' | 'tail'; orientation: 'vertical' | 'horizontal' }) {
-  const id = encodeRailsDropId({ kind: 'edge', side, edge })
-  const { setNodeRef, isOver } = useDroppable({ id, data: { type: RAILS_DRAG_TYPE } })
-  const axisClass = orientation === 'vertical' ? styles.edgeVertical : styles.edgeHorizontal
-  const edgeClass = edge === 'head' ? styles.edgeHead : styles.edgeTail
-  return (
-    <div
-      ref={setNodeRef}
-      className={`${styles.edge} ${axisClass} ${edgeClass} ${isOver ? styles.edgeOver : ''}`}
-      aria-hidden="true"
-      data-drop-id={id}
-    />
-  )
 }
 
 interface ResizeHandleProps {
@@ -122,7 +104,7 @@ function ResizeHandle({ side, size, onResize }: ResizeHandleProps) {
   )
 }
 
-export function RailContainer({ side, rail, size, onResize, children, railsDragging = false }: RailContainerProps) {
+export function RailContainer({ side, rail, size, onResize, children }: RailContainerProps) {
   const orientClass = rail.orientation === 'vertical' ? styles.vertical : styles.horizontal
   const style: CSSProperties = rail.orientation === 'vertical' ? { width: size } : { height: size }
   return (
@@ -132,9 +114,7 @@ export function RailContainer({ side, rail, size, onResize, children, railsDragg
       data-rail-side={side}
       aria-label={`Canvas ${side} rail`}
     >
-      {railsDragging && <EdgeDrop side={side} edge="head" orientation={rail.orientation} />}
       {children}
-      {railsDragging && <EdgeDrop side={side} edge="tail" orientation={rail.orientation} />}
       <ResizeHandle side={side} size={size} onResize={onResize} />
     </aside>
   )

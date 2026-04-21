@@ -108,19 +108,26 @@ function removeSlot(rails: RailsState, slotId: string): { rails: RailsState; slo
 
 /**
  * Ensure a slot joining `rail` has a flex weight comparable to its new
- * siblings. Once any sibling has a (pixel-derived) flex from a prior divider
- * drag, a new slot with `flex: undefined` falls back to `flex-grow: 1` and
- * collapses against flex=150+ neighbors. We hand the joining slot the mean of
- * present sibling weights so it lands at roughly an equal share; if no
- * sibling carries flex, we leave the joining slot untouched (all slots share
- * the default weight of 1).
+ * siblings. Rails are maintained with an all-or-nothing flex invariant: either
+ * every slot has a pixel-derived flex (after a divider drag) or none do (the
+ * default `flex-grow: 1` state). When joining a flex-ed rail, we hand the
+ * incoming slot the mean of sibling weights so it lands at an equal share;
+ * when joining a no-flex rail, we strip the incoming slot's stale flex so it
+ * defaults to `flex-grow: 1` alongside its siblings. Without the strip a slot
+ * carrying a pixel-valued flex from a prior rail would dwarf its new neighbors
+ * (flex-grow: 180 vs 1) and collapse them to a sliver.
  */
 function reconcileIncomingFlex(rail: Rail, slot: Slot): Slot {
   const values: number[] = []
   for (const s of rail.slots) {
     if (typeof s.flex === 'number' && Number.isFinite(s.flex) && s.flex > 0) values.push(s.flex)
   }
-  if (values.length === 0) return slot
+  if (values.length === 0) {
+    if (slot.flex == null) return slot
+    const { flex: _ignore, ...rest } = slot
+    void _ignore
+    return rest as Slot
+  }
   const mean = values.reduce((a, b) => a + b, 0) / values.length
   return { ...slot, flex: mean }
 }

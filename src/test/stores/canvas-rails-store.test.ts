@@ -118,23 +118,6 @@ describe('canvas-rails-store', () => {
     expect(s.left?.slots[0].id).toBe(a.id)
   })
 
-  it('edgeDropSlot reorders within a rail', () => {
-    const a = createLensSlot(1)
-    const b = createLensSlot(2)
-    const c = createLensSlot(3)
-    useCanvasRailsStore.setState({
-      rails: {
-        left: null,
-        right: { orientation: 'vertical', slots: [a, b, c] },
-        top: null,
-        bottom: null,
-      },
-      hydrated: true,
-    })
-    useCanvasRailsStore.getState().edgeDropSlot(b.id, 'right', 'head')
-    expect(useCanvasRailsStore.getState().rails.right?.slots.map((s) => s.id)).toEqual([b.id, a.id, c.id])
-  })
-
   it('splitDropSlot inserts before a target slot', () => {
     const a = createLensSlot(1)
     const b = createLensSlot(2)

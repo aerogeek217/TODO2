@@ -53,36 +53,6 @@ describe('rails harness — empty-side dock', () => {
   })
 })
 
-describe('rails harness — edge dock', () => {
-  it('drops onto head of a populated right rail → source inserted at index 0', async () => {
-    const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
-      right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
-      top: null,
-      bottom: null,
-    }
-    const h = await setupRailsHarness(initial)
-    h.simulateDrop('slot-A', { kind: 'edge', side: 'right', edge: 'head' })
-    const rails = h.getRails()
-    expect(rails.left).toBeNull()
-    expect(rails.right?.slots.map((s) => s.id)).toEqual(['slot-A', 'slot-B'])
-    h.cleanup()
-  })
-
-  it('drops onto tail of a populated right rail → source inserted at end', async () => {
-    const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
-      right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
-      top: null,
-      bottom: null,
-    }
-    const h = await setupRailsHarness(initial)
-    h.simulateDrop('slot-A', { kind: 'edge', side: 'right', edge: 'tail' })
-    expect(h.getRails().right?.slots.map((s) => s.id)).toEqual(['slot-B', 'slot-A'])
-    h.cleanup()
-  })
-})
-
 describe('rails harness — split quadrant', () => {
   it('drags onto upper half of a slot in a vertical rail → splits above target', async () => {
     const initial: RailsState = {
@@ -151,9 +121,9 @@ describe('rails harness — structural wiring', () => {
     }
     const h = await setupRailsHarness(initial)
     const zones = h.getDroppableZones()
-    // Left has 1 slot (+2 edges). Right/top/bottom empty (3 × empty-side).
+    // Left has 1 slot. Right/top/bottom empty (3 × empty-side).
     const kinds = zones.map((z) => z.kind).sort()
-    expect(kinds).toEqual(['edge', 'edge', 'empty-side', 'empty-side', 'empty-side', 'slot'])
+    expect(kinds).toEqual(['empty-side', 'empty-side', 'empty-side', 'slot'])
     h.cleanup()
   })
 })

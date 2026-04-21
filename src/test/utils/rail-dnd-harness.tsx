@@ -14,7 +14,7 @@
  * its rect:
  *   `data-rail-side` → rails (`<aside>`)
  *   `data-slot-id`   → slot wrappers (draggable + droppable)
- *   `data-drop-id`   → edge drops + DockOverlay empty-side zones
+ *   `data-drop-id`   → DockOverlay empty-side zones
  * Rects are laid out from a single `RailsLayout` so the test expresses
  * intent ("top rail is 1320×260") rather than numbers per element.
  */
@@ -61,11 +61,8 @@ const DEFAULT_LAYOUT: Required<RailsLayout> = {
   canvasHost: { left: 340, top: 260, width: 1320, height: 380 },
 }
 
-const EDGE_PX = 14
-
 export type DragTarget =
   | { kind: 'empty-side'; side: RailSide }
-  | { kind: 'edge'; side: RailSide; edge: 'head' | 'tail' }
   | { kind: 'slot'; slotId: string; quadrant?: 'upper' | 'lower' | 'left' | 'right' | 'center' }
   | { kind: 'cancel' }
 
@@ -94,8 +91,8 @@ export async function setupRailsHarness(initial: RailsState): Promise<RailsHarne
     listDefinitions: s.listDefinitions.length > 0 ? s.listDefinitions : [],
   }))
 
-  // Install rect mock up front so elements that mount later (edge drops,
-  // DockOverlay) resolve to real rects the moment they register with dnd-kit.
+  // Install rect mock up front so elements that mount later (DockOverlay)
+  // resolve to real rects the moment they register with dnd-kit.
   const restoreRects = installBoundingRectMock(makeDefaultResolver(DEFAULT_LAYOUT))
 
   // Mirror CanvasPage's production collision detection: pointerWithin
@@ -134,8 +131,6 @@ export async function setupRailsHarness(initial: RailsState): Promise<RailsHarne
         zones.push({ kind: 'empty-side', side })
         continue
       }
-      zones.push({ kind: 'edge', side, edge: 'head' })
-      zones.push({ kind: 'edge', side, edge: 'tail' })
       for (const slot of rail.slots) {
         zones.push({ kind: 'slot', slotId: slot.id })
       }
@@ -151,10 +146,6 @@ export async function setupRailsHarness(initial: RailsState): Promise<RailsHarne
     const store = useCanvasRailsStore.getState()
     if (zone.kind === 'empty-side') {
       store.dropSlotToSide(sourceSlotId, zone.side)
-      return
-    }
-    if (zone.kind === 'edge') {
-      store.edgeDropSlot(sourceSlotId, zone.side, zone.edge)
       return
     }
     const pointer = opts?.pointer ?? { x: 0, y: 0 }
@@ -256,20 +247,6 @@ function makeDefaultResolver(layout: Required<RailsLayout>): RectResolver {
 
 function rectForZone(zone: RailsDropZone, layout: Required<RailsLayout>): TestRect | null {
   if (zone.kind === 'empty-side') return layout[zone.side]
-  if (zone.kind === 'edge') {
-    const r = layout[zone.side]
-    const rails = useCanvasRailsStore.getState().rails
-    const orientation = rails[zone.side]?.orientation
-      ?? (zone.side === 'left' || zone.side === 'right' ? 'vertical' : 'horizontal')
-    if (orientation === 'vertical') {
-      return zone.edge === 'head'
-        ? { left: r.left, top: r.top, width: r.width, height: EDGE_PX }
-        : { left: r.left, top: r.top + r.height - EDGE_PX, width: r.width, height: EDGE_PX }
-    }
-    return zone.edge === 'head'
-      ? { left: r.left, top: r.top, width: EDGE_PX, height: r.height }
-      : { left: r.left + r.width - EDGE_PX, top: r.top, width: EDGE_PX, height: r.height }
-  }
   return rectForSlot(zone.slotId, layout)
 }
 
@@ -301,10 +278,6 @@ function computeTargetPoint(target: DragTarget, layout: Required<RailsLayout>): 
   if (target.kind === 'empty-side') {
     const r = layout[target.side]
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-  }
-  if (target.kind === 'edge') {
-    const rect = rectForZone({ kind: 'edge', side: target.side, edge: target.edge }, layout)!
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
   }
   const rect = rectForSlot(target.slotId, layout)
   if (!rect) throw new Error(`dragSlot: target slot ${target.slotId} not in rails state`)

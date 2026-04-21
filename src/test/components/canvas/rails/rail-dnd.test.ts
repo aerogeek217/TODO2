@@ -4,7 +4,6 @@ import { getActiveTab } from '../../../../models/canvas-rails'
 import {
   applyCenterSwap,
   applyDropToSide,
-  applyEdgeDrop,
   applySplitDrop,
   applySplitButton,
   decodeRailsDropId,
@@ -43,11 +42,6 @@ describe('rail-dnd id encoding', () => {
     const id = encodeRailsDropId(z)
     expect(isRailsDropId(id)).toBe(true)
     expect(decodeRailsDropId(id)).toEqual(z)
-  })
-
-  it('round-trips edge zones', () => {
-    const z = { kind: 'edge' as const, side: 'right' as const, edge: 'head' as const }
-    expect(decodeRailsDropId(encodeRailsDropId(z))).toEqual(z)
   })
 
   it('round-trips slot zones, including ids containing colons', () => {
@@ -115,56 +109,6 @@ describe('applyDropToSide', () => {
   it('is a no-op for unknown slot ids', () => {
     const rails = railsWith({})
     expect(applyDropToSide(rails, 'nope', 'left')).toBe(rails)
-  })
-})
-
-describe('applyEdgeDrop', () => {
-  it('inserts at the head of an existing rail', () => {
-    const a = lensSlot('a')
-    const b = lensSlot('b')
-    const rails = railsWith({
-      left: { orientation: 'vertical', slots: [a] },
-      right: { orientation: 'vertical', slots: [b] },
-    })
-    const next = applyEdgeDrop(rails, 'a', 'right', 'head')
-    expect(next.left).toBeNull()
-    expect(next.right?.slots.map((s) => s.id)).toEqual(['a', 'b'])
-  })
-
-  it('inserts at the tail of an existing rail', () => {
-    const a = lensSlot('a')
-    const b = lensSlot('b')
-    const rails = railsWith({
-      left: { orientation: 'vertical', slots: [a] },
-      right: { orientation: 'vertical', slots: [b] },
-    })
-    const next = applyEdgeDrop(rails, 'a', 'right', 'tail')
-    expect(next.right?.slots.map((s) => s.id)).toEqual(['b', 'a'])
-  })
-
-  it('creates the destination rail when empty', () => {
-    const a = lensSlot('a')
-    const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
-    const next = applyEdgeDrop(rails, 'a', 'left', 'head')
-    expect(next.right).toBeNull()
-    expect(next.left?.orientation).toBe('vertical')
-    expect(next.left?.slots.map((s) => s.id)).toEqual(['a'])
-  })
-
-  it('reorders within the same rail via head/tail', () => {
-    const a = lensSlot('a')
-    const b = lensSlot('b')
-    const c = lensSlot('c')
-    const rails = railsWith({ right: { orientation: 'vertical', slots: [a, b, c] } })
-    const head = applyEdgeDrop(rails, 'b', 'right', 'head')
-    expect(head.right?.slots.map((s) => s.id)).toEqual(['b', 'a', 'c'])
-    const tail = applyEdgeDrop(rails, 'b', 'right', 'tail')
-    expect(tail.right?.slots.map((s) => s.id)).toEqual(['a', 'c', 'b'])
-  })
-
-  it('is a no-op for unknown slot ids', () => {
-    const rails = railsWith({})
-    expect(applyEdgeDrop(rails, 'nope', 'right', 'head')).toBe(rails)
   })
 })
 
@@ -340,7 +284,7 @@ describe('flex reconciliation on insert/remove', () => {
     expect(next.right!.slots.find((s) => s.id === 'c')!.flex).toBeUndefined()
   })
 
-  it('reconciles flex when moving a slot to an existing rail via edge drop', () => {
+  it('reconciles flex when moving a slot to an existing rail via split-drop', () => {
     const a: Slot = { ...lensSlot('a'), flex: 200 }
     const b: Slot = { ...lensSlot('b'), flex: 100 }
     const c = lensSlot('c')
@@ -348,7 +292,7 @@ describe('flex reconciliation on insert/remove', () => {
       right: { orientation: 'vertical', slots: [a, b] },
       left: { orientation: 'vertical', slots: [c] },
     })
-    const next = applyEdgeDrop(rails, 'c', 'right', 'tail')
+    const next = applySplitDrop(rails, 'c', 'b', 'below')
     const moved = next.right!.slots.find((s) => s.id === 'c')!
     expect(moved.flex).toBe(150)
   })
@@ -358,6 +302,25 @@ describe('flex reconciliation on insert/remove', () => {
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
     const next = applyDropToSide(rails, 'a', 'left')
     expect(next.left!.slots[0].flex).toBeUndefined()
+  })
+
+  it('strips stale flex from an incoming slot when destination rail has no flex', () => {
+    // Regression: a slot carrying a pixel-valued flex from a prior rail used to
+    // retain that flex when joining a no-flex destination, dwarfing siblings
+    // (flex-grow: 180 vs 1) and collapsing them to a sliver.
+    const a: Slot = { ...lensSlot('a'), flex: 180 }
+    const b = lensSlot('b')
+    const c = lensSlot('c')
+    const rails = railsWith({
+      left: { orientation: 'vertical', slots: [a] },
+      right: { orientation: 'vertical', slots: [b, c] },
+    })
+    const next = applySplitDrop(rails, 'a', 'b', 'above')
+    const moved = next.right!.slots.find((s) => s.id === 'a')!
+    expect(moved.flex).toBeUndefined()
+    // Siblings remain flex-less; all three render with default flex-grow: 1.
+    expect(next.right!.slots.find((s) => s.id === 'b')!.flex).toBeUndefined()
+    expect(next.right!.slots.find((s) => s.id === 'c')!.flex).toBeUndefined()
   })
 
   it('strips flex from the sole remaining slot after removal via split-drop', () => {
