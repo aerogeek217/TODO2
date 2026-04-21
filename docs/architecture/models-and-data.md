@@ -23,8 +23,13 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | Status | models/status.ts | User-defined workflow state: name, color, sortOrder, `icon` (key from StatusIcon registry, default 'circle'), optional `hideByDefault` (excluded from default filter when true) |
 | PersistedStatus | models/status.ts | Status with guaranteed id (post-insert) |
 | ListInset | models/list-inset.ts | Canvas widget referencing a `ListDefinition` (`listDefinitionId` FK); delegates to the dashboard-lists interpreter |
-| Note | models/note.ts | Unified markdown note. `canvasId == null` → the single global note backing the dashboard tile / rail Notes slot. `canvasId` set → a canvas-pinned floating note with optional `x`/`y`/`width`/`height`/`color` (sticky-notes merge, v26). Dexie secondary index on `canvasId` |
-| TaskboardEntry | models/taskboard-entry.ts | Ordered task queue entry (todoId, sortOrder) for next-up work tracking |
+| Note | models/note.ts | The single global markdown note: `{content, createdAt, modifiedAt}`. One row backs the dashboard tile, the rail Notes slot, and every canvas `FloatingNote` placement |
+| FloatingNote | models/floating-note.ts | Canvas-pinned placement that renders the single global note. `{canvasId, x, y, width, height}`. Content lives in `Note`; this row only tracks placement. Dexie secondary index on `canvasId` |
+| FloatingCalendar | models/floating-calendar.ts | Canvas-pinned placement that renders the shared two-week calendar strip. `{canvasId, x, y, width, height}`. Dexie secondary index on `canvasId` |
+| FloatingTaskboard | models/floating-taskboard.ts | Canvas-pinned placement that references a `Taskboard` by id. `{canvasId, taskboardId, x, y, width, height, collapsed?}`. Dexie secondary indexes on `canvasId` + `taskboardId` (so removing a board cascades the floats) |
+| Taskboard | models/taskboard.ts | Reusable queue of tasks: `{name, entries: TaskboardEntry[], createdAt, updatedAt}`. Entries live inline (no join table) — every entry-level mutation rewrites the row. Referenced by dashboard cards, rail slots (`Slot.taskboardId`), and `FloatingTaskboard` widgets, so the same board renders live across multiple surfaces |
+| TaskboardEntry | models/taskboard-entry.ts | Ordered slot within a `Taskboard`: `{todoId, sortOrder}`. Stored inline on the Taskboard row — no row id; `todoId + sortOrder` uniquely locate an entry within a given board |
+| Slot, SlotKind, Rail, RailsState | models/canvas-rails.ts | Canvas-side-rail shapes. `SlotKind ∈ {'lens','notes','calendar','taskboard'}` (canonical `SLOT_KINDS` array exported for validators). `Slot` carries optional `listDefinitionId` / `taskboardId` seeds + optional `flex` weight. `RailsState` has per-side `Rail | null` + optional `widths`/`heights` bags (persisted even when the rail is null). Helpers: `clampRailSize` ([200, 600]), `defaultRailSize`, `railSize`, `railOrientationForSide`, `EMPTY_RAILS`, `serializeRailsState` / `parseRailsState` (shape-validated, returns null on failure — used by `settings-store` hydration + import validator) |
 | Backup | models/backup.ts | Auto-snapshot record: trigger type, serialized data, size |
 | SavedView | models/saved-view.ts | Named saved list view: sortBy + serializable filter snapshot (including dateRangeStart/End). Optional `maxTasks` (1..10000) + `limitMode` (`'hard' \| 'scroll'`) cap visible task count |
 | AppView | models/app-view.ts | Enum: Canvas, Dashboard, List, Calendar, Settings |
@@ -61,7 +66,10 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | runV26Migration | data/database.ts | v26 upgrade: move every `stickyNotes` row into the `notes` table via `translateStickyToNote`, then drop the `stickyNotes` store |
 | runV29Migration / appendTagNamesToTitle / buildTagNamesByTodo | data/database.ts | v29 upgrade: bake every assigned tag's name into the host todo's title as ` #tagname`, strip `tagIds` from any persisted custom predicate / saved-view filters, drop the `tags` + `todoTags` tables. Pure helpers reused by `restoreFromImportData` for legacy JSON imports |
 | runV31Migration | data/database.ts | v31 upgrade: strip the legacy `color` key from every `people` row. Person color is now derived at render time from the person's first assigned org (`resolvePersonColor`) |
-| taskboardRepository | data/taskboard-repository.ts | CRUD for TaskboardEntry (add, addAt with sortOrder, remove by todoId, reorder) |
+| taskboardRepository | data/taskboard-repository.ts | CRUD for `Taskboard`: `getAll`, `getById`, `create(name)`, `rename`, `remove`, `writeEntries(id, entries)` (replace the inline entries array + bump `updatedAt`). Entry-level mutations are built in the store from `writeEntries` |
+| floatingNoteRepository | data/floating-note-repository.ts | CRUD for `FloatingNote` (inherits `createRepository` base) + `getByCanvas`, `updatePosition`, `deleteByCanvas` (canvas cascade) |
+| floatingCalendarRepository | data/floating-calendar-repository.ts | CRUD for `FloatingCalendar` (inherits base) + `getByCanvas`, `updatePosition`, `deleteByCanvas` |
+| floatingTaskboardRepository | data/floating-taskboard-repository.ts | CRUD for `FloatingTaskboard` (inherits base) + `getByCanvas`, `updatePosition`, `deleteByCanvas` (canvas cascade), `deleteByTaskboard` (invoked when a `Taskboard` is removed so placement rows don't dangle) |
 | statusRepository | data/status-repository.ts | CRUD for Status (transactional cascade delete clears statusId from todos) |
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | savedViewRepository | data/saved-view-repository.ts | CRUD for SavedView (getAll, add, update, remove) |
@@ -70,6 +78,6 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | auditData | data/audit.ts | Scan all tables for orphaned join rows, dangling foreign keys, and unplaced canvas tasks (canvasId set but no projectId); returns AuditReport |
 | cleanupIssues | data/audit.ts | Atomic cleanup of all audit issues (delete orphans, clear dangling FKs) in single transaction |
 | validateImportData | data/import-validation.ts | Schema validation for JSON import (all models, color sanitization, size limits, SavedView filter validation, setting key allowlist) |
-| isValidCssColor | data/import-validation.ts | Validates hex color strings (#rgb or #rrggbb only) |
+| isValidCssColor | utils/css.ts | Validates hex color strings (#rgb or #rrggbb only). Re-exported by `data/import-validation.ts` for legacy import paths |
 | restoreFromImportData | data/restore.ts | Clear-all-tables + bulk-add from ImportData + auto-seed statuses + auto-seed listDefinitions + `isStarred`/`isAssigned` translation + `translateTodoV20ToV21` per row + priority list-inset deletion; used by backup restore, file import, and settings import |
 | parseAndRestore | data/restore.ts | Parse JSON string, validate, and restore all data tables; used by backup restore |

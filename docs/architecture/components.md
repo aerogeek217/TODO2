@@ -6,7 +6,7 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
-| DashboardView | views/DashboardView.tsx | Renders only `pinnedToDashboard` list definitions via `buildDashboardLists`; 2-column grid of `DashboardListCard`s; collapsible cards; drag tasks to taskboard via DndContext; appends an "Add list" tile (desktop) that opens `ListDefinitionPickerPopup` |
+| DashboardView | views/DashboardView.tsx | Horizon ribbon + two-column top row (Taskboard + hero horizon card, `@dnd-kit/sortable` order persisted via `settings.dashboardTopOrder`) + user-lists grid driven by `settings.dashboardUserLists` (sortable, per-card ⋯ overflow menu, "Add list" tile → `ListDefinitionPickerPopup`). Uses `buildDashboardLists` for every card. `DashboardListCard` is an internal helper in this file — not exported |
 | truncateSections | views/ListView.tsx | Pure helper: walks ordered `Section[]` and slices the tail so total task count ≤ `maxTasks`; returns `{ displaySections, truncatedCount }`. Drives ListView's "hard" limit mode |
 | buildDateSections, buildScheduledSections, buildDeadlineSections | views/ListView.tsx | Bucket todos by their date field into Overdue / Today / This Week / Later / (No Date\|Not Scheduled\|No Deadline). `buildDateSections` reads `effectiveDate(todo, today)`; `buildScheduledSections` reads `resolveScheduled(todo.scheduledDate, today)`; `buildDeadlineSections` reads `todo.dueDate`. Within a bucket order is `sortOrder` |
 
@@ -19,11 +19,13 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 | TaskEditMetadata | components/task/TaskEditMetadata.tsx | Scheduled (SchedulePicker) + Deadline (DeadlinePicker) rows with combined helper line, recurrence select gated on deadline, project, people/orgs sections |
 | TaskEditFooter | components/task/TaskEditFooter.tsx | Edit/create mode footer with timestamps, actions |
 | MobileTaskRow | components/task/MobileTaskRow.tsx | Mobile two-line task row: checkbox + title + status icon + chevron (line 1), scheduled/deadline chips + `AvatarStack` (sm, max=3) + org/notes (line 2); 48px min touch targets; reads/writes `hoveredTodoId` on `useUIStore` for cross-surface hover sync |
+| TaskRow | components/task/TaskRow.tsx | Desktop task row: checkbox, inline-editable title (via `useInlineEdit`), status icon + `StatusIcon` picker, scheduled/deadline chips with intensity fade (`dateIntensity`), `AvatarStack` (people) + org chip, right-click `CanvasContextMenu`, notes-icon → `TaskNotePopover`, project picker → `ProjectPickerPopup`. Host for the `PortalDropdown` helper (anchor tracking via `ResizeObserver` + pane scroll listener — no RAF polling post-Phase 1). All multi-select-aware mutations route through `useBulkActions` |
 
 ## Canvas Components
 
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
+| CanvasView | components/canvas/CanvasView.tsx | React Flow host. Registers node types (`project`, `listInset`, `floatingNote`, `floatingCalendar`, `taskboard`), memoizes node-data refs via `shallowEqualObject` + cache so memoized nodes don't re-render on pan/zoom, pipes `applyNodeChanges` through cascade-shift + alignment-guide computation, and owns the canvas-background `CanvasContextMenu` (New project / Add list / Add note / Add calendar / Add taskboard). The canvas-scoped `DragInsertContext` + `DragPreviewContext` providers live here so drag state is stable per drag rather than recomputed per move tick |
 | ListInsetNode | components/canvas/ListInsetNode.tsx | Canvas node for a `ListInset`. Resolves `inset.listDefinitionId` against `useListDefinitionStore` and routes through `buildDashboardLists` (single-def call) — parity sorting, grouping, and predicate evaluation with the dashboard. Applies global filter first; renders a placeholder header when the referenced def was deleted. Emits draggable TaskRows (drag to taskboard) |
 | FloatingNoteNode | components/canvas/FloatingNoteNode.tsx | Canvas note widget for `Note` rows with `canvasId` set. Drag/resize chrome + color-picker palette; body delegates to shared `NotesBody` (reads/writes the row via `activeIdOverride`). Replaces the retired `StickyNoteNode`; sticky-specific per-line task conversion + @/#/// autocomplete were dropped — NotesBody's Alt-T already converts the caret line. Spawn path is rail-slot pop-out only (canvas right-click "New Note" retired with notes-polish) |
 | TaskboardNode | components/canvas/TaskboardNode.tsx | Canvas node for taskboard; resizable, closable (clears with confirmation), sortable drag reorder, droppable target for drag-to-add from project lists and list insets; always visible on canvas |
@@ -33,6 +35,7 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 | InsertTrigger | components/canvas/InsertTrigger.tsx | Controlled "+" button between tasks for inline task creation; editing state lifted to SortableTaskList for Enter-chaining (new task opens next trigger) |
 | findAlignments, findAlignmentsScoped, findResizeSnap | components/canvas/alignment.ts | Snap-to-edge alignment for dragging/resizing nodes (5px threshold, guide lines) |
 | computeCascadeShifts, CASCADE_GAP_THRESHOLD | components/canvas/cascade-shift.ts | Auto-shift stacked projects when a neighbor's height changes (40px gap threshold, BFS cascade) |
+| drag-preview.css | components/canvas/drag-preview.css | Intentionally global CSS (not a module) so selectors can target React Flow's own drag-preview class names; imported once from `CanvasView.tsx` |
 
 ## Overlays
 
@@ -71,6 +74,8 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 | DateAnchorInput | components/shared/DateAnchorInput.tsx | Shared filter-predicate anchor picker: native `<input type="date">` for fixed anchors paired with a `<select>` of the 11 `RelativeDateToken`s (today, start/end-of-week, start/end-of-month, etc.); mutually exclusive — selecting a token clears the date and vice versa. Used by TopBar `DateRangeDropdown` and mobile `FilterSheet` |
 | ErrorBoundary | components/shared/ErrorBoundary.tsx | Generic React error boundary (class component, documented exception); catches render errors, shows scoped fallback with "Try again" / "Reload"; wired at App level and around Canvas route |
 | NlpAutocomplete | components/shared/NlpAutocomplete.tsx | Floating dropdown for autocomplete suggestions; renders people / orgs / projects with color dots |
+| WidgetHeader | components/shared/WidgetHeader.tsx | Unified slot/widget chrome used by rails (`SlotHeader`), floating nodes (`FloatingNoteNode`, `FloatingCalendarNode`, `TaskboardNode`), and `ListInsetNode`. Renders kind icon (via `KIND_ICON`) + drag handle + title + meta + action buttons (pop-out ⇱, dock ↙, more ⋯, close ×). `floating` prop switches the button row to hover-reveal + applies React Flow's `nopan nodrag` classes. `onTitleClick` makes the title a `▾`-caret button that fires anchor coords — the carrier for the `WidgetKindMenu` opener |
+| WidgetKindMenu | components/shared/WidgetKindMenu.tsx | Shared title-click popover: four kind radios (List/Notes/Calendar/Taskboard) + optional "Change list…" / "Change taskboard…" secondary row (label overridable via `secondaryLabel`). Rails consume it via `canvas-rails-store.setSlotKind`; floating nodes consume it via `convertFloatingKind` (in `services/float-kind-switch`). Keyboard navigation: arrow keys roving focus, Enter selects, Escape closes |
 
 ## Layout
 
