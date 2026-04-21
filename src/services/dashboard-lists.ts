@@ -7,6 +7,7 @@ import type {
 } from '../models/list-definition'
 import { effectiveDate, isScheduledExpired, resolveScheduled } from '../utils/effective-date'
 import { startOfDay, MS_PER_DAY } from '../utils/date'
+import { buildFamilyDateMap } from '../utils/family-date'
 
 export interface DashboardListsContext {
   today: Date
@@ -21,6 +22,18 @@ export interface DashboardListsContext {
    * console warning once per build).
    */
   evalPredicate?: (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
+  /**
+   * Per-member family min dates for the current list members. Injected by
+   * `buildDashboardLists` so date-based sorts and buckets keep parent + child
+   * families intact at the family's earliest date. Absent in direct
+   * `interpretSort`/`interpretGrouping` callers — the comparators fall back to
+   * each todo's own date, matching pre-feature behavior.
+   */
+  familyDates?: {
+    effective: Map<number, Date | null>
+    scheduled: Map<number, Date | null>
+    deadline: Map<number, Date | null>
+  }
 }
 
 export interface DashboardListGroup {
@@ -44,10 +57,22 @@ export function buildDashboardLists(
 ): DashboardList[] {
   const ordered = [...definitions].sort((a, b) => a.sortOrder - b.sortOrder)
   const result: DashboardList[] = []
+  const today = startOfDay(ctx.today)
   for (const def of ordered) {
     const members = todos.filter((t) => interpretMembership(def.membership, t, ctx))
-    const sorted = [...members].sort((a, b) => interpretSort(def.sort, a, b, ctx))
-    const groups = interpretGrouping(def.grouping, def.sort, sorted, ctx)
+    // Family-min date maps keep parent + children bundled at the family's
+    // earliest date for any date-based sort or bucket. Built per-list because
+    // membership (and therefore family composition) changes per definition.
+    const familyCtx: DashboardListsContext = {
+      ...ctx,
+      familyDates: {
+        effective: buildFamilyDateMap(members, (t) => effectiveDate(t, today)),
+        scheduled: buildFamilyDateMap(members, (t) => t.scheduledDate ? resolveScheduled(t.scheduledDate, today) : null),
+        deadline: buildFamilyDateMap(members, (t) => t.dueDate ? startOfDay(new Date(t.dueDate)) : null),
+      },
+    }
+    const sorted = [...members].sort((a, b) => interpretSort(def.sort, a, b, familyCtx))
+    const groups = interpretGrouping(def.grouping, def.sort, sorted, familyCtx)
     result.push({
       id: def.id,
       key: `def-${def.id}`,
@@ -97,7 +122,7 @@ export function interpretSort(
       return compareScheduledAsc(a, b, ctx)
 
     case 'deadline-asc':
-      return compareDeadlineAsc(a, b)
+      return compareDeadlineAsc(a, b, ctx)
 
     case 'sort-order':
       return compareSortOrder(a, b)
@@ -113,8 +138,9 @@ function compareEffectiveDateAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx
   const bExpired = isScheduledExpired(b, today)
   if (aExpired !== bExpired) return aExpired ? -1 : 1
 
-  const ad = effectiveDate(a, today)
-  const bd = effectiveDate(b, today)
+  const map = ctx.familyDates?.effective
+  const ad = map ? (map.get(a.id) ?? null) : effectiveDate(a, today)
+  const bd = map ? (map.get(b.id) ?? null) : effectiveDate(b, today)
   if (ad === null && bd === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
   if (ad === null) return 1
   if (bd === null) return -1
@@ -123,9 +149,14 @@ function compareEffectiveDateAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx
   return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
 }
 
-function compareDeadlineAsc(a: PersistedTodoItem, b: PersistedTodoItem): number {
-  const ad = a.dueDate ? startOfDay(new Date(a.dueDate)).getTime() : null
-  const bd = b.dueDate ? startOfDay(new Date(b.dueDate)).getTime() : null
+function compareDeadlineAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
+  const map = ctx.familyDates?.deadline
+  const ad = map
+    ? (map.get(a.id)?.getTime() ?? null)
+    : (a.dueDate ? startOfDay(new Date(a.dueDate)).getTime() : null)
+  const bd = map
+    ? (map.get(b.id)?.getTime() ?? null)
+    : (b.dueDate ? startOfDay(new Date(b.dueDate)).getTime() : null)
   if (ad === null && bd === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
   if (ad === null) return 1
   if (bd === null) return -1
@@ -142,8 +173,13 @@ function compareSortOrder(a: PersistedTodoItem, b: PersistedTodoItem): number {
 
 function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
   const today = startOfDay(ctx.today)
-  const as = a.scheduledDate ? resolveScheduled(a.scheduledDate, today) : null
-  const bs = b.scheduledDate ? resolveScheduled(b.scheduledDate, today) : null
+  const map = ctx.familyDates?.scheduled
+  const as = map
+    ? (map.get(a.id) ?? null)
+    : (a.scheduledDate ? resolveScheduled(a.scheduledDate, today) : null)
+  const bs = map
+    ? (map.get(b.id) ?? null)
+    : (b.scheduledDate ? resolveScheduled(b.scheduledDate, today) : null)
   if (as === null && bs === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
   if (as === null) return 1
   if (bs === null) return -1
@@ -171,7 +207,7 @@ function compareBySortBy(
     case 'scheduled':
       return compareScheduledAsc(a, b, ctx)
     case 'deadline':
-      return compareDeadlineAsc(a, b)
+      return compareDeadlineAsc(a, b, ctx)
     case 'people':
     case 'project':
     case 'org':
@@ -238,6 +274,9 @@ function bucketByEffective(todos: PersistedTodoItem[], ctx: DashboardListsContex
   const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getTime()
   const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0).getTime()
 
+  const familyEffective = ctx.familyDates?.effective
+    ?? buildFamilyDateMap(todos, (t) => effectiveDate(t, today))
+
   const tomorrow: PersistedTodoItem[] = []
   const thisWeek: PersistedTodoItem[] = []
   const nextWeek: PersistedTodoItem[] = []
@@ -246,7 +285,7 @@ function bucketByEffective(todos: PersistedTodoItem[], ctx: DashboardListsContex
   const beyond: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    const eff = effectiveDate(t, today)
+    const eff = familyEffective.get(t.id) ?? null
     if (eff === null) { beyond.push(t); continue }
     const ms = eff.getTime()
     if (ms <= tomorrowEnd) tomorrow.push(t)
@@ -273,6 +312,9 @@ function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext
   const tomorrowStart = base + MS_PER_DAY
   const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getTime()
 
+  const familyDeadline = ctx.familyDates?.deadline
+    ?? buildFamilyDateMap(todos, (t) => t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
+
   const overdue: PersistedTodoItem[] = []
   const dueToday: PersistedTodoItem[] = []
   const thisWeek: PersistedTodoItem[] = []
@@ -281,8 +323,9 @@ function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext
   const later: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    if (!t.dueDate) continue
-    const ms = startOfDay(new Date(t.dueDate)).getTime()
+    const d = familyDeadline.get(t.id) ?? null
+    if (d === null) continue
+    const ms = d.getTime()
     if (ms < base) overdue.push(t)
     else if (ms < tomorrowStart) dueToday.push(t)
     else if (ms <= thisWeekEnd) thisWeek.push(t)
@@ -308,6 +351,9 @@ function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContex
   const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getTime()
   const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0).getTime()
 
+  const familyScheduled = ctx.familyDates?.scheduled
+    ?? buildFamilyDateMap(todos, (t) => t.scheduledDate ? resolveScheduled(t.scheduledDate, today) : null)
+
   const noDate: PersistedTodoItem[] = []
   const tomorrow: PersistedTodoItem[] = []
   const thisWeek: PersistedTodoItem[] = []
@@ -317,8 +363,7 @@ function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContex
   const beyond: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    if (!t.scheduledDate) { noDate.push(t); continue }
-    const resolved = resolveScheduled(t.scheduledDate, today)
+    const resolved = familyScheduled.get(t.id) ?? null
     if (!resolved) { noDate.push(t); continue }
     const ms = resolved.getTime()
     if (ms <= tomorrowEnd) tomorrow.push(t)

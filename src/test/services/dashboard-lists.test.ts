@@ -177,6 +177,52 @@ describe('buildDashboardLists — sort', () => {
     expect(lists[0].todos.map((t) => t.id)).toEqual([1, 2])
   })
 
+  it('sorts a parent + child family at the family min date', () => {
+    // Parent's own date is far in the future; its child is due soon. The
+    // family should sort at the child's date, before an unrelated task
+    // scheduled in between.
+    const parent = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 30 * MS_PER_DAY) },
+    })
+    const child = makeTodo({
+      id: 2,
+      parentId: 1,
+      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 1 * MS_PER_DAY) },
+    })
+    const unrelated = makeTodo({
+      id: 3,
+      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 5 * MS_PER_DAY) },
+    })
+    const lists = buildDashboardLists([customDef()], [unrelated, parent, child], makeCtx())
+    // Family (parent, child) both at day+1 → before unrelated (day+5).
+    // Parent first inside the family because its sortOrder is lower.
+    expect(lists[0].todos.map((t) => t.id)).toEqual([1, 2, 3])
+  })
+
+  it('buckets a parent + child family into the same date bucket', () => {
+    const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
+    const parent = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 30 * MS_PER_DAY) },
+    })
+    const child = makeTodo({
+      id: 2,
+      parentId: 1,
+      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 1 * MS_PER_DAY) },
+    })
+    const lists = buildDashboardLists(
+      [DATE_GROUPED_DEF],
+      [parent, child],
+      makeCtx({ today: anchor }),
+    )
+    const groups = lists[0].groups!
+    // Parent and child both land in "tomorrow" — family min is the child's date.
+    expect(groups.length).toBe(1)
+    expect(groups[0].key).toBe('tomorrow')
+    expect(groups[0].todos.map((t) => t.id).sort()).toEqual([1, 2])
+  })
+
   it('sorts by scheduled-asc ascending, nulls last', () => {
     const earlier = makeTodo({
       id: 1,

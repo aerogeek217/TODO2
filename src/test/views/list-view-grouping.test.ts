@@ -76,6 +76,22 @@ describe('buildDateSections', () => {
     const week = sections.find((s) => s.key === 'week')!
     expect(week.todos.map((t) => t.id)).toEqual([1])
   })
+
+  it('places a parent + child family in the same bucket at the family min date', () => {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const tomorrow = new Date(today.getTime() + 86400000)
+    const inTenDays = new Date(today.getTime() + 10 * 86400000)
+
+    // Parent is "later", child is "this week" — both should land in "this week".
+    const parent = makeTodo({ id: 1, dueDate: inTenDays })
+    const child = makeTodo({ id: 2, parentId: 1, dueDate: tomorrow })
+    const sections = buildDateSections([parent, child])
+
+    expect(sections.find((s) => s.key === 'later')).toBeUndefined()
+    const week = sections.find((s) => s.key === 'week')!
+    expect(week.todos.map((t) => t.id).sort()).toEqual([1, 2])
+  })
 })
 
 describe('buildPeopleSections', () => {
@@ -194,20 +210,31 @@ describe('itemSortComparator', () => {
   })
 
   it('sorts deadline ascending, nulls last', () => {
-    const cmp = itemSortComparator('deadline', today)!
     const a = makeTodo({ id: 1, dueDate: new Date(2026, 0, 20), sortOrder: 10 })
     const b = makeTodo({ id: 2, dueDate: new Date(2026, 0, 18), sortOrder: 1 })
     const c = makeTodo({ id: 3, sortOrder: 5 }) // no deadline
+    const cmp = itemSortComparator('deadline', [a, b, c], today)!
     const sorted = [a, b, c].sort(cmp)
     expect(sorted.map((t) => t.id)).toEqual([2, 1, 3])
   })
 
   it('breaks ties with sortOrder', () => {
-    const cmp = itemSortComparator('deadline', today)!
     const d = new Date(2026, 0, 20)
     const a = makeTodo({ id: 1, dueDate: d, sortOrder: 10 })
     const b = makeTodo({ id: 2, dueDate: d, sortOrder: 5 })
+    const cmp = itemSortComparator('deadline', [a, b], today)!
     expect([a, b].sort(cmp).map((t) => t.id)).toEqual([2, 1])
+  })
+
+  it('keeps families together by sorting every member at the family min date', () => {
+    const parent = makeTodo({ id: 1, dueDate: new Date(2026, 2, 1), sortOrder: 1 })
+    const child = makeTodo({ id: 2, parentId: 1, dueDate: new Date(2026, 0, 20), sortOrder: 2 })
+    const other = makeTodo({ id: 3, dueDate: new Date(2026, 1, 1), sortOrder: 3 })
+    const all = [parent, child, other]
+    const cmp = itemSortComparator('deadline', all, today)!
+    // Family-min(parent) = Jan 20 (from child). `other` is Feb 1. So family
+    // wins the first position; tiebreak by sortOrder keeps parent above child.
+    expect([parent, child, other].sort(cmp).map((t) => t.id)).toEqual([1, 2, 3])
   })
 })
 
