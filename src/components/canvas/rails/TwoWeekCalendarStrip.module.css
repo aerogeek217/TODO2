@@ -5,9 +5,9 @@
 
 .row {
   display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 8px;
-  padding: 6px 10px;
+  grid-template-columns: 44px 1fr;
+  column-gap: 6px;
+  padding: 3px 8px 4px;
   border-bottom: 1px solid var(--color-border);
   align-items: start;
 }
@@ -20,8 +20,8 @@
   background: var(--color-accent-bg-light);
 }
 
-.rowPast .dateBlock {
-  opacity: 0.55;
+.rowPast {
+  opacity: 0.7;
 }
 
 .dateBlock {
@@ -42,7 +42,7 @@
 
 .dayNum {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text);
 }
 
@@ -54,62 +54,13 @@
 .events {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
   min-width: 0;
-}
-
-.event {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-meta);
-  color: var(--color-text);
-  background: var(--color-tint-2);
-  cursor: pointer;
-  min-width: 0;
-}
-
-.event:hover {
-  background: var(--color-tint-3);
-}
-
-.eventCompleted {
-  color: var(--color-text-muted);
-  text-decoration: line-through;
-}
-
-.eventVirtual {
-  font-style: italic;
-  opacity: 0.85;
-}
-
-.eventTitle {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.marker {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  color: var(--color-text-muted);
-}
-
-.markerScheduled {
-  color: var(--color-scheduled);
-}
-
-.markerDeadline {
-  color: var(--color-deadline);
 }
 
 .emptyDash {
   color: var(--color-text-muted);
   font-size: var(--font-size-meta);
   padding: 2px 4px;
+  opacity: 0.6;
 }

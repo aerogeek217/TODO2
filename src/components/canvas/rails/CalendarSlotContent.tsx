@@ -40,6 +40,13 @@ export function CalendarSlotContent() {
   )
 
   return (
-    <TwoWeekCalendarStrip todos={activeTodos} today={today} onOpenTodo={openEditPopup} />
+    <TwoWeekCalendarStrip
+      todos={activeTodos}
+      today={today}
+      assignedPeopleMap={assignedPeopleMap}
+      assignedOrgsMap={assignedOrgsMap}
+      statuses={statuses}
+      onOpenTodo={openEditPopup}
+    />
   )
 }

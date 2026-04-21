@@ -1,24 +1,20 @@
 import { useMemo } from 'react'
-import type { PersistedTodoItem } from '../../../models'
+import type { PersistedTodoItem, Person, Org, Status } from '../../../models'
 import { startOfDay, MS_PER_DAY } from '../../../utils/date'
-import { effectiveDate } from '../../../utils/effective-date'
-import { generateRecurringInstances, recurrenceAnchor } from '../../../services/recurrence'
-import { StatusIcon } from '../../shared/StatusIcon'
+import { buildEntries, dayKey } from './calendar/calendar-events'
+import { EventRow } from './calendar/EventRow'
 import styles from './TwoWeekCalendarStrip.module.css'
 
 export const STRIP_DAY_OFFSET_START = -2
 export const STRIP_DAY_OFFSET_END = 12
 export const STRIP_DAY_COUNT = STRIP_DAY_OFFSET_END - STRIP_DAY_OFFSET_START + 1
 
-interface StripEntry {
-  todo: PersistedTodoItem
-  isVirtual: boolean
-  key: string
-}
-
 interface TwoWeekCalendarStripProps {
   todos: PersistedTodoItem[]
   today: Date
+  assignedPeopleMap: Map<number, Person[]>
+  assignedOrgsMap: Map<number, Org[]>
+  statuses: Status[]
   onOpenTodo?: (todoId: number) => void
 }
 
@@ -31,54 +27,25 @@ function buildDayRange(today: Date): Date[] {
   return days
 }
 
-function bucketEntries(todos: PersistedTodoItem[], days: Date[], today: Date): Map<string, StripEntry[]> {
-  const map = new Map<string, StripEntry[]>()
-  if (days.length === 0) return map
-  const rangeStart = startOfDay(days[0])
-  const rangeEnd = new Date(startOfDay(days[days.length - 1]).getTime() + MS_PER_DAY)
-  const inRange = (d: Date) => d.getTime() >= rangeStart.getTime() && d.getTime() < rangeEnd.getTime()
-  const keyOf = (d: Date) => startOfDay(d).toISOString()
-
-  const push = (d: Date, entry: StripEntry) => {
-    const k = keyOf(d)
-    const arr = map.get(k) ?? []
-    arr.push(entry)
-    map.set(k, arr)
-  }
-
-  for (const t of todos) {
-    const ed = effectiveDate(t, today)
-    if (ed && inRange(ed)) {
-      push(ed, { todo: t, isVirtual: false, key: `task-${t.id}` })
-    }
-    if (t.recurrenceRule) {
-      const anchor = recurrenceAnchor(t)
-      if (!anchor) continue
-      const instances = generateRecurringInstances(anchor.date, t.recurrenceRule, rangeStart, rangeEnd)
-      const primaryKey = ed ? keyOf(ed) : null
-      for (const inst of instances) {
-        const ik = keyOf(inst)
-        if (ik === primaryKey) continue
-        push(inst, { todo: t, isVirtual: true, key: `recurring-${t.id}-${ik}` })
-      }
-    }
-  }
-
-  for (const [, arr] of map) {
-    arr.sort((a, b) => a.todo.sortOrder - b.todo.sortOrder)
-  }
-  return map
-}
-
-export function TwoWeekCalendarStrip({ todos, today, onOpenTodo }: TwoWeekCalendarStripProps) {
+export function TwoWeekCalendarStrip({
+  todos,
+  today,
+  assignedPeopleMap,
+  assignedOrgsMap,
+  statuses,
+  onOpenTodo,
+}: TwoWeekCalendarStripProps) {
   const days = useMemo(() => buildDayRange(today), [today])
-  const entriesByDay = useMemo(() => bucketEntries(todos, days, today), [todos, days, today])
-  const todayKey = startOfDay(today).toISOString()
+  const entriesByDay = useMemo(
+    () => buildEntries(todos, days, today, assignedPeopleMap, assignedOrgsMap, statuses),
+    [todos, days, today, assignedPeopleMap, assignedOrgsMap, statuses],
+  )
+  const todayKey = dayKey(today)
 
   return (
     <div className={styles.strip} role="list" aria-label="Two-week calendar">
       {days.map((day) => {
-        const key = startOfDay(day).toISOString()
+        const key = dayKey(day)
         const isToday = key === todayKey
         const isPast = day.getTime() < startOfDay(today).getTime()
         const entries = entriesByDay.get(key) ?? []
@@ -106,31 +73,11 @@ export function TwoWeekCalendarStrip({ todos, today, onOpenTodo }: TwoWeekCalend
                 <span className={styles.emptyDash} aria-hidden="true">—</span>
               ) : (
                 entries.map((entry) => (
-                  <div
+                  <EventRow
                     key={entry.key}
-                    className={[
-                      styles.event,
-                      entry.todo.isCompleted && styles.eventCompleted,
-                      entry.isVirtual && styles.eventVirtual,
-                    ].filter(Boolean).join(' ')}
+                    entry={entry}
                     onClick={() => onOpenTodo?.(entry.todo.id)}
-                    title={entry.isVirtual ? `Recurring instance of "${entry.todo.title}"` : entry.todo.title}
-                  >
-                    {entry.todo.scheduledDate && (
-                      <span className={`${styles.marker} ${styles.markerScheduled}`} aria-label="Scheduled">
-                        <StatusIcon icon="calendar" />
-                      </span>
-                    )}
-                    {entry.todo.dueDate && (
-                      <span className={`${styles.marker} ${styles.markerDeadline}`} aria-label="Deadline">
-                        <StatusIcon icon="clock" />
-                      </span>
-                    )}
-                    {entry.todo.recurrenceRule && (
-                      <span className={styles.marker} title={`Repeats ${entry.todo.recurrenceRule.type}`}>&#x21bb;</span>
-                    )}
-                    <span className={styles.eventTitle}>{entry.todo.title}</span>
-                  </div>
+                  />
                 ))
               )}
             </div>

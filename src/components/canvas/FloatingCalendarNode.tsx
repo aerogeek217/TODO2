@@ -106,7 +106,14 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
       />
 
       <div className={`${styles.body} nopan nodrag nowheel`}>
-        <TwoWeekCalendarStrip todos={activeTodos} today={today} onOpenTodo={openEditPopup} />
+        <TwoWeekCalendarStrip
+          todos={activeTodos}
+          today={today}
+          assignedPeopleMap={assignedPeopleMap as Map<number, Person[]>}
+          assignedOrgsMap={assignedOrgsMap as Map<number, Org[]>}
+          statuses={statuses as Status[]}
+          onOpenTodo={openEditPopup}
+        />
       </div>
 
       <div

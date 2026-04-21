@@ -25,7 +25,7 @@ describe('TwoWeekCalendarStrip', () => {
 
   it('renders 15 day rows from -2 to +12 offset', () => {
     const today = new Date(2026, 3, 19)
-    render(<TwoWeekCalendarStrip todos={[]} today={today} />)
+    render(<TwoWeekCalendarStrip todos={[]} today={today} assignedPeopleMap={new Map()} assignedOrgsMap={new Map()} statuses={[]} />)
     const rows = document.querySelectorAll('[data-day]')
     expect(rows).toHaveLength(STRIP_DAY_COUNT)
     expect(STRIP_DAY_COUNT).toBe(15)
@@ -37,7 +37,7 @@ describe('TwoWeekCalendarStrip', () => {
 
   it('marks the today row with data-today and highlight class', () => {
     const today = new Date(2026, 3, 19)
-    render(<TwoWeekCalendarStrip todos={[]} today={today} />)
+    render(<TwoWeekCalendarStrip todos={[]} today={today} assignedPeopleMap={new Map()} assignedOrgsMap={new Map()} statuses={[]} />)
     const todayRow = document.querySelector('[data-today="true"]') as HTMLElement | null
     expect(todayRow).toBeTruthy()
     expect(todayRow?.dataset.day).toBe(dayKey(today))
@@ -51,7 +51,7 @@ describe('TwoWeekCalendarStrip', () => {
       makeTodo({ id: 2, title: 'Scheduled today', scheduledDate: { kind: 'date', value: today } }),
       makeTodo({ id: 3, title: 'Out of range', dueDate: new Date(2026, 5, 1) }),
     ]
-    render(<TwoWeekCalendarStrip todos={todos} today={today} />)
+    render(<TwoWeekCalendarStrip todos={todos} today={today} assignedPeopleMap={new Map()} assignedOrgsMap={new Map()} statuses={[]} />)
     const fridayRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 24))}"]`)
     const todayRow = document.querySelector(`[data-day="${dayKey(today)}"]`)
     expect(fridayRow?.textContent).toContain('Due Friday')
@@ -69,7 +69,7 @@ describe('TwoWeekCalendarStrip', () => {
         recurrenceRule: { type: 'weekly' },
       }),
     ]
-    render(<TwoWeekCalendarStrip todos={todos} today={today} />)
+    render(<TwoWeekCalendarStrip todos={todos} today={today} assignedPeopleMap={new Map()} assignedOrgsMap={new Map()} statuses={[]} />)
     // Primary (Apr 20) + next occurrence (Apr 27)
     const primaryRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 20))}"]`)
     const virtualRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 27))}"]`)
@@ -81,7 +81,7 @@ describe('TwoWeekCalendarStrip', () => {
 
   it('shows a dash for empty days', () => {
     const today = new Date(2026, 3, 19)
-    render(<TwoWeekCalendarStrip todos={[]} today={today} />)
+    render(<TwoWeekCalendarStrip todos={[]} today={today} assignedPeopleMap={new Map()} assignedOrgsMap={new Map()} statuses={[]} />)
     const dashes = document.querySelectorAll('[class*="emptyDash"]')
     expect(dashes.length).toBe(STRIP_DAY_COUNT)
   })
@@ -90,7 +90,7 @@ describe('TwoWeekCalendarStrip', () => {
     const today = new Date(2026, 3, 19)
     const onOpenTodo = vi.fn()
     const todos = [makeTodo({ id: 7, title: 'Clickable', dueDate: new Date(2026, 3, 20) })]
-    render(<TwoWeekCalendarStrip todos={todos} today={today} onOpenTodo={onOpenTodo} />)
+    render(<TwoWeekCalendarStrip todos={todos} today={today} assignedPeopleMap={new Map()} assignedOrgsMap={new Map()} statuses={[]} onOpenTodo={onOpenTodo} />)
     fireEvent.click(screen.getByText('Clickable'))
     expect(onOpenTodo).toHaveBeenCalledWith(7)
   })

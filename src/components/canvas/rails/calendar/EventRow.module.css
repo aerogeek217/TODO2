@@ -1,0 +1,65 @@
+.event {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-primary);
+  min-width: 0;
+  cursor: pointer;
+}
+
+.event:hover {
+  background: var(--color-tint-3);
+}
+
+.eventCompleted .title {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.eventVirtual {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.statusEmpty {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.marker {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.markerScheduled {
+  color: var(--color-scheduled);
+}
+
+.markerDeadline {
+  color: var(--color-deadline);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+}
