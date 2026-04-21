@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState, type DragEvent } from 'react'
 import type { PersistedTodoItem, Person, Org, Status } from '../../../models'
 import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { startOfDay, MS_PER_DAY } from '../../../utils/date'
 import { buildEntries, dayKey } from './calendar/calendar-events'
 import { EventRow } from './calendar/EventRow'
 import styles from './CalendarStrip.module.css'
+
+const DRAG_MIME = 'application/x-todo-drag'
 
 export const STRIP_DAY_COUNT = 7
 
@@ -21,6 +23,12 @@ interface CalendarStripProps {
   statuses: Status[]
   onOpenTodo?: (todoId: number) => void
   onWeekOffsetChange?: (n: number) => void
+  /**
+   * Called when a todo event row is dropped on a different day cell. The
+   * strip does not itself mutate stores — it just hands back the target.
+   * Virtual recurring rows forward their parent todo id (per plan §Phase 5).
+   */
+  onReschedule?: (todoId: number, targetDay: Date) => void
 }
 
 function formatRange(days: Date[]): string {
@@ -96,6 +104,7 @@ export function CalendarStrip({
   statuses,
   onOpenTodo,
   onWeekOffsetChange,
+  onReschedule,
 }: CalendarStripProps) {
   const days = useMemo(() => buildDayRange(today, weekOffset), [today, weekOffset])
   const entriesByDay = useMemo(
@@ -103,6 +112,47 @@ export function CalendarStrip({
     [todos, days, today, assignedPeopleMap, assignedOrgsMap, statuses],
   )
   const todayKey = dayKey(today)
+
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+
+  const handleDragStart = useCallback((todoId: number) => (e: DragEvent) => {
+    if (!onReschedule) return
+    e.dataTransfer.effectAllowed = 'move'
+    const payload = JSON.stringify({ kind: 'todo', todoId })
+    e.dataTransfer.setData(DRAG_MIME, payload)
+    e.dataTransfer.setData('text/plain', String(todoId))
+  }, [onReschedule])
+
+  const handleDragOver = useCallback((key: string) => (e: DragEvent) => {
+    if (!onReschedule) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverKey(key)
+  }, [onReschedule])
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverKey(null)
+  }, [])
+
+  const handleDrop = useCallback((day: Date) => (e: DragEvent) => {
+    if (!onReschedule) return
+    e.preventDefault()
+    setDragOverKey(null)
+    const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain')
+    if (!raw) return
+    let todoId: number | null = null
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && parsed.kind === 'todo' && typeof parsed.todoId === 'number') {
+        todoId = parsed.todoId
+      }
+    } catch {
+      const n = Number(raw)
+      if (Number.isFinite(n)) todoId = n
+    }
+    if (todoId == null) return
+    onReschedule(todoId, startOfDay(day))
+  }, [onReschedule])
 
   const rangeBar = onWeekOffsetChange
     ? <RangeBar days={days} weekOffset={weekOffset} onWeekOffsetChange={onWeekOffsetChange} />
@@ -122,6 +172,7 @@ export function CalendarStrip({
           const key = dayKey(day)
           const isToday = key === todayKey
           const isPast = day.getTime() < startOfDay(today).getTime()
+          const isDragOver = dragOverKey === key
           const entries = entriesByDay.get(key) ?? []
           const dow = day.toLocaleDateString('en-US', { weekday: 'short' })
           return (
@@ -131,10 +182,15 @@ export function CalendarStrip({
                 styles.hCol,
                 isToday && styles.hColToday,
                 !isToday && isPast && styles.hColPast,
+                isDragOver && styles.colDragOver,
               ].filter(Boolean).join(' ')}
               role="listitem"
               data-day={key}
               data-today={isToday ? 'true' : undefined}
+              data-drop-target={isDragOver ? 'true' : undefined}
+              onDragOver={onReschedule ? handleDragOver(key) : undefined}
+              onDragLeave={onReschedule ? handleDragLeave : undefined}
+              onDrop={onReschedule ? handleDrop(day) : undefined}
             >
               <div className={styles.hColHeader}>
                 <span className={styles.dow}>{dow}</span>
@@ -150,6 +206,8 @@ export function CalendarStrip({
                       entry={entry}
                       compact
                       onClick={() => onOpenTodo?.(entry.todo.id)}
+                      draggable={!!onReschedule}
+                      onDragStart={onReschedule ? handleDragStart(entry.todo.id) : undefined}
                     />
                   ))
                 )}
@@ -175,6 +233,7 @@ export function CalendarStrip({
         const key = dayKey(day)
         const isToday = key === todayKey
         const isPast = day.getTime() < startOfDay(today).getTime()
+        const isDragOver = dragOverKey === key
         const entries = entriesByDay.get(key) ?? []
         const dow = day.toLocaleDateString('en-US', { weekday: 'short' })
         const dayLabel = `${day.toLocaleDateString('en-US', { month: 'short' })} ${day.getDate()}`
@@ -186,10 +245,15 @@ export function CalendarStrip({
               styles.row,
               isToday && styles.rowToday,
               !isToday && isPast && styles.rowPast,
+              isDragOver && styles.rowDragOver,
             ].filter(Boolean).join(' ')}
             role="listitem"
             data-day={key}
             data-today={isToday ? 'true' : undefined}
+            data-drop-target={isDragOver ? 'true' : undefined}
+            onDragOver={onReschedule ? handleDragOver(key) : undefined}
+            onDragLeave={onReschedule ? handleDragLeave : undefined}
+            onDrop={onReschedule ? handleDrop(day) : undefined}
           >
             <div className={styles.dateBlock} aria-label={dayLabel}>
               <span className={styles.dow}>{dow}</span>
@@ -204,6 +268,8 @@ export function CalendarStrip({
                     key={entry.key}
                     entry={entry}
                     onClick={() => onOpenTodo?.(entry.todo.id)}
+                    draggable={!!onReschedule}
+                    onDragStart={onReschedule ? handleDragStart(entry.todo.id) : undefined}
                   />
                 ))
               )}

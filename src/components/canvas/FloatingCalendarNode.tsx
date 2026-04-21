@@ -12,6 +12,7 @@ import { useCanvasStore } from '../../stores/canvas-store'
 import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
 import { useFilterStore, applyFilter } from '../../stores/filter-store'
 import { startOfDay } from '../../utils/date'
+import { buildRescheduleUpdate } from '../../utils/reschedule'
 import { CalendarStrip } from './rails/CalendarStrip'
 import { CalendarOrientationToggle } from './rails/calendar/CalendarOrientationToggle'
 import { WidgetHeader } from '../shared/WidgetHeader'
@@ -31,6 +32,7 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
   const todos = useTodoStore((s) => s.todos)
+  const updateTodo = useTodoStore((s) => s.update)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
@@ -73,6 +75,12 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
 
   const updateOrientation = useFloatingCalendarStore((s) => s.updateOrientation)
   const updateWeekOffset = useFloatingCalendarStore((s) => s.updateWeekOffset)
+
+  const handleReschedule = useCallback((todoId: number, targetDay: Date) => {
+    const todo = todos.find((t) => t.id === todoId)
+    if (!todo) return
+    void updateTodo(buildRescheduleUpdate(todo, targetDay))
+  }, [todos, updateTodo])
 
   const handleDelete = useCallback(() => {
     if (calendar.id != null) onDelete(calendar.id)
@@ -129,6 +137,7 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
           statuses={statuses as Status[]}
           onOpenTodo={openEditPopup}
           onWeekOffsetChange={(n) => { if (calendar.id != null) void updateWeekOffset(calendar.id, n) }}
+          onReschedule={handleReschedule}
         />
       </div>
 

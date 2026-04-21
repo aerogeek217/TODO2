@@ -19,6 +19,14 @@
   background: var(--color-tint-3);
 }
 
+.eventDraggable {
+  cursor: grab;
+}
+
+.eventDraggable:active {
+  cursor: grabbing;
+}
+
 .eventCompleted .title {
   color: var(--color-text-muted);
   text-decoration: line-through;

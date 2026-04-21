@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -7,6 +7,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useFilterStore, applyFilter } from '../../../stores/filter-store'
 import { startOfDay } from '../../../utils/date'
+import { buildRescheduleUpdate } from '../../../utils/reschedule'
 import { CalendarStrip } from './CalendarStrip'
 
 interface CalendarSlotContentProps {
@@ -17,12 +18,19 @@ interface CalendarSlotContentProps {
 
 export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChange }: CalendarSlotContentProps) {
   const todos = useTodoStore((s) => s.todos)
+  const updateTodo = useTodoStore((s) => s.update)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const statuses = useStatusStore((s) => s.statuses)
   const { filters } = useFilterStore()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
+
+  const handleReschedule = useCallback((todoId: number, targetDay: Date) => {
+    const todo = todos.find((t) => t.id === todoId)
+    if (!todo) return
+    void updateTodo(buildRescheduleUpdate(todo, targetDay))
+  }, [todos, updateTodo])
 
   const [today, setToday] = useState(() => startOfDay(new Date()))
 
@@ -57,6 +65,7 @@ export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChang
       statuses={statuses}
       onOpenTodo={openEditPopup}
       onWeekOffsetChange={onWeekOffsetChange}
+      onReschedule={handleReschedule}
     />
   )
 }

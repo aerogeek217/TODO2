@@ -14,6 +14,7 @@ import { generateInitials } from '../utils/person'
 import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
+import { buildRescheduleUpdate } from '../utils/reschedule'
 import { StatusIcon } from '../components/shared/StatusIcon'
 import styles from './CalendarView.module.css'
 
@@ -254,31 +255,7 @@ export function CalendarView() {
 
     const todo = todos.find((t) => t.id === todoId)
     if (!todo) return
-
-    const newDate = new Date(targetDate)
-    // Preserve the time component from the field being updated, else default to noon
-    const timeSource = todo.scheduledDate?.kind === 'date'
-      ? new Date(todo.scheduledDate.value)
-      : todo.dueDate
-        ? new Date(todo.dueDate)
-        : null
-    if (timeSource) {
-      newDate.setHours(timeSource.getHours(), timeSource.getMinutes(), timeSource.getSeconds())
-    } else {
-      newDate.setHours(12, 0, 0, 0)
-    }
-
-    if (todo.scheduledDate) {
-      // Dragging a scheduled task always commits to a precise date — the user's
-      // fuzzy choice was deliberate, but picking a specific day is an override.
-      updateTodo({
-        ...todo,
-        scheduledDate: { kind: 'date', value: newDate },
-        modifiedAt: new Date(),
-      })
-    } else {
-      updateTodo({ ...todo, dueDate: newDate, modifiedAt: new Date() })
-    }
+    updateTodo(buildRescheduleUpdate(todo, targetDate))
   }, [todos, updateTodo])
 
   const isWeek = viewMode === 'week'
