@@ -192,13 +192,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
         ]
         setCtxMenu({ x: e.clientX, y: e.clientY, items })
       }}>
-        <button
-          className={`${styles.collapseButton} ${project.isCollapsed ? styles.collapsed : ''}`}
-          onClick={() => project.id && onToggleCollapse(project.id)}
-        >
-          ▾
-        </button>
-
         {isRenaming ? (
           <input
             ref={renameInputRef}

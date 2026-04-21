@@ -592,7 +592,7 @@ export function TopBar() {
   if (isSettingsPage) return null
 
   return (
-    <header className={styles.topBar} data-filter-row>
+    <header className={`${styles.topBar} ${isActive ? styles.topBarFiltered : ''}`} data-filter-row>
       <div className={styles.searchWrapper}>
         <svg className={styles.searchIcon} width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <circle cx="7" cy="7" r="4.5" />

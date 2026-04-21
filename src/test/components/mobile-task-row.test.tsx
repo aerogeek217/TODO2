@@ -171,13 +171,6 @@ describe('MobileTaskRow', () => {
       expect(onOpenDetail).toHaveBeenCalledWith(3)
     })
 
-    it('calls onToggleExpand on expand button click', () => {
-      const onToggleExpand = vi.fn()
-      render(<MobileTaskRow todo={makeTodo({ id: 4 })} hasChildren isExpanded onToggleExpand={onToggleExpand} />)
-      fireEvent.click(screen.getByLabelText('Toggle subtasks'))
-      expect(onToggleExpand).toHaveBeenCalledWith(4)
-    })
-
     it('calls toggleComplete on checkbox click', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 5 })} />)
       fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle complete' }))
@@ -203,29 +196,9 @@ describe('MobileTaskRow', () => {
 
   })
 
-  // ── Expand toggle and indent ──────────────────────────────────────
+  // ── Indent ────────────────────────────────────────────────────────
 
-  describe('expand and indent', () => {
-    it('shows expand toggle when hasChildren', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} hasChildren isExpanded />)
-      expect(screen.getByLabelText('Toggle subtasks')).toBeInTheDocument()
-    })
-
-    it('hides expand toggle without children', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.queryByLabelText('Toggle subtasks')).not.toBeInTheDocument()
-    })
-
-    it('sets aria-expanded to true when expanded', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} hasChildren isExpanded />)
-      expect(screen.getByLabelText('Toggle subtasks')).toHaveAttribute('aria-expanded', 'true')
-    })
-
-    it('sets aria-expanded to false when collapsed', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} hasChildren isExpanded={false} />)
-      expect(screen.getByLabelText('Toggle subtasks')).toHaveAttribute('aria-expanded', 'false')
-    })
-
+  describe('indent', () => {
     it('applies indent padding for indentLevel > 0', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} indentLevel={2} />)
       expect(getRow()).toHaveStyle({ paddingLeft: '36px' })

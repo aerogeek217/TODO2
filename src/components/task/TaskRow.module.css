@@ -68,33 +68,6 @@
   opacity: 1;
 }
 
-.expandToggle {
-  position: absolute;
-  left: -14px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 20px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.15s, color 0.15s;
-  z-index: var(--z-above);
-}
-
-.expandToggle:hover {
-  color: var(--color-text-secondary);
-}
-
-.expandToggleCollapsed {
-  transform: translateY(-50%) rotate(-90deg);
-}
-
 .checkbox {
   width: 18px;
   height: 18px;

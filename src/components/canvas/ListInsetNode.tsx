@@ -80,7 +80,7 @@ function describeMembership(def: PersistedListDefinition): string {
 }
 
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
-  const { inset, onDelete, onToggleCollapse, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
+  const { inset, onDelete, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const definition = useListDefinitionStore((s) => s.listDefinitions.find(d => d.id === inset.listDefinitionId))
@@ -128,8 +128,6 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         kind="lens"
         title={headerLabel}
         meta={count}
-        collapsed={inset.isCollapsed}
-        onToggleCollapse={() => inset.id && onToggleCollapse(inset.id)}
         onDock={() => {
           if (inset.id == null) return
           useCanvasRailsStore.getState().createAndDockSlot('lens', inset.listDefinitionId)

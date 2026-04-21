@@ -28,26 +28,22 @@ function SortableTaskRow({
   assignedPeople,
   indentLevel,
   hasChildren,
-  isExpanded,
   isSelected,
   ghost,
   cut,
   disabledDrop,
   onSelect,
-  onToggleExpand,
   onOpenDetail,
 }: {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
   indentLevel?: number
   hasChildren?: boolean
-  isExpanded?: boolean
   isSelected?: boolean
   ghost?: boolean
   cut?: boolean
   disabledDrop?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
-  onToggleExpand?: (todoId: number) => void
   onOpenDetail?: (todoId: number) => void
 }) {
   const {
@@ -76,12 +72,10 @@ function SortableTaskRow({
         assignedPeople={assignedPeople}
         indentLevel={indentLevel}
         hasChildren={hasChildren}
-        isExpanded={isExpanded}
         isSelected={isSelected}
         ghost={ghost}
         cut={cut}
         onSelect={onSelect}
-        onToggleExpand={onToggleExpand}
         onOpenDetail={onOpenDetail}
         compact
       />
@@ -107,7 +101,7 @@ export function SortableTaskList({
   const { insertTodoId: insertBeforeTodoId, insertIndentLevel, insertAtEnd, insertProjectId } = useContext(DragPreviewContext)
   const isDragActive = activeDragTodoId != null
   const dropCount = isDragActive ? (dragGroupIds?.size ?? 0) + 1 : 1
-  const { collapsedParents, toggleCollapseParent, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()
+  const { collapsedParents, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()
   const hierarchy = useMemo(() => buildHierarchy(todos), [todos])
 
   // Which InsertTrigger is currently open (keyed by the todo id it follows, or BEFORE_FIRST)
@@ -168,10 +162,6 @@ export function SortableTaskList({
       selectOneTodo(todoId)
     }
   }, [rangeSelectTodo, toggleSelectTodo, selectOneTodo])
-
-  const handleToggleExpand = useCallback((todoId: number) => {
-    toggleCollapseParent(todoId)
-  }, [toggleCollapseParent])
 
   /** Build context menu for a paste target position */
   const buildPasteMenu = (e: React.MouseEvent, beforeTodoId: number | null, parentId: number | undefined) => {
@@ -389,13 +379,11 @@ export function SortableTaskList({
             assignedPeople={assignedPeopleMap?.get(item.todo.id)}
             indentLevel={item.indentLevel}
             hasChildren={item.hasChildren}
-            isExpanded={item.isExpanded}
             isSelected={isSel}
             ghost={ghostTodoIds?.has(item.todo.id)}
             cut={clipboardSet.has(item.todo.id)}
             disabledDrop={dragGroupIds?.has(item.todo.id)}
             onSelect={handleSelect}
-            onToggleExpand={item.hasChildren ? handleToggleExpand : undefined}
             onOpenDetail={onOpenDetail}
           />
           {!isDragActive && onInsertTask && (() => {

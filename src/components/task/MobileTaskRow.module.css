@@ -45,28 +45,6 @@
   min-height: 32px;
 }
 
-.expandToggle {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: 16px;
-  min-width: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  padding: 0;
-  margin: 0 -8px;
-  transition: transform 0.15s;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.expandToggleCollapsed {
-  transform: rotate(-90deg);
-}
-
 .checkbox {
   appearance: none;
   -webkit-appearance: none;

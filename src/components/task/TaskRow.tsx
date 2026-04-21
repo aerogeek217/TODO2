@@ -87,11 +87,9 @@ interface TaskRowProps {
   assignedPeople?: Person[]
   indentLevel?: number
   hasChildren?: boolean
-  isExpanded?: boolean
   isSelected?: boolean
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
-  onToggleExpand?: (todoId: number) => void
   onOpenDetail?: (todoId: number) => void
   /** Show compact people chips (initials only) — retained for non-row surfaces */
   compact?: boolean
@@ -107,8 +105,8 @@ interface TaskRowProps {
 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, indentLevel = 0,
-  hasChildren, isExpanded, isSelected, ghost,
-  onSelect, onToggleExpand, onOpenDetail, cut, extraLabel, showContext, taskboardId,
+  hasChildren, isSelected, ghost,
+  onSelect, onOpenDetail, cut, extraLabel, showContext, taskboardId,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
@@ -239,26 +237,14 @@ export const TaskRow = memo(function TaskRow({
         </svg>
       </span>
 
-      {hasChildren && (
-        <button
-          className={`${styles.expandToggle} ${isExpanded ? '' : styles.expandToggleCollapsed}`}
-          onClick={(e) => { e.stopPropagation(); onToggleExpand?.(todo.id) }}
-          aria-label={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
-        >
-          ▾
-        </button>
-      )}
-
-      {!hasChildren && (
-        <input
-          type="checkbox"
-          className={styles.checkbox}
-          checked={todo.isCompleted}
-          onChange={handleToggleComplete}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-        />
-      )}
+      <input
+        type="checkbox"
+        className={styles.checkbox}
+        checked={todo.isCompleted}
+        onChange={handleToggleComplete}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+      />
 
       {edit.isEditing ? (
         <input

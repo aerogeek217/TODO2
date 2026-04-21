@@ -17,19 +17,17 @@ interface MobileTaskRowProps {
   assignedPeople?: Person[]
   indentLevel?: number
   hasChildren?: boolean
-  isExpanded?: boolean
   isSelected?: boolean
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
-  onToggleExpand?: (todoId: number) => void
   onOpenDetail?: (todoId: number) => void
   cut?: boolean
 }
 
 export const MobileTaskRow = memo(function MobileTaskRow({
   todo, assignedPeople, indentLevel = 0,
-  hasChildren, isExpanded, isSelected, ghost,
-  onSelect, onToggleExpand, onOpenDetail, cut,
+  hasChildren, isSelected, ghost,
+  onSelect, onOpenDetail, cut,
 }: MobileTaskRowProps) {
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
@@ -83,27 +81,14 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     >
       {/* Line 1 */}
       <div className={styles.primaryRow}>
-        {!hasChildren && (
-          <input
-            type="checkbox"
-            className={styles.checkbox}
-            checked={todo.isCompleted}
-            onChange={handleToggleComplete}
-            onClick={(e) => e.stopPropagation()}
-            aria-label="Toggle complete"
-          />
-        )}
-
-        {hasChildren && (
-          <button
-            className={`${styles.expandToggle} ${isExpanded ? '' : styles.expandToggleCollapsed}`}
-            onClick={(e) => { e.stopPropagation(); onToggleExpand?.(todo.id) }}
-            aria-expanded={isExpanded}
-            aria-label="Toggle subtasks"
-          >
-            ▾
-          </button>
-        )}
+        <input
+          type="checkbox"
+          className={styles.checkbox}
+          checked={todo.isCompleted}
+          onChange={handleToggleComplete}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Toggle complete"
+        />
 
         <span className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}
@@ -138,7 +123,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
       {/* Line 2: metadata */}
       {hasMetadata && (
-        <div className={styles.metaRow} style={hasChildren ? { paddingLeft: '70px' } : undefined}>
+        <div className={styles.metaRow}>
           {todo.scheduledDate && (
             <span
               className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}

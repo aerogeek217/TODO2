@@ -61,7 +61,7 @@ export function TaskList({
   rootComparator,
   onOpenDetail,
 }: TaskListProps) {
-  const { collapsedParents, toggleCollapseParent, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
+  const { collapsedParents, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
   const isMobile = useIsMobile()
   const RowComponent = isMobile ? MobileTaskRow : TaskRow
 
@@ -96,10 +96,6 @@ export function TaskList({
     }
   }, [rangeSelectTodo, toggleSelectTodo, selectOneTodo])
 
-  const handleToggleExpand = useCallback((todoId: number) => {
-    toggleCollapseParent(todoId)
-  }, [toggleCollapseParent])
-
   return (
     <>
       {flatItems.map((item, idx) => {
@@ -120,12 +116,10 @@ export function TaskList({
             assignedPeople={item.assignedPeople}
             indentLevel={item.indentLevel}
             hasChildren={item.hasChildren}
-            isExpanded={item.isExpanded}
             isSelected={isSel}
             ghost={ghostIds?.has(item.todo.id)}
             cut={clipboardSet.has(item.todo.id)}
             onSelect={handleSelect}
-            onToggleExpand={item.hasChildren ? handleToggleExpand : undefined}
             onOpenDetail={onOpenDetail}
           />
         )
