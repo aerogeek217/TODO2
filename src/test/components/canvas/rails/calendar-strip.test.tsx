@@ -97,7 +97,36 @@ describe('CalendarStrip', () => {
     expect(todayCol?.className).toMatch(/hColToday/)
   })
 
-  it('places tasks on the day matching effectiveDate', () => {
+  it('places tasks with both scheduled + deadline on the scheduled day (not min)', () => {
+    // Regression: previously used effectiveDate = min(sched, due), which
+    // clamped the card back to the deadline after a drag-past-deadline
+    // (making the reschedule look like it didn't happen). Now matches
+    // CalendarView: scheduled ?? deadline.
+    const today = new Date(2026, 3, 19)
+    const todos = [
+      makeTodo({
+        id: 20,
+        title: 'Slips past deadline',
+        scheduledDate: { kind: 'date', value: new Date(2026, 3, 17) }, // Fri
+        dueDate: new Date(2026, 3, 15), // Wed — earlier than scheduled
+      }),
+    ]
+    render(
+      <CalendarStrip
+        todos={todos}
+        today={today}
+        assignedPeopleMap={new Map()}
+        assignedOrgsMap={new Map()}
+        statuses={[]}
+      />,
+    )
+    const friRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 17))}"]`)
+    const wedRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 15))}"]`)
+    expect(friRow?.textContent).toContain('Slips past deadline')
+    expect(wedRow?.textContent).not.toContain('Slips past deadline')
+  })
+
+  it('places tasks on the scheduled day when only scheduledDate is set, deadline day when only dueDate', () => {
     const today = new Date(2026, 3, 19)
     const todos = [
       // This week (Mon Apr 13 – Sun Apr 19): dueDate Apr 17 is visible.

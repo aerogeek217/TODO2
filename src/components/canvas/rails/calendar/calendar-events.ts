@@ -1,6 +1,6 @@
 import type { PersistedTodoItem, Person, Org, Status } from '../../../../models'
 import { startOfDay, MS_PER_DAY } from '../../../../utils/date'
-import { effectiveDate } from '../../../../utils/effective-date'
+import { resolveScheduled } from '../../../../utils/effective-date'
 import { generateRecurringInstances, recurrenceAnchor } from '../../../../services/recurrence'
 import type { EventRowEntry } from './EventRow'
 
@@ -53,15 +53,20 @@ export function buildEntries(
   }
 
   for (const t of todos) {
-    const ed = effectiveDate(t, today)
-    if (ed && inRange(ed)) {
-      push(ed, enrich(t, false, `task-${t.id}`))
+    // Placement uses scheduled ?? deadline (matches CalendarView):
+    // the user's scheduledDate wins even when it's past the deadline, so
+    // drag-to-reschedule actually moves the card. Using effectiveDate
+    // (= min(sched, due)) would clamp the card back to the deadline day.
+    const sched = resolveScheduled(t.scheduledDate, today)
+    const primary = sched ?? (t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
+    if (primary && inRange(primary)) {
+      push(primary, enrich(t, false, `task-${t.id}`))
     }
     if (t.recurrenceRule) {
       const anchor = recurrenceAnchor(t)
       if (!anchor) continue
       const instances = generateRecurringInstances(anchor.date, t.recurrenceRule, rangeStart, rangeEnd)
-      const primaryKey = ed ? dayKey(ed) : null
+      const primaryKey = primary ? dayKey(primary) : null
       for (const inst of instances) {
         const ik = dayKey(inst)
         if (ik === primaryKey) continue
