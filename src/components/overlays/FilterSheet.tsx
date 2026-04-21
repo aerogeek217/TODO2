@@ -116,7 +116,7 @@ export function FilterSheet() {
   }
 
   const dateFieldOptions: { value: DateField; label: string }[] = [
-    { value: 'date', label: 'Date' },
+    { value: 'date', label: 'Effective' },
     { value: 'scheduled', label: 'Sched.' },
     { value: 'deadline', label: 'Deadline' },
     { value: 'created', label: 'Created' },

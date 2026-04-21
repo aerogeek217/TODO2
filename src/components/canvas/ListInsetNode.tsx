@@ -1,9 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDraggable } from '@dnd-kit/core'
-import type { ListInset, PersistedTodoItem, Person, Org, TodoPredicate } from '../../models'
+import type { ListInset, PersistedTodoItem, Person, Org } from '../../models'
 import type { SlotKind } from '../../models/canvas-rails'
-import type { PersistedListDefinition } from '../../models/list-definition'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
@@ -64,21 +63,6 @@ export interface ListInsetNodeData {
 
 type ListInsetNodeType = ListInsetNodeData
 
-/** Rough summary of a predicate, used as a subtitle below the inset header. */
-function describePredicate(p: TodoPredicate): string {
-  const parts: string[] = []
-  if (p.personIds?.length) parts.push(`${p.personIds.length} person filter`)
-  if (p.orgIds?.length) parts.push(`${p.orgIds.length} org filter`)
-  if (p.statusIds?.length) parts.push(`${p.statusIds.length} status filter`)
-  if (p.dateRangeStart || p.dateRangeEnd) parts.push('date range')
-  if (p.searchText) parts.push(`search: "${p.searchText}"`)
-  return parts.length > 0 ? parts.join(' · ') : 'All tasks'
-}
-
-function describeMembership(def: PersistedListDefinition): string {
-  return describePredicate(def.membership.predicate)
-}
-
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const { inset, onDelete, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
   const { getZoom } = useReactFlow()
@@ -91,7 +75,6 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
   const headerLabel = definition?.name ?? '(Deleted list)'
-  const subtitle = definition ? describeMembership(definition) : 'Referenced list was deleted'
   const height = inset.height ?? 300
 
   const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
@@ -138,8 +121,6 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         titleMenuOpen={kindAnchor !== null}
         floating
       />
-
-      {!inset.isCollapsed && <div className={styles.filterDesc}>{subtitle}</div>}
 
       <div
         className={`${inset.isCollapsed ? styles.collapsedBody : styles.body} nopan nodrag nowheel`}

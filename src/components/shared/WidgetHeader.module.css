@@ -71,15 +71,16 @@
 }
 
 .titleButton {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
+  margin: -2px auto -2px -4px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   background: transparent;
   border: none;
   padding: 2px 6px;
-  margin: -2px -2px -2px -4px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--color-text-primary);

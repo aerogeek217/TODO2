@@ -240,7 +240,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
             </button>
             {showSortMenu && (
               <div className={styles.sortMenu}>
-                {([['name', 'Name'], ['date', 'Date'], ['created', 'Created']] as const).map(([key, label]) => (
+                {([['name', 'Name'], ['date', 'Effective Date'], ['created', 'Created']] as const).map(([key, label]) => (
                   <button key={key} className={`${styles.sortOption} ${lastSort?.by === key ? styles.sortOptionActive : ''}`} onClick={(e) => { e.stopPropagation(); handleSort(key) }}>
                     {label}
                     {lastSort?.by === key && <span className={styles.sortArrow}>{lastSort.asc ? '↑' : '↓'}</span>}

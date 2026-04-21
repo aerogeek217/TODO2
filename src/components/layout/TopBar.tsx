@@ -258,7 +258,7 @@ function FilterDropdown({
 }
 
 const DATE_FIELD_LABELS: Record<DateField, string> = {
-  date: 'Date',
+  date: 'Effective Date',
   scheduled: 'Scheduled',
   deadline: 'Deadline',
   created: 'Created',

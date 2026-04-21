@@ -73,7 +73,7 @@ const GROUPING_KINDS: { value: ListGrouping['kind']; label: string; title?: stri
 ]
 
 const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
-  { value: 'date', label: 'Date' },
+  { value: 'date', label: 'Effective Date' },
   { value: 'scheduled', label: 'Scheduled' },
   { value: 'deadline', label: 'Deadline' },
   { value: 'project', label: 'Project' },

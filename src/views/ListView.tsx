@@ -59,7 +59,7 @@ export interface Section {
 
 const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode }[] = [
   { value: 'none', label: 'None', icon: groupByIcons.none },
-  { value: 'date', label: 'Date', icon: groupByIcons.date },
+  { value: 'date', label: 'Effective Date', icon: groupByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: groupByIcons.scheduled },
   { value: 'deadline', label: 'Deadline', icon: groupByIcons.deadline },
   { value: 'project', label: 'Project', icon: groupByIcons.project },
@@ -70,7 +70,7 @@ const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode
 
 const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.ReactNode }[] = [
   { value: 'manual', label: 'Manual', icon: itemSortByIcons.manual },
-  { value: 'date', label: 'Date', icon: itemSortByIcons.date },
+  { value: 'date', label: 'Effective Date', icon: itemSortByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: itemSortByIcons.scheduled },
   { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
 ]
