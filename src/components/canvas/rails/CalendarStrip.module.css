@@ -103,9 +103,7 @@
 }
 
 .rowDragOver {
-  outline: 2px dashed var(--color-accent);
-  outline-offset: -2px;
-  background: var(--color-accent-bg-light);
+  background: var(--color-accent-bg-medium);
 }
 
 .dateBlock {
@@ -154,9 +152,7 @@
 }
 
 .colDragOver {
-  outline: 2px dashed var(--color-accent);
-  outline-offset: -2px;
-  background: var(--color-accent-bg-light);
+  background: var(--color-accent-bg-medium);
 }
 
 .hColHeader {
