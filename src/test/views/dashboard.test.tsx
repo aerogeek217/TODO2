@@ -83,11 +83,8 @@ vi.mock('../../data/status-repository', () => ({
 }))
 vi.mock('../../data/taskboard-repository', () => ({
   taskboardRepository: {
-    getAll: async () => [],
-    getById: async () => undefined,
-    create: async () => 1,
-    rename: async () => undefined,
-    remove: async () => undefined,
+    load: async () => undefined,
+    ensureRow: async () => ({ id: 1, entries: [], createdAt: new Date(), updatedAt: new Date() }),
     writeEntries: async () => undefined,
   },
 }))
@@ -110,7 +107,7 @@ function resetStores() {
   useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
   useStatusStore.setState({ statuses: [] })
   useProjectStore.setState({ projects: [] })
-  useTaskboardStore.setState({ boards: new Map(), defaultBoardId: null })
+  useTaskboardStore.setState({ board: null })
   useCanvasStore.setState({ selectedCanvasId: 1 })
   useListDefinitionStore.setState({ listDefinitions: [] })
   useUIStore.getState().closeEditPopup?.()

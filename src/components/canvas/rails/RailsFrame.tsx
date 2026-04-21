@@ -7,7 +7,6 @@ import { useListInsetStore } from '../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../stores/floating-calendar-store'
 import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
-import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { Corner, CornerOwner, RailSide, RailsState, Slot } from '../../../models/canvas-rails'
 import { CORNERS, computeRailGridArea, cornerForSideClaim, getActiveTab, railSize } from '../../../models/canvas-rails'
@@ -25,7 +24,6 @@ import { DockOverlay } from './DockOverlay'
 import { SlotMenu } from './SlotMenu'
 import { WidgetKindMenu } from '../../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPopup'
-import { TaskboardPickerPopup } from '../../overlays/TaskboardPickerPopup'
 import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 import {
   decodeRailsDropId,
@@ -119,10 +117,7 @@ export async function popTabToCanvas(slot: Slot, tabId: string): Promise<boolean
     return true
   }
   if (tab.type === 'taskboard') {
-    const tbId = tab.taskboardId
-      ?? useTaskboardStore.getState().defaultBoardId
-      ?? (await useTaskboardStore.getState().ensureDefault())
-    await useFloatingTaskboardStore.getState().add(canvasId, tbId, pos.x, pos.y)
+    await useFloatingTaskboardStore.getState().add(canvasId, pos.x, pos.y)
     return true
   }
   return false
@@ -157,7 +152,6 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const rails = useCanvasRailsStore((s) => s.rails)
   const [count, setCount] = useState<number>(0)
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
-  const [taskboardPickerPos, setTaskboardPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
   const [kindMenuAnchor, setKindMenuAnchor] = useState<{ x: number; y: number } | null>(null)
@@ -208,17 +202,10 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     const anchor = kindMenuAnchor
     setKindMenuAnchor(null)
     if (activeTab.type === 'lens') setPickerPos(anchor)
-    else if (activeTab.type === 'taskboard') setTaskboardPickerPos(anchor)
   }
 
-  const handleChangeKind = async (nextKind: typeof activeTab.type) => {
+  const handleChangeKind = (nextKind: typeof activeTab.type) => {
     if (nextKind === activeTab.type) return
-    if (nextKind === 'taskboard') {
-      const tbId = useTaskboardStore.getState().defaultBoardId
-        ?? (await useTaskboardStore.getState().ensureDefault())
-      setSlotKind(slot.id, nextKind, { taskboardId: tbId })
-      return
-    }
     setSlotKind(slot.id, nextKind)
   }
 
@@ -249,7 +236,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   } else if (activeTab.type === 'notes') {
     body = <NotesSlotContent />
   } else if (activeTab.type === 'taskboard') {
-    body = <TaskboardSlotContent taskboardId={activeTab.taskboardId} />
+    body = <TaskboardSlotContent />
   } else {
     body = (
       <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-meta)' }}>
@@ -258,13 +245,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     )
   }
 
-  const handleAddTab = async (kind: typeof activeTab.type) => {
-    if (kind === 'taskboard') {
-      const tbId = useTaskboardStore.getState().defaultBoardId
-        ?? (await useTaskboardStore.getState().ensureDefault())
-      addTab(slot.id, kind, { taskboardId: tbId })
-      return
-    }
+  const handleAddTab = (kind: typeof activeTab.type) => {
     addTab(slot.id, kind)
   }
 
@@ -278,7 +259,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       fromSide={fromSide}
       onActivateTab={(tabId) => activateTab(slot.id, tabId)}
       onCloseTab={(tabId) => closeTab(slot.id, tabId)}
-      onAddTab={(kind) => { void handleAddTab(kind) }}
+      onAddTab={(kind) => { handleAddTab(kind) }}
       onMore={(anchor) => setMenuAnchor(anchor)}
       onClose={closeThisSlot}
       onOpenChangeType={(anchor) => setKindMenuAnchor(anchor)}
@@ -312,20 +293,11 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         />
       )}
       {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
-      {activeTab.type === 'taskboard' && taskboardPickerPos && (
-        <TaskboardPickerPopup
-          x={taskboardPickerPos.x}
-          y={taskboardPickerPos.y}
-          currentTaskboardId={activeTab.taskboardId}
-          onSelect={(taskboardId) => updateSlot(slot.id, { taskboardId })}
-          onClose={() => setTaskboardPickerPos(null)}
-        />
-      )}
       {kindMenuAnchor && (
         <WidgetKindMenu
           anchor={kindMenuAnchor}
           currentKind={activeTab.type}
-          onChangeKind={(kind) => { void handleChangeKind(kind) }}
+          onChangeKind={(kind) => { handleChangeKind(kind) }}
           onOpenSecondary={handleOpenSecondary}
           onPopOut={handlePopOut}
           onClose={() => setKindMenuAnchor(null)}

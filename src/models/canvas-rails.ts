@@ -12,7 +12,6 @@ export interface Tab {
   id: string
   type: TabType
   listDefinitionId?: number
-  taskboardId?: number
 }
 
 export interface Slot {
@@ -149,9 +148,8 @@ function parseTab(raw: unknown): Tab | null {
   if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
     tab.listDefinitionId = r.listDefinitionId
   }
-  if (typeof r.taskboardId === 'number' && Number.isFinite(r.taskboardId)) {
-    tab.taskboardId = r.taskboardId
-  }
+  // Legacy `taskboardId` fields on persisted tabs are silently ignored —
+  // taskboard became a singleton in the widget-taskboard-dnd Phase 1 collapse.
   return tab
 }
 
@@ -178,9 +176,6 @@ function parseSlot(raw: unknown): Slot | null {
     const tab: Tab = { id: `${r.id}-t0`, type: r.kind as TabType }
     if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
       tab.listDefinitionId = r.listDefinitionId
-    }
-    if (typeof r.taskboardId === 'number' && Number.isFinite(r.taskboardId)) {
-      tab.taskboardId = r.taskboardId
     }
     tabs = [tab]
     activeTabId = tab.id

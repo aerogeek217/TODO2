@@ -16,7 +16,7 @@ export interface WidgetKindMenuProps {
   /** Current widget kind. Omit in "add" mode — no row is marked active and no secondary row is shown. */
   currentKind?: SlotKind
   onChangeKind: (kind: SlotKind) => void
-  /** Fires when the user clicks the "Change list…" (lens) or "Change taskboard…" (taskboard) row. */
+  /** Fires when the user clicks the "Change list…" (lens) row. */
   onOpenSecondary?: () => void
   onClose: () => void
   /** Optional label override for the secondary row (e.g. the current list-def name). */
@@ -101,9 +101,7 @@ export function WidgetKindMenu({
     else if (e.key === 'Tab') onClose()
   }
 
-  const secondary = currentKind === 'lens' ? 'Change list…'
-    : currentKind === 'taskboard' ? 'Change taskboard…'
-    : null
+  const secondary = currentKind === 'lens' ? 'Change list…' : null
 
   return createPortal(
     <div

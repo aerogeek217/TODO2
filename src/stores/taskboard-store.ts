@@ -1,52 +1,43 @@
 import { create } from 'zustand'
 import { taskboardRepository } from '../data/taskboard-repository'
-import { db } from '../data/database'
 import type { Taskboard, TaskboardEntry } from '../models'
 import { mutate, optimistic } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 /**
- * Instance-indexed taskboard store. Every action takes a `taskboardId`; the
- * store holds a `boards` map keyed by id. Entries live inline on each
- * Taskboard — mutations read → splice/filter → write back through the
- * repository's `writeEntries` helper.
+ * Singleton taskboard store. Every surface (dashboard card, rail slots,
+ * floating canvas widgets) reads the same underlying record. Entries live
+ * inline on the row — mutations read → splice/filter → write back through
+ * the repository's `writeEntries` helper.
  */
 
-const DEFAULT_NAME = 'Default'
-
 interface TaskboardState {
-  boards: Map<number, Taskboard>
-  defaultBoardId: number | null
+  board: Taskboard | null
   loading: boolean
   error: string | null
 
   load: () => Promise<void>
-  ensureDefault: () => Promise<number>
-  createBoard: (name: string) => Promise<number>
-  renameBoard: (id: number, name: string) => Promise<void>
-  removeBoard: (id: number) => Promise<void>
+  /** Ensures the singleton row exists, returning it. Seeds an empty row on first call. */
+  ensureLoaded: () => Promise<Taskboard>
 
-  add: (taskboardId: number, todoId: number) => Promise<void>
-  addAt: (taskboardId: number, todoId: number, atIndex: number) => Promise<void>
-  addMultipleAt: (taskboardId: number, todoIds: number[], atIndex: number) => Promise<void>
-  removeEntry: (taskboardId: number, todoId: number) => Promise<void>
-  clear: (taskboardId: number) => Promise<void>
-  has: (taskboardId: number, todoId: number) => boolean
-  reorder: (taskboardId: number, fromIndex: number, toIndex: number) => Promise<void>
-  getEntries: (taskboardId: number) => TaskboardEntry[]
+  add: (todoId: number) => Promise<void>
+  addAt: (todoId: number, atIndex: number) => Promise<void>
+  addMultipleAt: (todoIds: number[], atIndex: number) => Promise<void>
+  removeEntry: (todoId: number) => Promise<void>
+  clear: () => Promise<void>
+  has: (todoId: number) => boolean
+  reorder: (fromIndex: number, toIndex: number) => Promise<void>
+  getEntries: () => TaskboardEntry[]
 }
 
-function writeBoard(
+function writeEntries(
   set: (partial: Partial<TaskboardState>) => void,
-  boards: Map<number, Taskboard>,
-  taskboardId: number,
+  board: Taskboard | null,
   entries: TaskboardEntry[],
-): Map<number, Taskboard> {
-  const prev = boards.get(taskboardId)
-  if (!prev) return boards
-  const next = new Map(boards)
-  next.set(taskboardId, { ...prev, entries, updatedAt: new Date() })
-  set({ boards: next })
+): Taskboard | null {
+  if (!board) return board
+  const next: Taskboard = { ...board, entries, updatedAt: new Date() }
+  set({ board: next })
   return next
 }
 
@@ -59,133 +50,59 @@ function normalize(entries: TaskboardEntry[]): TaskboardEntry[] {
 }
 
 export const useTaskboardStore = create<TaskboardState>((set, get) => ({
-  boards: new Map(),
-  defaultBoardId: null,
+  board: null,
   loading: false,
   error: null,
 
   async load() {
     set({ loading: true, error: null })
     try {
-      const rows = await taskboardRepository.getAll()
-      const map = new Map<number, Taskboard>()
-      for (const r of rows) if (r.id != null) map.set(r.id, r)
-      const setting = await db.settings.get('defaultTaskboardId')
-      let defaultId: number | null = null
-      if (setting) {
-        const parsed = Number(setting.value)
-        if (Number.isFinite(parsed) && map.has(parsed)) defaultId = parsed
-      }
-      if (defaultId == null) {
-        const first = rows[0]
-        if (first?.id != null) defaultId = first.id
-      }
-      set({ boards: map, defaultBoardId: defaultId })
+      const row = await taskboardRepository.load()
+      set({ board: row ?? null })
     } catch (e) {
-      console.error('Failed to load taskboards:', e)
-      set({ error: 'Failed to load taskboards' })
+      console.error('Failed to load taskboard:', e)
+      set({ error: 'Failed to load taskboard' })
     } finally {
       set({ loading: false })
     }
   },
 
-  async ensureDefault() {
-    const current = get().defaultBoardId
-    if (current != null && get().boards.has(current)) return current
+  async ensureLoaded() {
+    const current = get().board
+    if (current) return current
     return mutate(set, async () => {
-      const id = await taskboardRepository.create(DEFAULT_NAME)
-      await db.settings.put({ key: 'defaultTaskboardId', value: String(id) })
-      const row = await taskboardRepository.getById(id)
-      if (row) {
-        const next = new Map(get().boards)
-        next.set(id, row)
-        set({ boards: next, defaultBoardId: id })
-      }
-      return id
-    }, 'Failed to create default taskboard')
-  },
-
-  async createBoard(name: string) {
-    return mutate(set, async () => {
-      const id = await taskboardRepository.create(name)
-      const row = await taskboardRepository.getById(id)
-      if (row) {
-        const next = new Map(get().boards)
-        next.set(id, row)
-        set({ boards: next })
-      }
-      return id
+      const row = await taskboardRepository.ensureRow()
+      set({ board: row })
+      return row
     }, 'Failed to create taskboard')
   },
 
-  async renameBoard(id, name) {
-    const prev = get().boards.get(id)
-    if (!prev) return
-    return optimistic(
-      set,
-      () => {
-        const next = new Map(get().boards)
-        next.set(id, { ...prev, name, updatedAt: new Date() })
-        set({ boards: next })
-      },
-      () => taskboardRepository.rename(id, name),
-      () => {
-        const next = new Map(get().boards)
-        next.set(id, prev)
-        set({ boards: next })
-      },
-      'Failed to rename taskboard',
-    )
-  },
-
-  async removeBoard(id) {
-    const prev = get().boards.get(id)
-    if (!prev) return
-    return optimistic(
-      set,
-      () => {
-        const next = new Map(get().boards)
-        next.delete(id)
-        set({ boards: next })
-      },
-      () => taskboardRepository.remove(id),
-      () => {
-        const next = new Map(get().boards)
-        next.set(id, prev)
-        set({ boards: next })
-      },
-      'Failed to remove taskboard',
-    )
-  },
-
-  async add(taskboardId, todoId) {
+  async add(todoId) {
     await mutate(set, async () => {
-      const board = get().boards.get(taskboardId)
-      if (!board) return
+      const board = get().board ?? (await get().ensureLoaded())
       if (board.entries.some((e) => e.todoId === todoId)) return
       const entries = [...board.entries, { todoId, sortOrder: nextSortOrder(board.entries) }]
-      writeBoard(set, get().boards, taskboardId, entries)
-      await taskboardRepository.writeEntries(taskboardId, entries)
+      writeEntries(set, get().board, entries)
+      await taskboardRepository.writeEntries(entries)
 
       undoable(
         'Add to taskboard',
-        () => get().add(taskboardId, todoId),
+        () => get().add(todoId),
         async () => {
-          const cur = get().boards.get(taskboardId)
+          const cur = get().board
           if (!cur) return
           const filtered = cur.entries.filter((e) => e.todoId !== todoId)
-          writeBoard(set, get().boards, taskboardId, filtered)
-          await taskboardRepository.writeEntries(taskboardId, filtered)
+          writeEntries(set, cur, filtered)
+          await taskboardRepository.writeEntries(filtered)
         },
         true,
       )
     }, 'Failed to add to taskboard')
   },
 
-  async addAt(taskboardId, todoId, atIndex) {
+  async addAt(todoId, atIndex) {
     await mutate(set, async () => {
-      const board = get().boards.get(taskboardId)
-      if (!board) return
+      const board = get().board ?? (await get().ensureLoaded())
       if (board.entries.some((e) => e.todoId === todoId)) return
       const current = board.entries
       let sortOrder: number
@@ -202,24 +119,23 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
           sortOrder = Math.floor((normalized[atIndex - 1].sortOrder + normalized[atIndex].sortOrder) / 2)
           const withInsert = [...normalized]
           withInsert.splice(atIndex, 0, { todoId, sortOrder })
-          writeBoard(set, get().boards, taskboardId, withInsert)
-          await taskboardRepository.writeEntries(taskboardId, withInsert)
-          queueAddUndo(get, set, taskboardId, todoId, atIndex)
+          writeEntries(set, get().board, withInsert)
+          await taskboardRepository.writeEntries(withInsert)
+          queueAddUndo(get, set, todoId, atIndex)
           return
         }
       }
       const withInsert = [...current]
       withInsert.splice(Math.max(0, Math.min(atIndex, current.length)), 0, { todoId, sortOrder })
-      writeBoard(set, get().boards, taskboardId, withInsert)
-      await taskboardRepository.writeEntries(taskboardId, withInsert)
-      queueAddUndo(get, set, taskboardId, todoId, atIndex)
+      writeEntries(set, get().board, withInsert)
+      await taskboardRepository.writeEntries(withInsert)
+      queueAddUndo(get, set, todoId, atIndex)
     }, 'Failed to add to taskboard')
   },
 
-  async addMultipleAt(taskboardId, todoIds, atIndex) {
+  async addMultipleAt(todoIds, atIndex) {
     await mutate(set, async () => {
-      const board = get().boards.get(taskboardId)
-      if (!board) return
+      const board = get().board ?? (await get().ensureLoaded())
       const existing = new Set(board.entries.map((e) => e.todoId))
       const newIds = todoIds.filter((id) => !existing.has(id))
       if (newIds.length === 0) return
@@ -244,26 +160,26 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
       const inserts: TaskboardEntry[] = newIds.map((todoId, i) => ({ todoId, sortOrder: low + step * (i + 1) }))
       const merged = [...current]
       merged.splice(Math.max(0, Math.min(atIndex, current.length)), 0, ...inserts)
-      writeBoard(set, get().boards, taskboardId, merged)
-      await taskboardRepository.writeEntries(taskboardId, merged)
+      writeEntries(set, get().board, merged)
+      await taskboardRepository.writeEntries(merged)
 
       undoable(
         `Add ${newIds.length} to taskboard`,
-        () => get().addMultipleAt(taskboardId, todoIds, atIndex),
+        () => get().addMultipleAt(todoIds, atIndex),
         async () => {
-          const cur = get().boards.get(taskboardId)
+          const cur = get().board
           if (!cur) return
           const filtered = cur.entries.filter((e) => !newIds.includes(e.todoId))
-          writeBoard(set, get().boards, taskboardId, filtered)
-          await taskboardRepository.writeEntries(taskboardId, filtered)
+          writeEntries(set, cur, filtered)
+          await taskboardRepository.writeEntries(filtered)
         },
         true,
       )
     }, 'Failed to add to taskboard')
   },
 
-  async removeEntry(taskboardId, todoId) {
-    const board = get().boards.get(taskboardId)
+  async removeEntry(todoId) {
+    const board = get().board
     if (!board) return
     const entry = board.entries.find((e) => e.todoId === todoId)
     if (!entry) return
@@ -272,52 +188,52 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
 
     return optimistic(
       set,
-      () => writeBoard(set, get().boards, taskboardId, filtered),
-      () => taskboardRepository.writeEntries(taskboardId, filtered),
-      () => writeBoard(set, get().boards, taskboardId, prevEntries),
+      () => writeEntries(set, get().board, filtered),
+      () => taskboardRepository.writeEntries(filtered),
+      () => writeEntries(set, get().board, prevEntries),
       'Failed to remove from taskboard',
       {
         description: 'Remove from taskboard',
-        redo: () => get().removeEntry(taskboardId, todoId),
+        redo: () => get().removeEntry(todoId),
         undo: async () => {
-          writeBoard(set, get().boards, taskboardId, prevEntries)
-          await taskboardRepository.writeEntries(taskboardId, prevEntries)
+          writeEntries(set, get().board, prevEntries)
+          await taskboardRepository.writeEntries(prevEntries)
         },
         showSnackbar: true,
       },
     )
   },
 
-  async clear(taskboardId) {
-    const board = get().boards.get(taskboardId)
+  async clear() {
+    const board = get().board
     if (!board || board.entries.length === 0) return
     const prevEntries = board.entries
 
     return optimistic(
       set,
-      () => writeBoard(set, get().boards, taskboardId, []),
-      () => taskboardRepository.writeEntries(taskboardId, []),
-      () => writeBoard(set, get().boards, taskboardId, prevEntries),
+      () => writeEntries(set, get().board, []),
+      () => taskboardRepository.writeEntries([]),
+      () => writeEntries(set, get().board, prevEntries),
       'Failed to clear taskboard',
       {
         description: 'Clear taskboard',
-        redo: () => get().clear(taskboardId),
+        redo: () => get().clear(),
         undo: async () => {
-          writeBoard(set, get().boards, taskboardId, prevEntries)
-          await taskboardRepository.writeEntries(taskboardId, prevEntries)
+          writeEntries(set, get().board, prevEntries)
+          await taskboardRepository.writeEntries(prevEntries)
         },
         showSnackbar: true,
       },
     )
   },
 
-  has(taskboardId, todoId) {
-    const board = get().boards.get(taskboardId)
+  has(todoId) {
+    const board = get().board
     return board ? board.entries.some((e) => e.todoId === todoId) : false
   },
 
-  async reorder(taskboardId, fromIndex, toIndex) {
-    const board = get().boards.get(taskboardId)
+  async reorder(fromIndex, toIndex) {
+    const board = get().board
     if (!board) return
     const prevEntries = board.entries
     const reordered = [...prevEntries]
@@ -328,34 +244,33 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
 
     return optimistic(
       set,
-      () => writeBoard(set, get().boards, taskboardId, updated),
-      () => taskboardRepository.writeEntries(taskboardId, updated),
-      () => writeBoard(set, get().boards, taskboardId, prevEntries),
+      () => writeEntries(set, get().board, updated),
+      () => taskboardRepository.writeEntries(updated),
+      () => writeEntries(set, get().board, prevEntries),
       'Failed to reorder taskboard',
     )
   },
 
-  getEntries(taskboardId) {
-    return get().boards.get(taskboardId)?.entries ?? []
+  getEntries() {
+    return get().board?.entries ?? []
   },
 }))
 
 function queueAddUndo(
   get: () => TaskboardState,
   _set: (partial: Partial<TaskboardState>) => void,
-  taskboardId: number,
   todoId: number,
   atIndex: number,
 ) {
   undoable(
     'Add to taskboard',
-    () => get().addAt(taskboardId, todoId, atIndex),
+    () => get().addAt(todoId, atIndex),
     async () => {
-      const cur = get().boards.get(taskboardId)
+      const cur = get().board
       if (!cur) return
       const filtered = cur.entries.filter((e) => e.todoId !== todoId)
-      writeBoard(_set, get().boards, taskboardId, filtered)
-      await taskboardRepository.writeEntries(taskboardId, filtered)
+      writeEntries(_set, cur, filtered)
+      await taskboardRepository.writeEntries(filtered)
     },
     true,
   )

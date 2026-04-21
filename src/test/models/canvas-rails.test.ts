@@ -76,9 +76,10 @@ describe('canvas-rails model', () => {
         orientation: 'horizontal',
         weekOffset: 2,
       })
+      // Legacy `taskboardId` on tabs is silently stripped (widget-taskboard-dnd P1).
       expect(slots[2]).toEqual({
         id: 'slot-c',
-        tabs: [{ id: 'slot-c-t0', type: 'taskboard', taskboardId: 7 }],
+        tabs: [{ id: 'slot-c-t0', type: 'taskboard' }],
         activeTabId: 'slot-c-t0',
       })
     })

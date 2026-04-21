@@ -77,17 +77,17 @@ export function CanvasPage() {
   const setFloatingTaskboardCollapsed = useFloatingTaskboardStore((s) => s.setCollapsed)
   const removeFloatingTaskboard = useFloatingTaskboardStore((s) => s.remove)
 
-  const taskboards = useTaskboardStore((s) => s.boards)
-  const loadTaskboards = useTaskboardStore((s) => s.load)
+  const taskboard = useTaskboardStore((s) => s.board)
+  const loadTaskboard = useTaskboardStore((s) => s.load)
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
   const isProjectNavigatorOpen = useUIStore((s) => s.isProjectNavigatorOpen)
 
   useEffect(() => {
     loadPeople()
     loadOrgs()
-    loadTaskboards()
+    loadTaskboard()
     loadDefinitions()
-  }, [loadPeople, loadOrgs, loadTaskboards, loadDefinitions])
+  }, [loadPeople, loadOrgs, loadTaskboard, loadDefinitions])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -426,9 +426,8 @@ export function CanvasPage() {
       } else if (kind === 'calendar') {
         await useFloatingCalendarStore.getState().add(selectedCanvasId, flowX, flowY)
       } else if (kind === 'taskboard') {
-        const tbStore = useTaskboardStore.getState()
-        const boardId = tbStore.defaultBoardId ?? (await tbStore.ensureDefault())
-        await useFloatingTaskboardStore.getState().add(selectedCanvasId, boardId, flowX, flowY)
+        await useTaskboardStore.getState().ensureLoaded()
+        await useFloatingTaskboardStore.getState().add(selectedCanvasId, flowX, flowY)
       }
     },
     [selectedCanvasId, addWidgetMenuPos],
@@ -608,7 +607,7 @@ export function CanvasPage() {
           allPeople={people}
           allOrgs={orgs}
           floatingTaskboards={floatingTaskboards}
-          taskboards={taskboards}
+          taskboard={taskboard}
           onToggleTaskboardCollapse={handleToggleTaskboardCollapse}
           onCloseTaskboard={handleCloseTaskboard}
           onTaskboardDragStop={handleTaskboardDragStop}

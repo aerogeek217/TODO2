@@ -36,7 +36,7 @@ describe('auditData', () => {
     await db.todoPeople.add({ todoId, personId })
     await db.todoOrgs.add({ todoId, orgId })
     await db.personOrgs.add({ personId, orgId })
-    await db.taskboards.add({ name: 'Default', entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    await db.taskboards.add({ entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(0)
@@ -87,7 +87,6 @@ describe('auditData', () => {
 
   it('detects orphaned taskboard entries referencing deleted todos', async () => {
     await db.taskboards.add({
-      name: 'A',
       entries: [
         { todoId: 999, sortOrder: 0 },
         { todoId: 888, sortOrder: 1 },
@@ -199,7 +198,7 @@ describe('auditData', () => {
   it('detects multiple issue types in one scan', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    await db.taskboards.add({ name: 'A', entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
     await db.todos.add(makeTodo({ projectId: 777 }) as any)
 
     const report = await auditData()
@@ -231,7 +230,7 @@ describe('cleanupIssues', () => {
   it('deletes orphaned join rows and strips orphaned taskboard entries', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    const boardId = await db.taskboards.add({ name: 'A', entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    const boardId = await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(3)
@@ -315,7 +314,7 @@ describe('cleanupIssues', () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoOrgs.add({ todoId: 999, orgId: 888 })
     await db.personOrgs.add({ personId: 999, orgId: 888 })
-    await db.taskboards.add({ name: 'A', entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
     // No canvasId so clearing dangling projectId won't create a new unplaced-task issue
     await db.todos.add(makeTodo({ projectId: 777, parentId: 666 }) as any)
 

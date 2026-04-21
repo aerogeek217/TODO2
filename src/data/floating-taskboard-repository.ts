@@ -18,8 +18,4 @@ export const floatingTaskboardRepository = {
   async deleteByCanvas(canvasId: number): Promise<void> {
     await db.floatingTaskboards.where('canvasId').equals(canvasId).delete()
   },
-
-  async deleteByTaskboard(taskboardId: number): Promise<void> {
-    await db.floatingTaskboards.where('taskboardId').equals(taskboardId).delete()
-  },
 }

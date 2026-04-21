@@ -22,23 +22,22 @@ describe('canvas-rails-store.setSlotKind', () => {
     expect(after.id).toBe(slot.id)
   })
 
-  it('switches a notes slot to taskboard with a seeded taskboardId', () => {
+  it('switches a notes slot to taskboard (no per-tab seed — singleton board)', () => {
     const slot = createSlot('notes')
     slot.id = 'slot-1'
     useCanvasRailsStore.setState({
       rails: { ...EMPTY_RAILS, left: { orientation: 'vertical', slots: [slot] } },
     })
-    useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard', { taskboardId: 7 })
+    useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard')
     const after = useCanvasRailsStore.getState().rails.left!.slots[0]
     const tab = getActiveTab(after)
     expect(tab.type).toBe('taskboard')
-    expect(tab.taskboardId).toBe(7)
   })
 
   it('preserves slot id and rail position', () => {
     const slotA = createSlot('notes')
     slotA.id = 'a'
-    const slotB = createTaskboardSlot(3)
+    const slotB = createTaskboardSlot()
     slotB.id = 'b'
     const slotC = createLensSlot(99)
     slotC.id = 'c'
@@ -51,7 +50,6 @@ describe('canvas-rails-store.setSlotKind', () => {
     const tab = getActiveTab(slots[1])
     expect(tab.type).toBe('lens')
     expect(tab.listDefinitionId).toBe(11)
-    expect(tab.taskboardId).toBeUndefined()
   })
 
   it('switching lens → taskboard clears listDefinitionId', () => {
@@ -59,12 +57,11 @@ describe('canvas-rails-store.setSlotKind', () => {
     useCanvasRailsStore.setState({
       rails: { ...EMPTY_RAILS, top: { orientation: 'horizontal', slots: [slot] } },
     })
-    useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard', { taskboardId: 5 })
+    useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard')
     const after = useCanvasRailsStore.getState().rails.top!.slots[0]
     const tab = getActiveTab(after)
     expect(tab.type).toBe('taskboard')
     expect(tab.listDefinitionId).toBeUndefined()
-    expect(tab.taskboardId).toBe(5)
   })
 
   it('is a no-op when the slotId is not found', () => {

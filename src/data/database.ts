@@ -190,6 +190,21 @@ export class Todo2Database extends Dexie {
     // `floatingCalendars` rows). Both fields are stored inline and default to
     // 'vertical' / 0 at read time; existing rows need no rewriting.
     this.version(32).stores({})
+
+    // v33: taskboard-as-singleton (widget-taskboard-dnd P1). Coalesce all
+    // `taskboards` rows into one (union entries, dedupe by `todoId`, keep
+    // first-seen sort order); drop `name` from the surviving row; strip
+    // `taskboardId` from every `floatingTaskboards` row and from every
+    // tab/slot inside `settings.canvasRails`; delete
+    // `settings.defaultTaskboardId`. Drop the `taskboardId` index on
+    // `floatingTaskboards`.
+    this.version(33)
+      .stores({
+        floatingTaskboards: '++id, canvasId',
+      })
+      .upgrade(async (tx) => {
+        await runV33Migration(tx)
+      })
   }
 }
 
@@ -960,12 +975,15 @@ export async function ensureSeededDefaultTaskboard(
     }
   }
   const now = new Date()
+  // Pre-v33 schema stored a `name` on each taskboard row. The v33 migration
+  // strips it — but here we still write it so a v30 migration executed on an
+  // old DB stays byte-identical to what it was before v33 landed.
   const id = (await taskboardsTable.add({
     name: 'Default',
     entries: sortEntries(entries),
     createdAt: now,
     updatedAt: now,
-  } as Taskboard)) as number
+  } as unknown as Taskboard)) as number
   await settingsTable.put({ key: 'defaultTaskboardId', value: String(id) })
   return id
 }
@@ -1044,6 +1062,133 @@ export async function runV30Migration(tx: Transaction): Promise<void> {
   }
 
   console.info(`v30 migration: seeded Default taskboard (id=${defaultId}) with ${legacyEntries.length} entries`)
+}
+
+/**
+ * Collapse a multi-row `taskboards` table into a single row (union entries,
+ * dedupe by `todoId`, keep first-seen sort order; drop `name`). Pure over its
+ * input so it can be shared between the v33 migration and restore.
+ *
+ * Returns the new row (unsaved — caller writes it to the table) plus the list
+ * of legacy ids to delete.
+ */
+export function coalesceTaskboardRows(
+  rows: Array<{ id?: number; entries: TaskboardEntry[]; createdAt?: Date; updatedAt?: Date }>,
+): { survivor: Omit<Taskboard, 'id'> & { id?: number }; legacyIds: number[] } {
+  if (rows.length === 0) {
+    const now = new Date()
+    return { survivor: { entries: [], createdAt: now, updatedAt: now }, legacyIds: [] }
+  }
+  const sorted = [...rows].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
+  const survivor = sorted[0]
+  const seen = new Set<number>()
+  const entries: TaskboardEntry[] = []
+  for (const row of sorted) {
+    for (const e of row.entries) {
+      if (seen.has(e.todoId)) continue
+      seen.add(e.todoId)
+      entries.push({ todoId: e.todoId, sortOrder: e.sortOrder })
+    }
+  }
+  const now = new Date()
+  return {
+    survivor: {
+      id: survivor.id,
+      entries,
+      createdAt: survivor.createdAt ?? now,
+      updatedAt: now,
+    },
+    legacyIds: sorted.slice(1).map((r) => r.id!).filter((id) => id != null),
+  }
+}
+
+/**
+ * Strip `taskboardId` from every tab/slot inside a serialized `canvasRails`
+ * JSON blob. Pure; returns the updated JSON string (or the input when no
+ * change is needed). Invalid JSON is returned unchanged.
+ */
+export function stripRailsTaskboardIds(railsJson: string | undefined): string | undefined {
+  if (!railsJson) return railsJson
+  let parsed: unknown
+  try { parsed = JSON.parse(railsJson) } catch { return railsJson }
+  if (!parsed || typeof parsed !== 'object') return railsJson
+  let touched = false
+  const sides = ['left', 'right', 'top', 'bottom'] as const
+  for (const side of sides) {
+    const rail = (parsed as Record<string, unknown>)[side]
+    if (!rail || typeof rail !== 'object') continue
+    const slots = (rail as Record<string, unknown>).slots
+    if (!Array.isArray(slots)) continue
+    for (const s of slots) {
+      if (!s || typeof s !== 'object') continue
+      const slot = s as Record<string, unknown>
+      if ('taskboardId' in slot) { delete slot.taskboardId; touched = true }
+      if (Array.isArray(slot.tabs)) {
+        for (const raw of slot.tabs) {
+          if (!raw || typeof raw !== 'object') continue
+          const tab = raw as Record<string, unknown>
+          if ('taskboardId' in tab) { delete tab.taskboardId; touched = true }
+        }
+      }
+    }
+  }
+  return touched ? JSON.stringify(parsed) : railsJson
+}
+
+/**
+ * v33 upgrade: collapse taskboard plumbing to a singleton. Coalesces all
+ * `taskboards` rows into one (union entries, dedupe by `todoId`; drop
+ * `name`), strips `taskboardId` from every `floatingTaskboards` row and from
+ * every tab/slot in `settings.canvasRails`, and removes
+ * `settings.defaultTaskboardId`.
+ */
+export async function runV33Migration(tx: Transaction): Promise<void> {
+  const taskboardsTable = tx.table<Taskboard>('taskboards')
+  const floatingTable = tx.table('floatingTaskboards')
+  const settingsTable = tx.table<SettingRow>('settings')
+
+  const rows = await taskboardsTable.toArray()
+  const { survivor, legacyIds } = coalesceTaskboardRows(rows as Array<{ id?: number; entries: TaskboardEntry[]; createdAt?: Date; updatedAt?: Date }>)
+
+  if (legacyIds.length > 0) {
+    await taskboardsTable.bulkDelete(legacyIds)
+  }
+
+  if (survivor.id != null) {
+    await taskboardsTable.update(survivor.id, {
+      entries: survivor.entries,
+      updatedAt: survivor.updatedAt,
+      // Strip `name` — Dexie's update doesn't drop keys on its own, so use
+      // modify inside a follow-up query.
+    })
+    await taskboardsTable.where(':id').equals(survivor.id).modify((row) => {
+      delete (row as unknown as Record<string, unknown>).name
+    })
+  } else if (rows.length === 0) {
+    // No row yet — seed an empty one so `load()` finds something post-migration.
+    await taskboardsTable.add({
+      entries: [],
+      createdAt: survivor.createdAt,
+      updatedAt: survivor.updatedAt,
+    } as Taskboard)
+  }
+
+  await floatingTable.toCollection().modify((row) => {
+    const r = row as unknown as Record<string, unknown>
+    if ('taskboardId' in r) delete r.taskboardId
+  })
+
+  const railsSetting = await settingsTable.get('canvasRails')
+  if (railsSetting) {
+    const next = stripRailsTaskboardIds(railsSetting.value)
+    if (next !== railsSetting.value && next != null) {
+      await settingsTable.put({ key: 'canvasRails', value: next })
+    }
+  }
+
+  await settingsTable.delete('defaultTaskboardId')
+
+  console.info(`v33 migration: coalesced ${rows.length} taskboard row(s) into 1; stripped taskboardId from floats + rails`)
 }
 
 /**

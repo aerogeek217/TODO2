@@ -144,7 +144,7 @@ interface CanvasViewProps {
   allPeople?: Person[]
   allOrgs?: Org[]
   floatingTaskboards?: FloatingTaskboard[]
-  taskboards?: Map<number, Taskboard>
+  taskboard?: Taskboard | null
   onTaskboardDragStop?: (id: number, x: number, y: number) => void
   onToggleTaskboardCollapse?: (id: number) => void
   onCloseTaskboard?: (id: number) => void
@@ -175,7 +175,7 @@ export function CanvasView({
   allPeople,
   allOrgs,
   floatingTaskboards,
-  taskboards,
+  taskboard,
   onTaskboardDragStop,
   onToggleTaskboardCollapse,
   onCloseTaskboard,
@@ -368,10 +368,9 @@ export function CanvasView({
 
     const tbNodes: Node[] = (floatingTaskboards ?? []).map((ft) => {
       const id = `${TASKBOARD_PREFIX}${ft.id}`
-      const entries = taskboards?.get(ft.taskboardId)?.entries ?? []
+      const entries = taskboard?.entries ?? []
       const data: TaskboardNodeData = {
         floatingId: ft.id!,
-        taskboardId: ft.taskboardId,
         entries,
         allTodos: allTodos ?? [],
         assignedPeopleMap,
@@ -404,7 +403,7 @@ export function CanvasView({
     floatingNotes, onDeleteNote, onResizeNote,
     floatingCalendars, onDeleteCalendar, onResizeCalendar,
     allPeople, allOrgs,
-    floatingTaskboards, taskboards, onToggleTaskboardCollapse, onCloseTaskboard, onResizeTaskboard,
+    floatingTaskboards, taskboard, onToggleTaskboardCollapse, onCloseTaskboard, onResizeTaskboard,
     showCompleted, showHiddenStatuses,
   ])
 

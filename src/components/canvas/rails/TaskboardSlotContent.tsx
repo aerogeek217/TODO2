@@ -2,10 +2,9 @@ import { TaskboardPanel } from '../../taskboard/TaskboardPanel'
 
 /**
  * Rail slot body for the taskboard. The TaskboardPanel is already a reusable
- * body (also used on the dashboard) — the rail slot just inserts it, passing
- * through the `taskboardId` the slot references so multiple rail/float/
- * dashboard surfaces can render different taskboards independently.
+ * body (also used on the dashboard) — the rail slot just inserts it. The
+ * taskboard is a singleton, so every surface renders the same board.
  */
-export function TaskboardSlotContent({ taskboardId }: { taskboardId?: number }) {
-  return <TaskboardPanel taskboardId={taskboardId} hideHeader />
+export function TaskboardSlotContent() {
+  return <TaskboardPanel hideHeader />
 }

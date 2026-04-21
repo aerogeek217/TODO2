@@ -30,11 +30,10 @@ function genTabId(slotId: string): string {
  * Build a single-tab slot of the given kind. Used by the slot-creation factories
  * below and by the split-button reducer via the `createTab` option.
  */
-function buildSingleTabSlot(kind: SlotKind, listDefinitionId?: number, taskboardId?: number): Slot {
+function buildSingleTabSlot(kind: SlotKind, listDefinitionId?: number): Slot {
   const id = genSlotId()
   const tab: Tab = { id: genTabId(id), type: kind }
   if (listDefinitionId != null) tab.listDefinitionId = listDefinitionId
-  if (taskboardId != null) tab.taskboardId = taskboardId
   return { id, tabs: [tab], activeTabId: tab.id }
 }
 
@@ -42,25 +41,24 @@ export function createLensSlot(listDefinitionId?: number): Slot {
   return buildSingleTabSlot('lens', listDefinitionId)
 }
 
-export function createSlot(kind: SlotKind, listDefinitionId?: number, taskboardId?: number): Slot {
-  return buildSingleTabSlot(kind, listDefinitionId, taskboardId)
+export function createSlot(kind: SlotKind, listDefinitionId?: number): Slot {
+  return buildSingleTabSlot(kind, listDefinitionId)
 }
 
-export function createTaskboardSlot(taskboardId: number): Slot {
-  return buildSingleTabSlot('taskboard', undefined, taskboardId)
+export function createTaskboardSlot(): Slot {
+  return buildSingleTabSlot('taskboard')
 }
 
 /**
- * Patch applied to `updateSlot`. Phase 1: callers still pass the flat-field
- * shape; the store routes `listDefinitionId` / `taskboardId` onto the active
- * tab and other fields onto the slot.
+ * Patch applied to `updateSlot`. Slot-level fields (`flex`, `orientation`,
+ * `weekOffset`) apply to the slot; tab-level fields (`listDefinitionId`)
+ * apply to the active tab.
  */
 export interface SlotPatch {
   flex?: number
   orientation?: CalendarOrientation
   weekOffset?: number
   listDefinitionId?: number
-  taskboardId?: number
 }
 
 interface CanvasRailsState {
@@ -82,17 +80,15 @@ interface CanvasRailsState {
    * Switch the active tab's type in place. Clears seed fields that don't
    * apply to the new kind (e.g. switching from `lens → notes` drops
    * `listDefinitionId`). Callers own picking the seed when the new kind
-   * requires one (taskboard / lens) — this method does not auto-seed.
+   * requires one (lens) — this method does not auto-seed.
    * Slot-level `flex` / `orientation` / `weekOffset` are preserved.
    */
-  setSlotKind: (slotId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
+  setSlotKind: (slotId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number }) => void
   /**
-   * Append a new tab of the given kind to the slot and activate it. Seed
-   * fields (list id / taskboard id) follow the same rules as `setSlotKind`:
-   * `lens` uses `seed.listDefinitionId`, `taskboard` uses `seed.taskboardId`,
-   * others ignore seeds.
+   * Append a new tab of the given kind to the slot and activate it. Only
+   * `lens` uses `seed.listDefinitionId`; other kinds ignore seeds.
    */
-  addTab: (slotId: string, kind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
+  addTab: (slotId: string, kind: SlotKind, seed?: { listDefinitionId?: number }) => void
   /**
    * Remove a tab from a slot. Activation cascades to the left sibling (then
    * right) if the closed tab was active. If the last tab is closed, the whole
@@ -105,7 +101,7 @@ interface CanvasRailsState {
    * Change a specific tab's type in place. Same seed semantics as
    * `setSlotKind` but targets an arbitrary tab rather than the active one.
    */
-  changeTabType: (slotId: string, tabId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
+  changeTabType: (slotId: string, tabId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number }) => void
   /** Calendar-slot only: set the row/column orientation. No-op when active tab is not calendar. */
   setSlotOrientation: (slotId: string, orientation: CalendarOrientation) => void
   /** Calendar-slot only: set the week offset (clamped to ±WEEK_OFFSET_MAX). */
@@ -132,7 +128,7 @@ interface CanvasRailsState {
    * the new slot to the right rail. Used by canvas floating-node dock-back.
    * Returns the new slot's id.
    */
-  createAndDockSlot: (kind: SlotKind, listDefinitionId?: number, taskboardId?: number) => string
+  createAndDockSlot: (kind: SlotKind, listDefinitionId?: number) => string
   setRailSize: (side: RailSide, px: number) => void
   /**
    * Atomically set `flex` weights for slots in a rail. Keys not present in
@@ -260,13 +256,11 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       if (patch.orientation !== undefined) nextSlot.orientation = patch.orientation
       if (patch.weekOffset !== undefined) nextSlot.weekOffset = patch.weekOffset
 
-      if (patch.listDefinitionId !== undefined || patch.taskboardId !== undefined) {
+      if (patch.listDefinitionId !== undefined) {
         const activeIdx = current.tabs.findIndex((t) => t.id === current.activeTabId)
         const resolvedIdx = activeIdx === -1 ? 0 : activeIdx
         const active = current.tabs[resolvedIdx]
-        const nextTab: Tab = { ...active }
-        if (patch.listDefinitionId !== undefined) nextTab.listDefinitionId = patch.listDefinitionId
-        if (patch.taskboardId !== undefined) nextTab.taskboardId = patch.taskboardId
+        const nextTab: Tab = { ...active, listDefinitionId: patch.listDefinitionId }
         const tabs = current.tabs.slice()
         tabs[resolvedIdx] = nextTab
         nextSlot.tabs = tabs
@@ -288,9 +282,6 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       if (nextKind === 'lens') {
         const listId = seed?.listDefinitionId ?? active.listDefinitionId
         if (listId != null) rebuiltTab.listDefinitionId = listId
-      } else if (nextKind === 'taskboard') {
-        const tbId = seed?.taskboardId ?? active.taskboardId
-        if (tbId != null) rebuiltTab.taskboardId = tbId
       }
       const tabs = current.tabs.slice()
       tabs[resolvedIdx] = rebuiltTab
@@ -313,7 +304,6 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     const next = mapSlot(state.rails, slotId, (current) => {
       const newTab: Tab = { id: genTabId(current.id), type: kind }
       if (kind === 'lens' && seed?.listDefinitionId != null) newTab.listDefinitionId = seed.listDefinitionId
-      else if (kind === 'taskboard' && seed?.taskboardId != null) newTab.taskboardId = seed.taskboardId
       return { ...current, tabs: [...current.tabs, newTab], activeTabId: newTab.id }
     })
     return next === state.rails ? state : { rails: next }
@@ -366,9 +356,6 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       if (nextKind === 'lens') {
         const listId = seed?.listDefinitionId ?? tab.listDefinitionId
         if (listId != null) rebuilt.listDefinitionId = listId
-      } else if (nextKind === 'taskboard') {
-        const tbId = seed?.taskboardId ?? tab.taskboardId
-        if (tbId != null) rebuilt.taskboardId = tbId
       }
       const tabs = current.tabs.slice()
       tabs[idx] = rebuilt
@@ -419,8 +406,8 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     return { rails: next, pendingFocusSlotId: newId }
   }),
 
-  createAndDockSlot: (kind, listDefinitionId, taskboardId) => {
-    const slot = buildSingleTabSlot(kind, listDefinitionId, taskboardId)
+  createAndDockSlot: (kind, listDefinitionId) => {
+    const slot = buildSingleTabSlot(kind, listDefinitionId)
     set((state) => {
       const next: RailsState = { ...state.rails }
       const emptySide = DOCK_PRIORITY.find((side) => !next[side])

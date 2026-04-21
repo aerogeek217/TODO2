@@ -89,8 +89,6 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const taskboardIds = new Set(taskboards.map((t) => t.id!))
-
   // Entries inside each taskboard pointing at deleted todos are reported per-board
   // (fix: 'clear-field' writes back a filtered entries list).
   const taskboardsWithOrphanedEntries = taskboards.filter((t) =>
@@ -119,19 +117,6 @@ export async function auditData(): Promise<AuditReport> {
       description: 'Floating taskboards referencing deleted canvases',
       count: floatingTaskboardsWithBadCanvas.length,
       ids: floatingTaskboardsWithBadCanvas.map((t) => t.id!),
-      fix: 'delete',
-    })
-  }
-
-  const floatingTaskboardsWithBadBoard = floatingTaskboards.filter(
-    (t) => !taskboardIds.has(t.taskboardId),
-  )
-  if (floatingTaskboardsWithBadBoard.length > 0) {
-    issues.push({
-      table: 'floatingTaskboards',
-      description: 'Floating taskboards referencing deleted taskboards',
-      count: floatingTaskboardsWithBadBoard.length,
-      ids: floatingTaskboardsWithBadBoard.map((t) => t.id!),
       fix: 'delete',
     })
   }

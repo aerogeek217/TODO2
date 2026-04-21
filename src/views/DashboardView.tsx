@@ -4,6 +4,7 @@ import {
   DragOverlay,
   PointerSensor,
   closestCenter,
+  pointerWithin,
   useSensor,
   useSensors,
   useDraggable,
@@ -366,7 +367,7 @@ export function DashboardView() {
   const { statuses, load: loadStatuses } = useStatusStore()
   const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
   const showCompleted = useFilterStore((s) => s.filters.showCompleted)
-  const { load: loadTaskboard, defaultBoardId, ensureDefault } = useTaskboardStore()
+  const { load: loadTaskboard, ensureLoaded: ensureTaskboardLoaded } = useTaskboardStore()
   const { listDefinitions, load: loadDefinitions } = useListDefinitionStore()
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
   const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
@@ -411,6 +412,18 @@ export function DashboardView() {
       keep = (id) => id === 'top:taskboard' || id === 'top:horizon'
     } else if (activeType === 'dashboard-task') {
       keep = (id) => typeof id === 'string' && id.startsWith('dashboard-taskboard-drop')
+    } else if (activeType === 'taskboard-task') {
+      // Taskboard entry reorder: only see the panel's own sortable entries
+      // and its outer drop target, and require the pointer to actually be
+      // *inside* one of them — so dropping in empty dashboard space yields
+      // `over: null` and `handleDragEnd`'s remove-on-drag-off branch fires.
+      return pointerWithin({
+        ...args,
+        droppableContainers: args.droppableContainers.filter((c) => {
+          const id = c.id as string | number
+          return typeof id === 'string' && (id === 'dashboard-taskboard-drop' || id.startsWith('tbp-'))
+        }),
+      })
     } else if (typeof activeId === 'number') {
       keep = (id) => typeof id === 'number'
     } else {
@@ -432,15 +445,44 @@ export function DashboardView() {
     const activeId = event.active.id
     const overId = event.over?.id
 
-    // Task → taskboard drop
     const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
+    const activeType = event.active.data.current?.type
     const overData = event.over?.data.current
-    if (todo && overData?.type === 'taskboard') {
-      const tbId = (overData.taskboardId as number | undefined)
-        ?? defaultBoardId
-        ?? (await ensureDefault())
+
+    // Taskboard entry being dragged — reorder within the board or remove on
+    // drop outside. Mirrors the branch in `use-canvas-dnd.ts` so dashboard-
+    // panel reorder / remove matches the rail-docked + floating behavior.
+    if (activeType === 'taskboard-task' && todo) {
       const tbState = useTaskboardStore.getState()
-      let targetIndex = tbState.getEntries(tbId).length
+      if (overData?.type === 'taskboard-task') {
+        const entries = tbState.getEntries()
+        const fromIndex = entries.findIndex((e) => e.todoId === todo.id)
+        const overEntryId = overData.entryId as string
+        const overTodoId = Number(overEntryId.split('-').pop())
+        const toIndex = entries.findIndex((e) => e.todoId === overTodoId)
+        if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+          await tbState.reorder(fromIndex, toIndex)
+        }
+        return
+      }
+      if (overData?.type === 'taskboard') {
+        const entries = tbState.getEntries()
+        const fromIndex = entries.findIndex((e) => e.todoId === todo.id)
+        if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
+          await tbState.reorder(fromIndex, entries.length - 1)
+        }
+        return
+      }
+      // Dropped outside any taskboard target → remove from the board.
+      if (tbState.has(todo.id)) await tbState.removeEntry(todo.id)
+      return
+    }
+
+    // External task → taskboard drop (e.g. dashboard-task from horizon cards)
+    if (todo && overData?.type === 'taskboard') {
+      await ensureTaskboardLoaded()
+      const tbState = useTaskboardStore.getState()
+      let targetIndex = tbState.getEntries().length
       if (typeof event.over?.id === 'string') {
         const translated = event.active.rect.current.translated
         const initialRect = event.active.rect.current.initial
@@ -449,7 +491,7 @@ export function DashboardView() {
         else if (initialRect) pointerY = initialRect.top + initialRect.height / 2 + event.delta.y
         targetIndex = computeTaskboardInsertIndex(event.over.id, pointerY)
       }
-      await tbState.addAt(tbId, todo.id, targetIndex)
+      await tbState.addAt(todo.id, targetIndex)
       return
     }
 
@@ -484,7 +526,7 @@ export function DashboardView() {
         await setDashboardUserLists(next)
       }
     }
-  }, [dashboardTopOrder, setDashboardTopOrder, setDashboardUserLists])
+  }, [dashboardTopOrder, setDashboardTopOrder, setDashboardUserLists, ensureTaskboardLoaded])
 
   useEffect(() => {
     loadAll()

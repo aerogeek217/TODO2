@@ -7,57 +7,59 @@ beforeEach(async () => {
   await db.open()
 })
 
-describe('taskboardRepository', () => {
-  describe('create + getById', () => {
-    it('creates an empty board and reads it back', async () => {
-      const id = await taskboardRepository.create('Work')
-      const row = await taskboardRepository.getById(id)
-      expect(row?.name).toBe('Work')
-      expect(row?.entries).toEqual([])
-      expect(row?.createdAt).toBeInstanceOf(Date)
+describe('taskboardRepository (singleton)', () => {
+  describe('ensureRow', () => {
+    it('seeds an empty row when the table is empty after delete', async () => {
+      await db.taskboards.clear()
+      const row = await taskboardRepository.ensureRow()
+      expect(row.id).toBeDefined()
+      expect(row.entries).toEqual([])
+      expect(row.createdAt).toBeInstanceOf(Date)
+    })
+
+    it('returns the existing row on repeated calls (idempotent)', async () => {
+      await db.taskboards.clear()
+      const first = await taskboardRepository.ensureRow()
+      const second = await taskboardRepository.ensureRow()
+      expect(second.id).toBe(first.id)
+      expect(await db.taskboards.count()).toBe(1)
     })
   })
 
-  describe('getAll', () => {
-    it('returns all boards ordered by id', async () => {
-      const idA = await taskboardRepository.create('A')
-      const idB = await taskboardRepository.create('B')
-      const all = await taskboardRepository.getAll()
-      expect(all.map((t) => t.id)).toEqual([idA, idB])
+  describe('load', () => {
+    it('returns the single row', async () => {
+      await db.taskboards.clear()
+      const row = await taskboardRepository.ensureRow()
+      const loaded = await taskboardRepository.load()
+      expect(loaded?.id).toBe(row.id)
+    })
+
+    it('returns undefined when no row exists', async () => {
+      await db.taskboards.clear()
+      expect(await taskboardRepository.load()).toBeUndefined()
     })
   })
 
   describe('writeEntries', () => {
     it('replaces the entries list and bumps updatedAt', async () => {
-      const id = await taskboardRepository.create('Queue')
-      const before = (await taskboardRepository.getById(id))!.updatedAt.getTime()
+      await db.taskboards.clear()
+      const row = await taskboardRepository.ensureRow()
+      const before = row.updatedAt.getTime()
       await new Promise((r) => setTimeout(r, 2))
-      await taskboardRepository.writeEntries(id, [
+      await taskboardRepository.writeEntries([
         { todoId: 10, sortOrder: 1000 },
         { todoId: 20, sortOrder: 2000 },
       ])
-      const after = await taskboardRepository.getById(id)
+      const after = await taskboardRepository.load()
       expect(after!.entries.map((e) => e.todoId)).toEqual([10, 20])
       expect(after!.updatedAt.getTime()).toBeGreaterThan(before)
     })
-  })
 
-  describe('rename', () => {
-    it('renames and bumps updatedAt, leaves entries alone', async () => {
-      const id = await taskboardRepository.create('Old')
-      await taskboardRepository.writeEntries(id, [{ todoId: 1, sortOrder: 1000 }])
-      await taskboardRepository.rename(id, 'New')
-      const row = await taskboardRepository.getById(id)
-      expect(row?.name).toBe('New')
-      expect(row?.entries).toHaveLength(1)
-    })
-  })
-
-  describe('remove', () => {
-    it('deletes the board row', async () => {
-      const id = await taskboardRepository.create('Temp')
-      await taskboardRepository.remove(id)
-      expect(await taskboardRepository.getById(id)).toBeUndefined()
+    it('seeds a row when none exists yet', async () => {
+      await db.taskboards.clear()
+      await taskboardRepository.writeEntries([{ todoId: 5, sortOrder: 1000 }])
+      const row = await taskboardRepository.load()
+      expect(row?.entries.map((e) => e.todoId)).toEqual([5])
     })
   })
 })

@@ -62,7 +62,7 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitem', { name: /Change list/ })).toBeInTheDocument()
   })
 
-  it('shows a secondary "Change taskboard…" row when current kind is taskboard', () => {
+  it('does NOT show a secondary row for taskboard (singleton — nothing to pick)', () => {
     render(
       <WidgetKindMenu
         anchor={ANCHOR}
@@ -72,7 +72,7 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getByRole('menuitem', { name: /Change taskboard/ })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Change taskboard/ })).toBeNull()
   })
 
   it('closes on Escape', () => {

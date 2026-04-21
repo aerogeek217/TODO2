@@ -1,16 +1,13 @@
 import type { TaskboardEntry } from './taskboard-entry'
 
 /**
- * A reusable queue of tasks. Referenced by rail slots, floating canvas
- * widgets, and (today, implicitly) the dashboard card by id. The shared
- * entries list means multiple surfaces can show the same queue live.
- *
- * Entries live inline rather than in a separate join table — every mutation
- * rewrites the row, which is cheap at the queue sizes we expect (tens).
+ * A singleton queue of tasks. Referenced by the dashboard card, rail slots,
+ * and floating canvas widgets — each surface is a *view* of the same single
+ * record. Entries live inline (rewritten per mutation) rather than in a
+ * separate join table.
  */
 export interface Taskboard {
   id?: number
-  name: string
   entries: TaskboardEntry[]
   createdAt: Date
   updatedAt: Date

@@ -2,35 +2,43 @@ import { db } from './database'
 import type { Taskboard, TaskboardEntry } from '../models'
 
 /**
- * CRUD over the `taskboards` table. Entries live inline on each row — every
- * entry-level mutation reads the board, rewrites `entries` + `updatedAt`, and
- * writes the whole row back. That keeps the model simple at the cost of
- * rewriting a small array per op; at the queue sizes we expect (tens) the
- * write is cheap and keeps the 1:1 store shape (one board = one row).
+ * Singleton taskboard. The `taskboards` Dexie table always holds exactly one
+ * row (legacy multi-row databases are coalesced by the v33 migration). Entries
+ * live inline — every mutation reads the row, rewrites `entries` + `updatedAt`,
+ * and writes it back.
  */
 export const taskboardRepository = {
-  async getAll(): Promise<Taskboard[]> {
-    return db.taskboards.orderBy('id').toArray()
+  /** Return the single taskboard row, or undefined if none exists yet. */
+  async load(): Promise<Taskboard | undefined> {
+    return db.taskboards.orderBy('id').first()
   },
 
-  async getById(id: number): Promise<Taskboard | undefined> {
-    return db.taskboards.get(id)
-  },
-
-  async create(name: string): Promise<number> {
+  /** Return the single taskboard row, seeding an empty row on first call. */
+  async ensureRow(): Promise<Taskboard> {
+    const existing = await db.taskboards.orderBy('id').first()
+    if (existing) return existing
     const now = new Date()
-    return db.taskboards.add({ name, entries: [], createdAt: now, updatedAt: now } as Taskboard)
+    const id = (await db.taskboards.add({
+      entries: [],
+      createdAt: now,
+      updatedAt: now,
+    } as Taskboard)) as number
+    const row = await db.taskboards.get(id)
+    if (!row) throw new Error('Failed to seed taskboard row')
+    return row
   },
 
-  async rename(id: number, name: string): Promise<void> {
-    await db.taskboards.update(id, { name, updatedAt: new Date() })
-  },
-
-  async remove(id: number): Promise<void> {
-    await db.taskboards.delete(id)
-  },
-
-  async writeEntries(id: number, entries: TaskboardEntry[]): Promise<void> {
-    await db.taskboards.update(id, { entries, updatedAt: new Date() })
+  async writeEntries(entries: TaskboardEntry[]): Promise<void> {
+    const existing = await db.taskboards.orderBy('id').first()
+    if (!existing?.id) {
+      const now = new Date()
+      await db.taskboards.add({
+        entries,
+        createdAt: now,
+        updatedAt: now,
+      } as Taskboard)
+      return
+    }
+    await db.taskboards.update(existing.id, { entries, updatedAt: new Date() })
   },
 }

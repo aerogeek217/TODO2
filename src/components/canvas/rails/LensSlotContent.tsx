@@ -1,4 +1,5 @@
 import { ListDefinitionBody } from '../ListDefinitionBody'
+import { DraggableTaskRow } from '../shared/DraggableTaskRow'
 import styles from './LensSlotContent.module.css'
 
 interface LensSlotContentProps {
@@ -18,6 +19,16 @@ export function LensSlotContent({ listDefinitionId, onTitleChange }: LensSlotCon
       compact
       className={styles.list}
       emptyClassName={styles.empty}
+      renderRow={({ todo, assignedPeople, onOpenDetail }) => (
+        <DraggableTaskRow
+          key={todo.id}
+          todo={todo}
+          assignedPeople={assignedPeople}
+          onOpenDetail={onOpenDetail}
+          idPrefix="lens"
+          showContext
+        />
+      )}
     />
   )
 }

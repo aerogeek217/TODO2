@@ -3,7 +3,6 @@ import {
   db,
   ensureSeededStatuses,
   ensureSeededListDefinitions,
-  ensureSeededDefaultTaskboard,
   persistHorizonSlots,
   translateTodoV20ToV21,
   translateStickyToNote,
@@ -11,11 +10,12 @@ import {
   buildListDefFromLegacyInset,
   appendTagNamesToTitle,
   buildTagNamesByTodo,
+  coalesceTaskboardRows,
 } from './database'
 import type { ImportData, ImportListInset, ImportNote } from './import-validation'
 import { validateImportData, isLegacyMembershipKind } from './import-validation'
 import type { ListDefinition } from '../models/list-definition'
-import type { ListInset, Note, FloatingNote, Taskboard } from '../models'
+import type { ListInset, Note, FloatingNote, Taskboard, TaskboardEntry } from '../models'
 
 /** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
 const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
@@ -215,17 +215,35 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       console.info(`Restore: dropped ${legacyDefRows.length} legacy-kind listDefinition(s)`)
     }
 
-    // Taskboards: prefer post-v30 `taskboards` rows; fall back to collapsing
-    // pre-v30 `taskboardEntries` into a seeded Default taskboard. Idempotent.
-    if (v.taskboards?.length) {
-      await db.taskboards.bulkAdd(v.taskboards as Taskboard[])
-      // Re-point settings.defaultTaskboardId at the first imported row when missing.
-      const existing = await db.settings.get('defaultTaskboardId')
-      if (!existing && v.taskboards[0]?.id != null) {
-        await db.settings.put({ key: 'defaultTaskboardId', value: String(v.taskboards[0].id) })
-      }
-    }
-    await ensureSeededDefaultTaskboard(db.taskboards, db.settings, v.taskboards?.length ? [] : (v.taskboardEntries ?? []))
+    // Taskboards: collapse whatever the import carries (post-v30 multi-row
+    // table, pre-v30 `taskboardEntries` queue, or nothing) into a single
+    // singleton row. Strip `name` + `taskboardId` along the way.
+    const importedTaskboardRows = (v.taskboards ?? []).map((t) => ({
+      id: t.id,
+      entries: t.entries as TaskboardEntry[],
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }))
+    const legacyEntriesRow = (!importedTaskboardRows.length && v.taskboardEntries?.length)
+      ? [{ id: 1, entries: v.taskboardEntries as TaskboardEntry[], createdAt: new Date(), updatedAt: new Date() }]
+      : []
+    const { survivor } = coalesceTaskboardRows(
+      importedTaskboardRows.length ? importedTaskboardRows : legacyEntriesRow,
+    )
+    await db.taskboards.add({
+      entries: survivor.entries,
+      createdAt: survivor.createdAt,
+      updatedAt: survivor.updatedAt,
+    } as Taskboard)
+    // v33 strips the legacy `defaultTaskboardId` setting — never re-persist it.
+    await db.settings.delete('defaultTaskboardId')
+
+    // Drop `taskboardId` from every imported floating-taskboard row (silently
+    // stripped by the validator's picker, but belt-and-suspenders here).
+    await db.floatingTaskboards.toCollection().modify((row) => {
+      const r = row as unknown as Record<string, unknown>
+      if ('taskboardId' in r) delete r.taskboardId
+    })
 
     // Seed missing defaults (idempotent). ensureSeededStatuses must run before
     // the v19→v20 todo walk below (statusId lookup). Order vs.

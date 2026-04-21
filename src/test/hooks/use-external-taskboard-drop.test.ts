@@ -79,7 +79,7 @@ describe('useExternalTaskboardDrop', () => {
       { top: 40, height: 40 },
       { top: 80, height: 40 },
     ])
-    const { result } = renderHook(() => useExternalTaskboardDrop(7, PANEL_ID))
+    const { result } = renderHook(() => useExternalTaskboardDrop(PANEL_ID))
 
     const dt = makeDataTransfer({}, ['application/x-todo-drag'])
     act(() => {
@@ -93,7 +93,7 @@ describe('useExternalTaskboardDrop', () => {
 
   it('ignores dragover when the MIME is not present', () => {
     const panel = mountPanel([{ top: 0, height: 40 }])
-    const { result } = renderHook(() => useExternalTaskboardDrop(7, PANEL_ID))
+    const { result } = renderHook(() => useExternalTaskboardDrop(PANEL_ID))
 
     const dt = makeDataTransfer({}, ['text/plain'])
     const evt = makeReactDragEvent('dragover', dt, 10, panel)
@@ -103,12 +103,12 @@ describe('useExternalTaskboardDrop', () => {
     expect(result.current.isExternalDragOver).toBe(false)
   })
 
-  it('drop parses the JSON payload and calls taskboard addAt(taskboardId, todoId, index)', () => {
+  it('drop parses the JSON payload and calls taskboard addAt(todoId, index)', () => {
     const panel = mountPanel([
       { top: 0, height: 40 },
       { top: 40, height: 40 },
     ])
-    const { result } = renderHook(() => useExternalTaskboardDrop(7, PANEL_ID))
+    const { result } = renderHook(() => useExternalTaskboardDrop(PANEL_ID))
 
     const dt = makeDataTransfer(
       { 'application/x-todo-drag': JSON.stringify({ kind: 'todo', todoId: 99 }) },
@@ -118,39 +118,26 @@ describe('useExternalTaskboardDrop', () => {
     act(() => { result.current.onDrop(makeReactDragEvent('drop', dt, 10, panel)) })
 
     expect(addAtSpy).toHaveBeenCalledTimes(1)
-    expect(addAtSpy).toHaveBeenCalledWith(7, 99, 0)
+    expect(addAtSpy).toHaveBeenCalledWith(99, 0)
     expect(result.current.isExternalDragOver).toBe(false)
     expect(result.current.externalInsertIndex).toBe(null)
   })
 
   it('drop falls back to plain-text todoId payload', () => {
     const panel = mountPanel([])
-    const { result } = renderHook(() => useExternalTaskboardDrop(4, PANEL_ID))
+    const { result } = renderHook(() => useExternalTaskboardDrop(PANEL_ID))
 
     const dt = makeDataTransfer({ 'text/plain': '55' }, ['text/plain'])
     act(() => { result.current.onDrop(makeReactDragEvent('drop', dt, 0, panel)) })
 
-    expect(addAtSpy).toHaveBeenCalledWith(4, 55, 0)
-  })
-
-  it('drop is a no-op when taskboardId is null', () => {
-    const panel = mountPanel([])
-    const { result } = renderHook(() => useExternalTaskboardDrop(null, PANEL_ID))
-
-    const dt = makeDataTransfer(
-      { 'application/x-todo-drag': JSON.stringify({ kind: 'todo', todoId: 1 }) },
-      ['application/x-todo-drag'],
-    )
-    act(() => { result.current.onDrop(makeReactDragEvent('drop', dt, 0, panel)) })
-
-    expect(addAtSpy).not.toHaveBeenCalled()
+    expect(addAtSpy).toHaveBeenCalledWith(55, 0)
   })
 
   it('dragleave clears state only when pointer actually leaves the panel', () => {
     const panel = mountPanel([{ top: 0, height: 40 }])
     const child = document.createElement('div')
     panel.appendChild(child)
-    const { result } = renderHook(() => useExternalTaskboardDrop(1, PANEL_ID))
+    const { result } = renderHook(() => useExternalTaskboardDrop(PANEL_ID))
 
     const dt = makeDataTransfer({}, ['application/x-todo-drag'])
     act(() => { result.current.onDragOver(makeReactDragEvent('dragover', dt, 10, panel)) })

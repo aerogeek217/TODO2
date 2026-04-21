@@ -101,14 +101,14 @@ interface TaskRowProps {
   extraLabel?: string
   /** Render an `in <project>` sub-line under the title (rail lens / search). */
   showContext?: boolean
-  /** When set, the × button removes the task from this taskboard instead of deleting it. */
-  taskboardId?: number
+  /** When true, the row is rendered inside a Taskboard surface. Delete removes the task from the board instead of deleting it. */
+  onTaskboard?: boolean
 }
 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, indentLevel = 0,
   hasChildren, isLastChild, isSelected, ghost,
-  onSelect, onOpenDetail, cut, extraLabel, showContext, taskboardId,
+  onSelect, onOpenDetail, cut, extraLabel, showContext, onTaskboard,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
@@ -177,12 +177,12 @@ export const TaskRow = memo(function TaskRow({
   const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
   const handleDelete = useCallback(() => {
     if (ghost) return
-    if (taskboardId != null) {
-      void useTaskboardStore.getState().removeEntry(taskboardId, todo.id)
+    if (onTaskboard) {
+      void useTaskboardStore.getState().removeEntry(todo.id)
       return
     }
     bulk.remove(todo.id)
-  }, [ghost, bulk, todo.id, taskboardId])
+  }, [ghost, bulk, todo.id, onTaskboard])
 
   const togglePerson = (id: number) => {
     if (ghost) return
@@ -225,8 +225,7 @@ export const TaskRow = memo(function TaskRow({
         e.stopPropagation()
         {
           const tb = useTaskboardStore.getState()
-          const defaultId = tb.defaultBoardId
-          const onBoard = defaultId != null && tb.has(defaultId, todo.id)
+          const onBoard = tb.has(todo.id)
           setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
         }
       }}
@@ -552,17 +551,13 @@ export const TaskRow = memo(function TaskRow({
               ? {
                   label: 'Remove from Taskboard',
                   action: async () => {
-                    const tb = useTaskboardStore.getState()
-                    const id = tb.defaultBoardId
-                    if (id != null) await tb.removeEntry(id, todo.id)
+                    await useTaskboardStore.getState().removeEntry(todo.id)
                   },
                 }
               : {
                   label: 'Add to Taskboard',
                   action: async () => {
-                    const tb = useTaskboardStore.getState()
-                    const id = tb.defaultBoardId ?? (await tb.ensureDefault())
-                    await tb.add(id, todo.id)
+                    await useTaskboardStore.getState().add(todo.id)
                   },
                 },
             {
@@ -571,7 +566,7 @@ export const TaskRow = memo(function TaskRow({
             },
             { label: '', action: () => {}, separator: true },
             {
-              label: taskboardId != null ? 'Remove from Taskboard' : 'Delete',
+              label: onTaskboard ? 'Remove from Taskboard' : 'Delete',
               action: () => handleDelete(),
               danger: true,
             },

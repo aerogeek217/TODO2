@@ -1,51 +1,21 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import { useDraggable } from '@dnd-kit/core'
 import type { ListInset, PersistedTodoItem, Person, Org } from '../../models'
 import type { SlotKind } from '../../models/canvas-rails'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useCanvasStore } from '../../stores/canvas-store'
-import { TaskRow } from '../task/TaskRow'
 import { ListDefinitionBody } from './ListDefinitionBody'
+import { DraggableTaskRow } from './shared/DraggableTaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { convertFloatingKind } from '../../services/float-kind-switch'
 import styles from './ListInsetNode.module.css'
 
-export function DraggableTaskRow({
-  todo,
-  assignedPeople,
-  onOpenDetail,
-}: {
-  todo: PersistedTodoItem
-  assignedPeople?: Person[]
-  onOpenDetail?: (todoId: number) => void
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `inset-todo-${todo.id}`,
-    data: { type: 'task', todo },
-  })
-
-  return (
-    <div
-      ref={setNodeRef}
-      data-inset-todo-id={todo.id}
-      style={{ outline: 'none', opacity: isDragging ? 0 : undefined }}
-      {...attributes}
-      {...listeners}
-    >
-      <TaskRow
-        todo={todo}
-        assignedPeople={assignedPeople}
-        onOpenDetail={onOpenDetail ? () => onOpenDetail(todo.id) : undefined}
-        compact
-      />
-    </div>
-  )
-}
+// Re-exported for back-compat with existing call sites.
+export { DraggableTaskRow }
 
 export interface ListInsetNodeData {
   inset: ListInset

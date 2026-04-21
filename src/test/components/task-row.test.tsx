@@ -35,7 +35,7 @@ function resetStores() {
   useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
   useStatusStore.setState({ statuses: [] })
   useProjectStore.setState({ projects: [] })
-  useTaskboardStore.setState({ boards: new Map(), defaultBoardId: null })
+  useTaskboardStore.setState({ board: null })
   useUIStore.setState({ hoveredTodoId: null })
 }
 

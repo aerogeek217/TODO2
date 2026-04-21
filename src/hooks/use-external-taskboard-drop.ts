@@ -24,18 +24,16 @@ function parseTodoId(raw: string): number | null {
 
 /**
  * Native HTML5 drop target for "external" todo drags (e.g. calendar events)
- * into a taskboard. Mirrors the contract of the existing dnd-kit task-row →
- * taskboard drop: compute insertion index via `computeTaskboardInsertIndex`
- * from pointer Y, then call `useTaskboardStore.addAt`. `addAt` is a no-op
- * when the todo is already on the board, matching the dnd-kit path.
+ * into the (singleton) taskboard. Mirrors the contract of the existing
+ * dnd-kit task-row → taskboard drop: compute insertion index via
+ * `computeTaskboardInsertIndex` from pointer Y, then call
+ * `useTaskboardStore.addAt`. `addAt` is a no-op when the todo is already on
+ * the board, matching the dnd-kit path.
  *
  * The hook returns state (`externalInsertIndex`, `isExternalDragOver`) so the
  * panel can render its normal insertion indicator and drop-target highlight.
  */
-export function useExternalTaskboardDrop(
-  taskboardId: number | null,
-  panelDroppableId: string,
-) {
+export function useExternalTaskboardDrop(panelDroppableId: string) {
   const [externalInsertIndex, setExternalInsertIndex] = useState<number | null>(null)
   const [isExternalDragOver, setIsExternalDragOver] = useState(false)
 
@@ -45,13 +43,12 @@ export function useExternalTaskboardDrop(
   }, [])
 
   const onDragOver = useCallback((e: DragEvent) => {
-    if (taskboardId == null) return
     if (!hasExternalTodo(e.dataTransfer.types)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setIsExternalDragOver(true)
     setExternalInsertIndex(computeTaskboardInsertIndex(panelDroppableId, e.clientY))
-  }, [taskboardId, panelDroppableId])
+  }, [panelDroppableId])
 
   const onDragLeave = useCallback((e: DragEvent) => {
     // Ignore bubbled leave events when the pointer is still over a descendant.
@@ -62,16 +59,15 @@ export function useExternalTaskboardDrop(
   }, [clear])
 
   const onDrop = useCallback((e: DragEvent) => {
-    if (taskboardId == null) { clear(); return }
     const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain')
     if (!raw) { clear(); return }
     const todoId = parseTodoId(raw)
     if (todoId == null) { clear(); return }
     e.preventDefault()
     const idx = computeTaskboardInsertIndex(panelDroppableId, e.clientY)
-    void useTaskboardStore.getState().addAt(taskboardId, todoId, idx)
+    void useTaskboardStore.getState().addAt(todoId, idx)
     clear()
-  }, [taskboardId, panelDroppableId, clear])
+  }, [panelDroppableId, clear])
 
   return { externalInsertIndex, isExternalDragOver, onDragOver, onDragLeave, onDrop }
 }

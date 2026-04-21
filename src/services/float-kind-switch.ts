@@ -4,7 +4,6 @@ import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useTaskboardStore } from '../stores/taskboard-store'
 import { listInsetRepository } from '../data'
 
 export interface FloatRect {
@@ -20,7 +19,7 @@ export interface FloatConversionArgs {
   canvasId: number
   rect: FloatRect
   nextKind: SlotKind
-  seed?: { listDefinitionId?: number; taskboardId?: number }
+  seed?: { listDefinitionId?: number }
 }
 
 /**
@@ -30,9 +29,9 @@ export interface FloatConversionArgs {
  * clean.
  *
  * For lens targets, resolves `listDefinitionId` from `seed` or falls back to
- * the first available list definition. For taskboard targets, resolves
- * `taskboardId` from `seed` or the store's default board (creating a default
- * if needed). Same-kind conversions are a no-op and return the source id.
+ * the first available list definition. Taskboard targets require no resolver
+ * — the board is a singleton. Same-kind conversions are a no-op and return
+ * the source id.
  *
  * Returns the new float's id, or `null` if conversion was aborted (e.g. no
  * list definitions available for a lens target) — in which case the source
@@ -43,16 +42,11 @@ export async function convertFloatingKind(args: FloatConversionArgs): Promise<nu
   if (sourceKind === nextKind) return sourceId
 
   let resolvedListId: number | undefined
-  let resolvedTaskboardId: number | undefined
 
   if (nextKind === 'lens') {
     resolvedListId = seed?.listDefinitionId
       ?? useListDefinitionStore.getState().listDefinitions[0]?.id
     if (resolvedListId == null) return null
-  } else if (nextKind === 'taskboard') {
-    resolvedTaskboardId = seed?.taskboardId
-      ?? useTaskboardStore.getState().defaultBoardId
-      ?? (await useTaskboardStore.getState().ensureDefault())
   }
 
   switch (sourceKind) {
@@ -75,7 +69,7 @@ export async function convertFloatingKind(args: FloatConversionArgs): Promise<nu
     return id
   }
   if (nextKind === 'taskboard') {
-    const id = await useFloatingTaskboardStore.getState().add(canvasId, resolvedTaskboardId!, x, y)
+    const id = await useFloatingTaskboardStore.getState().add(canvasId, x, y)
     if (width && height) await useFloatingTaskboardStore.getState().updateSize(id, width, height)
     return id
   }

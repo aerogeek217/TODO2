@@ -491,8 +491,9 @@ function checkTaskboardEntry(v: unknown): CheckResult {
 
 function checkTaskboard(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
+  // Pre-v33 exports carry a `name`; post-v33 drops it. Accept either.
   const basic = checkFields(v, [
-    ['name', isStr(v.name, 200)],
+    ['name', v.name === undefined || isOptStr(v.name, 200)],
     ['entries', Array.isArray(v.entries)],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt-or-updatedAt', isDateLike(v.updatedAt)],
@@ -507,9 +508,10 @@ function checkTaskboard(v: unknown): CheckResult {
 
 function checkFloatingTaskboard(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
+  // Pre-v33 exports carry `taskboardId`; post-v33 drops it. Accept either.
   return checkFields(v, [
     ['canvasId', isFiniteNum(v.canvasId)],
-    ['taskboardId', isFiniteNum(v.taskboardId)],
+    ['taskboardId', v.taskboardId === undefined || isFiniteNum(v.taskboardId)],
     ['x', isFiniteNum(v.x)],
     ['y', isFiniteNum(v.y)],
     ['width', isFiniteNum(v.width)],
@@ -531,6 +533,8 @@ function checkSavedView(v: unknown): CheckResult {
   return checkSavedViewFilters(v.filters)
 }
 
+// `defaultTaskboardId` is a pre-v33 legacy key accepted here so backups still
+// validate; restore / the v33 migration drops it from settings.
 const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardTopOrder', 'dashboardUserLists', 'defaultTaskboardId']
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
@@ -940,9 +944,9 @@ function pickTaskboardEntry(v: Record<string, unknown>): TaskboardEntry {
 }
 
 function pickTaskboard(v: Record<string, unknown>): import('../models').Taskboard {
+  // `name` silently dropped (v33 collapse to singleton).
   return {
     id: v.id as number | undefined,
-    name: v.name as string,
     entries: ((v.entries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
     createdAt: v.createdAt as Date,
     updatedAt: v.updatedAt as Date,
@@ -950,10 +954,10 @@ function pickTaskboard(v: Record<string, unknown>): import('../models').Taskboar
 }
 
 function pickFloatingTaskboard(v: Record<string, unknown>): import('../models').FloatingTaskboard {
+  // `taskboardId` silently dropped (v33 collapse to singleton).
   return {
     id: v.id as number | undefined,
     canvasId: v.canvasId as number,
-    taskboardId: v.taskboardId as number,
     x: v.x as number,
     y: v.y as number,
     width: v.width as number,

@@ -20,7 +20,7 @@ interface FloatingTaskboardState {
   error: string | null
 
   loadByCanvas: (canvasId: number) => Promise<void>
-  add: (canvasId: number, taskboardId: number, x: number, y: number) => Promise<number>
+  add: (canvasId: number, x: number, y: number) => Promise<number>
   updatePosition: (id: number, x: number, y: number) => Promise<void>
   updateSize: (id: number, width: number, height: number) => Promise<void>
   setCollapsed: (id: number, collapsed: boolean) => Promise<void>
@@ -45,11 +45,10 @@ export const useFloatingTaskboardStore = create<FloatingTaskboardState>((set, ge
     }
   },
 
-  async add(canvasId, taskboardId, x, y) {
+  async add(canvasId, x, y) {
     return mutate(set, async () => {
       const id = await floatingTaskboardRepository.insert({
         canvasId,
-        taskboardId,
         x,
         y,
         width: DEFAULT_WIDTH,

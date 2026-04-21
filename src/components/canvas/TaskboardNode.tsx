@@ -13,18 +13,15 @@ import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
-import { floatingTaskboardRepository } from '../../data'
 import { TaskRow } from '../task/TaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { TaskboardPickerPopup } from '../overlays/TaskboardPickerPopup'
 import { convertFloatingKind } from '../../services/float-kind-switch'
 import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
   floatingId: number
-  taskboardId: number
   entries: TaskboardEntry[]
   allTodos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>
@@ -43,20 +40,19 @@ export interface TaskboardNodeData {
 type TaskboardNodeType = TaskboardNodeData
 
 function SortableTaskboardEntry({
-  entryId, index, todo, assignedPeople, ghost, taskboardId, floatingId, onOpenDetail,
+  entryId, index, todo, assignedPeople, ghost, floatingId, onOpenDetail,
 }: {
   entryId: string
   index: number
   todo: PersistedTodoItem
   assignedPeople: Person[] | undefined
   ghost?: boolean
-  taskboardId: number
   floatingId: number
   onOpenDetail?: (todoId: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entryId,
-    data: { type: 'taskboard-task', todo, entryId, taskboardId, floatingId },
+    data: { type: 'taskboard-task', todo, entryId, floatingId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -64,7 +60,7 @@ function SortableTaskboardEntry({
     <div ref={setNodeRef} style={style} data-tbp-entry className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} taskboardId={taskboardId} />
+        <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} onTaskboard />
       </div>
     </div>
   )
@@ -73,7 +69,6 @@ function SortableTaskboardEntry({
 function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   const {
     floatingId,
-    taskboardId,
     entries,
     allTodos,
     assignedPeopleMap,
@@ -94,7 +89,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   const droppableId = `taskboard-drop-${floatingId}`
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: droppableId,
-    data: { type: 'taskboard', taskboardId, floatingId },
+    data: { type: 'taskboard', floatingId },
   })
 
   const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
@@ -112,24 +107,9 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     })
   }, [floatingId, width, height])
 
-  const handleOpenSecondary = () => {
-    if (!kindAnchor) return
-    setTbPickerAnchor(kindAnchor)
-    setKindAnchor(null)
-  }
-
-  const handleSelectTaskboard = async (newTaskboardId: number) => {
-    const row = useFloatingTaskboardStore.getState().taskboards.find((t) => t.id === floatingId)
-    if (!row || row.taskboardId === newTaskboardId) return
-    await floatingTaskboardRepository.update({ ...row, taskboardId: newTaskboardId })
-    const canvasId = useCanvasStore.getState().selectedCanvasId
-    if (canvasId != null) await useFloatingTaskboardStore.getState().loadByCanvas(canvasId)
-  }
-
   const [isExternalDragOver, setIsExternalDragOver] = useState(false)
   const [tbInsertIndex, setTbInsertIndex] = useState<number | null>(null)
   const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
-  const [tbPickerAnchor, setTbPickerAnchor] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
@@ -217,7 +197,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     onDragOver: onExternalDragOver,
     onDragLeave: onExternalDragLeave,
     onDrop: onExternalDrop,
-  } = useExternalTaskboardDrop(taskboardId, droppableId)
+  } = useExternalTaskboardDrop(droppableId)
   const effectiveInsertIndex = tbInsertIndex ?? externalInsertIndex
 
   return (
@@ -237,7 +217,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         collapsed={isCollapsed}
         onToggleCollapse={onToggleCollapse}
         onDock={() => {
-          useCanvasRailsStore.getState().createAndDockSlot('taskboard', undefined, taskboardId)
+          useCanvasRailsStore.getState().createAndDockSlot('taskboard')
           onClose()
         }}
         onClose={onClose}
@@ -266,7 +246,6 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
                     ghost={ghostTodoIds?.has(todo.id)}
-                    taskboardId={taskboardId}
                     floatingId={floatingId}
                     onOpenDetail={onOpenDetail}
                   />
@@ -316,17 +295,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
           anchor={kindAnchor}
           currentKind="taskboard"
           onChangeKind={(k) => { void handleChangeKind(k) }}
-          onOpenSecondary={handleOpenSecondary}
           onClose={() => setKindAnchor(null)}
-        />
-      )}
-      {tbPickerAnchor && (
-        <TaskboardPickerPopup
-          x={tbPickerAnchor.x}
-          y={tbPickerAnchor.y}
-          currentTaskboardId={taskboardId}
-          onSelect={(id) => { void handleSelectTaskboard(id) }}
-          onClose={() => setTbPickerAnchor(null)}
         />
       )}
     </div>
