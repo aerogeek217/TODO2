@@ -25,6 +25,20 @@
   pointer-events: none;
 }
 
+/*
+ * Suppress the separator at the hover/highlight boundary so the hover fill
+ * and the synced-hover outline paint uninterrupted. Clear on the hovered
+ * row itself and on the row directly above it (the separator lives at
+ * bottom:0, so the preceding row's separator sits on the hovered row's
+ * top edge).
+ */
+.row:hover::after,
+.row[data-hovered-synced="true"]::after,
+.row:has(+ .row:hover)::after,
+.row:has(+ .row[data-hovered-synced="true"])::after {
+  background: transparent;
+}
+
 .row:active {
   cursor: grabbing;
 }
@@ -770,25 +784,6 @@
 
 .row:hover .statusDotEmpty {
   opacity: 1;
-}
-
-.deleteButton {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 16px;
-  padding: 0 4px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.row:hover .deleteButton {
-  opacity: 1;
-}
-
-.deleteButton:hover {
-  color: var(--color-danger);
 }
 
 /* Portal-rendered dropdown container — children are static inside */

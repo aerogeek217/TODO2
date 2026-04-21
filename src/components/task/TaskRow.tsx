@@ -535,20 +535,19 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
-      <button
-        className={styles.deleteButton}
-        onClick={(e) => { e.stopPropagation(); handleDelete() }}
-        aria-label={taskboardId != null ? 'Remove from taskboard' : 'Delete task'}
-        title={taskboardId != null ? 'Remove from taskboard' : 'Delete task'}
-      >
-        ×
-      </button>
-
       {contextMenu && createPortal(
         <CanvasContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           items={[
+            ...(onOpenDetail ? [{
+              label: 'Open',
+              action: () => onOpenDetail(todo.id),
+            }] : []),
+            {
+              label: todo.isCompleted ? 'Mark incomplete' : 'Mark complete',
+              action: () => handleToggleComplete(),
+            },
             contextMenu.onBoard
               ? {
                   label: 'Remove from Taskboard',
@@ -569,6 +568,12 @@ export const TaskRow = memo(function TaskRow({
             {
               label: 'Move to project…',
               action: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
+            },
+            { label: '', action: () => {}, separator: true },
+            {
+              label: taskboardId != null ? 'Remove from Taskboard' : 'Delete',
+              action: () => handleDelete(),
+              danger: true,
             },
           ]}
           onClose={() => setContextMenu(null)}
