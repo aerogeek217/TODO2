@@ -1,16 +1,22 @@
 export type RailSide = 'left' | 'right' | 'top' | 'bottom'
 export type RailOrientation = 'vertical' | 'horizontal'
 export type SlotKind = 'lens' | 'notes' | 'calendar' | 'taskboard'
+/** Alias used by per-tab content type (Phase 1 of rail-tabs). */
+export type TabType = SlotKind
 export type CalendarOrientation = 'vertical' | 'horizontal'
 
 /** Max absolute week offset a calendar widget can persist; clamps runaway state. */
 export const WEEK_OFFSET_MAX = 104
 
-export interface Slot {
+export interface Tab {
   id: string
-  kind: SlotKind
+  type: TabType
   listDefinitionId?: number
   taskboardId?: number
+}
+
+export interface Slot {
+  id: string
   /**
    * Flex-grow weight used to distribute rail space among sibling slots.
    * Undefined means the default weight of 1 (equal share). Once the user
@@ -18,7 +24,14 @@ export interface Slot {
    * non-adjacent slots keep their measured size.
    */
   flex?: number
-  /** Calendar-slot only: row/column orientation. Undefined = default 'vertical'. */
+  /**
+   * Phase 1 (rail-tabs): every slot carries at least one tab. Single-tab
+   * slots render identically to pre-P1 slots; multi-tab rendering arrives
+   * in Phase 2. The active tab decides which body/header to show.
+   */
+  tabs: Tab[]
+  activeTabId: string
+  /** Calendar-slot only: row/column orientation. Undefined = default 'vertical'. Lives on the slot (not the tab) per Phase 1 scope. */
   orientation?: CalendarOrientation
   /** Calendar-slot only: week offset from today's week (0 = this week). Clamped to ±WEEK_OFFSET_MAX on parse. */
   weekOffset?: number
@@ -83,18 +96,64 @@ export function railOrientationForSide(side: RailSide): RailOrientation {
 
 export const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard']
 
+/**
+ * Resolve the active tab of a slot. Falls back to `tabs[0]` when `activeTabId`
+ * is stale; callers can assume a non-null return because parsing guarantees
+ * `tabs.length >= 1` and `activeTabId` points at a tab (or has been repaired).
+ */
+export function getActiveTab(slot: Slot): Tab {
+  return slot.tabs.find((t) => t.id === slot.activeTabId) ?? slot.tabs[0]
+}
+
+function parseTab(raw: unknown): Tab | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.id !== 'string' || r.id.length === 0 || r.id.length > 100) return null
+  if (typeof r.type !== 'string' || !SLOT_KINDS.includes(r.type as SlotKind)) return null
+  const tab: Tab = { id: r.id, type: r.type as TabType }
+  if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
+    tab.listDefinitionId = r.listDefinitionId
+  }
+  if (typeof r.taskboardId === 'number' && Number.isFinite(r.taskboardId)) {
+    tab.taskboardId = r.taskboardId
+  }
+  return tab
+}
+
 function parseSlot(raw: unknown): Slot | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
   if (typeof r.id !== 'string' || r.id.length === 0 || r.id.length > 100) return null
-  if (typeof r.kind !== 'string' || !SLOT_KINDS.includes(r.kind as SlotKind)) return null
-  const slot: Slot = { id: r.id, kind: r.kind as SlotKind }
-  if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
-    slot.listDefinitionId = r.listDefinitionId
+
+  // New shape: { id, tabs, activeTabId, flex?, orientation?, weekOffset? }
+  let tabs: Tab[] | null = null
+  let activeTabId: string | null = null
+  if (Array.isArray(r.tabs)) {
+    const parsedTabs: Tab[] = []
+    for (const raw of r.tabs) {
+      const t = parseTab(raw)
+      if (t) parsedTabs.push(t)
+    }
+    if (parsedTabs.length === 0) return null
+    tabs = parsedTabs
+    const want = typeof r.activeTabId === 'string' ? r.activeTabId : null
+    activeTabId = want && parsedTabs.some((t) => t.id === want) ? want : parsedTabs[0].id
+  } else if (typeof r.kind === 'string' && SLOT_KINDS.includes(r.kind as SlotKind)) {
+    // Legacy shape: { id, kind, listDefinitionId?, taskboardId?, flex?, orientation?, weekOffset? }
+    const tab: Tab = { id: `${r.id}-t0`, type: r.kind as TabType }
+    if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
+      tab.listDefinitionId = r.listDefinitionId
+    }
+    if (typeof r.taskboardId === 'number' && Number.isFinite(r.taskboardId)) {
+      tab.taskboardId = r.taskboardId
+    }
+    tabs = [tab]
+    activeTabId = tab.id
+  } else {
+    return null
   }
-  if (typeof r.taskboardId === 'number' && Number.isFinite(r.taskboardId)) {
-    slot.taskboardId = r.taskboardId
-  }
+
+  const slot: Slot = { id: r.id, tabs, activeTabId }
   if (typeof r.flex === 'number' && Number.isFinite(r.flex) && r.flex > 0) {
     slot.flex = r.flex
   }

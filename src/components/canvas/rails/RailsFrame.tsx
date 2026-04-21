@@ -10,7 +10,7 @@ import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-st
 import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
-import { railSize } from '../../../models/canvas-rails'
+import { getActiveTab, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotDivider } from './SlotDivider'
@@ -99,22 +99,23 @@ export async function popSlotToCanvas(slot: Slot): Promise<boolean> {
   const canvasId = useCanvasStore.getState().selectedCanvasId
   if (canvasId == null) return false
   const pos = computePopOutFlowPosition()
+  const active = getActiveTab(slot)
 
-  if (slot.kind === 'notes') {
+  if (active.type === 'notes') {
     await useFloatingNoteStore.getState().add(canvasId, pos.x, pos.y)
     return true
   }
-  if (slot.kind === 'lens') {
-    if (slot.listDefinitionId == null) return false
-    await useListInsetStore.getState().add(slot.listDefinitionId, canvasId, pos.x, pos.y)
+  if (active.type === 'lens') {
+    if (active.listDefinitionId == null) return false
+    await useListInsetStore.getState().add(active.listDefinitionId, canvasId, pos.x, pos.y)
     return true
   }
-  if (slot.kind === 'calendar') {
+  if (active.type === 'calendar') {
     await useFloatingCalendarStore.getState().add(canvasId, pos.x, pos.y)
     return true
   }
-  if (slot.kind === 'taskboard') {
-    const tbId = slot.taskboardId
+  if (active.type === 'taskboard') {
+    const tbId = active.taskboardId
       ?? useTaskboardStore.getState().defaultBoardId
       ?? (await useTaskboardStore.getState().ensureDefault())
     await useFloatingTaskboardStore.getState().add(canvasId, tbId, pos.x, pos.y)
@@ -145,6 +146,8 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const [showEditor, setShowEditor] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
   const [kindMenuAnchor, setKindMenuAnchor] = useState<{ x: number; y: number } | null>(null)
+
+  const activeTab = getActiveTab(slot)
 
   const moreButtonRef = useRef<HTMLButtonElement | null>(null)
   const menuOpen = menuAnchor !== null
@@ -180,7 +183,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     }
   }, [pendingFocusSlotId, slot.id, clearPendingFocus])
 
-  const canPopOut = !(slot.kind === 'lens' && slot.listDefinitionId == null)
+  const canPopOut = !(activeTab.type === 'lens' && activeTab.listDefinitionId == null)
   const handlePopOut = canPopOut
     ? () => { void popSlotToCanvas(slot).then((moved) => { if (moved) closeSlot(slot.id) }) }
     : undefined
@@ -191,12 +194,12 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     if (!kindMenuAnchor) return
     const anchor = kindMenuAnchor
     setKindMenuAnchor(null)
-    if (slot.kind === 'lens') setPickerPos(anchor)
-    else if (slot.kind === 'taskboard') setTaskboardPickerPos(anchor)
+    if (activeTab.type === 'lens') setPickerPos(anchor)
+    else if (activeTab.type === 'taskboard') setTaskboardPickerPos(anchor)
   }
 
-  const handleChangeKind = async (nextKind: typeof slot.kind) => {
-    if (nextKind === slot.kind) return
+  const handleChangeKind = async (nextKind: typeof activeTab.type) => {
+    if (nextKind === activeTab.type) return
     if (nextKind === 'taskboard') {
       const tbId = useTaskboardStore.getState().defaultBoardId
         ?? (await useTaskboardStore.getState().ensureDefault())
@@ -209,18 +212,18 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   let headerTitle: ReactNode
   let body: ReactNode
   let headerMeta: ReactNode = undefined
-  if (slot.kind === 'lens') {
+  if (activeTab.type === 'lens') {
     headerTitle = title || 'List'
     body = (
       <LensSlotContent
-        listDefinitionId={slot.listDefinitionId}
+        listDefinitionId={activeTab.listDefinitionId}
         onTitleChange={(t, c) => {
           setTitle(t)
           setCount(c)
         }}
       />
     )
-  } else if (slot.kind === 'calendar') {
+  } else if (activeTab.type === 'calendar') {
     const orientation = slot.orientation ?? 'vertical'
     headerTitle = 'Calendar'
     headerMeta = (
@@ -236,14 +239,14 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         onWeekOffsetChange={(n) => setSlotWeekOffset(slot.id, n)}
       />
     )
-  } else if (slot.kind === 'notes') {
+  } else if (activeTab.type === 'notes') {
     headerTitle = 'Notes · Inbox'
     body = <NotesSlotContent />
-  } else if (slot.kind === 'taskboard') {
+  } else if (activeTab.type === 'taskboard') {
     headerTitle = 'Taskboard'
-    body = <TaskboardSlotContent taskboardId={slot.taskboardId} />
+    body = <TaskboardSlotContent taskboardId={activeTab.taskboardId} />
   } else {
-    headerTitle = slot.kind
+    headerTitle = activeTab.type
     body = (
       <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-meta)' }}>
         Coming soon
@@ -253,9 +256,9 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
 
   const header = (
     <SlotHeader
-      slotKind={slot.kind}
+      slotKind={activeTab.type}
       title={headerTitle}
-      meta={headerMeta ?? (slot.kind === 'lens' && count > 0 ? count : undefined)}
+      meta={headerMeta ?? (activeTab.type === 'lens' && count > 0 ? count : undefined)}
       onMore={(anchor) => setMenuAnchor(anchor)}
       onPopOut={handlePopOut}
       menuOpen={menuOpen}
@@ -271,7 +274,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       <DraggableSlot slotId={slot.id} fromSide={fromSide} header={header} flex={slot.flex}>
         {body}
       </DraggableSlot>
-      {slot.kind === 'lens' && pickerPos && (
+      {activeTab.type === 'lens' && pickerPos && (
         <ListDefinitionPickerPopup
           x={pickerPos.x}
           y={pickerPos.y}
@@ -282,11 +285,11 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         />
       )}
       {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
-      {slot.kind === 'taskboard' && taskboardPickerPos && (
+      {activeTab.type === 'taskboard' && taskboardPickerPos && (
         <TaskboardPickerPopup
           x={taskboardPickerPos.x}
           y={taskboardPickerPos.y}
-          currentTaskboardId={slot.taskboardId}
+          currentTaskboardId={activeTab.taskboardId}
           onSelect={(taskboardId) => updateSlot(slot.id, { taskboardId })}
           onClose={() => setTaskboardPickerPos(null)}
         />
@@ -294,7 +297,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       {kindMenuAnchor && (
         <WidgetKindMenu
           anchor={kindMenuAnchor}
-          currentKind={slot.kind}
+          currentKind={activeTab.type}
           onChangeKind={(kind) => { void handleChangeKind(kind) }}
           onOpenSecondary={handleOpenSecondary}
           onClose={() => setKindMenuAnchor(null)}
@@ -303,7 +306,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       {menuAnchor && (
         <SlotMenu
           anchor={menuAnchor}
-          currentKind={slot.kind}
+          currentKind={activeTab.type}
           onSplit={(dir) => splitSlot(slot.id, dir)}
           onPopOut={handlePopOut}
           onClose={closeMenuAndFocusTrigger}
@@ -318,7 +321,7 @@ function findSlotKind(rails: RailsState, slotId: string): string | null {
     const rail = rails[side]
     if (!rail) continue
     const slot = rail.slots.find((s) => s.id === slotId)
-    if (slot) return slot.kind
+    if (slot) return getActiveTab(slot).type
   }
   return null
 }

@@ -224,6 +224,13 @@ export function applyCenterSwap(
 export interface SplitButtonOptions {
   genSlotId?: () => string
   kind?: SlotKind
+  /**
+   * Factory for the inserted slot. When provided, overrides `genSlotId` + `kind`
+   * and is responsible for producing a complete `Slot` (including `tabs[]` +
+   * `activeTabId`). The store uses this to keep tab-id generation co-located
+   * with slot-id generation in `canvas-rails-store.ts`.
+   */
+  buildSlot?: (kind: SlotKind) => Slot
 }
 
 export function applySplitButton(
@@ -236,8 +243,14 @@ export function applySplitButton(
   if (!loc) return rails
   const rail = rails[loc.side]!
   const kind: SlotKind = options.kind ?? 'lens'
-  const newId = (options.genSlotId ?? defaultSlotIdGen)()
-  const newSlot: Slot = { id: newId, kind }
+  let newSlot: Slot
+  if (options.buildSlot) {
+    newSlot = options.buildSlot(kind)
+  } else {
+    const newId = (options.genSlotId ?? defaultSlotIdGen)()
+    const tabId = `${newId}-t0`
+    newSlot = { id: newId, tabs: [{ id: tabId, type: kind }], activeTabId: tabId }
+  }
 
   const orientation = rail.orientation
   let insertIdx: number

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { RailsState, Slot } from '../../../../models/canvas-rails'
+import type { RailsState, Slot, Tab } from '../../../../models/canvas-rails'
+import { getActiveTab } from '../../../../models/canvas-rails'
 import {
   applyCenterSwap,
   applyDropToSide,
@@ -14,11 +15,14 @@ import {
 } from '../../../../utils/rail-dnd'
 
 function lensSlot(id: string, listDefinitionId?: number): Slot {
-  return { id, kind: 'lens', listDefinitionId }
+  const tab: Tab = { id: `${id}-t0`, type: 'lens' }
+  if (listDefinitionId != null) tab.listDefinitionId = listDefinitionId
+  return { id, tabs: [tab], activeTabId: tab.id }
 }
 
 function notesSlot(id: string): Slot {
-  return { id, kind: 'notes' }
+  const tab: Tab = { id: `${id}-t0`, type: 'notes' }
+  return { id, tabs: [tab], activeTabId: tab.id }
 }
 
 function railsWith(
@@ -288,7 +292,7 @@ describe('applySplitButton', () => {
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a, b] } })
     const next = applySplitButton(rails, 'b', 'above', { genSlotId: () => 'new' })
     expect(next.right?.slots.map((s) => s.id)).toEqual(['a', 'new', 'b'])
-    expect(next.right?.slots[1].kind).toBe('lens')
+    expect(getActiveTab(next.right!.slots[1]).type).toBe('lens')
   })
 
   it('inserts below the source', () => {
@@ -302,7 +306,7 @@ describe('applySplitButton', () => {
     const a = lensSlot('a')
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
     const next = applySplitButton(rails, 'a', 'below', { genSlotId: () => 'new', kind: 'notes' })
-    expect(next.right?.slots[1].kind).toBe('notes')
+    expect(getActiveTab(next.right!.slots[1]).type).toBe('notes')
   })
 
   it('respects horizontal rail orientation (left = before, right = after)', () => {

@@ -10,8 +10,13 @@ import { useFloatingTaskboardStore } from '../../../../stores/floating-taskboard
 import { useTaskboardStore } from '../../../../stores/taskboard-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
 import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
-import { EMPTY_RAILS } from '../../../../models/canvas-rails'
-import type { Slot } from '../../../../models/canvas-rails'
+import { EMPTY_RAILS, getActiveTab } from '../../../../models/canvas-rails'
+import type { Slot, SlotKind } from '../../../../models/canvas-rails'
+
+function makeSlot(id: string, kind: SlotKind, extra?: { listDefinitionId?: number; taskboardId?: number }): Slot {
+  const tab = { id: `${id}-t0`, type: kind, ...(extra ?? {}) }
+  return { id, tabs: [tab], activeTabId: tab.id }
+}
 
 beforeEach(async () => {
   await db.delete()
@@ -35,7 +40,7 @@ async function seedCanvas(): Promise<number> {
 
 describe('popSlotToCanvas', () => {
   it('no-ops when no canvas is selected', async () => {
-    const slot: Slot = { id: 'slot-1', kind: 'calendar' }
+    const slot = makeSlot('slot-1', 'calendar')
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(false)
     expect(useFloatingCalendarStore.getState().calendars.length).toBe(0)
@@ -48,7 +53,7 @@ describe('popSlotToCanvas', () => {
     await useNoteStore.getState().load()
     expect(useNoteStore.getState().activeId).toBe(globalId)
 
-    const slot: Slot = { id: 'slot-notes', kind: 'notes' }
+    const slot = makeSlot('slot-notes', 'notes')
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(true)
 
@@ -90,7 +95,7 @@ describe('popSlotToCanvas', () => {
       grouping: { kind: 'none' },
     })
 
-    const slot: Slot = { id: 'slot-lens', kind: 'lens', listDefinitionId: defId }
+    const slot = makeSlot('slot-lens', 'lens', { listDefinitionId: defId })
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(true)
 
@@ -101,7 +106,7 @@ describe('popSlotToCanvas', () => {
 
   it('skips a lens slot that has no list definition', async () => {
     await seedCanvas()
-    const slot: Slot = { id: 'slot-lens', kind: 'lens' }
+    const slot = makeSlot('slot-lens', 'lens')
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(false)
     expect(useListInsetStore.getState().insets.length).toBe(0)
@@ -118,7 +123,7 @@ describe('popSlotToCanvas', () => {
     await db.settings.put({ key: 'defaultTaskboardId', value: String(boardId) })
     await useTaskboardStore.getState().load()
 
-    const slot: Slot = { id: 'slot-tb', kind: 'taskboard', taskboardId: boardId }
+    const slot = makeSlot('slot-tb', 'taskboard', { taskboardId: boardId })
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(true)
 
@@ -129,7 +134,7 @@ describe('popSlotToCanvas', () => {
 
   it('pops a calendar slot into a floating calendar node', async () => {
     const canvasId = await seedCanvas()
-    const slot: Slot = { id: 'slot-cal', kind: 'calendar' }
+    const slot = makeSlot('slot-cal', 'calendar')
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(true)
 
@@ -174,14 +179,17 @@ describe('createAndDockSlot', () => {
     const id = useCanvasRailsStore.getState().createAndDockSlot('lens', 42)
     const { rails } = useCanvasRailsStore.getState()
     const slot = rails.right?.slots.find((s) => s.id === id)
-    expect(slot?.kind).toBe('lens')
-    expect(slot?.listDefinitionId).toBe(42)
+    expect(slot).toBeDefined()
+    const tab = getActiveTab(slot!)
+    expect(tab.type).toBe('lens')
+    expect(tab.listDefinitionId).toBe(42)
   })
 
   it('docks a taskboard slot like any other kind', () => {
     const id = useCanvasRailsStore.getState().createAndDockSlot('taskboard')
     const { rails } = useCanvasRailsStore.getState()
     const slot = rails.right?.slots.find((s) => s.id === id)
-    expect(slot?.kind).toBe('taskboard')
+    expect(slot).toBeDefined()
+    expect(getActiveTab(slot!).type).toBe('taskboard')
   })
 })

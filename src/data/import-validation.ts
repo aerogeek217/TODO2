@@ -567,9 +567,23 @@ function validateRailsShape(parsed: unknown): true | string {
       if (!slot || typeof slot !== 'object') return `${side}.slot: not an object`
       const s = slot as Record<string, unknown>
       if (typeof s.id !== 'string' || s.id.length === 0 || s.id.length > 100) return `${side}.slot.id`
-      if (typeof s.kind !== 'string' || !SLOT_KINDS_SET.has(s.kind)) return `${side}.slot.kind`
-      if (s.listDefinitionId !== undefined && !Number.isFinite(s.listDefinitionId)) return `${side}.slot.listDefinitionId`
-      if (s.taskboardId !== undefined && !Number.isFinite(s.taskboardId)) return `${side}.slot.taskboardId`
+      // Either the new tabs[] shape OR the legacy flat shape is accepted.
+      if (Array.isArray(s.tabs)) {
+        if (s.tabs.length === 0) return `${side}.slot.tabs empty`
+        if (typeof s.activeTabId !== 'string' || s.activeTabId.length === 0) return `${side}.slot.activeTabId`
+        for (const raw of s.tabs) {
+          if (!raw || typeof raw !== 'object') return `${side}.slot.tab: not an object`
+          const t = raw as Record<string, unknown>
+          if (typeof t.id !== 'string' || t.id.length === 0 || t.id.length > 100) return `${side}.slot.tab.id`
+          if (typeof t.type !== 'string' || !SLOT_KINDS_SET.has(t.type)) return `${side}.slot.tab.type`
+          if (t.listDefinitionId !== undefined && !Number.isFinite(t.listDefinitionId)) return `${side}.slot.tab.listDefinitionId`
+          if (t.taskboardId !== undefined && !Number.isFinite(t.taskboardId)) return `${side}.slot.tab.taskboardId`
+        }
+      } else {
+        if (typeof s.kind !== 'string' || !SLOT_KINDS_SET.has(s.kind)) return `${side}.slot.kind`
+        if (s.listDefinitionId !== undefined && !Number.isFinite(s.listDefinitionId)) return `${side}.slot.listDefinitionId`
+        if (s.taskboardId !== undefined && !Number.isFinite(s.taskboardId)) return `${side}.slot.taskboardId`
+      }
       if (s.flex !== undefined && !Number.isFinite(s.flex)) return `${side}.slot.flex`
       if (s.orientation !== undefined && s.orientation !== 'vertical' && s.orientation !== 'horizontal') {
         return `${side}.slot.orientation`

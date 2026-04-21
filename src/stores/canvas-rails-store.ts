@@ -1,6 +1,12 @@
 import { create } from 'zustand'
-import type { CalendarOrientation, RailSide, RailsState, Slot, SlotKind } from '../models/canvas-rails'
-import { EMPTY_RAILS, WEEK_OFFSET_MAX, clampRailSize, railOrientationForSide } from '../models/canvas-rails'
+import type { CalendarOrientation, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
+import {
+  EMPTY_RAILS,
+  WEEK_OFFSET_MAX,
+  clampRailSize,
+  getActiveTab,
+  railOrientationForSide,
+} from '../models/canvas-rails'
 import {
   applyDropToSide,
   applyEdgeDrop,
@@ -13,19 +19,45 @@ function genSlotId(): string {
   return `slot-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function genTabId(slotId: string): string {
+  return `${slotId}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/**
+ * Build a single-tab slot of the given kind. Used by the slot-creation factories
+ * below and by the split-button reducer via the `createTab` option.
+ */
+function buildSingleTabSlot(kind: SlotKind, listDefinitionId?: number, taskboardId?: number): Slot {
+  const id = genSlotId()
+  const tab: Tab = { id: genTabId(id), type: kind }
+  if (listDefinitionId != null) tab.listDefinitionId = listDefinitionId
+  if (taskboardId != null) tab.taskboardId = taskboardId
+  return { id, tabs: [tab], activeTabId: tab.id }
+}
+
 export function createLensSlot(listDefinitionId?: number): Slot {
-  return { id: genSlotId(), kind: 'lens', listDefinitionId }
+  return buildSingleTabSlot('lens', listDefinitionId)
 }
 
 export function createSlot(kind: SlotKind, listDefinitionId?: number, taskboardId?: number): Slot {
-  const slot: Slot = { id: genSlotId(), kind }
-  if (listDefinitionId != null) slot.listDefinitionId = listDefinitionId
-  if (taskboardId != null) slot.taskboardId = taskboardId
-  return slot
+  return buildSingleTabSlot(kind, listDefinitionId, taskboardId)
 }
 
 export function createTaskboardSlot(taskboardId: number): Slot {
-  return { id: genSlotId(), kind: 'taskboard', taskboardId }
+  return buildSingleTabSlot('taskboard', undefined, taskboardId)
+}
+
+/**
+ * Patch applied to `updateSlot`. Phase 1: callers still pass the flat-field
+ * shape; the store routes `listDefinitionId` / `taskboardId` onto the active
+ * tab and other fields onto the slot.
+ */
+export interface SlotPatch {
+  flex?: number
+  orientation?: CalendarOrientation
+  weekOffset?: number
+  listDefinitionId?: number
+  taskboardId?: number
 }
 
 interface CanvasRailsState {
@@ -37,16 +69,21 @@ interface CanvasRailsState {
   setRails: (next: RailsState) => void
   addRail: (side: RailSide, defaultSlot?: Slot) => void
   closeSlot: (slotId: string) => void
-  updateSlot: (slotId: string, patch: Partial<Slot>) => void
   /**
-   * Switch a slot's kind in place. Clears seed fields that don't apply to the
-   * new kind (e.g. switching from `lens → notes` drops `listDefinitionId`) so
-   * the slot record reflects the active kind. Callers own picking the seed
-   * when the new kind requires one (taskboard / lens) — this method does not
-   * auto-seed.
+   * Patch a slot. Slot-level fields (`flex`, `orientation`, `weekOffset`)
+   * apply to the slot; tab-level fields (`listDefinitionId`, `taskboardId`)
+   * apply to the active tab.
+   */
+  updateSlot: (slotId: string, patch: SlotPatch) => void
+  /**
+   * Switch the active tab's type in place. Clears seed fields that don't
+   * apply to the new kind (e.g. switching from `lens → notes` drops
+   * `listDefinitionId`). Callers own picking the seed when the new kind
+   * requires one (taskboard / lens) — this method does not auto-seed.
+   * Slot-level `flex` / `orientation` / `weekOffset` are preserved.
    */
   setSlotKind: (slotId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number; taskboardId?: number }) => void
-  /** Calendar-slot only: set the row/column orientation. No-op for non-calendar slots. */
+  /** Calendar-slot only: set the row/column orientation. No-op when active tab is not calendar. */
   setSlotOrientation: (slotId: string, orientation: CalendarOrientation) => void
   /** Calendar-slot only: set the week offset (clamped to ±WEEK_OFFSET_MAX). */
   setSlotWeekOffset: (slotId: string, weekOffset: number) => void
@@ -82,6 +119,24 @@ function findSlot(rails: RailsState, slotId: string): Slot | null {
     if (slot) return slot
   }
   return null
+}
+
+function mapSlot(rails: RailsState, slotId: string, fn: (slot: Slot) => Slot | null): RailsState {
+  let touched = false
+  const next: RailsState = { ...rails }
+  for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+    const rail = next[side]
+    if (!rail) continue
+    const idx = rail.slots.findIndex((s) => s.id === slotId)
+    if (idx === -1) continue
+    const updated = fn(rail.slots[idx])
+    if (!updated || updated === rail.slots[idx]) return rails
+    const nextSlots = rail.slots.slice()
+    nextSlots[idx] = updated
+    next[side] = { ...rail, slots: nextSlots }
+    touched = true
+  }
+  return touched ? next : rails
 }
 
 export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
@@ -133,7 +188,7 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
   setSlotOrientation: (slotId, orientation) => {
     const s = get()
     const slot = findSlot(s.rails, slotId)
-    if (!slot || slot.kind !== 'calendar') return
+    if (!slot || getActiveTab(slot).type !== 'calendar') return
     if (slot.orientation === orientation) return
     s.updateSlot(slotId, { orientation })
   },
@@ -141,7 +196,7 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
   setSlotWeekOffset: (slotId, weekOffset) => {
     const s = get()
     const slot = findSlot(s.rails, slotId)
-    if (!slot || slot.kind !== 'calendar') return
+    if (!slot || getActiveTab(slot).type !== 'calendar') return
     if (!Number.isFinite(weekOffset)) return
     const clamped = Math.max(-WEEK_OFFSET_MAX, Math.min(WEEK_OFFSET_MAX, Math.trunc(weekOffset)))
     if (slot.weekOffset === clamped) return
@@ -149,51 +204,59 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
   },
 
   updateSlot: (slotId, patch) => set((state) => {
-    let touched = false
-    const next: RailsState = { ...state.rails }
-    for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
-      const rail = next[side]
-      if (!rail) continue
-      const idx = rail.slots.findIndex((s) => s.id === slotId)
-      if (idx === -1) continue
-      const current = rail.slots[idx]
-      const merged: Slot = { ...current, ...patch, id: current.id }
-      const nextSlots = rail.slots.slice()
-      nextSlots[idx] = merged
-      next[side] = { ...rail, slots: nextSlots }
-      touched = true
-    }
-    return touched ? { rails: next } : state
+    const next = mapSlot(state.rails, slotId, (current) => {
+      const nextSlot: Slot = { ...current }
+      if (patch.flex !== undefined) nextSlot.flex = patch.flex
+      if (patch.orientation !== undefined) nextSlot.orientation = patch.orientation
+      if (patch.weekOffset !== undefined) nextSlot.weekOffset = patch.weekOffset
+
+      if (patch.listDefinitionId !== undefined || patch.taskboardId !== undefined) {
+        const activeIdx = current.tabs.findIndex((t) => t.id === current.activeTabId)
+        const resolvedIdx = activeIdx === -1 ? 0 : activeIdx
+        const active = current.tabs[resolvedIdx]
+        const nextTab: Tab = { ...active }
+        if (patch.listDefinitionId !== undefined) nextTab.listDefinitionId = patch.listDefinitionId
+        if (patch.taskboardId !== undefined) nextTab.taskboardId = patch.taskboardId
+        const tabs = current.tabs.slice()
+        tabs[resolvedIdx] = nextTab
+        nextSlot.tabs = tabs
+      }
+      return nextSlot
+    })
+    return next === state.rails ? state : { rails: next }
   }),
 
   setSlotKind: (slotId, nextKind, seed) => set((state) => {
-    let touched = false
-    const next: RailsState = { ...state.rails }
-    for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
-      const rail = next[side]
-      if (!rail) continue
-      const idx = rail.slots.findIndex((s) => s.id === slotId)
-      if (idx === -1) continue
-      const current = rail.slots[idx]
-      if (current.kind === nextKind && !seed) return state
-      // Preserve sizing (`flex`) across kind changes — cross-kind seed fields
-      // (listDefinitionId / taskboardId) are cleared explicitly below so they
-      // don't leak into kinds that don't use them.
-      const rebuilt: Slot = { id: current.id, kind: nextKind }
-      if (current.flex != null) rebuilt.flex = current.flex
+    const next = mapSlot(state.rails, slotId, (current) => {
+      const activeIdx = current.tabs.findIndex((t) => t.id === current.activeTabId)
+      const resolvedIdx = activeIdx === -1 ? 0 : activeIdx
+      const active = current.tabs[resolvedIdx]
+      if (active.type === nextKind && !seed) return current
+
+      // Rewrite the active tab's type and clear cross-kind seed fields.
+      const rebuiltTab: Tab = { id: active.id, type: nextKind }
       if (nextKind === 'lens') {
-        const listId = seed?.listDefinitionId ?? current.listDefinitionId
-        if (listId != null) rebuilt.listDefinitionId = listId
+        const listId = seed?.listDefinitionId ?? active.listDefinitionId
+        if (listId != null) rebuiltTab.listDefinitionId = listId
       } else if (nextKind === 'taskboard') {
-        const tbId = seed?.taskboardId ?? current.taskboardId
-        if (tbId != null) rebuilt.taskboardId = tbId
+        const tbId = seed?.taskboardId ?? active.taskboardId
+        if (tbId != null) rebuiltTab.taskboardId = tbId
       }
-      const nextSlots = rail.slots.slice()
-      nextSlots[idx] = rebuilt
-      next[side] = { ...rail, slots: nextSlots }
-      touched = true
-    }
-    return touched ? { rails: next } : state
+      const tabs = current.tabs.slice()
+      tabs[resolvedIdx] = rebuiltTab
+
+      // Preserve slot-level sizing (flex) across kind changes. Drop
+      // orientation/weekOffset when moving off calendar — they were
+      // calendar-specific.
+      const nextSlot: Slot = { id: current.id, tabs, activeTabId: current.activeTabId }
+      if (current.flex != null) nextSlot.flex = current.flex
+      if (nextKind === 'calendar') {
+        if (current.orientation != null) nextSlot.orientation = current.orientation
+        if (current.weekOffset != null) nextSlot.weekOffset = current.weekOffset
+      }
+      return nextSlot
+    })
+    return next === state.rails ? state : { rails: next }
   }),
 
   dropSlotToSide: (slotId, toSide) => set((state) => {
@@ -213,18 +276,18 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
 
   splitSlot: (slotId, dir) => set((state) => {
     const newId = genSlotId()
-    const next = applySplitButton(state.rails, slotId, dir, { genSlotId: () => newId })
+    const next = applySplitButton(state.rails, slotId, dir, {
+      buildSlot: (kind) => {
+        const tab: Tab = { id: genTabId(newId), type: kind }
+        return { id: newId, tabs: [tab], activeTabId: tab.id }
+      },
+    })
     if (next === state.rails) return state
     return { rails: next, pendingFocusSlotId: newId }
   }),
 
   createAndDockSlot: (kind, listDefinitionId, taskboardId) => {
-    const slot: Slot = {
-      id: genSlotId(),
-      kind,
-      ...(listDefinitionId != null ? { listDefinitionId } : {}),
-      ...(taskboardId != null ? { taskboardId } : {}),
-    }
+    const slot = buildSingleTabSlot(kind, listDefinitionId, taskboardId)
     set((state) => {
       const next: RailsState = { ...state.rails }
       const emptySide = DOCK_PRIORITY.find((side) => !next[side])

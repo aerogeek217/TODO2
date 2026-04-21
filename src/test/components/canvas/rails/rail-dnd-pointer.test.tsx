@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import type { RailsState } from '../../../../models/canvas-rails'
+import type { RailsState, Slot, SlotKind } from '../../../../models/canvas-rails'
+
+function s(id: string, kind: SlotKind): Slot {
+  return { id, tabs: [{ id: `${id}-t0`, type: kind }], activeTabId: `${id}-t0` }
+}
 import { setupRailsHarness, resetRailsStore } from '../../../utils/rail-dnd-harness'
 import * as railDnd from '../../../../utils/rail-dnd'
 import { db } from '../../../../data/database'
@@ -26,7 +30,7 @@ afterEach(() => {
 
 function leftLens(): RailsState {
   return {
-    left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
+    left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
     right: null,
     top: null,
     bottom: null,
@@ -35,8 +39,8 @@ function leftLens(): RailsState {
 
 function leftLensRightNotes(): RailsState {
   return {
-    left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
-    right: { orientation: 'vertical', slots: [{ id: 'slot-B', kind: 'notes' }] },
+    left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
+    right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
     top: null,
     bottom: null,
   }
@@ -44,13 +48,13 @@ function leftLensRightNotes(): RailsState {
 
 function leftLensTopTwo(): RailsState {
   return {
-    left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
+    left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
     right: null,
     top: {
       orientation: 'horizontal',
       slots: [
-        { id: 'slot-T1', kind: 'lens' },
-        { id: 'slot-T2', kind: 'notes' },
+        s('slot-T1', 'lens'),
+        s('slot-T2', 'notes'),
       ],
     },
     bottom: null,

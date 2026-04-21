@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useCanvasRailsStore, createLensSlot, createSlot } from '../../stores/canvas-rails-store'
-import { EMPTY_RAILS } from '../../models/canvas-rails'
+import { EMPTY_RAILS, getActiveTab } from '../../models/canvas-rails'
 
 beforeEach(() => {
   useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: false })
@@ -26,7 +26,7 @@ describe('canvas-rails-store', () => {
     })
     const s = useCanvasRailsStore.getState()
     expect(s.hydrated).toBe(true)
-    expect(s.rails.right?.slots[0].listDefinitionId).toBe(42)
+    expect(getActiveTab(s.rails.right!.slots[0]).listDefinitionId).toBe(42)
   })
 
   it('addRail on an empty side creates a rail with the right orientation', () => {
@@ -43,7 +43,7 @@ describe('canvas-rails-store', () => {
     useCanvasRailsStore.getState().addRail('right', createLensSlot(2))
     const rail = useCanvasRailsStore.getState().rails.right
     expect(rail?.slots).toHaveLength(1)
-    expect(rail?.slots[0].listDefinitionId).toBe(1)
+    expect(getActiveTab(rail!.slots[0]).listDefinitionId).toBe(1)
   })
 
   it('closeSlot removes the matching slot and collapses an empty rail to null', () => {
@@ -83,7 +83,7 @@ describe('canvas-rails-store', () => {
     useCanvasRailsStore.getState().updateSlot(slot.id, { listDefinitionId: 99 })
     const updated = useCanvasRailsStore.getState().rails.right?.slots[0]
     expect(updated?.id).toBe(slot.id)
-    expect(updated?.listDefinitionId).toBe(99)
+    expect(getActiveTab(updated!).listDefinitionId).toBe(99)
   })
 
   it('updateSlot ignores id changes from the caller', () => {
@@ -169,7 +169,7 @@ describe('canvas-rails-store', () => {
     expect(slots).toHaveLength(2)
     expect(slots[0].id).toBe(a.id)
     expect(slots[1].id).not.toBe(a.id)
-    expect(slots[1].kind).toBe('lens')
+    expect(getActiveTab(slots[1]).type).toBe('lens')
   })
 
   it('setRailSize persists per-side widths/heights and clamps out-of-range values', () => {

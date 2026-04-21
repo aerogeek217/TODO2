@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import type { RailsState } from '../../../../models/canvas-rails'
+import type { RailsState, Slot, SlotKind } from '../../../../models/canvas-rails'
+
+function s(id: string, kind: SlotKind): Slot {
+  return { id, tabs: [{ id: `${id}-t0`, type: kind }], activeTabId: `${id}-t0` }
+}
 import { setupRailsHarness, resetRailsStore } from '../../../utils/rail-dnd-harness'
 import { db } from '../../../../data/database'
 import { useCanvasStore } from '../../../../stores/canvas-store'
@@ -22,7 +26,7 @@ afterEach(cleanup)
 
 function initialWithLeftLens(): RailsState {
   return {
-    left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
+    left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
     right: null,
     top: null,
     bottom: null,
@@ -52,8 +56,8 @@ describe('rails harness — empty-side dock', () => {
 describe('rails harness — edge dock', () => {
   it('drops onto head of a populated right rail → source inserted at index 0', async () => {
     const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
-      right: { orientation: 'vertical', slots: [{ id: 'slot-B', kind: 'notes' }] },
+      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
+      right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
       top: null,
       bottom: null,
     }
@@ -67,8 +71,8 @@ describe('rails harness — edge dock', () => {
 
   it('drops onto tail of a populated right rail → source inserted at end', async () => {
     const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
-      right: { orientation: 'vertical', slots: [{ id: 'slot-B', kind: 'notes' }] },
+      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
+      right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
       top: null,
       bottom: null,
     }
@@ -82,8 +86,8 @@ describe('rails harness — edge dock', () => {
 describe('rails harness — split quadrant', () => {
   it('drags onto upper half of a slot in a vertical rail → splits above target', async () => {
     const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
-      right: { orientation: 'vertical', slots: [{ id: 'slot-B', kind: 'notes' }] },
+      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
+      right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
       top: null,
       bottom: null,
     }
@@ -104,8 +108,8 @@ describe('rails harness — split quadrant', () => {
 
   it('drags onto lower half of a slot in a vertical rail → splits below target', async () => {
     const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
-      right: { orientation: 'vertical', slots: [{ id: 'slot-B', kind: 'notes' }] },
+      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
+      right: { orientation: 'vertical', slots: [s('slot-B', 'notes')] },
       top: null,
       bottom: null,
     }
@@ -128,8 +132,8 @@ describe('rails harness — split quadrant', () => {
 describe('rails harness — structural wiring', () => {
   it('renders one [data-slot-id] element per slot in the rails state', async () => {
     const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
-      right: { orientation: 'vertical', slots: [{ id: 'slot-B', kind: 'notes' }, { id: 'slot-C', kind: 'calendar' }] },
+      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
+      right: { orientation: 'vertical', slots: [s('slot-B', 'notes'), s('slot-C', 'calendar')] },
       top: null,
       bottom: null,
     }
@@ -140,7 +144,7 @@ describe('rails harness — structural wiring', () => {
 
   it('every registered drop zone encodes/decodes round-trip', async () => {
     const initial: RailsState = {
-      left: { orientation: 'vertical', slots: [{ id: 'slot-A', kind: 'lens' }] },
+      left: { orientation: 'vertical', slots: [s('slot-A', 'lens')] },
       right: null,
       top: null,
       bottom: null,

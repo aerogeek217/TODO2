@@ -208,7 +208,12 @@ describe('useSettingsStore.canvasRails persistence', () => {
     await useSettingsStore.getState().load()
     const rails = useSettingsStore.getState().canvasRails
     expect(rails).not.toBeNull()
-    expect(rails!.right!.slots[0]).toEqual({ id: 's1', kind: 'lens', listDefinitionId: 7 })
+    // Legacy shape gets wrapped into a single-tab slot on parse.
+    expect(rails!.right!.slots[0]).toEqual({
+      id: 's1',
+      tabs: [{ id: 's1-t0', type: 'lens', listDefinitionId: 7 }],
+      activeTabId: 's1-t0',
+    })
   })
 
   it('load leaves canvasRails null when the blob is malformed', async () => {
@@ -232,13 +237,13 @@ describe('useSettingsStore.setCanvasRails debouncing', () => {
     const store = useSettingsStore.getState()
     const rails1 = {
       left: null,
-      right: { orientation: 'vertical' as const, slots: [{ id: 'a', kind: 'lens' as const }] },
+      right: { orientation: 'vertical' as const, slots: [{ id: 'a', tabs: [{ id: 'a-t0', type: 'lens' as const }], activeTabId: 'a-t0' }] },
       top: null,
       bottom: null,
     }
     const rails2 = {
       left: null,
-      right: { orientation: 'vertical' as const, slots: [{ id: 'b', kind: 'notes' as const }] },
+      right: { orientation: 'vertical' as const, slots: [{ id: 'b', tabs: [{ id: 'b-t0', type: 'notes' as const }], activeTabId: 'b-t0' }] },
       top: null,
       bottom: null,
     }
@@ -261,7 +266,7 @@ describe('useSettingsStore.setCanvasRails persistence', () => {
   it('writes the serialized rails blob to the settings repo', async () => {
     const rails = {
       left: null,
-      right: { orientation: 'vertical' as const, slots: [{ id: 'x', kind: 'lens' as const, listDefinitionId: 5 }] },
+      right: { orientation: 'vertical' as const, slots: [{ id: 'x', tabs: [{ id: 'x-t0', type: 'lens' as const, listDefinitionId: 5 }], activeTabId: 'x-t0' }] },
       top: null,
       bottom: null,
     }

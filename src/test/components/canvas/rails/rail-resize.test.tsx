@@ -22,12 +22,12 @@ afterEach(() => {
 
 const lensRail: Rail = {
   orientation: 'vertical',
-  slots: [{ id: 'slot-a', kind: 'lens' }],
+  slots: [{ id: 'slot-a', tabs: [{ id: 'slot-a-t0', type: 'lens' }], activeTabId: 'slot-a-t0' }],
 }
 
 const topRail: Rail = {
   orientation: 'horizontal',
-  slots: [{ id: 'slot-b', kind: 'notes' }],
+  slots: [{ id: 'slot-b', tabs: [{ id: 'slot-b-t0', type: 'notes' }], activeTabId: 'slot-b-t0' }],
 }
 
 function getResizeHandle(side: string) {

@@ -994,6 +994,19 @@ export function tagRailsTaskboardSlots(railsJson: string | undefined, defaultTas
     for (const s of slots) {
       if (!s || typeof s !== 'object') continue
       const slot = s as Record<string, unknown>
+      // New shape: walk tabs[] for taskboard types missing a board id.
+      if (Array.isArray(slot.tabs)) {
+        for (const raw of slot.tabs) {
+          if (!raw || typeof raw !== 'object') continue
+          const tab = raw as Record<string, unknown>
+          if (tab.type === 'taskboard' && tab.taskboardId == null) {
+            tab.taskboardId = defaultTaskboardId
+            touched = true
+          }
+        }
+        continue
+      }
+      // Legacy shape fallback.
       if (slot.kind === 'taskboard' && slot.taskboardId == null) {
         slot.taskboardId = defaultTaskboardId
         touched = true
