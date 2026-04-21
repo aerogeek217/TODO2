@@ -8,11 +8,14 @@ import {
   railOrientationForSide,
 } from '../models/canvas-rails'
 import {
+  applyDetachTabToNewSlot,
   applyDropToSide,
-  applyEdgeDrop,
+  applyMoveTabToSlot,
+  applyReorderTab,
   applySplitDrop,
   applySplitButton,
   type SplitZone,
+  type TabDropTarget,
 } from '../utils/rail-dnd'
 
 function genSlotId(): string {
@@ -108,8 +111,20 @@ interface CanvasRailsState {
   /** Calendar-slot only: set the week offset (clamped to ±WEEK_OFFSET_MAX). */
   setSlotWeekOffset: (slotId: string, weekOffset: number) => void
   dropSlotToSide: (slotId: string, toSide: RailSide) => void
-  edgeDropSlot: (slotId: string, toSide: RailSide, edge: 'head' | 'tail') => void
   splitDropSlot: (slotId: string, targetSlotId: string, zone: SplitZone) => void
+  /** Move a tab within its slot. `insertIdx` is the desired index after removal. */
+  reorderTab: (slotId: string, tabId: string, insertIdx: number) => void
+  /**
+   * Move a tab from one slot to another at `insertIdx`. If the source slot
+   * empties, it is cascade-closed. The destination slot's active tab becomes
+   * the moved tab.
+   */
+  moveTabToSlot: (srcSlotId: string, tabId: string, destSlotId: string, insertIdx: number) => void
+  /**
+   * Extract a tab from its source slot and dock it as a fresh single-tab slot
+   * at the given drop target. Source cascade-closes if it had only that tab.
+   */
+  detachTabToNewSlot: (srcSlotId: string, tabId: string, target: TabDropTarget) => void
   splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right') => void
   /**
    * Create a new slot of the given kind and dock it into the first empty rail
@@ -352,13 +367,28 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     return next === state.rails ? state : { rails: next }
   }),
 
-  edgeDropSlot: (slotId, toSide, edge) => set((state) => {
-    const next = applyEdgeDrop(state.rails, slotId, toSide, edge)
+  splitDropSlot: (slotId, targetSlotId, zone) => set((state) => {
+    const next = applySplitDrop(state.rails, slotId, targetSlotId, zone)
     return next === state.rails ? state : { rails: next }
   }),
 
-  splitDropSlot: (slotId, targetSlotId, zone) => set((state) => {
-    const next = applySplitDrop(state.rails, slotId, targetSlotId, zone)
+  reorderTab: (slotId, tabId, insertIdx) => set((state) => {
+    const next = applyReorderTab(state.rails, slotId, tabId, insertIdx)
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  moveTabToSlot: (srcSlotId, tabId, destSlotId, insertIdx) => set((state) => {
+    const next = applyMoveTabToSlot(state.rails, srcSlotId, tabId, destSlotId, insertIdx)
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  detachTabToNewSlot: (srcSlotId, tabId, target) => set((state) => {
+    const next = applyDetachTabToNewSlot(state.rails, srcSlotId, tabId, target, (tab) => {
+      const newId = genSlotId()
+      // Preserve the tab's existing id so CSS animations/focus keyed by tabId
+      // survive the detach — the tab's payload is already unique across rails.
+      return { id: newId, tabs: [tab], activeTabId: tab.id }
+    })
     return next === state.rails ? state : { rails: next }
   }),
 

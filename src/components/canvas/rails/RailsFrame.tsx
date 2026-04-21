@@ -32,6 +32,7 @@ import {
   pointerToSplitZone,
   RAILS_DRAG_TYPE,
   type RailsDragData,
+  type TabDropTarget,
 } from '../../../utils/rail-dnd'
 import styles from './RailsFrame.module.css'
 
@@ -272,6 +273,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const header = multiTab ? (
     <TabStrip
       slot={slot}
+      fromSide={fromSide}
       onActivateTab={(tabId) => activateTab(slot.id, tabId)}
       onCloseTab={(tabId) => closeTab(slot.id, tabId)}
       onAddTab={(kind) => { void handleAddTab(kind) }}
@@ -358,7 +360,10 @@ function findSlotKind(rails: RailsState, slotId: string): string | null {
 function describeDropZone(zone: ReturnType<typeof decodeRailsDropId>, rails: RailsState): string {
   if (!zone) return 'unknown target'
   if (zone.kind === 'empty-side') return `${zone.side} rail`
-  if (zone.kind === 'edge') return `${zone.side} rail ${zone.edge === 'head' ? 'start' : 'end'}`
+  if (zone.kind === 'tab-strip') {
+    const targetKind = findSlotKind(rails, zone.slotId) ?? 'slot'
+    return `${targetKind} tab strip`
+  }
   const targetKind = findSlotKind(rails, zone.slotId) ?? 'slot'
   return `${targetKind} slot`
 }
@@ -368,13 +373,41 @@ interface RailsDragMonitorResult {
   announcement: string
 }
 
+function findTabLabel(rails: RailsState, slotId: string, tabId: string): string | null {
+  for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+    const rail = rails[side]
+    if (!rail) continue
+    const slot = rail.slots.find((s) => s.id === slotId)
+    if (!slot) continue
+    const tab = slot.tabs.find((t) => t.id === tabId)
+    if (!tab) return null
+    return tab.type
+  }
+  return null
+}
+
+function computeTabInsertIdx(stripEl: Element, pointerX: number, sourceTabId: string | null): number {
+  const pills = Array.from(stripEl.querySelectorAll<HTMLElement>('[data-tab-id]'))
+  const survivors = sourceTabId != null
+    ? pills.filter((p) => p.dataset.tabId !== sourceTabId)
+    : pills
+  for (let i = 0; i < survivors.length; i++) {
+    const rect = survivors[i].getBoundingClientRect()
+    const mid = rect.left + rect.width / 2
+    if (pointerX < mid) return i
+  }
+  return survivors.length
+}
+
 function useRailsDragMonitor(): RailsDragMonitorResult {
   const [draggingSlot, setDraggingSlot] = useState<RailsDragData | null>(null)
   const [announcement, setAnnouncement] = useState<string>('')
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
   const dropSlotToSide = useCanvasRailsStore((s) => s.dropSlotToSide)
-  const edgeDropSlot = useCanvasRailsStore((s) => s.edgeDropSlot)
   const splitDropSlot = useCanvasRailsStore((s) => s.splitDropSlot)
+  const reorderTab = useCanvasRailsStore((s) => s.reorderTab)
+  const moveTabToSlot = useCanvasRailsStore((s) => s.moveTabToSlot)
+  const detachTabToNewSlot = useCanvasRailsStore((s) => s.detachTabToNewSlot)
   const rails = useCanvasRailsStore((s) => s.rails)
 
   useDndMonitor({
@@ -382,8 +415,13 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
       const data = active.data.current as RailsDragData | undefined
       if (data?.type !== RAILS_DRAG_TYPE) return
       setDraggingSlot(data)
-      const kind = findSlotKind(rails, data.slotId)
-      setAnnouncement(`Dragging ${kind ?? 'slot'}`)
+      if (data.kind === 'tab') {
+        const label = findTabLabel(rails, data.slotId, data.tabId) ?? 'tab'
+        setAnnouncement(`Dragging tab ${label}`)
+      } else {
+        const kind = findSlotKind(rails, data.slotId)
+        setAnnouncement(`Dragging ${kind ?? 'slot'}`)
+      }
       const onMove = (e: PointerEvent) => {
         pointerRef.current = { x: e.clientX, y: e.clientY }
       }
@@ -403,16 +441,66 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
       const zone = decodeRailsDropId(String(over.id))
       if (!zone) { setAnnouncement('Drop cancelled'); return }
       setAnnouncement(`Dropped in ${describeDropZone(zone, rails)}`)
+
+      if (data.kind === 'tab') {
+        // Tab drag: route by drop zone kind.
+        if (zone.kind === 'tab-strip') {
+          const pointer = pointerRef.current
+          const stripEl = document.querySelector(`[data-drop-id="${String(over.id)}"]`)
+          let insertIdx = 0
+          if (pointer && stripEl) {
+            insertIdx = computeTabInsertIdx(stripEl, pointer.x, data.tabId)
+          }
+          if (zone.slotId === data.slotId) {
+            reorderTab(data.slotId, data.tabId, insertIdx)
+          } else {
+            moveTabToSlot(data.slotId, data.tabId, zone.slotId, insertIdx)
+          }
+          return
+        }
+        // Tab dropped onto a slot-level zone → detach to a new slot.
+        if (zone.kind === 'empty-side') {
+          detachTabToNewSlot(data.slotId, data.tabId, { kind: 'empty-side', side: zone.side })
+        } else if (zone.kind === 'slot') {
+          if (zone.slotId === data.slotId) return // dropped onto own body — ignore
+          const pointer = pointerRef.current
+          const rect = over.rect
+          if (!pointer || !rect) return
+          let orientation: 'vertical' | 'horizontal' = 'vertical'
+          for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+            const rail = rails[side]
+            if (!rail) continue
+            if (rail.slots.some((s) => s.id === zone.slotId)) {
+              orientation = rail.orientation
+              break
+            }
+          }
+          const splitZone = pointerToSplitZone(pointer, {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+          }, orientation)
+          // Center on another slot → merge as tab into that slot's strip (resolved decision).
+          if (splitZone === 'center') {
+            const dest = rails[(['left', 'right', 'top', 'bottom'] as RailSide[]).find((side) => rails[side]?.slots.some((s) => s.id === zone.slotId)) ?? 'right']
+            const insertIdx = dest?.slots.find((s) => s.id === zone.slotId)?.tabs.length ?? 0
+            moveTabToSlot(data.slotId, data.tabId, zone.slotId, insertIdx)
+            return
+          }
+          const target: TabDropTarget = { kind: 'slot', slotId: zone.slotId, zone: splitZone }
+          detachTabToNewSlot(data.slotId, data.tabId, target)
+        }
+        return
+      }
+
+      // Slot drag (existing behavior, unchanged).
       if (zone.kind === 'empty-side') {
         dropSlotToSide(data.slotId, zone.side)
-      } else if (zone.kind === 'edge') {
-        edgeDropSlot(data.slotId, zone.side, zone.edge)
       } else if (zone.kind === 'slot') {
-        // Compute split zone from pointer + slot rect. Find the slot's orientation.
         const pointer = pointerRef.current
         const rect = over.rect
         if (!pointer || !rect) return
-        // Determine orientation from rails state.
         let orientation: 'vertical' | 'horizontal' = 'vertical'
         for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
           const rail = rails[side]
@@ -430,6 +518,8 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
         }, orientation)
         splitDropSlot(data.slotId, zone.slotId, splitZone)
       }
+      // Slot drag onto a tab-strip drop zone is intentionally ignored — slots
+      // don't merge into other slots' strips (that'd be a destructive op).
     },
     onDragCancel: () => {
       const cleanup = (pointerRef as unknown as { cleanup?: () => void }).cleanup
@@ -465,7 +555,6 @@ export function RailsFrame({ children }: RailsFrameProps) {
         rail={rail}
         size={railSize(rails, side)}
         onResize={(px) => setRailSize(side, px)}
-        railsDragging={railsDragging}
       >
         {rail.slots.map((slot, idx) => (
           <Fragment key={slot.id}>

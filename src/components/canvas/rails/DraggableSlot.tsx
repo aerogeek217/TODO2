@@ -17,7 +17,7 @@ interface DraggableSlotProps {
 export function DraggableSlot({ slotId, fromSide, header, children, flex }: DraggableSlotProps) {
   const dragId = `rails-slot-drag:${slotId}`
   const dropId = encodeRailsDropId({ kind: 'slot', slotId })
-  const dragData: RailsDragData = { type: RAILS_DRAG_TYPE, slotId, fromSide }
+  const dragData: RailsDragData = { type: RAILS_DRAG_TYPE, kind: 'slot', slotId, fromSide }
 
   const draggable = useDraggable({ id: dragId, data: dragData })
   const droppable = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId } })

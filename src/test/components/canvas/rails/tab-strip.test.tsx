@@ -38,6 +38,7 @@ describe('TabStrip', () => {
     render(
       <TabStrip
         slot={makeSlot()}
+        fromSide="right"
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={() => {}}
@@ -65,6 +66,7 @@ describe('TabStrip', () => {
     render(
       <TabStrip
         slot={slot}
+        fromSide="right"
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={() => {}}
@@ -79,6 +81,7 @@ describe('TabStrip', () => {
     render(
       <TabStrip
         slot={makeSlot()}
+        fromSide="right"
         onActivateTab={onActivate}
         onCloseTab={() => {}}
         onAddTab={() => {}}
@@ -96,6 +99,7 @@ describe('TabStrip', () => {
     render(
       <TabStrip
         slot={makeSlot()}
+        fromSide="right"
         onActivateTab={() => {}}
         onCloseTab={onClose}
         onAddTab={() => {}}
@@ -110,6 +114,7 @@ describe('TabStrip', () => {
     render(
       <TabStrip
         slot={makeSlot()}
+        fromSide="right"
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={onAdd}

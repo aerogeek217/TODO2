@@ -1,21 +1,36 @@
-import type { Rail, RailSide, RailsState, Slot, SlotKind } from '../models/canvas-rails'
+import type { Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
 import { railOrientationForSide } from '../models/canvas-rails'
 
 export const RAILS_DRAG_TYPE = 'rails-slot' as const
 export const RAILS_DROP_ID_PREFIX = 'rails:' as const
 
-export interface RailsDragData {
-  type: typeof RAILS_DRAG_TYPE
-  slotId: string
-  fromSide: RailSide
-}
+/**
+ * Drag payload carried on `active.data.current` for rail drags. Discriminated
+ * by `kind`: slot drags move an entire slot; tab drags move a single tab
+ * (pill) within or out of its source slot. Both share `type` + `fromSide` so
+ * the monitor can filter by `type === RAILS_DRAG_TYPE` first.
+ */
+export type RailsDragData =
+  | {
+      type: typeof RAILS_DRAG_TYPE
+      kind: 'slot'
+      slotId: string
+      fromSide: RailSide
+    }
+  | {
+      type: typeof RAILS_DRAG_TYPE
+      kind: 'tab'
+      slotId: string
+      tabId: string
+      fromSide: RailSide
+    }
 
 export type SplitZone = 'above' | 'below' | 'left' | 'right' | 'center'
 
 export type RailsDropZone =
   | { kind: 'empty-side'; side: RailSide }
-  | { kind: 'edge'; side: RailSide; edge: 'head' | 'tail' }
   | { kind: 'slot'; slotId: string }
+  | { kind: 'tab-strip'; slotId: string }
 
 const ALL_SIDES: RailSide[] = ['left', 'right', 'top', 'bottom']
 
@@ -23,10 +38,10 @@ export function encodeRailsDropId(z: RailsDropZone): string {
   switch (z.kind) {
     case 'empty-side':
       return `${RAILS_DROP_ID_PREFIX}empty-side:${z.side}`
-    case 'edge':
-      return `${RAILS_DROP_ID_PREFIX}edge:${z.side}:${z.edge}`
     case 'slot':
       return `${RAILS_DROP_ID_PREFIX}slot:${z.slotId}`
+    case 'tab-strip':
+      return `${RAILS_DROP_ID_PREFIX}tab-strip:${z.slotId}`
   }
 }
 
@@ -37,12 +52,13 @@ export function decodeRailsDropId(id: string): RailsDropZone | null {
   if (parts[0] === 'empty-side' && parts.length === 2 && isSide(parts[1])) {
     return { kind: 'empty-side', side: parts[1] }
   }
-  if (parts[0] === 'edge' && parts.length === 3 && isSide(parts[1]) && (parts[2] === 'head' || parts[2] === 'tail')) {
-    return { kind: 'edge', side: parts[1], edge: parts[2] }
-  }
   if (parts[0] === 'slot' && parts.length >= 2) {
     const slotId = parts.slice(1).join(':')
     if (slotId.length > 0) return { kind: 'slot', slotId }
+  }
+  if (parts[0] === 'tab-strip' && parts.length >= 2) {
+    const slotId = parts.slice(1).join(':')
+    if (slotId.length > 0) return { kind: 'tab-strip', slotId }
   }
   return null
 }
@@ -130,25 +146,6 @@ export function applyDropToSide(rails: RailsState, slotId: string, toSide: RailS
   const { flex: _ignore, ...rest } = slot
   void _ignore
   next[toSide] = { orientation: railOrientationForSide(toSide), slots: [rest as Slot] }
-  return next
-}
-
-export function applyEdgeDrop(rails: RailsState, slotId: string, toSide: RailSide, edge: 'head' | 'tail'): RailsState {
-  const { rails: afterRemove, slot } = removeSlot(rails, slotId)
-  if (!slot) return rails
-  const dest = afterRemove[toSide]
-  const next: RailsState = { ...afterRemove }
-  if (!dest) {
-    // Single-slot rail — drop the joining slot's flex so it fills the rail cleanly.
-    const { flex: _ignore, ...rest } = slot
-    void _ignore
-    next[toSide] = { orientation: railOrientationForSide(toSide), slots: [rest as Slot] }
-    return next
-  }
-  const reconciled = reconcileIncomingFlex(dest, slot)
-  next[toSide] = edge === 'head'
-    ? { ...dest, slots: [reconciled, ...dest.slots] }
-    : { ...dest, slots: [...dest.slots, reconciled] }
   return next
 }
 
@@ -267,6 +264,189 @@ export function applySplitButton(
 
 function defaultSlotIdGen(): string {
   return `slot-${Math.random().toString(36).slice(2, 10)}`
+}
+
+// ---------------------------------------------------------------------------
+// Tab reducers (Phase 3 of rail-tabs)
+// ---------------------------------------------------------------------------
+
+/**
+ * Drop target for a tab drag. Unlike slot drags where the pointer-quadrant is
+ * computed inside the monitor, tab-strip drops carry their insertion index
+ * explicitly (computed from cursor X vs. pill midpoints by the strip).
+ */
+export type TabDropTarget =
+  | { kind: 'tab-strip'; slotId: string; insertIdx: number }
+  | { kind: 'empty-side'; side: RailSide }
+  | { kind: 'slot'; slotId: string; zone: SplitZone }
+
+function cascadeRailAfterSlotRemoval(rail: Rail, nextSlots: Slot[]): Rail | null {
+  if (nextSlots.length === 0) return null
+  if (nextSlots.length === 1) {
+    // Sole remaining slot — strip stale flex so it doesn't bias the next
+    // insertion (mirrors closeSlot/removeSlot invariants).
+    const { flex: _ignore, ...rest } = nextSlots[0]
+    void _ignore
+    return { ...rail, slots: [rest as Slot] }
+  }
+  return { ...rail, slots: nextSlots }
+}
+
+/**
+ * Remove a single tab from a slot. If the slot's last tab is removed, the
+ * slot itself is removed from its rail (cascade-close). Returns the updated
+ * rails and the extracted Tab (or null when slot/tab not found).
+ *
+ * Exported for unit testing; callers that need to reinsert the tab elsewhere
+ * are expected to compose this with one of the `applyReorderTab` /
+ * `applyMoveTabToSlot` / `applyDetachTabToNewSlot` helpers.
+ */
+export function extractTab(
+  rails: RailsState,
+  slotId: string,
+  tabId: string,
+): { rails: RailsState; tab: Tab | null } {
+  const loc = findSlotLocation(rails, slotId)
+  if (!loc) return { rails, tab: null }
+  const rail = rails[loc.side]!
+  const slot = rail.slots[loc.index]
+  const tabIdx = slot.tabs.findIndex((t) => t.id === tabId)
+  if (tabIdx === -1) return { rails, tab: null }
+  const tab = slot.tabs[tabIdx]
+
+  if (slot.tabs.length === 1) {
+    const nextSlots = rail.slots.slice(0, loc.index).concat(rail.slots.slice(loc.index + 1))
+    const next: RailsState = { ...rails }
+    next[loc.side] = cascadeRailAfterSlotRemoval(rail, nextSlots)
+    return { rails: next, tab }
+  }
+
+  const nextTabs = slot.tabs.slice(0, tabIdx).concat(slot.tabs.slice(tabIdx + 1))
+  let activeTabId = slot.activeTabId
+  if (activeTabId === tabId) {
+    const fallback = slot.tabs[tabIdx - 1] ?? slot.tabs[tabIdx + 1]
+    activeTabId = fallback.id
+  }
+  const nextSlot: Slot = { ...slot, tabs: nextTabs, activeTabId }
+  const nextSlots = rail.slots.slice()
+  nextSlots[loc.index] = nextSlot
+  return { rails: { ...rails, [loc.side]: { ...rail, slots: nextSlots } }, tab }
+}
+
+/**
+ * Reorder a tab within its slot. `insertIdx` is the desired index in the
+ * tabs array *after* removal of the source tab — i.e. the visual position
+ * among the surviving tabs. Out-of-range values clamp to [0, length].
+ */
+export function applyReorderTab(
+  rails: RailsState,
+  slotId: string,
+  tabId: string,
+  insertIdx: number,
+): RailsState {
+  const loc = findSlotLocation(rails, slotId)
+  if (!loc) return rails
+  const rail = rails[loc.side]!
+  const slot = rail.slots[loc.index]
+  const from = slot.tabs.findIndex((t) => t.id === tabId)
+  if (from === -1) return rails
+  const without = slot.tabs.slice(0, from).concat(slot.tabs.slice(from + 1))
+  const clamped = Math.max(0, Math.min(insertIdx, without.length))
+  if (clamped === from) return rails
+  const nextTabs = without.slice(0, clamped).concat([slot.tabs[from]]).concat(without.slice(clamped))
+  const nextSlot: Slot = { ...slot, tabs: nextTabs }
+  const nextSlots = rail.slots.slice()
+  nextSlots[loc.index] = nextSlot
+  return { ...rails, [loc.side]: { ...rail, slots: nextSlots } }
+}
+
+/**
+ * Move a tab from one slot to another at a specific insertion index. The
+ * destination slot's active tab becomes the moved tab. If the source slot
+ * empties, it is cascade-closed (via `extractTab`).
+ */
+export function applyMoveTabToSlot(
+  rails: RailsState,
+  srcSlotId: string,
+  tabId: string,
+  destSlotId: string,
+  insertIdx: number,
+): RailsState {
+  if (srcSlotId === destSlotId) {
+    // The caller passes an insertIdx relative to the *post-removal* tab array
+    // — which matches `applyReorderTab`'s contract exactly.
+    return applyReorderTab(rails, srcSlotId, tabId, insertIdx)
+  }
+  const { rails: afterExtract, tab } = extractTab(rails, srcSlotId, tabId)
+  if (!tab) return rails
+  const loc = findSlotLocation(afterExtract, destSlotId)
+  if (!loc) return rails
+  const rail = afterExtract[loc.side]!
+  const slot = rail.slots[loc.index]
+  const clamped = Math.max(0, Math.min(insertIdx, slot.tabs.length))
+  const nextTabs = slot.tabs.slice(0, clamped).concat([tab]).concat(slot.tabs.slice(clamped))
+  const nextSlot: Slot = { ...slot, tabs: nextTabs, activeTabId: tab.id }
+  const nextSlots = rail.slots.slice()
+  nextSlots[loc.index] = nextSlot
+  return { ...afterExtract, [loc.side]: { ...rail, slots: nextSlots } }
+}
+
+/**
+ * Insert an already-built (not-yet-in-rails) slot per a drop target,
+ * mirroring the slot-drag dock reducers but without the "find + remove"
+ * prelude. Used to place the fresh slot produced by a tab detach operation.
+ */
+function placeNewSlot(rails: RailsState, slot: Slot, target: TabDropTarget): RailsState {
+  if (target.kind === 'empty-side') {
+    if (rails[target.side]) return rails
+    const { flex: _ignore, ...rest } = slot
+    void _ignore
+    return {
+      ...rails,
+      [target.side]: { orientation: railOrientationForSide(target.side), slots: [rest as Slot] },
+    }
+  }
+  if (target.kind === 'slot') {
+    const loc = findSlotLocation(rails, target.slotId)
+    if (!loc) return rails
+    const rail = rails[loc.side]!
+    // Center drop on a slot quadrant would mean "merge as tab" — tab drags
+    // reach that case via the tab-strip drop zone, so treat center here as
+    // a no-op to avoid unexpected merges on a generic slot body.
+    if (target.zone === 'center') return rails
+    const orientation = rail.orientation
+    let insertIdx: number
+    if (orientation === 'vertical') {
+      insertIdx = target.zone === 'above' || target.zone === 'left' ? loc.index : loc.index + 1
+    } else {
+      insertIdx = target.zone === 'left' || target.zone === 'above' ? loc.index : loc.index + 1
+    }
+    return { ...rails, [loc.side]: insertSlot(rail, slot, insertIdx) }
+  }
+  // tab-strip is the one drop kind that never produces a "new slot" case —
+  // it's handled by applyMoveTabToSlot / applyReorderTab upstream.
+  return rails
+}
+
+/**
+ * Extract a tab from its source slot and dock it as a fresh single-tab slot
+ * at the given drop target. Caller provides `buildSlot(tab)` so slot + tab
+ * id generation stays co-located with the rest of the store's id factories.
+ */
+export function applyDetachTabToNewSlot(
+  rails: RailsState,
+  srcSlotId: string,
+  tabId: string,
+  target: TabDropTarget,
+  buildSlot: (tab: Tab) => Slot,
+): RailsState {
+  if (target.kind === 'tab-strip') return rails // guard: tab-strip drops don't detach
+  const { rails: afterExtract, tab } = extractTab(rails, srcSlotId, tabId)
+  if (!tab) return rails
+  const newSlot = buildSlot(tab)
+  // Safety: ensure the new slot contains exactly the extracted tab.
+  const normalized: Slot = { ...newSlot, tabs: [tab], activeTabId: tab.id }
+  return placeNewSlot(afterExtract, normalized, target)
 }
 
 /**
