@@ -49,6 +49,27 @@ export type CornerOwner = 'h' | 'v'
 export type Corner = 'nw' | 'ne' | 'sw' | 'se'
 export const CORNERS: readonly Corner[] = ['nw', 'ne', 'sw', 'se']
 
+/**
+ * Where along an empty-side drop strip the pointer landed. `center` is a plain
+ * dock (no corner claim); `start` / `end` dock **and** grant the new rail the
+ * adjacent corner (see `cornerForSideClaim`).
+ */
+export type EmptySideClaim = 'start' | 'end'
+
+/**
+ * Map a (rail-side, start|end) pair to the corner that rail would claim.
+ * Start is always the "leading" corner along the strip: west for horizontal
+ * rails, north for vertical rails.
+ */
+export function cornerForSideClaim(side: RailSide, claim: EmptySideClaim): Corner {
+  switch (side) {
+    case 'top': return claim === 'start' ? 'nw' : 'ne'
+    case 'bottom': return claim === 'start' ? 'sw' : 'se'
+    case 'left': return claim === 'start' ? 'nw' : 'sw'
+    case 'right': return claim === 'start' ? 'ne' : 'se'
+  }
+}
+
 export interface RailsState {
   left: Rail | null
   right: Rail | null

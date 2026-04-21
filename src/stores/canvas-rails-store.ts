@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { CalendarOrientation, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
+import type { CalendarOrientation, Corner, CornerOwner, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
 import {
   EMPTY_RAILS,
   WEEK_OFFSET_MAX,
@@ -141,6 +141,15 @@ interface CanvasRailsState {
    * when the user drags between two siblings.
    */
   setSlotFlexBatch: (side: RailSide, flexBySlotId: Record<string, number>) => void
+  /**
+   * Set the owner of a frame corner. `'h'` gives the corner to the horizontal
+   * rail (top/bottom), `'v'` to the vertical rail (left/right). When the new
+   * owner matches the current value the store returns unchanged. Used by the
+   * empty-side drop strip's start/end sub-zones and (Phase 3) the corner
+   * toggle chevron. Dangling claims (owner rail absent) are preserved in state
+   * and resolved at render time by `resolveCorner`.
+   */
+  setCornerOwner: (corner: Corner, owner: CornerOwner) => void
   clearPendingFocus: () => void
 }
 
@@ -437,6 +446,13 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     })
     if (!touched) return state
     return { rails: { ...state.rails, [side]: { ...rail, slots: nextSlots } } }
+  }),
+
+  setCornerOwner: (corner, owner) => set((state) => {
+    const current = state.rails.corners?.[corner]
+    if (current === owner) return state
+    const corners: Partial<Record<Corner, CornerOwner>> = { ...(state.rails.corners ?? {}), [corner]: owner }
+    return { rails: { ...state.rails, corners } }
   }),
 
   setRailSize: (side, px) => set((state) => {

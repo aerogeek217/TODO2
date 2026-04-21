@@ -69,6 +69,26 @@ describe('rails dragSlot — empty-side dock', () => {
     expect(rails.left).toBeNull()
     expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-A'])
     expect(rails.top?.orientation).toBe('horizontal')
+    // Center drop leaves corners untouched (legacy behavior).
+    expect(rails.corners).toBeUndefined()
+    h.cleanup()
+  })
+
+  it('claim=start on top strip docks the slot and sets corners.nw = "h"', async () => {
+    const h = await setupRailsHarness(leftLensRightNotes())
+    await h.dragSlot('slot-A', { kind: 'empty-side', side: 'top', claim: 'start' })
+    const rails = h.getRails()
+    expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-A'])
+    expect(rails.corners).toEqual({ nw: 'h' })
+    h.cleanup()
+  })
+
+  it('claim=end on top strip sets corners.ne = "h"', async () => {
+    const h = await setupRailsHarness(leftLensRightNotes())
+    await h.dragSlot('slot-A', { kind: 'empty-side', side: 'top', claim: 'end' })
+    const rails = h.getRails()
+    expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-A'])
+    expect(rails.corners).toEqual({ ne: 'h' })
     h.cleanup()
   })
 })

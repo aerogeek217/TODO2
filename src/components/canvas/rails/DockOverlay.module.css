@@ -1,8 +1,22 @@
+/*
+ * The overlay lives at the frame grid level (grid-area 1 / 1 / 4 / 4) so its
+ * corner sub-zones can extend into the corner cells owned by the perpendicular
+ * rail. `--left-size` / `--right-size` / `--top-size` / `--bottom-size` are
+ * inherited from the frame and drive the corner sub-zones' widths/heights;
+ * when the perpendicular rail is absent the corresponding size is 0 and the
+ * sub-zone collapses to nothing (no claim to make, so nothing to target).
+ */
 .overlay {
-  position: absolute;
-  inset: 0;
+  grid-column: 1 / 4;
+  grid-row: 1 / 4;
+  position: relative;
   pointer-events: none;
   z-index: 1000;
+}
+
+.strip {
+  position: absolute;
+  pointer-events: none;
 }
 
 .zone {
@@ -17,43 +31,66 @@
   font-size: var(--font-size-meta);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   border-radius: var(--radius-sm);
+  box-sizing: border-box;
 }
 
-.left {
+/* Corner sub-zones get a slightly dashed accent to cue the "claim this corner" affordance. */
+.corner {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--color-accent) 4%, transparent);
+}
+
+/* Top strip sub-zones */
+.top_start,
+.top_center,
+.top_end {
+  top: 0;
+  height: 12%;
+  min-height: 60px;
+  max-height: 120px;
+}
+.top_start { left: 0; width: var(--left-size, 0px); }
+.top_center { left: var(--left-size, 0px); right: var(--right-size, 0px); }
+.top_end { right: 0; width: var(--right-size, 0px); }
+
+/* Bottom strip sub-zones */
+.bottom_start,
+.bottom_center,
+.bottom_end {
+  bottom: 0;
+  height: 12%;
+  min-height: 60px;
+  max-height: 120px;
+}
+.bottom_start { left: 0; width: var(--left-size, 0px); }
+.bottom_center { left: var(--left-size, 0px); right: var(--right-size, 0px); }
+.bottom_end { right: 0; width: var(--right-size, 0px); }
+
+/* Left strip sub-zones */
+.left_start,
+.left_center,
+.left_end {
   left: 0;
-  top: 0;
-  bottom: 0;
   width: 12%;
   min-width: 80px;
   max-width: 160px;
 }
+.left_start { top: 0; height: var(--top-size, 0px); }
+.left_center { top: var(--top-size, 0px); bottom: var(--bottom-size, 0px); }
+.left_end { bottom: 0; height: var(--bottom-size, 0px); }
 
-.right {
+/* Right strip sub-zones */
+.right_start,
+.right_center,
+.right_end {
   right: 0;
-  top: 0;
-  bottom: 0;
   width: 12%;
   min-width: 80px;
   max-width: 160px;
 }
-
-.top {
-  left: 12%;
-  right: 12%;
-  top: 0;
-  height: 12%;
-  min-height: 60px;
-  max-height: 120px;
-}
-
-.bottom {
-  left: 12%;
-  right: 12%;
-  bottom: 0;
-  height: 12%;
-  min-height: 60px;
-  max-height: 120px;
-}
+.right_start { top: 0; height: var(--top-size, 0px); }
+.right_center { top: var(--top-size, 0px); bottom: var(--bottom-size, 0px); }
+.right_end { bottom: 0; height: var(--bottom-size, 0px); }
 
 .over {
   border-style: solid;

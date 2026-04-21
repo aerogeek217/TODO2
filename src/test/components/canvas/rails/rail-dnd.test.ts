@@ -44,6 +44,17 @@ describe('rail-dnd id encoding', () => {
     expect(decodeRailsDropId(id)).toEqual(z)
   })
 
+  it('round-trips empty-side zones with a start/end claim', () => {
+    const zStart = { kind: 'empty-side' as const, side: 'top' as const, claim: 'start' as const }
+    expect(decodeRailsDropId(encodeRailsDropId(zStart))).toEqual(zStart)
+    const zEnd = { kind: 'empty-side' as const, side: 'right' as const, claim: 'end' as const }
+    expect(decodeRailsDropId(encodeRailsDropId(zEnd))).toEqual(zEnd)
+  })
+
+  it('rejects empty-side ids with an unknown claim', () => {
+    expect(decodeRailsDropId('rails:empty-side:top:middle')).toBeNull()
+  })
+
   it('round-trips slot zones, including ids containing colons', () => {
     const z = { kind: 'slot' as const, slotId: 'slot:abc:42' }
     expect(decodeRailsDropId(encodeRailsDropId(z))).toEqual(z)

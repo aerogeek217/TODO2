@@ -62,7 +62,7 @@ const DEFAULT_LAYOUT: Required<RailsLayout> = {
 }
 
 export type DragTarget =
-  | { kind: 'empty-side'; side: RailSide }
+  | { kind: 'empty-side'; side: RailSide; claim?: 'start' | 'end' }
   | { kind: 'slot'; slotId: string; quadrant?: 'upper' | 'lower' | 'left' | 'right' | 'center' }
   | { kind: 'cancel' }
 
@@ -246,7 +246,7 @@ function makeDefaultResolver(layout: Required<RailsLayout>): RectResolver {
 }
 
 function rectForZone(zone: RailsDropZone, layout: Required<RailsLayout>): TestRect | null {
-  if (zone.kind === 'empty-side') return layout[zone.side]
+  if (zone.kind === 'empty-side') return rectForEmptySideSubzone(zone.side, zone.claim, layout)
   const slotRect = rectForSlot(zone.slotId, layout)
   if (!slotRect) return null
   // Tab strip is a narrow band at the top of the slot — roughly 32 px in prod.
@@ -257,6 +257,62 @@ function rectForZone(zone: RailsDropZone, layout: Required<RailsLayout>): TestRe
     return { left: slotRect.left, top: slotRect.top, width: slotRect.width, height: stripHeight }
   }
   return slotRect
+}
+
+/**
+ * Resolve the rect for an empty-side sub-zone (start / center / end). The
+ * strip itself is a narrow band at the frame edge (`STRIP_THICKNESS` px,
+ * matching production's 12% min 60 max 120 CSS rule), split along the rail
+ * axis into three sub-zones:
+ *   - center: middle of the strip, between the perpendicular rails
+ *   - start:  "leading" corner cell (NW for top/left, SW for bottom, NE for
+ *             right); collapses to 0 when the perpendicular rail is absent
+ *   - end:    opposite corner cell; same collapse rule
+ * Keeping the strip narrow (not the full rail-cell height) mirrors the
+ * production CSS and keeps the corner sub-zones from swallowing pointer hits
+ * that should go to the perpendicular rail's slot bodies during split drops.
+ */
+const STRIP_THICKNESS = 100
+
+function rectForEmptySideSubzone(
+  side: RailSide,
+  claim: 'start' | 'end' | undefined,
+  layout: Required<RailsLayout>,
+): TestRect {
+  const rails = useCanvasRailsStore.getState().rails
+  // Layout encodes the full viewport geometry regardless of which rails exist;
+  // frame width/height fall out of the right/bottom rail's far edge.
+  const frameWidth = layout.right.left + layout.right.width
+  const frameHeight = layout.bottom.top + layout.bottom.height
+  const leftSize = rails.left ? layout.left.width : 0
+  const rightSize = rails.right ? layout.right.width : 0
+  const topSize = rails.top ? layout.top.height : 0
+  const bottomSize = rails.bottom ? layout.bottom.height : 0
+
+  if (side === 'top' || side === 'bottom') {
+    const y = side === 'top' ? 0 : frameHeight - STRIP_THICKNESS
+    if (claim === 'start') {
+      if (leftSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
+      return { left: 0, top: y, width: leftSize, height: STRIP_THICKNESS }
+    }
+    if (claim === 'end') {
+      if (rightSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
+      return { left: frameWidth - rightSize, top: y, width: rightSize, height: STRIP_THICKNESS }
+    }
+    // center
+    return { left: leftSize, top: y, width: frameWidth - leftSize - rightSize, height: STRIP_THICKNESS }
+  }
+  const x = side === 'left' ? 0 : frameWidth - STRIP_THICKNESS
+  if (claim === 'start') {
+    if (topSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
+    return { left: x, top: 0, width: STRIP_THICKNESS, height: topSize }
+  }
+  if (claim === 'end') {
+    if (bottomSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
+    return { left: x, top: frameHeight - bottomSize, width: STRIP_THICKNESS, height: bottomSize }
+  }
+  // center
+  return { left: x, top: topSize, width: STRIP_THICKNESS, height: frameHeight - topSize - bottomSize }
 }
 
 function rectForSlot(slotId: string, layout: Required<RailsLayout>): TestRect | null {
@@ -285,7 +341,7 @@ function computeTargetPoint(target: DragTarget, layout: Required<RailsLayout>): 
     return { x: -10_000, y: -10_000 }
   }
   if (target.kind === 'empty-side') {
-    const r = layout[target.side]
+    const r = rectForEmptySideSubzone(target.side, target.claim, layout)
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
   }
   const rect = rectForSlot(target.slotId, layout)
@@ -293,9 +349,12 @@ function computeTargetPoint(target: DragTarget, layout: Required<RailsLayout>): 
   const cx = rect.left + rect.width / 2
   const cy = rect.top + rect.height / 2
   const q = target.quadrant ?? 'center'
-  if (q === 'upper') return { x: cx, y: rect.top + rect.height * 0.1 }
-  if (q === 'lower') return { x: cx, y: rect.top + rect.height * 0.9 }
-  if (q === 'left') return { x: rect.left + rect.width * 0.1, y: cy }
-  if (q === 'right') return { x: rect.left + rect.width * 0.9, y: cy }
+  // 0.2 / 0.8 stays inside the target slot's split edge band (22% per
+  // pointerToSplitZone) while clearing the empty-side drop-strip sub-zones
+  // that overlap the slot's corners post-rail-corners Phase 2.
+  if (q === 'upper') return { x: cx, y: rect.top + rect.height * 0.2 }
+  if (q === 'lower') return { x: cx, y: rect.top + rect.height * 0.8 }
+  if (q === 'left') return { x: rect.left + rect.width * 0.2, y: cy }
+  if (q === 'right') return { x: rect.left + rect.width * 0.8, y: cy }
   return { x: cx, y: cy }
 }

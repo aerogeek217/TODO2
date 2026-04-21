@@ -10,7 +10,7 @@ import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-st
 import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { RailSide, RailsState, Slot } from '../../../models/canvas-rails'
-import { computeRailGridArea, getActiveTab, railSize } from '../../../models/canvas-rails'
+import { computeRailGridArea, cornerForSideClaim, getActiveTab, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotDivider } from './SlotDivider'
@@ -406,6 +406,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
   const reorderTab = useCanvasRailsStore((s) => s.reorderTab)
   const moveTabToSlot = useCanvasRailsStore((s) => s.moveTabToSlot)
   const detachTabToNewSlot = useCanvasRailsStore((s) => s.detachTabToNewSlot)
+  const setCornerOwner = useCanvasRailsStore((s) => s.setCornerOwner)
   const rails = useCanvasRailsStore((s) => s.rails)
 
   useDndMonitor({
@@ -459,6 +460,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
         // Tab dropped onto a slot-level zone → detach to a new slot.
         if (zone.kind === 'empty-side') {
           detachTabToNewSlot(data.slotId, data.tabId, { kind: 'empty-side', side: zone.side })
+          if (zone.claim) setCornerOwner(cornerForSideClaim(zone.side, zone.claim), 'h')
         } else if (zone.kind === 'slot') {
           const pointer = pointerRef.current
           const rect = over.rect
@@ -509,6 +511,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
       // Slot drag (existing behavior, unchanged).
       if (zone.kind === 'empty-side') {
         dropSlotToSide(data.slotId, zone.side)
+        if (zone.claim) setCornerOwner(cornerForSideClaim(zone.side, zone.claim), 'h')
       } else if (zone.kind === 'slot') {
         const pointer = pointerRef.current
         const rect = over.rect
@@ -603,10 +606,10 @@ export function RailsFrame({ children }: RailsFrameProps) {
       {renderRail('top')}
       <div className={styles.canvasHost}>
         {children}
-        {railsDragging && <DockOverlay emptySides={emptySides} />}
       </div>
       {renderRail('bottom')}
       {renderRail('right')}
+      {railsDragging && <DockOverlay emptySides={emptySides} />}
       <div
         className={styles.srOnly}
         role="status"

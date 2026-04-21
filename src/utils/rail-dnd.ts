@@ -1,4 +1,4 @@
-import type { Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
+import type { EmptySideClaim, Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
 import { railOrientationForSide } from '../models/canvas-rails'
 
 export const RAILS_DRAG_TYPE = 'rails-slot' as const
@@ -28,7 +28,7 @@ export type RailsDragData =
 export type SplitZone = 'above' | 'below' | 'left' | 'right' | 'center'
 
 export type RailsDropZone =
-  | { kind: 'empty-side'; side: RailSide }
+  | { kind: 'empty-side'; side: RailSide; claim?: EmptySideClaim }
   | { kind: 'slot'; slotId: string }
   | { kind: 'tab-strip'; slotId: string }
 
@@ -37,7 +37,9 @@ const ALL_SIDES: RailSide[] = ['left', 'right', 'top', 'bottom']
 export function encodeRailsDropId(z: RailsDropZone): string {
   switch (z.kind) {
     case 'empty-side':
-      return `${RAILS_DROP_ID_PREFIX}empty-side:${z.side}`
+      return z.claim
+        ? `${RAILS_DROP_ID_PREFIX}empty-side:${z.side}:${z.claim}`
+        : `${RAILS_DROP_ID_PREFIX}empty-side:${z.side}`
     case 'slot':
       return `${RAILS_DROP_ID_PREFIX}slot:${z.slotId}`
     case 'tab-strip':
@@ -52,6 +54,9 @@ export function decodeRailsDropId(id: string): RailsDropZone | null {
   if (parts[0] === 'empty-side' && parts.length === 2 && isSide(parts[1])) {
     return { kind: 'empty-side', side: parts[1] }
   }
+  if (parts[0] === 'empty-side' && parts.length === 3 && isSide(parts[1]) && isClaim(parts[2])) {
+    return { kind: 'empty-side', side: parts[1], claim: parts[2] }
+  }
   if (parts[0] === 'slot' && parts.length >= 2) {
     const slotId = parts.slice(1).join(':')
     if (slotId.length > 0) return { kind: 'slot', slotId }
@@ -65,6 +70,10 @@ export function decodeRailsDropId(id: string): RailsDropZone | null {
 
 function isSide(s: string): s is RailSide {
   return s === 'left' || s === 'right' || s === 'top' || s === 'bottom'
+}
+
+function isClaim(s: string): s is EmptySideClaim {
+  return s === 'start' || s === 'end'
 }
 
 export function isRailsDropId(id: string): boolean {

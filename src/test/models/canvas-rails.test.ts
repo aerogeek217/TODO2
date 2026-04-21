@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  cornerForSideClaim,
   parseRailsState,
   serializeRailsState,
   clampRailSize,
@@ -398,6 +399,28 @@ describe('canvas-rails model', () => {
         const rails: RailsState = { ...allRails, top: null, corners: { nw: 'h' } }
         // Left rail still owns NW because top doesn't exist.
         expect(computeRailGridArea(rails, 'left')).toEqual({ colStart: 1, colEnd: 2, rowStart: 1, rowEnd: 4 })
+      })
+    })
+
+    describe('cornerForSideClaim', () => {
+      it('maps top strip start/end to NW/NE', () => {
+        expect(cornerForSideClaim('top', 'start')).toBe('nw')
+        expect(cornerForSideClaim('top', 'end')).toBe('ne')
+      })
+
+      it('maps bottom strip start/end to SW/SE', () => {
+        expect(cornerForSideClaim('bottom', 'start')).toBe('sw')
+        expect(cornerForSideClaim('bottom', 'end')).toBe('se')
+      })
+
+      it('maps left strip start/end to NW/SW', () => {
+        expect(cornerForSideClaim('left', 'start')).toBe('nw')
+        expect(cornerForSideClaim('left', 'end')).toBe('sw')
+      })
+
+      it('maps right strip start/end to NE/SE', () => {
+        expect(cornerForSideClaim('right', 'start')).toBe('ne')
+        expect(cornerForSideClaim('right', 'end')).toBe('se')
       })
     })
   })

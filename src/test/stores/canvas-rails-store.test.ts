@@ -286,4 +286,40 @@ describe('canvas-rails-store', () => {
       expect(s.tabs[0].listDefinitionId).toBeUndefined()
     })
   })
+
+  describe('setCornerOwner', () => {
+    it('sets a corner owner and creates the corners bag on first write', () => {
+      expect(useCanvasRailsStore.getState().rails.corners).toBeUndefined()
+      useCanvasRailsStore.getState().setCornerOwner('nw', 'h')
+      expect(useCanvasRailsStore.getState().rails.corners).toEqual({ nw: 'h' })
+    })
+
+    it('merges into an existing corners bag without touching siblings', () => {
+      useCanvasRailsStore.setState({
+        rails: { ...EMPTY_RAILS, corners: { nw: 'h' } },
+        hydrated: true,
+      })
+      useCanvasRailsStore.getState().setCornerOwner('se', 'h')
+      expect(useCanvasRailsStore.getState().rails.corners).toEqual({ nw: 'h', se: 'h' })
+    })
+
+    it('returns the same state when the owner already matches', () => {
+      useCanvasRailsStore.setState({
+        rails: { ...EMPTY_RAILS, corners: { nw: 'h' } },
+        hydrated: true,
+      })
+      const before = useCanvasRailsStore.getState().rails
+      useCanvasRailsStore.getState().setCornerOwner('nw', 'h')
+      expect(useCanvasRailsStore.getState().rails).toBe(before)
+    })
+
+    it('can switch a corner back to vertical ownership', () => {
+      useCanvasRailsStore.setState({
+        rails: { ...EMPTY_RAILS, corners: { nw: 'h' } },
+        hydrated: true,
+      })
+      useCanvasRailsStore.getState().setCornerOwner('nw', 'v')
+      expect(useCanvasRailsStore.getState().rails.corners).toEqual({ nw: 'v' })
+    })
+  })
 })
