@@ -13,6 +13,18 @@
   min-height: 28px;
 }
 
+/* Separator line between list rows, inset from the rounded corners. */
+.row::after {
+  content: '';
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: 0;
+  height: 1px;
+  background: var(--color-border);
+  pointer-events: none;
+}
+
 .row:active {
   cursor: grabbing;
 }

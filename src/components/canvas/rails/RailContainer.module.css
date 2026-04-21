@@ -5,6 +5,7 @@
   min-width: 0;
   min-height: 0;
   position: relative;
+  z-index: 1;
 }
 
 .rail.vertical {
@@ -17,18 +18,22 @@
 
 .rail.left {
   border-right: 1px solid var(--color-border);
+  box-shadow: var(--shadow-rail);
 }
 
 .rail.right {
   border-left: 1px solid var(--color-border);
+  box-shadow: var(--shadow-rail);
 }
 
 .rail.top {
   border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-rail);
 }
 
 .rail.bottom {
   border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-rail);
 }
 
 .resize {

@@ -162,6 +162,7 @@
   --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.5);
   --shadow-controls: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-rail: 0 0 24px rgba(0, 0, 0, 0.6);
 }
 
 /* ═══════════════════════════════════════════
@@ -270,6 +271,7 @@
   --shadow-popup: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-controls: 0 1px 6px rgba(0, 0, 0, 0.08);
   --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --shadow-rail: 0 0 16px rgba(0, 0, 0, 0.12);
 }
 
 /* ═══════════════════════════════════════════

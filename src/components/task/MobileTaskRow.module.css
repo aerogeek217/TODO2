@@ -10,6 +10,18 @@
   position: relative;
 }
 
+/* Separator line between list rows, inset from the rounded corners. */
+.row::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-border);
+  pointer-events: none;
+}
+
 .row:active {
   background: var(--color-surface-high);
 }
