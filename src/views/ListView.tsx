@@ -41,6 +41,7 @@ import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person, Project, Org, Status, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
 import type { ListGrouping, ListSort } from '../models/list-definition'
+import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
@@ -414,7 +415,7 @@ function DroppableSection({
 }) {
   const { setNodeRef } = useDroppable({
     id: `section-${sectionKey}`,
-    data: { type: 'section', sectionKey },
+    data: { type: TASK_DROP_KIND.listSection, sectionKey },
   })
 
   return (
@@ -820,7 +821,7 @@ export function ListView() {
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const overData = event.over?.data.current
-    if (overData?.type === 'section') {
+    if (overData?.type === TASK_DROP_KIND.listSection) {
       setOverSectionKey(overData.sectionKey)
     } else {
       setOverSectionKey(null)
@@ -855,7 +856,7 @@ export function ListView() {
     const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
     const fromKey = event.active.data.current?.sectionKey as string | undefined
     const overData = event.over?.data.current
-    const toKey = overData?.type === 'section' ? overData.sectionKey as string : null
+    const toKey = overData?.type === TASK_DROP_KIND.listSection ? overData.sectionKey as string : null
 
     if (!todo || !fromKey || !toKey || fromKey === toKey) return
 

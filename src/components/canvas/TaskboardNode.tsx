@@ -17,7 +17,6 @@ import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { convertFloatingKind } from '../../services/float-kind-switch'
-import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
 import {
   TASK_DRAG_KIND,
   TASK_DROP_KIND,
@@ -208,25 +207,17 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   )
   useDndMonitor(dndListeners)
 
-  // Native HTML5 drop path for non-dnd-kit sources (e.g. calendar events).
-  const {
-    externalInsertIndex,
-    isExternalDragOver: isNativeDragOver,
-    onDragOver: onExternalDragOver,
-    onDragLeave: onExternalDragLeave,
-    onDrop: onExternalDrop,
-  } = useExternalTaskboardDrop(droppableId)
-  const effectiveInsertIndex = tbInsertIndex ?? externalInsertIndex
+  // Phase 7 of DnD unification retired the native-HTML5 drop path; all
+  // external drops (calendar events included) now flow through the shared
+  // dnd-kit dispatch pipeline via `onDragMove`.
+  const effectiveInsertIndex = tbInsertIndex
 
   return (
     <div
       ref={setDropRef}
       data-taskboard-panel-id={droppableId}
-      className={`${styles.node} ${dropCellClassName(isOver || isExternalDragOver || isNativeDragOver)}`}
+      className={`${styles.node} ${dropCellClassName(isOver || isExternalDragOver)}`}
       style={{ width }}
-      onDragOver={onExternalDragOver}
-      onDragLeave={onExternalDragLeave}
-      onDrop={onExternalDrop}
     >
       <WidgetHeader
         kind="taskboard"

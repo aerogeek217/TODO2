@@ -249,6 +249,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         orientation={orientation}
         weekOffset={slot.weekOffset ?? 0}
         onWeekOffsetChange={(n) => setSlotWeekOffset(slot.id, n)}
+        scope={`slot-${slot.id}`}
       />
     )
   } else if (activeTab.type === 'notes') {

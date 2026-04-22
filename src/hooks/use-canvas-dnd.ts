@@ -18,6 +18,7 @@ import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { bySortOrder } from '../utils/sort-order'
+import { buildRescheduleUpdate } from '../utils/reschedule'
 import {
   TASK_DROP_KIND,
   dispatchTaskDrop,
@@ -50,14 +51,6 @@ export function useCanvasDnD({
   const [insertAtEnd, setInsertAtEnd] = useState(false)
   const [insertProjectId, setInsertProjectId] = useState<number | null>(null)
   const [dragGroupIds, setDragGroupIds] = useState<Set<number> | null>(null)
-
-  // Track last valid task-level preview to suppress gap flicker
-  const lastPreviewRef = useRef<{
-    insertTodoId: number | null
-    insertAtEnd: boolean
-    forProjectId: number | null
-    pointerY: number
-  }>({ insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 })
 
   // Edge panning during drag
   const edgePanRef = useRef<{
@@ -249,7 +242,6 @@ export function useCanvasDnD({
     setInsertAtEnd(false)
     setInsertProjectId(null)
     setDragGroupIds(null)
-    lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
     multiDragIdsRef.current = null
   }, [stopEdgePan])
 
@@ -263,7 +255,6 @@ export function useCanvasDnD({
       const todo = active.data.current?.todo as PersistedTodoItem | undefined
       if (todo) {
         setActiveDragTodo(todo)
-        lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
         const sel = useUIStore.getState().selectedTodoIds
         const isMulti = sel.size > 1 && sel.has(todo.id)
 
@@ -310,8 +301,12 @@ export function useCanvasDnD({
 
       const overData = over?.data.current
 
-      // Hovering over taskboard — clear insert preview (taskboard handles its own highlight)
-      if (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask) {
+      // Hovering over taskboard / calendar day — clear insert preview (those
+      // surfaces render their own drop feedback).
+      if (overData?.type === TASK_DROP_KIND.taskboard
+        || overData?.type === TASK_DROP_KIND.taskboardTask
+        || overData?.type === TASK_DROP_KIND.calendarDay
+      ) {
         setInsertTodoId(null)
         setInsertAtEnd(false)
         setInsertProjectId(null)
@@ -331,29 +326,6 @@ export function useCanvasDnD({
       )
 
       const preview = resolveDropPreview(activeTodo, overType, overTodo, overProjectId, delta, todosByProject)
-
-      // When cursor enters the 1-2px gap between task rows, dnd-kit reports the
-      // project container instead of a task. Suppress the preview update so the
-      // green indicator line doesn't flicker to end-of-list and back.
-      const pointerY = edgePanRef.current.pointerY
-      if (
-        preview.insertAtEnd &&
-        rawOverType !== 'task' &&
-        lastPreviewRef.current.insertTodoId != null &&
-        !lastPreviewRef.current.insertAtEnd &&
-        preview.insertProjectId != null &&
-        preview.insertProjectId === lastPreviewRef.current.forProjectId &&
-        Math.abs(pointerY - lastPreviewRef.current.pointerY) < 20
-      ) {
-        return
-      }
-
-      lastPreviewRef.current = {
-        insertTodoId: preview.insertTodoId,
-        insertAtEnd: preview.insertAtEnd,
-        forProjectId: overTodo?.projectId ?? preview.insertProjectId ?? null,
-        pointerY,
-      }
 
       setInsertTodoId(preview.insertTodoId)
       setInsertAtEnd(preview.insertAtEnd)
@@ -435,13 +407,20 @@ export function useCanvasDnD({
       const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
       if (!activeTodo) return
 
-      // Shared taskboard branches (entry reorder / remove on drop-off / add
-      // external task). Returns true when the drop was consumed; returns
-      // false when there's no taskboard involvement and we should continue
-      // into the project-placement resolver below.
+      // Shared taskboard + calendar-day branches. Returns true when the drop
+      // was consumed (taskboard reorder/add/remove or calendar reschedule);
+      // false when no shared branch fired and we should continue into the
+      // project-placement resolver below.
       const handled = await dispatchTaskDrop(event, {
         taskboard: useTaskboardStore.getState(),
         multiDragIds: dragIds,
+        calendar: {
+          reschedule: async (todoId, date) => {
+            const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+            if (!todo) return
+            await useTodoStore.getState().update(buildRescheduleUpdate(todo, date))
+          },
+        },
       })
       if (handled) return
 

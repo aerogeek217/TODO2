@@ -37,6 +37,16 @@ export const TASK_DROP_KIND = {
   taskboard: 'taskboard',
   /** Taskboard sortable entry — matches `TASK_DRAG_KIND.taskboardTask`. */
   taskboardTask: 'taskboard-task',
+  /** Calendar day cell (CalendarView grid or CalendarStrip row/column). The
+   * drop data carries `{ date: Date }` so the dispatcher can reschedule
+   * without consulting the DOM. */
+  calendarDay: 'calendar-day',
+  /** ListView section container. The drop data carries `{ sectionKey }` so
+   * the caller can map the drop back to projectId / statusId / person
+   * assignment. Intra-list drops preserve the "rebucket" intent; cross-
+   * surface ListView drops (once Phase 8's hoisting lands) fall through to
+   * plain task-handling. */
+  listSection: 'list-section',
 } as const
 
 export type TaskDropKind = typeof TASK_DROP_KIND[keyof typeof TASK_DROP_KIND]

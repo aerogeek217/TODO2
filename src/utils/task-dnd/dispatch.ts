@@ -20,8 +20,22 @@ export interface TaskboardOps {
   addMultipleAt: (todoIds: number[], index: number) => Promise<void>
 }
 
+/**
+ * Narrow reschedule surface consumed by the calendar-day branch of
+ * {@link dispatchTaskDrop}. Callers supply whatever store plumbing they want
+ * (typically `useTodoStore` + `buildRescheduleUpdate`); the dispatch only
+ * cares about the single callback.
+ */
+export interface CalendarOps {
+  reschedule: (todoId: number, targetDate: Date) => Promise<void>
+}
+
 export interface TaskDropDispatchDeps {
   taskboard: TaskboardOps
+  /** Optional — required by surfaces that host calendar day droppables
+   * (canvas rails/floating strips, the `/calendar` route). When omitted,
+   * calendar-day drops fall through to the caller's own handler. */
+  calendar?: CalendarOps
   /** Multi-drag selection (when present with >1 ids, `addMultipleAt` fires
    * instead of `addAt`). Canvas supplies this from its selection ref;
    * dashboard passes `null` because it doesn't support multi-drag today. */
@@ -78,6 +92,19 @@ export async function dispatchTaskDrop(
   const activeType = active.data.current?.type
   const overData = over?.data.current
   const tb = deps.taskboard
+
+  // ── Calendar day drop → reschedule ──
+  // Handled before the taskboard-entry branch so dragging an entry onto a
+  // calendar day reschedules the underlying todo (and keeps the entry on
+  // the board) instead of falling into the "dropped anywhere else → remove"
+  // path below.
+  if (overData?.type === TASK_DROP_KIND.calendarDay && deps.calendar) {
+    const date = overData.date as Date | undefined
+    if (date instanceof Date) {
+      await deps.calendar.reschedule(activeTodo.id, date)
+      return true
+    }
+  }
 
   // ── Taskboard entry being dragged ──
   if (activeType === TASK_DRAG_KIND.taskboardTask) {

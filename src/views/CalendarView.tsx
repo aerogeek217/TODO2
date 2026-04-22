@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useCallback, useRef, useState } from 'react'
+import { useEffect, useMemo, useCallback, useState } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
@@ -9,14 +19,24 @@ import { useStatusStore } from '../stores/status-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
+import { TaskDraggable } from '../components/task/dnd/TaskDraggable'
 import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
 import { buildRescheduleUpdate } from '../utils/reschedule'
+import {
+  TASK_DROP_KIND,
+  buildTaskCollision,
+  calendarDayDropId,
+  dispatchTaskDrop,
+} from '../utils/task-dnd'
+import { useTaskboardStore } from '../stores/taskboard-store'
 import { StatusIcon } from '../components/shared/StatusIcon'
 import { dropCellClassName } from '../components/shared/DropIndicator'
+import { TaskRow } from '../components/task/TaskRow'
+import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
 import styles from './CalendarView.module.css'
 
 /** A calendar entry: either a real task or a virtual recurring instance. */
@@ -30,8 +50,7 @@ type ViewMode = 'month' | 'week'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MAX_MONTH_TASKS = 4
-
-
+const CALENDAR_VIEW_SCOPE = 'calview'
 
 function getMonthGrid(year: number, month: number): Date[] {
   const first = new Date(year, month, 1)
@@ -83,8 +102,29 @@ function formatWeekRange(days: Date[]): string {
   return `${first.toLocaleDateString('en-US', { month: 'long' })} ${first.getDate()} - ${last.getDate()}, ${first.getFullYear()}`
 }
 
+interface DayCellProps {
+  day: Date
+  children: (isDragOver: boolean) => React.ReactNode
+}
+
+/** Wraps each day cell in a `useDroppable` so dnd-kit drop handlers receive
+ * `{ type: 'calendar-day', date }` through `over.data.current`. */
+function DayDroppable({ day, children }: DayCellProps) {
+  const dayStart = startOfDay(day)
+  const id = calendarDayDropId(CALENDAR_VIEW_SCOPE, dayStart.getTime())
+  const { setNodeRef, isOver } = useDroppable({
+    id,
+    data: { type: TASK_DROP_KIND.calendarDay, date: dayStart, scope: CALENDAR_VIEW_SCOPE },
+  })
+  return (
+    <div ref={setNodeRef} style={{ display: 'contents' }}>
+      {children(isOver)}
+    </div>
+  )
+}
+
 export function CalendarView() {
-  const { todos, loadAll, update: updateTodo } = useTodoStore()
+  const { todos, loadAll } = useTodoStore()
   const { people, load: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
   const { orgs, personOrgMap, assignedOrgsMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
@@ -96,8 +136,22 @@ export function CalendarView() {
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const [showUnscheduled, setShowUnscheduled] = useState(false)
-  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
-  const dragTodoIdRef = useRef<number | null>(null)
+  const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  )
+
+  const collisionDetection = useMemo(
+    () => buildTaskCollision([
+      {
+        when: () => true,
+        accept: (id) => typeof id === 'string' && id.startsWith(`calday-${CALENDAR_VIEW_SCOPE}-`),
+        algorithm: 'pointerWithin',
+      },
+    ]),
+    [],
+  )
 
   useEffect(() => {
     loadAll()
@@ -230,247 +284,294 @@ export function CalendarView() {
     openEditPopup(todoId)
   }, [openEditPopup])
 
-  // Drag to reschedule
-  const handleDragStart = useCallback((e: React.DragEvent, todoId: number) => {
-    dragTodoIdRef.current = todoId
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(todoId))
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
+    if (todo) setActiveDragTodo(todo)
   }, [])
 
-  const handleDragOver = useCallback((e: React.DragEvent, dayKey: string) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverDay(dayKey)
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setActiveDragTodo(null)
+    // `dispatchTaskDrop` consumes calendar-day drops via the `calendar` op —
+    // rescheduling runs through `buildRescheduleUpdate` in one place.
+    await dispatchTaskDrop(event, {
+      taskboard: useTaskboardStore.getState(),
+      calendar: {
+        reschedule: async (todoId, date) => {
+          const t = useTodoStore.getState().todos.find((x) => x.id === todoId)
+          if (!t) return
+          await useTodoStore.getState().update(buildRescheduleUpdate(t, date))
+        },
+      },
+    })
   }, [])
-
-  const handleDragLeave = useCallback(() => {
-    setDragOverDay(null)
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent, targetDate: Date) => {
-    e.preventDefault()
-    setDragOverDay(null)
-    const todoId = dragTodoIdRef.current
-    if (todoId == null) return
-    dragTodoIdRef.current = null
-
-    const todo = todos.find((t) => t.id === todoId)
-    if (!todo) return
-    updateTodo(buildRescheduleUpdate(todo, targetDate))
-  }, [todos, updateTodo])
 
   const isWeek = viewMode === 'week'
   const maxTasks = isWeek ? Infinity : MAX_MONTH_TASKS
 
   return (
-    <div className={styles.page}>
-      <div className={styles.container}>
-        {/* Toolbar */}
-        <div className={styles.toolbar}>
-          <button className={styles.navButton} onClick={goPrev}>&lsaquo;</button>
-          <button className={styles.navButton} onClick={goNext}>&rsaquo;</button>
-          <button className={styles.todayButton} onClick={goToday}>Today</button>
-          <div className={styles.monthLabel}>{headerLabel}</div>
-          <div className={styles.viewToggle}>
-            <button
-              className={`${styles.toggleButton} ${viewMode === 'month' ? styles.toggleButtonActive : ''}`}
-              onClick={() => setViewMode('month')}
-            >
-              Month
-            </button>
-            <button
-              className={`${styles.toggleButton} ${viewMode === 'week' ? styles.toggleButtonActive : ''}`}
-              onClick={() => setViewMode('week')}
-            >
-              Week
-            </button>
-          </div>
-        </div>
-
-        {/* Day headers */}
-        <div className={styles.calendarGrid}>
-          {DAY_NAMES.map((name) => (
-            <div key={name} className={styles.dayHeader}>{name}</div>
-          ))}
-
-          {/* Day cells */}
-          {days.map((day) => {
-            const dayKey = startOfDay(day).toISOString()
-            const isToday = isSameDay(day, today)
-            const isCurrentMonth = day.getMonth() === month
-            const isOutside = viewMode === 'month' && !isCurrentMonth
-            const dayEntries = entriesByDay.get(dayKey) ?? []
-            const hasOverdue = !isToday && day < today && dayEntries.some((e) => !e.isVirtual && !e.todo.isCompleted)
-            const isDragOver = dragOverDay === dayKey
-            const visibleEntries = dayEntries.slice(0, maxTasks)
-            const moreCount = dayEntries.length - visibleEntries.length
-
-            return (
-              <div
-                key={dayKey}
-                className={[
-                  styles.dayCell,
-                  isWeek && styles.dayCellWeek,
-                  isOutside && styles.dayCellOutside,
-                  isToday && styles.dayCellToday,
-                  hasOverdue && styles.dayCellOverdue,
-                  dropCellClassName(isDragOver),
-                ].filter(Boolean).join(' ')}
-                onDragOver={(e) => handleDragOver(e, dayKey)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, day)}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={collisionDetection}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveDragTodo(null)}
+    >
+      <div className={styles.page}>
+        <div className={styles.container}>
+          {/* Toolbar */}
+          <div className={styles.toolbar}>
+            <button className={styles.navButton} onClick={goPrev}>&lsaquo;</button>
+            <button className={styles.navButton} onClick={goNext}>&rsaquo;</button>
+            <button className={styles.todayButton} onClick={goToday}>Today</button>
+            <div className={styles.monthLabel}>{headerLabel}</div>
+            <div className={styles.viewToggle}>
+              <button
+                className={`${styles.toggleButton} ${viewMode === 'month' ? styles.toggleButtonActive : ''}`}
+                onClick={() => setViewMode('month')}
               >
-                <div className={[
-                  styles.dayNumber,
-                  isToday && styles.dayNumberToday,
-                  isOutside && styles.dayNumberOutside,
-                ].filter(Boolean).join(' ')}>
-                  {day.getDate()}
-                </div>
+                Month
+              </button>
+              <button
+                className={`${styles.toggleButton} ${viewMode === 'week' ? styles.toggleButtonActive : ''}`}
+                onClick={() => setViewMode('week')}
+              >
+                Week
+              </button>
+            </div>
+          </div>
 
-                {visibleEntries.map(({ todo, isVirtual, displayKey }) => {
-                  const assigned = assignedPeopleMap.get(todo.id)
-                  const initials = assigned?.map((p) => p.initials || generateInitials(p.name)).join(', ')
+          {/* Day headers */}
+          <div className={styles.calendarGrid}>
+            {DAY_NAMES.map((name) => (
+              <div key={name} className={styles.dayHeader}>{name}</div>
+            ))}
 
-                  const hasSched = !!todo.scheduledDate
-                  const hasDead = !!todo.dueDate
-                  // Past states don't apply to virtual recurring instances — they
-                  // represent future occurrences whose parent's dates are the past
-                  // anchor, not the instance's day.
-                  const pastSched = !isVirtual && isScheduledPast(todo, today)
-                  const pastDead = !isVirtual && isDeadlinePast(todo, today)
+            {/* Day cells */}
+            {days.map((day) => {
+              const dayKey = startOfDay(day).toISOString()
+              const isToday = isSameDay(day, today)
+              const isCurrentMonth = day.getMonth() === month
+              const isOutside = viewMode === 'month' && !isCurrentMonth
+              const dayEntries = entriesByDay.get(dayKey) ?? []
+              const hasOverdue = !isToday && day < today && dayEntries.some((e) => !e.isVirtual && !e.todo.isCompleted)
+              const visibleEntries = dayEntries.slice(0, maxTasks)
+              const moreCount = dayEntries.length - visibleEntries.length
 
-                  let tintClass: string | false = false
-                  if (hasDead && pastDead) tintClass = styles.taskItemPastDeadline
-                  else if (hasSched && pastSched) tintClass = styles.taskItemPastScheduled
-                  else if (hasSched && hasDead) tintClass = styles.taskItemBoth
-                  else if (hasSched) tintClass = styles.taskItemScheduled
-                  else if (hasDead) tintClass = styles.taskItemDeadline
-
-                  const intensityDate = isVirtual ? day : effectiveDate(todo, today)
-                  const intensity = dateIntensity(daysUntil(intensityDate, today))
-
-                  return (
+              return (
+                <DayDroppable key={dayKey} day={day}>
+                  {(isDragOver) => (
                     <div
-                      key={displayKey}
                       className={[
-                        styles.taskItem,
-                        isWeek && styles.weekTaskItem,
-                        todo.isCompleted && styles.taskItemCompleted,
-                        isVirtual && styles.taskItemVirtual,
-                        tintClass,
+                        styles.dayCell,
+                        isWeek && styles.dayCellWeek,
+                        isOutside && styles.dayCellOutside,
+                        isToday && styles.dayCellToday,
+                        hasOverdue && styles.dayCellOverdue,
+                        dropCellClassName(isDragOver),
                       ].filter(Boolean).join(' ')}
-                      style={{ ['--date-intensity' as string]: intensity }}
-                      onClick={(e) => handleTaskClick(e, todo.id)}
-                      draggable={!isVirtual}
-                      onDragStart={(e) => !isVirtual && handleDragStart(e, todo.id)}
-                      title={isVirtual ? `Recurring instance — click to edit parent task "${todo.title}"` : undefined}
                     >
-                      {hasSched && (
-                        <span
-                          className={styles.scheduledMarker}
-                          title={`Scheduled: ${scheduledLabel(todo.scheduledDate!, today)}`}
-                          aria-label="Scheduled"
-                        >
-                          <StatusIcon icon="calendar" />
-                          {isScheduledExpired(todo, today) && <span className={styles.markerExpired} />}
-                        </span>
-                      )}
-                      {hasDead && (
-                        <span
-                          className={styles.deadlineMarker}
-                          title={`Deadline: ${new Date(todo.dueDate!).toLocaleDateString()}`}
-                          aria-label="Deadline"
-                        >
-                          <StatusIcon icon="clock" />
-                        </span>
-                      )}
-                      {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
-                      <span className={styles.taskTitle}>{todo.title}</span>
-                      {initials && <span className={styles.taskInitials}>{initials}</span>}
-                    </div>
-                  )
-                })}
+                      <div className={[
+                        styles.dayNumber,
+                        isToday && styles.dayNumberToday,
+                        isOutside && styles.dayNumberOutside,
+                      ].filter(Boolean).join(' ')}>
+                        {day.getDate()}
+                      </div>
 
-                {moreCount > 0 && (
-                  <div className={styles.moreCount}>+{moreCount} more</div>
-                )}
-              </div>
-            )
-          })}
+                      {visibleEntries.map(({ todo, isVirtual, displayKey }) => {
+                        const assigned = assignedPeopleMap.get(todo.id)
+                        const initials = assigned?.map((p) => p.initials || generateInitials(p.name)).join(', ')
+
+                        const hasSched = !!todo.scheduledDate
+                        const hasDead = !!todo.dueDate
+                        // Past states don't apply to virtual recurring instances — they
+                        // represent future occurrences whose parent's dates are the past
+                        // anchor, not the instance's day.
+                        const pastSched = !isVirtual && isScheduledPast(todo, today)
+                        const pastDead = !isVirtual && isDeadlinePast(todo, today)
+
+                        let tintClass: string | false = false
+                        if (hasDead && pastDead) tintClass = styles.taskItemPastDeadline
+                        else if (hasSched && pastSched) tintClass = styles.taskItemPastScheduled
+                        else if (hasSched && hasDead) tintClass = styles.taskItemBoth
+                        else if (hasSched) tintClass = styles.taskItemScheduled
+                        else if (hasDead) tintClass = styles.taskItemDeadline
+
+                        const intensityDate = isVirtual ? day : effectiveDate(todo, today)
+                        const intensity = dateIntensity(daysUntil(intensityDate, today))
+
+                        const taskItemClass = [
+                          styles.taskItem,
+                          isWeek && styles.weekTaskItem,
+                          todo.isCompleted && styles.taskItemCompleted,
+                          isVirtual && styles.taskItemVirtual,
+                          tintClass,
+                        ].filter(Boolean).join(' ')
+                        const itemStyle = { ['--date-intensity' as string]: intensity }
+                        const title = isVirtual ? `Recurring instance — click to edit parent task "${todo.title}"` : undefined
+
+                        const body = (
+                          <>
+                            {hasSched && (
+                              <span
+                                className={styles.scheduledMarker}
+                                title={`Scheduled: ${scheduledLabel(todo.scheduledDate!, today)}`}
+                                aria-label="Scheduled"
+                              >
+                                <StatusIcon icon="calendar" />
+                                {isScheduledExpired(todo, today) && <span className={styles.markerExpired} />}
+                              </span>
+                            )}
+                            {hasDead && (
+                              <span
+                                className={styles.deadlineMarker}
+                                title={`Deadline: ${new Date(todo.dueDate!).toLocaleDateString()}`}
+                                aria-label="Deadline"
+                              >
+                                <StatusIcon icon="clock" />
+                              </span>
+                            )}
+                            {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
+                            <span className={styles.taskTitle}>{todo.title}</span>
+                            {initials && <span className={styles.taskInitials}>{initials}</span>}
+                          </>
+                        )
+
+                        if (isVirtual) {
+                          return (
+                            <div
+                              key={displayKey}
+                              className={taskItemClass}
+                              style={itemStyle}
+                              onClick={(e) => handleTaskClick(e, todo.id)}
+                              title={title}
+                            >
+                              {body}
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <TaskDraggable
+                            key={displayKey}
+                            todo={todo}
+                            surface="calendar-view"
+                          >
+                            {({ setNodeRef, attributes, listeners }) => (
+                              <div
+                                ref={setNodeRef}
+                                className={taskItemClass}
+                                style={itemStyle}
+                                onClick={(e) => handleTaskClick(e, todo.id)}
+                                title={title}
+                                {...attributes}
+                                {...listeners}
+                              >
+                                {body}
+                              </div>
+                            )}
+                          </TaskDraggable>
+                        )
+                      })}
+
+                      {moreCount > 0 && (
+                        <div className={styles.moreCount}>+{moreCount} more</div>
+                      )}
+                    </div>
+                  )}
+                </DayDroppable>
+              )
+            })}
+          </div>
+
+          {/* Unscheduled tasks */}
+          {unscheduled.length > 0 && (
+            <div className={styles.unscheduledSection}>
+              <button
+                className={styles.unscheduledToggle}
+                onClick={() => setShowUnscheduled((s) => !s)}
+              >
+                {showUnscheduled ? '▾' : '▸'} {unscheduled.length} unscheduled task{unscheduled.length !== 1 ? 's' : ''}
+              </button>
+              {showUnscheduled && (
+                <div className={styles.unscheduledList}>
+                  {unscheduled.map((todo) => (
+                    <TaskDraggable
+                      key={todo.id}
+                      todo={todo}
+                      surface="calendar-view"
+                    >
+                      {({ setNodeRef, attributes, listeners }) => (
+                        <div
+                          ref={setNodeRef}
+                          className={styles.unscheduledItem}
+                          onClick={(e) => handleTaskClick(e, todo.id)}
+                          {...attributes}
+                          {...listeners}
+                        >
+                          {todo.title}
+                        </div>
+                      )}
+                    </TaskDraggable>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTodos.length === 0 && (
+            <div className={styles.empty}>
+              {useFilterStore.getState().isActive ? (
+                <>
+                  No tasks match your current filters.
+                  <button className={styles.clearFiltersButton} onClick={() => useFilterStore.getState().clearAll()}>Clear filters</button>
+                </>
+              ) : (
+                'No tasks to display.'
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Unscheduled tasks */}
-        {unscheduled.length > 0 && (
-          <div className={styles.unscheduledSection}>
-            <button
-              className={styles.unscheduledToggle}
-              onClick={() => setShowUnscheduled((s) => !s)}
-            >
-              {showUnscheduled ? '\u25BE' : '\u25B8'} {unscheduled.length} unscheduled task{unscheduled.length !== 1 ? 's' : ''}
-            </button>
-            {showUnscheduled && (
-              <div className={styles.unscheduledList}>
-                {unscheduled.map((todo) => (
-                  <div
-                    key={todo.id}
-                    className={styles.unscheduledItem}
-                    onClick={(e) => handleTaskClick(e, todo.id)}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, todo.id)}
-                  >
-                    {todo.title}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+        {/* Task edit popup */}
+        {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
+          <TaskEditPopup
+            mode="edit"
+            {...taskEdit.editProps}
+            allPeople={taskEdit.allPeople}
+            allOrgs={taskEdit.allOrgs}
+            onClose={taskEdit.closeEditPopup}
+            {...taskEdit.entityCreators}
+          />
         )}
 
-        {activeTodos.length === 0 && (
-          <div className={styles.empty}>
-            {useFilterStore.getState().isActive ? (
-              <>
-                No tasks match your current filters.
-                <button className={styles.clearFiltersButton} onClick={() => useFilterStore.getState().clearAll()}>Clear filters</button>
-              </>
-            ) : (
-              'No tasks to display.'
-            )}
-          </div>
+        {taskEdit.editPopupMode === 'create' && (
+          <TaskEditPopup
+            mode="create"
+            assignedPeople={[]}
+            allPeople={taskEdit.allPeople}
+            onClose={taskEdit.closeEditPopup}
+            onCreate={taskEdit.onCreate}
+            assignedOrgs={[]}
+            allOrgs={taskEdit.allOrgs}
+            onAssignPerson={() => {}}
+            onUnassignPerson={() => {}}
+            onAssignOrg={() => {}}
+            onUnassignOrg={() => {}}
+            {...taskEdit.entityCreators}
+          />
         )}
+
+        <FilteredListPopup />
+
+        <DragOverlay dropAnimation={null}>
+          {activeDragTodo && (
+            <div className={overlayStyles.overlay} data-drag-overlay>
+              <TaskRow todo={activeDragTodo} ghost />
+            </div>
+          )}
+        </DragOverlay>
       </div>
-
-      {/* Task edit popup */}
-      {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
-        <TaskEditPopup
-          mode="edit"
-          {...taskEdit.editProps}
-          allPeople={taskEdit.allPeople}
-          allOrgs={taskEdit.allOrgs}
-          onClose={taskEdit.closeEditPopup}
-          {...taskEdit.entityCreators}
-        />
-      )}
-
-      {taskEdit.editPopupMode === 'create' && (
-        <TaskEditPopup
-          mode="create"
-          assignedPeople={[]}
-          allPeople={taskEdit.allPeople}
-          onClose={taskEdit.closeEditPopup}
-          onCreate={taskEdit.onCreate}
-          assignedOrgs={[]}
-          allOrgs={taskEdit.allOrgs}
-          onAssignPerson={() => {}}
-          onUnassignPerson={() => {}}
-          onAssignOrg={() => {}}
-          onUnassignOrg={() => {}}
-          {...taskEdit.entityCreators}
-        />
-      )}
-
-      <FilteredListPopup />
-    </div>
+    </DndContext>
   )
 }

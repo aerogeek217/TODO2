@@ -158,3 +158,14 @@ export function projectDropId(projectId: number): string {
 export function taskboardFloatDropId(floatingId: number): string {
   return `taskboard-drop-${floatingId}`
 }
+
+/**
+ * Drop-zone id for a calendar day cell. Emitted by CalendarStrip (rail +
+ * float + view) and CalendarView day grids. `scope` distinguishes multiple
+ * calendar surfaces sharing a `DndContext` (e.g. two rail-docked strips +
+ * a floating calendar on the same canvas) so their day cells register
+ * distinct droppable ids.
+ */
+export function calendarDayDropId(scope: string, dateMs: number): string {
+  return `calday-${scope}-${dateMs}`
+}

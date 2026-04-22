@@ -300,23 +300,26 @@ describe('CalendarStrip', () => {
     expect(screen.getByText('Apr 27 – May 3')).toBeTruthy()
   })
 
-  describe('drag-to-reschedule', () => {
-    function makeDataTransfer(): DataTransfer {
-      const store = new Map<string, string>()
-      return {
-        effectAllowed: 'none',
-        dropEffect: 'none',
-        setData: (format: string, data: string) => { store.set(format, data) },
-        getData: (format: string) => store.get(format) ?? '',
-        clearData: () => store.clear(),
-        items: [] as unknown as DataTransferItemList,
-        files: [] as unknown as FileList,
-        types: [] as unknown as readonly string[],
-        setDragImage: () => {},
-      } as unknown as DataTransfer
-    }
+  describe('drag-to-reschedule wiring (dnd-kit)', () => {
+    it('event rows carry the cursor hint + drag handle attributes when DnD is enabled', () => {
+      const today = new Date(2026, 3, 19)
+      const todos = [makeTodo({ id: 11, title: 'Drag me', dueDate: new Date(2026, 3, 17) })]
+      render(
+        <CalendarStrip
+          todos={todos}
+          today={today}
+          assignedPeopleMap={new Map()}
+          assignedOrgsMap={new Map()}
+          statuses={[]}
+        />,
+      )
+      const sourceEvent = screen.getByText('Drag me').closest('[class*="event"]') as HTMLElement
+      // useDraggable injects a role="button" attribute onto its target.
+      expect(sourceEvent.getAttribute('role')).toBe('button')
+      expect(sourceEvent.className).toMatch(/eventDraggable/)
+    })
 
-    it('is inert (non-draggable, no drop handlers) when no onReschedule is provided', () => {
+    it('is inert (no draggable chrome) when disableDnd=true', () => {
       const today = new Date(2026, 3, 19)
       const todos = [makeTodo({ id: 10, title: 'T', dueDate: new Date(2026, 3, 17) })]
       render(
@@ -326,97 +329,11 @@ describe('CalendarStrip', () => {
           assignedPeopleMap={new Map()}
           assignedOrgsMap={new Map()}
           statuses={[]}
+          disableDnd
         />,
       )
-      const evt = document.querySelector('[class*="event"]:not([class*="emptyDash"])') as HTMLElement | null
-      expect(evt?.getAttribute('draggable')).toBeFalsy()
-    })
-
-    it('forwards todoId + target day to onReschedule when an event is dragged to another row', () => {
-      const today = new Date(2026, 3, 19)
-      const todos = [makeTodo({ id: 11, title: 'Drag me', dueDate: new Date(2026, 3, 17) })]
-      const onReschedule = vi.fn()
-      render(
-        <CalendarStrip
-          todos={todos}
-          today={today}
-          assignedPeopleMap={new Map()}
-          assignedOrgsMap={new Map()}
-          statuses={[]}
-          onReschedule={onReschedule}
-        />,
-      )
-      const sourceEvent = screen.getByText('Drag me').closest('[class*="event"]') as HTMLElement
-      expect(sourceEvent.getAttribute('draggable')).toBe('true')
-      const targetRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 15))}"]`) as HTMLElement
-      const dt = makeDataTransfer()
-      fireEvent.dragStart(sourceEvent, { dataTransfer: dt })
-      fireEvent.dragOver(targetRow, { dataTransfer: dt })
-      expect(targetRow.getAttribute('data-drop-target')).toBe('true')
-      fireEvent.drop(targetRow, { dataTransfer: dt })
-      expect(onReschedule).toHaveBeenCalledTimes(1)
-      const [todoId, day] = onReschedule.mock.calls[0]
-      expect(todoId).toBe(11)
-      expect(dayKey(day as Date)).toBe(dayKey(new Date(2026, 3, 15)))
-    })
-
-    it('virtual recurring rows drag their parent todo id', () => {
-      const today = new Date(2026, 3, 19)
-      // Monday Apr 13 parent due; weekly recurrence → Apr 20 virtual at weekOffset=1.
-      const todos = [
-        makeTodo({
-          id: 42,
-          title: 'Weekly sync',
-          dueDate: new Date(2026, 3, 13),
-          recurrenceRule: { type: 'weekly' },
-        }),
-      ]
-      const onReschedule = vi.fn()
-      render(
-        <CalendarStrip
-          todos={todos}
-          today={today}
-          weekOffset={1}
-          assignedPeopleMap={new Map()}
-          assignedOrgsMap={new Map()}
-          statuses={[]}
-          onReschedule={onReschedule}
-        />,
-      )
-      const virtualRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 20))}"]`) as HTMLElement
-      const virtualEvent = virtualRow.querySelector('[class*="eventVirtual"]') as HTMLElement
-      expect(virtualEvent.getAttribute('draggable')).toBe('true')
-      const targetRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 22))}"]`) as HTMLElement
-      const dt = makeDataTransfer()
-      fireEvent.dragStart(virtualEvent, { dataTransfer: dt })
-      fireEvent.dragOver(targetRow, { dataTransfer: dt })
-      fireEvent.drop(targetRow, { dataTransfer: dt })
-      expect(onReschedule).toHaveBeenCalledWith(42, expect.any(Date))
-    })
-
-    it('horizontal mode columns also accept drops', () => {
-      const today = new Date(2026, 3, 19)
-      const todos = [makeTodo({ id: 12, title: 'H-drag', dueDate: new Date(2026, 3, 17) })]
-      const onReschedule = vi.fn()
-      render(
-        <CalendarStrip
-          todos={todos}
-          today={today}
-          orientation="horizontal"
-          assignedPeopleMap={new Map()}
-          assignedOrgsMap={new Map()}
-          statuses={[]}
-          onReschedule={onReschedule}
-        />,
-      )
-      const sourceEvent = screen.getByText('H-drag').closest('[class*="event"]') as HTMLElement
-      const targetCol = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 14))}"]`) as HTMLElement
-      const dt = makeDataTransfer()
-      fireEvent.dragStart(sourceEvent, { dataTransfer: dt })
-      fireEvent.dragOver(targetCol, { dataTransfer: dt })
-      expect(targetCol.getAttribute('data-drop-target')).toBe('true')
-      fireEvent.drop(targetCol, { dataTransfer: dt })
-      expect(onReschedule).toHaveBeenCalledWith(12, expect.any(Date))
+      const evt = screen.getByText('T').closest('[class*="event"]') as HTMLElement | null
+      expect(evt?.className).not.toMatch(/eventDraggable/)
     })
   })
 

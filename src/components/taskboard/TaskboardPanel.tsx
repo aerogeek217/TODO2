@@ -19,7 +19,6 @@ import { useUIStore } from '../../stores/ui-store'
 import { TaskRow } from '../task/TaskRow'
 import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import type { PersistedTodoItem, TaskboardEntry } from '../../models'
-import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
 import {
   TASK_DRAG_KIND,
   TASK_DROP_KIND,
@@ -153,16 +152,11 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
   }, [])
   useDndMonitor({ onDragMove, onDragEnd: onDragClear, onDragCancel: onDragClear })
 
-  // Native HTML5 drop path for non-dnd-kit sources (e.g. calendar events).
-  const {
-    externalInsertIndex,
-    isExternalDragOver,
-    onDragOver: onExternalDragOver,
-    onDragLeave: onExternalDragLeave,
-    onDrop: onExternalDrop,
-  } = useExternalTaskboardDrop(droppableId)
-  const effectiveInsertIndex = insertIndex ?? externalInsertIndex
-  const isAnyDragOver = isDndDragOver || isExternalDragOver
+  // Phase 7 of DnD unification retired the native-HTML5 drop path in favor
+  // of dnd-kit for every calendar source. All external drops now flow
+  // through `onDragMove` / the shared `dispatchTaskDrop` pipeline.
+  const effectiveInsertIndex = insertIndex
+  const isAnyDragOver = isDndDragOver
 
   const todoMap = useMemo(() => {
     const map = new Map<number, PersistedTodoItem>()
@@ -199,9 +193,6 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
       ref={setDropRef}
       data-taskboard-panel-id={droppableId}
       className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${dropCellClassName(isAnyDragOver)}`}
-      onDragOver={onExternalDragOver}
-      onDragLeave={onExternalDragLeave}
-      onDrop={onExternalDrop}
     >
       {!hideHeader && (
         <div

@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useState, type DragEvent } from 'react'
+import { useId, useMemo } from 'react'
+import { useDroppable } from '@dnd-kit/core'
 import type { PersistedTodoItem, Person, Org, Status } from '../../../models'
 import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { startOfDay, MS_PER_DAY } from '../../../utils/date'
-import { DRAG_MIME, serializeTodoDragPayload, parseTodoDragPayload } from '../../../utils/task-dnd'
+import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
+import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { buildEntries, dayKey } from './calendar/calendar-events'
 import { EventRow } from './calendar/EventRow'
 import { dropCellClassName } from '../../shared/DropIndicator'
@@ -24,11 +26,21 @@ interface CalendarStripProps {
   onOpenTodo?: (todoId: number) => void
   onWeekOffsetChange?: (n: number) => void
   /**
-   * Called when a todo event row is dropped on a different day cell. The
-   * strip does not itself mutate stores — it just hands back the target.
-   * Virtual recurring rows forward their parent todo id (per plan §Phase 5).
+   * Scope string distinguishing this strip from other calendar droppables in
+   * the same `DndContext` (e.g. two rail-docked strips + a floating calendar
+   * on one canvas). When omitted, each `CalendarStrip` instance gets an
+   * auto-generated React `useId` scope. Reschedule dispatch is handled by
+   * the `DndContext` owner via `dispatchTaskDrop` — the strip only
+   * registers draggable rows + droppable day cells.
    */
-  onReschedule?: (todoId: number, targetDay: Date) => void
+  scope?: string
+  /**
+   * Disable drag/drop wiring entirely. When `true`, rows render with no
+   * draggable handlers and cells skip `useDroppable` registration. Used in
+   * isolated tests / read-only previews where mounting a `DndContext` would
+   * be overkill.
+   */
+  disableDnd?: boolean
 }
 
 function formatRange(days: Date[]): string {
@@ -94,6 +106,30 @@ function buildDayRange(today: Date, weekOffset: number): Date[] {
   return days
 }
 
+interface DayCellProps {
+  scope: string
+  day: Date
+  disableDnd: boolean
+  children: (isDragOver: boolean) => React.ReactNode
+}
+
+/** Wraps a strip day cell in a `useDroppable` so dnd-kit drops reach the
+ * DndContext's `handleDragEnd`. Extracted so rendering stays flat inside the
+ * strip's map loop while still letting each cell register its own hook. */
+function DayDroppable({ scope, day, disableDnd, children }: DayCellProps) {
+  const id = calendarDayDropId(scope, startOfDay(day).getTime())
+  const { setNodeRef, isOver } = useDroppable({
+    id,
+    data: { type: TASK_DROP_KIND.calendarDay, date: startOfDay(day), scope },
+    disabled: disableDnd,
+  })
+  return (
+    <div ref={setNodeRef} style={{ display: 'contents' }}>
+      {children(isOver && !disableDnd)}
+    </div>
+  )
+}
+
 export function CalendarStrip({
   todos,
   today,
@@ -104,45 +140,17 @@ export function CalendarStrip({
   statuses,
   onOpenTodo,
   onWeekOffsetChange,
-  onReschedule,
+  scope: scopeProp,
+  disableDnd = false,
 }: CalendarStripProps) {
+  const autoScope = useId()
+  const scope = scopeProp ?? autoScope
   const days = useMemo(() => buildDayRange(today, weekOffset), [today, weekOffset])
   const entriesByDay = useMemo(
     () => buildEntries(todos, days, today, assignedPeopleMap, assignedOrgsMap, statuses),
     [todos, days, today, assignedPeopleMap, assignedOrgsMap, statuses],
   )
   const todayKey = dayKey(today)
-
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
-
-  const handleDragStart = useCallback((todoId: number) => (e: DragEvent) => {
-    if (!onReschedule) return
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData(DRAG_MIME, serializeTodoDragPayload(todoId))
-    e.dataTransfer.setData('text/plain', String(todoId))
-  }, [onReschedule])
-
-  const handleDragOver = useCallback((key: string) => (e: DragEvent) => {
-    if (!onReschedule) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverKey(key)
-  }, [onReschedule])
-
-  const handleDragLeave = useCallback(() => {
-    setDragOverKey(null)
-  }, [])
-
-  const handleDrop = useCallback((day: Date) => (e: DragEvent) => {
-    if (!onReschedule) return
-    e.preventDefault()
-    setDragOverKey(null)
-    const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain')
-    if (!raw) return
-    const todoId = parseTodoDragPayload(raw)
-    if (todoId == null) return
-    onReschedule(todoId, startOfDay(day))
-  }, [onReschedule])
 
   const rangeBar = onWeekOffsetChange
     ? <RangeBar days={days} weekOffset={weekOffset} onWeekOffsetChange={onWeekOffsetChange} />
@@ -162,47 +170,65 @@ export function CalendarStrip({
           const key = dayKey(day)
           const isToday = key === todayKey
           const isPast = day.getTime() < startOfDay(today).getTime()
-          const isDragOver = dragOverKey === key
           const entries = entriesByDay.get(key) ?? []
           const dow = day.toLocaleDateString('en-US', { weekday: 'short' })
           return (
-            <div
-              key={key}
-              className={[
-                styles.hCol,
-                isToday && styles.hColToday,
-                !isToday && isPast && styles.hColPast,
-                dropCellClassName(isDragOver),
-              ].filter(Boolean).join(' ')}
-              role="listitem"
-              data-day={key}
-              data-today={isToday ? 'true' : undefined}
-              data-drop-target={isDragOver ? 'true' : undefined}
-              onDragOver={onReschedule ? handleDragOver(key) : undefined}
-              onDragLeave={onReschedule ? handleDragLeave : undefined}
-              onDrop={onReschedule ? handleDrop(day) : undefined}
-            >
-              <div className={styles.hColHeader}>
-                <span className={styles.dow}>{dow}</span>
-                <span className={styles.dayNum}>{day.getDate()}</span>
-              </div>
-              <div className={styles.hColEvents}>
-                {entries.length === 0 ? (
-                  <span className={styles.emptyDash} aria-hidden="true">—</span>
-                ) : (
-                  entries.map((entry) => (
-                    <EventRow
-                      key={entry.key}
-                      entry={entry}
-                      compact
-                      onClick={() => onOpenTodo?.(entry.todo.id)}
-                      draggable={!!onReschedule}
-                      onDragStart={onReschedule ? handleDragStart(entry.todo.id) : undefined}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
+            <DayDroppable key={key} scope={scope} day={day} disableDnd={disableDnd}>
+              {(isDragOver) => (
+                <div
+                  className={[
+                    styles.hCol,
+                    isToday && styles.hColToday,
+                    !isToday && isPast && styles.hColPast,
+                    dropCellClassName(isDragOver),
+                  ].filter(Boolean).join(' ')}
+                  role="listitem"
+                  data-day={key}
+                  data-today={isToday ? 'true' : undefined}
+                  data-drop-target={isDragOver ? 'true' : undefined}
+                >
+                  <div className={styles.hColHeader}>
+                    <span className={styles.dow}>{dow}</span>
+                    <span className={styles.dayNum}>{day.getDate()}</span>
+                  </div>
+                  <div className={styles.hColEvents}>
+                    {entries.length === 0 ? (
+                      <span className={styles.emptyDash} aria-hidden="true">—</span>
+                    ) : (
+                      entries.map((entry) => (
+                        disableDnd ? (
+                          <EventRow
+                            key={entry.key}
+                            entry={entry}
+                            compact
+                            onClick={() => onOpenTodo?.(entry.todo.id)}
+                          />
+                        ) : (
+                          <TaskDraggable
+                            key={entry.key}
+                            todo={entry.todo}
+                            surface="calendar-strip"
+                            extraData={{ scope }}
+                          >
+                            {({ setNodeRef, attributes, listeners }) => (
+                              <EventRow
+                                entry={entry}
+                                compact
+                                draggable
+                                onClick={() => onOpenTodo?.(entry.todo.id)}
+                                dragRef={setNodeRef}
+                                dragAttributes={attributes}
+                                dragListeners={listeners}
+                              />
+                            )}
+                          </TaskDraggable>
+                        )
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </DayDroppable>
           )
         })}
         </div>
@@ -223,48 +249,65 @@ export function CalendarStrip({
         const key = dayKey(day)
         const isToday = key === todayKey
         const isPast = day.getTime() < startOfDay(today).getTime()
-        const isDragOver = dragOverKey === key
         const entries = entriesByDay.get(key) ?? []
         const dow = day.toLocaleDateString('en-US', { weekday: 'short' })
         const dayLabel = `${day.toLocaleDateString('en-US', { month: 'short' })} ${day.getDate()}`
 
         return (
-          <div
-            key={key}
-            className={[
-              styles.row,
-              isToday && styles.rowToday,
-              !isToday && isPast && styles.rowPast,
-              dropCellClassName(isDragOver),
-            ].filter(Boolean).join(' ')}
-            role="listitem"
-            data-day={key}
-            data-today={isToday ? 'true' : undefined}
-            data-drop-target={isDragOver ? 'true' : undefined}
-            onDragOver={onReschedule ? handleDragOver(key) : undefined}
-            onDragLeave={onReschedule ? handleDragLeave : undefined}
-            onDrop={onReschedule ? handleDrop(day) : undefined}
-          >
-            <div className={styles.dateBlock} aria-label={dayLabel}>
-              <span className={styles.dow}>{dow}</span>
-              <span className={styles.dayNum}>{day.getDate()}</span>
-            </div>
-            <div className={styles.events}>
-              {entries.length === 0 ? (
-                <span className={styles.emptyDash} aria-hidden="true">—</span>
-              ) : (
-                entries.map((entry) => (
-                  <EventRow
-                    key={entry.key}
-                    entry={entry}
-                    onClick={() => onOpenTodo?.(entry.todo.id)}
-                    draggable={!!onReschedule}
-                    onDragStart={onReschedule ? handleDragStart(entry.todo.id) : undefined}
-                  />
-                ))
-              )}
-            </div>
-          </div>
+          <DayDroppable key={key} scope={scope} day={day} disableDnd={disableDnd}>
+            {(isDragOver) => (
+              <div
+                className={[
+                  styles.row,
+                  isToday && styles.rowToday,
+                  !isToday && isPast && styles.rowPast,
+                  dropCellClassName(isDragOver),
+                ].filter(Boolean).join(' ')}
+                role="listitem"
+                data-day={key}
+                data-today={isToday ? 'true' : undefined}
+                data-drop-target={isDragOver ? 'true' : undefined}
+              >
+                <div className={styles.dateBlock} aria-label={dayLabel}>
+                  <span className={styles.dow}>{dow}</span>
+                  <span className={styles.dayNum}>{day.getDate()}</span>
+                </div>
+                <div className={styles.events}>
+                  {entries.length === 0 ? (
+                    <span className={styles.emptyDash} aria-hidden="true">—</span>
+                  ) : (
+                    entries.map((entry) => (
+                      disableDnd ? (
+                        <EventRow
+                          key={entry.key}
+                          entry={entry}
+                          onClick={() => onOpenTodo?.(entry.todo.id)}
+                        />
+                      ) : (
+                        <TaskDraggable
+                          key={entry.key}
+                          todo={entry.todo}
+                          surface="calendar-strip"
+                          extraData={{ scope }}
+                        >
+                          {({ setNodeRef, attributes, listeners }) => (
+                            <EventRow
+                              entry={entry}
+                              draggable
+                              onClick={() => onOpenTodo?.(entry.todo.id)}
+                              dragRef={setNodeRef}
+                              dragAttributes={attributes}
+                              dragListeners={listeners}
+                            />
+                          )}
+                        </TaskDraggable>
+                      )
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </DayDroppable>
         )
       })}
       </div>
