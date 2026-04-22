@@ -12,7 +12,6 @@ beforeEach(() => {
     focusedTodoId: null,
     editPopupMode: null,
     bulkConfirmation: null,
-    collapsedParents: new Set(),
     listGroupBy: 'date',
     listSortBy: 'manual',
     inlineCreateAfterId: null,
@@ -40,25 +39,6 @@ describe('useUIStore editing list-definition state', () => {
 })
 
 describe('useUIStore', () => {
-  it('toggleCollapseParent adds and removes from set', () => {
-    useUIStore.getState().toggleCollapseParent(1)
-    expect(useUIStore.getState().collapsedParents.has(1)).toBe(true)
-
-    useUIStore.getState().toggleCollapseParent(1)
-    expect(useUIStore.getState().collapsedParents.has(1)).toBe(false)
-  })
-
-  it('toggleCollapseParent supports multiple ids', () => {
-    useUIStore.getState().toggleCollapseParent(1)
-    useUIStore.getState().toggleCollapseParent(2)
-    expect(useUIStore.getState().collapsedParents.has(1)).toBe(true)
-    expect(useUIStore.getState().collapsedParents.has(2)).toBe(true)
-
-    useUIStore.getState().toggleCollapseParent(1)
-    expect(useUIStore.getState().collapsedParents.has(1)).toBe(false)
-    expect(useUIStore.getState().collapsedParents.has(2)).toBe(true)
-  })
-
   it('openEditPopup sets selectedTodoId and mode', () => {
     useUIStore.getState().openEditPopup(42)
     const state = useUIStore.getState()

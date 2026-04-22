@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
-import { indentTasks, outdentTasks, moveTasksInDirection } from '../services/task-placement'
 import { pasteTasksAt } from '../services/clipboard'
 import { bySortOrder } from '../utils/hierarchy'
 
@@ -154,19 +153,18 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
           const focusedTodo = focusedTodoId != null ? todos.find(t => t.id === focusedTodoId) : null
           if (focusedTodo && focusedTodo.projectId != null) {
             const projectTodos = todos
-              .filter(t => t.projectId === focusedTodo.projectId && (focusedTodo.parentId == null ? t.parentId == null : t.parentId === focusedTodo.parentId))
+              .filter(t => t.projectId === focusedTodo.projectId)
               .sort(bySortOrder)
             const focusedIdx = projectTodos.findIndex(t => t.id === focusedTodo.id)
             const beforeTodo = focusedIdx < projectTodos.length - 1 ? projectTodos[focusedIdx + 1] : null
             await pasteTasksAt({
               projectId: focusedTodo.projectId,
-              parentId: focusedTodo.parentId ?? undefined,
               beforeTodoId: beforeTodo?.id ?? null,
             })
           } else {
             const sourceProjectId = useUIStore.getState().clipboardSourceProjectId
             if (sourceProjectId == null) return
-            await pasteTasksAt({ projectId: sourceProjectId, parentId: undefined, beforeTodoId: null })
+            await pasteTasksAt({ projectId: sourceProjectId, beforeTodoId: null })
           }
         }
         return
@@ -287,29 +285,11 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
         return
       }
 
-      // Arrow keys — navigation and move
+      // Arrow keys — selection navigation
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
         const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
         if (todoIds.length === 0) return
-
-        // Ctrl+Arrow — move task(s) up/down
-        if (e.ctrlKey && !e.shiftKey && ids.size > 0) {
-          e.preventDefault()
-          const direction = e.key === 'ArrowUp' ? 'up' : 'down' as const
-          const { todos, applyMutations } = useTodoStore.getState()
-          const selected = todos.filter(t => ids.has(t.id))
-          const firstTask = selected[0]
-          if (!firstTask) return
-          const projectTodos = todos
-            .filter(t => t.projectId === firstTask.projectId)
-            .sort(bySortOrder)
-          const mutations = moveTasksInDirection(projectTodos, ids, direction)
-          if (mutations.length > 0) {
-            await applyMutations(mutations)
-          }
-          return
-        }
 
         // Plain arrow or Shift+Arrow — selection navigation
         if (ids.size > 0) {
@@ -355,45 +335,6 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
         return
       }
 
-      // Tab / Shift+Tab — indent / outdent (only when tasks selected)
-      if (e.key === 'Tab' && ids.size > 0) {
-        e.preventDefault()
-        const { todos, applyMutations } = useTodoStore.getState()
-        const selected = todos.filter(t => ids.has(t.id))
-        const firstTask = selected[0]
-        if (!firstTask) return
-        const projectTodos = todos
-          .filter(t => t.projectId === firstTask.projectId)
-          .sort(bySortOrder)
-        const mutations = e.shiftKey
-          ? outdentTasks(projectTodos, ids)
-          : indentTasks(projectTodos, ids)
-        if (mutations.length > 0) {
-          await applyMutations(mutations)
-        }
-        return
-      }
-
-      // Ctrl+] / Ctrl+[ — indent / outdent (existing alias)
-      if (e.ctrlKey && (e.key === ']' || e.key === '[')) {
-        if (ids.size > 0) {
-          e.preventDefault()
-          const { todos, applyMutations } = useTodoStore.getState()
-          const selected = todos.filter(t => ids.has(t.id))
-          const firstTask = selected[0]
-          if (!firstTask) return
-          const projectTodos = todos
-            .filter(t => t.projectId === firstTask.projectId)
-            .sort(bySortOrder)
-          const mutations = e.key === ']'
-            ? indentTasks(projectTodos, ids)
-            : outdentTasks(projectTodos, ids)
-          if (mutations.length > 0) {
-            await applyMutations(mutations)
-          }
-        }
-        return
-      }
     }
 
     window.addEventListener('keydown', handleKeyDown)

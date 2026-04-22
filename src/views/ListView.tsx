@@ -418,20 +418,17 @@ function computeDropIndex(
   sectionTodos: PersistedTodoItem[],
   allTodos: PersistedTodoItem[],
   dragTodo: PersistedTodoItem,
-  collapsedParents: Set<number>,
 ): number {
   const dragChildren = allTodos.filter(t => t.parentId === dragTodo.id)
   const dragIds = new Set([dragTodo.id, ...dragChildren.map(c => c.id)])
   const withoutDrag = sectionTodos.filter(t => !dragIds.has(t.id))
 
-  // Helper: flatten a hierarchy respecting collapsed state
+  // Helper: flatten a hierarchy to ids
   const flatten = (hierarchy: ReturnType<typeof buildHierarchy>): number[] => {
     const flat: number[] = []
     for (const { parent, children } of hierarchy) {
       flat.push(parent.id)
-      if (children.length > 0 && !collapsedParents.has(parent.id)) {
-        for (const child of children) flat.push(child.id)
-      }
+      for (const child of children) flat.push(child.id)
     }
     return flat
   }
@@ -595,7 +592,7 @@ export function ListView() {
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { statuses, load: loadStatuses } = useStatusStore()
-  const { listGroupBy, setListGroupBy, listSortBy, setListSortBy, openEditPopup, showBulkConfirmation, collapsedParents } = useUIStore()
+  const { listGroupBy, setListGroupBy, listSortBy, setListSortBy, openEditPopup, showBulkConfirmation } = useUIStore()
   const editingListDefId = useUIStore((s) => s.editingListDefId)
   const editingListDefName = useUIStore((s) => s.editingListDefName)
   const clearEditingListDef = useUIStore((s) => s.clearEditingListDef)
@@ -1116,7 +1113,7 @@ export function ListView() {
               const isCollapsed = !!collapsed[section.key]
               const isOver = overSectionKey === section.key
               const dropIdx = (isOver && activeDragTodo)
-                ? computeDropIndex(section.todos, todos, activeDragTodo, collapsedParents)
+                ? computeDropIndex(section.todos, todos, activeDragTodo)
                 : undefined
               const hideHeader = listGroupBy === 'none'
               return (

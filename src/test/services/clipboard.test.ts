@@ -22,7 +22,6 @@ const UI_RESET = {
   focusedTodoId: null,
   editPopupMode: null as null,
   bulkConfirmation: null,
-  collapsedParents: new Set<number>(),
   listSortBy: 'date' as const,
   inlineCreateAfterId: null,
   clipboardTodoIds: [] as number[],
@@ -37,7 +36,7 @@ beforeEach(() => {
   useTodoStore.setState({ todos: [], loading: false, error: null })
 })
 
-const TARGET = { projectId: 10, parentId: undefined, beforeTodoId: null }
+const TARGET = { projectId: 10, beforeTodoId: null }
 
 describe('pasteTasksAt', () => {
   it('pasteTasksAt_emptyClipboard_returnsWithoutCallingPlaceMultipleAt', async () => {
@@ -128,7 +127,7 @@ describe('pasteTasksAt', () => {
     const applyMutations = vi.fn().mockResolvedValue(undefined)
     useTodoStore.setState({ applyMutations } as any)
 
-    const singleItemTarget = { projectId: 10, parentId: undefined, beforeTodoId: null }
+    const singleItemTarget = { projectId: 10, beforeTodoId: null }
 
     // Act
     await pasteTasksAt(singleItemTarget)

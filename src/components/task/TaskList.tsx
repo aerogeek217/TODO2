@@ -68,7 +68,7 @@ export function TaskList({
   allTodos,
   onOpenDetail,
 }: TaskListProps) {
-  const { collapsedParents, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
+  const { selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
   const isMobile = useIsMobile()
   const RowComponent = isMobile ? MobileTaskRow : TaskRow
 
@@ -92,7 +92,7 @@ export function TaskList({
   const flatItems: { todo: PersistedTodoItem; assignedPeople?: Person[]; indentLevel: number; hasChildren: boolean; isLastChild: boolean; isExpanded: boolean }[] = []
   for (const { parent, children } of hierarchy) {
     const hasChildren = children.length > 0
-    const isExpanded = !collapsedParents.has(parent.id)
+    const isExpanded = true
     flatItems.push({ todo: parent, assignedPeople: assignedPeopleMap?.get(parent.id), indentLevel: 0, hasChildren, isLastChild: false, isExpanded })
     if (hasChildren && isExpanded) {
       children.forEach((child, i) => {

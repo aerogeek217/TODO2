@@ -28,48 +28,6 @@ export function useBulkActions() {
       return
     }
 
-    const { todos } = useTodoStore.getState()
-    const todo = todos.find((t) => t.id === todoId)
-    if (!todo) return
-
-    // Completing a parent with incomplete children → prompt
-    if (!todo.isCompleted) {
-      const incompleteChildren = todos.filter(
-        (t) => t.parentId === todoId && !t.isCompleted
-      )
-      if (incompleteChildren.length > 0) {
-        const allIds = [todoId, ...incompleteChildren.map((t) => t.id)]
-        useUIStore.getState().showBulkConfirmation('complete', allIds, {
-          title: 'Complete with children',
-          message: `Also complete ${incompleteChildren.length} child task${incompleteChildren.length > 1 ? 's' : ''}?`,
-          confirmLabel: 'Complete all',
-          cancelLabel: 'Just parent',
-          skipIds: [todoId],
-        })
-        return
-      }
-
-      // Completing last incomplete child → prompt to complete parent
-      if (todo.parentId != null) {
-        const parent = todos.find((t) => t.id === todo.parentId)
-        if (parent && !parent.isCompleted) {
-          const incompleteSiblings = todos.filter(
-            (t) => t.parentId === todo.parentId && t.id !== todoId && !t.isCompleted
-          )
-          if (incompleteSiblings.length === 0) {
-            useUIStore.getState().showBulkConfirmation('complete', [todoId, parent.id], {
-              title: 'Complete parent too?',
-              message: 'All children will be complete. Also mark parent as complete?',
-              confirmLabel: 'Complete both',
-              cancelLabel: 'Just this task',
-              skipIds: [todoId],
-            })
-            return
-          }
-        }
-      }
-    }
-
     useTodoStore.getState().toggleComplete(todoId)
   }, [])
 

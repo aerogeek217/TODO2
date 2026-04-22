@@ -105,7 +105,7 @@ export function SortableTaskList({
   const { insertTodoId: insertBeforeTodoId, insertIndentLevel, insertAtEnd, insertProjectId } = useContext(DragPreviewContext)
   const isDragActive = activeDragTodoId != null
   const dropCount = isDragActive ? (dragGroupIds?.size ?? 0) + 1 : 1
-  const { collapsedParents, selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()
+  const { selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()
   const hierarchy = useMemo(() => buildHierarchy(todos), [todos])
 
   // Which InsertTrigger is currently open (keyed by the todo id it follows, or BEFORE_FIRST)
@@ -144,9 +144,8 @@ export function SortableTaskList({
     const items: { todo: PersistedTodoItem; indentLevel: number; hasChildren: boolean; isLastChild: boolean; isExpanded: boolean }[] = []
     for (const { parent, children } of hierarchy) {
       const hasChildren = children.length > 0
-      const isExpanded = !collapsedParents.has(parent.id)
-      items.push({ todo: parent, indentLevel: 0, hasChildren, isLastChild: false, isExpanded })
-      if (hasChildren && isExpanded) {
+      items.push({ todo: parent, indentLevel: 0, hasChildren, isLastChild: false, isExpanded: true })
+      if (hasChildren) {
         children.forEach((child, i) => {
           items.push({
             todo: child,
@@ -159,7 +158,7 @@ export function SortableTaskList({
       }
     }
     return items
-  }, [hierarchy, collapsedParents])
+  }, [hierarchy])
 
   // During drag: hide children of the actively dragged parent and multi-selected siblings (they're in the overlay)
   const displayItems = useMemo(() => {
@@ -189,7 +188,7 @@ export function SortableTaskList({
   }, [rangeSelectTodo, toggleSelectTodo, selectOneTodo])
 
   /** Build context menu for a paste target position */
-  const buildPasteMenu = (e: React.MouseEvent, beforeTodoId: number | null, parentId: number | undefined) => {
+  const buildPasteMenu = (e: React.MouseEvent, beforeTodoId: number | null) => {
     const { clipboardTodoIds: cbIds, selectedTodoIds: selIds } = useUIStore.getState()
     const menuItems: ContextMenuItem[] = []
     if (selIds.size > 0) {
@@ -206,7 +205,7 @@ export function SortableTaskList({
       const label = cbIds.length === 1 ? 'Paste' : `Paste ${cbIds.length} tasks`
       menuItems.push({
         label,
-        action: () => { pasteTasksAt({ projectId, parentId, beforeTodoId }) },
+        action: () => { pasteTasksAt({ projectId, beforeTodoId }) },
       })
     }
     if (menuItems.length > 0) {
@@ -216,28 +215,20 @@ export function SortableTaskList({
     }
   }
 
-  /** Compute the insert position (parentId, beforeId) for a trigger after visibleItems[idx] */
+  /** Compute the insert position (beforeId) for a trigger after visibleItems[idx] */
   const getInsertPosition = (idx: number) => {
-    const item = visibleItems[idx]
-    const parentId = item.indentLevel > 0 ? (item.todo.parentId ?? undefined) : undefined
     let beforeId: number | null = null
-    if (parentId != null) {
-      for (let i = idx + 1; i < visibleItems.length; i++) {
-        if (visibleItems[i].todo.parentId === parentId) { beforeId = visibleItems[i].todo.id; break }
-        if (visibleItems[i].indentLevel === 0) break
-      }
-    } else {
-      for (let i = idx + 1; i < visibleItems.length; i++) {
-        if (visibleItems[i].indentLevel === 0) { beforeId = visibleItems[i].todo.id; break }
-      }
+    for (let i = idx + 1; i < visibleItems.length; i++) {
+      beforeId = visibleItems[i].todo.id
+      break
     }
-    return { parentId, beforeId }
+    return { beforeId }
   }
 
   /** Handle paste for a given insert position */
-  const handlePasteAt = (beforeTodoId: number | null, parentId: number | undefined) => {
+  const handlePasteAt = (beforeTodoId: number | null) => {
     if (clipboardTodoIds.length > 0) {
-      pasteTasksAt({ projectId, parentId, beforeTodoId })
+      pasteTasksAt({ projectId, beforeTodoId })
     }
   }
 
@@ -379,7 +370,7 @@ export function SortableTaskList({
         const showFocused = isFocused && !(isSel && isMultiSelect)
         const cls = `${selCls} ${showFocused ? styles.focused : ''}`.trim() || undefined
         return (
-        <div key={item.todo.id} data-todo-id={item.todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, item.todo.id, item.todo.parentId ?? undefined)}>
+        <div key={item.todo.id} data-todo-id={item.todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, item.todo.id)}>
           {insertBeforeTodoId === item.todo.id && (
             dropCount > 1
               ? <div className={`${styles.dropPreviewGroup} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} style={{ height: `${dropCount * ROW_HEIGHT_PX}px` }} />
@@ -394,8 +385,8 @@ export function SortableTaskList({
                 openTriggerAfterInsert(newId)
               }}
               onCancel={closeInsert}
-              onContextMenu={(e) => buildPasteMenu(e, item.todo.id, undefined)}
-              onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(item.todo.id, undefined); closeInsert() } : undefined}
+              onContextMenu={(e) => buildPasteMenu(e, item.todo.id)}
+              onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(item.todo.id); closeInsert() } : undefined}
             />
           )}
           <SortableTaskRow
@@ -412,18 +403,18 @@ export function SortableTaskList({
             onOpenDetail={onOpenDetail}
           />
           {!isDragActive && onInsertTask && (() => {
-            const { parentId, beforeId } = getInsertPosition(idx)
+            const { beforeId } = getInsertPosition(idx)
             return (
               <InsertTrigger
                 editing={activeInsertAfterId === item.todo.id}
                 onActivate={() => setActiveInsertAfterId(item.todo.id)}
                 onCommit={async (title) => {
-                  const newId = await onInsertTask(title, beforeId, parentId)
+                  const newId = await onInsertTask(title, beforeId, undefined)
                   openTriggerAfterInsert(newId)
                 }}
                 onCancel={closeInsert}
-                onContextMenu={(e) => buildPasteMenu(e, beforeId, parentId)}
-                onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(beforeId, parentId); closeInsert() } : undefined}
+                onContextMenu={(e) => buildPasteMenu(e, beforeId)}
+                onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(beforeId); closeInsert() } : undefined}
               />
             )
           })()}
@@ -439,8 +430,8 @@ export function SortableTaskList({
             openTriggerAfterInsert(newId)
           }}
           onCancel={closeInsert}
-          onContextMenu={(e) => buildPasteMenu(e, null, undefined)}
-          onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(null, undefined); closeInsert() } : undefined}
+          onContextMenu={(e) => buildPasteMenu(e, null)}
+          onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(null); closeInsert() } : undefined}
         />
       )}
       {insertAtEnd && !insertBeforeTodoId && insertProjectId === projectId && (

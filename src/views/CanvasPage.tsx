@@ -261,16 +261,14 @@ export function CanvasPage() {
     return ghost.size > 0 ? ghost : undefined
   }, [todos, filters, assignedPeopleMap, assignedOrgsMap, personOrgMap, statuses, projects])
 
-  // Merge filter ghosts, drag-child ghosts, and hidden-parent (completed+filtered) ghosts.
+  // Merge filter ghosts with hidden-parent (completed+filtered) ghosts.
   const ghostTodoIds = useMemo(() => {
-    const dragChildIds = dnd.activeDragChildren.map(c => c.id)
     const hasHiddenParents = hiddenParentGhostIds.size > 0
-    if (!filterGhostIds && dragChildIds.length === 0 && !hasHiddenParents) return undefined
+    if (!filterGhostIds && !hasHiddenParents) return undefined
     const merged = new Set(filterGhostIds)
-    for (const id of dragChildIds) merged.add(id)
     for (const id of hiddenParentGhostIds) merged.add(id)
     return merged.size > 0 ? merged : undefined
-  }, [filterGhostIds, dnd.activeDragChildren, hiddenParentGhostIds])
+  }, [filterGhostIds, hiddenParentGhostIds])
 
   const handleNodeDragStop = useCallback(
     (projectId: number, x: number, y: number) => {
@@ -556,11 +554,11 @@ export function CanvasPage() {
   const dragPreviewValue = useMemo(
     () => ({
       insertTodoId: dnd.insertTodoId,
-      insertIndentLevel: dnd.insertIndentLevel,
+      insertIndentLevel: 0,
       insertAtEnd: dnd.insertAtEnd,
       insertProjectId: dnd.insertProjectId,
     }),
-    [dnd.insertTodoId, dnd.insertIndentLevel, dnd.insertAtEnd, dnd.insertProjectId],
+    [dnd.insertTodoId, dnd.insertAtEnd, dnd.insertProjectId],
   )
 
   const collisionDetection = useMemo<CollisionDetection>(() => (args) => {
@@ -634,15 +632,7 @@ export function CanvasPage() {
               todo={dnd.activeDragTodo}
               ghost
             />
-            {dnd.activeDragChildren.map(child => (
-              <TaskRow
-                key={child.id}
-                todo={child}
-                indentLevel={1}
-                ghost
-              />
-            ))}
-            {dnd.multiDragCount > 1 && !dnd.activeDragChildren.length && (
+            {dnd.multiDragCount > 1 && (
               <div className={overlayStyles.badge}>{dnd.multiDragCount}</div>
             )}
           </div>

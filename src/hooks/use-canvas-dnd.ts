@@ -16,8 +16,8 @@ import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
-import { placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
-import { getFlatVisualOrder, bySortOrder } from '../utils/hierarchy'
+import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
+import { bySortOrder } from '../utils/hierarchy'
 import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
 
 interface UseCanvasDnDOptions {
@@ -41,11 +41,9 @@ export function useCanvasDnD({
 }: UseCanvasDnDOptions) {
   const multiDragIdsRef = useRef<Set<number> | null>(null)
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
-  const [activeDragChildren, setActiveDragChildren] = useState<PersistedTodoItem[]>([])
   const [multiDragCount, setMultiDragCount] = useState(0)
   const [dragExpandedProjectId, setDragExpandedProjectId] = useState<number | null>(null)
   const [insertTodoId, setInsertTodoId] = useState<number | null>(null)
-  const [insertIndentLevel, setInsertIndentLevel] = useState(0)
   const [insertAtEnd, setInsertAtEnd] = useState(false)
   const [insertProjectId, setInsertProjectId] = useState<number | null>(null)
   const [dragGroupIds, setDragGroupIds] = useState<Set<number> | null>(null)
@@ -57,14 +55,6 @@ export function useCanvasDnD({
     forProjectId: number | null
     pointerY: number
   }>({ insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 })
-
-  // Cache the expanded over-context from the last accepted preview so
-  // handleDragEnd uses the same target the green indicator line showed
-  const lastExpandedOverRef = useRef<{
-    overType: 'task' | 'project' | null
-    overTodo: PersistedTodoItem | null
-    overProjectId: number | null
-  } | null>(null)
 
   // Edge panning during drag
   const edgePanRef = useRef<{
@@ -180,27 +170,11 @@ export function useCanvasDnD({
             break
           }
 
-          case 'indent': {
-            const projectTodos = todosByProject.get(resolution.projectId) ?? []
-            const mutations = indentTasks(projectTodos, resolution.taskIds)
-            if (mutations.length > 0) await applyMutations(mutations)
-            await normalizeProject(resolution.projectId)
-            break
-          }
-
-          case 'outdent': {
-            const projectTodos = todosByProject.get(resolution.projectId) ?? []
-            const mutations = outdentTasks(projectTodos, resolution.taskIds)
-            if (mutations.length > 0) await applyMutations(mutations)
-            await normalizeProject(resolution.projectId)
-            break
-          }
-
           case 'create-project': {
             if (!selectedCanvasId) break
             const projectId = await addProject('New Project', selectedCanvasId, resolution.position.x, resolution.position.y)
             const taskIds = resolution.taskIds
-            const target = { projectId, parentId: undefined as number | undefined, beforeTodoId: null }
+            const target = { projectId, beforeTodoId: null }
             if (taskIds.size === 1) {
               const task = todos.find(t => t.id === Array.from(taskIds)[0])
               if (task) {
@@ -242,21 +216,17 @@ export function useCanvasDnD({
         return { overType, overTodo, overProjectId }
       }
       const projectTodos = todosByProject.get(overTodo.projectId) ?? []
-      const flat = getFlatVisualOrder(projectTodos)
-      const collapsed = useUIStore.getState().collapsedParents
-      const idx = flat.findIndex(t => t.id === overTodo!.id)
-      const hasVisChildren = idx >= 0 && idx < flat.length - 1 &&
-        flat[idx + 1].parentId === overTodo!.id && !collapsed.has(overTodo!.id)
-      if (idx < 0 || hasVisChildren) {
+      const sorted = [...projectTodos].sort(bySortOrder)
+      const idx = sorted.findIndex(t => t.id === overTodo!.id)
+      if (idx < 0) {
         return { overType, overTodo, overProjectId }
       }
       const origPid = overTodo.projectId!
       const dragIds = multiDragIdsRef.current
-      for (let i = idx + 1; i < flat.length; i++) {
-        if (flat[i].parentId != null && collapsed.has(flat[i].parentId!)) continue
-        if (flat[i].id === activeTodoId) continue
-        if (dragIds && dragIds.has(flat[i].id)) continue
-        return { overType: 'task' as const, overTodo: flat[i], overProjectId }
+      for (let i = idx + 1; i < sorted.length; i++) {
+        if (sorted[i].id === activeTodoId) continue
+        if (dragIds && dragIds.has(sorted[i].id)) continue
+        return { overType: 'task' as const, overTodo: sorted[i], overProjectId }
       }
       return { overType: 'project' as const, overTodo: null, overProjectId: origPid }
     },
@@ -270,16 +240,13 @@ export function useCanvasDnD({
       pointerListenerRef.current = null
     }
     setActiveDragTodo(null)
-    setActiveDragChildren([])
     setMultiDragCount(0)
     setDragExpandedProjectId(null)
     setInsertTodoId(null)
-    setInsertIndentLevel(0)
     setInsertAtEnd(false)
     setInsertProjectId(null)
     setDragGroupIds(null)
     lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
-    lastExpandedOverRef.current = null
     multiDragIdsRef.current = null
   }, [stopEdgePan])
 
@@ -294,33 +261,16 @@ export function useCanvasDnD({
       if (todo) {
         setActiveDragTodo(todo)
         lastPreviewRef.current = { insertTodoId: null, insertAtEnd: false, forProjectId: null, pointerY: 0 }
-        lastExpandedOverRef.current = null
         const sel = useUIStore.getState().selectedTodoIds
         const isMulti = sel.size > 1 && sel.has(todo.id)
 
-        // Find children of the dragged task
-        const children = todos.filter(t => t.parentId === todo.id)
-          .sort(bySortOrder)
-        setActiveDragChildren(children)
-
         if (isMulti) {
           const dragSet = new Set(sel)
-          // Include children of selected parents
-          for (const id of sel) {
-            for (const t of todos) {
-              if (t.parentId === id) dragSet.add(t.id)
-            }
-          }
           multiDragIdsRef.current = dragSet
           setMultiDragCount(dragSet.size)
           const groupIds = new Set(dragSet)
           groupIds.delete(todo.id)
           setDragGroupIds(groupIds)
-        } else if (children.length > 0) {
-          const dragSet = new Set([todo.id, ...children.map(c => c.id)])
-          multiDragIdsRef.current = dragSet
-          setMultiDragCount(dragSet.size)
-          setDragGroupIds(new Set(children.map(c => c.id)))
         } else {
           multiDragIdsRef.current = null
           setMultiDragCount(0)
@@ -341,7 +291,7 @@ export function useCanvasDnD({
         pointerListenerRef.current = onPointerMove
       }
     },
-    [todos, startEdgePan]
+    [startEdgePan]
   )
 
   const handleDragMove = useCallback(
@@ -350,10 +300,8 @@ export function useCanvasDnD({
       const activeTodo = event.active.data.current?.todo as PersistedTodoItem | undefined
       if (!activeTodo) {
         setInsertTodoId(null)
-        setInsertIndentLevel(0)
         setInsertAtEnd(false)
         setInsertProjectId(null)
-        lastExpandedOverRef.current = null
         return
       }
 
@@ -362,10 +310,8 @@ export function useCanvasDnD({
       // Hovering over taskboard — clear insert preview (taskboard handles its own highlight)
       if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
         setInsertTodoId(null)
-        setInsertIndentLevel(0)
         setInsertAtEnd(false)
         setInsertProjectId(null)
-        lastExpandedOverRef.current = null
         return
       }
 
@@ -405,10 +351,8 @@ export function useCanvasDnD({
         forProjectId: overTodo?.projectId ?? preview.insertProjectId ?? null,
         pointerY,
       }
-      lastExpandedOverRef.current = { overType, overTodo, overProjectId }
 
       setInsertTodoId(preview.insertTodoId)
-      setInsertIndentLevel(preview.insertIndentLevel)
       setInsertAtEnd(preview.insertAtEnd)
       setInsertProjectId(preview.insertProjectId)
     },
@@ -444,7 +388,6 @@ export function useCanvasDnD({
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       // Cache values needed for drop execution before resetting state
-      const cachedExpansion = lastExpandedOverRef.current
       const dragIds = multiDragIdsRef.current
 
       // Cancel any pending phantom-cleanup timers from a previous drag before
@@ -559,26 +502,16 @@ export function useCanvasDnD({
         return
       }
 
-      // Use the cached expansion from the last accepted preview so the drop
-      // matches what the green indicator line showed. Fall back to fresh
-      // expansion only if no preview was computed (e.g. very fast drag).
-      let overType: 'task' | 'project' | null
-      let overTodo: PersistedTodoItem | null
-      let overProjectId: number | null
-      if (cachedExpansion) {
-        ({ overType, overTodo, overProjectId } = cachedExpansion)
-      } else {
-        const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
-          : overData?.type === 'project' ? 'project'
-          : null
-        const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
-        const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null
-        ;({ overType, overTodo, overProjectId } = expandTargetArea(
-          rawOverType, rawOverTodo, rawOverProjectId,
-          over ? { rect: over.rect ? { top: over.rect.top, height: over.rect.height } : undefined } : null,
-          activeTodo.id,
-        ))
-      }
+      const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
+        : overData?.type === 'project' ? 'project'
+        : null
+      const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
+      const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null
+      const { overType, overTodo, overProjectId } = expandTargetArea(
+        rawOverType, rawOverTodo, rawOverProjectId,
+        over ? { rect: over.rect ? { top: over.rect.top, height: over.rect.height } : undefined } : null,
+        activeTodo.id,
+      )
 
       const ctx: DropContext = {
         activeTodo,
@@ -607,11 +540,9 @@ export function useCanvasDnD({
     handleDragCancel,
     // State
     activeDragTodo,
-    activeDragChildren,
     multiDragCount,
     dragExpandedProjectId,
     insertTodoId,
-    insertIndentLevel,
     insertAtEnd,
     insertProjectId,
     dragGroupIds,

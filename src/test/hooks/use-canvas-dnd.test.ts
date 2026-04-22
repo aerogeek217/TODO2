@@ -19,7 +19,6 @@ import type { PersistedTodoItem } from '../../models'
 
 const todo1 = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
 const todo2 = makeTodo({ id: 2, projectId: 10, sortOrder: 2 })
-const child1 = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 1 })
 
 function makeOptions(overrides: Partial<Parameters<typeof useCanvasDnD>[0]> = {}) {
   return {
@@ -63,7 +62,7 @@ let rafId = 1
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', vi.fn().mockImplementation(() => rafId++))
   vi.stubGlobal('cancelAnimationFrame', vi.fn())
-  useUIStore.setState({ selectedTodoIds: new Set(), collapsedParents: new Set() })
+  useUIStore.setState({ selectedTodoIds: new Set() })
 })
 
 afterEach(() => {
@@ -161,23 +160,6 @@ describe('useCanvasDnD — handleDragStart', () => {
     expect(result.current.multiDragCount).toBe(0)
   })
 
-  it('includes children in drag group when task has children', () => {
-    const todosWithChildren = [todo1, child1, todo2]
-    const options = makeOptions({
-      todos: todosWithChildren,
-      todosByProject: new Map([[10, todosWithChildren]]),
-    })
-    const { result } = renderHook(() => useCanvasDnD(options))
-
-    act(() => {
-      result.current.handleDragStart(makeDragStartEvent(todo1) as any)
-    })
-
-    expect(result.current.activeDragTodo).toEqual(todo1)
-    expect(result.current.multiDragCount).toBe(2) // parent + child
-    expect(result.current.dragGroupIds).toEqual(new Set([child1.id]))
-  })
-
   it('uses selected todos for multi-drag when multiple selected', () => {
     useUIStore.setState({ selectedTodoIds: new Set([1, 2]) })
 
@@ -215,11 +197,9 @@ describe('useCanvasDnD — handleDragEnd state reset', () => {
     })
 
     expect(result.current.activeDragTodo).toBeNull()
-    expect(result.current.activeDragChildren).toEqual([])
     expect(result.current.multiDragCount).toBe(0)
     expect(result.current.dragExpandedProjectId).toBeNull()
     expect(result.current.insertTodoId).toBeNull()
-    expect(result.current.insertIndentLevel).toBe(0)
     expect(result.current.insertAtEnd).toBe(false)
     expect(result.current.insertProjectId).toBeNull()
     expect(result.current.dragGroupIds).toBeNull()
@@ -265,11 +245,9 @@ describe('useCanvasDnD — handleDragCancel (C1 fix)', () => {
     })
 
     expect(result.current.activeDragTodo).toBeNull()
-    expect(result.current.activeDragChildren).toEqual([])
     expect(result.current.multiDragCount).toBe(0)
     expect(result.current.dragExpandedProjectId).toBeNull()
     expect(result.current.insertTodoId).toBeNull()
-    expect(result.current.insertIndentLevel).toBe(0)
     expect(result.current.insertAtEnd).toBe(false)
     expect(result.current.insertProjectId).toBeNull()
     expect(result.current.dragGroupIds).toBeNull()
@@ -310,56 +288,6 @@ describe('useCanvasDnD — handleDragCancel (C1 fix)', () => {
     })
 
     expect(applyMutations).not.toHaveBeenCalled()
-  })
-})
-
-// ─── handleDragStart — multi-select child inclusion (H1 fix) ────────
-
-describe('useCanvasDnD — multi-select includes children (H1 fix)', () => {
-  it('includes children of selected parents in multi-drag set', () => {
-    const parent1 = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
-    const child1a = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 2 })
-    const parent2 = makeTodo({ id: 2, projectId: 10, sortOrder: 3 })
-    const todosWithChildren = [parent1, child1a, parent2]
-
-    useUIStore.setState({ selectedTodoIds: new Set([1, 2]) })
-
-    const options = makeOptions({
-      todos: todosWithChildren,
-      todosByProject: new Map([[10, todosWithChildren]]),
-    })
-    const { result } = renderHook(() => useCanvasDnD(options))
-
-    act(() => {
-      result.current.handleDragStart(makeDragStartEvent(parent1) as any)
-    })
-
-    // multiDragCount should include children: parent1 + child1a + parent2 = 3
-    expect(result.current.multiDragCount).toBe(3)
-    // dragGroupIds should include all except the active drag todo
-    expect(result.current.dragGroupIds).toEqual(new Set([2, 3]))
-  })
-
-  it('does not duplicate children already in selection', () => {
-    const parent1 = makeTodo({ id: 1, projectId: 10, sortOrder: 1 })
-    const child1a = makeTodo({ id: 3, projectId: 10, parentId: 1, sortOrder: 2 })
-    const todosWithChildren = [parent1, child1a]
-
-    // Both parent and child explicitly selected
-    useUIStore.setState({ selectedTodoIds: new Set([1, 3]) })
-
-    const options = makeOptions({
-      todos: todosWithChildren,
-      todosByProject: new Map([[10, todosWithChildren]]),
-    })
-    const { result } = renderHook(() => useCanvasDnD(options))
-
-    act(() => {
-      result.current.handleDragStart(makeDragStartEvent(parent1) as any)
-    })
-
-    // Should still be 2 (no duplicates)
-    expect(result.current.multiDragCount).toBe(2)
   })
 })
 

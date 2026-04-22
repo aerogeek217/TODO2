@@ -42,7 +42,6 @@ interface UIState {
   hoveredTodoId: number | null
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
-  collapsedParents: Set<number>
   /** What the List view groups tasks by. `'none'` = flat list. */
   listGroupBy: ListGroupBy
   /** How the List view sorts tasks within each group (or across all when ungrouped). */
@@ -77,7 +76,6 @@ interface UIState {
   openEditPopup: (todoId: number) => void
   openCreatePopup: () => void
   closeEditPopup: () => void
-  toggleCollapseParent: (todoId: number) => void
   setListGroupBy: (groupBy: ListGroupBy) => void
   setListSortBy: (sortBy: ListItemSortBy) => void
   triggerInlineCreate: (afterTodoId: number) => void
@@ -105,7 +103,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   hoveredTodoId: null,
   editPopupMode: null,
   bulkConfirmation: null,
-  collapsedParents: new Set<number>(),
   listGroupBy: 'date' as ListGroupBy,
   listSortBy: 'manual' as ListItemSortBy,
   inlineCreateAfterId: null,
@@ -203,16 +200,6 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setListSortBy(sortBy: ListItemSortBy) {
     set({ listSortBy: sortBy })
-  },
-
-  toggleCollapseParent(todoId: number) {
-    const next = new Set(get().collapsedParents)
-    if (next.has(todoId)) {
-      next.delete(todoId)
-    } else {
-      next.add(todoId)
-    }
-    set({ collapsedParents: next })
   },
 
   triggerInlineCreate(afterTodoId: number) {

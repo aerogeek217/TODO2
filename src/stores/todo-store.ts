@@ -433,7 +433,6 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       if (todo) {
         const prev: Partial<PersistedTodoItem> = {}
         if ('projectId' in m.changes) prev.projectId = todo.projectId
-        if ('parentId' in m.changes) prev.parentId = todo.parentId
         if ('sortOrder' in m.changes) prev.sortOrder = todo.sortOrder
         prevState.set(m.todoId, prev)
       }

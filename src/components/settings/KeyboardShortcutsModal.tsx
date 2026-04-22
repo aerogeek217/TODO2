@@ -70,18 +70,6 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
             <span className={settingsStyles.shortcutDesc}>Create task below selected</span>
           </div>
 
-          <div className={settingsStyles.shortcutCategory}>Task Organization</div>
-          <div className={settingsStyles.shortcutGrid}>
-            <span className={settingsStyles.shortcutKey}>Ctrl+Up / Down</span>
-            <span className={settingsStyles.shortcutDesc}>Move task up / down</span>
-            <span className={settingsStyles.shortcutKey}>Tab</span>
-            <span className={settingsStyles.shortcutDesc}>Indent task (make child)</span>
-            <span className={settingsStyles.shortcutKey}>Shift+Tab</span>
-            <span className={settingsStyles.shortcutDesc}>Outdent task (promote)</span>
-            <span className={settingsStyles.shortcutKey}>Ctrl+] / [</span>
-            <span className={settingsStyles.shortcutDesc}>Indent / Outdent (alias)</span>
-          </div>
-
           <div className={settingsStyles.shortcutCategory}>Notes</div>
           <div className={settingsStyles.shortcutGrid}>
             <span className={settingsStyles.shortcutKey}>{convertShortcut}</span>
