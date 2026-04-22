@@ -50,27 +50,83 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     else onCancel()
   }, editing)
 
-  // Use useLayoutEffect so focus is applied synchronously after the DOM
-  // commit — prevents the brief focus-on-body gap when this InsertTrigger
-  // becomes editing immediately after a sibling's input unmounted (the
-  // Enter-chain scenario). useEffect would fire after paint, losing the first
-  // keystroke.
+  // Enter-chain focus: when this trigger becomes `editing` right after a
+  // sibling's input unmounted (user pressed Enter in the previous trigger),
+  // we need to land focus on OUR input and hold it there. Prior attempts tried
+  // useLayoutEffect + rAF — that covers the same-frame race but misses two
+  // real-browser failure modes seen in Edge/Chrome:
+  //   1. React Flow's ResizeObserver fires after the ProjectNode grows for the
+  //      new task row. Its callback dispatches a store update → CanvasView
+  //      re-renders and walks back through ProjectNode. Depending on browser
+  //      scheduling, that can run AFTER our rAF reclaim, briefly snapping focus
+  //      back to document.body between the paint and the next user input.
+  //   2. The OLD input's blur event handler (set up by its own onBlur before
+  //      unmount) fires on a 150ms timer. It early-returns via committedRef
+  //      but the browser still flushes the blur through the focus queue, and
+  //      in rare cases the focus-reclaim hasn't been honored yet when the user
+  //      starts typing.
+  // Robust fix: aggressive, low-cost retries at escalating deadlines AND a
+  // short-window focusout reclaim. We only reclaim if focus went to body/null
+  // (i.e. "nothing took it") — never fight a real focus target.
   useLayoutEffect(() => {
-    if (editing) {
-      titleRef.current = ''
-      committedRef.current = false
-      inputRef.current?.focus()
-      // Belt-and-suspenders: if another commit (e.g. the old trigger's unmount)
-      // steals focus back to body after this layout effect, reclaim it on the
-      // next frame.
-      const raf = requestAnimationFrame(() => {
-        if (inputRef.current && document.activeElement !== inputRef.current) {
-          inputRef.current.focus()
-        }
-      })
-      return () => cancelAnimationFrame(raf)
-    } else {
+    if (!editing) {
       ac.dismiss()
+      return
+    }
+    titleRef.current = ''
+    committedRef.current = false
+    const input = inputRef.current
+    if (!input) return
+    let cancelled = false
+
+    const reclaim = () => {
+      // Don't fight dismissal. `committedRef` flips true when the user
+      // commits (Enter) or click-outside fires — either way the trigger is
+      // on its way out and we must not force focus back.
+      if (cancelled || committedRef.current || !inputRef.current) return
+      const active = document.activeElement
+      if (active === inputRef.current) return
+      // Only reclaim when focus has nowhere else to go. If a user clicked
+      // another real control (button, menu, another input), leave it alone.
+      if (active === null || active === document.body) {
+        inputRef.current.focus()
+      }
+    }
+
+    input.focus()
+    // Retry schedule spans sync post-commit (rAF) through the settle window
+    // (~300ms) where async store publishes and ResizeObserver work typically
+    // finish. Each retry is a no-op if focus already landed — the cost is a
+    // handful of document.activeElement reads.
+    const raf = requestAnimationFrame(reclaim)
+    const t0 = setTimeout(reclaim, 0)
+    const t1 = setTimeout(reclaim, 50)
+    const t2 = setTimeout(reclaim, 150)
+    const t3 = setTimeout(reclaim, 300)
+
+    // Additionally reclaim on focusout for the first 400ms. This catches the
+    // exact moment a stray blur fires after our retries finish but before the
+    // user types. Scoped to the input via capture listener on the element.
+    const onFocusOut = (e: FocusEvent) => {
+      // relatedTarget === null means focus moved to nowhere (body). If it
+      // moved to another focusable element, honor that.
+      if (e.relatedTarget === null || e.relatedTarget === document.body) {
+        // Defer one tick so we don't race with whatever event caused the blur.
+        queueMicrotask(reclaim)
+      }
+    }
+    input.addEventListener('focusout', onFocusOut)
+    const offFocusOut = setTimeout(() => input.removeEventListener('focusout', onFocusOut), 400)
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+      clearTimeout(t0)
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      clearTimeout(offFocusOut)
+      input.removeEventListener('focusout', onFocusOut)
     }
   }, [editing])
 
