@@ -18,11 +18,9 @@ import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { bySortOrder } from '../utils/sort-order'
-import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
 import {
-  TASK_DRAG_KIND,
   TASK_DROP_KIND,
-  parseTaskboardEntryId,
+  dispatchTaskDrop,
 } from '../utils/task-dnd'
 
 interface UseCanvasDnDOptions {
@@ -437,75 +435,17 @@ export function useCanvasDnD({
       const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
       if (!activeTodo) return
 
-      const activeType = active.data.current?.type
+      // Shared taskboard branches (entry reorder / remove on drop-off / add
+      // external task). Returns true when the drop was consumed; returns
+      // false when there's no taskboard involvement and we should continue
+      // into the project-placement resolver below.
+      const handled = await dispatchTaskDrop(event, {
+        taskboard: useTaskboardStore.getState(),
+        multiDragIds: dragIds,
+      })
+      if (handled) return
+
       const overData = over?.data.current
-
-      // ── Taskboard entry being dragged ──
-      if (activeType === TASK_DRAG_KIND.taskboardTask) {
-        const tbState = useTaskboardStore.getState()
-
-        if (overData?.type === TASK_DROP_KIND.taskboardTask) {
-          const entries = tbState.getEntries()
-          const fromIndex = entries.findIndex(e => e.todoId === activeTodo.id)
-          const overEntryId = overData.entryId as string
-          const overTodoId = parseTaskboardEntryId(overEntryId)?.todoId ?? NaN
-          const toIndex = entries.findIndex(e => e.todoId === overTodoId)
-          if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-            await tbState.reorder(fromIndex, toIndex)
-          }
-          return
-        }
-
-        if (overData?.type === TASK_DROP_KIND.taskboard) {
-          const entries = tbState.getEntries()
-          const fromIndex = entries.findIndex(e => e.todoId === activeTodo.id)
-          if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
-            await tbState.reorder(fromIndex, entries.length - 1)
-          }
-          return
-        }
-
-        // Dropped anywhere else → remove from the singleton board.
-        if (tbState.has(activeTodo.id)) {
-          await tbState.removeEntry(activeTodo.id)
-        }
-        return
-      }
-
-      // Dropped onto the taskboard — add task(s) at drop position.
-      //
-      // Both entry-level (`taskboard-task`) and panel-level (`taskboard`)
-      // drops carry `panelId` in their drag data and compute the insertion
-      // index from the same translated-rect center as TaskboardPanel /
-      // TaskboardNode's indicator, so the drop lands where the indicator
-      // showed it. `computeTaskboardFullInsertIndex` maps the visible row
-      // back to its slot in the full entries array — addAt operates on the
-      // full array, so passing a visible index would land too high when
-      // hidden / completed entries sit above the drop.
-      if (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask) {
-        const tbState = useTaskboardStore.getState()
-        if (!tbState.board) await tbState.ensureLoaded()
-
-        const translated = active.rect.current.translated
-        const initial = active.rect.current.initial
-        let pointerY = 0
-        if (translated) pointerY = translated.top + translated.height / 2
-        else if (initial) pointerY = initial.top + initial.height / 2 + delta.y
-
-        const panelId = (overData.panelId as string | undefined) ?? null
-        const entries = tbState.getEntries()
-        const targetIndex = panelId
-          ? computeTaskboardFullInsertIndex(panelId, pointerY, entries)
-          : entries.length
-
-        if (dragIds) {
-          await tbState.addMultipleAt([...dragIds], targetIndex)
-        } else {
-          await tbState.addAt(activeTodo.id, targetIndex)
-        }
-        return
-      }
-
       const rawOverType: 'task' | 'project' | null = overData?.type === TASK_DROP_KIND.task ? 'task'
         : overData?.type === TASK_DROP_KIND.project ? 'project'
         : null

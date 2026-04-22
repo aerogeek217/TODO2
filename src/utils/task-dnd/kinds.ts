@@ -1,24 +1,19 @@
 /**
  * Canonical `data.type` strings for task-shaped drag payloads.
  *
- * There are four kinds today. Phase 4 of the DnD unification plan will reduce
- * the three "this is a task from surface X" aliases (`task`, `list-task`,
- * `dashboard-task`) to a single `'task'` with a separate `surface` field in
- * the payload; `'taskboard-task'` stays distinct because its drop-off-target
- * behavior (remove from board) differs from a plain task.
- *
- * Until that consolidation lands, emit these constants instead of literal
- * strings so one file owns the vocabulary.
+ * Phase 4 of the DnD unification collapsed the three "this is a task from
+ * surface X" aliases (`task`, `list-task`, `dashboard-task`) into a single
+ * `'task'` — every surface that drags a plain task row now emits that kind,
+ * and the `surface` field on the id plus any extras in `data` distinguish
+ * where the drag came from. `'taskboard-task'` stays separate because its
+ * drop-off-target behavior (remove from board) genuinely differs from a plain
+ * task drop.
  */
 export const TASK_DRAG_KIND = {
-  /** Canvas project rows, inset, lens, and any future "generic task" source. */
+  /** Any draggable task row — canvas project, inset, lens, list, dashboard. */
   task: 'task',
   /** Taskboard entry (singleton panel or floating node) — drop-off removes. */
   taskboardTask: 'taskboard-task',
-  /** Dashboard task row — current behavior matches `task` but routes via the dashboard DndContext. */
-  dashboardTask: 'dashboard-task',
-  /** ListView task row — section-reassignment intent, not reorder. */
-  listTask: 'list-task',
 } as const
 
 export type TaskDragKind = typeof TASK_DRAG_KIND[keyof typeof TASK_DRAG_KIND]
@@ -48,10 +43,5 @@ export type TaskDropKind = typeof TASK_DROP_KIND[keyof typeof TASK_DROP_KIND]
 
 /** True when a `data.type` value marks a task-shaped drag payload. */
 export function isTaskDragKind(v: unknown): v is TaskDragKind {
-  return (
-    v === TASK_DRAG_KIND.task
-    || v === TASK_DRAG_KIND.taskboardTask
-    || v === TASK_DRAG_KIND.dashboardTask
-    || v === TASK_DRAG_KIND.listTask
-  )
+  return v === TASK_DRAG_KIND.task || v === TASK_DRAG_KIND.taskboardTask
 }

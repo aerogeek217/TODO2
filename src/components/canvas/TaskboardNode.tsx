@@ -4,7 +4,6 @@ import { useDroppable, useDndMonitor, type DragMoveEvent } from '@dnd-kit/core'
 import {
   SortableContext,
   verticalListSortingStrategy,
-  useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem, Person, FloatingTaskboard, TaskboardEntry } from '../../models'
@@ -14,11 +13,11 @@ import { useCanvasStore } from '../../stores/canvas-store'
 import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
 import { TaskRow } from '../task/TaskRow'
+import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { convertFloatingKind } from '../../services/float-kind-switch'
 import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
-import { computeTaskboardInsertIndex } from '../../utils/taskboard-insert'
 import {
   TASK_DRAG_KIND,
   TASK_DROP_KIND,
@@ -48,9 +47,9 @@ export interface TaskboardNodeData {
 type TaskboardNodeType = TaskboardNodeData
 
 function SortableTaskboardEntry({
-  entryId, panelId, index, todo, assignedPeople, ghost, onOpenDetail,
+  floatingId, panelId, index, todo, assignedPeople, ghost, onOpenDetail,
 }: {
-  entryId: string
+  floatingId: number
   panelId: string
   index: number
   todo: PersistedTodoItem
@@ -58,19 +57,34 @@ function SortableTaskboardEntry({
   ghost?: boolean
   onOpenDetail?: (todoId: number) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: entryId,
-    data: { type: TASK_DRAG_KIND.taskboardTask, todo, entryId, panelId },
-  })
-  const style = { transform: CSS.Transform.toString(transform), transition }
-
   return (
-    <div ref={setNodeRef} style={style} data-tbp-entry data-todo-id={todo.id} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
-      <span className={styles.orderNumber}>{index + 1}</span>
-      <div className={styles.taskWrapper}>
-        <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} onTaskboard />
-      </div>
-    </div>
+    <SortableTaskDraggable
+      todo={todo}
+      surface="taskboard-float"
+      floatingId={floatingId}
+      kind={TASK_DRAG_KIND.taskboardTask}
+      extraData={{ panelId }}
+    >
+      {({ attributes, listeners, setNodeRef, transform, transition, isDragging }) => {
+        const style = { transform: CSS.Transform.toString(transform), transition }
+        return (
+          <div
+            ref={setNodeRef}
+            style={style}
+            data-tbp-entry
+            data-todo-id={todo.id}
+            className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`}
+            {...attributes}
+            {...listeners}
+          >
+            <span className={styles.orderNumber}>{index + 1}</span>
+            <div className={styles.taskWrapper}>
+              <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} onTaskboard />
+            </div>
+          </div>
+        )
+      }}
+    </SortableTaskDraggable>
   )
 }
 
@@ -149,6 +163,11 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     [visibleEntries, floatingId],
   )
 
+  // Ref-synced view of `visibleEntries` so `onDragMove` can append without
+  // re-registering with `useDndMonitor` when the list changes.
+  const visibleEntriesRef = useRef<TaskboardEntry[]>([])
+  visibleEntriesRef.current = visibleEntries
+
   const onDragMove = useCallback((event: DragMoveEvent) => {
     const activeType = event.active.data.current?.type
     if (activeType === TASK_DRAG_KIND.taskboardTask) {
@@ -167,14 +186,15 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     setIsExternalDragOver(belongs)
     if (!belongs) { setTbInsertIndex(null); return }
 
-    // Translated-rect center as the Y reference — same source as the drop
-    // handler in use-canvas-dnd so indicator + drop stay in lockstep.
-    const translated = event.active.rect.current.translated
-    const initial = event.active.rect.current.initial
-    let pointerY = 0
-    if (translated) pointerY = translated.top + translated.height / 2
-    else if (initial) pointerY = initial.top + initial.height / 2 + event.delta.y
-    setTbInsertIndex(computeTaskboardInsertIndex(droppableId, pointerY))
+    // Insertion index comes straight from dnd-kit's sortable data — Phase 6
+    // of the DnD unification replaced the DOM scan here with the shared
+    // sortable context so indicator + drop share a single source of truth.
+    if (overData?.type === TASK_DROP_KIND.taskboardTask) {
+      const sortable = overData.sortable as { index?: number } | undefined
+      setTbInsertIndex(typeof sortable?.index === 'number' ? sortable.index : visibleEntriesRef.current.length)
+    } else {
+      setTbInsertIndex(visibleEntriesRef.current.length)
+    }
   }, [droppableId])
 
   const onDragClear = useCallback(() => {
@@ -239,7 +259,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                 <Fragment key={entry.todoId}>
                   {effectiveInsertIndex === i && <DropIndicator kind="line" />}
                   <SortableTaskboardEntry
-                    entryId={taskDragId('taskboard-float', entry.todoId, { floatingId })}
+                    floatingId={floatingId}
                     panelId={droppableId}
                     index={i}
                     todo={todo}

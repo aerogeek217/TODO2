@@ -31,3 +31,9 @@ export {
   type TaskCollisionAlgorithm,
   type CollisionActive,
 } from './collision'
+
+export {
+  dispatchTaskDrop,
+  type TaskDropDispatchDeps,
+  type TaskboardOps,
+} from './dispatch'

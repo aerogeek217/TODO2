@@ -5,7 +5,6 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  useDraggable,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
@@ -16,6 +15,7 @@ import {
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { TaskDraggable } from '../components/task/dnd/TaskDraggable'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
@@ -24,14 +24,11 @@ import { useUIStore } from '../stores/ui-store'
 import { matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
-import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
 import {
   TASK_DRAG_KIND,
-  TASK_DROP_KIND,
   TASKBOARD_SINGLETON_DROP_ID,
   buildTaskCollision,
-  parseTaskboardEntryId,
-  taskDragId,
+  dispatchTaskDrop,
 } from '../utils/task-dnd'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
@@ -71,15 +68,14 @@ function DashboardDraggableRow({
   listKey: string
   children: React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: taskDragId('dashboard', todo.id, { listKey }),
-    data: { type: TASK_DRAG_KIND.dashboardTask, todo },
-  })
-
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.4 : 1 }}>
-      {children}
-    </div>
+    <TaskDraggable todo={todo} surface="dashboard" listKey={listKey}>
+      {({ attributes, listeners, setNodeRef, isDragging }) => (
+        <div ref={setNodeRef} {...attributes} {...listeners} style={{ opacity: isDragging ? 0.4 : 1 }}>
+          {children}
+        </div>
+      )}
+    </TaskDraggable>
   )
 }
 
@@ -370,7 +366,7 @@ export function DashboardView() {
   const { assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
-  const { load: loadTaskboard, ensureLoaded: ensureTaskboardLoaded } = useTaskboardStore()
+  const { load: loadTaskboard } = useTaskboardStore()
   const { listDefinitions, load: loadDefinitions } = useListDefinitionStore()
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
   const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
@@ -414,7 +410,11 @@ export function DashboardView() {
       algorithm: 'closestCenter',
     },
     {
-      when: (active) => active.data.type === TASK_DRAG_KIND.dashboardTask,
+      // Dashboard row → singleton taskboard. Dashboard rows now emit the
+      // canonical `TASK_DRAG_KIND.task` (Phase 4 of the DnD unification); this
+      // rule still scopes their collision to the taskboard's drop zone because
+      // the dashboard `DndContext` hosts no other `task`-shaped drag sources.
+      when: (active) => active.data.type === TASK_DRAG_KIND.task,
       accept: (id) => typeof id === 'string' && id.startsWith(TASKBOARD_SINGLETON_DROP_ID),
       algorithm: 'closestCenter',
     },
@@ -444,57 +444,14 @@ export function DashboardView() {
     const activeId = event.active.id
     const overId = event.over?.id
 
-    const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
-    const activeType = event.active.data.current?.type
-    const overData = event.over?.data.current
-
-    // Taskboard entry being dragged — reorder within the board or remove on
-    // drop outside. Mirrors the branch in `use-canvas-dnd.ts` so dashboard-
-    // panel reorder / remove matches the rail-docked + floating behavior.
-    if (activeType === TASK_DRAG_KIND.taskboardTask && todo) {
-      const tbState = useTaskboardStore.getState()
-      if (overData?.type === TASK_DROP_KIND.taskboardTask) {
-        const entries = tbState.getEntries()
-        const fromIndex = entries.findIndex((e) => e.todoId === todo.id)
-        const overEntryId = overData.entryId as string
-        const overTodoId = parseTaskboardEntryId(overEntryId)?.todoId ?? NaN
-        const toIndex = entries.findIndex((e) => e.todoId === overTodoId)
-        if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-          await tbState.reorder(fromIndex, toIndex)
-        }
-        return
-      }
-      if (overData?.type === TASK_DROP_KIND.taskboard) {
-        const entries = tbState.getEntries()
-        const fromIndex = entries.findIndex((e) => e.todoId === todo.id)
-        if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
-          await tbState.reorder(fromIndex, entries.length - 1)
-        }
-        return
-      }
-      // Dropped outside any taskboard target → remove from the board.
-      if (tbState.has(todo.id)) await tbState.removeEntry(todo.id)
-      return
-    }
-
-    // External task → taskboard drop (e.g. dashboard-task from horizon cards)
-    if (todo && (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask)) {
-      await ensureTaskboardLoaded()
-      const tbState = useTaskboardStore.getState()
-      const panelId = (overData.panelId as string | undefined) ?? null
-      const entries = tbState.getEntries()
-      let targetIndex = entries.length
-      if (panelId) {
-        const translated = event.active.rect.current.translated
-        const initialRect = event.active.rect.current.initial
-        let pointerY = 0
-        if (translated) pointerY = translated.top + translated.height / 2
-        else if (initialRect) pointerY = initialRect.top + initialRect.height / 2 + event.delta.y
-        targetIndex = computeTaskboardFullInsertIndex(panelId, pointerY, entries)
-      }
-      await tbState.addAt(todo.id, targetIndex)
-      return
-    }
+    // Shared taskboard branches (entry reorder / remove on drop-off / add
+    // external task). Mirrors the canvas handler so dashboard-panel reorder +
+    // dashboard-card → taskboard additions match the rail-docked / floating
+    // behavior. Returns true when the drop was handled.
+    const handled = await dispatchTaskDrop(event, {
+      taskboard: useTaskboardStore.getState(),
+    })
+    if (handled) return
 
     if (overId == null || activeId === overId) return
 
@@ -527,7 +484,7 @@ export function DashboardView() {
         await setDashboardUserLists(next)
       }
     }
-  }, [dashboardTopOrder, setDashboardTopOrder, setDashboardUserLists, ensureTaskboardLoaded])
+  }, [dashboardTopOrder, setDashboardTopOrder, setDashboardUserLists])
 
   useEffect(() => {
     loadAll()

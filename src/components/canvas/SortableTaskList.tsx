@@ -1,15 +1,13 @@
 import { useMemo, useContext, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  SortableContext,
-  useSortable,
-} from '@dnd-kit/sortable'
+import { SortableContext } from '@dnd-kit/sortable'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { TaskRow } from '../task/TaskRow'
+import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { bySortOrder } from '../../utils/sort-order'
-import { TASK_DRAG_KIND, taskDragId } from '../../utils/task-dnd'
+import { taskDragId } from '../../utils/task-dnd'
 import { DropIndicator } from '../shared/DropIndicator'
 import { DragInsertContext, DragPreviewContext } from './DragInsertContext'
 import { InsertTrigger } from './InsertTrigger'
@@ -45,38 +43,31 @@ function SortableTaskRow({
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    isDragging,
-  } = useSortable({
-    id: taskDragId('canvas-project', todo.id),
-    data: { type: TASK_DRAG_KIND.task, todo },
-    disabled: disabledDrop || ghost,
-  })
-
-  if (isDragging) {
-    return (
-      <div ref={setNodeRef} style={{ outline: 'none' }} {...attributes} {...listeners}>
-        <div className={styles.dragPlaceholder} />
-      </div>
-    )
-  }
-
   return (
-    <div ref={setNodeRef} style={{ outline: 'none' }} {...attributes} {...listeners}>
-      <TaskRow
-        todo={todo}
-        assignedPeople={assignedPeople}
-        isSelected={isSelected}
-        ghost={ghost}
-        cut={cut}
-        onSelect={onSelect}
-        onOpenDetail={onOpenDetail}
-        compact
-      />
-    </div>
+    <SortableTaskDraggable
+      todo={todo}
+      surface="canvas-project"
+      disabled={disabledDrop || ghost}
+    >
+      {({ attributes, listeners, setNodeRef, isDragging }) => (
+        <div ref={setNodeRef} style={{ outline: 'none' }} {...attributes} {...listeners}>
+          {isDragging ? (
+            <div className={styles.dragPlaceholder} />
+          ) : (
+            <TaskRow
+              todo={todo}
+              assignedPeople={assignedPeople}
+              isSelected={isSelected}
+              ghost={ghost}
+              cut={cut}
+              onSelect={onSelect}
+              onOpenDetail={onOpenDetail}
+              compact
+            />
+          )}
+        </div>
+      )}
+    </SortableTaskDraggable>
   )
 }
 

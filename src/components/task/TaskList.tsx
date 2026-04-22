@@ -1,12 +1,11 @@
 import { useMemo, useCallback, useRef } from 'react'
-import { useDraggable } from '@dnd-kit/core'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { bySortOrder } from '../../utils/sort-order'
-import { TASK_DRAG_KIND, taskDragId } from '../../utils/task-dnd'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { TaskRow } from './TaskRow'
 import { MobileTaskRow } from './MobileTaskRow'
+import { TaskDraggable } from './dnd/TaskDraggable'
 import styles from './TaskList.module.css'
 
 interface TaskListProps {
@@ -32,23 +31,14 @@ function DraggableRow({
   sectionKey: string
   children: React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: taskDragId('list', todo.id),
-    data: { type: TASK_DRAG_KIND.listTask, todo, sectionKey },
-  })
-
-  if (isDragging) {
-    return (
-      <div ref={setNodeRef} {...attributes} {...listeners}>
-        <div className={styles.dragPlaceholder} />
-      </div>
-    )
-  }
-
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners}>
-      {children}
-    </div>
+    <TaskDraggable todo={todo} surface="list" extraData={{ sectionKey }}>
+      {({ attributes, listeners, setNodeRef, isDragging }) => (
+        <div ref={setNodeRef} {...attributes} {...listeners}>
+          {isDragging ? <div className={styles.dragPlaceholder} /> : children}
+        </div>
+      )}
+    </TaskDraggable>
   )
 }
 
