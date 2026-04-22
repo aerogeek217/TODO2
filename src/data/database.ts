@@ -205,6 +205,17 @@ export class Todo2Database extends Dexie {
       .upgrade(async (tx) => {
         await runV33Migration(tx)
       })
+
+    // v34: flatten — remove parent-child hierarchy. Restate the todos schema
+    // string without `parentId` so Dexie drops the index; walk every row and
+    // delete the `parentId` key.
+    this.version(34)
+      .stores({
+        todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId',
+      })
+      .upgrade(async (tx) => {
+        await runV34Migration(tx)
+      })
   }
 }
 
@@ -1205,4 +1216,20 @@ export async function runV31Migration(tx: Transaction): Promise<void> {
     }
   })
   if (stripped > 0) console.info(`v31 migration: stripped color from ${stripped} person row(s)`)
+}
+
+/**
+ * v34 upgrade: flatten — delete `parentId` from every todo row. The schema
+ * string dropped the matching index; this pass clears the data. One-way:
+ * existing parent-child links are lost.
+ */
+export async function runV34Migration(tx: Transaction): Promise<void> {
+  let stripped = 0
+  await tx.table('todos').toCollection().modify((row: Record<string, unknown>) => {
+    if ('parentId' in row) {
+      delete row.parentId
+      stripped++
+    }
+  })
+  if (stripped > 0) console.info(`v34 migration: stripped parentId from ${stripped} todo row(s)`)
 }

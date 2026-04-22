@@ -113,15 +113,6 @@ describe('auditData', () => {
     expect(issue.fix).toBe('clear-field')
   })
 
-  it('detects todos with deleted parentId', async () => {
-    const { todoId } = await seedBase()
-    await db.todos.update(todoId, { parentId: 999 })
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'todos' && i.field === 'parentId')!
-    expect(issue.count).toBe(1)
-  })
-
   it('detects todos with deleted canvasId', async () => {
     await db.todos.add(makeTodo({ canvasId: 999 }) as any)
 
@@ -268,17 +259,6 @@ describe('cleanupIssues', () => {
     expect(todo!.title).toBe('Test todo')
   })
 
-  it('clears dangling parentId on todos', async () => {
-    const { todoId } = await seedBase()
-    await db.todos.update(todoId, { parentId: 999 })
-
-    const report = await auditData()
-    await cleanupIssues(report.issues)
-
-    const todo = await db.todos.get(todoId)
-    expect(todo!.parentId).toBeUndefined()
-  })
-
   it('deletes orphaned listInsets and floating notes', async () => {
     await db.listInsets.add({ canvasId: 999, preset: 'due-this-week', x: 0, y: 0, width: 200, height: 200 } as any)
     await db.floatingNotes.add({ canvasId: 999, x: 0, y: 0, width: 150, height: 150 } as any)
@@ -316,7 +296,7 @@ describe('cleanupIssues', () => {
     await db.personOrgs.add({ personId: 999, orgId: 888 })
     await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
     // No canvasId so clearing dangling projectId won't create a new unplaced-task issue
-    await db.todos.add(makeTodo({ projectId: 777, parentId: 666 }) as any)
+    await db.todos.add(makeTodo({ projectId: 777 }) as any)
 
     const report = await auditData()
     expect(report.totalOrphans).toBeGreaterThan(0)

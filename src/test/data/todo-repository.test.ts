@@ -90,13 +90,4 @@ describe('todoRepository', () => {
     const todo = await todoRepository.getById(id)
     expect(todo!.sortOrder).toBe(5)
   })
-
-  it('getSubTasks returns children of a parent', async () => {
-    const parentId = await todoRepository.insert(makeTodo({ title: 'Parent' }))
-    await todoRepository.insert(makeTodo({ title: 'Child 1', parentId }))
-    await todoRepository.insert(makeTodo({ title: 'Child 2', parentId }))
-
-    const children = await todoRepository.getSubTasks(parentId)
-    expect(children).toHaveLength(2)
-  })
 })

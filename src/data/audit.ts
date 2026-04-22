@@ -137,20 +137,6 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const todosWithBadParent = todos.filter(
-    (t) => t.parentId != null && !todoIds.has(t.parentId),
-  )
-  if (todosWithBadParent.length > 0) {
-    issues.push({
-      table: 'todos',
-      description: 'Todos referencing deleted parent todos',
-      count: todosWithBadParent.length,
-      ids: todosWithBadParent.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'parentId',
-    })
-  }
-
   const todosWithBadCanvas = todos.filter(
     (t) => t.canvasId != null && !canvasIds.has(t.canvasId),
   )

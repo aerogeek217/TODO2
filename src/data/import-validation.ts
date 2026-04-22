@@ -142,7 +142,6 @@ function checkTodo(v: unknown): CheckResult {
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['projectId', isOptNum(v.projectId)],
     ['canvasId', isOptNum(v.canvasId)],
-    ['parentId', isOptNum(v.parentId)],
     ['statusId', isOptNum(v.statusId)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
   ])
@@ -759,7 +758,6 @@ function pickTodo(v: Record<string, unknown>): TodoItem {
     ...(v.recurrenceRule != null ? { recurrenceRule: v.recurrenceRule as RecurrenceRule } : {}),
     ...(v.projectId != null ? { projectId: v.projectId as number } : {}),
     ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
-    ...(v.parentId != null ? { parentId: v.parentId as number } : {}),
     ...(v.statusId != null ? { statusId: v.statusId as number } : {}),
     // Legacy fields preserved so restore can translate them. Post-restore translation deletes them.
     ...(v.priority != null ? { priority: v.priority } : {}),

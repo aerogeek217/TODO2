@@ -35,10 +35,6 @@ export const todoRepository = {
       .sortBy('dueDate') as Promise<PersistedTodoItem[]>
   },
 
-  async getSubTasks(parentId: number): Promise<PersistedTodoItem[]> {
-    return db.todos.where('parentId').equals(parentId).sortBy('sortOrder') as Promise<PersistedTodoItem[]>
-  },
-
   async getById(id: number): Promise<PersistedTodoItem | undefined> {
     return db.todos.get(id) as Promise<PersistedTodoItem | undefined>
   },
@@ -79,11 +75,6 @@ export const todoRepository = {
 
   async delete(id: number): Promise<void> {
     await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboards], async () => {
-      // Clear parentId on children so they don't become orphaned
-      const children = await db.todos.where('parentId').equals(id).toArray()
-      for (const child of children) {
-        await db.todos.update(child.id!, { parentId: undefined })
-      }
       await db.todoPeople.where('todoId').equals(id).delete()
       await db.todoOrgs.where('todoId').equals(id).delete()
       await stripTodoFromTaskboards([id])
@@ -95,10 +86,6 @@ export const todoRepository = {
     if (ids.length === 0) return
     await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboards], async () => {
       for (const id of ids) {
-        const children = await db.todos.where('parentId').equals(id).toArray()
-        for (const child of children) {
-          await db.todos.update(child.id!, { parentId: undefined })
-        }
         await db.todoPeople.where('todoId').equals(id).delete()
         await db.todoOrgs.where('todoId').equals(id).delete()
         await db.todos.delete(id)
