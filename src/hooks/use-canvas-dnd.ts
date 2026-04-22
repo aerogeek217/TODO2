@@ -525,40 +525,39 @@ export function useCanvasDnD({
         return
       }
 
-      // Dropped onto the taskboard — add task(s) at drop position
+      // Dropped onto the taskboard — add task(s) at drop position.
+      //
+      // Both entry-level (`taskboard-task`) and panel-level (`taskboard`) drops
+      // compute the insertion index from the same translated-rect center,
+      // matching the indicator logic in TaskboardPanel / TaskboardNode, so
+      // the drop lands where the indicator showed it.
       if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
         const tbState = useTaskboardStore.getState()
         if (!tbState.board) await tbState.ensureLoaded()
-        const entries = tbState.getEntries()
 
-        let targetIndex = entries.length
-        if (overData?.type === 'taskboard-task') {
-          const overEntryId = overData.entryId as string
-          const overTodoId = Number(overEntryId.split('-').pop())
-          const idx = entries.findIndex(e => e.todoId === overTodoId)
-          if (idx !== -1) {
-            targetIndex = idx
-            const overRect = over?.rect
-            const translated = active.rect.current.translated
-            const initialRect = active.rect.current.initial
-            let activeCenter: number | null = null
-            if (translated) activeCenter = translated.top + translated.height / 2
-            else if (initialRect) activeCenter = initialRect.top + initialRect.height / 2 + delta.y
-            if (activeCenter != null && overRect) {
-              const overCenter = overRect.top + overRect.height / 2
-              if (activeCenter > overCenter) targetIndex++
-            }
-          }
-        } else if (overData?.type === 'taskboard' && typeof over?.id === 'string') {
-          // Panel-level drop (rail-docked TaskboardPanel): compute insertion
-          // from pointer Y vs entry rects so the drop matches the indicator.
-          const translated = active.rect.current.translated
-          const initialRect = active.rect.current.initial
-          let pointerY = 0
-          if (translated) pointerY = translated.top + translated.height / 2
-          else if (initialRect) pointerY = initialRect.top + initialRect.height / 2 + delta.y
-          targetIndex = computeTaskboardInsertIndex(over.id, pointerY)
+        const translated = active.rect.current.translated
+        const initial = active.rect.current.initial
+        let pointerY = 0
+        if (translated) pointerY = translated.top + translated.height / 2
+        else if (initial) pointerY = initial.top + initial.height / 2 + delta.y
+
+        let panelId: string | null = null
+        if (overData?.type === 'taskboard' && typeof over?.id === 'string') {
+          panelId = over.id
+        } else if (overData?.type === 'taskboard-task') {
+          // Resolve the enclosing panel from the entry's DOM so the index
+          // computation targets the right board instance on screen.
+          const entryEl = document.querySelector<HTMLElement>(
+            `[data-tbp-entry][data-entry-id="${overData.entryId}"]`,
+          )
+          const panelEl = entryEl?.closest<HTMLElement>('[data-taskboard-panel-id]') ?? null
+          panelId = panelEl?.dataset.taskboardPanelId ?? null
         }
+
+        const entries = tbState.getEntries()
+        const targetIndex = panelId
+          ? computeTaskboardInsertIndex(panelId, pointerY)
+          : entries.length
 
         if (dragIds) {
           await tbState.addMultipleAt([...dragIds], targetIndex)

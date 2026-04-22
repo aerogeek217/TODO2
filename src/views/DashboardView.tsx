@@ -24,7 +24,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import type { TodoPredicate } from '../models'
 import { useUIStore } from '../stores/ui-store'
-import { useFilterStore, matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../stores/filter-store'
+import { matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { computeTaskboardInsertIndex } from '../utils/taskboard-insert'
@@ -365,8 +365,6 @@ export function DashboardView() {
   const { assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
-  const showHiddenStatuses = useFilterStore((s) => s.filters.showHiddenStatuses)
-  const showCompleted = useFilterStore((s) => s.filters.showCompleted)
   const { load: loadTaskboard, ensureLoaded: ensureTaskboardLoaded } = useTaskboardStore()
   const { listDefinitions, load: loadDefinitions } = useListDefinitionStore()
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
@@ -567,19 +565,14 @@ export function DashboardView() {
 
   // Compute every pinned list's rendered output. Hero and secondary grid both
   // read from this — the ribbon's tasks-by-horizon derives from the same source.
+  // Each definition's predicate is authoritative for showCompleted / showHiddenStatuses.
   const lists = useMemo<DashboardList[]>(() => {
-    const hiddenStatusIds = new Set(
-      statuses.filter((s) => s.hideByDefault).map((s) => s.id!),
-    )
     const pinned = listDefinitions.filter((d) => d.pinnedToDashboard)
     return buildDashboardLists(pinned, todos, {
       today,
-      hiddenStatusIds,
-      showHiddenStatuses,
-      showCompleted,
       evalPredicate,
     })
-  }, [listDefinitions, todos, statuses, showHiddenStatuses, showCompleted, today, evalPredicate])
+  }, [listDefinitions, todos, today, evalPredicate])
 
   const listsById = useMemo(() => {
     const map = new Map<number, DashboardList>()

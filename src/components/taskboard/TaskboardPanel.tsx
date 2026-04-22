@@ -42,7 +42,7 @@ function SortableEntry({ entryId, index, todo, assignedPeople, onOpenDetail }: S
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} data-tbp-entry className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} data-tbp-entry data-entry-id={entryId} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} compact onOpenDetail={onOpenDetail} onTaskboard />
@@ -89,13 +89,18 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
 
   // Track external drags (not taskboard-task reorders) over the panel so we
   // can surface an insertion line. Entry rects are resolved from the DOM via
-  // `data-tbp-entry` attributes.
+  // `data-tbp-entry` attributes. Uses the translated-rect center as the Y
+  // reference — same source as the drop handler in `use-canvas-dnd.ts` so
+  // the indicator and drop stay in lockstep.
   const onDragMove = useCallback((event: DragMoveEvent) => {
     const activeType = event.active.data.current?.type
     if (activeType === 'taskboard-task') { setInsertIndex(null); return }
     if (!isOver) { setInsertIndex(null); return }
     const translated = event.active.rect.current.translated
-    const pointerY = translated ? translated.top + translated.height / 2 : 0
+    const initial = event.active.rect.current.initial
+    let pointerY = 0
+    if (translated) pointerY = translated.top + translated.height / 2
+    else if (initial) pointerY = initial.top + initial.height / 2 + event.delta.y
     setInsertIndex(computeTaskboardInsertIndex(droppableId, pointerY))
   }, [isOver, droppableId])
 

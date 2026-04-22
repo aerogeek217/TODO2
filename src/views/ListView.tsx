@@ -70,7 +70,7 @@ const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode
 ]
 
 const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.ReactNode }[] = [
-  { value: 'manual', label: 'Manual', icon: itemSortByIcons.manual },
+  { value: 'manual', label: 'None', icon: itemSortByIcons.manual },
   { value: 'date', label: 'Effective Date', icon: itemSortByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: itemSortByIcons.scheduled },
   { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
@@ -344,12 +344,14 @@ export function itemSortComparator(
   return (a, b) => {
     const ad = keyOf(a)
     const bd = keyOf(b)
-    if (ad === null && bd === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    if (ad === null && bd === null) {
+      return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
+    }
     if (ad === null) return 1
     if (bd === null) return -1
     const cmp = ad.getTime() - bd.getTime()
     if (cmp !== 0) return cmp
-    return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
   }
 }
 

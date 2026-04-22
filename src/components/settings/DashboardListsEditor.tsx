@@ -56,7 +56,7 @@ const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
   { value: 'effective-date-asc', label: 'Effective date' },
   { value: 'scheduled-asc', label: 'Scheduled date' },
   { value: 'deadline-asc', label: 'Deadline' },
-  { value: 'sort-order', label: 'Manual order' },
+  { value: 'sort-order', label: 'None' },
   { value: 'sortBy', label: 'Group attribute' },
 ]
 

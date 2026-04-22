@@ -203,9 +203,6 @@ describe('Save-as-preset round-trip', () => {
 
     const lists = buildDashboardLists([reloaded!], todos, {
       today: new Date('2026-04-18T00:00:00Z'),
-      hiddenStatusIds: new Set(),
-      showHiddenStatuses: false,
-      showCompleted: false,
       evalPredicate: (predicate, todo) => {
         const criteria = predicateToCriteria(predicate)
         return matchesFilter(criteria, todo, personMap.get(todo.id))

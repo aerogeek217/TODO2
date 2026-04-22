@@ -18,6 +18,7 @@ import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { convertFloatingKind } from '../../services/float-kind-switch'
 import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
+import { computeTaskboardInsertIndex } from '../../utils/taskboard-insert'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
@@ -57,7 +58,7 @@ function SortableTaskboardEntry({
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} data-tbp-entry className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} data-tbp-entry data-entry-id={entryId} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} onTaskboard />
@@ -155,29 +156,15 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     // Only surface the insert indicator when the over-target belongs to this floating instance.
     if (overData?.floatingId !== floatingId) { setTbInsertIndex(null); return }
 
-    if (overType === 'taskboard') {
-      setTbInsertIndex(visibleEntries.length)
-      return
-    }
-
-    const overEntryId = overData!.entryId as string
-    const idx = visibleEntries.findIndex((e) => `tb-${floatingId}-${e.todoId}` === overEntryId)
-    if (idx === -1) { setTbInsertIndex(null); return }
-
-    const overRect = event.over?.rect
+    // Translated-rect center as the Y reference — same source as the drop
+    // handler in use-canvas-dnd so indicator + drop stay in lockstep.
     const translated = event.active.rect.current.translated
-    const initialRect = event.active.rect.current.initial
-    let activeCenter: number | null = null
-    if (translated) activeCenter = translated.top + translated.height / 2
-    else if (initialRect) activeCenter = initialRect.top + initialRect.height / 2 + event.delta.y
-
-    if (activeCenter != null && overRect) {
-      const overCenter = overRect.top + overRect.height / 2
-      setTbInsertIndex(activeCenter > overCenter ? idx + 1 : idx)
-    } else {
-      setTbInsertIndex(idx)
-    }
-  }, [visibleEntries, floatingId])
+    const initial = event.active.rect.current.initial
+    let pointerY = 0
+    if (translated) pointerY = translated.top + translated.height / 2
+    else if (initial) pointerY = initial.top + initial.height / 2 + event.delta.y
+    setTbInsertIndex(computeTaskboardInsertIndex(droppableId, pointerY))
+  }, [floatingId, droppableId])
 
   const onDragClear = useCallback(() => {
     setIsExternalDragOver(false)

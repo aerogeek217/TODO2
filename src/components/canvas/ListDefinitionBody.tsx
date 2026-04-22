@@ -79,11 +79,18 @@ export function ListDefinitionBody({
 
   const filteredTodos = useMemo(() => {
     if (!definition) return [] as PersistedTodoItem[]
+    // Don't apply global showCompleted/showHiddenStatuses to the pre-filter — the
+    // definition's own predicate is authoritative for those flags. Overriding
+    // them here lets a def that wants completed/hidden tasks keep them past the
+    // global gate (e.g. global hides completed but the def shows them).
+    const defPred = definition.membership.kind === 'custom' ? definition.membership.predicate : null
+    const effectiveFilters = defPred
+      ? { ...filters, showCompleted: filters.showCompleted || defPred.showCompleted, showHiddenStatuses: filters.showHiddenStatuses || defPred.showHiddenStatuses }
+      : filters
     const globalFiltered = applyFilter(
-      filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses,
+      effectiveFilters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses,
     )
     const today = startOfToday()
-    const hiddenStatusIds = new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!))
     const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
       const criteria = predicateToCriteria(predicate)
       const people = assignedPeopleMap.get(todo.id) ?? []
@@ -99,9 +106,6 @@ export function ListDefinitionBody({
     }
     const [list] = buildDashboardLists([definition], globalFiltered, {
       today,
-      hiddenStatusIds,
-      showCompleted: true,
-      showHiddenStatuses: true,
       evalPredicate,
     })
     return list?.todos ?? []

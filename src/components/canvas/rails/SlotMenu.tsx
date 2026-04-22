@@ -8,7 +8,7 @@ interface SlotMenuProps {
   orientation: 'vertical' | 'horizontal'
   onSplit: (dir: 'above' | 'below' | 'left' | 'right') => void
   onPopOut?: () => void
-  onAddTab?: () => void
+  onAddTab?: (anchor: { x: number; y: number }) => void
   onClose: () => void
 }
 
@@ -135,7 +135,7 @@ export function SlotMenu({ anchor, currentKind, orientation, onSplit, onPopOut, 
             type="button"
             role="menuitem"
             className={styles.item}
-            onClick={() => { onAddTab(); onClose() }}
+            onClick={() => { onAddTab(anchor); onClose() }}
           >
             Add tab
           </button>

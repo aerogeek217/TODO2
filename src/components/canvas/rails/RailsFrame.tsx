@@ -152,6 +152,15 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const rails = useCanvasRailsStore((s) => s.rails)
   const [count, setCount] = useState<number>(0)
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
+  // When set, the picker's onSelect creates a new lens tab (or converts the
+  // active tab to a lens) instead of updating the current tab's listDefinitionId.
+  // Also used by "Change list…" from the kind menu, which keeps pendingLensAction null.
+  const [pendingLensAction, setPendingLensAction] = useState<
+    | { kind: 'add-tab' }
+    | { kind: 'change-kind' }
+    | { kind: 'split'; dir: 'above' | 'below' | 'left' | 'right' }
+    | null
+  >(null)
   const [showEditor, setShowEditor] = useState(false)
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null)
   const [kindMenuAnchor, setKindMenuAnchor] = useState<{ x: number; y: number } | null>(null)
@@ -204,9 +213,22 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     if (activeTab.type === 'lens') setPickerPos(anchor)
   }
 
-  const handleChangeKind = (nextKind: typeof activeTab.type) => {
+  const handleChangeKind = (nextKind: typeof activeTab.type, anchor?: { x: number; y: number }) => {
     if (nextKind === activeTab.type) return
+    if (nextKind === 'lens') {
+      // Require a list pick before swapping to lens so we never land on an empty list.
+      setPendingLensAction({ kind: 'change-kind' })
+      setPickerPos(anchor ?? kindMenuAnchor ?? { x: 100, y: 100 })
+      return
+    }
     setSlotKind(slot.id, nextKind)
+  }
+
+  const handleSplit = (dir: 'above' | 'below' | 'left' | 'right', anchor?: { x: number; y: number }) => {
+    // Split always creates a new lens by default — require a list pick first so
+    // the split never produces an empty widget.
+    setPendingLensAction({ kind: 'split', dir })
+    setPickerPos(anchor ?? menuAnchor ?? { x: 100, y: 100 })
   }
 
   let body: ReactNode
@@ -245,7 +267,12 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     )
   }
 
-  const handleAddTab = (kind: typeof activeTab.type) => {
+  const handleAddTab = (kind: typeof activeTab.type, anchor: { x: number; y: number }) => {
+    if (kind === 'lens') {
+      setPendingLensAction({ kind: 'add-tab' })
+      setPickerPos(anchor)
+      return
+    }
     addTab(slot.id, kind)
   }
 
@@ -259,7 +286,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       fromSide={fromSide}
       onActivateTab={(tabId) => activateTab(slot.id, tabId)}
       onCloseTab={(tabId) => closeTab(slot.id, tabId)}
-      onAddTab={(kind) => { handleAddTab(kind) }}
+      onAddTab={(kind, anchor) => { handleAddTab(kind, anchor) }}
       onMore={(anchor) => setMenuAnchor(anchor)}
       onClose={closeThisSlot}
       onOpenChangeType={(anchor) => setKindMenuAnchor(anchor)}
@@ -282,14 +309,27 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       >
         {body}
       </DraggableSlot>
-      {activeTab.type === 'lens' && pickerPos && (
+      {pickerPos && (
         <ListDefinitionPickerPopup
           x={pickerPos.x}
           y={pickerPos.y}
           mode="canvas"
-          onSelect={(listDefinitionId) => updateSlot(slot.id, { listDefinitionId })}
+          onSelect={(listDefinitionId) => {
+            if (pendingLensAction?.kind === 'add-tab') {
+              addTab(slot.id, 'lens', { listDefinitionId })
+            } else if (pendingLensAction?.kind === 'change-kind') {
+              setSlotKind(slot.id, 'lens', { listDefinitionId })
+            } else if (pendingLensAction?.kind === 'split') {
+              splitSlot(slot.id, pendingLensAction.dir, { listDefinitionId })
+            } else {
+              // "Change list…" on an already-lens slot
+              updateSlot(slot.id, { listDefinitionId })
+            }
+            setPendingLensAction(null)
+            setPickerPos(null)
+          }}
           onCreateNew={() => setShowEditor(true)}
-          onClose={() => setPickerPos(null)}
+          onClose={() => { setPickerPos(null); setPendingLensAction(null) }}
         />
       )}
       {showEditor && <DashboardListsEditor onClose={() => setShowEditor(false)} />}
@@ -297,7 +337,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         <WidgetKindMenu
           anchor={kindMenuAnchor}
           currentKind={activeTab.type}
-          onChangeKind={(kind) => { handleChangeKind(kind) }}
+          onChangeKind={(kind) => { handleChangeKind(kind, kindMenuAnchor) }}
           onOpenSecondary={handleOpenSecondary}
           onPopOut={handlePopOut}
           onClose={() => setKindMenuAnchor(null)}
@@ -308,9 +348,9 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           anchor={menuAnchor}
           currentKind={activeTab.type}
           orientation={fromSide === 'left' || fromSide === 'right' ? 'vertical' : 'horizontal'}
-          onSplit={(dir) => splitSlot(slot.id, dir)}
+          onSplit={(dir) => handleSplit(dir, menuAnchor ?? undefined)}
           onPopOut={handlePopOut}
-          onAddTab={() => addTab(slot.id, 'lens')}
+          onAddTab={(anchor) => handleAddTab('lens', anchor)}
           onClose={closeMenuAndFocusTrigger}
         />
       )}

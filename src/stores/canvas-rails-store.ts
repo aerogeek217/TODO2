@@ -121,7 +121,7 @@ interface CanvasRailsState {
    * at the given drop target. Source cascade-closes if it had only that tab.
    */
   detachTabToNewSlot: (srcSlotId: string, tabId: string, target: TabDropTarget) => void
-  splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right') => void
+  splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right', seed?: { listDefinitionId?: number }) => void
   /**
    * Create a new slot of the given kind and dock it into the first empty rail
    * (preference order: right, left, top, bottom). If no rails are empty, append
@@ -394,11 +394,12 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     return next === state.rails ? state : { rails: next }
   }),
 
-  splitSlot: (slotId, dir) => set((state) => {
+  splitSlot: (slotId, dir, seed) => set((state) => {
     const newId = genSlotId()
     const next = applySplitButton(state.rails, slotId, dir, {
       buildSlot: (kind) => {
         const tab: Tab = { id: genTabId(newId), type: kind }
+        if (kind === 'lens' && seed?.listDefinitionId != null) tab.listDefinitionId = seed.listDefinitionId
         return { id: newId, tabs: [tab], activeTabId: tab.id }
       },
     })

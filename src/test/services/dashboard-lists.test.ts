@@ -6,18 +6,12 @@ import {
 } from '../../services/dashboard-lists'
 import { resolveFuzzy } from '../../utils/effective-date'
 import { MS_PER_DAY, startOfDay } from '../../utils/date'
-import type { PersistedTodoItem, Status, TodoPredicate } from '../../models'
+import type { PersistedTodoItem, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 const today = startOfDay(new Date('2026-04-13T12:00:00'))
 
 const hiddenStatusId = 101
-const visibleStatusId = 100
-
-const statuses: Status[] = [
-  { id: visibleStatusId, name: 'Follow-up', color: '#F5A623', sortOrder: 0, icon: 'message-bubble', hideByDefault: false },
-  { id: hiddenStatusId, name: 'Assigned', color: '#537FE7', sortOrder: 1, icon: 'person', hideByDefault: true },
-]
 
 function emptyPredicate(): TodoPredicate {
   return {
@@ -46,9 +40,6 @@ function emptyPredicate(): TodoPredicate {
 function makeCtx(overrides: Partial<DashboardListsContext> = {}): DashboardListsContext {
   return {
     today,
-    hiddenStatusIds: new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!)),
-    showHiddenStatuses: false,
-    showCompleted: false,
     evalPredicate: () => true,
     ...overrides,
   }
@@ -112,35 +103,8 @@ describe('buildDashboardLists', () => {
   })
 })
 
-describe('interpretMembership — gates', () => {
-  it('excludes completed tasks by default', () => {
-    const t = makeTodo({ id: 1, isCompleted: true })
-    expect(interpretMembership({ kind: 'custom', predicate: emptyPredicate() }, t, makeCtx())).toBe(false)
-  })
-
-  it('includes completed when showCompleted is true', () => {
-    const t = makeTodo({ id: 1, isCompleted: true })
-    expect(interpretMembership({ kind: 'custom', predicate: emptyPredicate() }, t, makeCtx({ showCompleted: true }))).toBe(true)
-  })
-
-  it('excludes tasks with hideByDefault status by default', () => {
-    const t = makeTodo({ id: 1, statusId: hiddenStatusId })
-    expect(interpretMembership({ kind: 'custom', predicate: emptyPredicate() }, t, makeCtx())).toBe(false)
-  })
-
-  it('includes hidden-status tasks when showHiddenStatuses is true', () => {
-    const t = makeTodo({ id: 1, statusId: hiddenStatusId })
-    expect(interpretMembership({ kind: 'custom', predicate: emptyPredicate() }, t, makeCtx({ showHiddenStatuses: true }))).toBe(true)
-  })
-
-  it('includes non-hideByDefault statuses regardless', () => {
-    const t = makeTodo({ id: 1, statusId: visibleStatusId })
-    expect(interpretMembership({ kind: 'custom', predicate: emptyPredicate() }, t, makeCtx())).toBe(true)
-  })
-})
-
 describe('interpretMembership — custom', () => {
-  it('delegates to ctx.evalPredicate', () => {
+  it('delegates to ctx.evalPredicate — evaluator is authoritative for all gates including showCompleted/showHiddenStatuses', () => {
     const t = makeTodo({ id: 1 })
     const ctx = makeCtx({
       evalPredicate: (_p, todo) => todo.id === 1,
@@ -153,12 +117,7 @@ describe('interpretMembership — custom', () => {
 
   it('without ctx.evalPredicate, matches zero todos', () => {
     const t = makeTodo({ id: 1 })
-    const ctx: DashboardListsContext = {
-      today,
-      hiddenStatusIds: new Set(),
-      showHiddenStatuses: false,
-      showCompleted: false,
-    }
+    const ctx: DashboardListsContext = { today }
     expect(interpretMembership({ kind: 'custom', predicate: emptyPredicate() }, t, ctx)).toBe(false)
   })
 })
@@ -326,17 +285,39 @@ describe('buildDashboardLists — no list caps', () => {
   })
 })
 
-describe('buildDashboardLists — visibility gates', () => {
-  it('hideByDefault status excluded from list by default', () => {
+describe('buildDashboardLists — visibility via def predicate', () => {
+  // Realistic evalPredicate: the def's predicate controls completed / hidden-status visibility.
+  const hiddenStatusIdSet = new Set([hiddenStatusId])
+  const evalByPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+    if (t.isCompleted && !p.showCompleted) return false
+    if (t.statusId != null && hiddenStatusIdSet.has(t.statusId) && !p.showHiddenStatuses) return false
+    return true
+  }
+
+  it('hideByDefault status excluded when def predicate hides them', () => {
     const t = makeTodo({ id: 1, statusId: hiddenStatusId })
-    const lists = buildDashboardLists([customDef()], [t], makeCtx())
+    const lists = buildDashboardLists([customDef()], [t], makeCtx({ evalPredicate: evalByPredicate }))
     expect(lists[0].todos).toHaveLength(0)
   })
 
-  it('completed tasks excluded from list by default', () => {
+  it('hideByDefault status included when def predicate shows them', () => {
+    const t = makeTodo({ id: 1, statusId: hiddenStatusId })
+    const def = customDef({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), showHiddenStatuses: true } } })
+    const lists = buildDashboardLists([def], [t], makeCtx({ evalPredicate: evalByPredicate }))
+    expect(lists[0].todos).toHaveLength(1)
+  })
+
+  it('completed tasks excluded when def predicate hides them', () => {
     const t = makeTodo({ id: 1, isCompleted: true })
-    const lists = buildDashboardLists([customDef()], [t], makeCtx())
+    const lists = buildDashboardLists([customDef()], [t], makeCtx({ evalPredicate: evalByPredicate }))
     expect(lists[0].todos).toHaveLength(0)
+  })
+
+  it('completed tasks included when def predicate shows them', () => {
+    const t = makeTodo({ id: 1, isCompleted: true })
+    const def = customDef({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), showCompleted: true } } })
+    const lists = buildDashboardLists([def], [t], makeCtx({ evalPredicate: evalByPredicate }))
+    expect(lists[0].todos).toHaveLength(1)
   })
 })
 
@@ -369,7 +350,7 @@ describe('interpretSort — sortBy', () => {
     const lists = buildDashboardLists(
       [def],
       [late, early],
-      makeCtx({ showCompleted: true, showHiddenStatuses: true }),
+      makeCtx(),
     )
     expect(lists[0].todos.map((t) => t.id)).toEqual([1, 2])
   })

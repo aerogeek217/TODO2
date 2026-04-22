@@ -11,12 +11,11 @@ import { buildFamilyDateMap } from '../utils/family-date'
 
 export interface DashboardListsContext {
   today: Date
-  hiddenStatusIds: Set<number>
-  showHiddenStatuses: boolean
-  showCompleted: boolean
   /**
    * Evaluator for `{kind:'custom', predicate}` membership. The caller closes
    * over assignment maps + statuses so the interpreter can stay UI-agnostic.
+   * The definition's own predicate (via this evaluator) is authoritative for
+   * `showCompleted` / `showHiddenStatuses` — there is no ctx-level override.
    * Omitted when no custom definitions are in play — in that case an accidental
    * `{kind:'custom'}` definition is treated as matching no todos (with a
    * console warning once per build).
@@ -89,9 +88,6 @@ export function interpretMembership(
   t: PersistedTodoItem,
   ctx: DashboardListsContext,
 ): boolean {
-  if (t.isCompleted && !ctx.showCompleted) return false
-  if (!ctx.showHiddenStatuses && t.statusId != null && ctx.hiddenStatusIds.has(t.statusId)) return false
-
   if (!ctx.evalPredicate) {
     warnOnceMissingEvaluator()
     return false
@@ -141,12 +137,12 @@ function compareEffectiveDateAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx
   const map = ctx.familyDates?.effective
   const ad = map ? (map.get(a.id) ?? null) : effectiveDate(a, today)
   const bd = map ? (map.get(b.id) ?? null) : effectiveDate(b, today)
-  if (ad === null && bd === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  if (ad === null && bd === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
   if (ad === null) return 1
   if (bd === null) return -1
   const cmp = ad.getTime() - bd.getTime()
   if (cmp !== 0) return cmp
-  return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
 }
 
 function compareDeadlineAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
@@ -157,18 +153,18 @@ function compareDeadlineAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: Das
   const bd = map
     ? (map.get(b.id)?.getTime() ?? null)
     : (b.dueDate ? startOfDay(new Date(b.dueDate)).getTime() : null)
-  if (ad === null && bd === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  if (ad === null && bd === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
   if (ad === null) return 1
   if (bd === null) return -1
   const cmp = ad - bd
   if (cmp !== 0) return cmp
-  return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
 }
 
 function compareSortOrder(a: PersistedTodoItem, b: PersistedTodoItem): number {
   const cmp = (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
   if (cmp !== 0) return cmp
-  return new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime()
+  return a.id - b.id
 }
 
 function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
@@ -180,12 +176,12 @@ function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: Da
   const bs = map
     ? (map.get(b.id) ?? null)
     : (b.scheduledDate ? resolveScheduled(b.scheduledDate, today) : null)
-  if (as === null && bs === null) return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  if (as === null && bs === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
   if (as === null) return 1
   if (bs === null) return -1
   const cmp = as.getTime() - bs.getTime()
   if (cmp !== 0) return cmp
-  return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+  return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
 }
 
 /**

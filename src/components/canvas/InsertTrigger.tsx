@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useLayoutEffect, useMemo } from 'react'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
@@ -50,11 +50,25 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     else onCancel()
   }, editing)
 
-  useEffect(() => {
+  // Use useLayoutEffect so focus is applied synchronously after the DOM
+  // commit — prevents the brief focus-on-body gap when this InsertTrigger
+  // becomes editing immediately after a sibling's input unmounted (the
+  // Enter-chain scenario). useEffect would fire after paint, losing the first
+  // keystroke.
+  useLayoutEffect(() => {
     if (editing) {
       titleRef.current = ''
       committedRef.current = false
       inputRef.current?.focus()
+      // Belt-and-suspenders: if another commit (e.g. the old trigger's unmount)
+      // steals focus back to body after this layout effect, reclaim it on the
+      // next frame.
+      const raf = requestAnimationFrame(() => {
+        if (inputRef.current && document.activeElement !== inputRef.current) {
+          inputRef.current.focus()
+        }
+      })
+      return () => cancelAnimationFrame(raf)
     } else {
       ac.dismiss()
     }
@@ -64,6 +78,17 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     ac.dismiss()
     const trimmed = titleRef.current.trim()
     if (trimmed) {
+      // Reset input + ref synchronously so keystrokes arriving during the
+      // async insert accumulate in a clean input (not appended to the
+      // just-committed title). The parent then moves `activeInsertAfterId`
+      // to the new task id when the insert resolves — the new InsertTrigger
+      // mounts with `autoFocus` and picks up focus.
+      if (inputRef.current) inputRef.current.value = ''
+      titleRef.current = ''
+      // Mark as committed so the deferred onBlur handler doesn't re-fire
+      // handleCommit (which would then see an empty titleRef and call
+      // onCancel, closing the trigger that the parent just moved to).
+      committedRef.current = true
       onCommit(trimmed)
     } else {
       onCancel()

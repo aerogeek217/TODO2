@@ -29,7 +29,7 @@ export interface ParsedInput {
 }
 
 const PERSON_PATTERN = /@"([^"]+)"|@(\w+)/g
-const PROJECT_PATTERN = /\/(\w+)/g
+const PROJECT_PATTERN = /\/([A-Za-z0-9_-]+)/g
 
 // Multi-word fuzzy schedule windows. Pushed before single-word DATE_KEYWORDS so
 // "this week" wins overlap-dedup against any embedded day name.

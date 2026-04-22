@@ -16,7 +16,7 @@ export interface TabStripProps {
   fromSide: RailSide
   onActivateTab: (tabId: string) => void
   onCloseTab: (tabId: string) => void
-  onAddTab: (kind: SlotKind) => void
+  onAddTab: (kind: SlotKind, anchor: { x: number; y: number }) => void
   onMore?: (anchor: { x: number; y: number }) => void
   /**
    * Called when the user clicks the active tab's drop-down caret. The parent
@@ -331,7 +331,7 @@ export function TabStrip({
       {addAnchor && (
         <WidgetKindMenu
           anchor={addAnchor}
-          onChangeKind={(kind) => { onAddTab(kind); setAddAnchor(null) }}
+          onChangeKind={(kind) => { onAddTab(kind, addAnchor); setAddAnchor(null) }}
           onClose={() => setAddAnchor(null)}
           heading="Add tab"
         />

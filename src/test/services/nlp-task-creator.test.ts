@@ -10,6 +10,7 @@ const people: Person[] = [
 const projects: Project[] = [
   { id: 10, name: 'Backend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: new Date() },
   { id: 11, name: 'Frontend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() },
+  { id: 12, name: 'my-proj', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: new Date() },
 ]
 
 describe('parseTaskInput', () => {
@@ -38,6 +39,12 @@ describe('parseTaskInput', () => {
   it('returns undefined projectId when no projects provided', () => {
     const result = parseTaskInput('Fix bug /Backend', people)
     expect(result.resolved.projectId).toBeUndefined()
+  })
+
+  it('accepts hyphens in project slugs', () => {
+    const result = parseTaskInput('/my-proj do thing', people, projects)
+    expect(result.title).toBe('do thing')
+    expect(result.resolved.projectId).toBe(12)
   })
 })
 

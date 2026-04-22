@@ -126,7 +126,7 @@ describe('TabStrip', () => {
     expect(menu).toBeInTheDocument()
     const calendarItem = screen.getByRole('menuitem', { name: /calendar/i })
     fireEvent.click(calendarItem)
-    expect(onAdd).toHaveBeenCalledWith('calendar')
+    expect(onAdd).toHaveBeenCalledWith('calendar', expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
   })
 
   it('shows a caret button on the active pill when onOpenChangeType is wired', () => {
