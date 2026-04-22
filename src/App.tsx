@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
 import { useCanvasStore } from './stores/canvas-store'
 import { useTodoStore } from './stores/todo-store'
@@ -95,6 +95,13 @@ function AppShell() {
       useUIStore.getState().setFilterSheetOpen(false)
     }
   }, [isMobile])
+
+  const lastPathRef = useRef(location.pathname)
+  useEffect(() => {
+    if (lastPathRef.current === location.pathname) return
+    lastPathRef.current = location.pathname
+    useFilterStore.getState().clearAll()
+  }, [location.pathname])
 
   useEffect(() => {
     Promise.all([ensureDefault(), loadSettings()])

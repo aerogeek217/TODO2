@@ -40,8 +40,12 @@
   background: var(--color-accent-bg-medium);
 }
 
-/* Settings icon pushed to bottom */
-.sidebar > .iconButton:last-child {
+/* Theme + settings icons pushed to bottom */
+.bottomIcons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   margin-top: auto;
 }
 

@@ -10,7 +10,6 @@ import { ListDefinitionBody } from './ListDefinitionBody'
 import { DraggableTaskRow } from './shared/DraggableTaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { convertFloatingKind } from '../../services/float-kind-switch'
 import styles from './ListInsetNode.module.css'
 
@@ -40,7 +39,6 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const definition = useListDefinitionStore((s) => s.listDefinitions.find(d => d.id === inset.listDefinitionId))
   const [count, setCount] = useState(0)
   const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
-  const [listPickerAnchor, setListPickerAnchor] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
@@ -60,12 +58,6 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       nextKind,
     })
   }, [inset.id, inset.x, inset.y, inset.width, height])
-
-  const handleOpenSecondary = () => {
-    if (!kindAnchor) return
-    setListPickerAnchor(kindAnchor)
-    setKindAnchor(null)
-  }
 
   const handleSelectList = (listDefinitionId: number) => {
     if (inset.id == null) return
@@ -244,19 +236,9 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           anchor={kindAnchor}
           currentKind="lens"
           onChangeKind={(k) => { void handleChangeKind(k) }}
-          onOpenSecondary={handleOpenSecondary}
+          pickListForLens={handleSelectList}
           onClose={() => setKindAnchor(null)}
           secondaryLabel={definition ? `Change list (${definition.name})…` : undefined}
-        />
-      )}
-      {listPickerAnchor && (
-        <ListDefinitionPickerPopup
-          x={listPickerAnchor.x}
-          y={listPickerAnchor.y}
-          mode="canvas"
-          onSelect={handleSelectList}
-          onCreateNew={() => { /* inset doesn't host the editor; user can use dashboard */ }}
-          onClose={() => setListPickerAnchor(null)}
         />
       )}
     </div>

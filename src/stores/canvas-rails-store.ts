@@ -130,6 +130,10 @@ interface CanvasRailsState {
    */
   createAndDockSlot: (kind: SlotKind, listDefinitionId?: number) => string
   setRailSize: (side: RailSide, px: number) => void
+  /** Set the collapsed flag for a rail side. Stored width/height is preserved. */
+  setRailCollapsed: (side: RailSide, collapsed: boolean) => void
+  /** Flip the collapsed flag for a rail side. */
+  toggleRailCollapsed: (side: RailSide) => void
   /**
    * Atomically set `flex` weights for slots in a rail. Keys not present in
    * `flexBySlotId` are left unchanged. Non-positive / non-finite values are
@@ -471,4 +475,19 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     const heights = { ...(state.rails.heights ?? {}), [side]: clamped }
     return { rails: { ...state.rails, heights } }
   }),
+
+  setRailCollapsed: (side, collapsed) => set((state) => {
+    const prev = state.rails.collapsed?.[side] === true
+    if (prev === collapsed) return state
+    const nextBag: Partial<Record<RailSide, boolean>> = { ...(state.rails.collapsed ?? {}) }
+    if (collapsed) nextBag[side] = true
+    else delete nextBag[side]
+    const hasAny = Object.keys(nextBag).length > 0
+    return { rails: { ...state.rails, collapsed: hasAny ? nextBag : undefined } }
+  }),
+
+  toggleRailCollapsed: (side) => {
+    const prev = get().rails.collapsed?.[side] === true
+    get().setRailCollapsed(side, !prev)
+  },
 }))

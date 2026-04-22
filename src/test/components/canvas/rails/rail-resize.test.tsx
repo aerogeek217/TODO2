@@ -3,6 +3,8 @@ import { render, cleanup, fireEvent, screen } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { RailContainer } from '../../../../components/canvas/rails/RailContainer'
 import type { Rail } from '../../../../models/canvas-rails'
+import { EMPTY_RAILS } from '../../../../models/canvas-rails'
+import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
 
 // The resize handle schedules onResize through requestAnimationFrame; run it
 // synchronously so assertions see the latest value without awaiting frames.
@@ -13,6 +15,7 @@ beforeEach(() => {
     cb(performance.now())
     return 0
   })
+  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: false })
 })
 
 afterEach(() => {
@@ -31,7 +34,9 @@ const topRail: Rail = {
 }
 
 function getResizeHandle(side: string) {
-  return screen.getByRole('separator', { name: `Resize ${side} rail` })
+  // Unified edge handle: click toggles collapse, drag resizes. The role is
+  // still `separator` with an `aria-label` that documents both affordances.
+  return screen.getByRole('separator', { name: new RegExp(`${side} rail`) })
 }
 
 function dispatchPointer(
@@ -86,7 +91,7 @@ describe('RailContainer resize handle', () => {
     expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(260)
   })
 
-  it('clamps past 600 (max) and 200 (min)', () => {
+  it('clamps drags past the 600 px maximum', () => {
     const onResize = vi.fn()
     render(
       <DndContext>
@@ -98,10 +103,27 @@ describe('RailContainer resize handle', () => {
     const handle = getResizeHandle('left')
     dispatchPointer(handle, 'pointerdown', { clientX: 340, clientY: 100 })
     dispatchPointer(handle, 'pointermove', { clientX: 2000, clientY: 100 })
+    dispatchPointer(handle, 'pointerup', { clientX: 2000, clientY: 100 })
     expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(600)
+  })
+
+  it('dragging inward shrinks the rail, clamped at RAIL_SIZE_MIN (no auto-collapse)', () => {
+    const onResize = vi.fn()
+    render(
+      <DndContext>
+        <RailContainer side="left" rail={lensRail} size={340} onResize={onResize}>
+          <div />
+        </RailContainer>
+      </DndContext>,
+    )
+    expect(useCanvasRailsStore.getState().rails.collapsed?.left).toBeUndefined()
+    const handle = getResizeHandle('left')
+    dispatchPointer(handle, 'pointerdown', { clientX: 340, clientY: 100 })
+    // Pull well past the 60 px minimum — should clamp, NOT collapse.
     dispatchPointer(handle, 'pointermove', { clientX: 0, clientY: 100 })
-    expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(200)
     dispatchPointer(handle, 'pointerup', { clientX: 0, clientY: 100 })
+    expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(60)
+    expect(useCanvasRailsStore.getState().rails.collapsed?.left).toBeUndefined()
   })
 
   it('resizes a horizontal (top) rail via Y-axis delta', () => {

@@ -343,6 +343,27 @@ describe('canvas-rails model', () => {
         expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, corners: {} }))!.corners).toBeUndefined()
         expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, corners: { nw: 'bogus' } }))!.corners).toBeUndefined()
       })
+
+      it('round-trips a collapsed bag', () => {
+        const state: RailsState = { ...EMPTY_RAILS, collapsed: { left: true, right: true } }
+        const parsed = parseRailsState(serializeRailsState(state))
+        expect(parsed!.collapsed).toEqual({ left: true, right: true })
+      })
+
+      it('drops non-true collapsed values and unknown sides', () => {
+        const raw = JSON.stringify({
+          ...EMPTY_RAILS,
+          collapsed: { left: true, right: false, top: 'yes', nope: true },
+        })
+        const parsed = parseRailsState(raw)
+        expect(parsed!.collapsed).toEqual({ left: true })
+      })
+
+      it('omits collapsed when the persisted bag is empty or malformed', () => {
+        expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, collapsed: 'nope' }))!.collapsed).toBeUndefined()
+        expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, collapsed: {} }))!.collapsed).toBeUndefined()
+        expect(parseRailsState(JSON.stringify({ ...EMPTY_RAILS, collapsed: { left: false } }))!.collapsed).toBeUndefined()
+      })
     })
 
     describe('resolveCorner', () => {

@@ -1,4 +1,6 @@
 import { useNavigate, useLocation } from 'react-router'
+import { useSettingsStore } from '../../stores/settings-store'
+import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import styles from './Sidebar.module.css'
 
 const views = [
@@ -55,6 +57,9 @@ const views = [
 export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
+  const themeMode = useSettingsStore((s) => s.themeMode)
+  const setThemeMode = useSettingsStore((s) => s.setThemeMode)
+  const resolvedTheme = useResolvedTheme()
 
   return (
     <nav className={styles.sidebar}>
@@ -70,16 +75,28 @@ export function Sidebar() {
           </button>
         ))}
       </div>
-      <button
-        className={`${styles.iconButton} ${location.pathname === '/settings' ? styles.active : ''}`}
-        onClick={() => navigate('/settings')}
-        title="Settings"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-      </button>
+      <div className={styles.bottomIcons}>
+        <button
+          className={styles.iconButton}
+          onClick={() => setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark')}
+          title={themeMode === 'system'
+            ? `Theme: System (${resolvedTheme}) — switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'}`
+            : `Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+          aria-label="Toggle theme"
+        >
+          <span style={{ fontSize: 18, lineHeight: 1 }}>{resolvedTheme === 'dark' ? '☀' : '☾'}</span>
+        </button>
+        <button
+          className={`${styles.iconButton} ${location.pathname === '/settings' ? styles.active : ''}`}
+          onClick={() => navigate('/settings')}
+          title="Settings"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
     </nav>
   )
 }

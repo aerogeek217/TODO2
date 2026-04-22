@@ -62,8 +62,6 @@ interface UIState {
   isProjectNavigatorOpen: boolean
   /** Taskboard panel open state */
   isTaskboardOpen: boolean
-  /** Minimap collapsed state */
-  isMinimapOpen: boolean
 
   setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
@@ -95,7 +93,6 @@ interface UIState {
   setFilterSheetOpen: (open: boolean) => void
   toggleProjectNavigator: () => void
   toggleTaskboard: () => void
-  toggleMinimap: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -121,7 +118,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFilterSheetOpen: false,
   isProjectNavigatorOpen: false,
   isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
-  isMinimapOpen: localStorage.getItem('minimapOpen') !== 'false',
 
   setActiveView(view: AppView) {
     set({ activeView: view })
@@ -271,11 +267,5 @@ export const useUIStore = create<UIState>((set, get) => ({
     const next = !get().isTaskboardOpen
     localStorage.setItem('taskboardOpen', String(next))
     set({ isTaskboardOpen: next })
-  },
-
-  toggleMinimap() {
-    const next = !get().isMinimapOpen
-    localStorage.setItem('minimapOpen', String(next))
-    set({ isMinimapOpen: next })
   },
 }))

@@ -3,8 +3,6 @@ import { createPortal } from 'react-dom'
 import {
   ReactFlow,
   Background,
-  Panel,
-  MiniMap,
   applyNodeChanges,
   useViewport,
   type Node,
@@ -26,7 +24,6 @@ import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalend
 import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
-import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import styles from './CanvasView.module.css'
 import './drag-preview.css'
 
@@ -190,10 +187,7 @@ export function CanvasView({
   const { onDeleteCalendar, onCalendarDragStop, onResizeCalendar } = floatingCalendarHandlers ?? {}
   const { activeDragTodoId } = useContext(DragInsertContext)
   void activeDragTodoId
-  const isNavOpen = useUIStore((s) => s.isProjectNavigatorOpen)
-  const isMinimapOpen = useUIStore((s) => s.isMinimapOpen)
   const themeMode = useSettingsStore((s) => s.themeMode)
-  const resolvedTheme = useResolvedTheme()
   const [canvasDotColor, setCanvasDotColor] = useState(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--color-canvas-dot').trim() || '#3a3a3a'
   )
@@ -715,85 +709,6 @@ export function CanvasView({
           size={1.5}
           color={canvasDotColor}
         />
-        <Panel position="bottom-left" className={styles.mapPanel}>
-          <div className={styles.mapToolbar}>
-            <button
-              className={styles.mapToolbarButton}
-              onClick={() => rfInstanceRef.current?.zoomIn({ duration: 200 })}
-              title="Zoom in"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="8" y1="3" x2="8" y2="13" />
-                <line x1="3" y1="8" x2="13" y2="8" />
-              </svg>
-            </button>
-            <button
-              className={styles.mapToolbarButton}
-              onClick={() => rfInstanceRef.current?.zoomOut({ duration: 200 })}
-              title="Zoom out"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <line x1="3" y1="8" x2="13" y2="8" />
-              </svg>
-            </button>
-            <button
-              className={styles.mapToolbarButton}
-              onClick={() => rfInstanceRef.current?.fitView({ padding: 0.15, duration: 300 })}
-              title="Fit to view (Ctrl+0)"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="2,6 2,2 6,2" />
-                <polyline points="10,2 14,2 14,6" />
-                <polyline points="14,10 14,14 10,14" />
-                <polyline points="6,14 2,14 2,10" />
-              </svg>
-            </button>
-            <button
-              className={`${styles.mapToolbarButton} ${isNavOpen ? styles.mapToolbarButtonActive : ''}`}
-              onClick={() => useUIStore.getState().toggleProjectNavigator()}
-              title="Project navigator (P)"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <line x1="3" y1="4" x2="13" y2="4" />
-                <line x1="3" y1="8" x2="13" y2="8" />
-                <line x1="3" y1="12" x2="13" y2="12" />
-              </svg>
-            </button>
-            <button
-              className={styles.mapToolbarButton}
-              onClick={() => useSettingsStore.getState().setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark')}
-              title={themeMode === 'system'
-                ? `Theme: System (${resolvedTheme}) \u2014 switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'}`
-                : `Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
-            >
-              <span style={{ fontSize: 13, lineHeight: 1 }}>{resolvedTheme === 'dark' ? '☀' : '☾'}</span>
-            </button>
-            <button
-              className={styles.mapToolbarButton}
-              onClick={() => useUIStore.getState().toggleMinimap()}
-              title={isMinimapOpen ? 'Hide minimap' : 'Show minimap'}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                {isMinimapOpen ? (
-                  <polyline points="4,6 8,10 12,6" />
-                ) : (
-                  <polyline points="4,10 8,6 12,10" />
-                )}
-              </svg>
-            </button>
-          </div>
-          {isMinimapOpen && (
-            <MiniMap
-              pannable
-              zoomable
-              nodeColor={(node) => {
-                if (node.type === 'floatingNote') return 'var(--color-surface-bright, #2a2a2a)'
-                if (node.type === 'project') return (node.data as { project?: { color?: string } })?.project?.color || 'var(--color-surface-bright, #2a2a2a)'
-                return 'var(--color-accent-bg-subtle, #1a3a3a)'
-              }}
-            />
-          )}
-        </Panel>
         <AlignmentGuides lines={alignmentLines} />
       </ReactFlow>
 

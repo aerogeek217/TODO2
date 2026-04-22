@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SlotKind } from '../../models/canvas-rails'
 import { KIND_ICON } from '../../utils/slot-kind'
+import { ListDefinitionPickerBody } from '../overlays/ListDefinitionPickerBody'
 import styles from './WidgetKindMenu.module.css'
 
 const KINDS: { kind: SlotKind; label: string }[] = [
@@ -16,8 +17,12 @@ export interface WidgetKindMenuProps {
   /** Current widget kind. Omit in "add" mode — no row is marked active and no secondary row is shown. */
   currentKind?: SlotKind
   onChangeKind: (kind: SlotKind) => void
-  /** Fires when the user clicks the "Change list…" (lens) row. */
-  onOpenSecondary?: () => void
+  /**
+   * Lens-only: fires when the user picks a list from the inline "Change list…" flyout.
+   * When provided, the menu renders a hover submenu of list definitions on the
+   * secondary row; clicking a list picks it and closes the menu.
+   */
+  pickListForLens?: (listDefinitionId: number) => void
   onClose: () => void
   /** Optional label override for the secondary row (e.g. the current list-def name). */
   secondaryLabel?: string
@@ -27,17 +32,25 @@ export interface WidgetKindMenuProps {
   onPopOut?: () => void
 }
 
+const FLYOUT_LEAVE_DELAY_MS = 120
+const FLYOUT_WIDTH_PX = 240
+const FLYOUT_MAX_HEIGHT_PX = 320
+
 export function WidgetKindMenu({
   anchor,
   currentKind,
   onChangeKind,
-  onOpenSecondary,
+  pickListForLens,
   onClose,
   secondaryLabel,
   heading = 'Change widget',
   onPopOut,
 }: WidgetKindMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null)
+  const flyoutRef = useRef<HTMLDivElement | null>(null)
+  const secondaryRowRef = useRef<HTMLButtonElement | null>(null)
+  const leaveTimerRef = useRef<number | null>(null)
+  const [flyoutAnchor, setFlyoutAnchor] = useState<{ x: number; y: number } | null>(null)
 
   const getItems = useCallback((): HTMLButtonElement[] => {
     if (!ref.current) return []
@@ -65,7 +78,10 @@ export function WidgetKindMenu({
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+      const target = e.target as Node
+      if (ref.current && ref.current.contains(target)) return
+      if (flyoutRef.current && flyoutRef.current.contains(target)) return
+      onClose()
     }
     document.addEventListener('mousedown', handleOutside)
     return () => {
@@ -73,7 +89,7 @@ export function WidgetKindMenu({
     }
   }, [onClose])
 
-  // Clamp within viewport so right-rail menus don't spill off-screen.
+  // Clamp menu within viewport.
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -87,10 +103,58 @@ export function WidgetKindMenu({
     }
   }, [anchor.x, anchor.y])
 
+  // Clamp flyout within viewport.
+  useEffect(() => {
+    if (!flyoutAnchor) return
+    const el = flyoutRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const margin = 8
+    if (rect.right > window.innerWidth - margin) {
+      // Flip to the left side of the row.
+      const row = secondaryRowRef.current?.getBoundingClientRect()
+      const flipLeft = row ? Math.max(margin, row.left - rect.width - 2) : margin
+      el.style.left = `${flipLeft}px`
+    }
+    if (rect.bottom > window.innerHeight - margin) {
+      el.style.top = `${Math.max(margin, window.innerHeight - rect.height - margin)}px`
+    }
+  }, [flyoutAnchor])
+
+  const cancelLeaveTimer = () => {
+    if (leaveTimerRef.current != null) {
+      window.clearTimeout(leaveTimerRef.current)
+      leaveTimerRef.current = null
+    }
+  }
+
+  const scheduleClose = () => {
+    cancelLeaveTimer()
+    leaveTimerRef.current = window.setTimeout(() => {
+      setFlyoutAnchor(null)
+      leaveTimerRef.current = null
+    }, FLYOUT_LEAVE_DELAY_MS)
+  }
+
+  useEffect(() => () => cancelLeaveTimer(), [])
+
+  const openFlyoutFromRow = () => {
+    cancelLeaveTimer()
+    const row = secondaryRowRef.current
+    if (!row) return
+    const rect = row.getBoundingClientRect()
+    setFlyoutAnchor({ x: rect.right + 2, y: rect.top })
+  }
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
+      if (flyoutAnchor) {
+        setFlyoutAnchor(null)
+        queueMicrotask(() => secondaryRowRef.current?.focus())
+        return
+      }
       onClose()
       return
     }
@@ -98,10 +162,20 @@ export function WidgetKindMenu({
     else if (e.key === 'ArrowUp') { e.preventDefault(); moveFocus(-1) }
     else if (e.key === 'Home') { e.preventDefault(); moveFocus('first') }
     else if (e.key === 'End') { e.preventDefault(); moveFocus('last') }
+    else if (e.key === 'ArrowRight' && document.activeElement === secondaryRowRef.current) {
+      e.preventDefault()
+      openFlyoutFromRow()
+    }
+    else if (e.key === 'ArrowLeft' && flyoutAnchor) {
+      e.preventDefault()
+      setFlyoutAnchor(null)
+      queueMicrotask(() => secondaryRowRef.current?.focus())
+    }
     else if (e.key === 'Tab') onClose()
   }
 
-  const secondary = currentKind === 'lens' ? 'Change list…' : null
+  const showSecondary = currentKind === 'lens' && pickListForLens != null
+  const secondary = showSecondary ? 'Change list…' : null
 
   return createPortal(
     <div
@@ -144,19 +218,47 @@ export function WidgetKindMenu({
           </button>
         )
       })}
-      {secondary && onOpenSecondary && (
+      {showSecondary && (
         <>
           <div className={styles.separator} />
           <button
+            ref={secondaryRowRef}
             type="button"
             role="menuitem"
             className={styles.item}
-            onClick={() => { onOpenSecondary(); onClose() }}
+            onPointerEnter={openFlyoutFromRow}
+            onPointerLeave={scheduleClose}
+            onClick={openFlyoutFromRow}
+            aria-haspopup="menu"
+            aria-expanded={flyoutAnchor !== null}
           >
             <span className={styles.label}>{secondaryLabel ?? secondary}</span>
             <span className={styles.caret} aria-hidden="true">▸</span>
           </button>
         </>
+      )}
+      {flyoutAnchor && pickListForLens && createPortal(
+        <div
+          ref={flyoutRef}
+          className={styles.flyout}
+          style={{
+            left: flyoutAnchor.x,
+            top: flyoutAnchor.y,
+            width: FLYOUT_WIDTH_PX,
+            maxHeight: FLYOUT_MAX_HEIGHT_PX,
+          }}
+          role="menu"
+          aria-label="Change list"
+          onPointerEnter={cancelLeaveTimer}
+          onPointerLeave={scheduleClose}
+        >
+          <ListDefinitionPickerBody
+            mode="canvas"
+            emptyLabel="No lists yet."
+            onPick={(id) => { pickListForLens(id); onClose() }}
+          />
+        </div>,
+        document.body
       )}
     </div>,
     document.body

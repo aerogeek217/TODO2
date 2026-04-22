@@ -40,7 +40,6 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px 4px 9px;
-  max-width: 160px;
   min-width: 0;
   border: 1px solid transparent;
   border-top-left-radius: var(--radius-md);

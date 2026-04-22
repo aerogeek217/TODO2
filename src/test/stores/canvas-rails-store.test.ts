@@ -164,7 +164,7 @@ describe('canvas-rails-store', () => {
     store.setRailSize('bottom', 300)
     const rails = useCanvasRailsStore.getState().rails
     expect(rails.widths).toEqual({ left: 420, right: 600 })
-    expect(rails.heights).toEqual({ top: 200, bottom: 300 })
+    expect(rails.heights).toEqual({ top: 60, bottom: 300 })
   })
 
   it('setRailSize returns the same rails ref when the value is unchanged', () => {
@@ -320,6 +320,49 @@ describe('canvas-rails-store', () => {
       })
       useCanvasRailsStore.getState().setCornerOwner('nw', 'v')
       expect(useCanvasRailsStore.getState().rails.corners).toEqual({ nw: 'v' })
+    })
+  })
+
+  describe('setRailCollapsed / toggleRailCollapsed', () => {
+    it('setRailCollapsed(true) creates the collapsed bag on first write', () => {
+      expect(useCanvasRailsStore.getState().rails.collapsed).toBeUndefined()
+      useCanvasRailsStore.getState().setRailCollapsed('left', true)
+      expect(useCanvasRailsStore.getState().rails.collapsed).toEqual({ left: true })
+    })
+
+    it('setRailCollapsed(false) removes the side from the bag, dropping the bag when empty', () => {
+      useCanvasRailsStore.setState({
+        rails: { ...EMPTY_RAILS, collapsed: { left: true } },
+        hydrated: true,
+      })
+      useCanvasRailsStore.getState().setRailCollapsed('left', false)
+      expect(useCanvasRailsStore.getState().rails.collapsed).toBeUndefined()
+    })
+
+    it('setRailCollapsed returns the same state when the value is unchanged', () => {
+      useCanvasRailsStore.setState({
+        rails: { ...EMPTY_RAILS, collapsed: { left: true } },
+        hydrated: true,
+      })
+      const before = useCanvasRailsStore.getState().rails
+      useCanvasRailsStore.getState().setRailCollapsed('left', true)
+      expect(useCanvasRailsStore.getState().rails).toBe(before)
+    })
+
+    it('toggleRailCollapsed flips the flag on/off', () => {
+      useCanvasRailsStore.getState().toggleRailCollapsed('right')
+      expect(useCanvasRailsStore.getState().rails.collapsed).toEqual({ right: true })
+      useCanvasRailsStore.getState().toggleRailCollapsed('right')
+      expect(useCanvasRailsStore.getState().rails.collapsed).toBeUndefined()
+    })
+
+    it('preserves persisted width/height across collapse + expand', () => {
+      const store = useCanvasRailsStore.getState()
+      store.setRailSize('left', 420)
+      store.setRailCollapsed('left', true)
+      expect(useCanvasRailsStore.getState().rails.widths?.left).toBe(420)
+      store.setRailCollapsed('left', false)
+      expect(useCanvasRailsStore.getState().rails.widths?.left).toBe(420)
     })
   })
 })

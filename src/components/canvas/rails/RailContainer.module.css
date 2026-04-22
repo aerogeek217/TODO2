@@ -36,7 +36,10 @@
   box-shadow: var(--shadow-rail);
 }
 
-.resize {
+/* Invisible drag strip along the full canvas-facing edge. Drag-only — the
+   centered `.edgeHandle` button on top adds click=toggle-collapse. Thick
+   enough to be a forgiving target without hijacking pane clicks. */
+.edgeStrip {
   position: absolute;
   z-index: 3;
   background: transparent;
@@ -44,29 +47,159 @@
   touch-action: none;
 }
 
-.resize:hover,
-.resize:focus-visible {
+.edgeStrip:hover,
+.edgeStrip:active {
   background: color-mix(in oklab, var(--color-accent) 40%, transparent);
 }
 
-.resizeRight,
-.resizeLeft {
+.edgeStrip_left,
+.edgeStrip_right {
   top: 0;
   bottom: 0;
   width: 6px;
   cursor: col-resize;
 }
 
-.resizeRight { right: -3px; }
-.resizeLeft { left: -3px; }
+.edgeStrip_left { right: -3px; }
+.edgeStrip_right { left: -3px; }
 
-.resizeTop,
-.resizeBottom {
+.edgeStrip_top,
+.edgeStrip_bottom {
   left: 0;
   right: 0;
   height: 6px;
   cursor: row-resize;
 }
 
-.resizeBottom { bottom: -3px; }
-.resizeTop { top: -3px; }
+.edgeStrip_top { bottom: -3px; }
+.edgeStrip_bottom { top: -3px; }
+
+/* Small neutral handle centered on the canvas-facing edge. Click toggles
+   collapse; drag resizes. Stays quiet at rest, brightens on hover. */
+.edgeHandle {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  touch-action: none;
+  user-select: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.edgeHandle:hover,
+.edgeHandle:focus-visible {
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+  outline: none;
+}
+
+/* Vertical rails: 14×36 chip tucked half-outside the canvas-facing edge. */
+.edgeHandle_left,
+.edgeHandle_right {
+  width: 14px;
+  height: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.edgeHandle_left { right: -7px; }
+.edgeHandle_right { left: -7px; }
+
+/* Horizontal rails: 36×14 chip. */
+.edgeHandle_top,
+.edgeHandle_bottom {
+  width: 36px;
+  height: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+
+.edgeHandle_top { bottom: -7px; }
+.edgeHandle_bottom { top: -7px; }
+
+/* Collapsed state — overflow stays visible so the half-outside edge handle
+   isn't clipped. The iconStrip below owns its own overflow. */
+.collapsed {
+  overflow: visible;
+}
+
+/* Collapsed icon strip: stacks one stub per slot along the rail's long axis. */
+.iconStrip {
+  display: flex;
+  gap: 8px;
+  padding: 10px 2px;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rail.vertical .iconStrip {
+  flex-direction: column;
+}
+
+.rail.horizontal .iconStrip {
+  flex-direction: row;
+}
+
+/* Each stub: kind icon + rotated/horizontal text label. */
+.iconStub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  flex-shrink: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rail.vertical .iconStub {
+  flex-direction: column;
+  width: 100%;
+}
+
+.rail.horizontal .iconStub {
+  flex-direction: row;
+}
+
+.iconStubIcon {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--color-accent);
+}
+
+.iconStubLabel {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Vertical rails: rotate label so it reads top-to-bottom (tilt head right). */
+.rail.vertical .iconStubLabel {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  max-height: 140px;
+  letter-spacing: 0.02em;
+}
+
+.rail.horizontal .iconStubLabel {
+  max-width: 160px;
+  letter-spacing: 0.01em;
+}

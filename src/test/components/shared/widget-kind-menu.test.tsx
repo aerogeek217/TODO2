@@ -38,13 +38,13 @@ describe('WidgetKindMenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('shows a secondary "Change list…" row only when current kind is lens', () => {
+  it('shows a secondary "Change list…" row only when current kind is lens and pickListForLens is provided', () => {
     const { rerender } = render(
       <WidgetKindMenu
         anchor={ANCHOR}
         currentKind="notes"
         onChangeKind={() => {}}
-        onOpenSecondary={() => {}}
+        pickListForLens={() => {}}
         onClose={() => {}}
       />,
     )
@@ -55,7 +55,7 @@ describe('WidgetKindMenu', () => {
         anchor={ANCHOR}
         currentKind="lens"
         onChangeKind={() => {}}
-        onOpenSecondary={() => {}}
+        pickListForLens={() => {}}
         onClose={() => {}}
       />,
     )
@@ -68,7 +68,7 @@ describe('WidgetKindMenu', () => {
         anchor={ANCHOR}
         currentKind="taskboard"
         onChangeKind={() => {}}
-        onOpenSecondary={() => {}}
+        pickListForLens={() => {}}
         onClose={() => {}}
       />,
     )

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useDndMonitor } from '@dnd-kit/core'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -9,8 +9,7 @@ import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import type { Corner, CornerOwner, RailSide, RailsState, Slot } from '../../../models/canvas-rails'
-import { CORNERS, computeRailGridArea, cornerForSideClaim, getActiveTab, railSize } from '../../../models/canvas-rails'
-import { FrameCornerToggle } from './FrameCornerToggle'
+import { computeRailGridArea, cornerForSideClaim, getActiveTab, isRailCollapsed, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
 import { SlotDivider } from './SlotDivider'
@@ -206,11 +205,8 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     ? () => { void popTabToCanvas(slot, activeTab.id).then((moved) => { if (moved) closeTab(slot.id, activeTab.id) }) }
     : undefined
 
-  const handleOpenSecondary = () => {
-    if (!kindMenuAnchor) return
-    const anchor = kindMenuAnchor
-    setKindMenuAnchor(null)
-    if (activeTab.type === 'lens') setPickerPos(anchor)
+  const handlePickListForLens = (listDefinitionId: number) => {
+    updateSlot(slot.id, { listDefinitionId })
   }
 
   const handleChangeKind = (nextKind: typeof activeTab.type, anchor?: { x: number; y: number }) => {
@@ -338,7 +334,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           anchor={kindMenuAnchor}
           currentKind={activeTab.type}
           onChangeKind={(kind) => { handleChangeKind(kind, kindMenuAnchor) }}
-          onOpenSecondary={handleOpenSecondary}
+          pickListForLens={activeTab.type === 'lens' ? handlePickListForLens : undefined}
           onPopOut={handlePopOut}
           onClose={() => setKindMenuAnchor(null)}
         />
@@ -603,42 +599,11 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
   return { draggingSlot, announcement }
 }
 
-/**
- * Arrow-key navigation graph between the four frame corner toggles. Each key
- * moves within a row (Left/Right) or column (Up/Down) of the 2×2 corner grid,
- * wrapping at the edges so repeated presses cycle through all four.
- */
-const CORNER_NAV: Record<Corner, Record<'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown', Corner>> = {
-  nw: { ArrowLeft: 'ne', ArrowRight: 'ne', ArrowUp: 'sw', ArrowDown: 'sw' },
-  ne: { ArrowLeft: 'nw', ArrowRight: 'nw', ArrowUp: 'se', ArrowDown: 'se' },
-  sw: { ArrowLeft: 'se', ArrowRight: 'se', ArrowUp: 'nw', ArrowDown: 'nw' },
-  se: { ArrowLeft: 'sw', ArrowRight: 'sw', ArrowUp: 'ne', ArrowDown: 'ne' },
-}
-
 export function RailsFrame({ children }: RailsFrameProps) {
   const rails = useDefaultRails()
   const setRailSize = useCanvasRailsStore((s) => s.setRailSize)
-  const setCornerOwner = useCanvasRailsStore((s) => s.setCornerOwner)
   const { draggingSlot, announcement } = useRailsDragMonitor()
   const railsDragging = draggingSlot !== null
-
-  const toggleRefs = useRef<Record<Corner, HTMLButtonElement | null>>({
-    nw: null,
-    ne: null,
-    sw: null,
-    se: null,
-  })
-  const [focusedCorner, setFocusedCorner] = useState<Corner>('nw')
-
-  const handleCornerToggle = useCallback((corner: Corner, next: CornerOwner) => {
-    setCornerOwner(corner, next)
-  }, [setCornerOwner])
-
-  const handleCornerArrowNav = useCallback((from: Corner, key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown') => {
-    const to = CORNER_NAV[from][key]
-    setFocusedCorner(to)
-    queueMicrotask(() => toggleRefs.current[to]?.focus())
-  }, [])
 
   const emptySides = useMemo(() => {
     const out: RailSide[] = []
@@ -656,11 +621,13 @@ export function RailsFrame({ children }: RailsFrameProps) {
       gridColumn: `${area.colStart} / ${area.colEnd}`,
       gridRow: `${area.rowStart} / ${area.rowEnd}`,
     }
+    const collapsed = isRailCollapsed(rails, side)
     return (
       <RailContainer
         side={side}
         rail={rail}
         size={railSize(rails, side)}
+        collapsed={collapsed}
         onResize={(px) => setRailSize(side, px)}
         style={gridStyle}
       >
@@ -696,17 +663,6 @@ export function RailsFrame({ children }: RailsFrameProps) {
       </div>
       {renderRail('bottom')}
       {renderRail('right')}
-      {CORNERS.map((corner) => (
-        <FrameCornerToggle
-          key={corner}
-          ref={(el) => { toggleRefs.current[corner] = el }}
-          corner={corner}
-          rails={rails}
-          onToggle={handleCornerToggle}
-          onArrowNav={handleCornerArrowNav}
-          tabIndex={focusedCorner === corner ? 0 : -1}
-        />
-      ))}
       {railsDragging && <DockOverlay emptySides={emptySides} />}
       <div
         className={styles.srOnly}

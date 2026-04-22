@@ -90,12 +90,21 @@ export interface RailsState {
    * case at render time.
    */
   corners?: Partial<Record<Corner, CornerOwner>>
+  /**
+   * Per-side collapsed flag. When `true`, the rail renders as a slim icon
+   * strip (`COLLAPSED_RAIL_PX`) instead of its stored width/height, and the
+   * ResizeHandle is hidden. The stored width/height is preserved so expanding
+   * returns to the user's last preferred size. Absent / `false` = expanded.
+   */
+  collapsed?: Partial<Record<RailSide, boolean>>
 }
 
-export const RAIL_SIZE_MIN = 200
+export const RAIL_SIZE_MIN = 60
 export const RAIL_SIZE_MAX = 600
 export const DEFAULT_VERTICAL_RAIL_WIDTH = 340
 export const DEFAULT_HORIZONTAL_RAIL_HEIGHT = 260
+/** Pixel size of a collapsed rail's icon-strip. */
+export const COLLAPSED_RAIL_PX = 28
 
 export function defaultRailSize(side: RailSide): number {
   return side === 'left' || side === 'right'
@@ -108,7 +117,12 @@ export function clampRailSize(px: number): number {
   return Math.max(RAIL_SIZE_MIN, Math.min(RAIL_SIZE_MAX, Math.round(px)))
 }
 
+export function isRailCollapsed(rails: RailsState, side: RailSide): boolean {
+  return rails.collapsed?.[side] === true
+}
+
 export function railSize(rails: RailsState, side: RailSide): number {
+  if (isRailCollapsed(rails, side)) return COLLAPSED_RAIL_PX
   if (side === 'left' || side === 'right') {
     const persisted = rails.widths?.[side]
     return typeof persisted === 'number' ? clampRailSize(persisted) : defaultRailSize(side)
@@ -229,6 +243,20 @@ function parseCorners(raw: unknown): Partial<Record<Corner, CornerOwner>> | unde
   return touched ? out : undefined
 }
 
+function parseCollapsed(raw: unknown): Partial<Record<RailSide, boolean>> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const r = raw as Record<string, unknown>
+  const out: Partial<Record<RailSide, boolean>> = {}
+  let touched = false
+  for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+    if (r[side] === true) {
+      out[side] = true
+      touched = true
+    }
+  }
+  return touched ? out : undefined
+}
+
 /**
  * Resolve which rail actually owns a corner, given the current rails state.
  * Falls back to the orthogonal side when the stored owner's rail is absent,
@@ -326,5 +354,7 @@ export function parseRailsState(value: string | undefined | null): RailsState | 
   if (heights) state.heights = heights
   const corners = parseCorners(r.corners)
   if (corners) state.corners = corners
+  const collapsed = parseCollapsed(r.collapsed)
+  if (collapsed) state.collapsed = collapsed
   return state
 }
