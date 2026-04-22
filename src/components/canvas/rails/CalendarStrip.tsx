@@ -2,11 +2,11 @@ import { useCallback, useMemo, useState, type DragEvent } from 'react'
 import type { PersistedTodoItem, Person, Org, Status } from '../../../models'
 import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { startOfDay, MS_PER_DAY } from '../../../utils/date'
+import { DRAG_MIME, serializeTodoDragPayload, parseTodoDragPayload } from '../../../utils/task-dnd'
 import { buildEntries, dayKey } from './calendar/calendar-events'
 import { EventRow } from './calendar/EventRow'
+import { dropCellClassName } from '../../shared/DropIndicator'
 import styles from './CalendarStrip.module.css'
-
-const DRAG_MIME = 'application/x-todo-drag'
 
 export const STRIP_DAY_COUNT = 7
 
@@ -118,8 +118,7 @@ export function CalendarStrip({
   const handleDragStart = useCallback((todoId: number) => (e: DragEvent) => {
     if (!onReschedule) return
     e.dataTransfer.effectAllowed = 'move'
-    const payload = JSON.stringify({ kind: 'todo', todoId })
-    e.dataTransfer.setData(DRAG_MIME, payload)
+    e.dataTransfer.setData(DRAG_MIME, serializeTodoDragPayload(todoId))
     e.dataTransfer.setData('text/plain', String(todoId))
   }, [onReschedule])
 
@@ -140,16 +139,7 @@ export function CalendarStrip({
     setDragOverKey(null)
     const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain')
     if (!raw) return
-    let todoId: number | null = null
-    try {
-      const parsed = JSON.parse(raw)
-      if (parsed && parsed.kind === 'todo' && typeof parsed.todoId === 'number') {
-        todoId = parsed.todoId
-      }
-    } catch {
-      const n = Number(raw)
-      if (Number.isFinite(n)) todoId = n
-    }
+    const todoId = parseTodoDragPayload(raw)
     if (todoId == null) return
     onReschedule(todoId, startOfDay(day))
   }, [onReschedule])
@@ -182,7 +172,7 @@ export function CalendarStrip({
                 styles.hCol,
                 isToday && styles.hColToday,
                 !isToday && isPast && styles.hColPast,
-                isDragOver && styles.colDragOver,
+                dropCellClassName(isDragOver),
               ].filter(Boolean).join(' ')}
               role="listitem"
               data-day={key}
@@ -245,7 +235,7 @@ export function CalendarStrip({
               styles.row,
               isToday && styles.rowToday,
               !isToday && isPast && styles.rowPast,
-              isDragOver && styles.rowDragOver,
+              dropCellClassName(isDragOver),
             ].filter(Boolean).join(' ')}
             role="listitem"
             data-day={key}

@@ -3,12 +3,9 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  closestCenter,
-  pointerWithin,
   useSensor,
   useSensors,
   useDraggable,
-  type CollisionDetection,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
@@ -28,6 +25,14 @@ import { matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '.
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
+import {
+  TASK_DRAG_KIND,
+  TASK_DROP_KIND,
+  TASKBOARD_SINGLETON_DROP_ID,
+  buildTaskCollision,
+  parseTaskboardEntryId,
+  taskDragId,
+} from '../utils/task-dnd'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -67,8 +72,8 @@ function DashboardDraggableRow({
   children: React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `dashboard-${listKey}-${todo.id}`,
-    data: { type: 'dashboard-task', todo },
+    id: taskDragId('dashboard', todo.id, { listKey }),
+    data: { type: TASK_DRAG_KIND.dashboardTask, todo },
   })
 
   return (
@@ -402,36 +407,32 @@ export function DashboardView() {
   // droppable, (b) a top-row sortable only sees the two top slots — not the
   // taskboard's inner useDroppable which shares the same rect, (c) a user-list
   // sortable only sees other user-list sortables.
-  const collisionDetection: CollisionDetection = useCallback((args) => {
-    const activeId = args.active.id
-    const activeType = args.active.data.current?.type
-    let keep: (id: string | number) => boolean
-    if (activeId === 'top:taskboard' || activeId === 'top:horizon') {
-      keep = (id) => id === 'top:taskboard' || id === 'top:horizon'
-    } else if (activeType === 'dashboard-task') {
-      keep = (id) => typeof id === 'string' && id.startsWith('dashboard-taskboard-drop')
-    } else if (activeType === 'taskboard-task') {
+  const collisionDetection = useMemo(() => buildTaskCollision([
+    {
+      when: (active) => active.id === 'top:taskboard' || active.id === 'top:horizon',
+      accept: (id) => id === 'top:taskboard' || id === 'top:horizon',
+      algorithm: 'closestCenter',
+    },
+    {
+      when: (active) => active.data.type === TASK_DRAG_KIND.dashboardTask,
+      accept: (id) => typeof id === 'string' && id.startsWith(TASKBOARD_SINGLETON_DROP_ID),
+      algorithm: 'closestCenter',
+    },
+    {
       // Taskboard entry reorder: only see the panel's own sortable entries
       // and its outer drop target, and require the pointer to actually be
       // *inside* one of them — so dropping in empty dashboard space yields
       // `over: null` and `handleDragEnd`'s remove-on-drag-off branch fires.
-      return pointerWithin({
-        ...args,
-        droppableContainers: args.droppableContainers.filter((c) => {
-          const id = c.id as string | number
-          return typeof id === 'string' && (id === 'dashboard-taskboard-drop' || id.startsWith('tbp-'))
-        }),
-      })
-    } else if (typeof activeId === 'number') {
-      keep = (id) => typeof id === 'number'
-    } else {
-      return closestCenter(args)
-    }
-    return closestCenter({
-      ...args,
-      droppableContainers: args.droppableContainers.filter((c) => keep(c.id as string | number)),
-    })
-  }, [])
+      when: (active) => active.data.type === TASK_DRAG_KIND.taskboardTask,
+      accept: (id) => typeof id === 'string' && (id === TASKBOARD_SINGLETON_DROP_ID || id.startsWith('tbp-')),
+      algorithm: 'pointerWithin',
+    },
+    {
+      when: (active) => typeof active.id === 'number',
+      accept: (id) => typeof id === 'number',
+      algorithm: 'closestCenter',
+    },
+  ]), [])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
@@ -450,20 +451,20 @@ export function DashboardView() {
     // Taskboard entry being dragged — reorder within the board or remove on
     // drop outside. Mirrors the branch in `use-canvas-dnd.ts` so dashboard-
     // panel reorder / remove matches the rail-docked + floating behavior.
-    if (activeType === 'taskboard-task' && todo) {
+    if (activeType === TASK_DRAG_KIND.taskboardTask && todo) {
       const tbState = useTaskboardStore.getState()
-      if (overData?.type === 'taskboard-task') {
+      if (overData?.type === TASK_DROP_KIND.taskboardTask) {
         const entries = tbState.getEntries()
         const fromIndex = entries.findIndex((e) => e.todoId === todo.id)
         const overEntryId = overData.entryId as string
-        const overTodoId = Number(overEntryId.split('-').pop())
+        const overTodoId = parseTaskboardEntryId(overEntryId)?.todoId ?? NaN
         const toIndex = entries.findIndex((e) => e.todoId === overTodoId)
         if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
           await tbState.reorder(fromIndex, toIndex)
         }
         return
       }
-      if (overData?.type === 'taskboard') {
+      if (overData?.type === TASK_DROP_KIND.taskboard) {
         const entries = tbState.getEntries()
         const fromIndex = entries.findIndex((e) => e.todoId === todo.id)
         if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
@@ -477,7 +478,7 @@ export function DashboardView() {
     }
 
     // External task → taskboard drop (e.g. dashboard-task from horizon cards)
-    if (todo && (overData?.type === 'taskboard' || overData?.type === 'taskboard-task')) {
+    if (todo && (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask)) {
       await ensureTaskboardLoaded()
       const tbState = useTaskboardStore.getState()
       const panelId = (overData.panelId as string | undefined) ?? null

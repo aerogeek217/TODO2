@@ -16,6 +16,7 @@ import { effectiveDate, resolveScheduled, scheduledLabel, isScheduledExpired, is
 import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import { StatusIcon } from '../components/shared/StatusIcon'
+import { dropCellClassName } from '../components/shared/DropIndicator'
 import styles from './CalendarView.module.css'
 
 /** A calendar entry: either a real task or a virtual recurring instance. */
@@ -313,7 +314,7 @@ export function CalendarView() {
                   isOutside && styles.dayCellOutside,
                   isToday && styles.dayCellToday,
                   hasOverdue && styles.dayCellOverdue,
-                  isDragOver && styles.dayCellDragOver,
+                  dropCellClassName(isDragOver),
                 ].filter(Boolean).join(' ')}
                 onDragOver={(e) => handleDragOver(e, dayKey)}
                 onDragLeave={handleDragLeave}

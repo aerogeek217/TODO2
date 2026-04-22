@@ -19,6 +19,11 @@ import { resolveDropTarget, resolveDropPreview, type DropContext } from '../serv
 import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { bySortOrder } from '../utils/sort-order'
 import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
+import {
+  TASK_DRAG_KIND,
+  TASK_DROP_KIND,
+  parseTaskboardEntryId,
+} from '../utils/task-dnd'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -308,15 +313,15 @@ export function useCanvasDnD({
       const overData = over?.data.current
 
       // Hovering over taskboard — clear insert preview (taskboard handles its own highlight)
-      if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
+      if (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask) {
         setInsertTodoId(null)
         setInsertAtEnd(false)
         setInsertProjectId(null)
         return
       }
 
-      const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
-        : overData?.type === 'project' ? 'project'
+      const rawOverType: 'task' | 'project' | null = overData?.type === TASK_DROP_KIND.task ? 'task'
+        : overData?.type === TASK_DROP_KIND.project ? 'project'
         : null
       const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
       const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null
@@ -368,9 +373,9 @@ export function useCanvasDnD({
       }
       const overData = over.data.current
       let targetProjectId: number | null = null
-      if (overData?.type === 'project') {
+      if (overData?.type === TASK_DROP_KIND.project) {
         targetProjectId = overData.projectId as number
-      } else if (overData?.type === 'task') {
+      } else if (overData?.type === TASK_DROP_KIND.task) {
         targetProjectId = (overData.todo as PersistedTodoItem).projectId ?? null
       }
       if (targetProjectId != null) {
@@ -436,15 +441,14 @@ export function useCanvasDnD({
       const overData = over?.data.current
 
       // ── Taskboard entry being dragged ──
-      if (activeType === 'taskboard-task') {
+      if (activeType === TASK_DRAG_KIND.taskboardTask) {
         const tbState = useTaskboardStore.getState()
 
-        if (overData?.type === 'taskboard-task') {
+        if (overData?.type === TASK_DROP_KIND.taskboardTask) {
           const entries = tbState.getEntries()
           const fromIndex = entries.findIndex(e => e.todoId === activeTodo.id)
           const overEntryId = overData.entryId as string
-          // overEntryId format: `tb-<floatingId>-<todoId>` or `tbp-<todoId>`
-          const overTodoId = Number(overEntryId.split('-').pop())
+          const overTodoId = parseTaskboardEntryId(overEntryId)?.todoId ?? NaN
           const toIndex = entries.findIndex(e => e.todoId === overTodoId)
           if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
             await tbState.reorder(fromIndex, toIndex)
@@ -452,7 +456,7 @@ export function useCanvasDnD({
           return
         }
 
-        if (overData?.type === 'taskboard') {
+        if (overData?.type === TASK_DROP_KIND.taskboard) {
           const entries = tbState.getEntries()
           const fromIndex = entries.findIndex(e => e.todoId === activeTodo.id)
           if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
@@ -478,7 +482,7 @@ export function useCanvasDnD({
       // back to its slot in the full entries array — addAt operates on the
       // full array, so passing a visible index would land too high when
       // hidden / completed entries sit above the drop.
-      if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
+      if (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask) {
         const tbState = useTaskboardStore.getState()
         if (!tbState.board) await tbState.ensureLoaded()
 
@@ -502,8 +506,8 @@ export function useCanvasDnD({
         return
       }
 
-      const rawOverType: 'task' | 'project' | null = overData?.type === 'task' ? 'task'
-        : overData?.type === 'project' ? 'project'
+      const rawOverType: 'task' | 'project' | null = overData?.type === TASK_DROP_KIND.task ? 'task'
+        : overData?.type === TASK_DROP_KIND.project ? 'project'
         : null
       const rawOverTodo: PersistedTodoItem | null = rawOverType === 'task' ? (overData!.todo as PersistedTodoItem) : null
       const rawOverProjectId: number | null = rawOverType === 'project' ? (overData!.projectId as number) : null

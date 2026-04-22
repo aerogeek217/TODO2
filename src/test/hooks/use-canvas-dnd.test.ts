@@ -7,6 +7,12 @@ vi.mock('@dnd-kit/core', () => ({
   useSensors: vi.fn().mockReturnValue([]),
   MeasuringStrategy: { WhileDragging: 'WhileDragging' },
   PointerSensor: class {},
+  // Collision algorithms imported by `buildTaskCollision` (transitively via
+  // `use-canvas-dnd` → `task-dnd`). Tests exercise drop handlers directly and
+  // never invoke the detection function, so simple stubs suffice.
+  pointerWithin: vi.fn().mockReturnValue([]),
+  closestCenter: vi.fn().mockReturnValue([]),
+  rectIntersection: vi.fn().mockReturnValue([]),
 }))
 
 import { useCanvasDnD } from '../../hooks/use-canvas-dnd'

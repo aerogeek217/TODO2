@@ -12,6 +12,7 @@ import { effectiveDate } from '../../utils/effective-date'
 import { startOfToday } from '../../utils/date'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { PlainTextExportPopup } from '../overlays/PlainTextExportPopup'
+import { TASK_DROP_KIND, projectDropId } from '../../utils/task-dnd'
 import styles from './ProjectNode.module.css'
 
 type SortBy = 'name' | 'date' | 'created'
@@ -109,8 +110,8 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   }, [showSortMenu])
 
   const { isOver, setNodeRef: setDropRef } = useDroppable({
-    id: `project-drop-${project.id}`,
-    data: { type: 'project', projectId: project.id },
+    id: projectDropId(project.id!),
+    data: { type: TASK_DROP_KIND.project, projectId: project.id },
   })
 
   useEffect(() => {

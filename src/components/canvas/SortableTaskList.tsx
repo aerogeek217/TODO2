@@ -9,6 +9,8 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { TaskRow } from '../task/TaskRow'
 import { bySortOrder } from '../../utils/sort-order'
+import { TASK_DRAG_KIND, taskDragId } from '../../utils/task-dnd'
+import { DropIndicator } from '../shared/DropIndicator'
 import { DragInsertContext, DragPreviewContext } from './DragInsertContext'
 import { InsertTrigger } from './InsertTrigger'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
@@ -49,8 +51,8 @@ function SortableTaskRow({
     setNodeRef,
     isDragging,
   } = useSortable({
-    id: `todo-${todo.id}`,
-    data: { type: 'task', todo },
+    id: taskDragId('canvas-project', todo.id),
+    data: { type: TASK_DRAG_KIND.task, todo },
     disabled: disabledDrop || ghost,
   })
 
@@ -141,7 +143,7 @@ export function SortableTaskList({
     })
   }, [visibleItems, activeDragTodoId, dragGroupIds])
 
-  const items = displayItems.map((t) => `todo-${t.id}`)
+  const items = displayItems.map((t) => taskDragId('canvas-project', t.id))
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])
@@ -340,8 +342,8 @@ export function SortableTaskList({
         <div key={todo.id} data-todo-id={todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, todo.id)}>
           {insertBeforeTodoId === todo.id && (
             dropCount > 1
-              ? <div className={styles.dropPreviewGroup} style={{ height: `${dropCount * ROW_HEIGHT_PX}px` }} />
-              : <div className={styles.dropPreview} />
+              ? <DropIndicator kind="group" height={dropCount * ROW_HEIGHT_PX} />
+              : <DropIndicator kind="line" />
           )}
           {!isDragActive && onInsertTask && idx === 0 && (
             <InsertTrigger
@@ -400,8 +402,8 @@ export function SortableTaskList({
       )}
       {insertAtEnd && !insertBeforeTodoId && insertProjectId === projectId && (
         dropCount > 1
-          ? <div className={styles.dropPreviewGroup} style={{ height: `${dropCount * ROW_HEIGHT_PX}px` }} />
-          : <div className={styles.dropPreview} />
+          ? <DropIndicator kind="group" height={dropCount * ROW_HEIGHT_PX} />
+          : <DropIndicator kind="line" />
       )}
       </div>
       {contextMenu && createPortal(

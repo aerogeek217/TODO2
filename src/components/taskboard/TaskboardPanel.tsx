@@ -21,6 +21,13 @@ import { TaskRow } from '../task/TaskRow'
 import type { PersistedTodoItem, TaskboardEntry } from '../../models'
 import { computeTaskboardInsertIndex } from '../../utils/taskboard-insert'
 import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
+import {
+  TASK_DRAG_KIND,
+  TASK_DROP_KIND,
+  TASKBOARD_SINGLETON_DROP_ID,
+  taskDragId,
+} from '../../utils/task-dnd'
+import { DropIndicator, dropCellClassName } from '../shared/DropIndicator'
 import styles from './TaskboardPanel.module.css'
 
 interface SortableEntryProps {
@@ -40,7 +47,7 @@ function SortableEntry({ entryId, panelId, index, todo, assignedPeople, onOpenDe
     // floating taskboard views of the singleton) reach use-canvas-dnd.
     // `panelId` lets onDragMove + handleDragEnd recognize which panel the
     // entry belongs to without DOM walking.
-    data: { type: 'taskboard-task', todo, entryId, panelId },
+    data: { type: TASK_DRAG_KIND.taskboardTask, todo, entryId, panelId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -82,10 +89,10 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
     [board],
   )
 
-  const droppableId = 'dashboard-taskboard-drop'
+  const droppableId = TASKBOARD_SINGLETON_DROP_ID
   const { setNodeRef: setDropRef } = useDroppable({
     id: droppableId,
-    data: { type: 'taskboard', panelId: droppableId },
+    data: { type: TASK_DROP_KIND.taskboard, panelId: droppableId },
   })
   const listRef = useRef<HTMLDivElement | null>(null)
   const [insertIndex, setInsertIndex] = useState<number | null>(null)
@@ -100,14 +107,14 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
   // the same source so indicator + drop stay in lockstep.
   const onDragMove = useCallback((event: DragMoveEvent) => {
     const activeType = event.active.data.current?.type
-    if (activeType === 'taskboard-task') {
+    if (activeType === TASK_DRAG_KIND.taskboardTask) {
       setInsertIndex(null)
       setIsDndDragOver(false)
       return
     }
     const overData = event.over?.data.current
     const overPanelId = overData?.panelId as string | undefined
-    const belongs = (overData?.type === 'taskboard' || overData?.type === 'taskboard-task')
+    const belongs = (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask)
       && overPanelId === droppableId
     setIsDndDragOver(belongs)
     if (!belongs) { setInsertIndex(null); return }
@@ -158,7 +165,7 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
     [entries, todoMap, showCompleted, showHiddenStatuses, hiddenStatusIds],
   )
 
-  const entryIds = useMemo(() => visibleEntries.map((e) => `tbp-${e.todoId}`), [visibleEntries])
+  const entryIds = useMemo(() => visibleEntries.map((e) => taskDragId('taskboard-panel', e.todoId)), [visibleEntries])
 
   const handleOpenDetail = useCallback((todoId: number) => { openEditPopup(todoId) }, [openEditPopup])
 
@@ -166,7 +173,7 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
     <div
       ref={setDropRef}
       data-taskboard-panel-id={droppableId}
-      className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${isAnyDragOver ? styles.dropTarget : ''}`}
+      className={`${styles.panel} ${hideHeader ? styles.panelFill : ''} ${dropCellClassName(isAnyDragOver)}`}
       onDragOver={onExternalDragOver}
       onDragLeave={onExternalDragLeave}
       onDrop={onExternalDrop}
@@ -184,7 +191,7 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
       <div ref={listRef} className={styles.list}>
         {visibleEntries.length === 0 ? (
           <>
-            {isAnyDragOver && effectiveInsertIndex !== null && <div className={styles.dropPreview} />}
+            {isAnyDragOver && effectiveInsertIndex !== null && <DropIndicator kind="line" />}
             <div className={styles.empty}>
               No tasks queued
               <span className={styles.dropHint}>Drag a task here or right-click to add</span>
@@ -197,9 +204,9 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
               if (!todo) return null
               return (
                 <Fragment key={entry.todoId}>
-                  {effectiveInsertIndex === i && <div className={styles.dropPreview} />}
+                  {effectiveInsertIndex === i && <DropIndicator kind="line" />}
                   <SortableEntry
-                    entryId={`tbp-${entry.todoId}`}
+                    entryId={taskDragId('taskboard-panel', entry.todoId)}
                     panelId={droppableId}
                     index={i}
                     todo={todo}
@@ -209,7 +216,7 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
                 </Fragment>
               )
             })}
-            {effectiveInsertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
+            {effectiveInsertIndex === visibleEntries.length && <DropIndicator kind="line" />}
           </SortableContext>
         )}
       </div>

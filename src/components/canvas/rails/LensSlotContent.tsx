@@ -25,7 +25,7 @@ export function LensSlotContent({ listDefinitionId, onTitleChange }: LensSlotCon
           todo={todo}
           assignedPeople={assignedPeople}
           onOpenDetail={onOpenDetail}
-          idPrefix="lens"
+          surface="lens"
           showContext
         />
       )}

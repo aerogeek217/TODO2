@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { bySortOrder } from '../../utils/sort-order'
+import { TASK_DRAG_KIND, taskDragId } from '../../utils/task-dnd'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { TaskRow } from './TaskRow'
 import { MobileTaskRow } from './MobileTaskRow'
@@ -32,8 +33,8 @@ function DraggableRow({
   children: React.ReactNode
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `list-todo-${todo.id}`,
-    data: { type: 'list-task', todo, sectionKey },
+    id: taskDragId('list', todo.id),
+    data: { type: TASK_DRAG_KIND.listTask, todo, sectionKey },
   })
 
   if (isDragging) {

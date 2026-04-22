@@ -10,38 +10,3 @@
 .selFirst { composes: selFirst from '../shared/selection.module.css'; }
 .selLast { composes: selLast from '../shared/selection.module.css'; }
 .focused { composes: focused from '../shared/selection.module.css'; }
-
-.dropPreview {
-  height: 2px;
-  margin: 2px 8px;
-  background: var(--color-accent);
-  border-radius: 1px;
-  box-shadow: 0 0 8px var(--color-accent-glow);
-  transition: margin-left var(--transition-spring);
-  position: relative;
-}
-
-.dropPreviewGroup {
-  margin: 2px 8px;
-  border: 1px dashed var(--color-accent);
-  border-radius: var(--radius-chip);
-  background: var(--color-accent-bg-subtle);
-  position: relative;
-  transition: margin-left var(--transition-spring);
-}
-
-.dropPreviewChild {
-  margin-left: 32px;
-}
-
-.dropPreviewChild::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 2px;
-  height: 14px;
-  background: var(--color-accent);
-  border-radius: 1px;
-  box-shadow: 0 0 8px var(--color-accent-glow);
-}

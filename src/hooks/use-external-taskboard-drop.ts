@@ -1,26 +1,7 @@
 import { useCallback, useState, type DragEvent } from 'react'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { computeTaskboardInsertIndex, computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
-
-const DRAG_MIME = 'application/x-todo-drag'
-
-function hasExternalTodo(types: readonly string[]): boolean {
-  for (const t of types) if (t === DRAG_MIME) return true
-  return false
-}
-
-function parseTodoId(raw: string): number | null {
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && parsed.kind === 'todo' && typeof parsed.todoId === 'number') {
-      return parsed.todoId
-    }
-  } catch {
-    // fallthrough to plain number parse
-  }
-  const n = Number(raw)
-  return Number.isFinite(n) ? n : null
-}
+import { DRAG_MIME, hasTodoDragMime, parseTodoDragPayload } from '../utils/task-dnd'
 
 /**
  * Native HTML5 drop target for "external" todo drags (e.g. calendar events)
@@ -43,7 +24,7 @@ export function useExternalTaskboardDrop(panelDroppableId: string) {
   }, [])
 
   const onDragOver = useCallback((e: DragEvent) => {
-    if (!hasExternalTodo(e.dataTransfer.types)) return
+    if (!hasTodoDragMime(e.dataTransfer.types)) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     setIsExternalDragOver(true)
@@ -61,7 +42,7 @@ export function useExternalTaskboardDrop(panelDroppableId: string) {
   const onDrop = useCallback((e: DragEvent) => {
     const raw = e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData('text/plain')
     if (!raw) { clear(); return }
-    const todoId = parseTodoId(raw)
+    const todoId = parseTodoDragPayload(raw)
     if (todoId == null) { clear(); return }
     e.preventDefault()
     const entries = useTaskboardStore.getState().getEntries()

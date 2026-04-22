@@ -102,10 +102,6 @@
   opacity: 0.7;
 }
 
-.rowDragOver {
-  background: var(--color-accent-bg-medium);
-}
-
 .dateBlock {
   display: flex;
   flex-direction: column;
@@ -149,10 +145,6 @@
 
 .hColPast {
   opacity: 0.7;
-}
-
-.colDragOver {
-  background: var(--color-accent-bg-medium);
 }
 
 .hColHeader {

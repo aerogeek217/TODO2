@@ -131,10 +131,6 @@
   background: color-mix(in srgb, var(--color-danger) 5%, transparent);
 }
 
-.dayCellDragOver {
-  background: var(--color-accent-bg-medium);
-}
-
 .dayNumber {
   font-size: var(--font-size-meta);
   color: var(--color-text-secondary);

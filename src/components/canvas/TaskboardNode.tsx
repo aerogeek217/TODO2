@@ -19,6 +19,13 @@ import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { convertFloatingKind } from '../../services/float-kind-switch'
 import { useExternalTaskboardDrop } from '../../hooks/use-external-taskboard-drop'
 import { computeTaskboardInsertIndex } from '../../utils/taskboard-insert'
+import {
+  TASK_DRAG_KIND,
+  TASK_DROP_KIND,
+  taskDragId,
+  taskboardFloatDropId,
+} from '../../utils/task-dnd'
+import { DropIndicator, dropCellClassName } from '../shared/DropIndicator'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
@@ -53,7 +60,7 @@ function SortableTaskboardEntry({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entryId,
-    data: { type: 'taskboard-task', todo, entryId, panelId },
+    data: { type: TASK_DRAG_KIND.taskboardTask, todo, entryId, panelId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
@@ -87,10 +94,10 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
-  const droppableId = `taskboard-drop-${floatingId}`
+  const droppableId = taskboardFloatDropId(floatingId)
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: droppableId,
-    data: { type: 'taskboard', panelId: droppableId },
+    data: { type: TASK_DROP_KIND.taskboard, panelId: droppableId },
   })
 
   const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
@@ -138,13 +145,13 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   )
 
   const entryIds = useMemo(
-    () => visibleEntries.map((e) => `tb-${floatingId}-${e.todoId}`),
+    () => visibleEntries.map((e) => taskDragId('taskboard-float', e.todoId, { floatingId })),
     [visibleEntries, floatingId],
   )
 
   const onDragMove = useCallback((event: DragMoveEvent) => {
     const activeType = event.active.data.current?.type
-    if (activeType === 'taskboard-task') {
+    if (activeType === TASK_DRAG_KIND.taskboardTask) {
       setIsExternalDragOver(false)
       setTbInsertIndex(null)
       return
@@ -155,7 +162,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     // panel droppable or one of its sortable entries — both carry the same
     // `panelId`. Avoids `useDroppable.isOver`, which flips false the moment
     // dnd-kit picks an inner sortable entry as the over target.
-    const belongs = (overData?.type === 'taskboard' || overData?.type === 'taskboard-task')
+    const belongs = (overData?.type === TASK_DROP_KIND.taskboard || overData?.type === TASK_DROP_KIND.taskboardTask)
       && overPanelId === droppableId
     setIsExternalDragOver(belongs)
     if (!belongs) { setTbInsertIndex(null); return }
@@ -195,7 +202,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     <div
       ref={setDropRef}
       data-taskboard-panel-id={droppableId}
-      className={`${styles.node} ${isOver || isExternalDragOver || isNativeDragOver ? styles.dropTarget : ''}`}
+      className={`${styles.node} ${dropCellClassName(isOver || isExternalDragOver || isNativeDragOver)}`}
       style={{ width }}
       onDragOver={onExternalDragOver}
       onDragLeave={onExternalDragLeave}
@@ -230,9 +237,9 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
               if (!todo) return null
               return (
                 <Fragment key={entry.todoId}>
-                  {effectiveInsertIndex === i && <div className={styles.dropPreview} />}
+                  {effectiveInsertIndex === i && <DropIndicator kind="line" />}
                   <SortableTaskboardEntry
-                    entryId={`tb-${floatingId}-${entry.todoId}`}
+                    entryId={taskDragId('taskboard-float', entry.todoId, { floatingId })}
                     panelId={droppableId}
                     index={i}
                     todo={todo}
@@ -243,7 +250,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                 </Fragment>
               )
             })}
-            {effectiveInsertIndex === visibleEntries.length && <div className={styles.dropPreview} />}
+            {effectiveInsertIndex === visibleEntries.length && <DropIndicator kind="line" />}
           </SortableContext>
         )}
       </div>

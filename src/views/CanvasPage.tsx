@@ -2,10 +2,9 @@ import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
-  pointerWithin,
-  type CollisionDetection,
 } from '@dnd-kit/core'
 import { RAILS_DRAG_TYPE, isRailsDropId } from '../utils/rail-dnd'
+import { buildTaskCollision } from '../utils/task-dnd'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -534,14 +533,21 @@ export function CanvasPage() {
     [dnd.insertTodoId, dnd.insertAtEnd, dnd.insertProjectId],
   )
 
-  const collisionDetection = useMemo<CollisionDetection>(() => (args) => {
-    const type = args.active?.data.current?.type
-    const hits = pointerWithin(args)
-    if (type === RAILS_DRAG_TYPE) {
-      return hits.filter((h) => isRailsDropId(String(h.id)))
-    }
-    return hits.filter((h) => !isRailsDropId(String(h.id)))
-  }, [])
+  // F12: rails drags and task drags share the canvas `DndContext` but route to
+  // disjoint droppable sets. Rails drags match against `rails:*` zones;
+  // everything else (task / taskboard-task) matches non-rails zones.
+  const collisionDetection = useMemo(() => buildTaskCollision([
+    {
+      when: (active) => active.data.type === RAILS_DRAG_TYPE,
+      accept: (id) => isRailsDropId(String(id)),
+      algorithm: 'pointerWithin',
+    },
+    {
+      when: () => true,
+      accept: (id) => !isRailsDropId(String(id)),
+      algorithm: 'pointerWithin',
+    },
+  ]), [])
 
   return (
     <DndContext
