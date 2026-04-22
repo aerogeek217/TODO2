@@ -18,7 +18,7 @@ import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, indentTasks, outdentTasks, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { getFlatVisualOrder, bySortOrder } from '../utils/hierarchy'
-import { computeTaskboardInsertIndex } from '../utils/taskboard-insert'
+import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -527,10 +527,14 @@ export function useCanvasDnD({
 
       // Dropped onto the taskboard — add task(s) at drop position.
       //
-      // Both entry-level (`taskboard-task`) and panel-level (`taskboard`) drops
-      // compute the insertion index from the same translated-rect center,
-      // matching the indicator logic in TaskboardPanel / TaskboardNode, so
-      // the drop lands where the indicator showed it.
+      // Both entry-level (`taskboard-task`) and panel-level (`taskboard`)
+      // drops carry `panelId` in their drag data and compute the insertion
+      // index from the same translated-rect center as TaskboardPanel /
+      // TaskboardNode's indicator, so the drop lands where the indicator
+      // showed it. `computeTaskboardFullInsertIndex` maps the visible row
+      // back to its slot in the full entries array — addAt operates on the
+      // full array, so passing a visible index would land too high when
+      // hidden / completed entries sit above the drop.
       if (overData?.type === 'taskboard' || overData?.type === 'taskboard-task') {
         const tbState = useTaskboardStore.getState()
         if (!tbState.board) await tbState.ensureLoaded()
@@ -541,22 +545,10 @@ export function useCanvasDnD({
         if (translated) pointerY = translated.top + translated.height / 2
         else if (initial) pointerY = initial.top + initial.height / 2 + delta.y
 
-        let panelId: string | null = null
-        if (overData?.type === 'taskboard' && typeof over?.id === 'string') {
-          panelId = over.id
-        } else if (overData?.type === 'taskboard-task') {
-          // Resolve the enclosing panel from the entry's DOM so the index
-          // computation targets the right board instance on screen.
-          const entryEl = document.querySelector<HTMLElement>(
-            `[data-tbp-entry][data-entry-id="${overData.entryId}"]`,
-          )
-          const panelEl = entryEl?.closest<HTMLElement>('[data-taskboard-panel-id]') ?? null
-          panelId = panelEl?.dataset.taskboardPanelId ?? null
-        }
-
+        const panelId = (overData.panelId as string | undefined) ?? null
         const entries = tbState.getEntries()
         const targetIndex = panelId
-          ? computeTaskboardInsertIndex(panelId, pointerY)
+          ? computeTaskboardFullInsertIndex(panelId, pointerY, entries)
           : entries.length
 
         if (dragIds) {

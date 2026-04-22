@@ -25,24 +25,27 @@ import styles from './TaskboardPanel.module.css'
 
 interface SortableEntryProps {
   entryId: string
+  panelId: string
   index: number
   todo: PersistedTodoItem
   assignedPeople: import('../../models').Person[] | undefined
   onOpenDetail: (todoId: number) => void
 }
 
-function SortableEntry({ entryId, index, todo, assignedPeople, onOpenDetail }: SortableEntryProps) {
+function SortableEntry({ entryId, panelId, index, todo, assignedPeople, onOpenDetail }: SortableEntryProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entryId,
     // Route through the canvas-level DndContext so entry drags outside the
     // panel (→ remove) and cross-view drops (→ reorder across dashboard +
     // floating taskboard views of the singleton) reach use-canvas-dnd.
-    data: { type: 'taskboard-task', todo, entryId },
+    // `panelId` lets onDragMove + handleDragEnd recognize which panel the
+    // entry belongs to without DOM walking.
+    data: { type: 'taskboard-task', todo, entryId, panelId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} data-tbp-entry data-entry-id={entryId} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} data-tbp-entry data-todo-id={todo.id} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} compact onOpenDetail={onOpenDetail} onTaskboard />
@@ -80,31 +83,46 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
   )
 
   const droppableId = 'dashboard-taskboard-drop'
-  const { isOver, setNodeRef: setDropRef } = useDroppable({
+  const { setNodeRef: setDropRef } = useDroppable({
     id: droppableId,
-    data: { type: 'taskboard' },
+    data: { type: 'taskboard', panelId: droppableId },
   })
   const listRef = useRef<HTMLDivElement | null>(null)
   const [insertIndex, setInsertIndex] = useState<number | null>(null)
+  const [isDndDragOver, setIsDndDragOver] = useState(false)
 
-  // Track external drags (not taskboard-task reorders) over the panel so we
-  // can surface an insertion line. Entry rects are resolved from the DOM via
-  // `data-tbp-entry` attributes. Uses the translated-rect center as the Y
-  // reference — same source as the drop handler in `use-canvas-dnd.ts` so
-  // the indicator and drop stay in lockstep.
+  // Surface an insertion line for external drags (not taskboard-task reorders)
+  // whose `over` is either this panel or one of its sortable entries — entry
+  // ids include `panelId` so we can isolate per-panel without leaning on
+  // `useDroppable.isOver`, which flips false the moment dnd-kit picks an
+  // inner sortable entry as the over target. Pointer Y comes from the
+  // dragged-overlay rect center; `use-canvas-dnd.handleDragEnd` reads from
+  // the same source so indicator + drop stay in lockstep.
   const onDragMove = useCallback((event: DragMoveEvent) => {
     const activeType = event.active.data.current?.type
-    if (activeType === 'taskboard-task') { setInsertIndex(null); return }
-    if (!isOver) { setInsertIndex(null); return }
+    if (activeType === 'taskboard-task') {
+      setInsertIndex(null)
+      setIsDndDragOver(false)
+      return
+    }
+    const overData = event.over?.data.current
+    const overPanelId = overData?.panelId as string | undefined
+    const belongs = (overData?.type === 'taskboard' || overData?.type === 'taskboard-task')
+      && overPanelId === droppableId
+    setIsDndDragOver(belongs)
+    if (!belongs) { setInsertIndex(null); return }
     const translated = event.active.rect.current.translated
     const initial = event.active.rect.current.initial
     let pointerY = 0
     if (translated) pointerY = translated.top + translated.height / 2
     else if (initial) pointerY = initial.top + initial.height / 2 + event.delta.y
     setInsertIndex(computeTaskboardInsertIndex(droppableId, pointerY))
-  }, [isOver, droppableId])
+  }, [droppableId])
 
-  const onDragClear = useCallback(() => { setInsertIndex(null) }, [])
+  const onDragClear = useCallback(() => {
+    setInsertIndex(null)
+    setIsDndDragOver(false)
+  }, [])
   useDndMonitor({ onDragMove, onDragEnd: onDragClear, onDragCancel: onDragClear })
 
   // Native HTML5 drop path for non-dnd-kit sources (e.g. calendar events).
@@ -116,7 +134,7 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
     onDrop: onExternalDrop,
   } = useExternalTaskboardDrop(droppableId)
   const effectiveInsertIndex = insertIndex ?? externalInsertIndex
-  const isAnyDragOver = isOver || isExternalDragOver
+  const isAnyDragOver = isDndDragOver || isExternalDragOver
 
   const todoMap = useMemo(() => {
     const map = new Map<number, PersistedTodoItem>()
@@ -182,6 +200,7 @@ export function TaskboardPanel({ dragHandleIcon, dragHandleProps, hideHeader }: 
                   {effectiveInsertIndex === i && <div className={styles.dropPreview} />}
                   <SortableEntry
                     entryId={`tbp-${entry.todoId}`}
+                    panelId={droppableId}
                     index={i}
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}

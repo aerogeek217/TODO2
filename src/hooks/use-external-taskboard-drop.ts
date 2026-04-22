@@ -1,6 +1,6 @@
 import { useCallback, useState, type DragEvent } from 'react'
 import { useTaskboardStore } from '../stores/taskboard-store'
-import { computeTaskboardInsertIndex } from '../utils/taskboard-insert'
+import { computeTaskboardInsertIndex, computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
 
 const DRAG_MIME = 'application/x-todo-drag'
 
@@ -64,7 +64,8 @@ export function useExternalTaskboardDrop(panelDroppableId: string) {
     const todoId = parseTodoId(raw)
     if (todoId == null) { clear(); return }
     e.preventDefault()
-    const idx = computeTaskboardInsertIndex(panelDroppableId, e.clientY)
+    const entries = useTaskboardStore.getState().getEntries()
+    const idx = computeTaskboardFullInsertIndex(panelDroppableId, e.clientY, entries)
     void useTaskboardStore.getState().addAt(todoId, idx)
     clear()
   }, [panelDroppableId, clear])

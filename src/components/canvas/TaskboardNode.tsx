@@ -41,24 +41,24 @@ export interface TaskboardNodeData {
 type TaskboardNodeType = TaskboardNodeData
 
 function SortableTaskboardEntry({
-  entryId, index, todo, assignedPeople, ghost, floatingId, onOpenDetail,
+  entryId, panelId, index, todo, assignedPeople, ghost, onOpenDetail,
 }: {
   entryId: string
+  panelId: string
   index: number
   todo: PersistedTodoItem
   assignedPeople: Person[] | undefined
   ghost?: boolean
-  floatingId: number
   onOpenDetail?: (todoId: number) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: entryId,
-    data: { type: 'taskboard-task', todo, entryId, floatingId },
+    data: { type: 'taskboard-task', todo, entryId, panelId },
   })
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   return (
-    <div ref={setNodeRef} style={style} data-tbp-entry data-entry-id={entryId} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} data-tbp-entry data-todo-id={todo.id} className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`} {...attributes} {...listeners}>
       <span className={styles.orderNumber}>{index + 1}</span>
       <div className={styles.taskWrapper}>
         <TaskRow todo={todo} assignedPeople={assignedPeople} ghost={ghost} compact onOpenDetail={onOpenDetail} onTaskboard />
@@ -90,7 +90,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
   const droppableId = `taskboard-drop-${floatingId}`
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: droppableId,
-    data: { type: 'taskboard', floatingId },
+    data: { type: 'taskboard', panelId: droppableId },
   })
 
   const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
@@ -144,17 +144,21 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
 
   const onDragMove = useCallback((event: DragMoveEvent) => {
     const activeType = event.active.data.current?.type
-    const overData = event.over?.data.current
-    const overType = overData?.type
-
-    setIsExternalDragOver(activeType !== 'taskboard-task' && (overType === 'taskboard' || overType === 'taskboard-task'))
-
-    if (activeType === 'taskboard-task' || (overType !== 'taskboard' && overType !== 'taskboard-task')) {
+    if (activeType === 'taskboard-task') {
+      setIsExternalDragOver(false)
       setTbInsertIndex(null)
       return
     }
-    // Only surface the insert indicator when the over-target belongs to this floating instance.
-    if (overData?.floatingId !== floatingId) { setTbInsertIndex(null); return }
+    const overData = event.over?.data.current
+    const overPanelId = overData?.panelId as string | undefined
+    // The over target is *this* floating taskboard when it's either the
+    // panel droppable or one of its sortable entries — both carry the same
+    // `panelId`. Avoids `useDroppable.isOver`, which flips false the moment
+    // dnd-kit picks an inner sortable entry as the over target.
+    const belongs = (overData?.type === 'taskboard' || overData?.type === 'taskboard-task')
+      && overPanelId === droppableId
+    setIsExternalDragOver(belongs)
+    if (!belongs) { setTbInsertIndex(null); return }
 
     // Translated-rect center as the Y reference — same source as the drop
     // handler in use-canvas-dnd so indicator + drop stay in lockstep.
@@ -164,7 +168,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     if (translated) pointerY = translated.top + translated.height / 2
     else if (initial) pointerY = initial.top + initial.height / 2 + event.delta.y
     setTbInsertIndex(computeTaskboardInsertIndex(droppableId, pointerY))
-  }, [floatingId, droppableId])
+  }, [droppableId])
 
   const onDragClear = useCallback(() => {
     setIsExternalDragOver(false)
@@ -229,11 +233,11 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
                   {effectiveInsertIndex === i && <div className={styles.dropPreview} />}
                   <SortableTaskboardEntry
                     entryId={`tb-${floatingId}-${entry.todoId}`}
+                    panelId={droppableId}
                     index={i}
                     todo={todo}
                     assignedPeople={assignedPeopleMap.get(todo.id)}
                     ghost={ghostTodoIds?.has(todo.id)}
-                    floatingId={floatingId}
                     onOpenDetail={onOpenDetail}
                   />
                 </Fragment>

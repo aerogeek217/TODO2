@@ -27,7 +27,7 @@ import { useUIStore } from '../stores/ui-store'
 import { matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
-import { computeTaskboardInsertIndex } from '../utils/taskboard-insert'
+import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -477,17 +477,19 @@ export function DashboardView() {
     }
 
     // External task → taskboard drop (e.g. dashboard-task from horizon cards)
-    if (todo && overData?.type === 'taskboard') {
+    if (todo && (overData?.type === 'taskboard' || overData?.type === 'taskboard-task')) {
       await ensureTaskboardLoaded()
       const tbState = useTaskboardStore.getState()
-      let targetIndex = tbState.getEntries().length
-      if (typeof event.over?.id === 'string') {
+      const panelId = (overData.panelId as string | undefined) ?? null
+      const entries = tbState.getEntries()
+      let targetIndex = entries.length
+      if (panelId) {
         const translated = event.active.rect.current.translated
         const initialRect = event.active.rect.current.initial
         let pointerY = 0
         if (translated) pointerY = translated.top + translated.height / 2
         else if (initialRect) pointerY = initialRect.top + initialRect.height / 2 + event.delta.y
-        targetIndex = computeTaskboardInsertIndex(event.over.id, pointerY)
+        targetIndex = computeTaskboardFullInsertIndex(panelId, pointerY, entries)
       }
       await tbState.addAt(todo.id, targetIndex)
       return
