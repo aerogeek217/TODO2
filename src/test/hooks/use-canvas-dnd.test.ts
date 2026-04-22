@@ -177,7 +177,7 @@ describe('useCanvasDnD — handleDragStart', () => {
     })
 
     expect(result.current.multiDragCount).toBe(2)
-    expect(result.current.dragGroupIds).toEqual(new Set([2]))
+    expect(result.current.dragSelectionIds).toEqual(new Set([2]))
   })
 })
 
@@ -208,7 +208,7 @@ describe('useCanvasDnD — handleDragEnd state reset', () => {
     expect(result.current.insertTodoId).toBeNull()
     expect(result.current.insertAtEnd).toBe(false)
     expect(result.current.insertProjectId).toBeNull()
-    expect(result.current.dragGroupIds).toBeNull()
+    expect(result.current.dragSelectionIds).toBeNull()
   })
 
   it('cleans up edge pan pointer listener on drag end', async () => {
@@ -256,7 +256,7 @@ describe('useCanvasDnD — handleDragCancel (C1 fix)', () => {
     expect(result.current.insertTodoId).toBeNull()
     expect(result.current.insertAtEnd).toBe(false)
     expect(result.current.insertProjectId).toBeNull()
-    expect(result.current.dragGroupIds).toBeNull()
+    expect(result.current.dragSelectionIds).toBeNull()
   })
 
   it('cleans up edge pan pointer listener on cancel', () => {

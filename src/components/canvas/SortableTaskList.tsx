@@ -85,10 +85,10 @@ export function SortableTaskList({
   onOpenDetail,
   onInsertTask,
 }: SortableTaskListProps) {
-  const { activeDragTodoId, dragGroupIds } = useContext(DragInsertContext)
+  const { activeDragTodoId, dragSelectionIds } = useContext(DragInsertContext)
   const { insertTodoId: insertBeforeTodoId, insertAtEnd, insertProjectId } = useContext(DragPreviewContext)
   const isDragActive = activeDragTodoId != null
-  const dropCount = isDragActive ? (dragGroupIds?.size ?? 0) + 1 : 1
+  const dropCount = isDragActive ? (dragSelectionIds?.size ?? 0) + 1 : 1
   const { selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()
 
   // Which InsertTrigger is currently open (keyed by the todo id it follows, or BEFORE_FIRST)
@@ -129,10 +129,10 @@ export function SortableTaskList({
   const displayItems = useMemo(() => {
     if (!activeDragTodoId) return visibleItems
     return visibleItems.filter(item => {
-      if (dragGroupIds && dragGroupIds.has(item.id)) return false
+      if (dragSelectionIds && dragSelectionIds.has(item.id)) return false
       return true
     })
-  }, [visibleItems, activeDragTodoId, dragGroupIds])
+  }, [visibleItems, activeDragTodoId, dragSelectionIds])
 
   const items = displayItems.map((t) => taskDragId('canvas-project', t.id))
 
@@ -355,7 +355,7 @@ export function SortableTaskList({
             isSelected={isSel}
             ghost={ghostTodoIds?.has(todo.id)}
             cut={clipboardSet.has(todo.id)}
-            disabledDrop={dragGroupIds?.has(todo.id)}
+            disabledDrop={dragSelectionIds?.has(todo.id)}
             onSelect={handleSelect}
             onOpenDetail={onOpenDetail}
           />

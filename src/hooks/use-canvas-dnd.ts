@@ -50,7 +50,7 @@ export function useCanvasDnD({
   const [insertTodoId, setInsertTodoId] = useState<number | null>(null)
   const [insertAtEnd, setInsertAtEnd] = useState(false)
   const [insertProjectId, setInsertProjectId] = useState<number | null>(null)
-  const [dragGroupIds, setDragGroupIds] = useState<Set<number> | null>(null)
+  const [dragSelectionIds, setDragSelectionIds] = useState<Set<number> | null>(null)
 
   // Edge panning during drag
   const edgePanRef = useRef<{
@@ -241,7 +241,7 @@ export function useCanvasDnD({
     setInsertTodoId(null)
     setInsertAtEnd(false)
     setInsertProjectId(null)
-    setDragGroupIds(null)
+    setDragSelectionIds(null)
     multiDragIdsRef.current = null
   }, [stopEdgePan])
 
@@ -262,13 +262,13 @@ export function useCanvasDnD({
           const dragSet = new Set(sel)
           multiDragIdsRef.current = dragSet
           setMultiDragCount(dragSet.size)
-          const groupIds = new Set(dragSet)
-          groupIds.delete(todo.id)
-          setDragGroupIds(groupIds)
+          const selectionIds = new Set(dragSet)
+          selectionIds.delete(todo.id)
+          setDragSelectionIds(selectionIds)
         } else {
           multiDragIdsRef.current = null
           setMultiDragCount(0)
-          setDragGroupIds(null)
+          setDragSelectionIds(null)
         }
 
         // Start edge panning and pointer tracking
@@ -468,7 +468,7 @@ export function useCanvasDnD({
     insertTodoId,
     insertAtEnd,
     insertProjectId,
-    dragGroupIds,
+    dragSelectionIds,
     // Config
     sensors,
     measuring,

@@ -520,9 +520,9 @@ export function CanvasPage() {
     () => ({
       activeDragTodoId: dnd.activeDragTodo?.id ?? null,
       dragExpandedProjectId: dnd.dragExpandedProjectId,
-      dragGroupIds: dnd.dragGroupIds,
+      dragSelectionIds: dnd.dragSelectionIds,
     }),
-    [dnd.activeDragTodo?.id, dnd.dragExpandedProjectId, dnd.dragGroupIds],
+    [dnd.activeDragTodo?.id, dnd.dragExpandedProjectId, dnd.dragSelectionIds],
   )
   const dragPreviewValue = useMemo(
     () => ({

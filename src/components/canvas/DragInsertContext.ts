@@ -10,13 +10,13 @@ export interface DragInsertState {
   activeDragTodoId: number | null
   dragExpandedProjectId: number | null
   /** IDs of tasks being dragged along (multi-select) — disabled as drop targets */
-  dragGroupIds: Set<number> | null
+  dragSelectionIds: Set<number> | null
 }
 
 export const DragInsertContext = createContext<DragInsertState>({
   activeDragTodoId: null,
   dragExpandedProjectId: null,
-  dragGroupIds: null,
+  dragSelectionIds: null,
 })
 
 /**
