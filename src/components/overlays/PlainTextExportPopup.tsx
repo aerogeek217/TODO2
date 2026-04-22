@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react'
 import type { PersistedTodoItem, Person, Status } from '../../models'
-import { buildHierarchy } from '../../utils/hierarchy'
+import { bySortOrder } from '../../utils/sort-order'
 import { scheduledLabel } from '../../utils/effective-date'
 import { startOfToday } from '../../utils/date'
 import styles from './PlainTextExportPopup.module.css'
@@ -18,14 +18,14 @@ interface PlainTextExportPopupProps {
   onClose: () => void
 }
 
-function formatTodoLine(todo: PersistedTodoItem, indent: string, people: Person[], statusMap: Map<number, Status>, today: Date): string {
+function formatTodoLine(todo: PersistedTodoItem, people: Person[], statusMap: Map<number, Status>, today: Date): string {
   const check = todo.isCompleted ? '[x]' : '[ ]'
   const sched = todo.scheduledDate ? ` (sched: ${scheduledLabel(todo.scheduledDate, today)})` : ''
   const deadline = todo.dueDate ? ` (deadline ${new Date(todo.dueDate).toLocaleDateString()})` : ''
   const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
   const statusStr = status ? ` [${status.name}]` : ''
   const peopleStr = people.length > 0 ? ` @${people.map(p => p.name).join(', @')}` : ''
-  return `${indent}${check} ${todo.title}${statusStr}${sched}${deadline}${peopleStr}`
+  return `  ${check} ${todo.title}${statusStr}${sched}${deadline}${peopleStr}`
 }
 
 function generatePlainText(
@@ -39,14 +39,9 @@ function generatePlainText(
   for (const section of sections) {
     if (section.todos.length === 0) continue
     lines.push(`== ${section.label} ==`)
-    const hierarchy = buildHierarchy(section.todos)
-    for (const { parent, children } of hierarchy) {
-      const people = assignedPeopleMap.get(parent.id) ?? []
-      lines.push(formatTodoLine(parent, '  ', people, statusMap, today))
-      for (const child of children) {
-        const cp = assignedPeopleMap.get(child.id) ?? []
-        lines.push(formatTodoLine(child, '    ', cp, statusMap, today))
-      }
+    for (const todo of [...section.todos].sort(bySortOrder)) {
+      const people = assignedPeopleMap.get(todo.id) ?? []
+      lines.push(formatTodoLine(todo, people, statusMap, today))
     }
     lines.push('')
   }

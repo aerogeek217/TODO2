@@ -3,7 +3,7 @@ import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { pasteTasksAt } from '../services/clipboard'
-import { bySortOrder } from '../utils/hierarchy'
+import { bySortOrder } from '../utils/sort-order'
 
 interface KeyboardShortcutOptions {
   openCreatePopup: () => void

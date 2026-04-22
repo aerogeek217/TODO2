@@ -11,7 +11,7 @@ import { useListDefinitionStore, emptyPredicate } from '../../stores/list-defini
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { TaskRow } from '../task/TaskRow'
-import { bySortOrder } from '../../utils/hierarchy'
+import { bySortOrder } from '../../utils/sort-order'
 import styles from './FilteredListPopup.module.css'
 
 function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.ReactNode } {

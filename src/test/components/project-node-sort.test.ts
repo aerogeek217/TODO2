@@ -14,42 +14,39 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
 }
 
 describe('sortProjectTasks', () => {
-  it('keeps children grouped under their parent after sorting by date', () => {
+  it('sorts by date ascending', () => {
     const earlier = new Date(2026, 3, 1)
     const later = new Date(2026, 3, 10)
     const todos = [
-      makeTodo({ id: 1, title: 'Late parent', dueDate: later }),
-      makeTodo({ id: 2, title: 'Late child A', parentId: 1, dueDate: earlier }),
-      makeTodo({ id: 3, title: 'Late child B', parentId: 1, dueDate: later }),
-      makeTodo({ id: 4, title: 'Early parent', dueDate: earlier }),
-      makeTodo({ id: 5, title: 'Early child', parentId: 4, dueDate: later }),
+      makeTodo({ id: 1, dueDate: later }),
+      makeTodo({ id: 2, dueDate: earlier }),
+      makeTodo({ id: 3, dueDate: later }),
+      makeTodo({ id: 4, dueDate: earlier }),
     ]
     const sorted = sortProjectTasks(todos, 'date', true)
-    // Early parent (id 4) comes first with its child, then Late parent (id 1) with its children.
-    // Within Late parent's children, child A (earlier date) comes before child B (later date).
-    expect(sorted.map((t) => t.id)).toEqual([4, 5, 1, 2, 3])
+    expect(sorted.map((t) => t.id).slice(0, 2).sort()).toEqual([2, 4])
+    expect(sorted.map((t) => t.id).slice(2).sort()).toEqual([1, 3])
   })
 
-  it('sorts roots and children consistently by name', () => {
+  it('sorts by name ascending', () => {
     const todos = [
       makeTodo({ id: 1, title: 'Beta' }),
-      makeTodo({ id: 2, title: 'Bravo', parentId: 1 }),
-      makeTodo({ id: 3, title: 'Alpha', parentId: 1 }),
+      makeTodo({ id: 2, title: 'Bravo' }),
+      makeTodo({ id: 3, title: 'Alpha' }),
       makeTodo({ id: 4, title: 'Apple' }),
     ]
     const sorted = sortProjectTasks(todos, 'name', true)
-    expect(sorted.map((t) => t.title)).toEqual(['Apple', 'Beta', 'Alpha', 'Bravo'])
+    expect(sorted.map((t) => t.title)).toEqual(['Alpha', 'Apple', 'Beta', 'Bravo'])
   })
 
-  it('respects descending direction for both roots and children', () => {
+  it('respects descending direction', () => {
     const todos = [
       makeTodo({ id: 1, title: 'A' }),
       makeTodo({ id: 2, title: 'B' }),
-      makeTodo({ id: 3, title: 'X', parentId: 2 }),
-      makeTodo({ id: 4, title: 'Y', parentId: 2 }),
+      makeTodo({ id: 3, title: 'X' }),
+      makeTodo({ id: 4, title: 'Y' }),
     ]
     const sorted = sortProjectTasks(todos, 'name', false)
-    // Roots descending: B then A. B's children descending: Y then X.
-    expect(sorted.map((t) => t.title)).toEqual(['B', 'Y', 'X', 'A'])
+    expect(sorted.map((t) => t.title)).toEqual(['Y', 'X', 'B', 'A'])
   })
 })

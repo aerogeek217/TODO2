@@ -196,17 +196,4 @@ describe('MobileTaskRow', () => {
 
   })
 
-  // ── Indent ────────────────────────────────────────────────────────
-
-  describe('indent', () => {
-    it('applies indent padding for indentLevel > 0', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} indentLevel={2} />)
-      expect(getRow()).toHaveStyle({ paddingLeft: '36px' })
-    })
-
-    it('applies no indent padding for level 0', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1 })} indentLevel={0} />)
-      expect(getRow().getAttribute('style')).toBeNull()
-    })
-  })
 })

@@ -8,7 +8,7 @@ import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { TaskRow } from '../task/TaskRow'
-import { buildHierarchy } from '../../utils/hierarchy'
+import { bySortOrder } from '../../utils/sort-order'
 import { DragInsertContext, DragPreviewContext } from './DragInsertContext'
 import { InsertTrigger } from './InsertTrigger'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
@@ -27,9 +27,6 @@ interface SortableTaskListProps {
 function SortableTaskRow({
   todo,
   assignedPeople,
-  indentLevel,
-  hasChildren,
-  isLastChild,
   isSelected,
   ghost,
   cut,
@@ -39,9 +36,6 @@ function SortableTaskRow({
 }: {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  indentLevel?: number
-  hasChildren?: boolean
-  isLastChild?: boolean
   isSelected?: boolean
   ghost?: boolean
   cut?: boolean
@@ -73,9 +67,6 @@ function SortableTaskRow({
       <TaskRow
         todo={todo}
         assignedPeople={assignedPeople}
-        indentLevel={indentLevel}
-        hasChildren={hasChildren}
-        isLastChild={isLastChild}
         isSelected={isSelected}
         ghost={ghost}
         cut={cut}
@@ -102,11 +93,10 @@ export function SortableTaskList({
   onInsertTask,
 }: SortableTaskListProps) {
   const { activeDragTodoId, dragGroupIds } = useContext(DragInsertContext)
-  const { insertTodoId: insertBeforeTodoId, insertIndentLevel, insertAtEnd, insertProjectId } = useContext(DragPreviewContext)
+  const { insertTodoId: insertBeforeTodoId, insertAtEnd, insertProjectId } = useContext(DragPreviewContext)
   const isDragActive = activeDragTodoId != null
   const dropCount = isDragActive ? (dragGroupIds?.size ?? 0) + 1 : 1
   const { selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, inlineCreateAfterId, clearInlineCreate, clipboardTodoIds } = useUIStore()
-  const hierarchy = useMemo(() => buildHierarchy(todos), [todos])
 
   // Which InsertTrigger is currently open (keyed by the todo id it follows, or BEFORE_FIRST)
   const [activeInsertAfterId, setActiveInsertAfterId] = useState<number | null>(null)
@@ -139,42 +129,23 @@ export function SortableTaskList({
     else useUIStore.getState().triggerInlineCreate(newId)
   }, [projectId])
 
-  // Build flat visible list for sortable context
-  const visibleItems = useMemo(() => {
-    const items: { todo: PersistedTodoItem; indentLevel: number; hasChildren: boolean; isLastChild: boolean; isExpanded: boolean }[] = []
-    for (const { parent, children } of hierarchy) {
-      const hasChildren = children.length > 0
-      items.push({ todo: parent, indentLevel: 0, hasChildren, isLastChild: false, isExpanded: true })
-      if (hasChildren) {
-        children.forEach((child, i) => {
-          items.push({
-            todo: child,
-            indentLevel: 1,
-            hasChildren: false,
-            isLastChild: i === children.length - 1,
-            isExpanded: false,
-          })
-        })
-      }
-    }
-    return items
-  }, [hierarchy])
+  // Flat list sorted by sortOrder
+  const visibleItems = useMemo(() => [...todos].sort(bySortOrder), [todos])
 
-  // During drag: hide children of the actively dragged parent and multi-selected siblings (they're in the overlay)
+  // During drag: hide multi-selected siblings (they're in the overlay)
   const displayItems = useMemo(() => {
     if (!activeDragTodoId) return visibleItems
     return visibleItems.filter(item => {
-      if (item.todo.parentId === activeDragTodoId) return false
-      if (dragGroupIds && dragGroupIds.has(item.todo.id)) return false
+      if (dragGroupIds && dragGroupIds.has(item.id)) return false
       return true
     })
   }, [visibleItems, activeDragTodoId, dragGroupIds])
 
-  const items = displayItems.map((v) => `todo-${v.todo.id}`)
+  const items = displayItems.map((t) => `todo-${t.id}`)
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])
-  visibleIdsRef.current = visibleItems.map(v => v.todo.id)
+  visibleIdsRef.current = visibleItems.map(t => t.id)
 
   // Stable callbacks shared across all rows
   const handleSelect = useCallback((todoId: number, mods: { shift: boolean; ctrl: boolean }) => {
@@ -217,12 +188,8 @@ export function SortableTaskList({
 
   /** Compute the insert position (beforeId) for a trigger after visibleItems[idx] */
   const getInsertPosition = (idx: number) => {
-    let beforeId: number | null = null
-    for (let i = idx + 1; i < visibleItems.length; i++) {
-      beforeId = visibleItems[i].todo.id
-      break
-    }
-    return { beforeId }
+    const next = visibleItems[idx + 1]
+    return { beforeId: next?.id ?? null }
   }
 
   /** Handle paste for a given insert position */
@@ -257,7 +224,7 @@ export function SortableTaskList({
     const container = containerRef.current
     if (!container) return
 
-    const orderKey = displayItems.map(v => v.todo.id).join(',')
+    const orderKey = displayItems.map(t => t.id).join(',')
     const orderChanged = orderKey !== prevOrderRef.current
     const isRecentDrop = performance.now() - dropTimestampRef.current < 500
 
@@ -357,48 +324,45 @@ export function SortableTaskList({
   return (
     <SortableContext items={items}>
       <div ref={containerRef} style={isDragActive ? { pointerEvents: 'none' } : undefined}>
-      {displayItems.map((item, idx) => {
-        const isDragging = activeDragTodoId === item.todo.id
-        const isSel = !isDragging && selectedTodoIds.has(item.todo.id)
-        const isFocused = !isDragging && item.todo.id === focusedTodoId
+      {displayItems.map((todo, idx) => {
+        const isDragging = activeDragTodoId === todo.id
+        const isSel = !isDragging && selectedTodoIds.has(todo.id)
+        const isFocused = !isDragging && todo.id === focusedTodoId
         const isMultiSelect = selectedTodoIds.size > 1
-        const prevSel = idx > 0 && selectedTodoIds.has(displayItems[idx - 1].todo.id) && activeDragTodoId !== displayItems[idx - 1].todo.id
-        const nextSel = idx < displayItems.length - 1 && selectedTodoIds.has(displayItems[idx + 1].todo.id) && activeDragTodoId !== displayItems[idx + 1].todo.id
+        const prevSel = idx > 0 && selectedTodoIds.has(displayItems[idx - 1].id) && activeDragTodoId !== displayItems[idx - 1].id
+        const nextSel = idx < displayItems.length - 1 && selectedTodoIds.has(displayItems[idx + 1].id) && activeDragTodoId !== displayItems[idx + 1].id
         const selCls = isSel
           ? `${styles.sel} ${!prevSel ? styles.selFirst : ''} ${!nextSel ? styles.selLast : ''}`
           : ''
         const showFocused = isFocused && !(isSel && isMultiSelect)
         const cls = `${selCls} ${showFocused ? styles.focused : ''}`.trim() || undefined
         return (
-        <div key={item.todo.id} data-todo-id={item.todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, item.todo.id)}>
-          {insertBeforeTodoId === item.todo.id && (
+        <div key={todo.id} data-todo-id={todo.id} className={cls} onContextMenu={(e) => buildPasteMenu(e, todo.id)}>
+          {insertBeforeTodoId === todo.id && (
             dropCount > 1
-              ? <div className={`${styles.dropPreviewGroup} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} style={{ height: `${dropCount * ROW_HEIGHT_PX}px` }} />
-              : <div className={`${styles.dropPreview} ${insertIndentLevel > 0 ? styles.dropPreviewChild : ''}`} />
+              ? <div className={styles.dropPreviewGroup} style={{ height: `${dropCount * ROW_HEIGHT_PX}px` }} />
+              : <div className={styles.dropPreview} />
           )}
-          {!isDragActive && onInsertTask && idx === 0 && item.indentLevel === 0 && (
+          {!isDragActive && onInsertTask && idx === 0 && (
             <InsertTrigger
               editing={activeInsertAfterId === BEFORE_FIRST}
               onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
               onCommit={async (title) => {
-                const newId = await onInsertTask(title, item.todo.id)
+                const newId = await onInsertTask(title, todo.id)
                 openTriggerAfterInsert(newId)
               }}
               onCancel={closeInsert}
-              onContextMenu={(e) => buildPasteMenu(e, item.todo.id)}
-              onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(item.todo.id); closeInsert() } : undefined}
+              onContextMenu={(e) => buildPasteMenu(e, todo.id)}
+              onPasteFromClipboard={clipboardTodoIds.length > 0 ? () => { handlePasteAt(todo.id); closeInsert() } : undefined}
             />
           )}
           <SortableTaskRow
-            todo={item.todo}
-            assignedPeople={assignedPeopleMap?.get(item.todo.id)}
-            indentLevel={item.indentLevel}
-            hasChildren={item.hasChildren}
-            isLastChild={item.isLastChild}
+            todo={todo}
+            assignedPeople={assignedPeopleMap?.get(todo.id)}
             isSelected={isSel}
-            ghost={ghostTodoIds?.has(item.todo.id)}
-            cut={clipboardSet.has(item.todo.id)}
-            disabledDrop={dragGroupIds?.has(item.todo.id)}
+            ghost={ghostTodoIds?.has(todo.id)}
+            cut={clipboardSet.has(todo.id)}
+            disabledDrop={dragGroupIds?.has(todo.id)}
             onSelect={handleSelect}
             onOpenDetail={onOpenDetail}
           />
@@ -406,8 +370,8 @@ export function SortableTaskList({
             const { beforeId } = getInsertPosition(idx)
             return (
               <InsertTrigger
-                editing={activeInsertAfterId === item.todo.id}
-                onActivate={() => setActiveInsertAfterId(item.todo.id)}
+                editing={activeInsertAfterId === todo.id}
+                onActivate={() => setActiveInsertAfterId(todo.id)}
                 onCommit={async (title) => {
                   const newId = await onInsertTask(title, beforeId)
                   openTriggerAfterInsert(newId)

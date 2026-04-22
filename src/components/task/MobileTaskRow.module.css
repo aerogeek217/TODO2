@@ -41,10 +41,6 @@
   opacity: 0.5;
 }
 
-.ghost {
-  opacity: 0.4;
-}
-
 .cut {
   opacity: 0.35;
 }
@@ -72,54 +68,6 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/*
- * Treeview connector (mobile). Same idea as desktop, drawn only on children:
- * vertical stem down the parent's checkbox column + horizontal branch toward
- * the child's checkbox. Mobile coordinates differ — 4px row padding + 20px
- * checkbox puts the parent's checkbox center at 14px from the row's left edge.
- */
-.row {
-  --tree-line-x: 14px;
-  --tree-line-color: var(--color-border);
-  --tree-line-width: 1.5px;
-}
-
-.treeConnector {
-  position: absolute;
-  left: var(--tree-line-x);
-  top: 0;
-  bottom: 0;
-  width: 16px;
-  pointer-events: none;
-}
-
-.treeConnector::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: var(--tree-line-width);
-  background: var(--tree-line-color);
-}
-
-.treeConnectorLast::before {
-  /* Last child: stop at midpoint of the primary (line 1) — approx 24px from row top
-   * accounting for row padding-top 8px + half of 32px primaryRow min-height. */
-  bottom: calc(100% - 24px);
-}
-
-.treeConnector::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 24px;
-  width: 14px;
-  height: var(--tree-line-width);
-  background: var(--tree-line-color);
-  transform: translateY(calc(var(--tree-line-width) / -2));
-}
-
 .checkbox:checked {
   background: var(--color-accent);
   border-color: var(--color-accent);
@@ -145,10 +93,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-text-primary);
-}
-
-.title.parentTitle {
-  font-weight: 600;
 }
 
 .completedTitle {

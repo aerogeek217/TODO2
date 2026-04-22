@@ -1,6 +1,6 @@
 import { db } from '../data/database'
 import type { PersistedTodoItem } from '../models'
-import { buildHierarchy } from '../utils/hierarchy'
+import { bySortOrder } from '../utils/sort-order'
 import { scheduledLabel } from '../utils/effective-date'
 import { startOfToday } from '../utils/date'
 
@@ -56,13 +56,13 @@ export async function buildMarkdownExport(): Promise<string> {
   const details: string[] = []
   const today = startOfToday()
 
-  const formatTodoLine = (todo: PersistedTodoItem, indent: string) => {
+  const formatTodoLine = (todo: PersistedTodoItem) => {
     const check = todo.isCompleted ? '[x]' : '[ ]'
     const sched = todo.scheduledDate ? ` (sched: ${scheduledLabel(todo.scheduledDate, today)})` : ''
     const deadline = todo.dueDate ? ` (deadline ${new Date(todo.dueDate).toLocaleDateString()})` : ''
     const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
     const statusStr = status && (status.icon || status.hideByDefault) ? ` [${status.name}]` : ''
-    return `${indent}- ${check} ${todo.title}${statusStr}${sched}${deadline}`
+    return `- ${check} ${todo.title}${statusStr}${sched}${deadline}`
   }
 
   const collectDetails = (todo: PersistedTodoItem) => {
@@ -76,14 +76,9 @@ export async function buildMarkdownExport(): Promise<string> {
   }
 
   const renderGroup = (groupTodos: PersistedTodoItem[]) => {
-    const hierarchy = buildHierarchy(groupTodos)
-    for (const { parent, children } of hierarchy) {
-      lines.push(formatTodoLine(parent, ''))
-      collectDetails(parent)
-      for (const child of children) {
-        lines.push(formatTodoLine(child, '  '))
-        collectDetails(child)
-      }
+    for (const todo of [...groupTodos].sort(bySortOrder)) {
+      lines.push(formatTodoLine(todo))
+      collectDetails(todo)
     }
   }
 

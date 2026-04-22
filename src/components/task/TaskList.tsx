@@ -2,7 +2,7 @@ import { useMemo, useCallback, useRef } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
-import { buildHierarchy } from '../../utils/hierarchy'
+import { bySortOrder } from '../../utils/sort-order'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { TaskRow } from './TaskRow'
 import { MobileTaskRow } from './MobileTaskRow'
@@ -16,7 +16,7 @@ interface TaskListProps {
   sectionKey?: string
   /** Index in the flat visual list where the drop indicator should appear, or undefined to hide */
   dropIndicatorIndex?: number
-  /** Optional comparator to order root todos (defaults to sortOrder) */
+  /** Optional comparator to order todos (defaults to sortOrder) */
   rootComparator?: (a: PersistedTodoItem, b: PersistedTodoItem) => number
   onOpenDetail?: (todoId: number) => void
 }
@@ -67,29 +67,12 @@ export function TaskList({
 
   const clipboardSet = useMemo(() => new Set(clipboardTodoIds), [clipboardTodoIds])
 
-  const hierarchy = useMemo(() => buildHierarchy(todos, rootComparator), [todos, rootComparator])
+  const sortedTodos = useMemo(
+    () => [...todos].sort(rootComparator ?? bySortOrder),
+    [todos, rootComparator],
+  )
 
-  // Flatten hierarchy into a visible list so each row is a direct sibling (for CSS selection rectangle)
-  const flatItems: { todo: PersistedTodoItem; assignedPeople?: Person[]; indentLevel: number; hasChildren: boolean; isLastChild: boolean; isExpanded: boolean }[] = []
-  for (const { parent, children } of hierarchy) {
-    const hasChildren = children.length > 0
-    const isExpanded = true
-    flatItems.push({ todo: parent, assignedPeople: assignedPeopleMap?.get(parent.id), indentLevel: 0, hasChildren, isLastChild: false, isExpanded })
-    if (hasChildren && isExpanded) {
-      children.forEach((child, i) => {
-        flatItems.push({
-          todo: child,
-          assignedPeople: assignedPeopleMap?.get(child.id),
-          indentLevel: 1,
-          hasChildren: false,
-          isLastChild: i === children.length - 1,
-          isExpanded: false,
-        })
-      })
-    }
-  }
-
-  const orderedIds = flatItems.map(item => item.todo.id)
+  const orderedIds = sortedTodos.map(t => t.id)
   const orderedIdsRef = useRef(orderedIds)
   orderedIdsRef.current = orderedIds
 
@@ -106,12 +89,12 @@ export function TaskList({
 
   return (
     <>
-      {flatItems.map((item, idx) => {
-        const isSel = selectedTodoIds.has(item.todo.id)
-        const isFocused = item.todo.id === focusedTodoId
+      {sortedTodos.map((todo, idx) => {
+        const isSel = selectedTodoIds.has(todo.id)
+        const isFocused = todo.id === focusedTodoId
         const isMultiSelect = selectedTodoIds.size > 1
-        const prevSel = idx > 0 && selectedTodoIds.has(flatItems[idx - 1].todo.id)
-        const nextSel = idx < flatItems.length - 1 && selectedTodoIds.has(flatItems[idx + 1].todo.id)
+        const prevSel = idx > 0 && selectedTodoIds.has(sortedTodos[idx - 1].id)
+        const nextSel = idx < sortedTodos.length - 1 && selectedTodoIds.has(sortedTodos[idx + 1].id)
         const selCls = isSel
           ? `${styles.sel} ${!prevSel ? styles.selFirst : ''} ${!nextSel ? styles.selLast : ''}`
           : ''
@@ -120,25 +103,22 @@ export function TaskList({
 
         const row = (
           <RowComponent
-            todo={item.todo}
-            assignedPeople={item.assignedPeople}
-            indentLevel={item.indentLevel}
-            hasChildren={item.hasChildren}
-            isLastChild={item.isLastChild}
+            todo={todo}
+            assignedPeople={assignedPeopleMap?.get(todo.id)}
             isSelected={isSel}
-            ghost={ghostIds?.has(item.todo.id)}
-            cut={clipboardSet.has(item.todo.id)}
+            ghost={ghostIds?.has(todo.id)}
+            cut={clipboardSet.has(todo.id)}
             onSelect={handleSelect}
             onOpenDetail={onOpenDetail}
           />
         )
 
         return (
-          <div key={item.todo.id}>
+          <div key={todo.id}>
             {dropIndicatorIndex === idx && <div className={styles.dropIndicator} />}
             <div className={cls}>
               {!isMobile && draggable && sectionKey ? (
-                <DraggableRow todo={item.todo} sectionKey={sectionKey}>
+                <DraggableRow todo={todo} sectionKey={sectionKey}>
                   {row}
                 </DraggableRow>
               ) : row}
@@ -146,7 +126,7 @@ export function TaskList({
           </div>
         )
       })}
-      {dropIndicatorIndex != null && dropIndicatorIndex >= flatItems.length && <div className={styles.dropIndicator} />}
+      {dropIndicatorIndex != null && dropIndicatorIndex >= sortedTodos.length && <div className={styles.dropIndicator} />}
     </>
   )
 }

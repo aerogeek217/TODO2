@@ -15,10 +15,6 @@ import styles from './MobileTaskRow.module.css'
 interface MobileTaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  indentLevel?: number
-  hasChildren?: boolean
-  /** True when this is the last sibling under its parent — draws an L-connector instead of T. */
-  isLastChild?: boolean
   isSelected?: boolean
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
@@ -27,8 +23,7 @@ interface MobileTaskRowProps {
 }
 
 export const MobileTaskRow = memo(function MobileTaskRow({
-  todo, assignedPeople, indentLevel = 0,
-  hasChildren, isLastChild, isSelected, ghost,
+  todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail, cut,
 }: MobileTaskRowProps) {
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
@@ -70,8 +65,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${isSelected ? styles.selected : ''}`}
-      style={indentLevel > 0 ? { paddingLeft: `${4 + indentLevel * 16}px` } : undefined}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${cut ? styles.cut : ''} ${isSelected ? styles.selected : ''}`}
       data-todo-id={todo.id}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       role="button"
@@ -81,13 +75,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleRowTap(e as unknown as React.MouseEvent) } }}
     >
-      {indentLevel > 0 && (
-        <span
-          className={`${styles.treeConnector} ${isLastChild ? styles.treeConnectorLast : ''}`}
-          aria-hidden="true"
-        />
-      )}
-
       {/* Line 1 */}
       <div className={styles.primaryRow}>
         <input
@@ -99,7 +86,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           aria-label="Toggle complete"
         />
 
-        <span className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}>
+        <span className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}
         </span>
 

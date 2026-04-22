@@ -14,7 +14,6 @@ import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
 import { startOfToday, formatDateShort, toDateInputValue } from '../../utils/date'
 import { scheduledLabel, isScheduledPast, isDeadlinePast, resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
-import { INDENT_PX, TASK_ROW_PADDING_LEFT } from '../../constants'
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
@@ -85,10 +84,6 @@ function PortalDropdown({ anchorRef, onClickOutside, children }: {
 interface TaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  indentLevel?: number
-  hasChildren?: boolean
-  /** True when this is the last sibling under its parent — draws an L-connector instead of T. */
-  isLastChild?: boolean
   isSelected?: boolean
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
@@ -106,8 +101,7 @@ interface TaskRowProps {
 }
 
 export const TaskRow = memo(function TaskRow({
-  todo, assignedPeople, indentLevel = 0,
-  hasChildren, isLastChild, isSelected, ghost,
+  todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail, cut, extraLabel, showContext, onTaskboard,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
@@ -207,8 +201,7 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${ghost ? styles.ghost : ''} ${cut ? styles.cut : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
-      style={indentLevel > 0 ? { paddingLeft: `${TASK_ROW_PADDING_LEFT + indentLevel * INDENT_PX}px` } : undefined}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${cut ? styles.cut : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
       data-todo-id={todo.id}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
@@ -230,12 +223,6 @@ export const TaskRow = memo(function TaskRow({
         }
       }}
     >
-      {indentLevel > 0 && (
-        <span
-          className={`${styles.treeConnector} ${isLastChild ? styles.treeConnectorLast : ''}`}
-          aria-hidden="true"
-        />
-      )}
 
       <span className={styles.dragHandle} aria-hidden="true">
         <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
@@ -269,7 +256,7 @@ export const TaskRow = memo(function TaskRow({
       ) : (
         <div className={styles.titleBlock}>
           <span
-            className={`${styles.title} ${hasChildren ? styles.parentTitle : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
+            className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
             title={todo.title}
             onClick={(e) => {
               e.stopPropagation()

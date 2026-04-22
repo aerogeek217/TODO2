@@ -17,7 +17,7 @@ import { useUndoStore } from '../stores/undo-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
-import { bySortOrder } from '../utils/hierarchy'
+import { bySortOrder } from '../utils/sort-order'
 import { computeTaskboardFullInsertIndex } from '../utils/taskboard-insert'
 
 interface UseCanvasDnDOptions {

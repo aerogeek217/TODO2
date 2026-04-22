@@ -8,7 +8,6 @@ import { DragInsertContext } from './DragInsertContext'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useStatusStore } from '../../stores/status-store'
-import { buildHierarchy } from '../../utils/hierarchy'
 import { effectiveDate } from '../../utils/effective-date'
 import { startOfToday } from '../../utils/date'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
@@ -36,16 +35,7 @@ export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc
     }
   }
 
-  // buildHierarchy sorts both roots and children with the comparator (since
-  // hierarchy.ts:62 propagates it), so children naturally stay grouped under
-  // their parent and follow the same sort key.
-  const hierarchy = buildHierarchy(todos, compareFn)
-  const result: PersistedTodoItem[] = []
-  for (const { parent, children } of hierarchy) {
-    result.push(parent)
-    result.push(...children)
-  }
-  return result
+  return [...todos].sort(compareFn)
 }
 
 export interface ProjectNodeData {

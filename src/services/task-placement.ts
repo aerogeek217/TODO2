@@ -1,5 +1,5 @@
 import type { TodoItem, PersistedTodoItem } from '../models'
-import { bySortOrder } from '../utils/hierarchy'
+import { bySortOrder } from '../utils/sort-order'
 
 // --- Types ---
 
