@@ -26,7 +26,6 @@ export interface DropContext {
 
 export interface PreviewResult {
   insertTodoId: number | null
-  insertIndentLevel: number
   insertAtEnd: boolean
   insertProjectId: number | null
   dragExpandedProjectId: number | null
@@ -138,20 +137,20 @@ export function resolveDropPreview(
   _todosByProject: Map<number, PersistedTodoItem[]>,
 ): Omit<PreviewResult, 'dragExpandedProjectId'> {
   if (!activeTodo) {
-    return { insertTodoId: null, insertIndentLevel: 0, insertAtEnd: false, insertProjectId: null }
+    return { insertTodoId: null, insertAtEnd: false, insertProjectId: null }
   }
 
   if (overType === 'project') {
-    return { insertTodoId: null, insertIndentLevel: 0, insertAtEnd: true, insertProjectId: overProjectId }
+    return { insertTodoId: null, insertAtEnd: true, insertProjectId: overProjectId }
   }
 
   if (overTodo) {
-    return { insertTodoId: overTodo.id, insertIndentLevel: 0, insertAtEnd: false, insertProjectId: null }
+    return { insertTodoId: overTodo.id, insertAtEnd: false, insertProjectId: null }
   }
 
   const distance = Math.sqrt(delta.x ** 2 + delta.y ** 2)
   if (distance < 150 && activeTodo.projectId != null) {
-    return { insertTodoId: null, insertIndentLevel: 0, insertAtEnd: true, insertProjectId: activeTodo.projectId }
+    return { insertTodoId: null, insertAtEnd: true, insertProjectId: activeTodo.projectId }
   }
-  return { insertTodoId: null, insertIndentLevel: 0, insertAtEnd: false, insertProjectId: null }
+  return { insertTodoId: null, insertAtEnd: false, insertProjectId: null }
 }

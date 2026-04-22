@@ -528,7 +528,6 @@ export function CanvasPage() {
   const dragPreviewValue = useMemo(
     () => ({
       insertTodoId: dnd.insertTodoId,
-      insertIndentLevel: 0,
       insertAtEnd: dnd.insertAtEnd,
       insertProjectId: dnd.insertProjectId,
     }),

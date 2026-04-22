@@ -232,7 +232,6 @@ describe('resolveDropPreview', () => {
     )
     expect(result).toEqual({
       insertTodoId: null,
-      insertIndentLevel: 0,
       insertAtEnd: false,
       insertProjectId: null,
     })
@@ -250,7 +249,6 @@ describe('resolveDropPreview', () => {
     )
     expect(result).toEqual({
       insertTodoId: null,
-      insertIndentLevel: 0,
       insertAtEnd: true,
       insertProjectId: 20,
     })
@@ -270,7 +268,6 @@ describe('resolveDropPreview', () => {
     )
     expect(result).toEqual({
       insertTodoId: 2,
-      insertIndentLevel: 0,
       insertAtEnd: false,
       insertProjectId: null,
     })
@@ -290,7 +287,6 @@ describe('resolveDropPreview', () => {
     )
     expect(result).toEqual({
       insertTodoId: 5,
-      insertIndentLevel: 0,
       insertAtEnd: false,
       insertProjectId: null,
     })
@@ -309,7 +305,6 @@ describe('resolveDropPreview', () => {
     )
     expect(result).toEqual({
       insertTodoId: null,
-      insertIndentLevel: 0,
       insertAtEnd: true,
       insertProjectId: 10,
     })
@@ -328,7 +323,6 @@ describe('resolveDropPreview', () => {
     )
     expect(result).toEqual({
       insertTodoId: null,
-      insertIndentLevel: 0,
       insertAtEnd: false,
       insertProjectId: null,
     })
