@@ -365,4 +365,75 @@ describe('canvas-rails-store', () => {
       expect(useCanvasRailsStore.getState().rails.widths?.left).toBe(420)
     })
   })
+
+  describe('setAllRailsCollapsed', () => {
+    it('collapses every present rail in one update; skips absent sides', () => {
+      useCanvasRailsStore.setState({
+        rails: {
+          left: { orientation: 'vertical', slots: [createLensSlot(1)] },
+          right: null,
+          top: { orientation: 'horizontal', slots: [createLensSlot(2)] },
+          bottom: null,
+        },
+        hydrated: true,
+      })
+      useCanvasRailsStore.getState().setAllRailsCollapsed(true)
+      expect(useCanvasRailsStore.getState().rails.collapsed).toEqual({ left: true, top: true })
+    })
+
+    it('expands every present rail and drops the bag when empty', () => {
+      useCanvasRailsStore.setState({
+        rails: {
+          left: { orientation: 'vertical', slots: [createLensSlot(1)] },
+          right: { orientation: 'vertical', slots: [createLensSlot(2)] },
+          top: null,
+          bottom: null,
+          collapsed: { left: true, right: true },
+        },
+        hydrated: true,
+      })
+      useCanvasRailsStore.getState().setAllRailsCollapsed(false)
+      expect(useCanvasRailsStore.getState().rails.collapsed).toBeUndefined()
+    })
+
+    it('leaves stale flags for absent rails alone', () => {
+      useCanvasRailsStore.setState({
+        rails: {
+          left: { orientation: 'vertical', slots: [createLensSlot(1)] },
+          right: null,
+          top: null,
+          bottom: null,
+          collapsed: { top: true },
+        },
+        hydrated: true,
+      })
+      useCanvasRailsStore.getState().setAllRailsCollapsed(true)
+      expect(useCanvasRailsStore.getState().rails.collapsed).toEqual({ left: true, top: true })
+      useCanvasRailsStore.getState().setAllRailsCollapsed(false)
+      expect(useCanvasRailsStore.getState().rails.collapsed).toEqual({ top: true })
+    })
+
+    it('returns the same state when no present rail would change', () => {
+      useCanvasRailsStore.setState({
+        rails: {
+          left: { orientation: 'vertical', slots: [createLensSlot(1)] },
+          right: null,
+          top: null,
+          bottom: null,
+          collapsed: { left: true },
+        },
+        hydrated: true,
+      })
+      const before = useCanvasRailsStore.getState().rails
+      useCanvasRailsStore.getState().setAllRailsCollapsed(true)
+      expect(useCanvasRailsStore.getState().rails).toBe(before)
+    })
+
+    it('is a no-op when no rails exist', () => {
+      const before = useCanvasRailsStore.getState().rails
+      useCanvasRailsStore.getState().setAllRailsCollapsed(true)
+      expect(useCanvasRailsStore.getState().rails).toBe(before)
+      expect(useCanvasRailsStore.getState().rails.collapsed).toBeUndefined()
+    })
+  })
 })

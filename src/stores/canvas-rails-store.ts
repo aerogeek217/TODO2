@@ -135,6 +135,13 @@ interface CanvasRailsState {
   /** Flip the collapsed flag for a rail side. */
   toggleRailCollapsed: (side: RailSide) => void
   /**
+   * Set the collapsed flag on every *present* rail in one atomic update.
+   * Absent rails (null) are skipped — stale flags for absent sides are
+   * preserved (same policy as widths/heights) so reopening a rail returns
+   * to its last state.
+   */
+  setAllRailsCollapsed: (collapsed: boolean) => void
+  /**
    * Atomically set `flex` weights for slots in a rail. Keys not present in
    * `flexBySlotId` are left unchanged. Non-positive / non-finite values are
    * skipped. Used by the slot divider so every slot's weight updates together
@@ -490,4 +497,20 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     const prev = get().rails.collapsed?.[side] === true
     get().setRailCollapsed(side, !prev)
   },
+
+  setAllRailsCollapsed: (collapsed) => set((state) => {
+    const nextBag: Partial<Record<RailSide, boolean>> = { ...(state.rails.collapsed ?? {}) }
+    let touched = false
+    for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+      if (!state.rails[side]) continue
+      const prev = nextBag[side] === true
+      if (prev === collapsed) continue
+      if (collapsed) nextBag[side] = true
+      else delete nextBag[side]
+      touched = true
+    }
+    if (!touched) return state
+    const hasAny = Object.keys(nextBag).length > 0
+    return { rails: { ...state.rails, collapsed: hasAny ? nextBag : undefined } }
+  }),
 }))
