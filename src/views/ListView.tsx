@@ -43,7 +43,6 @@ import type { PersistedTodoItem, Person, Project, Org, Status, ListSortBy, ListG
 import type { ListGrouping, ListSort } from '../models/list-definition'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
-import { buildFamilyDateMap } from '../utils/family-date'
 import { buildHierarchy } from '../utils/hierarchy'
 import { resolvePersonColor } from '../utils/person-color'
 import { useIsMobile } from '../hooks/use-is-mobile'
@@ -96,9 +95,6 @@ function buildBucketSections(
   const tomorrow = new Date(today.getTime() + MS_PER_DAY)
   const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
 
-  // Bucket by family-min date so parent + children land in the same bucket.
-  const familyDate = buildFamilyDateMap(todos, (t) => pickBucketDate(t, field, today))
-
   const overdue: PersistedTodoItem[] = []
   const dueToday: PersistedTodoItem[] = []
   const thisWeek: PersistedTodoItem[] = []
@@ -106,7 +102,7 @@ function buildBucketSections(
   const noDate: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    const d = familyDate.get(t.id) ?? null
+    const d = pickBucketDate(t, field, today)
     if (!d) { noDate.push(t); continue }
     if (d < today) overdue.push(t)
     else if (d < tomorrow) dueToday.push(t)
@@ -320,15 +316,9 @@ export function buildStatusSections(
 /**
  * Build a comparator for within-group sort. `'manual'` returns undefined so
  * `buildHierarchy` falls through to its sortOrder default.
- *
- * When `allTodos` is supplied, every family member is sorted by the family's
- * min date so parent + children stay adjacent at the family's earliest date.
- * Fallback to own-date comparison when no family context is available (keeps
- * older callers and tests working unchanged).
  */
 export function itemSortComparator(
   sortBy: ListItemSortBy,
-  allTodos?: PersistedTodoItem[],
   today: Date = startOfToday(),
 ): ((a: PersistedTodoItem, b: PersistedTodoItem) => number) | undefined {
   if (sortBy === 'manual') return undefined
@@ -337,13 +327,9 @@ export function itemSortComparator(
     if (sortBy === 'scheduled') return t.scheduledDate ? resolveScheduled(t.scheduledDate, today) : null
     return t.dueDate ? new Date(t.dueDate) : null
   }
-  const familyDate = allTodos ? buildFamilyDateMap(allTodos, pick) : null
-  const keyOf = familyDate
-    ? (t: PersistedTodoItem): Date | null => familyDate.get(t.id) ?? null
-    : pick
   return (a, b) => {
-    const ad = keyOf(a)
-    const bd = keyOf(b)
+    const ad = pick(a)
+    const bd = pick(b)
     if (ad === null && bd === null) {
       return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
     }
@@ -705,8 +691,8 @@ export function ListView() {
   }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
 
   const withinGroupComparator = useMemo(
-    () => itemSortComparator(listSortBy, activeTodos),
-    [listSortBy, activeTodos],
+    () => itemSortComparator(listSortBy),
+    [listSortBy],
   )
 
   // Apply hard limit by walking sections in order and truncating at the tail.
