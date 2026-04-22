@@ -33,7 +33,7 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 | TaskboardNode | components/canvas/TaskboardNode.tsx | Canvas node for the singleton taskboard; resizable, closable, sortable drag reorder via dnd-kit (entries emit `data.type='taskboard-task'` + `panelId` onto the canvas `DndContext`), droppable target for drag-to-add from project lists + list insets + rail lenses. Keyed by `floatingId` — one per `FloatingTaskboard` row; all surfaces share the same entries. The panel + each entry's drag data carry the same `panelId`, so `onDragMove` recognizes "this over-target belongs to me" without leaning on `useDroppable.isOver` (which flips false when dnd-kit picks an inner sortable entry). Exposes `[data-taskboard-panel-id]` + `[data-tbp-entry][data-todo-id]` so `computeTaskboardInsertIndex` (visible) + `computeTaskboardFullInsertIndex` (full-array) resolve insertion; consumes `useExternalTaskboardDrop` to accept native HTML5 drops from `CalendarStrip` |
 | ProjectNavigator | components/canvas/ProjectNavigator.tsx | Collapsible overlay panel listing all projects; click to fitView-navigate; toggled with P key |
 | DragInsertContext | components/canvas/DragInsertContext.ts | React context for stable per-drag state (activeDragTodoId, dragExpandedProjectId, dragGroupIds); consumed by CanvasView + ProjectNode |
-| DragPreviewContext | components/canvas/DragInsertContext.ts | React context for rapidly-changing drag preview (insertTodoId, insertIndentLevel, insertAtEnd, insertProjectId); consumed only by SortableTaskList so CanvasView/ProjectNode don't re-render on every drag-move tick |
+| DragPreviewContext | components/canvas/DragInsertContext.ts | React context for rapidly-changing drag preview (insertTodoId, insertAtEnd, insertProjectId); consumed only by SortableTaskList so CanvasView/ProjectNode don't re-render on every drag-move tick |
 | InsertTrigger | components/canvas/InsertTrigger.tsx | Controlled "+" button between tasks for inline task creation; editing state lifted to SortableTaskList for Enter-chaining (new task opens next trigger) |
 | findAlignments, findAlignmentsScoped, findResizeSnap | components/canvas/alignment.ts | Snap-to-edge alignment for dragging/resizing nodes (5px threshold, guide lines) |
 | computeCascadeShifts, CASCADE_GAP_THRESHOLD | components/canvas/cascade-shift.ts | Auto-shift stacked projects when a neighbor's height changes (40px gap threshold, BFS cascade) |
@@ -51,7 +51,7 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
-| BulkConfirmDialog | components/overlays/BulkConfirmDialog.tsx | Confirmation dialog for destructive/relationship bulk actions (delete, complete/uncomplete, parent+children prompts); supports custom messages, labels, and skipIds for two-option dialogs |
+| BulkConfirmDialog | components/overlays/BulkConfirmDialog.tsx | Confirmation dialog for destructive bulk actions (delete, complete/uncomplete); supports custom messages, labels, and skipIds for two-option dialogs |
 | UndoSnackbar | components/overlays/UndoSnackbar.tsx | Bottom-center toast after destructive actions with "Undo" button, auto-dismiss 5s |
 | FilterSheet | components/overlays/FilterSheet.tsx | Mobile filter bottom sheet: search, priority, date range, toggles, people/orgs/statuses accordion lists; reads/writes useFilterStore |
 | CanvasContextMenu | components/overlays/CanvasContextMenu.tsx | Reusable right-click context menu (canvas background, project, box) |
@@ -108,4 +108,3 @@ Detail reference for `src/components/` (task, canvas, overlays, shared, layout, 
 |-------------|----------|---------|
 | DEFAULT_ENTITY_COLOR | constants.ts | Default color '#537FE7' for new people and orgs |
 | UNAFFILIATED_PERSON_COLOR | constants.ts | Neutral grey '#9CA3AF' used as fallback for people with no assigned org (PeopleEditor swatch + AvatarStack fill) |
-| INDENT_PX, TASK_ROW_PADDING_LEFT | constants.ts | Shared UI constants for task indentation |
