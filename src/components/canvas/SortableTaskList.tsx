@@ -6,7 +6,6 @@ import {
 } from '@dnd-kit/sortable'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
-import { useTodoStore } from '../../stores/todo-store'
 import { TaskRow } from '../task/TaskRow'
 import { buildHierarchy } from '../../utils/hierarchy'
 import { DragInsertContext, DragPreviewContext } from './DragInsertContext'
@@ -123,19 +122,6 @@ export function SortableTaskList({
       clearInlineCreate()
     }
   }, [inlineCreateAfterId, todos, clearInlineCreate])
-
-  // After Enter-chain insert: move the trigger to the new task. For same-project
-  // inserts, set local state directly so the updated todos + activeInsertAfterId
-  // land in the SAME render — the new InsertTrigger mounts with editing=true on
-  // its first render, autoFocus fires on the input's first DOM insertion (no
-  // unmount/mount interleave from a two-render ui-store round-trip). For
-  // cross-project inserts (NLP /proj redirected the task), fall back to the
-  // ui-store: the target project's useEffect picks it up.
-  const openTriggerAfterInsert = useCallback((newId: number) => {
-    const newTask = useTodoStore.getState().todos.find((t) => t.id === newId)
-    if (newTask?.projectId === projectId) setActiveInsertAfterId(newId)
-    else useUIStore.getState().triggerInlineCreate(newId)
-  }, [projectId])
 
   // Build flat visible list for sortable context
   const visibleItems = useMemo(() => {
@@ -389,7 +375,8 @@ export function SortableTaskList({
               onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
               onCommit={async (title) => {
                 const newId = await onInsertTask(title, item.todo.id, undefined)
-                openTriggerAfterInsert(newId)
+                // Route through ui-store so the useEffect above waits for the new todo to appear in `todos` before opening its trigger
+                useUIStore.getState().triggerInlineCreate(newId)
               }}
               onCancel={closeInsert}
               onContextMenu={(e) => buildPasteMenu(e, item.todo.id, undefined)}
@@ -417,7 +404,7 @@ export function SortableTaskList({
                 onActivate={() => setActiveInsertAfterId(item.todo.id)}
                 onCommit={async (title) => {
                   const newId = await onInsertTask(title, beforeId, parentId)
-                  openTriggerAfterInsert(newId)
+                  useUIStore.getState().triggerInlineCreate(newId)
                 }}
                 onCancel={closeInsert}
                 onContextMenu={(e) => buildPasteMenu(e, beforeId, parentId)}
@@ -434,7 +421,7 @@ export function SortableTaskList({
           onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
           onCommit={async (title) => {
             const newId = await onInsertTask(title, null, undefined)
-            openTriggerAfterInsert(newId)
+            useUIStore.getState().triggerInlineCreate(newId)
           }}
           onCancel={closeInsert}
           onContextMenu={(e) => buildPasteMenu(e, null, undefined)}
