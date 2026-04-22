@@ -21,7 +21,7 @@ interface SortableTaskListProps {
   assignedPeopleMap?: Map<number, Person[]>
   ghostTodoIds?: Set<number>
   onOpenDetail?: (todoId: number) => void
-  onInsertTask?: (title: string, beforeTodoId: number | null, parentId: number | undefined) => Promise<number>
+  onInsertTask?: (title: string, beforeTodoId: number | null) => Promise<number>
 }
 
 function SortableTaskRow({
@@ -381,7 +381,7 @@ export function SortableTaskList({
               editing={activeInsertAfterId === BEFORE_FIRST}
               onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
               onCommit={async (title) => {
-                const newId = await onInsertTask(title, item.todo.id, undefined)
+                const newId = await onInsertTask(title, item.todo.id)
                 openTriggerAfterInsert(newId)
               }}
               onCancel={closeInsert}
@@ -409,7 +409,7 @@ export function SortableTaskList({
                 editing={activeInsertAfterId === item.todo.id}
                 onActivate={() => setActiveInsertAfterId(item.todo.id)}
                 onCommit={async (title) => {
-                  const newId = await onInsertTask(title, beforeId, undefined)
+                  const newId = await onInsertTask(title, beforeId)
                   openTriggerAfterInsert(newId)
                 }}
                 onCancel={closeInsert}
@@ -426,7 +426,7 @@ export function SortableTaskList({
           editing={activeInsertAfterId === BEFORE_FIRST}
           onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
           onCommit={async (title) => {
-            const newId = await onInsertTask(title, null, undefined)
+            const newId = await onInsertTask(title, null)
             openTriggerAfterInsert(newId)
           }}
           onCancel={closeInsert}

@@ -36,7 +36,7 @@ import type { PersistedTodoItem } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
 import { DragInsertContext, DragPreviewContext } from '../components/canvas/DragInsertContext'
 import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
-import { bySortOrder, expandWithGhostParents } from '../utils/hierarchy'
+import { bySortOrder } from '../utils/hierarchy'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { parseTaskInput, applyNlpMetadata } from '../services/nlp-task-creator'
 import { getFilterDefaults, supplementWithFilterDefaults } from '../utils/filter-defaults'
@@ -161,17 +161,11 @@ export function CanvasPage() {
   // array reference. This lets downstream useMemo + React.memo short-circuit
   // for nodes whose data truly didn't change (see CanvasView dataNodes cache).
   const prevTodosByProjectRef = useRef<Map<number, PersistedTodoItem[]>>(new Map())
-  const todosByProjectResult = useMemo(() => {
+  const todosByProject = useMemo(() => {
     const prev = prevTodosByProjectRef.current
-    // Pre-bucket the full (unfiltered) set per project so we can look up hidden
-    // parents when expanding ghosts below.
-    const fullByProject = new Map<number, PersistedTodoItem[]>()
     const visibleByProject = new Map<number, PersistedTodoItem[]>()
     for (const todo of todos) {
       if (todo.projectId == null) continue
-      const fullList = fullByProject.get(todo.projectId) ?? []
-      fullList.push(todo)
-      fullByProject.set(todo.projectId, fullList)
       if (!filters.showCompleted && todo.isCompleted) continue
       if (!filters.showHiddenStatuses) {
         const s = statuses.find(x => x.id === todo.statusId)
@@ -182,34 +176,23 @@ export function CanvasPage() {
       visibleByProject.set(todo.projectId, visList)
     }
 
-    // Expand each project's visible list with ghost parents so children of
-    // hidden parents render under their real parent and promote/demote logic
-    // sees the true hierarchy. Track the aggregated ghost-id set for styling.
     const stable = new Map<number, PersistedTodoItem[]>()
-    const ghostIds = new Set<number>()
     for (const [pid, vis] of visibleByProject) {
-      const { todos: expanded, ghostIds: pidGhosts } = expandWithGhostParents(
-        vis,
-        fullByProject.get(pid) ?? vis,
-      )
-      expanded.sort(bySortOrder)
-      for (const id of pidGhosts) ghostIds.add(id)
+      vis.sort(bySortOrder)
       const prevList = prev.get(pid)
       if (
         prevList &&
-        prevList.length === expanded.length &&
-        prevList.every((t, i) => t === expanded[i])
+        prevList.length === vis.length &&
+        prevList.every((t, i) => t === vis[i])
       ) {
         stable.set(pid, prevList)
       } else {
-        stable.set(pid, expanded)
+        stable.set(pid, vis)
       }
     }
     prevTodosByProjectRef.current = stable
-    return { todosByProject: stable, hiddenParentGhostIds: ghostIds }
+    return stable
   }, [todos, filters.showCompleted, filters.showHiddenStatuses, statuses])
-  const todosByProject = todosByProjectResult.todosByProject
-  const hiddenParentGhostIds = todosByProjectResult.hiddenParentGhostIds
 
   // --- DnD (extracted to useCanvasDnD hook) ---
   const dnd = useCanvasDnD({
@@ -261,14 +244,7 @@ export function CanvasPage() {
     return ghost.size > 0 ? ghost : undefined
   }, [todos, filters, assignedPeopleMap, assignedOrgsMap, personOrgMap, statuses, projects])
 
-  // Merge filter ghosts with hidden-parent (completed+filtered) ghosts.
-  const ghostTodoIds = useMemo(() => {
-    const hasHiddenParents = hiddenParentGhostIds.size > 0
-    if (!filterGhostIds && !hasHiddenParents) return undefined
-    const merged = new Set(filterGhostIds)
-    for (const id of hiddenParentGhostIds) merged.add(id)
-    return merged.size > 0 ? merged : undefined
-  }, [filterGhostIds, hiddenParentGhostIds])
+  const ghostTodoIds = filterGhostIds
 
   const handleNodeDragStop = useCallback(
     (projectId: number, x: number, y: number) => {
@@ -304,7 +280,7 @@ export function CanvasPage() {
   )
 
   const handleInsertTask = useCallback(
-    async (rawTitle: string, projectId: number, beforeTodoId: number | null, parentId: number | undefined): Promise<number> => {
+    async (rawTitle: string, projectId: number, beforeTodoId: number | null): Promise<number> => {
       if (!selectedCanvasId) return -1
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
@@ -313,12 +289,10 @@ export function CanvasPage() {
       supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
       const projectTodos = todosByProject.get(pid) ?? []
-      const siblings = projectTodos.filter(t =>
-        parentId ? t.parentId === parentId : t.parentId == null
-      ).sort(bySortOrder)
+      const siblings = [...projectTodos].sort(bySortOrder)
       const { computeInsertionSort } = await import('../services/task-placement')
       const sortOrder = computeInsertionSort(siblings, beforeTodoId)
-      const id = await addTodoAt(title || rawTitle, pid, selectedCanvasId, parentId, sortOrder)
+      const id = await addTodoAt(title || rawTitle, pid, selectedCanvasId, sortOrder)
       await applyNlpMetadata(
         id, resolved,
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,

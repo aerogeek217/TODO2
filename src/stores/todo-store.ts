@@ -17,7 +17,7 @@ interface TodoState {
   loadByProject: (projectId: number) => Promise<void>
   loadAll: () => Promise<void>
   add: (title: string, canvasId?: number, projectId?: number) => Promise<number>
-  addAt: (title: string, projectId: number, canvasId: number, parentId: number | undefined, sortOrder: number) => Promise<number>
+  addAt: (title: string, projectId: number, canvasId: number, sortOrder: number) => Promise<number>
   update: (todo: PersistedTodoItem) => Promise<void>
   toggleComplete: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -86,7 +86,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     }, 'Failed to add task')
   },
 
-  async addAt(title: string, projectId: number, canvasId: number, parentId: number | undefined, sortOrder: number) {
+  async addAt(title: string, projectId: number, canvasId: number, sortOrder: number) {
     return mutate(set, async () => {
       const now = new Date()
       const defaultStatusId = useSettingsStore.getState().defaultStatusId
@@ -98,7 +98,6 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         sortOrder,
         canvasId,
         projectId,
-        parentId,
         ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
       const todo = await todoRepository.getById(id)
@@ -107,7 +106,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       }
       undoable(
         `Add "${title}"`,
-        async () => { await get().addAt(title, projectId, canvasId, parentId, sortOrder) },
+        async () => { await get().addAt(title, projectId, canvasId, sortOrder) },
         () => get()._removeNoUndo(id),
       )
       return id

@@ -43,7 +43,6 @@ import type { PersistedTodoItem, Person, Project, Org, Status, ListSortBy, ListG
 import type { ListGrouping, ListSort } from '../models/list-definition'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
-import { buildHierarchy } from '../utils/hierarchy'
 import { resolvePersonColor } from '../utils/person-color'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { IconSelect } from '../components/shared/IconSelect'
@@ -390,79 +389,16 @@ export function encodeGroupSort(
   return { sort, grouping }
 }
 
-export function addGhostParents(sectionTodos: PersistedTodoItem[], allTodos: PersistedTodoItem[]): { todos: PersistedTodoItem[]; ghostIds: Set<number> } {
-  const sectionIds = new Set(sectionTodos.map((t) => t.id))
-  const allById = new Map(allTodos.map((t) => [t.id, t]))
-  const ghostIds = new Set<number>()
-  const result = [...sectionTodos]
-
-  for (const todo of sectionTodos) {
-    if (todo.parentId != null && !sectionIds.has(todo.parentId)) {
-      const parent = allById.get(todo.parentId)
-      if (parent && !ghostIds.has(parent.id)) {
-        ghostIds.add(parent.id)
-        result.push(parent)
-      }
-    }
-  }
-
-  return { todos: result, ghostIds }
-}
-
 /**
  * Compute the flat visual index in the CURRENT display where the drop indicator should appear.
- * Simulates the post-drop hierarchy to find where the drag todo lands, then maps back to the
- * current flat list by finding the first non-drag item after the drag block.
  */
 function computeDropIndex(
   sectionTodos: PersistedTodoItem[],
-  allTodos: PersistedTodoItem[],
   dragTodo: PersistedTodoItem,
 ): number {
-  const dragChildren = allTodos.filter(t => t.parentId === dragTodo.id)
-  const dragIds = new Set([dragTodo.id, ...dragChildren.map(c => c.id)])
-  const withoutDrag = sectionTodos.filter(t => !dragIds.has(t.id))
-
-  // Helper: flatten a hierarchy to ids
-  const flatten = (hierarchy: ReturnType<typeof buildHierarchy>): number[] => {
-    const flat: number[] = []
-    for (const { parent, children } of hierarchy) {
-      flat.push(parent.id)
-      for (const child of children) flat.push(child.id)
-    }
-    return flat
-  }
-
-  // Same-section hover: the drag task is already displayed (as a placeholder),
-  // so post-drop ghost parents match the current display — index maps directly
-  if (sectionTodos.some(t => t.id === dragTodo.id)) {
-    const merged = [...withoutDrag, dragTodo, ...dragChildren]
-    const { todos: withGhosts } = addGhostParents(merged, allTodos)
-    const postFlat = flatten(buildHierarchy(withGhosts))
-    const idx = postFlat.indexOf(dragTodo.id)
-    return idx >= 0 ? idx : postFlat.length
-  }
-
-  // Cross-section: post-drop list may have new ghost parents that the current
-  // display doesn't, so map via the first non-drag item after the drag block
-  const merged = [...withoutDrag, dragTodo, ...dragChildren]
-  const { todos: mergedGhosts } = addGhostParents(merged, allTodos)
-  const postFlat = flatten(buildHierarchy(mergedGhosts))
-
-  const dragStart = postFlat.indexOf(dragTodo.id)
-  if (dragStart < 0) return 0
-
-  let dragEnd = dragStart
-  while (dragEnd + 1 < postFlat.length && dragIds.has(postFlat[dragEnd + 1])) dragEnd++
-
-  const afterId = dragEnd + 1 < postFlat.length ? postFlat[dragEnd + 1] : null
-
-  const { todos: currentGhosts } = addGhostParents(sectionTodos, allTodos)
-  const currentFlat = flatten(buildHierarchy(currentGhosts))
-
-  if (afterId == null) return currentFlat.length
-  const idx = currentFlat.indexOf(afterId)
-  return idx >= 0 ? idx : currentFlat.length
+  const idx = sectionTodos.findIndex(t => t.id === dragTodo.id)
+  if (idx === -1) return sectionTodos.length
+  return idx
 }
 
 // --- Droppable section wrapper ---
@@ -892,16 +828,12 @@ export function ListView() {
   }, [])
 
   const performDrop = useCallback((todo: PersistedTodoItem, fromKey: string, toKey: string) => {
-    const children = todos.filter(t => t.parentId === todo.id)
     const now = new Date()
 
     if (listGroupBy === 'project') {
       const newProjectId = parseSectionProjectId(toKey)
       if (newProjectId !== null && newProjectId !== todo.projectId) {
         updateTodo({ ...todo, projectId: newProjectId, modifiedAt: now })
-        for (const child of children) {
-          updateTodo({ ...child, projectId: newProjectId, modifiedAt: now })
-        }
       }
     } else if (listGroupBy === 'people') {
       const fromLabel = sectionLabelMap.get(fromKey) ?? fromKey
@@ -911,13 +843,10 @@ export function ListView() {
       const newStatusId = toKey === 'no-status' ? undefined : toKey.startsWith('status-') ? Number(toKey.slice(7)) : null
       if (newStatusId !== null && newStatusId !== todo.statusId) {
         updateTodo({ ...todo, statusId: newStatusId, modifiedAt: now })
-        for (const child of children) {
-          updateTodo({ ...child, statusId: newStatusId, modifiedAt: now })
-        }
       }
     }
     // Chronological / org / none groupings — no reassignment (ambiguous targets)
-  }, [listGroupBy, todos, sectionLabelMap, updateTodo])
+  }, [listGroupBy, sectionLabelMap, updateTodo])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setActiveDragTodo(null)
@@ -936,22 +865,17 @@ export function ListView() {
   const confirmReassign = useCallback(async () => {
     if (!pendingReassign) return
     const { todo, fromKey, toKey, attribute } = pendingReassign
-    const children = todos.filter(t => t.parentId === todo.id)
-    const allIds = [todo.id, ...children.map(c => c.id)]
 
     if (attribute === 'person') {
       const fromPersonId = parseSectionPersonId(fromKey)
       const toPersonId = parseSectionPersonId(toKey)
-      for (const id of allIds) {
-        if (fromPersonId != null) await unassignPerson(id, fromPersonId)
-        if (toPersonId != null) await assignPerson(id, toPersonId)
-      }
+      if (fromPersonId != null) await unassignPerson(todo.id, fromPersonId)
+      if (toPersonId != null) await assignPerson(todo.id, toPersonId)
     }
 
     setPendingReassign(null)
-    // Reload to reflect changes
     await loadAll()
-  }, [pendingReassign, todos, assignPerson, unassignPerson, loadAll])
+  }, [pendingReassign, assignPerson, unassignPerson, loadAll])
 
   const cancelReassign = useCallback(() => {
     setPendingReassign(null)
@@ -1109,11 +1033,10 @@ export function ListView() {
 
           {(() => {
             const sectionEls = displaySections.map((section) => {
-              const { todos: todosWithGhosts, ghostIds } = addGhostParents(section.todos, todos)
               const isCollapsed = !!collapsed[section.key]
               const isOver = overSectionKey === section.key
               const dropIdx = (isOver && activeDragTodo)
-                ? computeDropIndex(section.todos, todos, activeDragTodo)
+                ? computeDropIndex(section.todos, activeDragTodo)
                 : undefined
               const hideHeader = listGroupBy === 'none'
               return (
@@ -1130,9 +1053,8 @@ export function ListView() {
                   {!isCollapsed && (
                     <div className={styles.taskList}>
                       <TaskList
-                        todos={todosWithGhosts}
+                        todos={section.todos}
                         assignedPeopleMap={assignedPeopleMap}
-                        ghostIds={ghostIds}
                         draggable={isDndEnabled}
                         sectionKey={section.key}
                         dropIndicatorIndex={dropIdx}

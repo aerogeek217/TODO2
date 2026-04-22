@@ -56,17 +56,15 @@ describe('todoStore', () => {
     expect(useTodoStore.getState().todos[0].sortOrder).toBe(99)
   })
 
-  it('addAt inserts with specific projectId, parentId, sortOrder', async () => {
+  it('addAt inserts with specific projectId and sortOrder', async () => {
     const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
     const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
-    const parentId = await useTodoStore.getState().add('Parent', canvasId, projectId)
 
-    const childId = await useTodoStore.getState().addAt('Child', projectId, canvasId, parentId, 42)
-    const child = useTodoStore.getState().todos.find(t => t.id === childId)
-    expect(child).toBeDefined()
-    expect(child!.projectId).toBe(projectId)
-    expect(child!.parentId).toBe(parentId)
-    expect(child!.sortOrder).toBe(42)
+    const id = await useTodoStore.getState().addAt('Task', projectId, canvasId, 42)
+    const todo = useTodoStore.getState().todos.find(t => t.id === id)
+    expect(todo).toBeDefined()
+    expect(todo!.projectId).toBe(projectId)
+    expect(todo!.sortOrder).toBe(42)
   })
 
   it('bulkSetCompleted marks multiple todos completed', async () => {
@@ -195,7 +193,7 @@ describe('todoStore', () => {
       const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
       const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
 
-      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, undefined, 100)
+      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, 100)
       const todo = useTodoStore.getState().todos.find(t => t.id === id)
       expect(todo!.statusId).toBe(5)
     })
@@ -205,7 +203,7 @@ describe('todoStore', () => {
       const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
       const projectId = (await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
 
-      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, undefined, 100)
+      const id = await useTodoStore.getState().addAt('Child', projectId, canvasId, 100)
       const todo = useTodoStore.getState().todos.find(t => t.id === id)
       expect(todo!.statusId).toBeUndefined()
     })

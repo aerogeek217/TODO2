@@ -5,7 +5,6 @@ import {
   buildFlatSection,
   buildPeopleSections,
   buildProjectSections,
-  addGhostParents,
   itemSortComparator,
   encodeGroupSort,
   truncateSections,
@@ -139,37 +138,6 @@ describe('buildProjectSections', () => {
     expect(sections[0].label).toBe('Alpha')
     expect(sections[1].label).toBe('Beta')
     expect(sections[2].label).toBe('No Project')
-  })
-})
-
-describe('addGhostParents', () => {
-  it('adds missing parents as ghosts for hierarchy context', () => {
-    const parent = makeTodo({ id: 1, title: 'Parent' })
-    const child = makeTodo({ id: 2, title: 'Child', parentId: 1 })
-    const allTodos = [parent, child]
-
-    // Section only contains the child
-    const { todos, ghostIds } = addGhostParents([child], allTodos)
-    expect(todos).toHaveLength(2)
-    expect(ghostIds.has(1)).toBe(true)
-    expect(ghostIds.has(2)).toBe(false)
-  })
-
-  it('does not duplicate parents already in section', () => {
-    const parent = makeTodo({ id: 1, title: 'Parent' })
-    const child = makeTodo({ id: 2, title: 'Child', parentId: 1 })
-    const allTodos = [parent, child]
-
-    const { todos, ghostIds } = addGhostParents([parent, child], allTodos)
-    expect(todos).toHaveLength(2)
-    expect(ghostIds.size).toBe(0)
-  })
-
-  it('returns empty ghostIds when no parents are missing', () => {
-    const todo = makeTodo({ id: 1 })
-    const { todos, ghostIds } = addGhostParents([todo], [todo])
-    expect(todos).toHaveLength(1)
-    expect(ghostIds.size).toBe(0)
   })
 })
 

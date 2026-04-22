@@ -2,7 +2,7 @@ import { useMemo, useCallback, useRef } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
-import { buildHierarchy, expandWithGhostParents } from '../../utils/hierarchy'
+import { buildHierarchy } from '../../utils/hierarchy'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { TaskRow } from './TaskRow'
 import { MobileTaskRow } from './MobileTaskRow'
@@ -18,12 +18,6 @@ interface TaskListProps {
   dropIndicatorIndex?: number
   /** Optional comparator to order root todos (defaults to sortOrder) */
   rootComparator?: (a: PersistedTodoItem, b: PersistedTodoItem) => number
-  /**
-   * Unfiltered scope (e.g. all todos). When provided, parents missing from
-   * `todos` but referenced by visible children are re-injected as ghost rows
-   * so the hierarchy in `todos` matches the data model.
-   */
-  allTodos?: PersistedTodoItem[]
   onOpenDetail?: (todoId: number) => void
 }
 
@@ -65,7 +59,6 @@ export function TaskList({
   sectionKey,
   dropIndicatorIndex,
   rootComparator,
-  allTodos,
   onOpenDetail,
 }: TaskListProps) {
   const { selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
@@ -74,19 +67,7 @@ export function TaskList({
 
   const clipboardSet = useMemo(() => new Set(clipboardTodoIds), [clipboardTodoIds])
 
-  // Inject ghost parents for children whose real parent is filtered out of
-  // `todos`. Merge the resulting ghost ids into the caller's ghostIds so the
-  // TaskRow renders them dimmed + non-interactive.
-  const { expandedTodos, mergedGhostIds } = useMemo(() => {
-    if (!allTodos) return { expandedTodos: todos, mergedGhostIds: ghostIds }
-    const { todos: expanded, ghostIds: hiddenParents } = expandWithGhostParents(todos, allTodos)
-    if (hiddenParents.size === 0) return { expandedTodos: todos, mergedGhostIds: ghostIds }
-    const merged = new Set(ghostIds)
-    for (const id of hiddenParents) merged.add(id)
-    return { expandedTodos: expanded, mergedGhostIds: merged }
-  }, [todos, allTodos, ghostIds])
-
-  const hierarchy = useMemo(() => buildHierarchy(expandedTodos, rootComparator), [expandedTodos, rootComparator])
+  const hierarchy = useMemo(() => buildHierarchy(todos, rootComparator), [todos, rootComparator])
 
   // Flatten hierarchy into a visible list so each row is a direct sibling (for CSS selection rectangle)
   const flatItems: { todo: PersistedTodoItem; assignedPeople?: Person[]; indentLevel: number; hasChildren: boolean; isLastChild: boolean; isExpanded: boolean }[] = []
@@ -145,7 +126,7 @@ export function TaskList({
             hasChildren={item.hasChildren}
             isLastChild={item.isLastChild}
             isSelected={isSel}
-            ghost={mergedGhostIds?.has(item.todo.id)}
+            ghost={ghostIds?.has(item.todo.id)}
             cut={clipboardSet.has(item.todo.id)}
             onSelect={handleSelect}
             onOpenDetail={onOpenDetail}

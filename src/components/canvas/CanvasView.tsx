@@ -90,7 +90,7 @@ const nodeTypes: NodeTypes = {
 
 export interface ProjectHandlers {
   onAddTask: (projectId: number, title: string) => void
-  onInsertTask?: (title: string, projectId: number, beforeTodoId: number | null, parentId: number | undefined) => Promise<number>
+  onInsertTask?: (title: string, projectId: number, beforeTodoId: number | null) => Promise<number>
   onDeleteProject: (projectId: number) => void
   onRenameProject: (projectId: number, name: string) => void
   onToggleCollapse: (projectId: number) => void
