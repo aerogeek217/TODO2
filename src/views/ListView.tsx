@@ -315,7 +315,7 @@ export function buildStatusSections(
 
 /**
  * Build a comparator for within-group sort. `'manual'` returns undefined so
- * `buildHierarchy` falls through to its sortOrder default.
+ * the caller skips `.sort()` and preserves the upstream sortOrder order.
  */
 export function itemSortComparator(
   sortBy: ListItemSortBy,

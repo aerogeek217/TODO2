@@ -158,7 +158,7 @@ describe('buildFlatSection', () => {
 describe('itemSortComparator', () => {
   const today = new Date(2026, 0, 15)
 
-  it('returns undefined for manual sort so buildHierarchy keeps sortOrder default', () => {
+  it('returns undefined for manual sort so the caller keeps the upstream sortOrder order', () => {
     expect(itemSortComparator('manual')).toBeUndefined()
   })
 
