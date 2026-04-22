@@ -118,7 +118,7 @@ describe('todoStore', () => {
     expect(await db.todos.get(id3)).toBeUndefined()
   })
 
-  it('applyMutations applies projectId/parentId/sortOrder changes', async () => {
+  it('applyMutations applies projectId/sortOrder changes', async () => {
     const canvasId = (await db.canvases.add({ name: 'C', sortOrder: 1, createdAt: new Date() })) as number
     const proj1 = (await db.projects.add({ name: 'P1', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() })) as number
     const proj2 = (await db.projects.add({ name: 'P2', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: new Date() })) as number

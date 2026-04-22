@@ -15,7 +15,6 @@ export interface TodoItem {
   modifiedAt: Date
   projectId?: number
   canvasId?: number
-  parentId?: number
   statusId?: number
   sortOrder: number
 }

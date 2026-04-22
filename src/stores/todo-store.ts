@@ -483,7 +483,6 @@ export const useTodoStore = create<TodoState>((set, get) => ({
         sortOrder: maxSort + 1,
         canvasId: todo.canvasId,
         projectId: todo.projectId,
-        parentId: todo.parentId,
         scheduledDate: todo.scheduledDate,
         dueDate: todo.dueDate,
         notes: todo.notes,
