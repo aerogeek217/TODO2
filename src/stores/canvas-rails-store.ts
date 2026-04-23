@@ -9,14 +9,21 @@ import {
 } from '../models/canvas-rails'
 import {
   applyDetachTabToNewSlot,
+  applyDockFloatAsNewSlot,
+  applyDockFloatIntoSlot,
   applyDropToSide,
   applyMoveTabToSlot,
   applyReorderTab,
   applySplitDrop,
   applySplitButton,
+  type FloatDescriptor,
   type SplitZone,
   type TabDropTarget,
 } from '../utils/rail-dnd'
+import { useFloatingCalendarStore } from './floating-calendar-store'
+import { useFloatingNoteStore } from './floating-note-store'
+import { useFloatingTaskboardStore } from './floating-taskboard-store'
+import { useListInsetStore } from './list-inset-store'
 
 function genSlotId(): string {
   return `slot-${Math.random().toString(36).slice(2, 10)}`
@@ -24,6 +31,21 @@ function genSlotId(): string {
 
 function genTabId(slotId: string): string {
   return `${slotId}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/**
+ * Delete the source float row after a successful dock — inverse of
+ * `popTabToCanvas` in `RailsFrame.tsx`. Fire-and-forget: the rails update is
+ * already committed; a removal failure leaves a duplicate float visible but
+ * doesn't break the docked tab.
+ */
+async function removeFloatRow(descriptor: FloatDescriptor): Promise<void> {
+  switch (descriptor.kind) {
+    case 'note':      await useFloatingNoteStore.getState().remove(descriptor.id); return
+    case 'calendar':  await useFloatingCalendarStore.getState().remove(descriptor.id); return
+    case 'taskboard': await useFloatingTaskboardStore.getState().remove(descriptor.id); return
+    case 'lens':      await useListInsetStore.getState().remove(descriptor.id); return
+  }
 }
 
 /**
@@ -121,6 +143,24 @@ interface CanvasRailsState {
    * at the given drop target. Source cascade-closes if it had only that tab.
    */
   detachTabToNewSlot: (srcSlotId: string, tabId: string, target: TabDropTarget) => void
+  /**
+   * Dock a floating widget into a specific existing slot. `target === 'center'`
+   * merges the widget as a new tab (at `insertIndex` or end of strip); an
+   * edge zone splits it off into a new adjacent slot in the same rail. On
+   * success, also removes the source float row from its floating store.
+   */
+  dockFloatIntoSlot: (descriptor: FloatDescriptor, slotId: string, target: SplitZone, insertIndex?: number) => void
+  /**
+   * Dock a floating widget as a brand-new slot — onto an empty rail side
+   * (creating the rail) or split off adjacent to an existing slot. On
+   * success, removes the source float row from its floating store.
+   */
+  dockFloatAsNewSlot: (
+    descriptor: FloatDescriptor,
+    target:
+      | { kind: 'empty-side'; side: RailSide }
+      | { kind: 'slot-split'; slotId: string; zone: SplitZone },
+  ) => void
   splitSlot: (slotId: string, dir: 'above' | 'below' | 'left' | 'right', seed?: { listDefinitionId?: number }) => void
   /**
    * Create a new slot of the given kind and dock it into the first empty rail
@@ -404,6 +444,30 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
     })
     return next === state.rails ? state : { rails: next }
   }),
+
+  dockFloatIntoSlot: (descriptor, slotId, target, insertIndex) => {
+    let applied = false
+    set((state) => {
+      const next = applyDockFloatIntoSlot(
+        state.rails, descriptor, slotId, target, insertIndex, genSlotId, genTabId,
+      )
+      if (next === state.rails) return state
+      applied = true
+      return { rails: next }
+    })
+    if (applied) void removeFloatRow(descriptor)
+  },
+
+  dockFloatAsNewSlot: (descriptor, target) => {
+    let applied = false
+    set((state) => {
+      const next = applyDockFloatAsNewSlot(state.rails, descriptor, target, genSlotId, genTabId)
+      if (next === state.rails) return state
+      applied = true
+      return { rails: next }
+    })
+    if (applied) void removeFloatRow(descriptor)
+  },
 
   splitSlot: (slotId, dir, seed) => set((state) => {
     const newId = genSlotId()

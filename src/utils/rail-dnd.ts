@@ -1,4 +1,4 @@
-import type { EmptySideClaim, Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
+import type { CalendarOrientation, EmptySideClaim, Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
 import { railOrientationForSide } from '../models/canvas-rails'
 
 export const RAILS_DRAG_TYPE = 'rails-slot' as const
@@ -579,4 +579,124 @@ export function resolveFloatDockTarget(
     orientation,
   )
   return { kind: 'slot', slotId: zone.slotId, zone: splitZone }
+}
+
+// ---------------------------------------------------------------------------
+// Float-dock reducers (Phase 3 of float-dock)
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimum payload required to dock a floating widget into a rail. The
+ * floating row's x/y/w/h is discarded on dock (mirrors `popTabToCanvas`
+ * discarding the slot's flex on the reverse path). `calendar` threads
+ * `orientation` + `weekOffset` so the user's strip orientation survives the
+ * dock — these are Slot-level fields in the model, so they only apply when
+ * a fresh slot is built (empty-side / split / detach paths). Center-merge
+ * appends into an existing slot and cannot override the destination's
+ * existing slot-level state.
+ */
+export type FloatDescriptor =
+  | { kind: 'note'; id: number }
+  | { kind: 'calendar'; id: number; orientation?: CalendarOrientation; weekOffset?: number }
+  | { kind: 'taskboard'; id: number; taskboardId: number }
+  | { kind: 'lens'; id: number; listDefinitionId: number }
+
+/**
+ * Build a `Tab` payload from a float descriptor. Caller supplies `tabId` so
+ * id generation stays co-located with slot-id generation in
+ * `canvas-rails-store`. Calendar `orientation` / `weekOffset` are not carried
+ * on the tab (they live on the Slot in the current model); `slotFromFloat`
+ * threads them through for the fresh-slot paths.
+ */
+export function tabFromFloat(descriptor: FloatDescriptor, tabId: string): Tab {
+  switch (descriptor.kind) {
+    case 'note':      return { id: tabId, type: 'notes' }
+    case 'calendar':  return { id: tabId, type: 'calendar' }
+    case 'taskboard': return { id: tabId, type: 'taskboard' }
+    case 'lens':      return { id: tabId, type: 'lens', listDefinitionId: descriptor.listDefinitionId }
+  }
+}
+
+/**
+ * Build a fresh single-tab Slot from a float descriptor, threading slot-level
+ * fields the descriptor carries (`orientation` + `weekOffset` for calendar).
+ * Used by the empty-side and split-new-slot dock paths.
+ */
+export function slotFromFloat(descriptor: FloatDescriptor, slotId: string, tabId: string): Slot {
+  const tab = tabFromFloat(descriptor, tabId)
+  const slot: Slot = { id: slotId, tabs: [tab], activeTabId: tab.id }
+  if (descriptor.kind === 'calendar') {
+    if (descriptor.orientation != null) slot.orientation = descriptor.orientation
+    if (descriptor.weekOffset != null) slot.weekOffset = descriptor.weekOffset
+  }
+  return slot
+}
+
+function appendTabToSlot(rails: RailsState, slotId: string, tab: Tab, insertIdx: number): RailsState {
+  const loc = findSlotLocation(rails, slotId)
+  if (!loc) return rails
+  const rail = rails[loc.side]!
+  const slot = rail.slots[loc.index]
+  const clamped = Math.max(0, Math.min(insertIdx, slot.tabs.length))
+  const nextTabs = slot.tabs.slice(0, clamped).concat([tab]).concat(slot.tabs.slice(clamped))
+  const nextSlot: Slot = { ...slot, tabs: nextTabs, activeTabId: tab.id }
+  const nextSlots = rail.slots.slice()
+  nextSlots[loc.index] = nextSlot
+  return { ...rails, [loc.side]: { ...rail, slots: nextSlots } }
+}
+
+/**
+ * Dock a floating widget into a specific existing slot. `target === 'center'`
+ * merges the widget as a new tab (at `insertIndex` or end of strip, activated
+ * on arrival); an edge zone splits it off into a new adjacent slot in the
+ * same rail. Returns `rails` unchanged when `slotId` is unknown.
+ *
+ * Caller removes the source float row AFTER a successful rails update —
+ * detect by `result !== rails`.
+ */
+export function applyDockFloatIntoSlot(
+  rails: RailsState,
+  descriptor: FloatDescriptor,
+  slotId: string,
+  target: SplitZone,
+  insertIndex: number | undefined,
+  genSlotId: () => string,
+  genTabId: (slotId: string) => string,
+): RailsState {
+  const loc = findSlotLocation(rails, slotId)
+  if (!loc) return rails
+  if (target === 'center') {
+    const tab = tabFromFloat(descriptor, genTabId(slotId))
+    const destSlot = rails[loc.side]!.slots[loc.index]
+    return appendTabToSlot(rails, slotId, tab, insertIndex ?? destSlot.tabs.length)
+  }
+  const newSlotId = genSlotId()
+  const newSlot = slotFromFloat(descriptor, newSlotId, genTabId(newSlotId))
+  return placeNewSlot(rails, newSlot, { kind: 'slot', slotId, zone: target })
+}
+
+/**
+ * Dock a floating widget as a brand-new slot — either onto an empty rail side
+ * (creating the rail) or split off adjacent to an existing slot (the
+ * dock-equivalent of `applyDetachTabToNewSlot`'s slot-split case). Returns
+ * `rails` unchanged when the target is unresolvable (empty-side already
+ * occupied, slot-split slotId unknown, slot-split zone === 'center').
+ *
+ * Caller removes the source float row AFTER a successful rails update.
+ */
+export function applyDockFloatAsNewSlot(
+  rails: RailsState,
+  descriptor: FloatDescriptor,
+  target:
+    | { kind: 'empty-side'; side: RailSide }
+    | { kind: 'slot-split'; slotId: string; zone: SplitZone },
+  genSlotId: () => string,
+  genTabId: (slotId: string) => string,
+): RailsState {
+  const newSlotId = genSlotId()
+  const newSlot = slotFromFloat(descriptor, newSlotId, genTabId(newSlotId))
+  if (target.kind === 'empty-side') {
+    return placeNewSlot(rails, newSlot, { kind: 'empty-side', side: target.side })
+  }
+  return placeNewSlot(rails, newSlot, { kind: 'slot', slotId: target.slotId, zone: target.zone })
 }
