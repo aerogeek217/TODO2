@@ -45,3 +45,6 @@ docs/reviews/
 
 # Batch scripts
 *.bat
+
+# spawn-phases output (per-invocation launcher batches)
+.spawn/
