@@ -19,7 +19,10 @@ function container(id: string | number): DroppableContainer {
   return { id, data: { current: {} } } as unknown as DroppableContainer
 }
 
-function callArgs(ids: (string | number)[], active: { id: string; data: Record<string, unknown> } | null) {
+function callArgs(
+  ids: (string | number)[],
+  active: { id: string; data: { current: Record<string, unknown> | null } } | null,
+) {
   return {
     active,
     droppableContainers: ids.map(container),
@@ -39,14 +42,14 @@ describe('buildTaskCollision — basic dispatch', () => {
   it('returns results from the first matching rule', () => {
     const detect = buildTaskCollision([
       {
-        when: (a) => a.data.type === TASK_DRAG_KIND.task,
+        when: (a) => a.data.current?.type === TASK_DRAG_KIND.task,
         accept: (id) => String(id).startsWith('project-drop-'),
         algorithm: 'pointerWithin',
       },
     ])
     const result = detect(callArgs(
       ['project-drop-1', 'project-drop-2', 'rails:slot:x'],
-      { id: 'todo-5', data: { type: TASK_DRAG_KIND.task } },
+      { id: 'todo-5', data: { current: { type: TASK_DRAG_KIND.task } } },
     ))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
     const args = pointerWithinSpy.mock.calls[0][0]
@@ -70,13 +73,13 @@ describe('buildTaskCollision — basic dispatch', () => {
         algorithm: 'rectIntersection',
       },
     ])
-    detect(callArgs(['x', 'y'], { id: 'center-case', data: {} }))
+    detect(callArgs(['x', 'y'], { id: 'center-case', data: { current: {} } }))
     expect(closestCenterSpy).toHaveBeenCalledTimes(1)
     expect(pointerWithinSpy).not.toHaveBeenCalled()
     expect(rectIntersectionSpy).not.toHaveBeenCalled()
 
     pointerWithinSpy.mockClear(); closestCenterSpy.mockClear()
-    detect(callArgs(['x', 'y'], { id: 'rect-case', data: {} }))
+    detect(callArgs(['x', 'y'], { id: 'rect-case', data: { current: {} } }))
     expect(rectIntersectionSpy).toHaveBeenCalledTimes(1)
     expect(closestCenterSpy).not.toHaveBeenCalled()
     expect(pointerWithinSpy).not.toHaveBeenCalled()
@@ -95,7 +98,7 @@ describe('buildTaskCollision — basic dispatch', () => {
         algorithm: 'closestCenter',
       },
     ])
-    detect(callArgs(['x'], { id: 'any', data: {} }))
+    detect(callArgs(['x'], { id: 'any', data: { current: {} } }))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
     expect(closestCenterSpy).not.toHaveBeenCalled()
   })
@@ -108,7 +111,7 @@ describe('buildTaskCollision — basic dispatch', () => {
         algorithm: 'rectIntersection',
       },
     ])
-    detect(callArgs(['a', 'b'], { id: 'other', data: {} }))
+    detect(callArgs(['a', 'b'], { id: 'other', data: { current: {} } }))
     expect(closestCenterSpy).toHaveBeenCalledTimes(1)
     // Fallback passes droppableContainers through unfiltered.
     expect(closestCenterSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)).toEqual(['a', 'b'])
@@ -116,7 +119,7 @@ describe('buildTaskCollision — basic dispatch', () => {
 
   it('honors a custom fallback algorithm', () => {
     const detect = buildTaskCollision([], 'rectIntersection')
-    detect(callArgs(['a'], { id: 'x', data: {} }))
+    detect(callArgs(['a'], { id: 'x', data: { current: {} } }))
     expect(rectIntersectionSpy).toHaveBeenCalledTimes(1)
     expect(closestCenterSpy).not.toHaveBeenCalled()
   })
@@ -137,12 +140,12 @@ describe('buildTaskCollision — basic dispatch', () => {
 })
 
 describe('buildTaskCollision — F12 rails / task isolation', () => {
-  // This mirrors the rules table wired in CanvasPage.tsx (lines 539–550). If
-  // the production table drifts, update this test rather than deleting it —
-  // the whole point of F12 is that this contract stays intact.
+  // This mirrors the rules table wired in CanvasPage.tsx. If the production
+  // table drifts, update this test rather than deleting it — the whole point
+  // of F12 is that this contract stays intact.
   const railsFirstThenTasks = buildTaskCollision([
     {
-      when: (a) => a.data.type === RAILS_DRAG_TYPE,
+      when: (a) => a.data.current?.type === RAILS_DRAG_TYPE,
       accept: (id) => isRailsDropId(String(id)),
       algorithm: 'pointerWithin',
     },
@@ -165,7 +168,7 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
   it('rails drag sees only rails droppables', () => {
     railsFirstThenTasks(callArgs(mixed, {
       id: 'rails-active',
-      data: { type: RAILS_DRAG_TYPE, kind: 'slot', slotId: 's-1', fromSide: 'left' },
+      data: { current: { type: RAILS_DRAG_TYPE, kind: 'slot', slotId: 's-1', fromSide: 'left' } },
     }))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
     const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
@@ -176,10 +179,33 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
     ])
   })
 
+  it('rails drag matches first rule via active.data.current.type', () => {
+    // Regression: `CollisionActive.data` was typed as a flat `{ type?: unknown }`
+    // but dnd-kit hands us a `DataRef` — the live payload is at `.current`.
+    // Reading `active.data.type` always returned `undefined`, so the rails-first
+    // rule never matched and rails drags fell through to the task fallback
+    // which stripped every `rails:*` zone from the droppable set. onDragEnd
+    // then saw `over == null` and tab/slot drag-dock silently no-op'd.
+    const railsOnly = [
+      'rails:slot:s-1',
+      'rails:tab-strip:s-2',
+      'rails:empty-side:left',
+    ]
+    const mixedWithTaskZones = [...railsOnly, 'project-drop-1', 'taskboard-drop-77']
+    railsFirstThenTasks(callArgs(mixedWithTaskZones, {
+      id: 'rails-active',
+      data: { current: { type: RAILS_DRAG_TYPE, kind: 'tab', slotId: 's-1', tabId: 't-1' } },
+    }))
+    expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
+    const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
+    expect(seen).toEqual(railsOnly)
+    expect(seen.every((id: string) => isRailsDropId(String(id)))).toBe(true)
+  })
+
   it('task drag never sees rails droppables', () => {
     railsFirstThenTasks(callArgs(mixed, {
       id: 'todo-5',
-      data: { type: TASK_DRAG_KIND.task },
+      data: { current: { type: TASK_DRAG_KIND.task } },
     }))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
     const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
@@ -193,7 +219,7 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
   it('taskboard-task drag is routed like a task drag (never into rails zones)', () => {
     railsFirstThenTasks(callArgs(mixed, {
       id: 'tbp-1',
-      data: { type: TASK_DRAG_KIND.taskboardTask },
+      data: { current: { type: TASK_DRAG_KIND.taskboardTask } },
     }))
     const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
     expect(seen.every((id: string) => !isRailsDropId(String(id)))).toBe(true)

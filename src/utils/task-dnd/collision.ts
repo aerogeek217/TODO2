@@ -34,8 +34,8 @@ const ALGORITHMS: Record<TaskCollisionAlgorithm, CollisionDetection> = {
 export interface TaskCollisionRule {
   /**
    * Returns true when this rule applies to the current active drag. Consult
-   * `active.id` for sortable-style active ids and `active.data.type` for the
-   * `TASK_DRAG_KIND` / `RAILS_DRAG_TYPE` family.
+   * `active.id` for sortable-style active ids and `active.data.current?.type`
+   * for the `TASK_DRAG_KIND` / `RAILS_DRAG_TYPE` family.
    */
   when: (active: CollisionActive) => boolean
 
@@ -46,10 +46,14 @@ export interface TaskCollisionRule {
   algorithm: TaskCollisionAlgorithm
 }
 
-/** Subset of dnd-kit's `Active` used by rule predicates. */
+/**
+ * Subset of dnd-kit's `Active` used by rule predicates. `data` mirrors dnd-kit's
+ * `DataRef<Data>` shape — the live payload lives at `data.current`, not on
+ * `data` itself, so callers must always read `active.data.current?.type`.
+ */
 export interface CollisionActive {
   id: UniqueIdentifier
-  data: { type?: unknown } & Record<string, unknown>
+  data: { current: (({ type?: unknown } & Record<string, unknown>) | null) }
 }
 
 /**

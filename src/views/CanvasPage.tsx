@@ -546,7 +546,7 @@ export function CanvasPage() {
   // everything else (task / taskboard-task) matches non-rails zones.
   const collisionDetection = useMemo(() => buildTaskCollision([
     {
-      when: (active) => active.data.type === RAILS_DRAG_TYPE,
+      when: (active) => active.data.current?.type === RAILS_DRAG_TYPE,
       accept: (id) => isRailsDropId(String(id)),
       algorithm: 'pointerWithin',
     },

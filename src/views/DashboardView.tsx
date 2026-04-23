@@ -418,7 +418,7 @@ export function DashboardView() {
       // canonical `TASK_DRAG_KIND.task` (Phase 4 of the DnD unification); this
       // rule still scopes their collision to the taskboard's drop zone because
       // the dashboard `DndContext` hosts no other `task`-shaped drag sources.
-      when: (active) => active.data.type === TASK_DRAG_KIND.task,
+      when: (active) => active.data.current?.type === TASK_DRAG_KIND.task,
       accept: (id) => typeof id === 'string' && id.startsWith(TASKBOARD_SINGLETON_DROP_ID),
       algorithm: 'closestCenter',
     },
@@ -427,7 +427,7 @@ export function DashboardView() {
       // and its outer drop target, and require the pointer to actually be
       // *inside* one of them — so dropping in empty dashboard space yields
       // `over: null` and `handleDragEnd`'s remove-on-drag-off branch fires.
-      when: (active) => active.data.type === TASK_DRAG_KIND.taskboardTask,
+      when: (active) => active.data.current?.type === TASK_DRAG_KIND.taskboardTask,
       accept: (id) => typeof id === 'string' && (id === TASKBOARD_SINGLETON_DROP_ID || id.startsWith('tbp-')),
       algorithm: 'pointerWithin',
     },
