@@ -492,3 +492,91 @@ export function pointerToSplitZone(
   if (cx > 1 - edgeRatio) return 'right'
   return 'center'
 }
+
+// ---------------------------------------------------------------------------
+// Float-dock hit-test (Phase 2 of float-dock)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolved dock target for a floating-widget drag release. Mirrors
+ * `TabDropTarget` (slot/tab-strip/empty-side) but carries `claim` on
+ * empty-side so the caller can apply corner ownership, and `zone` on slot so
+ * Phase 3 reducers can distinguish center-merge from split-new-slot.
+ */
+export type FloatDockTarget =
+  | { kind: 'empty-side'; side: RailSide; claim?: EmptySideClaim }
+  | { kind: 'slot'; slotId: string; zone: SplitZone }
+  | { kind: 'tab-strip'; slotId: string; insertIdx: number }
+
+export interface ResolveFloatDockOpts {
+  /** Injectable for tests; defaults to `document.elementsFromPoint`. */
+  elementsFromPoint?: (x: number, y: number) => Element[]
+  /** Rail orientation (vertical/horizontal) for a given `slotId`; null → slot not resolvable, resolver returns null. */
+  getSlotOrientation: (slotId: string) => 'vertical' | 'horizontal' | null
+}
+
+function defaultElementsFromPoint(x: number, y: number): Element[] {
+  if (typeof document === 'undefined') return []
+  return document.elementsFromPoint(x, y)
+}
+
+/**
+ * Count `[data-tab-id]` descendants at pointerX and return the insertion
+ * index among them (mirrors `TabStrip#computeInsertIdx` but without a
+ * source-tab filter — a float always inserts a new tab).
+ */
+function computeFloatInsertIdx(stripEl: HTMLElement, pointerX: number): number {
+  const pills = Array.from(stripEl.querySelectorAll<HTMLElement>('[data-tab-id]'))
+  for (let i = 0; i < pills.length; i++) {
+    const rect = pills[i].getBoundingClientRect()
+    const mid = rect.left + rect.width / 2
+    if (pointerX < mid) return i
+  }
+  return pills.length
+}
+
+/**
+ * Walk `elementsFromPoint(x, y)` bottom-up and return the first element
+ * carrying a `data-rails-drop-id`. Decodes the id via `decodeRailsDropId`;
+ * for slot hits, disambiguates center-merge vs split via `pointerToSplitZone`
+ * against the element's bounding rect. For tab-strip hits, computes the
+ * insertion index from pill midpoints. Returns null when the pointer misses
+ * every rail hotspot (caller falls through to the float's position-persist
+ * path).
+ */
+export function resolveFloatDockTarget(
+  pointer: { x: number; y: number },
+  opts: ResolveFloatDockOpts,
+): FloatDockTarget | null {
+  const getEls = opts.elementsFromPoint ?? defaultElementsFromPoint
+  const els = getEls(pointer.x, pointer.y)
+  let hit: HTMLElement | null = null
+  let rawId: string | null = null
+  for (const el of els) {
+    if (!(el instanceof HTMLElement)) continue
+    const id = el.dataset.railsDropId
+    if (id) { hit = el; rawId = id; break }
+  }
+  if (!hit || !rawId) return null
+  const zone = decodeRailsDropId(rawId)
+  if (!zone) return null
+  if (zone.kind === 'empty-side') {
+    return zone.claim
+      ? { kind: 'empty-side', side: zone.side, claim: zone.claim }
+      : { kind: 'empty-side', side: zone.side }
+  }
+  if (zone.kind === 'tab-strip') {
+    const insertIdx = computeFloatInsertIdx(hit, pointer.x)
+    return { kind: 'tab-strip', slotId: zone.slotId, insertIdx }
+  }
+  // zone.kind === 'slot'
+  const orientation = opts.getSlotOrientation(zone.slotId)
+  if (!orientation) return null
+  const rect = hit.getBoundingClientRect()
+  const splitZone = pointerToSplitZone(
+    pointer,
+    { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    orientation,
+  )
+  return { kind: 'slot', slotId: zone.slotId, zone: splitZone }
+}

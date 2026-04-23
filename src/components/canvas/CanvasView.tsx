@@ -23,6 +23,9 @@ import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from '.
 import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, Taskboard } from '../../models'
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
+import { resolveFloatDockTarget, type FloatDockTarget } from '../../utils/rail-dnd'
+import type { RailSide } from '../../models/canvas-rails'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import styles from './CanvasView.module.css'
 import './drag-preview.css'
@@ -164,6 +167,19 @@ interface CanvasViewProps {
   onCascadeShift?: (shifts: Array<{ projectId: number; x: number; y: number }>) => void
   showCompleted?: boolean
   showHiddenStatuses?: boolean
+  /**
+   * Float-dock dispatch (Phase 2 of float-dock). Invoked when a floating
+   * widget (note/calendar/inset/taskboard) is released over a rail drop zone.
+   * When present and a drop-zone is resolved, the usual position-persist path
+   * is suppressed — the callback is the sole effect of the release. When
+   * absent or when the pointer misses every rail hotspot, the float persists
+   * its new position as before. Phase 3 wires this from CanvasPage to the
+   * `canvas-rails-store` dock reducers.
+   */
+  onFloatDock?: (
+    descriptor: { kind: FloatDragKind; floatId: number },
+    target: FloatDockTarget,
+  ) => void
 }
 
 export function CanvasView({
@@ -195,6 +211,7 @@ export function CanvasView({
   onCascadeShift,
   showCompleted,
   showHiddenStatuses,
+  onFloatDock,
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
   const { onDeleteInset, onToggleCollapseInset, onInsetDragStop, onRequestAddWidget, onResizeInset } = insetHandlers
@@ -232,6 +249,19 @@ export function CanvasView({
   // Ref for bring-to-front callback (assigned after setNodes is available)
   const bringToFrontRef = useRef<(nodeId: string) => void>(() => {})
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
+  // Phase 2 float-dock: window-level pointer capture while a float is being
+  // dragged, so `onNodesChange`'s release branch can hit-test rail drop zones.
+  // `pointerRef` holds the last pointermove coords; `pointerCleanupRef` holds
+  // the detach fn so we can tear down when the float drag ends (or the
+  // component unmounts mid-drag).
+  const pointerRef = useRef<{ x: number; y: number } | null>(null)
+  const pointerCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => {
+    if (pointerCleanupRef.current) {
+      pointerCleanupRef.current()
+      pointerCleanupRef.current = null
+    }
+  }, [])
   const [alignmentLines, setAlignmentLines] = useState<AlignmentLine[]>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
 
@@ -491,6 +521,27 @@ export function CanvasView({
     (changes: NodeChange[]) => {
       let hasActiveDrag = false
 
+      // Was any float being dragged before this batch of changes? Used to
+      // decide whether to attach the Phase 2 float-dock pointer listener at
+      // the leading edge of the drag, or detach at its trailing edge.
+      let floatWasDragging = false
+      for (const dragId of draggingIds.current) {
+        if (floatKindForNodeId(dragId)) { floatWasDragging = true; break }
+      }
+
+      // Resolve rail orientation for a slot on release — walks current rails
+      // state. Read `getState()` fresh per drop so changes during the drag
+      // (e.g. another user of the store) stay consistent.
+      const getSlotOrientation = (slotId: string): 'vertical' | 'horizontal' | null => {
+        const rails = useCanvasRailsStore.getState().rails
+        for (const side of ['left', 'right', 'top', 'bottom'] as RailSide[]) {
+          const rail = rails[side]
+          if (!rail) continue
+          if (rail.slots.some((s) => s.id === slotId)) return rail.orientation
+        }
+        return null
+      }
+
       // Track dragging state and persist on drag end
       for (const change of changes) {
         if (change.type === 'position') {
@@ -500,9 +551,29 @@ export function CanvasView({
           } else {
             draggingIds.current.delete(change.id)
             if (change.position) {
+              const id = change.id
+              const floatKind = floatKindForNodeId(id)
+
+              // Phase 2 float-dock hit-test: when a float is released and the
+              // pointer is over a rail drop zone, dispatch the dock action
+              // and suppress the usual position persist (the float is about
+              // to be replaced by a tab). Multi-drag stays position-only —
+              // only hit-test when exactly one thing is being dropped.
+              if (
+                floatKind &&
+                onFloatDock &&
+                pointerRef.current &&
+                draggingIds.current.size === 0
+              ) {
+                const target = resolveFloatDockTarget(pointerRef.current, { getSlotOrientation })
+                if (target) {
+                  onFloatDock({ kind: floatKind.kind, floatId: floatKind.floatId }, target)
+                  continue
+                }
+              }
+
               // Remember final position so the sync effect preserves it until the store updates
               droppedPositions.current.set(change.id, { ...change.position, setAt: performance.now() })
-              const id = change.id
               if (id.startsWith(TASKBOARD_PREFIX)) {
                 onTaskboardDragStop?.(Number(id.slice(TASKBOARD_PREFIX.length)), change.position.x, change.position.y)
               } else if (id.startsWith(INSET_PREFIX)) {
@@ -530,6 +601,26 @@ export function CanvasView({
         if (kinded) { floatDragNext = kinded; break }
       }
       setFloatDrag(floatDragNext ? { kind: floatDragNext.kind, id: floatDragNext.floatId } : null)
+
+      // Phase 2 float-dock: toggle the window-level pointer listener around
+      // the leading/trailing edges of a float drag. The listener stashes
+      // client coords so `resolveFloatDockTarget` has a point to hit-test on
+      // release. Rail/tab drags use dnd-kit's own pointer capture so this
+      // listener is scoped strictly to React-Flow-driven float drags.
+      const floatIsDragging = floatDragNext !== null
+      if (!floatWasDragging && floatIsDragging && !pointerCleanupRef.current) {
+        const onMove = (e: PointerEvent) => {
+          pointerRef.current = { x: e.clientX, y: e.clientY }
+        }
+        window.addEventListener('pointermove', onMove)
+        pointerCleanupRef.current = () => {
+          window.removeEventListener('pointermove', onMove)
+          pointerRef.current = null
+        }
+      } else if (floatWasDragging && !floatIsDragging && pointerCleanupRef.current) {
+        pointerCleanupRef.current()
+        pointerCleanupRef.current = null
+      }
 
       // Detect project height changes for cascade shifting (read BEFORE updating prevHeightsRef)
       const dimChanges: HeightDelta[] = []
@@ -672,7 +763,7 @@ export function CanvasView({
         }, 300)
       }
     },
-    [onNodeDragStop, onTaskboardDragStop, onInsetDragStop, onNoteDragStop, onCalendarDragStop, getNodeAbsoluteRect, onCascadeShift]
+    [onNodeDragStop, onTaskboardDragStop, onInsetDragStop, onNoteDragStop, onCalendarDragStop, getNodeAbsoluteRect, onCascadeShift, onFloatDock]
   )
 
   const handleInit = useCallback((instance: ReactFlowInstance) => {
