@@ -19,6 +19,7 @@ import { TaskDraggable } from '../components/task/dnd/TaskDraggable'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
+import { useTagStore } from '../stores/tag-store'
 import type { TodoPredicate } from '../models'
 import { useUIStore } from '../stores/ui-store'
 import { matchesFilter, predicateToCriteria, computeFilterPersonOrgIds } from '../stores/filter-store'
@@ -364,6 +365,9 @@ export function DashboardView() {
   const { todos, loadAll } = useTodoStore()
   const { assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments } = usePersonStore()
   const { assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const loadTags = useTagStore((s) => s.load)
+  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { openEditPopup } = useUIStore()
   const { statuses, load: loadStatuses } = useStatusStore()
   const { load: loadTaskboard } = useTaskboardStore()
@@ -491,18 +495,20 @@ export function DashboardView() {
     loadPeople()
     loadOrgs()
     loadStatuses()
+    loadTags()
     loadTaskboard()
     loadDefinitions()
     void loadNotes()
-  }, [loadAll, loadPeople, loadOrgs, loadStatuses, loadTaskboard, loadDefinitions, loadNotes])
+  }, [loadAll, loadPeople, loadOrgs, loadStatuses, loadTags, loadTaskboard, loadDefinitions, loadNotes])
 
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
     if (todoIds.length > 0) {
       loadPeopleAssignments(todoIds)
       loadOrgAssignments(todoIds)
+      loadTagAssignments(todoIds)
     }
-  }, [todos, loadPeopleAssignments, loadOrgAssignments])
+  }, [todos, loadPeopleAssignments, loadOrgAssignments, loadTagAssignments])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -517,10 +523,11 @@ export function DashboardView() {
       const personIds = people.map((p) => p.id!)
       const personOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
+      const assignedTagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
-      return matchesFilter(criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today)
+      return matchesFilter(criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, undefined, assignedTagIds)
     },
-    [assignedPeopleMap, assignedOrgsMap, personOrgMap, statuses, today],
+    [assignedPeopleMap, assignedOrgsMap, personOrgMap, assignedTagsMap, statuses, today],
   )
 
   // Compute every pinned list's rendered output. Hero and secondary grid both

@@ -78,11 +78,11 @@ export interface TodoPredicate {
   /** Tri-state presence filter on `dueDate`. null = no filter. */
   hasDeadline: boolean | null
   /**
-   * null = no filter; array of normalized tag slugs with OR semantics (todo
-   * must have at least one tag in the set). A todo with no tags is excluded
-   * when this clause is a non-empty array. Optional on read so pre-tags
-   * predicates (stored in `listDefinitions` / `savedViews`) deserialize as
-   * `tags: null` without a data rewrite.
+   * null = no filter; array of tag ids (into the `tags` registry) with OR
+   * semantics (todo must have at least one assigned tag in the set). A todo
+   * with no tag assignments is excluded when this clause is a non-empty array.
+   * Optional on read so pre-tags predicates (stored in `listDefinitions` /
+   * `savedViews`) deserialize as `tags: null` without a data rewrite.
    */
-  tags?: string[] | null
+  tags?: number[] | null
 }

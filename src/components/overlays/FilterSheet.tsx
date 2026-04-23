@@ -5,7 +5,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useTodoStore } from '../../stores/todo-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { toggleItem } from '../../utils/filter'
 import { DateAnchorInput } from '../shared/DateAnchorInput'
@@ -63,23 +63,18 @@ export function FilterSheet() {
   const orgs = useOrgStore((s) => s.orgs)
   const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
-  const todos = useTodoStore((s) => s.todos)
+  const tags = useTagStore((s) => s.tags)
   const location = useLocation()
 
   const [openSection, setOpenSection] = useState<'toggles' | 'date' | 'projects' | 'people' | 'orgs' | 'status' | 'tags' | null>(null)
   const [entitySearch, setEntitySearch] = useState('')
 
-  // Known tags are derived from the current todo corpus — no persisted
-  // registry. Tags are already lowercased at write time via `normalizeTag`,
-  // so dedup via Set is casing-safe.
-  const knownTags = useMemo(() => {
-    const s = new Set<string>()
-    for (const t of todos) {
-      if (!t.tags) continue
-      for (const tag of t.tags) s.add(tag)
-    }
-    return [...s].sort()
-  }, [todos])
+  // Tags come from the registry; order alphabetically by name for stable chip layout.
+  const sortedTags = useMemo(
+    () => [...tags].sort((a, b) => a.name.localeCompare(b.name)),
+    [tags],
+  )
+  const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
 
   useEffect(() => {
     if (!isOpen) {
@@ -124,8 +119,8 @@ export function FilterSheet() {
     setStatusIds(toggleItem(filters.statusIds, id, [0, ...allStatusIds]))
   }
 
-  const toggleTag = (tag: string) => {
-    setTags(toggleItem(filters.tags, tag, knownTags))
+  const toggleTag = (tagId: number) => {
+    setTags(toggleItem(filters.tags, tagId, allTagIds))
   }
 
   const handleToggleSection = (section: typeof openSection) => {
@@ -408,7 +403,7 @@ export function FilterSheet() {
             </div>
             {openSection === 'tags' && (
               <div className={styles.entityList}>
-                {knownTags.length === 0 ? (
+                {sortedTags.length === 0 ? (
                   <div className={styles.entityItem}>
                     <span className={`${styles.entityName} ${styles.entityNone}`}>No tags yet.</span>
                   </div>
@@ -420,18 +415,18 @@ export function FilterSheet() {
                       value={entitySearch}
                       onChange={(e) => setEntitySearch(e.target.value)}
                     />
-                    {knownTags
-                      .filter(t => !entitySearch || t.includes(entitySearch.toLowerCase()))
+                    {sortedTags
+                      .filter(t => !entitySearch || t.name.toLowerCase().includes(entitySearch.toLowerCase()))
                       .map(tag => (
-                        <div key={tag} className={styles.entityItem} onClick={() => toggleTag(tag)}>
-                          <span className={styles.entityDot} style={{ background: 'var(--color-accent)' }} />
-                          <span className={styles.entityName}>#{tag}</span>
+                        <div key={tag.id} className={styles.entityItem} onClick={() => toggleTag(tag.id!)}>
+                          <span className={styles.entityDot} style={{ background: tag.color || 'var(--color-accent)' }} />
+                          <span className={styles.entityName}>#{tag.name}</span>
                           <input
                             type="checkbox"
                             className={styles.entityCheck}
                             tabIndex={-1}
                             aria-hidden="true"
-                            checked={filters.tags === null || filters.tags.has(tag)}
+                            checked={filters.tags === null || filters.tags.has(tag.id!)}
                             readOnly
                           />
                         </div>

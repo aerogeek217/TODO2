@@ -3,6 +3,7 @@ import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useOrgStore } from '../../../stores/org-store'
+import { useTagStore } from '../../../stores/tag-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useFilterStore, applyFilter } from '../../../stores/filter-store'
@@ -24,6 +25,7 @@ export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChang
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const { filters } = useFilterStore()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -46,8 +48,8 @@ export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChang
   }, [today])
 
   const activeTodos = useMemo(
-    () => applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses),
-    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses],
+    () => applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, undefined, assignedTagsMap),
+    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, assignedTagsMap],
   )
 
   return (

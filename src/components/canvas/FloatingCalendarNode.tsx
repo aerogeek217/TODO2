@@ -1,10 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import type { FloatingCalendar, PersistedTodoItem, Person, Org, Status } from '../../models'
+import type { FloatingCalendar, PersistedTodoItem, Person, Org, Status, Tag } from '../../models'
 import type { SlotKind } from '../../models/canvas-rails'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
@@ -34,6 +35,7 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const { filters } = useFilterStore()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -62,8 +64,11 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
       personOrgMap,
       assignedOrgsMap as Map<number, Org[]>,
       statuses as Status[],
+      undefined,
+      undefined,
+      assignedTagsMap as Map<number, Tag[]>,
     ),
-    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses],
+    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, assignedTagsMap],
   )
 
   const width = calendar.width

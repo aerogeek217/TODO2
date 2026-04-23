@@ -358,46 +358,55 @@ describe('useFilterStore', () => {
   })
 
   describe('tags filter', () => {
+    // Tag filters are by registry id (Phase 5). `matchesFilter` reads the
+    // `assignedTagIds` positional arg (9th) — no fallback to inline strings.
+    const withTagIds = (ids: number[]) =>
+      // positional: filters, todo, personIds, personOrgIds, directOrgIds,
+      //             filterPersonOrgIds, statuses, today, searchCtx, assignedTagIds
+      (todo: PersistedTodoItem) =>
+        matchesFilter(f(), todo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ids)
+
     it('null (default) is not a filter — tagged and untagged todos pass', () => {
       expect(f().tags).toBeNull()
       expect(useFilterStore.getState().isActive).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 1, tags: ['urgent'] }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
+      expect(withTagIds([10])(makeTodo({ id: 1 }))).toBe(true)
+      expect(withTagIds([])(makeTodo({ id: 2 }))).toBe(true)
     })
 
-    it('non-empty set matches tasks with at least one matching tag (OR)', () => {
-      useFilterStore.getState().setTags(new Set(['urgent', 'blocked']))
+    it('non-empty set matches tasks with at least one assigned id (OR)', () => {
+      useFilterStore.getState().setTags(new Set([10, 20]))
 
       // Has one of the two
-      expect(matchesFilter(f(), makeTodo({ id: 1, tags: ['urgent'] }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, tags: ['blocked'] }))).toBe(true)
-      // Has both
-      expect(matchesFilter(f(), makeTodo({ id: 3, tags: ['urgent', 'blocked', 'x'] }))).toBe(true)
+      expect(withTagIds([10])(makeTodo({ id: 1 }))).toBe(true)
+      expect(withTagIds([20])(makeTodo({ id: 2 }))).toBe(true)
+      // Has both plus another
+      expect(withTagIds([10, 20, 99])(makeTodo({ id: 3 }))).toBe(true)
       // Has neither
-      expect(matchesFilter(f(), makeTodo({ id: 4, tags: ['soon'] }))).toBe(false)
+      expect(withTagIds([30])(makeTodo({ id: 4 }))).toBe(false)
     })
 
-    it('todo with zero tags is excluded when the clause is non-empty', () => {
-      useFilterStore.getState().setTags(new Set(['urgent']))
-      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2, tags: [] }))).toBe(false)
-    })
-
-    it('empty set matches zero todos (no tag can satisfy it)', () => {
-      useFilterStore.getState().setTags(new Set())
-      expect(matchesFilter(f(), makeTodo({ id: 1, tags: ['urgent'] }))).toBe(false)
+    it('todo with zero assigned tags is excluded when the clause is non-empty', () => {
+      useFilterStore.getState().setTags(new Set([10]))
+      expect(withTagIds([])(makeTodo({ id: 1 }))).toBe(false)
+      // Missing `assignedTagIds` arg falls back to empty list → also excluded.
       expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(false)
     })
 
+    it('empty set matches zero todos (no id can satisfy it)', () => {
+      useFilterStore.getState().setTags(new Set())
+      expect(withTagIds([10])(makeTodo({ id: 1 }))).toBe(false)
+      expect(withTagIds([])(makeTodo({ id: 2 }))).toBe(false)
+    })
+
     it('isActive reflects a non-null tag filter', () => {
-      useFilterStore.getState().setTags(new Set(['urgent']))
+      useFilterStore.getState().setTags(new Set([10]))
       expect(useFilterStore.getState().isActive).toBe(true)
       useFilterStore.getState().setTags(null)
       expect(useFilterStore.getState().isActive).toBe(false)
     })
 
     it('clearAll resets tags to null', () => {
-      useFilterStore.getState().setTags(new Set(['urgent']))
+      useFilterStore.getState().setTags(new Set([10]))
       useFilterStore.getState().clearAll()
       expect(useFilterStore.getState().filters.tags).toBeNull()
     })
@@ -659,15 +668,15 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       dateRangeIncludeNoDate: false,
       hasScheduled: null,
       hasDeadline: null,
-      tags: new Set(['urgent', 'soon']),
+      tags: new Set([10, 20]),
     }
     const serialized = criteriaToPredicate(original)
     expect(Array.isArray(serialized.tags)).toBe(true)
-    expect(new Set(serialized.tags!)).toEqual(new Set(['urgent', 'soon']))
+    expect(new Set(serialized.tags!)).toEqual(new Set([10, 20]))
 
     const runtime = predicateToCriteria(serialized)
     expect(runtime.tags instanceof Set).toBe(true)
-    expect(runtime.tags).toEqual(new Set(['urgent', 'soon']))
+    expect(runtime.tags).toEqual(new Set([10, 20]))
 
     // Back-compat: a predicate missing the `tags` key reads back as null.
     const pre = { ...serialized }

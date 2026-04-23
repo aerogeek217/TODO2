@@ -6,8 +6,9 @@ import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { makePerson, makeOrg, makeTodo } from '../helpers'
+import { makePerson, makeOrg } from '../helpers'
 
 const alice = makePerson({ id: 1, name: 'Alice' })
 const bob = makePerson({ id: 2, name: 'Bob' })
@@ -33,6 +34,7 @@ describe('FilterSheet', () => {
     useUIStore.setState({ isFilterSheetOpen: false })
     usePersonStore.setState({ people: [alice, bob] })
     useOrgStore.setState({ orgs: [acmeOrg] })
+    useTagStore.setState({ tags: [] })
     useTodoStore.setState({ todos: [] })
   })
 
@@ -212,48 +214,46 @@ describe('FilterSheet', () => {
   // ── Tags ──────────────────────────────────────────────────────────
 
   describe('tags', () => {
-    it('shows empty state when no tags exist in the corpus', () => {
+    const URGENT_ID = 10
+    const SOON_ID = 20
+    const seedTags = () => useTagStore.setState({
+      tags: [
+        { id: URGENT_ID, name: 'urgent', color: '#f00' },
+        { id: SOON_ID, name: 'soon', color: '#0f0' },
+      ],
+    })
+
+    it('shows empty state when registry has no tags', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
       expect(screen.getByText('No tags yet.')).toBeInTheDocument()
     })
 
-    it('derives known tags from the todo corpus and renders them prefixed with #', () => {
-      useTodoStore.setState({
-        todos: [
-          makeTodo({ id: 1, tags: ['urgent', 'soon'] }),
-          makeTodo({ id: 2, tags: ['urgent'] }),
-        ],
-      })
+    it('renders registry tags sorted alphabetically prefixed with #', () => {
+      seedTags()
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
       expect(screen.getByText('#urgent')).toBeInTheDocument()
       expect(screen.getByText('#soon')).toBeInTheDocument()
     })
 
-    it('toggles a tag into the filter store (null → all-except-clicked)', () => {
-      useTodoStore.setState({
-        todos: [
-          makeTodo({ id: 1, tags: ['urgent', 'soon'] }),
-        ],
-      })
+    it('toggles a tag id into the filter store (null → all-except-clicked)', () => {
+      seedTags()
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
       fireEvent.click(screen.getByText('#urgent'))
 
       const { tags } = useFilterStore.getState().filters
       expect(tags).not.toBeNull()
-      // toggleItem from null creates "all known tags except #urgent"
-      expect(tags!.has('urgent')).toBe(false)
-      expect(tags!.has('soon')).toBe(true)
+      // toggleItem from null creates "all known tag ids except URGENT_ID"
+      expect(tags!.has(URGENT_ID)).toBe(false)
+      expect(tags!.has(SOON_ID)).toBe(true)
     })
 
     it('reflects the active count in the section header', () => {
-      useTodoStore.setState({
-        todos: [makeTodo({ id: 1, tags: ['urgent', 'soon'] })],
-      })
+      seedTags()
       renderSheet()
-      act(() => { useFilterStore.getState().setTags(new Set(['urgent'])) })
+      act(() => { useFilterStore.getState().setTags(new Set([URGENT_ID])) })
       // Tags section header wraps label + badge; badge renders the set size.
       const tagsLabel = screen.getByText('Tags').parentElement!
       expect(tagsLabel.textContent).toMatch(/Tags\s*1/)

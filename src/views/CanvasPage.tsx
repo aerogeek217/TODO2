@@ -10,6 +10,7 @@ import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
+import { useTagStore } from '../stores/tag-store'
 import { useUIStore } from '../stores/ui-store'
 import { useStatusStore } from '../stores/status-store'
 import { useFilterStore, computeFilterPersonOrgIds, matchesFilter } from '../stores/filter-store'
@@ -47,6 +48,9 @@ export function CanvasPage() {
   const { todos, loadByCanvas: loadTodos, add: addTodo, addAt: addTodoAt, update: updateTodo, applyMutations } = useTodoStore()
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments, assignPerson } = usePersonStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap, assignOrg } = useOrgStore()
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const loadTags = useTagStore((s) => s.load)
+  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { openEditPopup, showBulkConfirmation } = useUIStore()
   const { statuses } = useStatusStore()
   const taskEdit = useTaskEditCallbacks()
@@ -84,9 +88,10 @@ export function CanvasPage() {
   useEffect(() => {
     loadPeople()
     loadOrgs()
+    loadTags()
     loadTaskboard()
     loadDefinitions()
-  }, [loadPeople, loadOrgs, loadTaskboard, loadDefinitions])
+  }, [loadPeople, loadOrgs, loadTags, loadTaskboard, loadDefinitions])
 
   useEffect(() => {
     loadPersonOrgMap()
@@ -129,14 +134,15 @@ export function CanvasPage() {
     }
   }, [todos, applyMutations])
 
-  // Load people and org assignments when todos change
+  // Load people / org / tag assignments when todos change
   useEffect(() => {
     const todoIds = todos.map((t) => t.id)
     if (todoIds.length > 0) {
       loadAssignments(todoIds)
       loadOrgAssignments(todoIds)
+      loadTagAssignments(todoIds)
     }
-  }, [todos, loadAssignments, loadOrgAssignments])
+  }, [todos, loadAssignments, loadOrgAssignments, loadTagAssignments])
 
   // Consume pending canvas navigation target from command palette
   const pendingTarget = useUIStore((s) => s.pendingCanvasTarget)
@@ -211,7 +217,8 @@ export function CanvasPage() {
       filters.personIds !== null || filters.orgIds !== null ||
       filters.projectIds !== null ||
       filters.statusIds !== null || filters.searchText !== '' ||
-      filters.dateRangeStart !== null || filters.dateRangeEnd !== null
+      filters.dateRangeStart !== null || filters.dateRangeEnd !== null ||
+      filters.tags !== null
     if (!hasGhostFilter) return undefined
     const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
     const ghost = new Set<number>()
@@ -228,6 +235,7 @@ export function CanvasPage() {
       const personIds = people.map((p) => p.id!)
       const pOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const dOrgIds = orgs.map((o) => o.id!)
+      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const searchCtx = filters.searchText
         ? {
             projectName: todo.projectId != null ? projects.find(p => p.id === todo.projectId)?.name : undefined,
@@ -236,12 +244,12 @@ export function CanvasPage() {
             statusName: todo.statusId != null ? statuses.find(s => s.id === todo.statusId)?.name : undefined,
           }
         : undefined
-      if (!matchesFilter(filters, todo, personIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses, undefined, searchCtx)) {
+      if (!matchesFilter(filters, todo, personIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses, undefined, searchCtx, tagIds)) {
         ghost.add(todo.id)
       }
     }
     return ghost.size > 0 ? ghost : undefined
-  }, [todos, filters, assignedPeopleMap, assignedOrgsMap, personOrgMap, statuses, projects])
+  }, [todos, filters, assignedPeopleMap, assignedOrgsMap, personOrgMap, assignedTagsMap, statuses, projects])
 
   const ghostTodoIds = filterGhostIds
 

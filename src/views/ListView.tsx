@@ -23,6 +23,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useProjectStore } from '../stores/project-store'
 import { useOrgStore } from '../stores/org-store'
+import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
@@ -564,6 +565,9 @@ export function ListView() {
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments, assignPerson, unassignPerson } = usePersonStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const loadTags = useTagStore((s) => s.load)
+  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { statuses, load: loadStatuses } = useStatusStore()
   const { listGroupBy, setListGroupBy, listSortBy, setListSortBy, openEditPopup, showBulkConfirmation } = useUIStore()
   const editingListDefId = useUIStore((s) => s.editingListDefId)
@@ -606,10 +610,11 @@ export function ListView() {
     loadPeople()
     loadAllProjects()
     loadOrgs()
+    loadTags()
     loadStatuses()
     loadSavedViews()
     loadListDefinitions()
-  }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadStatuses, loadSavedViews, loadListDefinitions])
+  }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadTags, loadStatuses, loadSavedViews, loadListDefinitions])
 
   // Re-load assignment joins only when the set of todo ids changes.
   // Identity-based dep on `todos` would re-fire on every attribute edit;
@@ -624,7 +629,8 @@ export function ListView() {
     const ids = todoIdsKey.split(',').map(Number)
     loadPeopleAssignments(ids)
     loadOrgAssignments(ids)
-  }, [todoIdsKey, loadPeopleAssignments, loadOrgAssignments])
+    loadTagAssignments(ids)
+  }, [todoIdsKey, loadPeopleAssignments, loadOrgAssignments, loadTagAssignments])
 
   useEffect(() => {
     setCollapsed({})
@@ -636,8 +642,8 @@ export function ListView() {
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const activeTodos = useMemo(() => {
-    return applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById)
-  }, [todos, filters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById])
+    return applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
+  }, [todos, filters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap])
 
   const sections = useMemo(() => {
     switch (listGroupBy) {

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor, RelativeDateToken } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, Tag, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor, RelativeDateToken } from '../models'
 import { RELATIVE_DATE_TOKENS } from '../models'
 import { startOfDay, startOfToday } from '../utils/date'
 import { effectiveDate, resolveDateAnchor, resolveScheduled, getConfiguredWeekStart } from '../utils/effective-date'
@@ -57,12 +57,12 @@ export interface FilterCriteria {
   /** Tri-state presence filter on `dueDate`. null = no filter. */
   hasDeadline: boolean | null
   /**
-   * null = no filter; Set of normalized tag slugs — todo must have at least
-   * one tag in the set (OR semantics). An empty Set matches zero todos;
-   * a todo with no tags is excluded whenever this clause is non-null and
-   * non-empty.
+   * null = no filter; Set of tag ids (into the `tags` registry) — todo must
+   * have at least one assigned tag in the set (OR semantics). An empty Set
+   * matches zero todos; a todo with no tag assignments is excluded whenever
+   * this clause is non-null and non-empty.
    */
-  tags: Set<string> | null
+  tags: Set<number> | null
 }
 
 interface FilterState {
@@ -86,7 +86,7 @@ interface FilterState {
   setDateRangeIncludeNoDate: (include: boolean) => void
   setHasScheduled: (value: boolean | null) => void
   setHasDeadline: (value: boolean | null) => void
-  setTags: (tags: Set<string> | null) => void
+  setTags: (tags: Set<number> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
 }
@@ -157,6 +157,7 @@ export function matchesFilter(
   statuses?: Status[],
   today: Date = startOfToday(),
   searchCtx?: TextMatchContext,
+  assignedTagIds?: number[],
 ): boolean {
   if (todo.isCompleted && !filters.showCompleted) return false
 
@@ -213,9 +214,9 @@ export function matchesFilter(
     if (has !== filters.hasDeadline) return false
   }
   if (filters.tags !== null) {
-    const todoTags = todo.tags
-    if (!todoTags || todoTags.length === 0) return false
-    if (!todoTags.some((t) => filters.tags!.has(t))) return false
+    const ids = assignedTagIds ?? []
+    if (ids.length === 0) return false
+    if (!ids.some((id) => filters.tags!.has(id))) return false
   }
 
   if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
@@ -272,6 +273,7 @@ export function applyFilter(
   statuses?: Status[],
   today: Date = startOfToday(),
   projectsById?: Map<number, Project>,
+  assignedTagsMap?: Map<number, Tag[]>,
 ): PersistedTodoItem[] {
   const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
   const needsSearchCtx = !!filters.searchText
@@ -281,6 +283,8 @@ export function applyFilter(
     const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
     const orgs = assignedOrgsMap?.get(t.id) ?? []
     const directOrgIds = orgs.map((o) => o.id!)
+    const tags = assignedTagsMap?.get(t.id) ?? []
+    const tagIds = tags.map((tg) => tg.id!)
     const searchCtx: TextMatchContext | undefined = needsSearchCtx
       ? {
           projectName: t.projectId != null ? projectsById?.get(t.projectId)?.name : undefined,
@@ -289,7 +293,7 @@ export function applyFilter(
           statusName: t.statusId != null ? statuses?.find(s => s.id === t.statusId)?.name : undefined,
         }
       : undefined
-    return matchesFilter(filters, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, searchCtx)
+    return matchesFilter(filters, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, searchCtx, tagIds)
   })
 }
 
@@ -431,7 +435,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...get().filters, hasDeadline })
   },
 
-  setTags(tags: Set<string> | null) {
+  setTags(tags: Set<number> | null) {
     commit(set, { ...get().filters, tags })
   },
 

@@ -105,49 +105,73 @@ describe('buildDashboardLists', () => {
 
 describe('buildDashboardLists — predicate tags clause', () => {
   // End-to-end: the same evalPredicate used by DashboardView + ListDefinitionBody,
-  // wired to the canonical matchesFilter. A custom list with `tags: ['urgent']`
-  // should include only tagged todos via OR semantics.
-  const evalViaMatches = async () => {
+  // wired to the canonical matchesFilter. A custom list with `tags: [<id>]`
+  // should include only todos whose assignment map contains the id via OR.
+  // Predicate tag ids are into the registry; assigned-tag resolution lives at
+  // the caller, so tests pass a pre-built `Map<todoId, tagId[]>` in as context.
+  const URGENT_ID = 10
+  const SOON_ID = 20
+
+  const evalViaMatches = async (assigned: Map<number, number[]>) => {
     const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
-    return (p: TodoPredicate, t: PersistedTodoItem) => matchesFilter(predicateToCriteria(p), t)
+    return (p: TodoPredicate, t: PersistedTodoItem) =>
+      matchesFilter(
+        predicateToCriteria(p), t,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined,
+        assigned.get(t.id) ?? [],
+      )
   }
 
-  it('includes todos whose tag set overlaps the predicate tags clause (OR)', async () => {
-    const evalPredicate = await evalViaMatches()
+  it('includes todos whose assignment map overlaps the predicate tags clause (OR)', async () => {
+    const assigned = new Map<number, number[]>([
+      [1, [URGENT_ID]],
+      [2, [SOON_ID, URGENT_ID]],
+      [3, [SOON_ID]],
+      // todo 4 unassigned
+    ])
+    const evalPredicate = await evalViaMatches(assigned)
     const def = customDef({
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), tags: ['urgent'] } },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), tags: [URGENT_ID] } },
     })
     const todos = [
-      { ...makeTodo({ id: 1 }), tags: ['urgent'] },
-      { ...makeTodo({ id: 2 }), tags: ['soon', 'urgent'] },
-      { ...makeTodo({ id: 3 }), tags: ['soon'] },
+      makeTodo({ id: 1 }),
+      makeTodo({ id: 2 }),
+      makeTodo({ id: 3 }),
       makeTodo({ id: 4 }),
-    ] as PersistedTodoItem[]
+    ]
     const lists = buildDashboardLists([def], todos, makeCtx({ evalPredicate }))
     expect(lists[0].todos.map(t => t.id).sort()).toEqual([1, 2])
   })
 
-  it('excludes untagged todos when the tags clause is non-empty', async () => {
-    const evalPredicate = await evalViaMatches()
+  it('excludes unassigned todos when the tags clause is non-empty', async () => {
+    const assigned = new Map<number, number[]>([
+      [3, [SOON_ID]],
+      // todos 1 + 2 have no assignments
+    ])
+    const evalPredicate = await evalViaMatches(assigned)
     const def = customDef({
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), tags: ['soon'] } },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), tags: [SOON_ID] } },
     })
     const todos = [
       makeTodo({ id: 1 }),
-      { ...makeTodo({ id: 2 }), tags: [] as string[] },
-      { ...makeTodo({ id: 3 }), tags: ['soon'] },
-    ] as PersistedTodoItem[]
+      makeTodo({ id: 2 }),
+      makeTodo({ id: 3 }),
+    ]
     const lists = buildDashboardLists([def], todos, makeCtx({ evalPredicate }))
     expect(lists[0].todos.map(t => t.id)).toEqual([3])
   })
 
   it('null (missing) tags clause is a no-op — all todos match the gate', async () => {
-    const evalPredicate = await evalViaMatches()
+    const assigned = new Map<number, number[]>([
+      [2, [URGENT_ID]],
+    ])
+    const evalPredicate = await evalViaMatches(assigned)
     const def = customDef() // emptyPredicate() has tags: null
     const todos = [
       makeTodo({ id: 1 }),
-      { ...makeTodo({ id: 2 }), tags: ['urgent'] },
-    ] as PersistedTodoItem[]
+      makeTodo({ id: 2 }),
+    ]
     const lists = buildDashboardLists([def], todos, makeCtx({ evalPredicate }))
     expect(lists[0].todos.map(t => t.id).sort()).toEqual([1, 2])
   })

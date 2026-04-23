@@ -10,6 +10,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { buildDashboardLists } from '../../services/dashboard-lists'
 import { startOfToday } from '../../utils/date'
@@ -57,7 +58,17 @@ export function ListDefinitionBody({
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
+
+  // Tag filter predicate clauses read via `assignedTagsMap`; make sure the
+  // map is populated for the current todo corpus. Mirrors people/org loads
+  // in `CanvasPage` / `DashboardView` for the filter-store path.
+  useEffect(() => {
+    if (todos.length === 0) return
+    loadTagAssignments(todos.map((t) => t.id))
+  }, [todos, loadTagAssignments])
 
   // Date-sensitive predicates roll at midnight; re-key the memo on day change.
   const [dayKey, setDayKey] = useState(() => {
@@ -83,11 +94,12 @@ export function ListDefinitionBody({
       const personIds = people.map((p) => p.id!)
       const personOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
+      const assignedTagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const filterPersonOrgIds = computeFilterPersonOrgIds(
         criteria.personIds, criteria.personFilterMode, personOrgMap,
       )
       return matchesFilter(
-        criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today,
+        criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, undefined, assignedTagIds,
       )
     }
     const [list] = buildDashboardLists([definition], todos, {
@@ -97,7 +109,7 @@ export function ListDefinitionBody({
     return list?.todos ?? []
   }, [
     definition, todos, assignedPeopleMap,
-    assignedOrgsMap, personOrgMap, statuses, dayKey,
+    assignedOrgsMap, personOrgMap, assignedTagsMap, statuses, dayKey,
   ])
 
   useEffect(() => {

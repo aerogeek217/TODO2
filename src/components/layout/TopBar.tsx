@@ -5,6 +5,7 @@ import type { DateAnchor, PersistedTodoItem } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -488,6 +489,7 @@ export function TopBar() {
   const people = usePersonStore((s) => s.people)
   const orgs = useOrgStore((s) => s.orgs)
   const statuses = useStatusStore((s) => s.statuses)
+  const tags = useTagStore((s) => s.tags)
 
   // Track which filter dropdown is in "preview empty" mode:
   // when opened with all selected, show unchecked visually but don't commit to store
@@ -501,16 +503,12 @@ export function TopBar() {
   const tagsActive = filters.tags !== null
   const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null || filters.hasScheduled !== null || filters.hasDeadline !== null
 
-  // Known tags derived from the current todo corpus — no persisted registry.
-  // Tags are lowercased on write, so a simple Set dedupes safely.
-  const knownTags = useMemo(() => {
-    const s = new Set<string>()
-    for (const t of todos) {
-      if (!t.tags) continue
-      for (const tag of t.tags) s.add(tag)
-    }
-    return [...s].sort()
-  }, [todos])
+  // Tags come from the registry; alphabetize by name for stable chip layout.
+  const sortedTags = useMemo(
+    () => [...tags].sort((a, b) => a.name.localeCompare(b.name)),
+    [tags],
+  )
+  const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
 
   const handlePersonToggle = useCallback(
     (personId: number) => {
@@ -563,22 +561,22 @@ export function TopBar() {
     [filters.projectIds, projects, setProjectIds, previewEmpty],
   )
   const handleTagToggle = useCallback(
-    (tag: string) => {
+    (tagId: number) => {
       if (previewEmpty === 'tags') {
         setPreviewEmpty(null)
-        setTags(new Set([tag]))
+        setTags(new Set([tagId]))
         return
       }
-      setTags(toggleItem(filters.tags, tag, knownTags))
+      setTags(toggleItem(filters.tags, tagId, allTagIds))
     },
-    [filters.tags, knownTags, setTags, previewEmpty],
+    [filters.tags, allTagIds, setTags, previewEmpty],
   )
 
   const isPersonChecked = (id: number) => previewEmpty === 'people' ? false : filters.personIds === null || filters.personIds.has(id)
   const isOrgChecked = (id: number) => previewEmpty === 'org' ? false : filters.orgIds === null || filters.orgIds.has(id)
   const isProjectChecked = (id: number) => previewEmpty === 'project' ? false : filters.projectIds === null || filters.projectIds.has(id)
   const isStatusChecked = (id: number) => previewEmpty === 'status' ? false : filters.statusIds === null || filters.statusIds.has(id)
-  const isTagChecked = (tag: string) => previewEmpty === 'tags' ? false : filters.tags === null || filters.tags.has(tag)
+  const isTagChecked = (tagId: number) => previewEmpty === 'tags' ? false : filters.tags === null || filters.tags.has(tagId)
 
   const peopleNone = previewEmpty === 'people' || (filters.personIds !== null && filters.personIds.size === 0)
   const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
@@ -788,7 +786,7 @@ export function TopBar() {
             </FilterDropdown>
           )}
 
-          {knownTags.length > 0 && (
+          {sortedTags.length > 0 && (
             <FilterDropdown
               label={<><span className={styles.filterIcon}>#</span> Tags</>}
               active={tagsActive || previewEmpty === 'tags'}
@@ -802,16 +800,17 @@ export function TopBar() {
             >
               {(searchText: string) => {
                 const q = searchText.toLowerCase()
-                const filtered = q ? knownTags.filter(t => t.includes(q)) : knownTags
+                const filtered = q ? sortedTags.filter(t => t.name.toLowerCase().includes(q)) : sortedTags
                 if (filtered.length === 0) {
                   return <div className={styles.dropdownEmpty}>{q ? 'No matches' : 'No tags yet'}</div>
                 }
                 return (
                   <>
                     {filtered.map(tag => (
-                      <label key={tag} className={styles.dropdownItem} onClick={() => handleTagToggle(tag)}>
-                        <span className={`${styles.check} ${isTagChecked(tag) ? styles.checked : ''}`} />
-                        #{tag}
+                      <label key={tag.id} className={styles.dropdownItem} onClick={() => handleTagToggle(tag.id!)}>
+                        <span className={`${styles.check} ${isTagChecked(tag.id!) ? styles.checked : ''}`} />
+                        {tag.color && <span className={styles.dot} style={{ background: tag.color }} />}
+                        #{tag.name}
                       </label>
                     ))}
                   </>
