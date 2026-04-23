@@ -104,11 +104,16 @@ function formatWeekRange(days: Date[]): string {
 
 interface DayCellProps {
   day: Date
-  children: (isDragOver: boolean) => React.ReactNode
+  children: (args: {
+    isDragOver: boolean
+    setNodeRef: (el: HTMLElement | null) => void
+  }) => React.ReactNode
 }
 
 /** Wraps each day cell in a `useDroppable` so dnd-kit drop handlers receive
- * `{ type: 'calendar-day', date }` through `over.data.current`. */
+ * `{ type: 'calendar-day', date }` through `over.data.current`. The ref must
+ * attach to a real layout-participating element (not a `display: contents`
+ * wrapper) or dnd-kit measures a zero-size rect and no drop ever matches. */
 function DayDroppable({ day, children }: DayCellProps) {
   const dayStart = startOfDay(day)
   const id = calendarDayDropId(CALENDAR_VIEW_SCOPE, dayStart.getTime())
@@ -116,11 +121,7 @@ function DayDroppable({ day, children }: DayCellProps) {
     id,
     data: { type: TASK_DROP_KIND.calendarDay, date: dayStart, scope: CALENDAR_VIEW_SCOPE },
   })
-  return (
-    <div ref={setNodeRef} style={{ display: 'contents' }}>
-      {children(isOver)}
-    </div>
-  )
+  return <>{children({ isDragOver: isOver, setNodeRef })}</>
 }
 
 export function CalendarView() {
@@ -359,8 +360,9 @@ export function CalendarView() {
 
               return (
                 <DayDroppable key={dayKey} day={day}>
-                  {(isDragOver) => (
+                  {({ isDragOver, setNodeRef }) => (
                     <div
+                      ref={setNodeRef}
                       className={[
                         styles.dayCell,
                         isWeek && styles.dayCellWeek,

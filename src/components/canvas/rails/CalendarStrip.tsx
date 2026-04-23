@@ -110,12 +110,16 @@ interface DayCellProps {
   scope: string
   day: Date
   disableDnd: boolean
-  children: (isDragOver: boolean) => React.ReactNode
+  children: (args: {
+    isDragOver: boolean
+    setNodeRef: (el: HTMLElement | null) => void
+  }) => React.ReactNode
 }
 
 /** Wraps a strip day cell in a `useDroppable` so dnd-kit drops reach the
- * DndContext's `handleDragEnd`. Extracted so rendering stays flat inside the
- * strip's map loop while still letting each cell register its own hook. */
+ * DndContext's `handleDragEnd`. The ref must attach to a real
+ * layout-participating element (not a `display: contents` wrapper) or dnd-kit
+ * measures a zero-size rect and no drop ever matches. */
 function DayDroppable({ scope, day, disableDnd, children }: DayCellProps) {
   const id = calendarDayDropId(scope, startOfDay(day).getTime())
   const { setNodeRef, isOver } = useDroppable({
@@ -123,11 +127,7 @@ function DayDroppable({ scope, day, disableDnd, children }: DayCellProps) {
     data: { type: TASK_DROP_KIND.calendarDay, date: startOfDay(day), scope },
     disabled: disableDnd,
   })
-  return (
-    <div ref={setNodeRef} style={{ display: 'contents' }}>
-      {children(isOver && !disableDnd)}
-    </div>
-  )
+  return <>{children({ isDragOver: isOver && !disableDnd, setNodeRef })}</>
 }
 
 export function CalendarStrip({
@@ -174,8 +174,9 @@ export function CalendarStrip({
           const dow = day.toLocaleDateString('en-US', { weekday: 'short' })
           return (
             <DayDroppable key={key} scope={scope} day={day} disableDnd={disableDnd}>
-              {(isDragOver) => (
+              {({ isDragOver, setNodeRef }) => (
                 <div
+                  ref={setNodeRef}
                   className={[
                     styles.hCol,
                     isToday && styles.hColToday,
@@ -255,8 +256,9 @@ export function CalendarStrip({
 
         return (
           <DayDroppable key={key} scope={scope} day={day} disableDnd={disableDnd}>
-            {(isDragOver) => (
+            {({ isDragOver, setNodeRef }) => (
               <div
+                ref={setNodeRef}
                 className={[
                   styles.row,
                   isToday && styles.rowToday,
