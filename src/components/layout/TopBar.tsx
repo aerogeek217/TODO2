@@ -16,7 +16,7 @@ import { StatusIcon } from '../shared/StatusIcon'
 import { DateAnchorInput } from '../shared/DateAnchorInput'
 import styles from './TopBar.module.css'
 
-const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status']
+const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   title: 'Title',
   notes: 'Notes',
@@ -24,6 +24,7 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   person: 'Person',
   org: 'Org',
   status: 'Status',
+  tag: 'Tags',
 }
 const MAX_GROUP_PREVIEW = 5
 
@@ -42,6 +43,8 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
       return <svg {...common}><rect x="3" y="5" width="10" height="9" /><path d="M6 14v-3h4v3M6 8h.01M10 8h.01" /></svg>
     case 'status':
       return <svg {...common}><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none" /></svg>
+    case 'tag':
+      return <svg {...common}><path d="M3 6h10M3 10h10M6 3l-1 10M11 3l-1 10" /></svg>
   }
 }
 
@@ -564,7 +567,7 @@ export function TopBar() {
   const miniListGroups = useMemo(() => {
     if (!localSearch || !searchFocused) return null
     const groups: Record<TextMatchField, PersistedTodoItem[]> = {
-      title: [], notes: [], project: [], person: [], org: [], status: [],
+      title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
     }
     for (const t of todos) {
       const people = assignedPeopleMap.get(t.id) ?? []
@@ -574,6 +577,7 @@ export function TopBar() {
         personNames: people.map(p => p.name),
         orgNames: orgs.map(o => o.name),
         statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
+        tagNames: t.tags ?? [],
       })
       for (const f of fields) groups[f].push(t)
     }

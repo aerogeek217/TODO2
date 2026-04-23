@@ -102,4 +102,52 @@ describe('TopBar grouped search', () => {
     })
     expect(screen.queryByRole('listbox', { name: /search results/i })).toBeNull()
   })
+
+  it('renders a Tags group when the query matches a todo tag', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'review budget', tags: ['urgent'] }),
+        makeTodo({ id: 2, title: 'pick up keys', tags: ['today', 'urgent'] }),
+        makeTodo({ id: 3, title: 'unrelated' }),
+      ],
+      loading: false,
+      error: null,
+    })
+
+    renderBar()
+    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'urgent' } })
+    })
+
+    const listbox = await screen.findByRole('listbox', { name: /search results/i })
+    const tagGroup = within(listbox).getByRole('group', { name: 'Tags' })
+    expect(within(tagGroup).getAllByRole('option')).toHaveLength(2)
+    expect(within(tagGroup).getByText('2')).toBeInTheDocument()
+  })
+
+  it('keyboard roving focus steps into the Tags group', async () => {
+    useTodoStore.setState({
+      todos: [makeTodo({ id: 1, title: 'review budget', tags: ['urgent'] })],
+      loading: false,
+      error: null,
+    })
+
+    renderBar()
+    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'urgent' } })
+    })
+
+    const listbox = await screen.findByRole('listbox', { name: /search results/i })
+    const tagGroup = within(listbox).getByRole('group', { name: 'Tags' })
+    const tagOption = within(tagGroup).getByRole('option')
+
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+    })
+    expect(document.activeElement).toBe(tagOption)
+  })
 })

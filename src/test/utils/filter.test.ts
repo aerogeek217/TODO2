@@ -38,6 +38,24 @@ describe('matchTodoText', () => {
     expect(matchTodoText(todo, 'blocked', { statusName: 'Blocked' }).fields).toEqual(['status'])
   })
 
+  it('matches on tag via ctx.tagNames (any tag hit)', () => {
+    const todo = { title: 't', notes: 'n' }
+    expect(matchTodoText(todo, 'urgent', { tagNames: ['urgent', 'today'] }).fields).toEqual(['tag'])
+    expect(matchTodoText(todo, 'today', { tagNames: ['urgent', 'today'] }).fields).toEqual(['tag'])
+  })
+
+  it('does not match tag when tagNames is empty or absent', () => {
+    const todo = { title: 't', notes: 'n' }
+    expect(matchTodoText(todo, 'urgent', { tagNames: [] }).fields).toEqual([])
+    expect(matchTodoText(todo, 'urgent', {}).fields).toEqual([])
+  })
+
+  it('matches tag case-insensitively (query uppercase, stored lowercase)', () => {
+    const r = matchTodoText({ title: 't' }, 'URGENT', { tagNames: ['urgent'] })
+    expect(r.matched).toBe(true)
+    expect(r.fields).toEqual(['tag'])
+  })
+
   it('is null-safe for missing todo fields and missing context', () => {
     const r = matchTodoText({}, 'foo')
     expect(r).toEqual({ matched: false, fields: [] })
