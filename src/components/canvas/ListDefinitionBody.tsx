@@ -1,8 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { PersistedTodoItem, Person, TodoPredicate } from '../../models'
 import {
-  useFilterStore,
-  applyFilter,
   matchesFilter,
   predicateToCriteria,
   computeFilterPersonOrgIds,
@@ -51,7 +49,6 @@ export function ListDefinitionBody({
   className,
   emptyClassName,
 }: ListDefinitionBodyProps) {
-  const { filters } = useFilterStore()
   const statuses = useStatusStore((s) => s.statuses)
   const definition = useListDefinitionStore((s) =>
     listDefinitionId != null ? s.listDefinitions.find((d) => d.id === listDefinitionId) : undefined,
@@ -79,17 +76,6 @@ export function ListDefinitionBody({
 
   const filteredTodos = useMemo(() => {
     if (!definition) return [] as PersistedTodoItem[]
-    // Don't apply global showCompleted/showHiddenStatuses to the pre-filter — the
-    // definition's own predicate is authoritative for those flags. Overriding
-    // them here lets a def that wants completed/hidden tasks keep them past the
-    // global gate (e.g. global hides completed but the def shows them).
-    const defPred = definition.membership.kind === 'custom' ? definition.membership.predicate : null
-    const effectiveFilters = defPred
-      ? { ...filters, showCompleted: filters.showCompleted || defPred.showCompleted, showHiddenStatuses: filters.showHiddenStatuses || defPred.showHiddenStatuses }
-      : filters
-    const globalFiltered = applyFilter(
-      effectiveFilters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses,
-    )
     const today = startOfToday()
     const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
       const criteria = predicateToCriteria(predicate)
@@ -104,13 +90,13 @@ export function ListDefinitionBody({
         criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today,
       )
     }
-    const [list] = buildDashboardLists([definition], globalFiltered, {
+    const [list] = buildDashboardLists([definition], todos, {
       today,
       evalPredicate,
     })
     return list?.todos ?? []
   }, [
-    definition, todos, filters, assignedPeopleMap,
+    definition, todos, assignedPeopleMap,
     assignedOrgsMap, personOrgMap, statuses, dayKey,
   ])
 

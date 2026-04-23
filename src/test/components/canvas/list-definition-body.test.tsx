@@ -157,6 +157,63 @@ describe('ListDefinitionBody', () => {
     expect(el?.textContent).toBe('Custom rendered')
   })
 
+  it('ignores the global top-bar filter — def predicate is authoritative', () => {
+    // Regression: a list def whose predicate references a hidden status was
+    // showing zero rows until the user flipped global "Show hidden", because
+    // the component pre-filtered via applyFilter. On canvas the def is
+    // authoritative; the global filter must not intersect.
+    useStatusStore.setState({
+      statuses: [
+        { id: 10, name: 'Open', color: '#fff', sortOrder: 0 },
+        { id: 11, name: 'Blocked', color: '#fff', sortOrder: 1, hideByDefault: true },
+      ],
+    })
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 20, title: 'Blocked task', statusId: 11, dueDate: new Date(2026, 3, 18) }),
+      ],
+    })
+    const predicate = emptyPredicate()
+    predicate.dateField = 'date'
+    predicate.dateRangeEnd = { kind: 'fixed', iso: new Date(2026, 3, 23).toISOString() }
+    predicate.statusIds = [11]
+    useListDefinitionStore.setState({
+      listDefinitions: [{
+        id: 1,
+        name: 'Blocked this week',
+        sortOrder: 0,
+        pinnedToDashboard: false,
+        membership: { kind: 'custom', predicate },
+        sort: { kind: 'effective-date-asc' },
+        grouping: { kind: 'none' },
+      }],
+    })
+    // Global top-bar hides hidden statuses — should NOT affect the widget.
+    useFilterStore.getState().setAllFilters({
+      showCompleted: false,
+      showHiddenStatuses: false,
+      personIds: null,
+      personFilterMode: 'include-orgs',
+      orgIds: null,
+      orgFilterMode: 'include-people',
+      projectIds: null,
+      statusIds: null,
+      searchText: '',
+      dateField: 'date',
+      dateRangeStart: null,
+      dateRangeEnd: null,
+      dateRangeIncludeNoDate: false,
+      hasScheduled: null,
+      hasDeadline: null,
+    })
+    render(
+      <Wrapper>
+        <ListDefinitionBody listDefinitionId={1} />
+      </Wrapper>,
+    )
+    expect(screen.getByText('Blocked task')).toBeInTheDocument()
+  })
+
   it('default row click invokes openEditPopup through the ui store', () => {
     useTodoStore.setState({
       todos: [makeTodo({ id: 7, title: 'Clickable', dueDate: new Date(2026, 3, 18) })],
