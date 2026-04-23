@@ -186,11 +186,18 @@ describe('applyNlpMetadata', () => {
     expect(assignPerson).toHaveBeenCalledWith(1, 2)
   })
 
-  it('calls setTags with resolved.tags when present', async () => {
-    const setTags = vi.fn()
+  it('assigns NLP-resolved tags through the registry', async () => {
+    await db.delete()
+    await db.open()
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+
+    const todoId = (await db.todos.add({
+      title: 'Test task', isCompleted: false,
+      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
+    })) as number
 
     await applyNlpMetadata(
-      1,
+      todoId,
       {
         title: 'Test task',
         personIds: [],
@@ -203,19 +210,26 @@ describe('applyNlpMetadata', () => {
       vi.fn(),
       vi.fn(),
       vi.fn(),
-      vi.fn(),
-      setTags,
     )
 
-    expect(setTags).toHaveBeenCalledOnce()
-    expect(setTags).toHaveBeenCalledWith(1, ['urgent', 'blocked'])
+    const tags = await db.tags.toArray()
+    expect(tags.map((t) => t.name).sort()).toEqual(['blocked', 'urgent'])
+    const joins = await db.todoTags.where('todoId').equals(todoId).toArray()
+    expect(joins).toHaveLength(2)
   })
 
-  it('skips setTags entirely when resolved.tags is empty', async () => {
-    const setTags = vi.fn()
+  it('skips the tag path entirely when resolved.tags is empty', async () => {
+    await db.delete()
+    await db.open()
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+
+    const todoId = (await db.todos.add({
+      title: 'Test task', isCompleted: false,
+      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
+    })) as number
 
     await applyNlpMetadata(
-      1,
+      todoId,
       {
         title: 'Test task',
         personIds: [1],
@@ -228,11 +242,10 @@ describe('applyNlpMetadata', () => {
       vi.fn(),
       vi.fn(),
       vi.fn(),
-      vi.fn(),
-      setTags,
     )
 
-    expect(setTags).not.toHaveBeenCalled()
+    expect(await db.tags.count()).toBe(0)
+    expect(await db.todoTags.count()).toBe(0)
   })
 })
 

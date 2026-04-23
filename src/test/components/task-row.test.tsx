@@ -342,17 +342,27 @@ describe('TaskRow (unified scheduling)', () => {
 
   describe('tags display rule', () => {
     // Display rule: tags power search / filter / grouping only. They must
-    // never surface in the row. This test regression-locks that rule against
-    // accidental chip additions.
-    it('renders no text matching any tag value when todo.tags is populated', () => {
+    // never surface in the row. Regression-locked against accidental chip
+    // additions that would read from the tag registry + assignedTagsMap.
+    it('renders no text matching any tag name when the registry has assignments for the row', async () => {
+      const { useTagStore } = await import('../../stores/tag-store')
+      useTagStore.setState({
+        tags: [
+          { id: 1, name: 'alpha', color: '#111' },
+          { id: 2, name: 'beta', color: '#222' },
+        ],
+        assignedTagsMap: new Map([
+          [1, [
+            { id: 1, name: 'alpha', color: '#111' },
+            { id: 2, name: 'beta', color: '#222' },
+          ]],
+        ]),
+        loading: false,
+        error: null,
+      })
+
       const { container } = render(
-        <TaskRow
-          todo={makeTodo({
-            id: 1,
-            title: 'Prepare deck',
-            tags: ['alpha', 'beta'],
-          })}
-        />,
+        <TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />,
       )
       expect(container.textContent ?? '').not.toMatch(/alpha/i)
       expect(container.textContent ?? '').not.toMatch(/beta/i)

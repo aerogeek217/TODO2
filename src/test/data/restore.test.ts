@@ -164,28 +164,28 @@ describe('restoreFromImportData', () => {
 
       const todo = await db.todos.get(1)
       expect(todo!.title).toContain('#urgent')
-      // Pre-v29 backups do NOT also populate inline tags — the data survives
-      // only as `#tagname` text in the title (searchable, not grouped).
-      expect(todo!.tags).toBeUndefined()
+      // Pre-v29 backups do NOT populate inline tags — the data survives only
+      // as `#tagname` text in the title (searchable, not grouped).
+      expect((todo as { tags?: unknown }).tags).toBeUndefined()
     })
 
-    it('restoreFromImportData_withInlineTagsOnly_seedsRegistryAndPersistsInline', async () => {
-      // Post-v35, pre-v36 backups carry tags inline on todos but no top-level
+    it('restoreFromImportData_withInlineTagsOnly_seedsRegistryAndStripsInline', async () => {
+      // Post-v35, pre-v37 backups carry tags inline on todos but no top-level
       // `tags` / `todoTags`. Restore seeds the re-introduced registry from
-      // inline (same logic as the in-place v36 upgrade) and preserves the
-      // inline field transiently (Phase 9 removes it).
+      // inline (same logic as the in-place v36 upgrade) and strips the inline
+      // field so the post-restore state matches the post-v37 shape.
       const data = makeImportData({
         todos: [
           { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, tags: ['urgent', 'today'] },
           { id: 2, title: 'Ship it', isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now, tags: ['urgent'] },
-        ],
+        ] as unknown as ImportData['todos'],
       })
 
       await restoreFromImportData(data)
 
       const todo = await db.todos.get(1)
       expect(todo!.title).toBe('Fix bug')
-      expect(todo!.tags).toEqual(['urgent', 'today'])
+      expect((todo as { tags?: unknown }).tags).toBeUndefined()
 
       const tags = await db.tags.toArray()
       expect(tags.map((t) => t.name).sort()).toEqual(['today', 'urgent'])
@@ -196,13 +196,13 @@ describe('restoreFromImportData', () => {
     })
 
     it('restoreFromImportData_withPostV36Shape_bulkAddsTagTables', async () => {
-      // Post-v36 backups carry BOTH top-level `tags` + `todoTags` AND inline
-      // `todo.tags`. Restore trusts the top-level arrays, bulk-adds them into
-      // the tables, and leaves inline alone (v37 removes inline later).
+      // Post-v36 backups carry top-level `tags` + `todoTags` (and may still
+      // carry inline `todo.tags` from pre-v37). Restore trusts the top-level
+      // arrays, bulk-adds them, and strips any inline residue.
       const data = makeImportData({
         todos: [
           { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, tags: ['urgent'] },
-        ],
+        ] as unknown as ImportData['todos'],
         tags: [{ id: 7, name: 'urgent', color: '#123456' }],
         todoTags: [{ id: 1, todoId: 1, tagId: 7 }],
       })
@@ -211,7 +211,7 @@ describe('restoreFromImportData', () => {
 
       const todo = await db.todos.get(1)
       expect(todo!.title).toBe('Fix bug')
-      expect(todo!.tags).toEqual(['urgent'])
+      expect((todo as { tags?: unknown }).tags).toBeUndefined()
 
       const tags = await db.tags.toArray()
       expect(tags).toHaveLength(1)

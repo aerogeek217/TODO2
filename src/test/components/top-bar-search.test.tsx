@@ -106,10 +106,9 @@ describe('TopBar grouped search', () => {
     expect(screen.queryByRole('listbox', { name: /search results/i })).toBeNull()
   })
 
-  // Tag search names are sourced from the registry + assignedTagsMap, not
-  // from the legacy inline `todo.tags` field. Seeding tags only on the
-  // store (without an inline field on the todo) proves the dropdown reads
-  // through the registry path.
+  // Tag search names are sourced from the registry + assignedTagsMap.
+  // Seeding tags only on the store proves the dropdown reads through the
+  // registry path.
   it('renders a Tags group when the query matches a tag via the registry', async () => {
     const urgent: Tag = { id: 10, name: 'urgent', color: '#f00' }
     const today: Tag = { id: 20, name: 'today', color: '#0f0' }
@@ -142,32 +141,6 @@ describe('TopBar grouped search', () => {
     const listbox = await screen.findByRole('listbox', { name: /search results/i })
     const tagGroup = within(listbox).getByRole('group', { name: 'Tags' })
     expect(within(tagGroup).getAllByRole('option')).toHaveLength(2)
-  })
-
-  it('does not match a Tags group from the legacy inline todo.tags field', async () => {
-    // Registry is empty; only the (legacy) inline field carries the tag.
-    // Expect the Tags group to be absent — the search path must read the
-    // registry, not the inline field.
-    useTagStore.setState({
-      tags: [],
-      assignedTagsMap: new Map(),
-      loading: false,
-      error: null,
-    })
-    useTodoStore.setState({
-      todos: [makeTodo({ id: 1, title: 'review budget', tags: ['urgent'] })],
-      loading: false,
-      error: null,
-    })
-
-    renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
-    await act(async () => {
-      input.focus()
-      fireEvent.change(input, { target: { value: 'urgent' } })
-    })
-
-    expect(screen.queryByRole('listbox', { name: /search results/i })).toBeNull()
   })
 
   it('keyboard roving focus steps into the Tags group', async () => {

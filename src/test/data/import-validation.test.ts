@@ -112,9 +112,9 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  // Post-v36 export shape: top-level tags + todoTags coexist with inline
-  // `todo.tags`. The same validators gate both sides — no dedicated logic,
-  // but assert they round-trip together so the combination is covered.
+  // Post-v36 export shape: top-level tags + todoTags coexist with legacy
+  // inline `todo.tags` (from pre-v37 exports). Same validators; inline
+  // passes through for restore-side translation.
   describe('v36 tag registry + inline tags coexistence', () => {
     it('accepts a full post-v36 shape with tags, todoTags, and inline tags', () => {
       const result = validateImportData(validData({
@@ -126,7 +126,7 @@ describe('validateImportData', () => {
       if (result.ok) {
         expect(result.data.tags).toEqual([{ id: 1, name: 'urgent', color: '#537FE7' }])
         expect(result.data.todoTags).toEqual([{ id: 1, todoId: 1, tagId: 1 }])
-        expect(result.data.todos[0].tags).toEqual(['urgent'])
+        expect((result.data.todos[0] as { tags?: unknown }).tags).toEqual(['urgent'])
       }
     })
 
@@ -147,60 +147,35 @@ describe('validateImportData', () => {
     })
   })
 
-  // v35 inline-tags validation on todo rows
-  describe('v35 inline todo.tags', () => {
-    it('accepts lowercase slug arrays', () => {
+  // Post-v37: inline `todo.tags` is no longer a first-class model field, but
+  // the import path carries it through untouched so `restoreFromImportData`
+  // can translate legacy inline-only backups into the registry before
+  // stripping.
+  describe('legacy inline todo.tags pass-through', () => {
+    it('accepts and passes inline tags through for restore-side translation', () => {
       const result = validateImportData(validData({
-        todos: [makeTodo({ tags: ['urgent', 'this-week', 'p_1'] })],
+        todos: [makeTodo({ tags: ['urgent', 'today'] })],
       }))
       expect(result.ok).toBe(true)
       if (result.ok) {
-        expect(result.data.todos[0].tags).toEqual(['urgent', 'this-week', 'p_1'])
+        expect((result.data.todos[0] as { tags?: unknown }).tags).toEqual(['urgent', 'today'])
       }
     })
 
-    it('accepts omitted tags field', () => {
-      const result = validateImportData(validData({ todos: [makeTodo()] }))
-      expect(result.ok).toBe(true)
-      if (result.ok) {
-        expect(result.data.todos[0].tags).toBeUndefined()
-      }
-    })
-
-    it('accepts empty tags array but strips it at pickTodo (omitted-when-empty)', () => {
+    it('strips empty tags arrays at pickTodo (omitted-when-empty)', () => {
       const result = validateImportData(validData({ todos: [makeTodo({ tags: [] })] }))
       expect(result.ok).toBe(true)
       if (result.ok) {
-        expect(result.data.todos[0].tags).toBeUndefined()
+        expect((result.data.todos[0] as { tags?: unknown }).tags).toBeUndefined()
       }
     })
 
-    it('rejects non-array tags', () => {
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: 'urgent' })] })).ok).toBe(false)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: {} })] })).ok).toBe(false)
-    })
-
-    it('rejects non-string entries', () => {
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: [42] })] })).ok).toBe(false)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: [null] })] })).ok).toBe(false)
-    })
-
-    it('rejects uppercase / whitespace / illegal chars', () => {
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: ['URGENT'] })] })).ok).toBe(false)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: [' urgent'] })] })).ok).toBe(false)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: ['has space'] })] })).ok).toBe(false)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: ['bang!'] })] })).ok).toBe(false)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: [''] })] })).ok).toBe(false)
-    })
-
-    it('rejects over-length slugs', () => {
-      const tooLong = 'a'.repeat(65)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags: [tooLong] })] })).ok).toBe(false)
-    })
-
-    it('rejects more than 64 tags on a single row', () => {
-      const tags = Array.from({ length: 65 }, (_, i) => `t${i}`)
-      expect(validateImportData(validData({ todos: [makeTodo({ tags })] })).ok).toBe(false)
+    it('omits the field when absent on input', () => {
+      const result = validateImportData(validData({ todos: [makeTodo()] }))
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect((result.data.todos[0] as { tags?: unknown }).tags).toBeUndefined()
+      }
     })
   })
 

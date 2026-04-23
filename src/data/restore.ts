@@ -141,7 +141,12 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
   // (its tags land in the registry), matching what the user intended.
   const hasTopLevelTags = !!(v.tags?.length || v.todoTags?.length)
   const hasTodoTagJoins = !!(v.todoTags?.length)
-  const hasInlineTags = v.todos.some((t) => Array.isArray(t.tags) && t.tags.length > 0)
+  // Inline `tags` was retired in v37 but legacy post-v35 backups still carry
+  // it. Peek through the TodoItem type so the pass-through survives.
+  const hasInlineTags = v.todos.some((t) => {
+    const raw = (t as { tags?: unknown }).tags
+    return Array.isArray(raw) && raw.length > 0
+  })
   const isPreV29 = hasTodoTagJoins && !hasInlineTags
   const isPostV35InlineOnly = hasInlineTags && !hasTopLevelTags
 
@@ -229,6 +234,13 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       if (svRow.sortBy === 'tag') svRow.sortBy = 'date'
       if (svRow.groupBy === 'tag') svRow.groupBy = 'none'
     }
+  }
+
+  // Strip the retired inline `tags` key from every todo before bulk-add so
+  // restored state matches the post-v37 shape (registry is the sole source of
+  // truth). Any translation that needed inline data has already run above.
+  for (const t of v.todos) {
+    delete (t as { tags?: unknown }).tags
   }
 
   const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes, db.taskboards, db.tags, db.todoTags])

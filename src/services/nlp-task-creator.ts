@@ -1,7 +1,8 @@
 import { parseInput } from './natural-language-parser'
-import { resolveInput, type ResolvedInput } from './nlp-resolver'
+import { resolveInput, resolveTags, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
 import { runNlpMetadataTransaction } from '../data'
+import { useTagStore } from '../stores/tag-store'
 import type { Person, Project, Org, PersistedTodoItem } from '../models'
 
 export interface NlpCreateResult {
@@ -23,9 +24,10 @@ export function parseTaskInput(rawTitle: string, people: Person[], projects: Pro
  * Apply resolved NLP metadata to a newly created task.
  * Writes scheduledDate and assigns people / orgs. Recurrence anchors to dueDate
  * when present, otherwise to a precise scheduledDate; without either anchor
- * the recurrence is dropped. Tags (if `setTags` is provided) are applied after
- * the transaction — they live on the same `todos` row but don't need to be
- * atomic with person/org assignment.
+ * the recurrence is dropped. Tags go through the registry (resolve-or-create
+ * via `tag-store`) after the transaction — they live in the normalized
+ * `tags`+`todoTags` tables and don't need to be atomic with person/org
+ * assignment.
  */
 export async function applyNlpMetadata(
   todoId: number,
@@ -34,7 +36,6 @@ export async function applyNlpMetadata(
   updateTodo: (todo: PersistedTodoItem) => Promise<void>,
   assignPerson: (todoId: number, personId: number) => Promise<void>,
   assignOrg?: (todoId: number, orgId: number) => Promise<void>,
-  setTags?: (todoId: number, tags: readonly string[]) => Promise<void>,
 ): Promise<void> {
   const hasUpdates = resolved.scheduledDate !== undefined || resolved.dueDate !== undefined || resolved.recurrence !== undefined
   const hasAssignments = resolved.personIds.length > 0 || resolved.orgIds.length > 0
@@ -82,7 +83,10 @@ export async function applyNlpMetadata(
     })
   }
 
-  if (hasTags && setTags) {
-    await setTags(todoId, resolved.tags)
+  if (hasTags) {
+    const ids = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
+    for (const tagId of ids) {
+      await useTagStore.getState().assignTag(todoId, tagId)
+    }
   }
 }

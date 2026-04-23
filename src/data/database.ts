@@ -243,6 +243,16 @@ export class Todo2Database extends Dexie {
       .upgrade(async (tx) => {
         await runV36Migration(tx)
       })
+
+    // v37: tags v2 cutover — delete the transient inline `tags` key from every
+    // todo row. Schema string unchanged (the field was never indexed). The
+    // registry + `todoTags` joins seeded in v36 are now the sole source of
+    // truth for tag data.
+    this.version(37)
+      .stores({})
+      .upgrade(async (tx) => {
+        await runV37Migration(tx)
+      })
   }
 }
 
@@ -1388,4 +1398,20 @@ export async function runV36Migration(tx: Transaction): Promise<void> {
   }
 
   console.info(`v36 migration: seeded ${uniqueSlugs.length} tag(s) + ${joins.length} assignment(s) from inline`)
+}
+
+/**
+ * v37 upgrade: delete the transient inline `tags` key from every todo row.
+ * The registry (`tags` + `todoTags` tables seeded in v36) is now the sole
+ * source of truth. Idempotent — todos without the key skip the write.
+ */
+export async function runV37Migration(tx: Transaction): Promise<void> {
+  let stripped = 0
+  await tx.table('todos').toCollection().modify((row: Record<string, unknown>) => {
+    if ('tags' in row) {
+      delete row.tags
+      stripped++
+    }
+  })
+  if (stripped > 0) console.info(`v37 migration: stripped inline tags from ${stripped} todo row(s)`)
 }

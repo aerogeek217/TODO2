@@ -25,7 +25,7 @@ function getOtherSelectedIds(primaryId: number): number[] {
  * Encapsulates the ~70-line onCreate/onEdit pattern duplicated across views.
  */
 export function useTaskEditCallbacks() {
-  const { todos, update: updateTodo, add: addTodo, setTags } = useTodoStore()
+  const { todos, update: updateTodo, add: addTodo } = useTodoStore()
   const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
   const { orgs, assignedOrgsMap, assignOrg, unassignOrg } = useOrgStore()
   const { tags, assignedTagsMap, assignTag, unassignTag } = useTagStore()
@@ -69,20 +69,15 @@ export function useTaskEditCallbacks() {
     const allOrgIds = new Set([...resolved.orgIds, ...(assignments?.orgIds ?? [])])
     for (const personId of allPersonIds) await assignPerson(id, personId)
     for (const orgId of allOrgIds) await assignOrg(id, orgId)
-    // Registry-side writes (tags v2): resolve-or-create NLP tags + apply any
-    // pending ids picked in the popup's chip selector. Phase 9 drops the inline
-    // setTags call below; until then it runs so Phase 1–8 consumers still
-    // reading `todo.tags` keep working.
+    // Registry-side writes: resolve-or-create NLP tags + apply any pending ids
+    // picked in the popup's chip selector.
     const nlpTagIds = resolved.tags.length > 0
       ? await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
       : []
     const allTagIds = new Set<number>([...nlpTagIds, ...(assignments?.tagIds ?? [])])
     for (const tagId of allTagIds) await useTagStore.getState().assignTag(id, tagId)
-    if (resolved.tags.length > 0) {
-      await setTags(id, resolved.tags)
-    }
     return id
-  }, [selectedCanvasId, addTodo, updateTodo, setTags, assignPerson, assignOrg, addProject, people, projects, orgs])
+  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, addProject, people, projects, orgs])
 
   /** Wrap onUpdate to propagate bulk-applicable field changes to other selected tasks. */
   const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {
