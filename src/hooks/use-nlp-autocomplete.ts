@@ -4,12 +4,12 @@ export interface AutocompleteItem {
   id: number
   name: string
   color?: string
-  kind: 'person' | 'org' | 'project'
+  kind: 'person' | 'org' | 'project' | 'tag'
 }
 
 export interface AutocompleteState {
   visible: boolean
-  trigger: '@' | '/' | null
+  trigger: '@' | '/' | '#' | null
   query: string
   items: AutocompleteItem[]
   selectedIndex: number
@@ -30,6 +30,7 @@ interface UseNlpAutocompleteOptions {
   people: AutocompleteItem[]
   projects?: AutocompleteItem[]
   orgs?: AutocompleteItem[]
+  tags?: AutocompleteItem[]
 }
 
 /**
@@ -39,7 +40,7 @@ interface UseNlpAutocompleteOptions {
 // Shared canvas for text measurement — avoids creating one per keystroke
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-export function useNlpAutocomplete({ people, projects = [], orgs = [] }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = [] }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   const triggerPosRef = useRef<number>(-1)
 
@@ -55,15 +56,15 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [] }: UseNlpA
   ) => {
     // Find the trigger character before cursor
     const beforeCursor = value.slice(0, cursorPos)
-    // Look backwards for @ or / that isn't preceded by a word character
+    // Look backwards for @, /, or # that isn't preceded by a word character
     let triggerIdx = -1
-    let triggerChar: '@' | '/' | null = null
+    let triggerChar: '@' | '/' | '#' | null = null
     for (let i = beforeCursor.length - 1; i >= 0; i--) {
       const ch = beforeCursor[i]
       if (ch === ' ' || ch === '\t' || ch === '\n') break // whitespace before finding trigger = no trigger
-      if ((ch === '@' || ch === '/') && (i === 0 || /\s/.test(beforeCursor[i - 1]))) {
+      if ((ch === '@' || ch === '/' || ch === '#') && (i === 0 || /\s/.test(beforeCursor[i - 1]))) {
         triggerIdx = i
-        triggerChar = ch as '@' | '/'
+        triggerChar = ch as '@' | '/' | '#'
         break
       }
     }
@@ -76,10 +77,19 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [] }: UseNlpA
     const query = beforeCursor.slice(triggerIdx + 1).toLowerCase()
     triggerPosRef.current = triggerIdx
 
-    const sourceItems = triggerChar === '@' ? [...people, ...orgs] : projects
-    const filtered = query
-      ? sourceItems.filter((item) => item.name.toLowerCase().includes(query))
-      : sourceItems
+    // `#tag` uses case-insensitive prefix match (matches the plan's v2 spec);
+    // `@person`/`/project` stay on substring match (existing behavior).
+    let filtered: AutocompleteItem[]
+    if (triggerChar === '#') {
+      filtered = query
+        ? tags.filter((item) => item.name.toLowerCase().startsWith(query))
+        : tags
+    } else {
+      const sourceItems = triggerChar === '@' ? [...people, ...orgs] : projects
+      filtered = query
+        ? sourceItems.filter((item) => item.name.toLowerCase().includes(query))
+        : sourceItems
+    }
 
     // Estimate caret position for dropdown positioning
     let caretLeft = 0
@@ -97,15 +107,19 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [] }: UseNlpA
       }
     }
 
+    // For `#`, stay visible even with no matches so we can render the
+    // "Press Enter to create #<query>" hint. `@` and `/` hide when empty.
+    const visible = filtered.length > 0 || (triggerChar === '#' && query.length > 0)
+
     setState({
-      visible: filtered.length > 0,
+      visible,
       trigger: triggerChar,
       query,
       items: filtered.slice(0, 8),
       selectedIndex: 0,
       caretLeft,
     })
-  }, [people, projects, orgs, state.visible, dismiss])
+  }, [people, projects, orgs, tags, state.visible, dismiss])
 
   /**
    * Handle keyboard events for autocomplete navigation.
@@ -126,13 +140,18 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [] }: UseNlpA
       if (state.items.length > 0) {
         return true // consumed — caller should call selectItem
       }
+      // For `#` with no matches, Tab/Enter accepts the user's typed query
+      // as a create-new completion (caller calls applySelection → create path).
+      if (state.trigger === '#' && state.query.length > 0) {
+        return true
+      }
     }
     if (e.key === 'Escape') {
       dismiss()
       return true
     }
     return false
-  }, [state.visible, state.items.length, dismiss])
+  }, [state.visible, state.items.length, state.trigger, state.query, dismiss])
 
   /**
    * Apply the selected autocomplete item into the input value.
@@ -143,21 +162,32 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [] }: UseNlpA
     cursorPos: number,
     item?: AutocompleteItem,
   ): { value: string; cursor: number } | null => {
-    const selected = item ?? state.items[state.selectedIndex]
-    if (!selected || triggerPosRef.current === -1) return null
-
+    if (triggerPosRef.current === -1) return null
     const triggerIdx = triggerPosRef.current
-    // Replace from trigger char through current cursor position with the selected name + space
+
+    const selected = item ?? state.items[state.selectedIndex]
+    let name: string
+    if (selected) {
+      name = selected.name
+    } else if (state.trigger === '#' && state.query.length > 0) {
+      // Create-new path: preserve the user's typed casing from the raw slice.
+      name = currentValue.slice(triggerIdx + 1, cursorPos)
+    } else {
+      return null
+    }
+
+    // Tags stay bare — `#` syntax can't wrap quoted names; people/projects
+    // quote when the name contains spaces.
     const before = currentValue.slice(0, triggerIdx)
     const after = currentValue.slice(cursorPos)
     const trigger = state.trigger
-    const name = selected.name.includes(' ') ? `"${selected.name}"` : selected.name
-    const newValue = `${before}${trigger}${name} ${after}`
-    const newCursor = before.length + 1 + name.length + 1 // trigger + name + space
+    const token = state.trigger === '#' ? name : (name.includes(' ') ? `"${name}"` : name)
+    const newValue = `${before}${trigger}${token} ${after}`
+    const newCursor = before.length + 1 + token.length + 1 // trigger + name + space
 
     dismiss()
     return { value: newValue, cursor: newCursor }
-  }, [state.items, state.selectedIndex, state.trigger, dismiss])
+  }, [state.items, state.selectedIndex, state.trigger, state.query, dismiss])
 
   // Clean up on unmount
   useEffect(() => {

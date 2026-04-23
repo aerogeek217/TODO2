@@ -15,12 +15,13 @@ interface TaskEditHeaderProps {
   onClose: () => void
   acState: AutocompleteState
   onAcSelect: (item: AutocompleteItem) => void
+  onAcCreateNew?: () => void
 }
 
 export function TaskEditHeader({
   isEdit, isCompleted, title, mode, titleRef,
   onToggleComplete, onTitleChange, onTitleBlur, onTitleKeyDown,
-  onClose, acState, onAcSelect,
+  onClose, acState, onAcSelect, onAcCreateNew,
 }: TaskEditHeaderProps) {
   return (
     <div className={styles.header}>
@@ -43,7 +44,7 @@ export function TaskEditHeader({
           onKeyDown={onTitleKeyDown}
           placeholder={mode === 'create' ? 'New task... (@person @org #tag /project tomorrow "this week")' : 'Task title'}
         />
-        <NlpAutocomplete state={acState} onSelect={onAcSelect} />
+        <NlpAutocomplete state={acState} onSelect={onAcSelect} onCreateNew={onAcCreateNew} />
       </div>
       <button className={styles.closeButton} onClick={onClose} aria-label="Close">
         ×

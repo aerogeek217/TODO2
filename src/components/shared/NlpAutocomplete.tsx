@@ -4,18 +4,26 @@ import styles from './NlpAutocomplete.module.css'
 interface NlpAutocompleteProps {
   state: AutocompleteState
   onSelect: (item: AutocompleteItem) => void
+  /** Called when the "Press Enter to create #<query>" hint row is clicked. */
+  onCreateNew?: () => void
 }
 
-export function NlpAutocomplete({ state, onSelect }: NlpAutocompleteProps) {
-  if (!state.visible || state.items.length === 0) return null
+function headerLabel(state: AutocompleteState): string {
+  if (state.trigger === '#') return 'Tags'
+  if (state.trigger === '/') return 'Projects'
+  const hasOrgs = state.items.some((item) => item.kind === 'org')
+  return hasOrgs ? 'People & Orgs' : 'People'
+}
 
-  const hasOrgs = state.trigger === '@' && state.items.some((item) => item.kind === 'org')
+export function NlpAutocomplete({ state, onSelect, onCreateNew }: NlpAutocompleteProps) {
+  if (!state.visible) return null
+
+  const isTagCreateNew = state.trigger === '#' && state.items.length === 0 && state.query.length > 0
+  if (state.items.length === 0 && !isTagCreateNew) return null
 
   return (
     <div className={styles.dropdown} style={{ left: state.caretLeft }}>
-      <div className={styles.header}>
-        {state.trigger === '@' ? (hasOrgs ? 'People & Orgs' : 'People') : 'Projects'}
-      </div>
+      <div className={styles.header}>{headerLabel(state)}</div>
       {state.items.map((item, i) => (
         <button
           key={`${item.kind}-${item.id}`}
@@ -36,6 +44,19 @@ export function NlpAutocomplete({ state, onSelect }: NlpAutocompleteProps) {
           )}
         </button>
       ))}
+      {isTagCreateNew && (
+        <button
+          className={`${styles.item} ${styles.createNew}`}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            onCreateNew?.()
+          }}
+        >
+          <span className={styles.name}>
+            Press Enter to create #{state.query}
+          </span>
+        </button>
+      )}
     </div>
   )
 }

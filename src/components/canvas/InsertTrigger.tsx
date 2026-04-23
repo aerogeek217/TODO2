@@ -5,6 +5,7 @@ import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useTagStore } from '../../stores/tag-store'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './InsertTrigger.module.css'
 
@@ -27,6 +28,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const projects = useProjectStore((s) => s.projects)
   const orgsFromStore = useOrgStore((s) => s.orgs)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const tagsFromStore = useTagStore((s) => s.tags)
 
   const acPeople = useMemo(
     () => people.map((p) => ({
@@ -39,8 +41,17 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   )
   const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
   const acOrgs = useMemo(() => orgsFromStore.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [orgsFromStore])
+  const acTags = useMemo(
+    () => [...tagsFromStore].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({
+      id: t.id!,
+      name: t.name,
+      color: t.color,
+      kind: 'tag' as const,
+    })),
+    [tagsFromStore],
+  )
 
-  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs })
+  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs, tags: acTags })
 
   useClickOutside(wrapperRef, () => {
     ac.dismiss()
@@ -163,6 +174,18 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     }
   }
 
+  const handleCreateNew = () => {
+    const input = inputRef.current
+    if (!input) return
+    const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length)
+    if (result) {
+      input.value = result.value
+      titleRef.current = result.value
+      input.setSelectionRange(result.cursor, result.cursor)
+      input.focus()
+    }
+  }
+
   if (editing) {
     return (
       <div ref={wrapperRef} className={styles.inputRow} style={{ position: 'relative' }} onContextMenu={onContextMenu}>
@@ -184,7 +207,8 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
                 ac.handleKeyDown(e)
                 return
               }
-              if (e.key === 'Tab' || (e.key === 'Enter' && ac.state.items.length > 0)) {
+              const isTagCreateNew = ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
+              if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || isTagCreateNew))) {
                 e.preventDefault()
                 e.stopPropagation()
                 const input = inputRef.current
@@ -225,7 +249,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
           }}
           placeholder="New task... (@person /project p1 tomorrow)"
         />
-        <NlpAutocomplete state={ac.state} onSelect={handleSelect} />
+        <NlpAutocomplete state={ac.state} onSelect={handleSelect} onCreateNew={handleCreateNew} />
       </div>
     )
   }

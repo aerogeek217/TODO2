@@ -139,7 +139,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   )
   const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
   const acOrgs = useMemo(() => allOrgs.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [allOrgs])
-  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs })
+  const acTags = useMemo(
+    () => [...allTags].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({
+      id: t.id!,
+      name: t.name,
+      color: t.color,
+      kind: 'tag' as const,
+    })),
+    [allTags],
+  )
+  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs, tags: acTags })
 
   useEffect(() => {
     if (!isEdit) titleRef.current?.focus()
@@ -230,6 +239,19 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
+  const handleAcCreateNew = () => {
+    const input = titleRef.current
+    if (!input) return
+    const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length)
+    if (result) {
+      setTitle(result.value)
+      requestAnimationFrame(() => {
+        input.setSelectionRange(result.cursor, result.cursor)
+        input.focus()
+      })
+    }
+  }
+
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (ac.state.visible) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -237,7 +259,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         ac.handleKeyDown(e)
         return
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && ac.state.items.length > 0)) {
+      const isTagCreateNew = ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
+      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || isTagCreateNew))) {
         e.preventDefault()
         const input = titleRef.current
         if (input) {
@@ -490,6 +513,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onClose={onClose}
           acState={ac.state}
           onAcSelect={handleAcSelect}
+          onAcCreateNew={handleAcCreateNew}
         />
 
         {/* Status badge */}
