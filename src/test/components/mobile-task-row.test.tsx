@@ -185,6 +185,29 @@ describe('MobileTaskRow', () => {
     })
   })
 
+  // ── Tags display rule ─────────────────────────────────────────────
+
+  describe('tags display rule', () => {
+    // Display rule: tags power search / filter / grouping only. They must
+    // never surface in the row. This test regression-locks that rule against
+    // accidental chip additions.
+    it('renders no text matching any tag value when todo.tags is populated', () => {
+      const { container } = render(
+        <MobileTaskRow
+          todo={makeTodo({
+            id: 1,
+            title: 'Prepare deck',
+            tags: ['alpha', 'beta'],
+          })}
+        />,
+      )
+      expect(container.textContent ?? '').not.toMatch(/alpha/i)
+      expect(container.textContent ?? '').not.toMatch(/beta/i)
+      expect(screen.queryByText(/^#?alpha$/)).toBeNull()
+      expect(screen.queryByText(/^#?beta$/)).toBeNull()
+    })
+  })
+
   // ── Ghost mode ────────────────────────────────────────────────────
 
   describe('ghost mode', () => {

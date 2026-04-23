@@ -772,6 +772,13 @@
   color: var(--color-text-muted);
 }
 
+.tagsReadonly {
+  font-size: var(--font-size-task);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
 .notesBodyWrap {
   display: flex;
   flex-direction: column;

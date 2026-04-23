@@ -22,6 +22,8 @@ interface MobileTaskRowProps {
   cut?: boolean
 }
 
+// Display rule: `todo.tags` is intentionally not rendered here. Tags power
+// search / filter / grouping only — they never become a row chip.
 export const MobileTaskRow = memo(function MobileTaskRow({
   todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail, cut,

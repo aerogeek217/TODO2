@@ -534,6 +534,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onUpdate={isEdit ? props.onUpdate : undefined}
           />
 
+          {/* Tags (read-only) — derived from `#foo` tokens in the title via
+              NLP. Displayed for confirmation only; removal is via title edit. */}
+          {isEdit && todo?.tags && todo.tags.length > 0 && (
+            <div className={styles.notesSection}>
+              <div className={styles.notesLabel}>Tags</div>
+              <div className={styles.tagsReadonly}>{todo.tags.join(', ')}</div>
+            </div>
+          )}
+
           {/* Status Notes */}
           <div className={styles.notesSection}>
             <div className={styles.notesLabel}>Status Notes</div>

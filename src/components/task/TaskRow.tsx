@@ -100,6 +100,8 @@ interface TaskRowProps {
   onTaskboard?: boolean
 }
 
+// Display rule: `todo.tags` is intentionally not rendered here. Tags power
+// search / filter / grouping only — they never become a row chip.
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail, cut, extraLabel, showContext, onTaskboard,
