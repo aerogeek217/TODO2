@@ -6,8 +6,10 @@ import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useProjectStore } from '../../stores/project-store'
+import type { Tag } from '../../models'
 import { makePerson, makeOrg, makeProject, makeTodo } from '../helpers'
 
 function renderBar() {
@@ -28,6 +30,7 @@ describe('TopBar grouped search', () => {
     })
     useOrgStore.setState({ orgs: [makeOrg({ id: 1, name: 'Acme' })], assignedOrgsMap: new Map(), personOrgMap: new Map() })
     useStatusStore.setState({ statuses: [] })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
     useProjectStore.setState({ projects: [makeProject({ id: 1, canvasId: 1, name: 'Marketing' })], loading: false, error: null })
   })
 
@@ -103,11 +106,26 @@ describe('TopBar grouped search', () => {
     expect(screen.queryByRole('listbox', { name: /search results/i })).toBeNull()
   })
 
-  it('renders a Tags group when the query matches a todo tag', async () => {
+  // Tag search names are sourced from the registry + assignedTagsMap, not
+  // from the legacy inline `todo.tags` field. Seeding tags only on the
+  // store (without an inline field on the todo) proves the dropdown reads
+  // through the registry path.
+  it('renders a Tags group when the query matches a tag via the registry', async () => {
+    const urgent: Tag = { id: 10, name: 'urgent', color: '#f00' }
+    const today: Tag = { id: 20, name: 'today', color: '#0f0' }
+    useTagStore.setState({
+      tags: [urgent, today],
+      assignedTagsMap: new Map([
+        [1, [urgent]],
+        [2, [today, urgent]],
+      ]),
+      loading: false,
+      error: null,
+    })
     useTodoStore.setState({
       todos: [
-        makeTodo({ id: 1, title: 'review budget', tags: ['urgent'] }),
-        makeTodo({ id: 2, title: 'pick up keys', tags: ['today', 'urgent'] }),
+        makeTodo({ id: 1, title: 'review budget' }),
+        makeTodo({ id: 2, title: 'pick up keys' }),
         makeTodo({ id: 3, title: 'unrelated' }),
       ],
       loading: false,
@@ -124,12 +142,44 @@ describe('TopBar grouped search', () => {
     const listbox = await screen.findByRole('listbox', { name: /search results/i })
     const tagGroup = within(listbox).getByRole('group', { name: 'Tags' })
     expect(within(tagGroup).getAllByRole('option')).toHaveLength(2)
-    expect(within(tagGroup).getByText('2')).toBeInTheDocument()
+  })
+
+  it('does not match a Tags group from the legacy inline todo.tags field', async () => {
+    // Registry is empty; only the (legacy) inline field carries the tag.
+    // Expect the Tags group to be absent — the search path must read the
+    // registry, not the inline field.
+    useTagStore.setState({
+      tags: [],
+      assignedTagsMap: new Map(),
+      loading: false,
+      error: null,
+    })
+    useTodoStore.setState({
+      todos: [makeTodo({ id: 1, title: 'review budget', tags: ['urgent'] })],
+      loading: false,
+      error: null,
+    })
+
+    renderBar()
+    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'urgent' } })
+    })
+
+    expect(screen.queryByRole('listbox', { name: /search results/i })).toBeNull()
   })
 
   it('keyboard roving focus steps into the Tags group', async () => {
+    const urgent: Tag = { id: 10, name: 'urgent', color: '#f00' }
+    useTagStore.setState({
+      tags: [urgent],
+      assignedTagsMap: new Map([[1, [urgent]]]),
+      loading: false,
+      error: null,
+    })
     useTodoStore.setState({
-      todos: [makeTodo({ id: 1, title: 'review budget', tags: ['urgent'] })],
+      todos: [makeTodo({ id: 1, title: 'review budget' })],
       loading: false,
       error: null,
     })

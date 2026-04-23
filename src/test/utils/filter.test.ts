@@ -38,20 +38,23 @@ describe('matchTodoText', () => {
     expect(matchTodoText(todo, 'blocked', { statusName: 'Blocked' }).fields).toEqual(['status'])
   })
 
-  it('matches on tag via ctx.tagNames (any tag hit)', () => {
+  // `tagNames` is resolved from the registry by the caller — e.g. via
+  // `assignedTagsMap.get(todoId)?.map(t => t.name)`. The cases below supply
+  // the already-resolved names the caller would produce.
+  it('matches on tag via ctx.tagNames (any registry-resolved tag hit)', () => {
     const todo = { title: 't', notes: 'n' }
     expect(matchTodoText(todo, 'urgent', { tagNames: ['urgent', 'today'] }).fields).toEqual(['tag'])
     expect(matchTodoText(todo, 'today', { tagNames: ['urgent', 'today'] }).fields).toEqual(['tag'])
   })
 
-  it('does not match tag when tagNames is empty or absent', () => {
+  it('does not match tag when tagNames is empty or absent (registry has no assignments)', () => {
     const todo = { title: 't', notes: 'n' }
     expect(matchTodoText(todo, 'urgent', { tagNames: [] }).fields).toEqual([])
     expect(matchTodoText(todo, 'urgent', {}).fields).toEqual([])
   })
 
-  it('matches tag case-insensitively (query uppercase, stored lowercase)', () => {
-    const r = matchTodoText({ title: 't' }, 'URGENT', { tagNames: ['urgent'] })
+  it('matches tag case-insensitively (query uppercase, canonical casing from registry)', () => {
+    const r = matchTodoText({ title: 't' }, 'URGENT', { tagNames: ['Urgent'] })
     expect(r.matched).toBe(true)
     expect(r.fields).toEqual(['tag'])
   })

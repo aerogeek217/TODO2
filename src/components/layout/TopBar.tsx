@@ -473,6 +473,7 @@ export function TopBar() {
   const projects = useProjectStore((s) => s.projects)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
   const handleSearchChange = useCallback((value: string) => {
@@ -595,17 +596,18 @@ export function TopBar() {
     for (const t of todos) {
       const people = assignedPeopleMap.get(t.id) ?? []
       const orgs = assignedOrgsMap.get(t.id) ?? []
+      const tags = assignedTagsMap.get(t.id) ?? []
       const { fields } = matchTodoText(t, localSearch, {
         projectName: t.projectId != null ? projectsById.get(t.projectId)?.name : undefined,
         personNames: people.map(p => p.name),
         orgNames: orgs.map(o => o.name),
         statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
-        tagNames: t.tags ?? [],
+        tagNames: tags.map(tg => tg.name),
       })
       for (const f of fields) groups[f].push(t)
     }
     return groups
-  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, projectsById, statusesById])
+  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, projectsById, statusesById])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)

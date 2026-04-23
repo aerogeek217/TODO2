@@ -25,7 +25,12 @@ export const TEXT_MATCH_FIELDS: readonly TextMatchField[] = [
   'title', 'notes', 'project', 'person', 'org', 'status', 'tag',
 ] as const
 
-/** Resolved names for the fields beyond `title`/`notes` (which live on the todo itself). */
+/**
+ * Resolved names for the fields beyond `title`/`notes` (which live on the
+ * todo itself). Callers resolve each field from its source-of-truth store —
+ * e.g. `tagNames` from `assignedTagsMap.get(todoId)?.map(t => t.name)`, not
+ * from the legacy inline `todo.tags` field.
+ */
 export interface TextMatchContext {
   projectName?: string
   personNames?: string[]
