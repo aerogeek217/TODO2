@@ -164,6 +164,45 @@ describe('restoreFromImportData', () => {
 
       const todo = await db.todos.get(1)
       expect(todo!.title).toContain('#urgent')
+      // Pre-v29 backups do NOT also populate inline tags — the data survives
+      // only as `#tagname` text in the title (searchable, not grouped).
+      expect(todo!.tags).toBeUndefined()
+    })
+
+    it('restoreFromImportData_withInlineTags_persistsThemPostV35', async () => {
+      // Post-v35 backups carry tags as an inline `todo.tags?: string[]`. They
+      // must round-trip to the new row intact — no baking, no stripping.
+      const data = makeImportData({
+        todos: [
+          { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, tags: ['urgent', 'today'] },
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const todo = await db.todos.get(1)
+      expect(todo!.title).toBe('Fix bug')
+      expect(todo!.tags).toEqual(['urgent', 'today'])
+    })
+
+    it('restoreFromImportData_withMixedLegacyAndInlineTags_preservesBoth', async () => {
+      // Shouldn't occur in practice — a backup is either pre-v29 (top-level
+      // tags+todoTags) or post-v35 (inline tags). If both are present, the two
+      // paths must coexist: the legacy arrays bake into the title, the inline
+      // array survives untouched.
+      const data = makeImportData({
+        todos: [
+          { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, tags: ['inline-tag'] },
+        ],
+        tags: [{ id: 1, name: 'legacy', color: '#ff0000' }],
+        todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
+      })
+
+      await restoreFromImportData(data)
+
+      const todo = await db.todos.get(1)
+      expect(todo!.title).toContain('#legacy')
+      expect(todo!.tags).toEqual(['inline-tag'])
     })
 
     it('restoreFromImportData_withStatuses_persistsStatusTable', async () => {

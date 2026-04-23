@@ -112,6 +112,63 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
+  // v35 inline-tags validation on todo rows
+  describe('v35 inline todo.tags', () => {
+    it('accepts lowercase slug arrays', () => {
+      const result = validateImportData(validData({
+        todos: [makeTodo({ tags: ['urgent', 'this-week', 'p_1'] })],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data.todos[0].tags).toEqual(['urgent', 'this-week', 'p_1'])
+      }
+    })
+
+    it('accepts omitted tags field', () => {
+      const result = validateImportData(validData({ todos: [makeTodo()] }))
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data.todos[0].tags).toBeUndefined()
+      }
+    })
+
+    it('accepts empty tags array but strips it at pickTodo (omitted-when-empty)', () => {
+      const result = validateImportData(validData({ todos: [makeTodo({ tags: [] })] }))
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data.todos[0].tags).toBeUndefined()
+      }
+    })
+
+    it('rejects non-array tags', () => {
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: 'urgent' })] })).ok).toBe(false)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: {} })] })).ok).toBe(false)
+    })
+
+    it('rejects non-string entries', () => {
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: [42] })] })).ok).toBe(false)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: [null] })] })).ok).toBe(false)
+    })
+
+    it('rejects uppercase / whitespace / illegal chars', () => {
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: ['URGENT'] })] })).ok).toBe(false)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: [' urgent'] })] })).ok).toBe(false)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: ['has space'] })] })).ok).toBe(false)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: ['bang!'] })] })).ok).toBe(false)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: [''] })] })).ok).toBe(false)
+    })
+
+    it('rejects over-length slugs', () => {
+      const tooLong = 'a'.repeat(65)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags: [tooLong] })] })).ok).toBe(false)
+    })
+
+    it('rejects more than 64 tags on a single row', () => {
+      const tags = Array.from({ length: 65 }, (_, i) => `t${i}`)
+      expect(validateImportData(validData({ todos: [makeTodo({ tags })] })).ok).toBe(false)
+    })
+  })
+
   // Settings validation
   it('rejects settings with color CSS injection', () => {
     const result = validateImportData(validData({

@@ -122,6 +122,21 @@ function isOptScheduledValue(v: unknown): boolean {
   return false
 }
 
+import { TAG_SLUG_RE, TAG_MAX_LEN } from '../utils/tags'
+
+const MAX_TAGS_PER_TODO = 64
+
+function isValidTagSlug(v: unknown): boolean {
+  return typeof v === 'string' && v.length > 0 && v.length <= TAG_MAX_LEN && TAG_SLUG_RE.test(v)
+}
+
+function isOptTagArray(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (!Array.isArray(v)) return false
+  if (v.length > MAX_TAGS_PER_TODO) return false
+  return v.every(isValidTagSlug)
+}
+
 function checkTodo(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -144,6 +159,8 @@ function checkTodo(v: unknown): CheckResult {
     ['canvasId', isOptNum(v.canvasId)],
     ['statusId', isOptNum(v.statusId)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
+    // v35+: optional inline tags. Each entry must match `/^[a-z0-9_-]+$/`.
+    ['tags', isOptTagArray(v.tags)],
   ])
 }
 
@@ -759,6 +776,7 @@ function pickTodo(v: Record<string, unknown>): TodoItem {
     ...(v.projectId != null ? { projectId: v.projectId as number } : {}),
     ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
     ...(v.statusId != null ? { statusId: v.statusId as number } : {}),
+    ...(Array.isArray(v.tags) && v.tags.length > 0 ? { tags: v.tags as string[] } : {}),
     // Legacy fields preserved so restore can translate them. Post-restore translation deletes them.
     ...(v.priority != null ? { priority: v.priority } : {}),
     ...(v.isHardDeadline != null ? { isHardDeadline: v.isHardDeadline } : {}),

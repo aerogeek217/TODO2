@@ -2,11 +2,13 @@ import { create } from 'zustand'
 import type { PersistedTodoItem } from '../models'
 import type { ScheduledValue } from '../models/scheduled-value'
 import { todoRepository } from '../data'
+import { db } from '../data/database'
 import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
-import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField } from './store-helpers'
+import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, type SetFn } from './store-helpers'
 import { useSettingsStore } from './settings-store'
+import { normalizeTag, normalizeTags, renameTagInArray, tagsEqual } from '../utils/tags'
 
 interface TodoState {
   todos: PersistedTodoItem[]
@@ -31,10 +33,51 @@ interface TodoState {
   applyMutations: (mutations: TaskMutation[]) => Promise<void>
   purgeExpiredCompleted: (retentionDays: number) => Promise<number>
   duplicate: (id: number) => Promise<number | undefined>
+  /** Append `tag` to the todo's tag set (normalized). Idempotent; no-op if already present. */
+  addTag: (todoId: number, tag: string) => Promise<void>
+  /** Remove `tag` from the todo's tag set (normalized). Idempotent; no-op if absent. */
+  removeTag: (todoId: number, tag: string) => Promise<void>
+  /** Bulk-replace the todo's tag set. Input is normalized and deduped first-seen. */
+  setTags: (todoId: number, tags: readonly string[]) => Promise<void>
+  /** Rewrite every occurrence of `from` → `to` across all todos; returns count of touched rows. */
+  renameTag: (from: string, to: string) => Promise<number>
   /** Internal: restore a deleted todo (for undo). */
   _restore: (todo: PersistedTodoItem, personIds: number[], orgIds: number[]) => Promise<void>
   /** Internal: remove without undo registration (for redo of add). */
   _removeNoUndo: (id: number) => Promise<void>
+}
+
+/**
+ * Persist a todo's tag array to Dexie. Empty arrays drop the key entirely —
+ * post-v35 schema convention ("omitted when empty"). Must be called inside a
+ * `db.todos` write transaction or on its own (Dexie auto-scopes single calls).
+ */
+async function writeTodoTags(todoId: number, next: string[], now: Date): Promise<void> {
+  await db.todos.where(':id').equals(todoId).modify((row) => {
+    if (next.length === 0) delete row.tags
+    else row.tags = next
+    row.modifiedAt = now
+  })
+}
+
+/** Mirror a single-todo tag change back into the in-memory store. */
+function applyTodoTagsToState(
+  set: SetFn,
+  get: () => { todos: PersistedTodoItem[] },
+  todoId: number,
+  next: string[],
+  now: Date,
+): void {
+  set({
+    todos: get().todos.map((t) => {
+      if (t.id !== todoId) return t
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { tags: _prev, ...rest } = t
+      return next.length > 0
+        ? { ...rest, tags: next, modifiedAt: now }
+        : { ...rest, modifiedAt: now }
+    }),
+  })
 }
 
 export const useTodoStore = create<TodoState>((set, get) => ({
@@ -515,6 +558,83 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       )
       return newId
     }, 'Failed to duplicate task')
+  },
+
+  async addTag(todoId: number, tag: string) {
+    return mutate(set, async () => {
+      const todo = get().todos.find((t) => t.id === todoId)
+      if (!todo) return
+      const slug = normalizeTag(tag)
+      if (!slug) return
+      const current = todo.tags ?? []
+      if (current.includes(slug)) return
+      const next = [...current, slug]
+      const now = new Date()
+      await writeTodoTags(todoId, next, now)
+      applyTodoTagsToState(set, get, todoId, next, now)
+    }, 'Failed to add tag')
+  },
+
+  async removeTag(todoId: number, tag: string) {
+    return mutate(set, async () => {
+      const todo = get().todos.find((t) => t.id === todoId)
+      if (!todo) return
+      const slug = normalizeTag(tag)
+      if (!slug) return
+      const current = todo.tags ?? []
+      if (!current.includes(slug)) return
+      const next = current.filter((t) => t !== slug)
+      const now = new Date()
+      await writeTodoTags(todoId, next, now)
+      applyTodoTagsToState(set, get, todoId, next, now)
+    }, 'Failed to remove tag')
+  },
+
+  async setTags(todoId: number, tags: readonly string[]) {
+    return mutate(set, async () => {
+      const todo = get().todos.find((t) => t.id === todoId)
+      if (!todo) return
+      const next = normalizeTags(tags)
+      if (tagsEqual(todo.tags, next)) return
+      const now = new Date()
+      await writeTodoTags(todoId, next, now)
+      applyTodoTagsToState(set, get, todoId, next, now)
+    }, 'Failed to set tags')
+  },
+
+  async renameTag(from: string, to: string) {
+    return mutate(set, async () => {
+      const src = normalizeTag(from)
+      const dst = normalizeTag(to)
+      if (!src || !dst || src === dst) return 0
+      const now = new Date()
+      const updates: { id: number; next: string[] }[] = []
+      await db.transaction('rw', db.todos, async () => {
+        const rows = await db.todos.toArray() as PersistedTodoItem[]
+        for (const row of rows) {
+          if (row.id == null || !row.tags?.length) continue
+          const { changed, next } = renameTagInArray(row.tags, src, dst)
+          if (!changed) continue
+          await writeTodoTags(row.id, next, now)
+          updates.push({ id: row.id, next })
+        }
+      })
+      if (updates.length > 0) {
+        const updateMap = new Map(updates.map((u) => [u.id, u.next]))
+        set({
+          todos: get().todos.map((t) => {
+            const next = updateMap.get(t.id)
+            if (!next) return t
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { tags: _prev, ...rest } = t
+            return next.length > 0
+              ? { ...rest, tags: next, modifiedAt: now }
+              : { ...rest, modifiedAt: now }
+          }),
+        })
+      }
+      return updates.length
+    }, 'Failed to rename tag')
   },
 
   async _restore(todo: PersistedTodoItem, personIds: number[], orgIds: number[] = []) {

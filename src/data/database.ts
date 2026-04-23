@@ -216,6 +216,13 @@ export class Todo2Database extends Dexie {
       .upgrade(async (tx) => {
         await runV34Migration(tx)
       })
+
+    // v35: tags re-introduced as an inline `tags?: string[]` field on
+    // `TodoItem`. No index (search hits the hot path), so the schema string is
+    // unchanged. Version bump + empty store object kept for auditability —
+    // existing rows need no rewriting (the field is optional and omitted when
+    // empty).
+    this.version(35).stores({})
   }
 }
 

@@ -244,4 +244,161 @@ describe('todoStore', () => {
     })
 
   })
+
+  describe('tag helpers', () => {
+    it('addTag normalizes and persists a single slug', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().addTag(id, '  URGENT  ')
+
+      const inMemory = useTodoStore.getState().todos.find((t) => t.id === id)
+      expect(inMemory!.tags).toEqual(['urgent'])
+
+      const fromDb = await db.todos.get(id)
+      expect(fromDb!.tags).toEqual(['urgent'])
+    })
+
+    it('addTag is idempotent — re-adding an existing slug no-ops', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().addTag(id, 'alpha')
+      const afterFirst = useTodoStore.getState().todos.find((t) => t.id === id)!.modifiedAt
+      // Tick the clock so a re-add would leave a visible timestamp bump if it wrote.
+      await new Promise((r) => setTimeout(r, 2))
+      await useTodoStore.getState().addTag(id, 'ALPHA')
+
+      const todo = useTodoStore.getState().todos.find((t) => t.id === id)!
+      expect(todo.tags).toEqual(['alpha'])
+      expect(todo.modifiedAt).toEqual(afterFirst)
+    })
+
+    it('addTag rejects invalid slugs silently (no DB write, no crash)', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().addTag(id, 'has space')
+      await useTodoStore.getState().addTag(id, 'bang!')
+      await useTodoStore.getState().addTag(id, '')
+
+      const fromDb = await db.todos.get(id)
+      expect(fromDb!.tags).toBeUndefined()
+    })
+
+    it('addTag appends in insertion order', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().addTag(id, 'gamma')
+      await useTodoStore.getState().addTag(id, 'alpha')
+      await useTodoStore.getState().addTag(id, 'beta')
+
+      expect(useTodoStore.getState().todos.find((t) => t.id === id)!.tags)
+        .toEqual(['gamma', 'alpha', 'beta'])
+    })
+
+    it('removeTag removes and no-ops when absent', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().setTags(id, ['alpha', 'beta'])
+      await useTodoStore.getState().removeTag(id, 'ALPHA')
+
+      const todo = useTodoStore.getState().todos.find((t) => t.id === id)!
+      expect(todo.tags).toEqual(['beta'])
+
+      await useTodoStore.getState().removeTag(id, 'never-was-there')
+      expect(useTodoStore.getState().todos.find((t) => t.id === id)!.tags)
+        .toEqual(['beta'])
+    })
+
+    it('removeTag dropping the last tag clears the field in DB + memory', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().addTag(id, 'solo')
+      await useTodoStore.getState().removeTag(id, 'solo')
+
+      const inMemory = useTodoStore.getState().todos.find((t) => t.id === id)!
+      expect(inMemory.tags).toBeUndefined()
+
+      const fromDb = await db.todos.get(id)
+      expect(fromDb!.tags).toBeUndefined()
+      expect('tags' in (fromDb as object)).toBe(false)
+    })
+
+    it('setTags replaces, normalizes, and dedupes first-seen', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().setTags(id, ['Alpha', 'alpha', '', 'BAD CHAR!', 'beta'])
+
+      expect(useTodoStore.getState().todos.find((t) => t.id === id)!.tags)
+        .toEqual(['alpha', 'beta'])
+    })
+
+    it('setTags with empty array drops the field', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().addTag(id, 'a')
+      await useTodoStore.getState().setTags(id, [])
+
+      const fromDb = await db.todos.get(id)
+      expect(fromDb!.tags).toBeUndefined()
+      expect('tags' in (fromDb as object)).toBe(false)
+    })
+
+    it('setTags with the same set is a no-op (does not bump modifiedAt)', async () => {
+      const id = await useTodoStore.getState().add('Task')
+      await useTodoStore.getState().setTags(id, ['alpha', 'beta'])
+      const before = useTodoStore.getState().todos.find((t) => t.id === id)!.modifiedAt
+      await new Promise((r) => setTimeout(r, 2))
+      await useTodoStore.getState().setTags(id, ['Alpha', 'BETA'])
+
+      expect(useTodoStore.getState().todos.find((t) => t.id === id)!.modifiedAt)
+        .toEqual(before)
+    })
+
+    it('renameTag rewrites src→dst across all matching rows, returns count', async () => {
+      const a = await useTodoStore.getState().add('A')
+      const b = await useTodoStore.getState().add('B')
+      const c = await useTodoStore.getState().add('C')
+      await useTodoStore.getState().setTags(a, ['old', 'other'])
+      await useTodoStore.getState().setTags(b, ['old'])
+      await useTodoStore.getState().setTags(c, ['unrelated'])
+
+      const touched = await useTodoStore.getState().renameTag('old', 'new')
+      expect(touched).toBe(2)
+
+      expect(useTodoStore.getState().todos.find((t) => t.id === a)!.tags)
+        .toEqual(['new', 'other'])
+      expect(useTodoStore.getState().todos.find((t) => t.id === b)!.tags)
+        .toEqual(['new'])
+      expect(useTodoStore.getState().todos.find((t) => t.id === c)!.tags)
+        .toEqual(['unrelated'])
+
+      // DB mirrors memory.
+      expect((await db.todos.get(a))!.tags).toEqual(['new', 'other'])
+      expect((await db.todos.get(b))!.tags).toEqual(['new'])
+      expect((await db.todos.get(c))!.tags).toEqual(['unrelated'])
+    })
+
+    it('renameTag dedupes when dst already present in same row', async () => {
+      const id = await useTodoStore.getState().add('T')
+      await useTodoStore.getState().setTags(id, ['beta', 'alpha'])
+
+      const touched = await useTodoStore.getState().renameTag('alpha', 'beta')
+      expect(touched).toBe(1)
+      expect(useTodoStore.getState().todos.find((t) => t.id === id)!.tags)
+        .toEqual(['beta'])
+    })
+
+    it('renameTag with src === dst returns 0 and does not walk', async () => {
+      const id = await useTodoStore.getState().add('T')
+      await useTodoStore.getState().setTags(id, ['alpha'])
+      const before = useTodoStore.getState().todos.find((t) => t.id === id)!.modifiedAt
+
+      const touched = await useTodoStore.getState().renameTag('ALPHA', 'alpha')
+      expect(touched).toBe(0)
+      expect(useTodoStore.getState().todos.find((t) => t.id === id)!.modifiedAt)
+        .toEqual(before)
+    })
+
+    it('renameTag with invalid src or dst returns 0 without writing', async () => {
+      const id = await useTodoStore.getState().add('T')
+      await useTodoStore.getState().setTags(id, ['alpha'])
+
+      expect(await useTodoStore.getState().renameTag('alpha', 'bad char!')).toBe(0)
+      expect(await useTodoStore.getState().renameTag('has space', 'beta')).toBe(0)
+
+      expect(useTodoStore.getState().todos.find((t) => t.id === id)!.tags)
+        .toEqual(['alpha'])
+    })
+  })
 })

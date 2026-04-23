@@ -17,6 +17,12 @@ export interface TodoItem {
   canvasId?: number
   statusId?: number
   sortOrder: number
+  /**
+   * Lowercase slugs (`/^[a-z0-9_-]+$/`). Omitted when empty. Authored by
+   * `#foo` NLP; display rule (see plan) keeps tags out of task rows — they
+   * exist to power search / filter / grouping only.
+   */
+  tags?: string[]
 }
 
 /** TodoItem after persistence — id is always defined. */
