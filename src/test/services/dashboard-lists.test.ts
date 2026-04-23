@@ -6,7 +6,7 @@ import {
 } from '../../services/dashboard-lists'
 import { resolveFuzzy } from '../../utils/effective-date'
 import { MS_PER_DAY, startOfDay } from '../../utils/date'
-import type { PersistedTodoItem, TodoPredicate } from '../../models'
+import type { PersistedTodoItem, Tag, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 const today = startOfDay(new Date('2026-04-13T12:00:00'))
@@ -451,42 +451,68 @@ describe('interpretGrouping — by-sortBy', () => {
 })
 
 describe('interpretGrouping — by-tag', () => {
-  it('explodes N-tag todos into N buckets (many-to-many)', () => {
-    const a = { ...makeTodo({ id: 1 }), tags: ['urgent', 'work'] } as PersistedTodoItem
-    const b = { ...makeTodo({ id: 2 }), tags: ['urgent'] } as PersistedTodoItem
+  const URGENT: Tag = { id: 10, name: 'urgent', color: '#f00' }
+  const WORK: Tag = { id: 20, name: 'work', color: '#0f0' }
+  const ALPHA: Tag = { id: 30, name: 'alpha', color: '#00f' }
+  const MU: Tag = { id: 40, name: 'mu', color: '#ff0' }
+  const ZETA: Tag = { id: 50, name: 'zeta', color: '#0ff' }
+
+  it('explodes N-tag todos into N buckets (many-to-many) via assignedTagsMap', () => {
+    const a = makeTodo({ id: 1 })
+    const b = makeTodo({ id: 2 })
+    const assignedTagsMap = new Map<number, Tag[]>([
+      [1, [URGENT, WORK]],
+      [2, [URGENT]],
+    ])
     const def = customDef({ grouping: { kind: 'by-tag' } })
-    const lists = buildDashboardLists([def], [a, b], makeCtx())
+    const lists = buildDashboardLists([def], [a, b], makeCtx({ assignedTagsMap }))
     const groups = lists[0].groups!
-    expect(groups.map((g) => g.key)).toEqual(['tag-urgent', 'tag-work'])
+    expect(groups.map((g) => g.key)).toEqual(['tag-10', 'tag-20'])
+    expect(groups.map((g) => g.label)).toEqual(['#urgent', '#work'])
     expect(groups[0].todos.map((t) => t.id).sort()).toEqual([1, 2])
     expect(groups[1].todos.map((t) => t.id)).toEqual([1])
   })
 
   it('routes untagged todos into a trailing "No tag" bucket', () => {
-    const tagged = { ...makeTodo({ id: 1 }), tags: ['urgent'] } as PersistedTodoItem
+    const tagged = makeTodo({ id: 1 })
     const untagged = makeTodo({ id: 2 })
+    const assignedTagsMap = new Map<number, Tag[]>([
+      [1, [URGENT]],
+      // 2 has no entry
+    ])
     const def = customDef({ grouping: { kind: 'by-tag' } })
-    const lists = buildDashboardLists([def], [tagged, untagged], makeCtx())
+    const lists = buildDashboardLists([def], [tagged, untagged], makeCtx({ assignedTagsMap }))
     const groups = lists[0].groups!
-    expect(groups.map((g) => g.key)).toEqual(['tag-urgent', 'no-tag'])
+    expect(groups.map((g) => g.key)).toEqual(['tag-10', 'no-tag'])
     expect(groups[1].label).toBe('No tag')
     expect(groups[1].todos.map((t) => t.id)).toEqual([2])
   })
 
-  it('sorts tag buckets alphabetically', () => {
-    const todos = [
-      { ...makeTodo({ id: 1 }), tags: ['zeta'] },
-      { ...makeTodo({ id: 2 }), tags: ['alpha'] },
-      { ...makeTodo({ id: 3 }), tags: ['mu'] },
-    ] as PersistedTodoItem[]
+  it('sorts tag buckets alphabetically by registry name', () => {
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const assignedTagsMap = new Map<number, Tag[]>([
+      [1, [ZETA]],
+      [2, [ALPHA]],
+      [3, [MU]],
+    ])
     const def = customDef({ grouping: { kind: 'by-tag' } })
-    const lists = buildDashboardLists([def], todos, makeCtx())
-    expect(lists[0].groups!.map((g) => g.key)).toEqual(['tag-alpha', 'tag-mu', 'tag-zeta'])
+    const lists = buildDashboardLists([def], todos, makeCtx({ assignedTagsMap }))
+    expect(lists[0].groups!.map((g) => g.key)).toEqual(['tag-30', 'tag-40', 'tag-50'])
+    expect(lists[0].groups!.map((g) => g.label)).toEqual(['#alpha', '#mu', '#zeta'])
   })
 
   it('returns an empty list (not undefined) when no todos match', () => {
     const def = customDef({ grouping: { kind: 'by-tag' } })
     const lists = buildDashboardLists([def], [], makeCtx())
     expect(lists[0].groups).toEqual([])
+  })
+
+  it('without an assignedTagsMap, every todo lands in the "No tag" bucket', () => {
+    const a = makeTodo({ id: 1 })
+    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const lists = buildDashboardLists([def], [a], makeCtx())
+    expect(lists[0].groups).toEqual([
+      { key: 'no-tag', label: 'No tag', todos: [a] },
+    ])
   })
 })

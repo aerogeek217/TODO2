@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem, Person, Project } from '../../models'
+import type { PersistedTodoItem, Person, Project, Tag } from '../../models'
 import {
   buildDateSections,
   buildFlatSection,
@@ -123,51 +123,93 @@ describe('buildPeopleSections', () => {
 })
 
 describe('buildTagSections', () => {
-  it('explodes a two-tag todo into both buckets', () => {
-    const todos = [
-      { ...makeTodo({ id: 1 }), tags: ['urgent', 'work'] },
-    ]
-    const sections = buildTagSections(todos)
-    expect(sections.map((s) => s.key)).toEqual(['tag-urgent', 'tag-work'])
-    expect(sections[0].todos.map((t) => t.id)).toEqual([1])
-    expect(sections[1].todos.map((t) => t.id)).toEqual([1])
+  const URGENT: Tag = { id: 1, name: 'urgent', color: '#f00' }
+  const WORK: Tag = { id: 2, name: 'work', color: '#0f0' }
+  const ALPHA: Tag = { id: 3, name: 'alpha', color: '#00f' }
+  const MU: Tag = { id: 4, name: 'mu', color: '#ff0' }
+  const ZETA: Tag = { id: 5, name: 'zeta', color: '#0ff' }
+
+  it('explodes a two-tag todo into both buckets via the assigned map', () => {
+    const todos = [makeTodo({ id: 10 })]
+    const assigned = new Map<number, Tag[]>([
+      [10, [URGENT, WORK]],
+    ])
+    const sections = buildTagSections(todos, [URGENT, WORK], assigned)
+    expect(sections.map((s) => s.key)).toEqual(['tag-1', 'tag-2'])
+    expect(sections[0].todos.map((t) => t.id)).toEqual([10])
+    expect(sections[1].todos.map((t) => t.id)).toEqual([10])
   })
 
-  it('sorts tag buckets alphabetically', () => {
+  it('sorts tag buckets alphabetically by registry name', () => {
     const todos = [
-      { ...makeTodo({ id: 1 }), tags: ['zeta'] },
-      { ...makeTodo({ id: 2 }), tags: ['alpha'] },
-      { ...makeTodo({ id: 3 }), tags: ['mu'] },
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
     ]
-    const sections = buildTagSections(todos)
-    expect(sections.map((s) => s.key)).toEqual(['tag-alpha', 'tag-mu', 'tag-zeta'])
+    const assigned = new Map<number, Tag[]>([
+      [10, [ZETA]],
+      [11, [ALPHA]],
+      [12, [MU]],
+    ])
+    const sections = buildTagSections(todos, [ZETA, ALPHA, MU], assigned)
+    expect(sections.map((s) => s.key)).toEqual(['tag-3', 'tag-4', 'tag-5'])
+    expect(sections.map((s) => s.label)).toEqual(['#alpha', '#mu', '#zeta'])
+  })
+
+  it('surfaces the registry color as the section accentColor', () => {
+    const todos = [makeTodo({ id: 10 })]
+    const assigned = new Map<number, Tag[]>([[10, [URGENT]]])
+    const sections = buildTagSections(todos, [URGENT], assigned)
+    expect(sections[0].accentColor).toBe('#f00')
+  })
+
+  it('uses the canonical casing from the registry, not whatever was typed first', () => {
+    const pascal: Tag = { id: 7, name: 'Urgent', color: '#f00' }
+    const todos = [makeTodo({ id: 10 })]
+    const assigned = new Map<number, Tag[]>([[10, [pascal]]])
+    const sections = buildTagSections(todos, [pascal], assigned)
+    expect(sections[0].label).toBe('#Urgent')
   })
 
   it('routes untagged todos into a trailing "No tag" bucket', () => {
     const todos = [
-      { ...makeTodo({ id: 1 }), tags: ['urgent'] },
-      makeTodo({ id: 2 }),
-      { ...makeTodo({ id: 3 }), tags: [] as string[] },
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
     ]
-    const sections = buildTagSections(todos)
-    expect(sections.map((s) => s.key)).toEqual(['tag-urgent', 'no-tag'])
+    const assigned = new Map<number, Tag[]>([
+      [10, [URGENT]],
+      // 11 unassigned; 12 has an empty array
+      [12, []],
+    ])
+    const sections = buildTagSections(todos, [URGENT], assigned)
+    expect(sections.map((s) => s.key)).toEqual(['tag-1', 'no-tag'])
     const noTag = sections[1]
     expect(noTag.label).toBe('No tag')
-    expect(noTag.todos.map((t) => t.id).sort()).toEqual([2, 3])
+    expect(noTag.todos.map((t) => t.id).sort()).toEqual([11, 12])
   })
 
-  it('dedupes repeated tag values on a single todo', () => {
-    const todos = [
-      { ...makeTodo({ id: 1 }), tags: ['urgent', 'URGENT', 'urgent'] },
-    ]
-    const sections = buildTagSections(todos)
+  it('dedupes repeated tag entries on a single todo', () => {
+    const todos = [makeTodo({ id: 10 })]
+    const assigned = new Map<number, Tag[]>([
+      [10, [URGENT, URGENT, URGENT]],
+    ])
+    const sections = buildTagSections(todos, [URGENT], assigned)
     expect(sections).toHaveLength(1)
-    expect(sections[0].key).toBe('tag-urgent')
+    expect(sections[0].key).toBe('tag-1')
     expect(sections[0].todos).toHaveLength(1)
   })
 
-  it('renders an empty result when no todos have tags and none are untagged', () => {
-    expect(buildTagSections([])).toEqual([])
+  it('prunes tags with no assignments from the result (empty buckets drop)', () => {
+    const todos = [makeTodo({ id: 10 })]
+    const assigned = new Map<number, Tag[]>([[10, [URGENT]]])
+    // WORK is in the registry but has no assignments — should not appear.
+    const sections = buildTagSections(todos, [URGENT, WORK], assigned)
+    expect(sections.map((s) => s.key)).toEqual(['tag-1'])
+  })
+
+  it('renders an empty result when the input is empty', () => {
+    expect(buildTagSections([], [], new Map())).toEqual([])
   })
 })
 

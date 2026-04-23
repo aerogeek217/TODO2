@@ -105,6 +105,7 @@ export function ListDefinitionBody({
     const [list] = buildDashboardLists([definition], todos, {
       today,
       evalPredicate,
+      assignedTagsMap,
     })
     return list?.todos ?? []
   }, [

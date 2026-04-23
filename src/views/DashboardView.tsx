@@ -538,8 +538,9 @@ export function DashboardView() {
     return buildDashboardLists(pinned, todos, {
       today,
       evalPredicate,
+      assignedTagsMap,
     })
-  }, [listDefinitions, todos, today, evalPredicate])
+  }, [listDefinitions, todos, today, evalPredicate, assignedTagsMap])
 
   const listsById = useMemo(() => {
     const map = new Map<number, DashboardList>()

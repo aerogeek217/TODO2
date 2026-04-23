@@ -40,7 +40,7 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopup'
 import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person, Project, Org, Status, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
+import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
 import type { ListGrouping, ListSort } from '../models/list-definition'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
@@ -318,32 +318,44 @@ export function buildStatusSections(
 /**
  * Tag grouping explodes a todo with N tags into N buckets (mirrors the
  * people/org many-to-many pattern). Untagged todos land in a "No tag"
- * bucket. Buckets sort alphabetically by tag.
+ * bucket. Buckets sort alphabetically by tag name. Labels use the
+ * registry's canonical casing; accent uses `tag.color`.
  */
-export function buildTagSections(todos: PersistedTodoItem[]): Section[] {
-  const buckets = new Map<string, PersistedTodoItem[]>()
+export function buildTagSections(
+  todos: PersistedTodoItem[],
+  tags: Tag[],
+  assignedTagsMap: Map<number, Tag[]>,
+): Section[] {
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const tg of tags) buckets.set(tg.id!, [])
   const untagged: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    const tags = t.tags ?? []
-    if (tags.length === 0) { untagged.push(t); continue }
-    const seen = new Set<string>()
-    for (const raw of tags) {
-      const tag = raw.toLowerCase()
-      if (seen.has(tag)) continue
-      seen.add(tag)
-      let bucket = buckets.get(tag)
-      if (!bucket) { bucket = []; buckets.set(tag, bucket) }
-      bucket.push(t)
+    const assigned = assignedTagsMap.get(t.id) ?? []
+    if (assigned.length === 0) { untagged.push(t); continue }
+    const seen = new Set<number>()
+    for (const tg of assigned) {
+      const id = tg.id!
+      if (seen.has(id)) continue
+      seen.add(id)
+      const bucket = buckets.get(id)
+      if (bucket) bucket.push(t)
     }
   }
 
-  const sortedTags = [...buckets.keys()].sort((a, b) => a.localeCompare(b))
-  const sections: Section[] = sortedTags.map((tag) => ({
-    key: `tag-${tag}`,
-    label: `#${tag}`,
-    todos: buckets.get(tag)!,
-  }))
+  const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name))
+  const sections: Section[] = []
+  for (const tg of sortedTags) {
+    const ts = buckets.get(tg.id!)!
+    if (ts.length > 0) {
+      sections.push({
+        key: `tag-${tg.id}`,
+        label: `#${tg.name}`,
+        accentColor: tg.color,
+        todos: ts,
+      })
+    }
+  }
   if (untagged.length > 0) sections.push({ key: 'no-tag', label: 'No tag', todos: untagged })
   return sections
 }
@@ -565,6 +577,7 @@ export function ListView() {
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments, assignPerson, unassignPerson } = usePersonStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const tags = useTagStore((s) => s.tags)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTags = useTagStore((s) => s.load)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
@@ -664,9 +677,9 @@ export function ListView() {
       case 'status':
         return buildStatusSections(activeTodos, statuses)
       case 'tag':
-        return buildTagSections(activeTodos)
+        return buildTagSections(activeTodos, tags, assignedTagsMap)
     }
-  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
+  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, tags, assignedTagsMap])
 
   const withinGroupComparator = useMemo(
     () => itemSortComparator(listSortBy),

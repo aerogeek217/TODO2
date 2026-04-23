@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, TodoPredicate, ListSortBy } from '../models'
+import type { PersistedTodoItem, TodoPredicate, ListSortBy, Tag } from '../models'
 import type {
   ListMembership,
   ListSort,
@@ -20,6 +20,14 @@ export interface DashboardListsContext {
    * console warning once per build).
    */
   evalPredicate?: (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
+  /**
+   * Required for `{kind:'by-tag'}` grouping. Parallels `assignedPeopleMap` /
+   * `assignedOrgsMap`: caller threads the registry + assignments through so
+   * the interpreter can bucket by tag id without reading the (transient)
+   * inline `todo.tags` string bag. When omitted, by-tag grouping yields an
+   * empty group list (untagged bucket still emits).
+   */
+  assignedTagsMap?: Map<number, Tag[]>
 }
 
 export interface DashboardListGroup {
@@ -197,7 +205,7 @@ export function interpretGrouping(
     case 'by-field':
       return bucketByField(g.by, todos, ctx)
     case 'by-tag':
-      return bucketByTag(todos)
+      return bucketByTag(todos, ctx)
   }
 }
 
@@ -340,33 +348,43 @@ function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContex
 
 /**
  * Tag buckets — N-tag todos land in all N buckets (many-to-many). Untagged
- * todos go into a trailing "No tag" bucket. Buckets sort alphabetically.
- * Parallels `buildTagSections` in ListView so widget + ListView grouping
- * stays consistent.
+ * todos go into a trailing "No tag" bucket. Buckets sort alphabetically by
+ * registry name. Parallels `buildTagSections` in ListView so widget +
+ * ListView grouping stays consistent; reads from `ctx.assignedTagsMap`
+ * rather than the (transient) inline `todo.tags` string bag.
  */
-function bucketByTag(todos: PersistedTodoItem[]): DashboardListGroup[] {
-  const buckets = new Map<string, PersistedTodoItem[]>()
+function bucketByTag(
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+): DashboardListGroup[] {
+  const assignedTagsMap = ctx.assignedTagsMap
+  const buckets = new Map<number, { tag: Tag; todos: PersistedTodoItem[] }>()
   const untagged: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    const tags = t.tags ?? []
-    if (tags.length === 0) { untagged.push(t); continue }
-    const seen = new Set<string>()
-    for (const raw of tags) {
-      const tag = raw.toLowerCase()
-      if (seen.has(tag)) continue
-      seen.add(tag)
-      let bucket = buckets.get(tag)
-      if (!bucket) { bucket = []; buckets.set(tag, bucket) }
-      bucket.push(t)
+    const assigned = assignedTagsMap?.get(t.id) ?? []
+    if (assigned.length === 0) { untagged.push(t); continue }
+    const seen = new Set<number>()
+    for (const tg of assigned) {
+      const id = tg.id!
+      if (seen.has(id)) continue
+      seen.add(id)
+      let entry = buckets.get(id)
+      if (!entry) {
+        entry = { tag: tg, todos: [] }
+        buckets.set(id, entry)
+      }
+      entry.todos.push(t)
     }
   }
 
-  const sortedTags = [...buckets.keys()].sort((a, b) => a.localeCompare(b))
-  const groups: DashboardListGroup[] = sortedTags.map((tag) => ({
-    key: `tag-${tag}`,
-    label: `#${tag}`,
-    todos: buckets.get(tag)!,
+  const sortedEntries = [...buckets.values()].sort((a, b) =>
+    a.tag.name.localeCompare(b.tag.name),
+  )
+  const groups: DashboardListGroup[] = sortedEntries.map(({ tag, todos }) => ({
+    key: `tag-${tag.id}`,
+    label: `#${tag.name}`,
+    todos,
   }))
   if (untagged.length > 0) groups.push({ key: 'no-tag', label: 'No tag', todos: untagged })
   return groups
