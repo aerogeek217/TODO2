@@ -1,6 +1,7 @@
-import type { Person, Project, Org, RecurrenceType } from '../models'
+import type { Person, Project, Org, RecurrenceType, Tag } from '../models'
 import type { ScheduledValue } from '../models/scheduled-value'
 import type { ParsedInput } from './natural-language-parser'
+import { DEFAULT_ENTITY_COLOR } from '../constants'
 
 export interface ResolvedInput {
   title: string
@@ -70,6 +71,53 @@ function matchOrg(name: string, orgs: Org[]): Org | undefined {
   const lower = name.toLowerCase()
   return matchByName(name, orgs, (o) => o.name)
     ?? orgs.find((o) => o.initials?.toLowerCase() === lower)
+}
+
+/**
+ * Minimal shape of the tag-store needed by `resolveTags`. Kept narrow so
+ * tests can substitute a plain in-memory fake without touching Dexie.
+ */
+export interface TagStoreLike {
+  /** Current tag snapshot. Callers may pass a stale snapshot; the resolver
+   * uses a local map to dedup in-loop creates. */
+  tags: Tag[]
+  add: (name: string, color?: string) => Promise<number>
+}
+
+/**
+ * Look up each parsed `#foo` name in the tag registry (case-insensitive) and
+ * assign the existing tag; for misses, create a new tag with
+ * `DEFAULT_ENTITY_COLOR` and use the new id. Returns ids in input order,
+ * deduped. Empty / whitespace-only names are skipped.
+ */
+export async function resolveTags(
+  names: readonly string[],
+  ctx: { tagStore: TagStoreLike },
+): Promise<number[]> {
+  const ids: number[] = []
+  const seen = new Set<number>()
+  const createdByLower = new Map<string, number>()
+  for (const raw of names) {
+    const trimmed = raw.trim()
+    if (trimmed.length === 0) continue
+    const lower = trimmed.toLowerCase()
+    let id: number | undefined = createdByLower.get(lower)
+    if (id === undefined) {
+      const existing = ctx.tagStore.tags.find(
+        (t) => t.name.trim().toLowerCase() === lower && t.id !== undefined,
+      )
+      id = existing?.id
+    }
+    if (id === undefined) {
+      id = await ctx.tagStore.add(trimmed, DEFAULT_ENTITY_COLOR)
+      createdByLower.set(lower, id)
+    }
+    if (!seen.has(id)) {
+      ids.push(id)
+      seen.add(id)
+    }
+  }
+  return ids
 }
 
 /**

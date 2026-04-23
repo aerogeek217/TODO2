@@ -1,5 +1,8 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { parseTaskInput, applyNlpMetadata } from '../../services/nlp-task-creator'
+import { resolveTags } from '../../services/nlp-resolver'
+import { useTagStore } from '../../stores/tag-store'
+import { db } from '../../data/database'
 import type { Person, Project, PersistedTodoItem } from '../../models'
 
 const people: Person[] = [
@@ -230,5 +233,72 @@ describe('applyNlpMetadata', () => {
     )
 
     expect(setTags).not.toHaveBeenCalled()
+  })
+})
+
+describe('NLP → tag registry end-to-end', () => {
+  beforeEach(async () => {
+    await db.delete()
+    await db.open()
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+  })
+
+  async function addTodo(title = 'Task'): Promise<number> {
+    return (await db.todos.add({
+      title, isCompleted: false,
+      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
+    })) as number
+  }
+
+  it('"fix #urgent" creates the tag (if new) and yields one todoTags join row', async () => {
+    const { title, resolved } = parseTaskInput('fix #urgent', [])
+    expect(title).toBe('fix')
+    expect(resolved.tags).toEqual(['urgent'])
+
+    const todoId = await addTodo('fix')
+    const tagIds = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
+    for (const tagId of tagIds) await useTagStore.getState().assignTag(todoId, tagId)
+
+    const allTags = await db.tags.toArray()
+    expect(allTags).toHaveLength(1)
+    expect(allTags[0].name).toBe('urgent')
+
+    const joins = await db.todoTags.where('todoId').equals(todoId).toArray()
+    expect(joins).toHaveLength(1)
+    expect(joins[0].tagId).toBe(allTags[0].id)
+  })
+
+  it('"fix #Urgent" reuses the existing `urgent` tag via case-insensitive lookup', async () => {
+    // Pre-seed: the user already created "urgent" earlier.
+    const existingId = await useTagStore.getState().add('urgent')
+
+    const { resolved } = parseTaskInput('fix #Urgent', [])
+    // Parser normalizes `#Urgent` → slug 'urgent' before hitting the resolver.
+    expect(resolved.tags).toEqual(['urgent'])
+
+    const todoId = await addTodo('fix')
+    const tagIds = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
+    expect(tagIds).toEqual([existingId])
+    for (const tagId of tagIds) await useTagStore.getState().assignTag(todoId, tagId)
+
+    const allTags = await db.tags.toArray()
+    expect(allTags).toHaveLength(1) // no duplicate created
+    const joins = await db.todoTags.where('todoId').equals(todoId).toArray()
+    expect(joins).toHaveLength(1)
+    expect(joins[0].tagId).toBe(existingId)
+  })
+
+  it('duplicate slugs from the same input collapse to one join row', async () => {
+    const { resolved } = parseTaskInput('note #foo #Foo #FOO', [])
+    // Parser dedupes first-seen lowercase, so three `#foo` variants → ['foo'].
+    expect(resolved.tags).toEqual(['foo'])
+
+    const todoId = await addTodo('note')
+    const tagIds = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
+    expect(tagIds).toHaveLength(1)
+    for (const tagId of tagIds) await useTagStore.getState().assignTag(todoId, tagId)
+
+    expect(await db.tags.count()).toBe(1)
+    expect(await db.todoTags.where('todoId').equals(todoId).count()).toBe(1)
   })
 })

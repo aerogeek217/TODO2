@@ -8,6 +8,8 @@ import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, type SetFn } from './store-helpers'
 import { useSettingsStore } from './settings-store'
+import { useTagStore } from './tag-store'
+import { resolveTags } from '../services/nlp-resolver'
 import { normalizeTag, normalizeTags, renameTagInArray, tagsEqual } from '../utils/tags'
 
 interface TodoState {
@@ -33,6 +35,10 @@ interface TodoState {
   applyMutations: (mutations: TaskMutation[]) => Promise<void>
   purgeExpiredCompleted: (retentionDays: number) => Promise<number>
   duplicate: (id: number) => Promise<number | undefined>
+  // ─── pre-migration tag adapters (Phases 1–8) ──────────────────────────────
+  // These still write the inline `todo.tags` field AND mirror every change
+  // through `tag-store.assignTag` / `unassignTag` so the v36 registry stays in
+  // sync. Phase 9 deletes them and wires every caller directly to `tag-store`.
   /** Append `tag` to the todo's tag set (normalized). Idempotent; no-op if already present. */
   addTag: (todoId: number, tag: string) => Promise<void>
   /** Remove `tag` from the todo's tag set (normalized). Idempotent; no-op if absent. */
@@ -58,6 +64,42 @@ async function writeTodoTags(todoId: number, next: string[], now: Date): Promise
     else row.tags = next
     row.modifiedAt = now
   })
+}
+
+/**
+ * Pre-migration sync: after an inline tag write, mirror the change through
+ * `tag-store` so the normalized registry (v36 `tags` + `todoTags` tables) stays
+ * aligned. `added` slugs are resolved-or-created; `removed` slugs are matched
+ * case-insensitively in the current store snapshot and unassigned. The whole
+ * thing is best-effort — the inline write already succeeded, so a registry
+ * failure here surfaces as a warning but doesn't roll back the inline field.
+ * Phase 9 deletes this mirror + the inline field together.
+ */
+async function mirrorTagsToRegistry(
+  todoId: number,
+  added: readonly string[],
+  removed: readonly string[],
+): Promise<void> {
+  try {
+    if (added.length > 0) {
+      const ids = await resolveTags(added, { tagStore: useTagStore.getState() })
+      for (const tagId of ids) {
+        await useTagStore.getState().assignTag(todoId, tagId)
+      }
+    }
+    if (removed.length > 0) {
+      const snapshot = useTagStore.getState().tags
+      for (const slug of removed) {
+        const lower = slug.trim().toLowerCase()
+        const tag = snapshot.find((t) => t.name.trim().toLowerCase() === lower && t.id !== undefined)
+        if (tag?.id !== undefined) {
+          await useTagStore.getState().unassignTag(todoId, tag.id)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('tag-store mirror failed', e)
+  }
 }
 
 /** Mirror a single-todo tag change back into the in-memory store. */
@@ -572,6 +614,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const now = new Date()
       await writeTodoTags(todoId, next, now)
       applyTodoTagsToState(set, get, todoId, next, now)
+      await mirrorTagsToRegistry(todoId, [slug], [])
     }, 'Failed to add tag')
   },
 
@@ -587,6 +630,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const now = new Date()
       await writeTodoTags(todoId, next, now)
       applyTodoTagsToState(set, get, todoId, next, now)
+      await mirrorTagsToRegistry(todoId, [], [slug])
     }, 'Failed to remove tag')
   },
 
@@ -596,9 +640,15 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       if (!todo) return
       const next = normalizeTags(tags)
       if (tagsEqual(todo.tags, next)) return
+      const prev = todo.tags ?? []
+      const prevSet = new Set(prev)
+      const nextSet = new Set(next)
+      const added = next.filter((t) => !prevSet.has(t))
+      const removed = prev.filter((t) => !nextSet.has(t))
       const now = new Date()
       await writeTodoTags(todoId, next, now)
       applyTodoTagsToState(set, get, todoId, next, now)
+      await mirrorTagsToRegistry(todoId, added, removed)
     }, 'Failed to set tags')
   },
 

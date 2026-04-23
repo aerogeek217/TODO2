@@ -3,11 +3,13 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import { useProjectStore } from '../stores/project-store'
+import { useTagStore } from '../stores/tag-store'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useUIStore } from '../stores/ui-store'
 import type { TodoItem, PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { parseTaskInput } from '../services/nlp-task-creator'
+import { resolveTags } from '../services/nlp-resolver'
 import { makeRecurrenceRule } from '../services/recurrence'
 import { scheduledValuesEqual } from '../utils/effective-date'
 
@@ -66,7 +68,14 @@ export function useTaskEditCallbacks() {
     const allOrgIds = new Set([...resolved.orgIds, ...(assignments?.orgIds ?? [])])
     for (const personId of allPersonIds) await assignPerson(id, personId)
     for (const orgId of allOrgIds) await assignOrg(id, orgId)
-    if (resolved.tags.length > 0) await setTags(id, resolved.tags)
+    if (resolved.tags.length > 0) {
+      // Registry-side writes (tags v2): resolve-or-create and assign via tag-store.
+      // Phase 9 drops the inline setTags call below; until then both paths run so
+      // any Phase 1–8 consumer still reading `todo.tags` keeps working.
+      const tagIds = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
+      for (const tagId of tagIds) await useTagStore.getState().assignTag(id, tagId)
+      await setTags(id, resolved.tags)
+    }
     return id
   }, [selectedCanvasId, addTodo, updateTodo, setTags, assignPerson, assignOrg, addProject, people, projects, orgs])
 

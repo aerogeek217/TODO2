@@ -19,6 +19,7 @@ import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
 import { useFloatingNoteStore } from './stores/floating-note-store'
 import { useStatusStore } from './stores/status-store'
+import { useTagStore } from './stores/tag-store'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
@@ -107,7 +108,7 @@ function AppShell() {
     Promise.all([ensureDefault(), loadSettings()])
       .then(() => initFileStorage())
       .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().loadAll(), useStatusStore.getState().load()]))
+      .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().loadAll(), useStatusStore.getState().load(), useTagStore.getState().load()]))
       .then(async () => {
         // Purge expired completed tasks on startup
         const { completedRetentionDays } = useSettingsStore.getState()
