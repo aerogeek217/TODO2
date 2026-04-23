@@ -66,6 +66,7 @@ const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode
   { value: 'status', label: 'Status', icon: groupByIcons.status },
   { value: 'people', label: 'People', icon: groupByIcons.people },
   { value: 'org', label: 'Org', icon: groupByIcons.org },
+  { value: 'tag', label: 'Tag', icon: groupByIcons.tag },
 ]
 
 const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.ReactNode }[] = [
@@ -314,6 +315,39 @@ export function buildStatusSections(
 }
 
 /**
+ * Tag grouping explodes a todo with N tags into N buckets (mirrors the
+ * people/org many-to-many pattern). Untagged todos land in a "No tag"
+ * bucket. Buckets sort alphabetically by tag.
+ */
+export function buildTagSections(todos: PersistedTodoItem[]): Section[] {
+  const buckets = new Map<string, PersistedTodoItem[]>()
+  const untagged: PersistedTodoItem[] = []
+
+  for (const t of todos) {
+    const tags = t.tags ?? []
+    if (tags.length === 0) { untagged.push(t); continue }
+    const seen = new Set<string>()
+    for (const raw of tags) {
+      const tag = raw.toLowerCase()
+      if (seen.has(tag)) continue
+      seen.add(tag)
+      let bucket = buckets.get(tag)
+      if (!bucket) { bucket = []; buckets.set(tag, bucket) }
+      bucket.push(t)
+    }
+  }
+
+  const sortedTags = [...buckets.keys()].sort((a, b) => a.localeCompare(b))
+  const sections: Section[] = sortedTags.map((tag) => ({
+    key: `tag-${tag}`,
+    label: `#${tag}`,
+    todos: buckets.get(tag)!,
+  }))
+  if (untagged.length > 0) sections.push({ key: 'no-tag', label: 'No tag', todos: untagged })
+  return sections
+}
+
+/**
  * Build a comparator for within-group sort. `'manual'` returns undefined so
  * the caller skips `.sort()` and preserves the upstream sortOrder order.
  */
@@ -382,6 +416,8 @@ export function encodeGroupSort(
   let grouping: ListGrouping
   if (groupBy === 'none') {
     grouping = { kind: 'none' }
+  } else if (groupBy === 'tag') {
+    grouping = { kind: 'by-tag' }
   } else if (itemSortBy !== 'manual' && groupBy === itemSortBy) {
     grouping = { kind: 'by-sortBy' }
   } else {
@@ -621,6 +657,8 @@ export function ListView() {
         return buildOrgSections(activeTodos, orgs, assignedPeopleMap, assignedOrgsMap, personOrgMap, filters.orgIds)
       case 'status':
         return buildStatusSections(activeTodos, statuses)
+      case 'tag':
+        return buildTagSections(activeTodos)
     }
   }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses])
 

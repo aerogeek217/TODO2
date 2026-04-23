@@ -8,8 +8,10 @@ export enum AppView {
 
 export type ListSortBy = 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status'
 
-/** What ListView / list-definition groups tasks by. `'none'` = flat list (no grouping). */
-export type ListGroupBy = 'none' | 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status'
+/** What ListView / list-definition groups tasks by. `'none'` = flat list (no grouping).
+ *  `'tag'` is not a `ListSortBy` — a tag-as-sort is meaningless for a many-per-task
+ *  field — so list-definitions serialize it via `ListGrouping.kind = 'by-tag'`. */
+export type ListGroupBy = 'none' | 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status' | 'tag'
 
 /** Sort applied within each group (or across the whole list when groupBy='none').
  *  Kept aligned with preset `ListSort` so ListView state round-trips losslessly

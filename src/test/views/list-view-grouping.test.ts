@@ -5,6 +5,7 @@ import {
   buildFlatSection,
   buildPeopleSections,
   buildProjectSections,
+  buildTagSections,
   itemSortComparator,
   encodeGroupSort,
   truncateSections,
@@ -121,6 +122,55 @@ describe('buildPeopleSections', () => {
   })
 })
 
+describe('buildTagSections', () => {
+  it('explodes a two-tag todo into both buckets', () => {
+    const todos = [
+      { ...makeTodo({ id: 1 }), tags: ['urgent', 'work'] },
+    ]
+    const sections = buildTagSections(todos)
+    expect(sections.map((s) => s.key)).toEqual(['tag-urgent', 'tag-work'])
+    expect(sections[0].todos.map((t) => t.id)).toEqual([1])
+    expect(sections[1].todos.map((t) => t.id)).toEqual([1])
+  })
+
+  it('sorts tag buckets alphabetically', () => {
+    const todos = [
+      { ...makeTodo({ id: 1 }), tags: ['zeta'] },
+      { ...makeTodo({ id: 2 }), tags: ['alpha'] },
+      { ...makeTodo({ id: 3 }), tags: ['mu'] },
+    ]
+    const sections = buildTagSections(todos)
+    expect(sections.map((s) => s.key)).toEqual(['tag-alpha', 'tag-mu', 'tag-zeta'])
+  })
+
+  it('routes untagged todos into a trailing "No tag" bucket', () => {
+    const todos = [
+      { ...makeTodo({ id: 1 }), tags: ['urgent'] },
+      makeTodo({ id: 2 }),
+      { ...makeTodo({ id: 3 }), tags: [] as string[] },
+    ]
+    const sections = buildTagSections(todos)
+    expect(sections.map((s) => s.key)).toEqual(['tag-urgent', 'no-tag'])
+    const noTag = sections[1]
+    expect(noTag.label).toBe('No tag')
+    expect(noTag.todos.map((t) => t.id).sort()).toEqual([2, 3])
+  })
+
+  it('dedupes repeated tag values on a single todo', () => {
+    const todos = [
+      { ...makeTodo({ id: 1 }), tags: ['urgent', 'URGENT', 'urgent'] },
+    ]
+    const sections = buildTagSections(todos)
+    expect(sections).toHaveLength(1)
+    expect(sections[0].key).toBe('tag-urgent')
+    expect(sections[0].todos).toHaveLength(1)
+  })
+
+  it('renders an empty result when no todos have tags and none are untagged', () => {
+    expect(buildTagSections([])).toEqual([])
+  })
+})
+
 describe('buildProjectSections', () => {
   it('groups by project with no-project fallback', () => {
     const projects: Project[] = [
@@ -203,6 +253,12 @@ describe('encodeGroupSort', () => {
     const { sort, grouping } = encodeGroupSort('project', 'manual')
     expect(grouping).toEqual({ kind: 'by-field', by: 'project' })
     expect(sort).toEqual({ kind: 'sort-order' })
+  })
+
+  it("grouped by tag serializes as its own `by-tag` kind, not `by-field`", () => {
+    const { sort, grouping } = encodeGroupSort('tag', 'date')
+    expect(grouping).toEqual({ kind: 'by-tag' })
+    expect(sort).toEqual({ kind: 'sortBy', by: 'date' })
   })
 })
 

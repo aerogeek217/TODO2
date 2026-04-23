@@ -425,3 +425,44 @@ describe('interpretGrouping — by-sortBy', () => {
     expect(lists[0].groups).toBeUndefined()
   })
 })
+
+describe('interpretGrouping — by-tag', () => {
+  it('explodes N-tag todos into N buckets (many-to-many)', () => {
+    const a = { ...makeTodo({ id: 1 }), tags: ['urgent', 'work'] } as PersistedTodoItem
+    const b = { ...makeTodo({ id: 2 }), tags: ['urgent'] } as PersistedTodoItem
+    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const lists = buildDashboardLists([def], [a, b], makeCtx())
+    const groups = lists[0].groups!
+    expect(groups.map((g) => g.key)).toEqual(['tag-urgent', 'tag-work'])
+    expect(groups[0].todos.map((t) => t.id).sort()).toEqual([1, 2])
+    expect(groups[1].todos.map((t) => t.id)).toEqual([1])
+  })
+
+  it('routes untagged todos into a trailing "No tag" bucket', () => {
+    const tagged = { ...makeTodo({ id: 1 }), tags: ['urgent'] } as PersistedTodoItem
+    const untagged = makeTodo({ id: 2 })
+    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const lists = buildDashboardLists([def], [tagged, untagged], makeCtx())
+    const groups = lists[0].groups!
+    expect(groups.map((g) => g.key)).toEqual(['tag-urgent', 'no-tag'])
+    expect(groups[1].label).toBe('No tag')
+    expect(groups[1].todos.map((t) => t.id)).toEqual([2])
+  })
+
+  it('sorts tag buckets alphabetically', () => {
+    const todos = [
+      { ...makeTodo({ id: 1 }), tags: ['zeta'] },
+      { ...makeTodo({ id: 2 }), tags: ['alpha'] },
+      { ...makeTodo({ id: 3 }), tags: ['mu'] },
+    ] as PersistedTodoItem[]
+    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const lists = buildDashboardLists([def], todos, makeCtx())
+    expect(lists[0].groups!.map((g) => g.key)).toEqual(['tag-alpha', 'tag-mu', 'tag-zeta'])
+  })
+
+  it('returns an empty list (not undefined) when no todos match', () => {
+    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const lists = buildDashboardLists([def], [], makeCtx())
+    expect(lists[0].groups).toEqual([])
+  })
+})

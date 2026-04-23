@@ -27,6 +27,9 @@ export type ListGrouping =
    *  by relative windows; categorical fields fall back to flat in the interpreter
    *  (ListView handles categorical bucketing locally). */
   | { kind: 'by-field'; by: ListSortBy }
+  /** Group by tag — explodes N-tag todos into N buckets (mirrors the people/org
+   *  many-to-many pattern). Separate kind because tags aren't a `ListSortBy`. */
+  | { kind: 'by-tag' }
 
 export interface ListDefinition {
   id?: number

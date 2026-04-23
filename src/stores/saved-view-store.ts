@@ -44,9 +44,13 @@ export function resolveSavedViewGrouping(v: { sortBy: string; groupBy?: ListGrou
   return { groupBy, itemSortBy }
 }
 
-/** Narrow a `ListGroupBy` to the legacy `ListSortBy` field written on save. */
+/** Narrow a `ListGroupBy` to the legacy `ListSortBy` field written on save.
+ *  `'tag'` has no `ListSortBy` counterpart (tags are many-per-task); we fall
+ *  back to `'date'` on the legacy field, matching how pre-feature 'tag' values
+ *  are read back via `translateSortBy`. Readers prefer the explicit `groupBy`. */
 function legacySortBy(groupBy: ListGroupBy): ListSortBy {
-  return groupBy === 'none' ? 'date' : groupBy
+  if (groupBy === 'none' || groupBy === 'tag') return 'date'
+  return groupBy
 }
 
 export interface ViewLimit {

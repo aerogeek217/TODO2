@@ -196,6 +196,8 @@ export function interpretGrouping(
     }
     case 'by-field':
       return bucketByField(g.by, todos, ctx)
+    case 'by-tag':
+      return bucketByTag(todos)
   }
 }
 
@@ -333,5 +335,39 @@ function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContex
   if (nextMonth.length > 0) groups.push({ key: 'next-month', label: 'Next month', todos: nextMonth })
   if (beyond.length > 0) groups.push({ key: 'beyond', label: 'Beyond', todos: beyond })
   if (noDate.length > 0) groups.push({ key: 'no-date', label: 'No scheduled date', todos: noDate })
+  return groups
+}
+
+/**
+ * Tag buckets — N-tag todos land in all N buckets (many-to-many). Untagged
+ * todos go into a trailing "No tag" bucket. Buckets sort alphabetically.
+ * Parallels `buildTagSections` in ListView so widget + ListView grouping
+ * stays consistent.
+ */
+function bucketByTag(todos: PersistedTodoItem[]): DashboardListGroup[] {
+  const buckets = new Map<string, PersistedTodoItem[]>()
+  const untagged: PersistedTodoItem[] = []
+
+  for (const t of todos) {
+    const tags = t.tags ?? []
+    if (tags.length === 0) { untagged.push(t); continue }
+    const seen = new Set<string>()
+    for (const raw of tags) {
+      const tag = raw.toLowerCase()
+      if (seen.has(tag)) continue
+      seen.add(tag)
+      let bucket = buckets.get(tag)
+      if (!bucket) { bucket = []; buckets.set(tag, bucket) }
+      bucket.push(t)
+    }
+  }
+
+  const sortedTags = [...buckets.keys()].sort((a, b) => a.localeCompare(b))
+  const groups: DashboardListGroup[] = sortedTags.map((tag) => ({
+    key: `tag-${tag}`,
+    label: `#${tag}`,
+    todos: buckets.get(tag)!,
+  }))
+  if (untagged.length > 0) groups.push({ key: 'no-tag', label: 'No tag', todos: untagged })
   return groups
 }

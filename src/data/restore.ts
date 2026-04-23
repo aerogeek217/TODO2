@@ -124,8 +124,9 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
   // Pre-v29 backups carry `tags` + `todoTags` arrays. Bake the tag names into
   // todo titles (` #tagname`) before the bulk-add so the surviving DB has no
   // tag-feature footprint. Mirrors the in-place `runV29Migration`.
+  const isPreV29 = !!(v.tags?.length || v.todoTags?.length)
   let tagsBaked = 0
-  if (v.tags?.length || v.todoTags?.length) {
+  if (isPreV29) {
     const namesByTodo = buildTagNamesByTodo(v.todoTags ?? [], v.tags ?? [])
     if (namesByTodo.size > 0) {
       for (const todo of v.todos) {
@@ -150,8 +151,12 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     const svRow = sv as unknown as Record<string, unknown>
     const f = svRow.filters as Record<string, unknown> | undefined
     if (f && 'tagIds' in f) delete f.tagIds
-    if (svRow.sortBy === 'tag') svRow.sortBy = 'date'
-    if (svRow.groupBy === 'tag') svRow.groupBy = 'none'
+    // Only neutralize the pre-v29 'tag' enum value on legacy backups. Post-v35
+    // backups legitimately carry `groupBy: 'tag'` for the re-introduced feature.
+    if (isPreV29) {
+      if (svRow.sortBy === 'tag') svRow.sortBy = 'date'
+      if (svRow.groupBy === 'tag') svRow.groupBy = 'none'
+    }
   }
 
   const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes, db.taskboards])

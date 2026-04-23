@@ -70,6 +70,7 @@ const GROUPING_KINDS: { value: ListGrouping['kind']; label: string; title?: stri
     title: 'Group by the same field used for sorting. Only available when Sort = Group attribute.',
   },
   { value: 'by-field', label: 'By field' },
+  { value: 'by-tag', label: 'By tag' },
 ]
 
 const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
@@ -86,6 +87,7 @@ const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
 function resolveGroupBy(def: PersistedListDefinition): ListGroupBy {
   const g = def.grouping
   if (g.kind === 'none') return 'none'
+  if (g.kind === 'by-tag') return 'tag'
   if (g.kind === 'by-field') return g.by
   if (g.kind === 'by-sortBy' && def.sort.kind === 'sortBy') return def.sort.by
   if (g.kind === 'relative-deadline') return 'deadline'

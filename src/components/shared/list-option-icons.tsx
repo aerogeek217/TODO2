@@ -76,6 +76,17 @@ function StatusIconGlyph() {
   return <StatusIcon icon="circle" />
 }
 
+function TagIcon() {
+  return (
+    <svg {...svgBase}>
+      <line x1="6" y1="3" x2="4" y2="13" />
+      <line x1="12" y1="3" x2="10" y2="13" />
+      <line x1="3" y1="6" x2="13" y2="6" />
+      <line x1="3" y1="10" x2="13" y2="10" />
+    </svg>
+  )
+}
+
 export const groupByIcons: Record<ListGroupBy, React.ReactNode> = {
   none: <FlatIcon />,
   date: <DateIcon />,
@@ -85,6 +96,7 @@ export const groupByIcons: Record<ListGroupBy, React.ReactNode> = {
   org: <OrgIcon />,
   project: <ProjectIcon />,
   status: <StatusIconGlyph />,
+  tag: <TagIcon />,
 }
 
 export const itemSortByIcons: Record<ListItemSortBy, React.ReactNode> = {
