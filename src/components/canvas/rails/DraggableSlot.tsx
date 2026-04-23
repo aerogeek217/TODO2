@@ -82,7 +82,7 @@ export function DraggableSlot({ slotId, fromSide, header, children, flex, bodyRo
       }}
       className={classes}
       data-slot-id={slotId}
-      data-drop-id={dropId}
+      data-rails-drop-id={dropId}
       style={style}
     >
       <Slot header={headerWithHandle} bodyRole={bodyRole} bodyLabelledBy={bodyLabelledBy}>{children}</Slot>

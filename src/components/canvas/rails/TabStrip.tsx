@@ -240,7 +240,7 @@ export function TabStrip({
       className={`${styles.strip} ${droppable.isOver ? styles.stripOver : ''}`}
       role="tablist"
       aria-label="Slot tabs"
-      data-drop-id={dropId}
+      data-rails-drop-id={dropId}
     >
       {dragHandleProps && (
         <span

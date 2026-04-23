@@ -21,7 +21,7 @@ import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
 import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from './cascade-shift'
 import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, Taskboard } from '../../models'
-import { useUIStore, type CanvasViewport } from '../../stores/ui-store'
+import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import styles from './CanvasView.module.css'
@@ -58,6 +58,21 @@ const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
 const CALENDAR_PREFIX = 'calendar-'
 const TASKBOARD_PREFIX = 'taskboard-'
+
+/**
+ * Decode a React Flow node id into its floating-widget kind + numeric id, or
+ * return null if the id identifies a non-float node (project). Used by
+ * `handleNodesChange` to flip the `floatDrag` slice on `ui-store` while a
+ * float is being dragged, so Phase 1's `DockOverlay` can light up rail drop
+ * zones and Phase 2's hit-test can gate its pointer tracker.
+ */
+function floatKindForNodeId(id: string): { kind: FloatDragKind; floatId: number } | null {
+  if (id.startsWith(INSET_PREFIX)) return { kind: 'inset', floatId: Number(id.slice(INSET_PREFIX.length)) }
+  if (id.startsWith(NOTE_PREFIX)) return { kind: 'note', floatId: Number(id.slice(NOTE_PREFIX.length)) }
+  if (id.startsWith(CALENDAR_PREFIX)) return { kind: 'calendar', floatId: Number(id.slice(CALENDAR_PREFIX.length)) }
+  if (id.startsWith(TASKBOARD_PREFIX)) return { kind: 'taskboard', floatId: Number(id.slice(TASKBOARD_PREFIX.length)) }
+  return null
+}
 
 /** Stable no-op used as a fallback for optional callback props so that omitted
  *  handlers don't produce a fresh function reference each render. */
@@ -503,6 +518,18 @@ export function CanvasView({
           }
         }
       }
+
+      // Phase 1 float-dock: publish the currently-dragging float (if any) to
+      // `ui-store` so the rail `DockOverlay` can render drop zones while a
+      // float is in flight. `setFloatDrag` is idempotent on identical
+      // kind+id so repeated position frames don't re-render downstream.
+      const setFloatDrag = useUIStore.getState().setFloatDrag
+      let floatDragNext: { kind: FloatDragKind; floatId: number } | null = null
+      for (const dragId of draggingIds.current) {
+        const kinded = floatKindForNodeId(dragId)
+        if (kinded) { floatDragNext = kinded; break }
+      }
+      setFloatDrag(floatDragNext ? { kind: floatDragNext.kind, id: floatDragNext.floatId } : null)
 
       // Detect project height changes for cascade shifting (read BEFORE updating prevHeightsRef)
       const dimChanges: HeightDelta[] = []

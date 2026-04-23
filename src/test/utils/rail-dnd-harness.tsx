@@ -12,9 +12,9 @@
  *
  * Layout model. The resolver reads an element's data-attributes to decide
  * its rect:
- *   `data-rail-side` → rails (`<aside>`)
- *   `data-slot-id`   → slot wrappers (draggable + droppable)
- *   `data-drop-id`   → DockOverlay empty-side zones
+ *   `data-rail-side`      → rails (`<aside>`)
+ *   `data-slot-id`        → slot wrappers (draggable + droppable)
+ *   `data-rails-drop-id`  → DockOverlay empty-side zones + slot/tab-strip drop zones
  * Rects are laid out from a single `RailsLayout` so the test expresses
  * intent ("top rail is 1320×260") rather than numbers per element.
  */
@@ -232,7 +232,7 @@ export function resetRailsStore() {
 
 function makeDefaultResolver(layout: Required<RailsLayout>): RectResolver {
   return (el) => {
-    const dropId = el.dataset.dropId
+    const dropId = el.dataset.railsDropId
     if (dropId) {
       const decoded = decodeRailsDropId(dropId)
       if (decoded) return rectForZone(decoded, layout)

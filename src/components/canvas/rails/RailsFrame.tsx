@@ -8,6 +8,7 @@ import { useFloatingCalendarStore } from '../../../stores/floating-calendar-stor
 import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
+import { useUIStore } from '../../../stores/ui-store'
 import type { Corner, CornerOwner, RailSide, RailsState, Slot } from '../../../models/canvas-rails'
 import { computeRailGridArea, cornerForSideClaim, getActiveTab, isRailCollapsed, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
@@ -498,7 +499,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
         // Tab drag: route by drop zone kind.
         if (zone.kind === 'tab-strip') {
           const pointer = pointerRef.current
-          const stripEl = document.querySelector(`[data-drop-id="${String(over.id)}"]`)
+          const stripEl = document.querySelector(`[data-rails-drop-id="${String(over.id)}"]`)
           let insertIdx = 0
           if (pointer && stripEl) {
             insertIdx = computeTabInsertIdx(stripEl, pointer.x, data.tabId)
@@ -605,6 +606,7 @@ export function RailsFrame({ children }: RailsFrameProps) {
   const setRailSize = useCanvasRailsStore((s) => s.setRailSize)
   const { draggingSlot, announcement } = useRailsDragMonitor()
   const railsDragging = draggingSlot !== null
+  const floatDragActive = useUIStore((s) => s.floatDrag !== null)
 
   const emptySides = useMemo(() => {
     const out: RailSide[] = []
@@ -664,7 +666,9 @@ export function RailsFrame({ children }: RailsFrameProps) {
       </div>
       {renderRail('bottom')}
       {renderRail('right')}
-      {railsDragging && <DockOverlay emptySides={emptySides} />}
+      {(railsDragging || floatDragActive) && (
+        <DockOverlay emptySides={emptySides} floatDragActive={floatDragActive} />
+      )}
       <div
         className={styles.srOnly}
         role="status"

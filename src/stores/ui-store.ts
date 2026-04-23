@@ -31,6 +31,19 @@ export interface CanvasViewport {
   zoom: number
 }
 
+/**
+ * Kind of floating canvas widget currently being dragged. Derived from the
+ * React Flow node id prefix in `CanvasView.handleNodesChange` and stashed on
+ * the UI store so the rails `DockOverlay` and the Phase 2 hit-test can observe
+ * an in-flight float-dock gesture without plumbing refs through the tree.
+ */
+export type FloatDragKind = 'note' | 'calendar' | 'inset' | 'taskboard'
+
+export interface FloatDragState {
+  kind: FloatDragKind
+  id: number
+}
+
 interface UIState {
   activeView: AppView
   selectedTodoId: number | null
@@ -61,6 +74,8 @@ interface UIState {
   isProjectNavigatorOpen: boolean
   /** Taskboard panel open state */
   isTaskboardOpen: boolean
+  /** Descriptor of the floating canvas widget currently being dragged, or null. */
+  floatDrag: FloatDragState | null
 
   setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
@@ -91,6 +106,7 @@ interface UIState {
   setFilterSheetOpen: (open: boolean) => void
   toggleProjectNavigator: () => void
   toggleTaskboard: () => void
+  setFloatDrag: (next: FloatDragState | null) => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -115,6 +131,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFilterSheetOpen: false,
   isProjectNavigatorOpen: false,
   isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
+  floatDrag: null,
 
   setActiveView(view: AppView) {
     set({ activeView: view })
@@ -254,5 +271,12 @@ export const useUIStore = create<UIState>((set, get) => ({
     const next = !get().isTaskboardOpen
     localStorage.setItem('taskboardOpen', String(next))
     set({ isTaskboardOpen: next })
+  },
+
+  setFloatDrag(next) {
+    const cur = get().floatDrag
+    if (next === null && cur === null) return
+    if (next && cur && next.kind === cur.kind && next.id === cur.id) return
+    set({ floatDrag: next })
   },
 }))

@@ -6,7 +6,7 @@
  * each element and returns a rect (or `null` to fall through to the default
  * zero rect).
  *
- * Elements carry identity via data-attributes (e.g. `data-drop-id`,
+ * Elements carry identity via data-attributes (e.g. `data-rails-drop-id`,
  * `data-slot-id`, `data-rail-side`). The resolver uses those to pick the
  * correct rect, so rects are available the moment an element mounts — no
  * post-mount `dataset.testRect` coordination needed.

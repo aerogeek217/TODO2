@@ -5,6 +5,13 @@ import styles from './DockOverlay.module.css'
 
 interface DockOverlayProps {
   emptySides: RailSide[]
+  /**
+   * When true, render the overlay even if every side is occupied — during a
+   * float-widget drag the user can drop into an existing rail (creating a new
+   * slot) or onto a slot/tab-strip, so the overlay affordance stays useful
+   * without any empty sides. Gate driven from `ui-store.floatDrag !== null`.
+   */
+  floatDragActive?: boolean
 }
 
 const SIDE_LABEL: Record<RailSide, string> = {
@@ -46,15 +53,15 @@ function SubZone({ side, claim }: { side: RailSide; claim?: EmptySideClaim }) {
       className={classes.join(' ')}
       role="button"
       aria-label={label}
-      data-drop-id={id}
+      data-rails-drop-id={id}
     >
       {!claim && <span className={styles.label}>Dock {side}</span>}
     </div>
   )
 }
 
-export function DockOverlay({ emptySides }: DockOverlayProps) {
-  if (emptySides.length === 0) return null
+export function DockOverlay({ emptySides, floatDragActive = false }: DockOverlayProps) {
+  if (!floatDragActive && emptySides.length === 0) return null
   return (
     <div className={styles.overlay} role="group" aria-label="Rail drop zones">
       {emptySides.map((side) => (
