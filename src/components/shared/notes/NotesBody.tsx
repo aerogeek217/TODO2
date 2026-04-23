@@ -136,6 +136,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
         updateTodo,
         assignPerson,
         assignOrg,
+        (tid, tags) => useTodoStore.getState().setTags(tid, tags),
       )
       // Filter-inferred status only applies when no settings default pre-filled
       // the row (matching TaskEditPopup's priority: settings default wins).

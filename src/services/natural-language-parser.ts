@@ -2,6 +2,7 @@ import type { RecurrenceType } from '../models'
 import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
 import { MS_PER_DAY } from '../utils/date'
 import { resolveFuzzy } from '../utils/effective-date'
+import { normalizeTag } from '../utils/tags'
 
 export interface ParsedToken {
   /**
@@ -11,7 +12,7 @@ export interface ParsedToken {
    * 'deadline' covers explicit deadline syntax: `by <date>` / `!<date>` — resolves
    * to a concrete `dueDate`, never fuzzy.
    */
-  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'project' | 'recurrence'
+  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'project' | 'recurrence' | 'tag'
   value: string
   raw: string
   start: number
@@ -26,10 +27,16 @@ export interface ParsedInput {
   recurrence?: RecurrenceType
   persons: string[]
   projects: string[]
+  /** Lowercase tag slugs in first-seen order, post-`normalizeTag`. */
+  tags: string[]
 }
 
 const PERSON_PATTERN = /@"([^"]+)"|@(\w+)/g
 const PROJECT_PATTERN = /\/([A-Za-z0-9_-]+)/g
+// Whitespace-anchored #tag — group 1 is the leading separator (empty at start
+// of input) and group 2 is the slug. Separator stays in the remaining title
+// after token removal.
+const TAG_PATTERN = /(^|\s)#([A-Za-z0-9_-]+)/g
 
 // Multi-word fuzzy schedule windows. Pushed before single-word DATE_KEYWORDS so
 // "this week" wins overlap-dedup against any embedded day name.
@@ -168,6 +175,23 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
+  // Extract tags (#name) — whitespace-preceded or at start of input. Pushed
+  // after project extraction so `/foo` wins overlap-dedup against any
+  // hypothetical conflict; leading separator in group 1 stays in the title.
+  TAG_PATTERN.lastIndex = 0
+  while ((match = TAG_PATTERN.exec(text)) !== null) {
+    const sepLen = match[1].length
+    const tagStart = match.index + sepLen
+    const tagEnd = tagStart + 1 + match[2].length
+    tokens.push({
+      type: 'tag',
+      value: match[2],
+      raw: text.slice(tagStart, tagEnd),
+      start: tagStart,
+      end: tagEnd,
+    })
+  }
+
   // Extract explicit deadline tokens BEFORE fuzzy-schedule / date keywords so
   // the enclosing "by <date>" / "!<date>" phrase wins overlap-dedup against
   // the inner date text.
@@ -257,6 +281,8 @@ export function parseInput(text: string): ParsedInput {
   let recurrence: RecurrenceType | undefined
   const persons: string[] = []
   const projects: string[] = []
+  const tags: string[] = []
+  const seenTags = new Set<string>()
   const now = new Date()
 
   for (const token of tokens) {
@@ -281,7 +307,14 @@ export function parseInput(text: string): ParsedInput {
     }
     if (token.type === 'person') persons.push(token.value)
     if (token.type === 'project') projects.push(token.value)
+    if (token.type === 'tag') {
+      const slug = normalizeTag(token.value)
+      if (slug && !seenTags.has(slug)) {
+        seenTags.add(slug)
+        tags.push(slug)
+      }
+    }
   }
 
-  return { title, tokens, scheduledDate, dueDate, recurrence, persons, projects }
+  return { title, tokens, scheduledDate, dueDate, recurrence, persons, projects, tags }
 }

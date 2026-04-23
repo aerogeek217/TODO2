@@ -23,7 +23,9 @@ export function parseTaskInput(rawTitle: string, people: Person[], projects: Pro
  * Apply resolved NLP metadata to a newly created task.
  * Writes scheduledDate and assigns people / orgs. Recurrence anchors to dueDate
  * when present, otherwise to a precise scheduledDate; without either anchor
- * the recurrence is dropped.
+ * the recurrence is dropped. Tags (if `setTags` is provided) are applied after
+ * the transaction — they live on the same `todos` row but don't need to be
+ * atomic with person/org assignment.
  */
 export async function applyNlpMetadata(
   todoId: number,
@@ -32,47 +34,55 @@ export async function applyNlpMetadata(
   updateTodo: (todo: PersistedTodoItem) => Promise<void>,
   assignPerson: (todoId: number, personId: number) => Promise<void>,
   assignOrg?: (todoId: number, orgId: number) => Promise<void>,
+  setTags?: (todoId: number, tags: readonly string[]) => Promise<void>,
 ): Promise<void> {
   const hasUpdates = resolved.scheduledDate !== undefined || resolved.dueDate !== undefined || resolved.recurrence !== undefined
   const hasAssignments = resolved.personIds.length > 0 || resolved.orgIds.length > 0
-  if (!hasUpdates && !hasAssignments) return
+  const hasTags = resolved.tags.length > 0
+  if (!hasUpdates && !hasAssignments && !hasTags) return
 
-  await runNlpMetadataTransaction(async () => {
-    // Update task properties if any were parsed
-    if (hasUpdates) {
-      const todo = getTodo(todoId)
-      if (todo) {
-        const nextScheduled = resolved.scheduledDate ?? todo.scheduledDate
-        const nextDue = resolved.dueDate ?? todo.dueDate
-        let nextRule = todo.recurrenceRule
-        if (resolved.recurrence) {
-          if (nextDue) {
-            nextRule = makeRecurrenceRule(resolved.recurrence, nextDue)
-          } else if (nextScheduled && nextScheduled.kind === 'date') {
-            nextRule = makeRecurrenceRule(resolved.recurrence, nextScheduled.value)
-          } else {
-            nextRule = undefined
+  if (hasUpdates || hasAssignments) {
+    await runNlpMetadataTransaction(async () => {
+      // Update task properties if any were parsed
+      if (hasUpdates) {
+        const todo = getTodo(todoId)
+        if (todo) {
+          const nextScheduled = resolved.scheduledDate ?? todo.scheduledDate
+          const nextDue = resolved.dueDate ?? todo.dueDate
+          let nextRule = todo.recurrenceRule
+          if (resolved.recurrence) {
+            if (nextDue) {
+              nextRule = makeRecurrenceRule(resolved.recurrence, nextDue)
+            } else if (nextScheduled && nextScheduled.kind === 'date') {
+              nextRule = makeRecurrenceRule(resolved.recurrence, nextScheduled.value)
+            } else {
+              nextRule = undefined
+            }
           }
+          await updateTodo({
+            ...todo,
+            scheduledDate: nextScheduled,
+            dueDate: nextDue,
+            recurrenceRule: nextRule,
+          })
         }
-        await updateTodo({
-          ...todo,
-          scheduledDate: nextScheduled,
-          dueDate: nextDue,
-          recurrenceRule: nextRule,
-        })
       }
-    }
 
-    // Assign people
-    for (const personId of resolved.personIds) {
-      await assignPerson(todoId, personId)
-    }
-
-    // Assign orgs
-    if (assignOrg) {
-      for (const orgId of resolved.orgIds) {
-        await assignOrg(todoId, orgId)
+      // Assign people
+      for (const personId of resolved.personIds) {
+        await assignPerson(todoId, personId)
       }
-    }
-  })
+
+      // Assign orgs
+      if (assignOrg) {
+        for (const orgId of resolved.orgIds) {
+          await assignOrg(todoId, orgId)
+        }
+      }
+    })
+  }
+
+  if (hasTags && setTags) {
+    await setTags(todoId, resolved.tags)
+  }
 }

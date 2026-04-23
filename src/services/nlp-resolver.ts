@@ -17,6 +17,8 @@ export interface ResolvedInput {
   projectId?: number
   /** Project names that didn't match any existing project */
   unmatchedProjects: string[]
+  /** Normalized tag slugs from `#foo` tokens (pass-through from `ParsedInput`). */
+  tags: string[]
 }
 
 /**
@@ -91,5 +93,6 @@ export function resolveInput(parsed: ParsedInput, people: Person[], projects: Pr
     unmatchedOrgs: [],
     projectId: projectResult.ids[0],
     unmatchedProjects: projectResult.unmatched,
+    tags: parsed.tags,
   }
 }

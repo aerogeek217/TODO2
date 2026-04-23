@@ -46,6 +46,25 @@ describe('parseTaskInput', () => {
     expect(result.title).toBe('do thing')
     expect(result.resolved.projectId).toBe(12)
   })
+
+  it('returns resolved tags for #tag tokens (end-to-end: fix #urgent)', () => {
+    const result = parseTaskInput('fix #urgent', people)
+    expect(result.title).toBe('fix')
+    expect(result.resolved.tags).toEqual(['urgent'])
+  })
+
+  it('returns multiple resolved tags with other tokens', () => {
+    const result = parseTaskInput('Fix /Backend #urgent @Alice #blocked', people, projects)
+    expect(result.title).toBe('Fix')
+    expect(result.resolved.projectId).toBe(10)
+    expect(result.resolved.personIds).toEqual([1])
+    expect(result.resolved.tags).toEqual(['urgent', 'blocked'])
+  })
+
+  it('returns empty tags when no # tokens', () => {
+    const result = parseTaskInput('plain task @Alice', people)
+    expect(result.resolved.tags).toEqual([])
+  })
 })
 
 describe('applyNlpMetadata', () => {
@@ -77,6 +96,7 @@ describe('applyNlpMetadata', () => {
         unmatchedPersons: [],
         unmatchedOrgs: [],
         unmatchedProjects: [],
+        tags: [],
       },
       getTodo,
       updateTodo,
@@ -104,6 +124,7 @@ describe('applyNlpMetadata', () => {
         unmatchedPersons: [],
         unmatchedOrgs: [],
         unmatchedProjects: [],
+        tags: [],
       },
       getTodo,
       updateTodo,
@@ -128,6 +149,7 @@ describe('applyNlpMetadata', () => {
         unmatchedPersons: [],
         unmatchedOrgs: [],
         unmatchedProjects: [],
+        tags: [],
       },
       vi.fn(),
       updateTodo,
@@ -149,6 +171,7 @@ describe('applyNlpMetadata', () => {
         unmatchedPersons: [],
         unmatchedOrgs: [],
         unmatchedProjects: [],
+        tags: [],
       },
       vi.fn(),
       vi.fn(),
@@ -158,5 +181,54 @@ describe('applyNlpMetadata', () => {
     expect(assignPerson).toHaveBeenCalledTimes(2)
     expect(assignPerson).toHaveBeenCalledWith(1, 1)
     expect(assignPerson).toHaveBeenCalledWith(1, 2)
+  })
+
+  it('calls setTags with resolved.tags when present', async () => {
+    const setTags = vi.fn()
+
+    await applyNlpMetadata(
+      1,
+      {
+        title: 'Test task',
+        personIds: [],
+        orgIds: [],
+        unmatchedPersons: [],
+        unmatchedOrgs: [],
+        unmatchedProjects: [],
+        tags: ['urgent', 'blocked'],
+      },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      setTags,
+    )
+
+    expect(setTags).toHaveBeenCalledOnce()
+    expect(setTags).toHaveBeenCalledWith(1, ['urgent', 'blocked'])
+  })
+
+  it('skips setTags entirely when resolved.tags is empty', async () => {
+    const setTags = vi.fn()
+
+    await applyNlpMetadata(
+      1,
+      {
+        title: 'Test task',
+        personIds: [1],
+        orgIds: [],
+        unmatchedPersons: [],
+        unmatchedOrgs: [],
+        unmatchedProjects: [],
+        tags: [],
+      },
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+      setTags,
+    )
+
+    expect(setTags).not.toHaveBeenCalled()
   })
 })

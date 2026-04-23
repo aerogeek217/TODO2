@@ -23,7 +23,7 @@ function getOtherSelectedIds(primaryId: number): number[] {
  * Encapsulates the ~70-line onCreate/onEdit pattern duplicated across views.
  */
 export function useTaskEditCallbacks() {
-  const { todos, update: updateTodo, add: addTodo } = useTodoStore()
+  const { todos, update: updateTodo, add: addTodo, setTags } = useTodoStore()
   const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
   const { orgs, assignedOrgsMap, assignOrg, unassignOrg } = useOrgStore()
   const { projects, add: addProject } = useProjectStore()
@@ -66,8 +66,9 @@ export function useTaskEditCallbacks() {
     const allOrgIds = new Set([...resolved.orgIds, ...(assignments?.orgIds ?? [])])
     for (const personId of allPersonIds) await assignPerson(id, personId)
     for (const orgId of allOrgIds) await assignOrg(id, orgId)
+    if (resolved.tags.length > 0) await setTags(id, resolved.tags)
     return id
-  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, addProject, people, projects, orgs])
+  }, [selectedCanvasId, addTodo, updateTodo, setTags, assignPerson, assignOrg, addProject, people, projects, orgs])
 
   /** Wrap onUpdate to propagate bulk-applicable field changes to other selected tasks. */
   const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {

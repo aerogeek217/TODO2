@@ -198,4 +198,72 @@ describe('natural-language-parser', () => {
       expect(result.dueDate).toBeUndefined()
     })
   })
+
+  describe('tags (#foo)', () => {
+    it('captures #foo and leaves the rest of the title', () => {
+      const result = parseInput('#foo bar')
+      expect(result.title).toBe('bar')
+      expect(result.tags).toEqual(['foo'])
+      expect(result.tokens.find((t) => t.type === 'tag')?.value).toBe('foo')
+    })
+
+    it('captures /proj and #foo together', () => {
+      const result = parseInput('/proj #foo bar')
+      expect(result.title).toBe('bar')
+      expect(result.projects).toEqual(['proj'])
+      expect(result.tags).toEqual(['foo'])
+    })
+
+    it('normalizes casing to lowercase', () => {
+      const result = parseInput('Do thing #Urgent')
+      expect(result.tags).toEqual(['urgent'])
+    })
+
+    it('stops the capture at the first non-slug char (#foo! → foo)', () => {
+      const result = parseInput('ship it #foo!')
+      // The `!` is not a tag char, so only "foo" is captured. The leftover `!`
+      // stays in the remaining title.
+      expect(result.tags).toEqual(['foo'])
+      expect(result.title).toBe('ship it !')
+    })
+
+    it('captures #tag at start of input', () => {
+      const result = parseInput('#urgent ship it')
+      expect(result.title).toBe('ship it')
+      expect(result.tags).toEqual(['urgent'])
+    })
+
+    it('requires whitespace before # (word#tag is not a tag)', () => {
+      const result = parseInput('email@work#followup today')
+      expect(result.tags).toEqual([])
+    })
+
+    it('dedupes repeated tags in first-seen order', () => {
+      const result = parseInput('#foo work #bar then #foo')
+      expect(result.tags).toEqual(['foo', 'bar'])
+    })
+
+    it('captures multiple tags preserving first-seen order', () => {
+      const result = parseInput('#alpha middle #beta end')
+      expect(result.tags).toEqual(['alpha', 'beta'])
+      expect(result.title).toBe('middle end')
+    })
+
+    it('accepts hyphens and underscores in tag slugs', () => {
+      const result = parseInput('#high-priority #v_2')
+      expect(result.tags).toEqual(['high-priority', 'v_2'])
+    })
+
+    it('tag does not shadow date keyword elsewhere in the input', () => {
+      // `#today` is a tag; a bare `today` after it is still a date.
+      const result = parseInput('#today today')
+      expect(result.tags).toEqual(['today'])
+      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
+    })
+
+    it('empty tags array when no # tokens present', () => {
+      const result = parseInput('Plain title')
+      expect(result.tags).toEqual([])
+    })
+  })
 })

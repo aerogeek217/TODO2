@@ -273,6 +273,7 @@ export function CanvasPage() {
         id, resolved,
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
         updateTodo, assignPerson, assignOrg,
+        (tid, tags) => useTodoStore.getState().setTags(tid, tags),
       )
     },
     [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, people, orgs]
@@ -296,6 +297,7 @@ export function CanvasPage() {
         id, resolved,
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
         updateTodo, assignPerson, assignOrg,
+        (tid, tags) => useTodoStore.getState().setTags(tid, tags),
       )
       return id
     },
