@@ -148,6 +148,9 @@ export async function setupRailsHarness(initial: RailsState): Promise<RailsHarne
       store.dropSlotToSide(sourceSlotId, zone.side)
       return
     }
+    // `tab-strip` and `canvas` zones aren't slot-drag targets — the harness's
+    // `simulateDrop` models the slot-drag reducer path only, so they're no-ops.
+    if (zone.kind === 'tab-strip' || zone.kind === 'canvas') return
     const pointer = opts?.pointer ?? { x: 0, y: 0 }
     const rect = opts?.rect ?? { left: 0, top: 0, width: 100, height: 100 }
     const orientation = opts?.orientation ?? 'vertical'
@@ -247,6 +250,9 @@ function makeDefaultResolver(layout: Required<RailsLayout>): RectResolver {
 
 function rectForZone(zone: RailsDropZone, layout: Required<RailsLayout>): TestRect | null {
   if (zone.kind === 'empty-side') return rectForEmptySideSubzone(zone.side, zone.claim, layout)
+  // The `canvas` drop zone lives on the React Flow area, not in the rails
+  // frame — the harness doesn't render it, so treat as non-resolvable here.
+  if (zone.kind === 'canvas') return null
   const slotRect = rectForSlot(zone.slotId, layout)
   if (!slotRect) return null
   // Tab strip is a narrow band at the top of the slot — roughly 32 px in prod.

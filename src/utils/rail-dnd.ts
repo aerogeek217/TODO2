@@ -31,6 +31,15 @@ export type RailsDropZone =
   | { kind: 'empty-side'; side: RailSide; claim?: EmptySideClaim }
   | { kind: 'slot'; slotId: string }
   | { kind: 'tab-strip'; slotId: string }
+  /**
+   * Full-canvas drop target for Phase 5 of float-dock: a tab-pill drag released
+   * over the React Flow viewport (and missing every rail hotspot) materialises
+   * the tab as a floating widget at pointer position. Exactly one of these is
+   * registered by `CanvasView`; dnd-kit's collision detection naturally
+   * prefers the higher-z rail hotspots over this catch-all, so it fires only
+   * when no rail zone is hit.
+   */
+  | { kind: 'canvas' }
 
 const ALL_SIDES: RailSide[] = ['left', 'right', 'top', 'bottom']
 
@@ -44,6 +53,8 @@ export function encodeRailsDropId(z: RailsDropZone): string {
       return `${RAILS_DROP_ID_PREFIX}slot:${z.slotId}`
     case 'tab-strip':
       return `${RAILS_DROP_ID_PREFIX}tab-strip:${z.slotId}`
+    case 'canvas':
+      return `${RAILS_DROP_ID_PREFIX}canvas`
   }
 }
 
@@ -51,6 +62,9 @@ export function decodeRailsDropId(id: string): RailsDropZone | null {
   if (!id.startsWith(RAILS_DROP_ID_PREFIX)) return null
   const body = id.slice(RAILS_DROP_ID_PREFIX.length)
   const parts = body.split(':')
+  if (parts[0] === 'canvas' && parts.length === 1) {
+    return { kind: 'canvas' }
+  }
   if (parts[0] === 'empty-side' && parts.length === 2 && isSide(parts[1])) {
     return { kind: 'empty-side', side: parts[1] }
   }
@@ -569,7 +583,13 @@ export function resolveFloatDockTarget(
     const insertIdx = computeFloatInsertIdx(hit, pointer.x)
     return { kind: 'tab-strip', slotId: zone.slotId, insertIdx }
   }
-  // zone.kind === 'slot'
+  if (zone.kind === 'canvas') {
+    // Float-drag releases over the canvas aren't a rail-dock target — the
+    // caller falls through to the existing position-persist path.
+    // `zone.kind === 'canvas'` is handled separately in `useRailsDragMonitor`
+    // for the reverse gesture (rail tab-pill drag → canvas pop-out).
+    return null
+  }
   const orientation = opts.getSlotOrientation(zone.slotId)
   if (!orientation) return null
   const rect = hit.getBoundingClientRect()
@@ -579,6 +599,49 @@ export function resolveFloatDockTarget(
     orientation,
   )
   return { kind: 'slot', slotId: zone.slotId, zone: splitZone }
+}
+
+// ---------------------------------------------------------------------------
+// Tab-drag → canvas pop-out (Phase 5 of float-dock)
+// ---------------------------------------------------------------------------
+
+/**
+ * Default float widget dimensions used to centre the new float near the
+ * pointer on a tab-drag release over the canvas. Matches the DEFAULT_WIDTH /
+ * DEFAULT_HEIGHT constants the four floating stores use on `add`, so the
+ * widget's visual centre lands roughly under the cursor.
+ */
+const DEFAULT_FLOAT_WIDTH = 320
+const DEFAULT_FLOAT_HEIGHT = 280
+
+export interface FlowViewport {
+  x: number
+  y: number
+  zoom: number
+}
+
+/**
+ * Map client-space pointer coordinates to React Flow (canvas) coordinates,
+ * then subtract half the default float width/height so the widget centres on
+ * the pointer instead of pinning its upper-left corner there.
+ *
+ * Pure — caller supplies the canvas DOM rect (usually from
+ * `getBoundingClientRect` on the `rails:canvas` droppable) and the persisted
+ * viewport from `settings.canvasViewport`. Used by the tab-drag → canvas
+ * pop-out path in `useRailsDragMonitor`. The menu pop-out path keeps using
+ * `computePopOutFlowPosition` (viewport-upper-left + jitter).
+ */
+export function pointerToFlowPosition(
+  pointer: { x: number; y: number },
+  canvasRect: { left: number; top: number },
+  vp: FlowViewport,
+): { x: number; y: number } {
+  const flowX = (pointer.x - canvasRect.left - vp.x) / vp.zoom
+  const flowY = (pointer.y - canvasRect.top - vp.y) / vp.zoom
+  return {
+    x: flowX - DEFAULT_FLOAT_WIDTH / 2,
+    y: flowY - DEFAULT_FLOAT_HEIGHT / 2,
+  }
 }
 
 // ---------------------------------------------------------------------------

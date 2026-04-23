@@ -38,6 +38,15 @@ describe('tab-strip drop id encoding', () => {
     expect(isRailsDropId(id)).toBe(true)
     expect(decodeRailsDropId(id)).toEqual(z)
   })
+
+  it('round-trips the Phase 5 rails:canvas drop zone', () => {
+    // Phase 5 float-dock (reverse): rail tab-pill drag → canvas pop-out uses
+    // a single `{ kind: 'canvas' }` drop zone registered by `CanvasView`.
+    const id = encodeRailsDropId({ kind: 'canvas' })
+    expect(id).toBe('rails:canvas')
+    expect(isRailsDropId(id)).toBe(true)
+    expect(decodeRailsDropId(id)).toEqual({ kind: 'canvas' })
+  })
 })
 
 describe('extractTab', () => {

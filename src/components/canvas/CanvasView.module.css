@@ -7,6 +7,29 @@
   overscroll-behavior: none;
 }
 
+/*
+ * Phase 5 float-dock (reverse): catch-all drop zone covering the React Flow
+ * viewport. `pointer-events: none` keeps React Flow's pointer capture
+ * untouched — dnd-kit reads the rect, not pointer events. No visual of its
+ * own; the parent wrapper's [data-canvas-drop-active] dashed border is the
+ * affordance while a rail tab-pill drag is currently over this zone.
+ */
+.canvasDropZone {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.canvasWrapper[data-canvas-drop-active='true']::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 2px dashed color-mix(in oklab, var(--color-accent) 45%, transparent);
+  border-radius: var(--radius-card);
+  pointer-events: none;
+  z-index: var(--z-canvas-draw);
+}
+
 .drawOverlay {
   position: fixed;
   inset: 0;

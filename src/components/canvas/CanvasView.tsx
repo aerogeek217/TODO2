@@ -12,6 +12,7 @@ import {
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { useDndMonitor, useDroppable } from '@dnd-kit/core'
 import { ProjectNode, type ProjectNodeData } from './ProjectNode'
 import { ListInsetNode, type ListInsetNodeData } from './ListInsetNode'
 import { FloatingNoteNode, type FloatingNoteNodeData } from './FloatingNoteNode'
@@ -24,7 +25,7 @@ import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalend
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
-import { resolveFloatDockTarget, type FloatDockTarget } from '../../utils/rail-dnd'
+import { encodeRailsDropId, RAILS_DRAG_TYPE, resolveFloatDockTarget, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
 import type { RailSide } from '../../models/canvas-rails'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import styles from './CanvasView.module.css'
@@ -284,6 +285,28 @@ export function CanvasView({
   }, [])
   const [alignmentLines, setAlignmentLines] = useState<AlignmentLine[]>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
+
+  // Phase 5 float-dock (reverse): register a single full-viewport droppable
+  // covering the React Flow area so a rail tab-pill drag released over the
+  // canvas resolves to `zone.kind === 'canvas'` in `useRailsDragMonitor`. The
+  // droppable node is `pointer-events: none` so React Flow keeps its normal
+  // pointer capture — dnd-kit's geometry-based collision detection uses the
+  // element's bounding rect, not DOM hit-testing. Rail hotspots (DockOverlay
+  // strips, slot bodies, tab strips) render on top of this zone geometrically
+  // via smaller / edge-anchored rects, so `pointerWithin` naturally prefers
+  // them; `rails:canvas` fires only when the release misses every rail zone.
+  const canvasDropId = encodeRailsDropId({ kind: 'canvas' })
+  const canvasDroppable = useDroppable({ id: canvasDropId, data: { type: RAILS_DRAG_TYPE } })
+  const [tabDragActive, setTabDragActive] = useState(false)
+  useDndMonitor({
+    onDragStart: ({ active }) => {
+      const data = active.data.current as RailsDragData | undefined
+      setTabDragActive(data?.type === RAILS_DRAG_TYPE && data.kind === 'tab')
+    },
+    onDragEnd: () => setTabDragActive(false),
+    onDragCancel: () => setTabDragActive(false),
+  })
+  const canvasDropActive = tabDragActive && canvasDroppable.isOver
 
   /** Get absolute rect for a node. Uses React Flow's positionAbsolute for non-dragging
    *  nodes (ground truth); falls back to manual parent offset for dragging nodes whose
@@ -879,7 +902,17 @@ export function CanvasView({
   }, [onAddProject, onRequestAddWidget])
 
   return (
-    <div className={styles.canvasWrapper} onContextMenu={handleContextMenu}>
+    <div
+      className={styles.canvasWrapper}
+      onContextMenu={handleContextMenu}
+      data-canvas-drop-active={canvasDropActive ? 'true' : undefined}
+    >
+      <div
+        ref={canvasDroppable.setNodeRef}
+        className={styles.canvasDropZone}
+        data-rails-drop-id={canvasDropId}
+        aria-hidden="true"
+      />
       <ReactFlow
         nodes={nodes}
         edges={[]}

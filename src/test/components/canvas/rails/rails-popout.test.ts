@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../../../data/database'
-import { popSlotToCanvas, popTabToCanvas } from '../../../../components/canvas/rails/RailsFrame'
+import { popSlotToCanvas, popTabAtPosition, popTabToCanvas } from '../../../../components/canvas/rails/RailsFrame'
 import { useCanvasStore } from '../../../../stores/canvas-store'
 import { useNoteStore } from '../../../../stores/note-store'
 import { useFloatingNoteStore } from '../../../../stores/floating-note-store'
@@ -11,7 +11,7 @@ import { useTaskboardStore } from '../../../../stores/taskboard-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
 import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
 import { EMPTY_RAILS, getActiveTab } from '../../../../models/canvas-rails'
-import type { Slot, SlotKind } from '../../../../models/canvas-rails'
+import type { Slot, SlotKind, Tab } from '../../../../models/canvas-rails'
 
 function makeSlot(id: string, kind: SlotKind, extra?: { listDefinitionId?: number }): Slot {
   const tab = { id: `${id}-t0`, type: kind, ...(extra ?? {}) }
@@ -133,6 +133,27 @@ describe('popSlotToCanvas', () => {
     expect(calendars.length).toBe(1)
     expect(calendars[0].width).toBeGreaterThan(0)
     expect(calendars[0].height).toBeGreaterThan(0)
+  })
+
+  it('threads the calendar slot\'s orientation + weekOffset onto the floating calendar (menu path)', async () => {
+    // Phase 5 float-dock (reverse) closes the outbound gap noted in Phase 3:
+    // the menu pop-out now preserves the slot's strip orientation + week
+    // offset so Widgets don't silently reset those settings on pop-out.
+    const canvasId = await seedCanvas()
+    const slot: Slot = {
+      id: 'slot-cal-h',
+      tabs: [{ id: 'slot-cal-h-t0', type: 'calendar' }],
+      activeTabId: 'slot-cal-h-t0',
+      orientation: 'horizontal',
+      weekOffset: -2,
+    }
+    const moved = await popSlotToCanvas(slot)
+    expect(moved).toBe(true)
+
+    const cal = useFloatingCalendarStore.getState().calendars.find((c) => c.canvasId === canvasId)
+    expect(cal).toBeDefined()
+    expect(cal!.orientation).toBe('horizontal')
+    expect(cal!.weekOffset).toBe(-2)
   })
 })
 
@@ -281,5 +302,109 @@ describe('createAndDockSlot', () => {
     const slot = rails.right?.slots.find((s) => s.id === id)
     expect(slot).toBeDefined()
     expect(getActiveTab(slot!).type).toBe('taskboard')
+  })
+})
+
+/**
+ * Phase 5 float-dock (reverse): `popTabAtPosition` is the pure dispatcher
+ * shared between the menu pop-out (via `popTabToCanvas`) and the new
+ * rail-tab-drag → canvas pop-out path. These tests pin the per-kind routing
+ * + optional calendar state threading so the drag path round-trips slot-level
+ * orientation/weekOffset the same way the menu path did not (menu path uses
+ * the slot arg, drag path receives the slot's state via `init` opts).
+ */
+describe('popTabAtPosition', () => {
+  it('routes a notes tab to the floating-note store at the given coords', async () => {
+    const canvasId = await seedCanvas()
+    const tab: Tab = { id: 't-n', type: 'notes' }
+    const moved = await popTabAtPosition(tab, canvasId, 123, 456)
+    expect(moved).toBe(true)
+    const notes = useFloatingNoteStore.getState().notes.filter((n) => n.canvasId === canvasId)
+    expect(notes.length).toBe(1)
+    expect(notes[0].x).toBe(123)
+    expect(notes[0].y).toBe(456)
+  })
+
+  it('routes a lens tab to the list-inset store, carrying listDefinitionId', async () => {
+    const canvasId = await seedCanvas()
+    const defId = await db.listDefinitions.add({
+      name: 'Drag list',
+      sortOrder: 0,
+      pinnedToDashboard: false,
+      membership: { kind: 'custom', predicate: {
+        showCompleted: false,
+        showHiddenStatuses: false,
+        personIds: null,
+        personFilterMode: 'include-orgs',
+        orgIds: null,
+        orgFilterMode: 'include-people',
+        projectIds: null,
+        statusIds: null,
+        searchText: '',
+        dateField: 'date',
+        dateRangeStart: null,
+        dateRangeEnd: null,
+        dateRangeIncludeNoDate: false,
+        hasScheduled: null,
+        hasDeadline: null,
+      } },
+      sort: { kind: 'sort-order' },
+      grouping: { kind: 'none' },
+    })
+    const tab: Tab = { id: 't-l', type: 'lens', listDefinitionId: defId }
+    const moved = await popTabAtPosition(tab, canvasId, 200, 100)
+    expect(moved).toBe(true)
+    const insets = useListInsetStore.getState().insets.filter((i) => i.canvasId === canvasId)
+    expect(insets.length).toBe(1)
+    expect(insets[0].listDefinitionId).toBe(defId)
+    expect(insets[0].x).toBe(200)
+    expect(insets[0].y).toBe(100)
+  })
+
+  it('refuses a lens tab missing listDefinitionId (returns false, creates nothing)', async () => {
+    const canvasId = await seedCanvas()
+    const tab: Tab = { id: 't-l', type: 'lens' }
+    const moved = await popTabAtPosition(tab, canvasId, 0, 0)
+    expect(moved).toBe(false)
+    expect(useListInsetStore.getState().insets.length).toBe(0)
+  })
+
+  it('routes a taskboard tab to the floating-taskboard store (singleton board, no id arg)', async () => {
+    const canvasId = await seedCanvas()
+    const tab: Tab = { id: 't-t', type: 'taskboard' }
+    const moved = await popTabAtPosition(tab, canvasId, 50, 60)
+    expect(moved).toBe(true)
+    const floats = useFloatingTaskboardStore.getState().taskboards.filter((t) => t.canvasId === canvasId)
+    expect(floats.length).toBe(1)
+    expect(floats[0].x).toBe(50)
+    expect(floats[0].y).toBe(60)
+  })
+
+  it('routes a calendar tab and threads orientation + weekOffset from init opts', async () => {
+    const canvasId = await seedCanvas()
+    const tab: Tab = { id: 't-c', type: 'calendar' }
+    const moved = await popTabAtPosition(tab, canvasId, 10, 20, {
+      orientation: 'horizontal',
+      weekOffset: 3,
+    })
+    expect(moved).toBe(true)
+    const cals = useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId)
+    expect(cals.length).toBe(1)
+    expect(cals[0].x).toBe(10)
+    expect(cals[0].y).toBe(20)
+    expect(cals[0].orientation).toBe('horizontal')
+    expect(cals[0].weekOffset).toBe(3)
+  })
+
+  it('omits calendar orientation/weekOffset when init opts are not provided', async () => {
+    const canvasId = await seedCanvas()
+    const tab: Tab = { id: 't-c', type: 'calendar' }
+    const moved = await popTabAtPosition(tab, canvasId, 0, 0)
+    expect(moved).toBe(true)
+    const cals = useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId)
+    expect(cals.length).toBe(1)
+    // Stores default orientation+weekOffset to undefined when absent from the insert.
+    expect(cals[0].orientation).toBeUndefined()
+    expect(cals[0].weekOffset).toBeUndefined()
   })
 })

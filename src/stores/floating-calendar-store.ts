@@ -15,7 +15,14 @@ interface FloatingCalendarState {
   error: string | null
 
   loadByCanvas: (canvasId: number) => Promise<void>
-  add: (canvasId: number, x: number, y: number) => Promise<number>
+  /**
+   * Create a floating calendar. `init` threads slot-level state from a
+   * tab-drag → canvas pop-out (Phase 5 of float-dock) so the user's strip
+   * orientation + week offset survive the dock → float transition. Omitting
+   * `init` keeps the existing "blank floating calendar" behaviour used by the
+   * context menu + kind-switch helpers.
+   */
+  add: (canvasId: number, x: number, y: number, init?: { orientation?: CalendarOrientation; weekOffset?: number }) => Promise<number>
   updatePosition: (id: number, x: number, y: number) => Promise<void>
   updateSize: (id: number, width: number, height: number) => Promise<void>
   updateOrientation: (id: number, orientation: CalendarOrientation) => Promise<void>
@@ -41,7 +48,7 @@ export const useFloatingCalendarStore = create<FloatingCalendarState>((set, get)
     }
   },
 
-  async add(canvasId, x, y) {
+  async add(canvasId, x, y, init) {
     return mutate(set, async () => {
       const id = await floatingCalendarRepository.insert({
         canvasId,
@@ -49,6 +56,8 @@ export const useFloatingCalendarStore = create<FloatingCalendarState>((set, get)
         y,
         width: DEFAULT_WIDTH,
         height: DEFAULT_HEIGHT,
+        ...(init?.orientation != null ? { orientation: init.orientation } : {}),
+        ...(init?.weekOffset != null ? { weekOffset: init.weekOffset } : {}),
       })
       const row = await floatingCalendarRepository.getById(id)
       if (row) set({ calendars: [...get().calendars, row] })

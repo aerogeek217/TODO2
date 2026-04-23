@@ -60,6 +60,14 @@ describe('rail-dnd id encoding', () => {
     expect(decodeRailsDropId(encodeRailsDropId(z))).toEqual(z)
   })
 
+  it('round-trips the canvas zone (Phase 5 float-dock, reverse)', () => {
+    const z = { kind: 'canvas' as const }
+    const id = encodeRailsDropId(z)
+    expect(id).toBe('rails:canvas')
+    expect(isRailsDropId(id)).toBe(true)
+    expect(decodeRailsDropId(id)).toEqual(z)
+  })
+
   it('rejects non-rails ids', () => {
     expect(isRailsDropId('project-12')).toBe(false)
     expect(decodeRailsDropId('project-12')).toBeNull()

@@ -9,7 +9,7 @@ import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
 import { useUIStore } from '../../../stores/ui-store'
-import type { Corner, CornerOwner, RailSide, RailsState, Slot } from '../../../models/canvas-rails'
+import type { CalendarOrientation, Corner, CornerOwner, RailSide, RailsState, Slot, Tab } from '../../../models/canvas-rails'
 import { computeRailGridArea, cornerForSideClaim, getActiveTab, isRailCollapsed, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
 import { DraggableSlot } from './DraggableSlot'
@@ -27,6 +27,8 @@ import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPo
 import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 import {
   decodeRailsDropId,
+  encodeRailsDropId,
+  pointerToFlowPosition,
   pointerToSplitZone,
   RAILS_DRAG_TYPE,
   type RailsDragData,
@@ -89,6 +91,54 @@ function computePopOutFlowPosition(): { x: number; y: number } {
 }
 
 /**
+ * Pure pop-out dispatcher: given a tab, a canvas id, and a flow-space
+ * position, create the corresponding floating widget and return whether the
+ * caller should follow up with `closeTab`. Resolves to `false` for no-op
+ * cases (lens tab without a list definition). The `init` opts only apply to
+ * calendar tabs — they thread slot-level orientation/weekOffset so the user's
+ * strip orientation survives tab → float (the reverse of `slotFromFloat`'s
+ * threading for the float → slot direction).
+ *
+ * Two call paths:
+ *   - Menu pop-out (`popTabToCanvas` / `popSlotToCanvas`) uses
+ *     `computePopOutFlowPosition()` for upper-left-of-viewport placement.
+ *   - Drag pop-out (Phase 5 of float-dock, dispatched from
+ *     `useRailsDragMonitor`) uses `pointerToFlowPosition` so the widget lands
+ *     near the cursor.
+ *
+ * Exported for unit testing.
+ */
+export async function popTabAtPosition(
+  tab: Tab,
+  canvasId: number,
+  x: number,
+  y: number,
+  init?: { orientation?: CalendarOrientation; weekOffset?: number },
+): Promise<boolean> {
+  if (tab.type === 'notes') {
+    await useFloatingNoteStore.getState().add(canvasId, x, y)
+    return true
+  }
+  if (tab.type === 'lens') {
+    if (tab.listDefinitionId == null) return false
+    await useListInsetStore.getState().add(tab.listDefinitionId, canvasId, x, y)
+    return true
+  }
+  if (tab.type === 'calendar') {
+    await useFloatingCalendarStore.getState().add(canvasId, x, y, {
+      orientation: init?.orientation,
+      weekOffset: init?.weekOffset,
+    })
+    return true
+  }
+  if (tab.type === 'taskboard') {
+    await useFloatingTaskboardStore.getState().add(canvasId, x, y)
+    return true
+  }
+  return false
+}
+
+/**
  * Pop one tab out of a rail slot to the canvas as a free-floating node.
  * Resolves to true when a node was created (and the caller should remove the
  * tab via `closeTab`), false if the operation was a no-op (no canvas selected
@@ -102,25 +152,10 @@ export async function popTabToCanvas(slot: Slot, tabId: string): Promise<boolean
   const canvasId = useCanvasStore.getState().selectedCanvasId
   if (canvasId == null) return false
   const pos = computePopOutFlowPosition()
-
-  if (tab.type === 'notes') {
-    await useFloatingNoteStore.getState().add(canvasId, pos.x, pos.y)
-    return true
-  }
-  if (tab.type === 'lens') {
-    if (tab.listDefinitionId == null) return false
-    await useListInsetStore.getState().add(tab.listDefinitionId, canvasId, pos.x, pos.y)
-    return true
-  }
-  if (tab.type === 'calendar') {
-    await useFloatingCalendarStore.getState().add(canvasId, pos.x, pos.y)
-    return true
-  }
-  if (tab.type === 'taskboard') {
-    await useFloatingTaskboardStore.getState().add(canvasId, pos.x, pos.y)
-    return true
-  }
-  return false
+  return popTabAtPosition(tab, canvasId, pos.x, pos.y, {
+    orientation: slot.orientation,
+    weekOffset: slot.weekOffset,
+  })
 }
 
 /**
@@ -369,6 +404,7 @@ function findSlotKind(rails: RailsState, slotId: string): string | null {
 function describeDropZone(zone: ReturnType<typeof decodeRailsDropId>, rails: RailsState): string {
   if (!zone) return 'unknown target'
   if (zone.kind === 'empty-side') return `${zone.side} rail`
+  if (zone.kind === 'canvas') return 'canvas'
   if (zone.kind === 'tab-strip') {
     const targetKind = findSlotKind(rails, zone.slotId) ?? 'slot'
     return `${targetKind} tab strip`
@@ -417,6 +453,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
   const reorderTab = useCanvasRailsStore((s) => s.reorderTab)
   const moveTabToSlot = useCanvasRailsStore((s) => s.moveTabToSlot)
   const detachTabToNewSlot = useCanvasRailsStore((s) => s.detachTabToNewSlot)
+  const closeTab = useCanvasRailsStore((s) => s.closeTab)
   const setCornerOwner = useCanvasRailsStore((s) => s.setCornerOwner)
   const clearCornerOwner = useCanvasRailsStore((s) => s.clearCornerOwner)
   const rails = useCanvasRailsStore((s) => s.rails)
@@ -497,6 +534,40 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
 
       if (data.kind === 'tab') {
         // Tab drag: route by drop zone kind.
+        if (zone.kind === 'canvas') {
+          // Phase 5 float-dock (reverse): pop the tab out to a free-floating
+          // node at pointer position. Mirrors the menu pop-out flow, but uses
+          // `pointerToFlowPosition` instead of `computePopOutFlowPosition` so
+          // the widget lands under the cursor.
+          const pointer = pointerRef.current
+          if (!pointer) return
+          const canvasEl = document.querySelector<HTMLElement>(
+            `[data-rails-drop-id="${encodeRailsDropId({ kind: 'canvas' })}"]`,
+          )
+          const vp = useSettingsStore.getState().canvasViewport
+          if (!canvasEl || !vp) return
+          const srcSlot = (['left', 'right', 'top', 'bottom'] as RailSide[])
+            .map((s) => rails[s]?.slots.find((sl) => sl.id === data.slotId))
+            .find((s): s is Slot => Boolean(s))
+          if (!srcSlot) return
+          const srcTab = srcSlot.tabs.find((t) => t.id === data.tabId)
+          if (!srcTab) return
+          const canvasId = useCanvasStore.getState().selectedCanvasId
+          if (canvasId == null) return
+          const canvasRect = canvasEl.getBoundingClientRect()
+          const pos = pointerToFlowPosition(
+            pointer,
+            { left: canvasRect.left, top: canvasRect.top },
+            { x: vp.x, y: vp.y, zoom: vp.zoom },
+          )
+          void popTabAtPosition(srcTab, canvasId, pos.x, pos.y, {
+            orientation: srcSlot.orientation,
+            weekOffset: srcSlot.weekOffset,
+          }).then((moved) => {
+            if (moved) closeTab(data.slotId, data.tabId)
+          })
+          return
+        }
         if (zone.kind === 'tab-strip') {
           const pointer = pointerRef.current
           const stripEl = document.querySelector(`[data-rails-drop-id="${String(over.id)}"]`)
