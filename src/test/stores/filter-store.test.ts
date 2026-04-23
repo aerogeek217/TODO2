@@ -357,6 +357,52 @@ describe('useFilterStore', () => {
     expect(useFilterStore.getState().filters.orgFilterMode).toBe('include-people')
   })
 
+  describe('tags filter', () => {
+    it('null (default) is not a filter — tagged and untagged todos pass', () => {
+      expect(f().tags).toBeNull()
+      expect(useFilterStore.getState().isActive).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 1, tags: ['urgent'] }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
+    })
+
+    it('non-empty set matches tasks with at least one matching tag (OR)', () => {
+      useFilterStore.getState().setTags(new Set(['urgent', 'blocked']))
+
+      // Has one of the two
+      expect(matchesFilter(f(), makeTodo({ id: 1, tags: ['urgent'] }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, tags: ['blocked'] }))).toBe(true)
+      // Has both
+      expect(matchesFilter(f(), makeTodo({ id: 3, tags: ['urgent', 'blocked', 'x'] }))).toBe(true)
+      // Has neither
+      expect(matchesFilter(f(), makeTodo({ id: 4, tags: ['soon'] }))).toBe(false)
+    })
+
+    it('todo with zero tags is excluded when the clause is non-empty', () => {
+      useFilterStore.getState().setTags(new Set(['urgent']))
+      expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, tags: [] }))).toBe(false)
+    })
+
+    it('empty set matches zero todos (no tag can satisfy it)', () => {
+      useFilterStore.getState().setTags(new Set())
+      expect(matchesFilter(f(), makeTodo({ id: 1, tags: ['urgent'] }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(false)
+    })
+
+    it('isActive reflects a non-null tag filter', () => {
+      useFilterStore.getState().setTags(new Set(['urgent']))
+      expect(useFilterStore.getState().isActive).toBe(true)
+      useFilterStore.getState().setTags(null)
+      expect(useFilterStore.getState().isActive).toBe(false)
+    })
+
+    it('clearAll resets tags to null', () => {
+      useFilterStore.getState().setTags(new Set(['urgent']))
+      useFilterStore.getState().clearAll()
+      expect(useFilterStore.getState().filters.tags).toBeNull()
+    })
+  })
+
   describe('orgFilterMode direct-only', () => {
     it('include-people matches person-org and direct-org (default)', () => {
       useFilterStore.getState().setOrgIds(new Set([10]))
@@ -575,6 +621,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       dateRangeIncludeNoDate: true,
       hasScheduled: true,
       hasDeadline: null,
+      tags: null,
     }
 
     const serialized = criteriaToPredicate(original)
@@ -592,6 +639,42 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
     expect(runtime.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
     expect(runtime.hasScheduled).toBe(true)
+  })
+
+  it('tags round-trip as Set ↔ array; missing field reads back as null', async () => {
+    const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
+    const original = {
+      showCompleted: false,
+      showHiddenStatuses: false,
+      personIds: null,
+      personFilterMode: 'include-orgs' as const,
+      orgIds: null,
+      orgFilterMode: 'include-people' as const,
+      projectIds: null,
+      statusIds: null,
+      searchText: '',
+      dateField: 'date' as const,
+      dateRangeStart: null,
+      dateRangeEnd: null,
+      dateRangeIncludeNoDate: false,
+      hasScheduled: null,
+      hasDeadline: null,
+      tags: new Set(['urgent', 'soon']),
+    }
+    const serialized = criteriaToPredicate(original)
+    expect(Array.isArray(serialized.tags)).toBe(true)
+    expect(new Set(serialized.tags!)).toEqual(new Set(['urgent', 'soon']))
+
+    const runtime = predicateToCriteria(serialized)
+    expect(runtime.tags instanceof Set).toBe(true)
+    expect(runtime.tags).toEqual(new Set(['urgent', 'soon']))
+
+    // Back-compat: a predicate missing the `tags` key reads back as null.
+    const pre = { ...serialized }
+    delete (pre as { tags?: unknown }).tags
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const backCompat = predicateToCriteria(pre as any)
+    expect(backCompat.tags).toBeNull()
   })
 
   it('legacy ISO-string dateRangeStart auto-upgrades to fixed anchor', async () => {

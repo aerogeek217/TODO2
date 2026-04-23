@@ -56,6 +56,13 @@ export interface FilterCriteria {
   hasScheduled: boolean | null
   /** Tri-state presence filter on `dueDate`. null = no filter. */
   hasDeadline: boolean | null
+  /**
+   * null = no filter; Set of normalized tag slugs — todo must have at least
+   * one tag in the set (OR semantics). An empty Set matches zero todos;
+   * a todo with no tags is excluded whenever this clause is non-null and
+   * non-empty.
+   */
+  tags: Set<string> | null
 }
 
 interface FilterState {
@@ -79,6 +86,7 @@ interface FilterState {
   setDateRangeIncludeNoDate: (include: boolean) => void
   setHasScheduled: (value: boolean | null) => void
   setHasDeadline: (value: boolean | null) => void
+  setTags: (tags: Set<string> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
   clearAll: () => void
 }
@@ -99,6 +107,7 @@ const defaultFilters: FilterCriteria = {
   dateRangeIncludeNoDate: false,
   hasScheduled: null,
   hasDeadline: null,
+  tags: null,
 }
 
 function isFilterActive(f: FilterCriteria): boolean {
@@ -113,7 +122,8 @@ function isFilterActive(f: FilterCriteria): boolean {
     f.dateRangeStart !== null ||
     f.dateRangeEnd !== null ||
     f.hasScheduled !== null ||
-    f.hasDeadline !== null
+    f.hasDeadline !== null ||
+    f.tags !== null
   )
 }
 
@@ -201,6 +211,11 @@ export function matchesFilter(
   if (filters.hasDeadline !== null) {
     const has = todo.dueDate !== undefined
     if (has !== filters.hasDeadline) return false
+  }
+  if (filters.tags !== null) {
+    const todoTags = todo.tags
+    if (!todoTags || todoTags.length === 0) return false
+    if (!todoTags.some((t) => filters.tags!.has(t))) return false
   }
 
   if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
@@ -318,6 +333,7 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
     hasScheduled: f.hasScheduled,
     hasDeadline: f.hasDeadline,
+    tags: f.tags ? Array.from(f.tags) : null,
   }
 }
 
@@ -339,6 +355,7 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     dateRangeIncludeNoDate: p.dateRangeIncludeNoDate,
     hasScheduled: p.hasScheduled ?? null,
     hasDeadline: p.hasDeadline ?? null,
+    tags: p.tags ? new Set(p.tags) : null,
   }
 }
 
@@ -412,6 +429,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setHasDeadline(hasDeadline: boolean | null) {
     commit(set, { ...get().filters, hasDeadline })
+  },
+
+  setTags(tags: Set<string> | null) {
+    commit(set, { ...get().filters, tags })
   },
 
   setAllFilters(filters: FilterCriteria) {

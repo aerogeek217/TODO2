@@ -462,7 +462,7 @@ function EntityDropdownItems({
 
 
 export function TopBar() {
-  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setProjectIds, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, clearAll } = useFilterStore()
+  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setProjectIds, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, setTags, clearAll } = useFilterStore()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -492,13 +492,25 @@ export function TopBar() {
   // Track which filter dropdown is in "preview empty" mode:
   // when opened with all selected, show unchecked visually but don't commit to store
   // until user clicks an item. If closed without selection, stays at all (null).
-  const [previewEmpty, setPreviewEmpty] = useState<'project' | 'people' | 'org' | 'status' | null>(null)
+  const [previewEmpty, setPreviewEmpty] = useState<'project' | 'people' | 'org' | 'status' | 'tags' | null>(null)
 
   const peopleActive = filters.personIds !== null
   const orgsActive = filters.orgIds !== null
   const projectsActive = filters.projectIds !== null
   const statusActive = filters.statusIds !== null
+  const tagsActive = filters.tags !== null
   const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null || filters.hasScheduled !== null || filters.hasDeadline !== null
+
+  // Known tags derived from the current todo corpus — no persisted registry.
+  // Tags are lowercased on write, so a simple Set dedupes safely.
+  const knownTags = useMemo(() => {
+    const s = new Set<string>()
+    for (const t of todos) {
+      if (!t.tags) continue
+      for (const tag of t.tags) s.add(tag)
+    }
+    return [...s].sort()
+  }, [todos])
 
   const handlePersonToggle = useCallback(
     (personId: number) => {
@@ -550,16 +562,29 @@ export function TopBar() {
     },
     [filters.projectIds, projects, setProjectIds, previewEmpty],
   )
+  const handleTagToggle = useCallback(
+    (tag: string) => {
+      if (previewEmpty === 'tags') {
+        setPreviewEmpty(null)
+        setTags(new Set([tag]))
+        return
+      }
+      setTags(toggleItem(filters.tags, tag, knownTags))
+    },
+    [filters.tags, knownTags, setTags, previewEmpty],
+  )
 
   const isPersonChecked = (id: number) => previewEmpty === 'people' ? false : filters.personIds === null || filters.personIds.has(id)
   const isOrgChecked = (id: number) => previewEmpty === 'org' ? false : filters.orgIds === null || filters.orgIds.has(id)
   const isProjectChecked = (id: number) => previewEmpty === 'project' ? false : filters.projectIds === null || filters.projectIds.has(id)
   const isStatusChecked = (id: number) => previewEmpty === 'status' ? false : filters.statusIds === null || filters.statusIds.has(id)
+  const isTagChecked = (tag: string) => previewEmpty === 'tags' ? false : filters.tags === null || filters.tags.has(tag)
 
   const peopleNone = previewEmpty === 'people' || (filters.personIds !== null && filters.personIds.size === 0)
   const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
   const projectsNone = previewEmpty === 'project' || (filters.projectIds !== null && filters.projectIds.size === 0)
   const statusNone = previewEmpty === 'status' || (filters.statusIds !== null && filters.statusIds.size === 0)
+  const tagsNone = previewEmpty === 'tags' || (filters.tags !== null && filters.tags.size === 0)
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
@@ -760,6 +785,38 @@ export function TopBar() {
                   />
                 </>
               )}
+            </FilterDropdown>
+          )}
+
+          {knownTags.length > 0 && (
+            <FilterDropdown
+              label={<><span className={styles.filterIcon}>#</span> Tags</>}
+              active={tagsActive || previewEmpty === 'tags'}
+              allSelected={!tagsActive && previewEmpty !== 'tags'}
+              noneSelected={tagsNone}
+              onSelectAll={() => { setPreviewEmpty(null); setTags(null) }}
+              onDeselectAll={() => { setPreviewEmpty(null); setTags(new Set()) }}
+              onOpen={() => { if (!tagsActive) setPreviewEmpty('tags') }}
+              onClose={() => { if (previewEmpty === 'tags') setPreviewEmpty(null) }}
+              searchable
+            >
+              {(searchText: string) => {
+                const q = searchText.toLowerCase()
+                const filtered = q ? knownTags.filter(t => t.includes(q)) : knownTags
+                if (filtered.length === 0) {
+                  return <div className={styles.dropdownEmpty}>{q ? 'No matches' : 'No tags yet'}</div>
+                }
+                return (
+                  <>
+                    {filtered.map(tag => (
+                      <label key={tag} className={styles.dropdownItem} onClick={() => handleTagToggle(tag)}>
+                        <span className={`${styles.check} ${isTagChecked(tag) ? styles.checked : ''}`} />
+                        #{tag}
+                      </label>
+                    ))}
+                  </>
+                )
+              }}
             </FilterDropdown>
           )}
 

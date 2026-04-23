@@ -83,6 +83,7 @@ function resetStores(def: PersistedListDefinition = dueThisWeekDef()) {
     dateRangeIncludeNoDate: false,
     hasScheduled: null,
     hasDeadline: null,
+    tags: null,
   })
 }
 

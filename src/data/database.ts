@@ -409,6 +409,7 @@ function basePredicate(): TodoPredicate {
     dateRangeIncludeNoDate: false,
     hasScheduled: null,
     hasDeadline: null,
+    tags: null,
   }
 }
 

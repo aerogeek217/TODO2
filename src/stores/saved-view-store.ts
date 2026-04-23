@@ -113,6 +113,7 @@ function filtersToSerializable(f: FilterCriteria): SavedViewFilters {
     dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
     hasScheduled: f.hasScheduled,
     hasDeadline: f.hasDeadline,
+    ...(f.tags != null ? { tags: Array.from(f.tags) } : {}),
   }
 }
 
@@ -217,6 +218,7 @@ export function savedFiltersToRuntime(
       dateRangeIncludeNoDate,
       hasScheduled: s.hasScheduled ?? null,
       hasDeadline: s.hasDeadline ?? null,
+      tags: s.tags ? new Set(s.tags) : null,
       searchText: '',
     },
     losses,

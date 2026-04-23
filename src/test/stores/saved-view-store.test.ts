@@ -19,6 +19,7 @@ const defaultFilters: FilterCriteria = {
   dateRangeIncludeNoDate: false,
   hasScheduled: null,
   hasDeadline: null,
+  tags: null,
 }
 
 beforeEach(async () => {

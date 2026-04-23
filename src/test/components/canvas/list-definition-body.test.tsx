@@ -70,6 +70,7 @@ function resetStores() {
     dateRangeIncludeNoDate: false,
     hasScheduled: null,
     hasDeadline: null,
+    tags: null,
   })
 }
 
@@ -205,6 +206,7 @@ describe('ListDefinitionBody', () => {
       dateRangeIncludeNoDate: false,
       hasScheduled: null,
       hasDeadline: null,
+      tags: null,
     })
     render(
       <Wrapper>
