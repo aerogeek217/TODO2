@@ -3,7 +3,10 @@ import {
   DndContext,
   DragOverlay,
 } from '@dnd-kit/core'
-import { RAILS_DRAG_TYPE, isRailsDropId } from '../utils/rail-dnd'
+import { RAILS_DRAG_TYPE, isRailsDropId, type FloatDescriptor, type FloatDockTarget } from '../utils/rail-dnd'
+import { useCanvasRailsStore } from '../stores/canvas-rails-store'
+import { describeFloatDockTarget, computeEmptySideCornerClaim } from '../utils/float-dock-announce'
+import type { FloatDragKind } from '../stores/ui-store'
 import { buildTaskCollision } from '../utils/task-dnd'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useProjectStore } from '../stores/project-store'
@@ -524,6 +527,71 @@ export function CanvasPage() {
     updateFloatingTaskboardSize(id, w, h)
   }, [updateFloatingTaskboardSize])
 
+  /**
+   * Float-dock handler — called by `CanvasView` on release of a floating
+   * widget over a rail drop zone. Builds the `FloatDescriptor` from the
+   * appropriate floating-store row (threading calendar `orientation` /
+   * `weekOffset` and lens `listDefinitionId`), dispatches one of the two
+   * `canvas-rails-store` dock reducers, applies any empty-side corner claim,
+   * and emits a screen-reader announcement mirroring `useRailsDragMonitor`'s
+   * pattern. Store reducers delete the source float row on success, so
+   * `CanvasView`'s usual position-persist path does not run for this release.
+   */
+  const handleFloatDock = useCallback((
+    desc: { kind: FloatDragKind; floatId: number },
+    target: FloatDockTarget,
+  ) => {
+    let descriptor: FloatDescriptor | null = null
+    switch (desc.kind) {
+      case 'note':
+        descriptor = { kind: 'note', id: desc.floatId }
+        break
+      case 'calendar': {
+        const cal = useFloatingCalendarStore.getState().calendars.find((c) => c.id === desc.floatId)
+        if (!cal) return
+        descriptor = {
+          kind: 'calendar',
+          id: desc.floatId,
+          orientation: cal.orientation,
+          weekOffset: cal.weekOffset,
+        }
+        break
+      }
+      case 'inset': {
+        const inset = useListInsetStore.getState().insets.find((i) => i.id === desc.floatId)
+        if (!inset) return
+        descriptor = { kind: 'lens', id: desc.floatId, listDefinitionId: inset.listDefinitionId }
+        break
+      }
+      case 'taskboard': {
+        const board = useTaskboardStore.getState().board
+        if (!board?.id) return
+        descriptor = { kind: 'taskboard', id: desc.floatId, taskboardId: board.id }
+        break
+      }
+    }
+    if (!descriptor) return
+
+    const railsStore = useCanvasRailsStore.getState()
+    if (target.kind === 'tab-strip') {
+      railsStore.dockFloatIntoSlot(descriptor, target.slotId, 'center', target.insertIdx)
+    } else if (target.kind === 'slot') {
+      railsStore.dockFloatIntoSlot(descriptor, target.slotId, target.zone)
+    } else {
+      railsStore.dockFloatAsNewSlot(descriptor, { kind: 'empty-side', side: target.side })
+      if (target.claim) {
+        for (const { corner, owner } of computeEmptySideCornerClaim(target.side, target.claim)) {
+          if (owner == null) railsStore.clearCornerOwner(corner)
+          else railsStore.setCornerOwner(corner, owner)
+        }
+      }
+    }
+
+    useUIStore.getState().setFloatAnnouncement(
+      describeFloatDockTarget(target, useCanvasRailsStore.getState().rails),
+    )
+  }, [])
+
   const dragInsertValue = useMemo(
     () => ({
       activeDragTodoId: dnd.activeDragTodo?.id ?? null,
@@ -600,6 +668,7 @@ export function CanvasPage() {
           onCascadeShift={handleCascadeShift}
           showCompleted={filters.showCompleted}
           showHiddenStatuses={filters.showHiddenStatuses}
+          onFloatDock={handleFloatDock}
         />
         {isProjectNavigatorOpen && (
           <ProjectNavigator

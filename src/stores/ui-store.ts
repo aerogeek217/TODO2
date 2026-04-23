@@ -76,6 +76,14 @@ interface UIState {
   isTaskboardOpen: boolean
   /** Descriptor of the floating canvas widget currently being dragged, or null. */
   floatDrag: FloatDragState | null
+  /**
+   * Screen-reader announcement for float-dock drag gestures — mirrors the
+   * `useRailsDragMonitor` announcer (rendered as its own `aria-live=polite`
+   * region by `RailsFrame`). Empty string = silence. Set on drag start
+   * (`Dragging <kind>`) and on successful dock (`Dropped in <zone>`); cleared
+   * when the drag ends without a dock or is cancelled.
+   */
+  floatAnnouncement: string
 
   setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
@@ -107,6 +115,7 @@ interface UIState {
   toggleProjectNavigator: () => void
   toggleTaskboard: () => void
   setFloatDrag: (next: FloatDragState | null) => void
+  setFloatAnnouncement: (text: string) => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -132,6 +141,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isProjectNavigatorOpen: false,
   isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
   floatDrag: null,
+  floatAnnouncement: '',
 
   setActiveView(view: AppView) {
     set({ activeView: view })
@@ -278,5 +288,10 @@ export const useUIStore = create<UIState>((set, get) => ({
     if (next === null && cur === null) return
     if (next && cur && next.kind === cur.kind && next.id === cur.id) return
     set({ floatDrag: next })
+  },
+
+  setFloatAnnouncement(text) {
+    if (get().floatAnnouncement === text) return
+    set({ floatAnnouncement: text })
   },
 }))

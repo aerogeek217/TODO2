@@ -77,6 +77,16 @@ function floatKindForNodeId(id: string): { kind: FloatDragKind; floatId: number 
   return null
 }
 
+/** Human-readable label for a float drag kind, used in the a11y announcer. */
+function floatKindLabel(kind: FloatDragKind): string {
+  switch (kind) {
+    case 'note': return 'note'
+    case 'calendar': return 'calendar'
+    case 'inset': return 'list'
+    case 'taskboard': return 'taskboard'
+  }
+}
+
 /** Stable no-op used as a fallback for optional callback props so that omitted
  *  handlers don't produce a fresh function reference each render. */
 const NOOP = () => {}
@@ -256,11 +266,21 @@ export function CanvasView({
   // component unmounts mid-drag).
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
   const pointerCleanupRef = useRef<(() => void) | null>(null)
+  // Phase 4: session-scoped multi-drag tracker. Any frame with ≥2 concurrent
+  // drags marks the session as multi so multi-select releases (which can
+  // batch into a single `handleNodesChange` call) stay position-only — even
+  // for the last release, whose post-delete `draggingIds.size` would be 1.
+  // Reset once `draggingIds` empties at the end of a batch.
+  const wasMultiDragRef = useRef(false)
   useEffect(() => () => {
     if (pointerCleanupRef.current) {
       pointerCleanupRef.current()
       pointerCleanupRef.current = null
     }
+    // Clear any stale ui-store state an unmount-mid-drag would otherwise
+    // leave stuck — DockOverlay reads `floatDrag` to decide visibility.
+    useUIStore.getState().setFloatDrag(null)
+    wasMultiDragRef.current = false
   }, [])
   const [alignmentLines, setAlignmentLines] = useState<AlignmentLine[]>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
@@ -520,6 +540,10 @@ export function CanvasView({
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       let hasActiveDrag = false
+      // Phase 4 a11y: flip `true` when any release in this batch dispatches
+      // the dock callback, so the normal detach branch below knows to leave
+      // the freshly-set "Dropped in {zone}" announcement alone.
+      let floatDockFired = false
 
       // Was any float being dragged before this batch of changes? Used to
       // decide whether to attach the Phase 2 float-dock pointer listener at
@@ -547,6 +571,11 @@ export function CanvasView({
         if (change.type === 'position') {
           if (change.dragging) {
             draggingIds.current.add(change.id)
+            // If any frame ever has >1 concurrent drags, flag the session as
+            // multi so no release in this batch (or the final one whose
+            // post-delete `draggingIds.size === 0`) slips past the hit-test
+            // gate.
+            if (draggingIds.current.size > 1) wasMultiDragRef.current = true
             hasActiveDrag = true
           } else {
             draggingIds.current.delete(change.id)
@@ -554,20 +583,31 @@ export function CanvasView({
               const id = change.id
               const floatKind = floatKindForNodeId(id)
 
-              // Phase 2 float-dock hit-test: when a float is released and the
-              // pointer is over a rail drop zone, dispatch the dock action
-              // and suppress the usual position persist (the float is about
-              // to be replaced by a tab). Multi-drag stays position-only —
-              // only hit-test when exactly one thing is being dropped.
+              // Phase 2/4 float-dock hit-test: when a float is released and
+              // the pointer is over a rail drop zone, dispatch the dock
+              // action and suppress the usual position persist (the float is
+              // about to be replaced by a tab). Multi-drag stays
+              // position-only via `wasMultiDragRef`; `draggingIds.size === 0`
+              // keeps mid-batch releases from docking while sibling drags
+              // are still in flight.
               if (
                 floatKind &&
                 onFloatDock &&
                 pointerRef.current &&
-                draggingIds.current.size === 0
+                draggingIds.current.size === 0 &&
+                !wasMultiDragRef.current
               ) {
                 const target = resolveFloatDockTarget(pointerRef.current, { getSlotOrientation })
                 if (target) {
                   onFloatDock({ kind: floatKind.kind, floatId: floatKind.floatId }, target)
+                  // Release dispatched → CanvasPage's handler has already
+                  // replaced the drag-start announcer with the dock-success
+                  // string; flag it so detach doesn't wipe that. Clear
+                  // `wasMultiDragRef` immediately so the next session starts
+                  // clean even if subsequent batches don't reach the size-0
+                  // reset block below.
+                  floatDockFired = true
+                  wasMultiDragRef.current = false
                   continue
                 }
               }
@@ -612,14 +652,53 @@ export function CanvasView({
         const onMove = (e: PointerEvent) => {
           pointerRef.current = { x: e.clientX, y: e.clientY }
         }
-        window.addEventListener('pointermove', onMove)
-        pointerCleanupRef.current = () => {
+        // Phase 4 cancel-safety: if React Flow ever swallows the release
+        // event (e.g., the dragged node unmounts, window blurs, pointer
+        // cancel), our drag-end branch never runs. A microtask-deferred
+        // cleanup riding on global pointerup/cancel/blur gives React Flow
+        // the first chance to emit dragging:false normally; if it did,
+        // `pointerCleanupRef.current` is already null by the time the
+        // microtask fires and the forced cleanup is a no-op.
+        let cleaned = false
+        const detach = () => {
+          if (cleaned) return
+          cleaned = true
           window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', onUpOrCancel)
+          window.removeEventListener('pointercancel', onUpOrCancel)
+          window.removeEventListener('blur', onUpOrCancel)
           pointerRef.current = null
         }
+        const onUpOrCancel = () => {
+          queueMicrotask(() => {
+            if (pointerCleanupRef.current !== detach) return
+            detach()
+            pointerCleanupRef.current = null
+            useUIStore.getState().setFloatDrag(null)
+            useUIStore.getState().setFloatAnnouncement('')
+            wasMultiDragRef.current = false
+          })
+        }
+        window.addEventListener('pointermove', onMove)
+        window.addEventListener('pointerup', onUpOrCancel)
+        window.addEventListener('pointercancel', onUpOrCancel)
+        window.addEventListener('blur', onUpOrCancel)
+        pointerCleanupRef.current = detach
+        // Phase 4: reuse the rails-monitor announcer pattern for a11y.
+        useUIStore.getState().setFloatAnnouncement(`Dragging ${floatKindLabel(floatDragNext!.kind)}`)
       } else if (floatWasDragging && !floatIsDragging && pointerCleanupRef.current) {
         pointerCleanupRef.current()
         pointerCleanupRef.current = null
+        // Non-dock drop → clear the stale "Dragging {kind}" announcement.
+        // Dock drops leave CanvasPage's "Dropped in …" string in place.
+        if (!floatDockFired) useUIStore.getState().setFloatAnnouncement('')
+      }
+
+      // Phase 4 multi-drag reset: clear the session flag once every drag has
+      // ended. Placed after the listener teardown so any release in this
+      // batch already saw the correct (pre-reset) value.
+      if (draggingIds.current.size === 0) {
+        wasMultiDragRef.current = false
       }
 
       // Detect project height changes for cascade shifting (read BEFORE updating prevHeightsRef)

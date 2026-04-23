@@ -607,6 +607,7 @@ export function RailsFrame({ children }: RailsFrameProps) {
   const { draggingSlot, announcement } = useRailsDragMonitor()
   const railsDragging = draggingSlot !== null
   const floatDragActive = useUIStore((s) => s.floatDrag !== null)
+  const floatAnnouncement = useUIStore((s) => s.floatAnnouncement)
 
   const emptySides = useMemo(() => {
     const out: RailSide[] = []
@@ -676,6 +677,14 @@ export function RailsFrame({ children }: RailsFrameProps) {
         aria-atomic="true"
       >
         {announcement}
+      </div>
+      <div
+        className={styles.srOnly}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {floatAnnouncement}
       </div>
     </div>
   )
