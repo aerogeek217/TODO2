@@ -44,6 +44,13 @@ export const tagRepository = {
     return db.todoTags.where('tagId').equals(tagId).count()
   },
 
+  async getTodoCounts(): Promise<Map<number, number>> {
+    const rows = await db.todoTags.toArray()
+    const counts = new Map<number, number>()
+    for (const row of rows) counts.set(row.tagId, (counts.get(row.tagId) ?? 0) + 1)
+    return counts
+  },
+
   async assignTag(todoId: number, tagId: number): Promise<void> {
     await todoTagOps.assign(todoId, tagId)
   },

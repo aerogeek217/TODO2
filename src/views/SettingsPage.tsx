@@ -6,6 +6,7 @@ import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
+import { useTagStore } from '../stores/tag-store'
 import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 import type { ImportData } from '../data/import-validation'
 import { detectLegacyFormat } from '../services/migration-check'
@@ -16,6 +17,7 @@ import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-han
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
 import { OrgEditor } from '../components/settings/OrgEditor'
+import { TagEditor } from '../components/settings/TagEditor'
 import { ThemeColorsEditor } from '../components/settings/ThemeColorsEditor'
 import { KeyboardShortcutsModal } from '../components/settings/KeyboardShortcutsModal'
 import { StatusEditor } from '../components/settings/StatusEditor'
@@ -49,6 +51,7 @@ export function SettingsPage() {
   const purgeExpiredCompleted = useTodoStore((s) => s.purgeExpiredCompleted)
   const peopleCount = usePersonStore((s) => s.people.length)
   const orgCount = useOrgStore((s) => s.orgs.length)
+  const tagCount = useTagStore((s) => s.tags.length)
   const statusCount = useStatusStore((s) => s.statuses.length)
   const statuses = useStatusStore((s) => s.statuses)
   const loadStatuses = useStatusStore((s) => s.load)
@@ -56,6 +59,7 @@ export function SettingsPage() {
   const importRef = useRef<HTMLInputElement>(null)
   const [showPeopleEditor, setShowPeopleEditor] = useState(false)
   const [showOrgEditor, setShowOrgEditor] = useState(false)
+  const [showTagEditor, setShowTagEditor] = useState(false)
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showStatusEditor, setShowStatusEditor] = useState(false)
@@ -89,19 +93,21 @@ export function SettingsPage() {
   const isMobile = useIsMobile()
   const loadPeople = usePersonStore((s) => s.load)
   const loadOrgs = useOrgStore((s) => s.load)
+  const loadTags = useTagStore((s) => s.load)
 
   useEffect(() => {
     load()
     loadProjects()
     loadPeople()
     loadOrgs()
+    loadTags()
     loadStatuses()
     loadListDefinitions()
     loadBackups()
     return () => {
       timerRefs.current.forEach(clearTimeout)
     }
-  }, [load, loadProjects, loadPeople, loadOrgs, loadStatuses, loadListDefinitions, loadBackups])
+  }, [load, loadProjects, loadPeople, loadOrgs, loadTags, loadStatuses, loadListDefinitions, loadBackups])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -300,7 +306,7 @@ export function SettingsPage() {
         {/* People & Tags — desktop only */}
         {!isMobile && (
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>People, Orgs & Statuses</div>
+          <div className={styles.sectionTitle}>People, Orgs, Statuses & Tags</div>
           <div className={styles.buttonRow}>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowPeopleEditor(true)}>
               Manage People{peopleCount > 0 && ` (${peopleCount})`}
@@ -310,6 +316,9 @@ export function SettingsPage() {
             </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowStatusEditor(true)}>
               Manage Statuses{statusCount > 0 && ` (${statusCount})`}
+            </button>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowTagEditor(true)}>
+              Manage Tags{tagCount > 0 && ` (${tagCount})`}
             </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowDashboardListsEditor(true)}>
               Manage Dashboard Lists{listDefinitionCount > 0 && ` (${listDefinitionCount})`}
@@ -708,6 +717,7 @@ export function SettingsPage() {
       {showPeopleEditor && <PeopleEditor onClose={() => setShowPeopleEditor(false)} />}
       {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showStatusEditor && <StatusEditor onClose={() => setShowStatusEditor(false)} />}
+      {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
       {showDashboardListsEditor && <DashboardListsEditor onClose={() => setShowDashboardListsEditor(false)} />}
 
       {showCleanupPopup && (
