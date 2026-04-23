@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { TodoItem, PersistedTodoItem, Person, Org, RecurrenceType } from '../../models'
+import type { TodoItem, PersistedTodoItem, Person, Org, RecurrenceType, Tag } from '../../models'
 import { AppView } from '../../models'
 import type { ScheduledValue } from '../../models/scheduled-value'
 import { useProjectStore } from '../../stores/project-store'
@@ -24,13 +24,18 @@ interface TaskEditPopupBaseProps {
   allPeople: Person[]
   assignedOrgs?: Org[]
   allOrgs?: Org[]
+  assignedTags?: Tag[]
+  allTags?: Tag[]
   onClose: () => void
   onAssignPerson: (personId: number) => void
   onUnassignPerson: (personId: number) => void
   onAssignOrg?: (orgId: number) => void
   onUnassignOrg?: (orgId: number) => void
+  onAssignTag?: (tagId: number) => void
+  onUnassignTag?: (tagId: number) => void
   onCreatePerson?: (name: string) => Promise<number>
   onCreateOrg?: (name: string) => Promise<number>
+  onCreateTag?: (name: string) => Promise<number>
 }
 
 interface EditModeProps extends TaskEditPopupBaseProps {
@@ -49,7 +54,7 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   onUpdate?: never
   onToggleComplete?: never
   onDelete?: never
-  onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], orgIds: number[] }) => Promise<number>
+  onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], orgIds: number[], tagIds: number[] }) => Promise<number>
 }
 
 type TaskEditPopupProps = EditModeProps | CreateModeProps
@@ -58,8 +63,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const {
     mode, allPeople, assignedPeople,
     assignedOrgs = [], allOrgs = [],
+    assignedTags = [], allTags = [],
     onClose, onAssignPerson, onUnassignPerson,
     onAssignOrg, onUnassignOrg, onCreatePerson,
+    onAssignTag, onUnassignTag, onCreateTag,
   } = props
 
   const isEdit = mode === 'edit'
@@ -96,6 +103,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // Local state for create mode assignments (no todoId exists yet)
   const [pendingPersonIds, setPendingPersonIds] = useState<Set<number>>(() => new Set(filterDefaults?.personIds ?? []))
   const [pendingOrgIds, setPendingOrgIds] = useState<Set<number>>(() => new Set(filterDefaults?.orgIds ?? []))
+  const [pendingTagIds, setPendingTagIds] = useState<Set<number>>(() => new Set())
 
   const effectiveAssignedPeople = mode === 'create'
     ? allPeople.filter(p => pendingPersonIds.has(p.id!))
@@ -103,13 +111,17 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const effectiveAssignedOrgs = mode === 'create'
     ? allOrgs.filter(o => pendingOrgIds.has(o.id!))
     : assignedOrgs
+  const effectiveAssignedTags = mode === 'create'
+    ? allTags.filter(t => pendingTagIds.has(t.id!))
+    : assignedTags
 
   const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<'people' | 'orgs' | 'project' | null>(null)
+  const [openDropdown, setOpenDropdown] = useState<'people' | 'orgs' | 'project' | 'tags' | null>(null)
   const [projectSearch, setProjectSearch] = useState('')
   const titleRef = useRef<HTMLInputElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const orgsRef = useRef<HTMLDivElement>(null)
+  const tagsRef = useRef<HTMLDivElement>(null)
   const projectRef = useRef<HTMLDivElement>(null)
   const projectSearchRef = useRef<HTMLInputElement>(null)
   const statusMenuRef = useRef<HTMLDivElement>(null)
@@ -355,6 +367,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }, {
       personIds: [...pendingPersonIds],
       orgIds: [...pendingOrgIds],
+      tagIds: [...pendingTagIds],
     })
     void newTodoId
     onClose()
@@ -398,8 +411,33 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     else onAssignOrg(id)
   }
 
+  const toggleTag = (id: number) => {
+    if (mode === 'create') {
+      setPendingTagIds(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id); else next.add(id)
+        return next
+      })
+      return
+    }
+    if (!onAssignTag || !onUnassignTag) return
+    const isAssigned = assignedTags.some((t) => t.id === id)
+    if (isAssigned) onUnassignTag(id)
+    else onAssignTag(id)
+  }
+
+  const handleCreateTag = onCreateTag ? async (name: string) => {
+    const id = await onCreateTag(name)
+    if (mode === 'create') {
+      setPendingTagIds(prev => new Set([...prev, id]))
+    } else if (onAssignTag) {
+      onAssignTag(id)
+    }
+  } : undefined
+
   const assignedPeopleIds = useMemo(() => new Set(effectiveAssignedPeople.map(p => p.id!)), [effectiveAssignedPeople])
   const assignedOrgIds = useMemo(() => new Set(effectiveAssignedOrgs.map(o => o.id!)), [effectiveAssignedOrgs])
+  const assignedTagIds = useMemo(() => new Set(effectiveAssignedTags.map(t => t.id!)), [effectiveAssignedTags])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -410,6 +448,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         setOpenDropdown(null)
       }
       if (openDropdown === 'orgs' && orgsRef.current && !orgsRef.current.contains(target)) {
+        setOpenDropdown(null)
+      }
+      if (openDropdown === 'tags' && tagsRef.current && !tagsRef.current.contains(target)) {
         setOpenDropdown(null)
       }
       if (openDropdown === 'project' && projectRef.current && !projectRef.current.contains(target)) {
@@ -518,30 +559,27 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onProjectSearchChange={setProjectSearch}
             assignedPeople={effectiveAssignedPeople}
             assignedOrgs={effectiveAssignedOrgs}
+            assignedTags={effectiveAssignedTags}
             allPeople={allPeople}
             allOrgs={allOrgs}
+            allTags={allTags}
             assignedPeopleIds={assignedPeopleIds}
             assignedOrgIds={assignedOrgIds}
+            assignedTagIds={assignedTagIds}
             isEdit={isEdit}
             peopleRef={peopleRef}
             orgsRef={orgsRef}
+            tagsRef={tagsRef}
             onTogglePerson={togglePerson}
             onToggleOrg={toggleOrg}
+            onToggleTag={toggleTag}
             onCreatePerson={handleCreatePerson}
+            onCreateTag={handleCreateTag}
             openDropdown={openDropdown}
             setOpenDropdown={setOpenDropdown}
             todo={todo}
             onUpdate={isEdit ? props.onUpdate : undefined}
           />
-
-          {/* Tags (read-only) — derived from `#foo` tokens in the title via
-              NLP. Displayed for confirmation only; removal is via title edit. */}
-          {isEdit && todo?.tags && todo.tags.length > 0 && (
-            <div className={styles.notesSection}>
-              <div className={styles.notesLabel}>Tags</div>
-              <div className={styles.tagsReadonly}>{todo.tags.join(', ')}</div>
-            </div>
-          )}
 
           {/* Status Notes */}
           <div className={styles.notesSection}>

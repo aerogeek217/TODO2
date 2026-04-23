@@ -28,6 +28,7 @@ export function useTaskEditCallbacks() {
   const { todos, update: updateTodo, add: addTodo, setTags } = useTodoStore()
   const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
   const { orgs, assignedOrgsMap, assignOrg, unassignOrg } = useOrgStore()
+  const { tags, assignedTagsMap, assignTag, unassignTag } = useTagStore()
   const { projects, add: addProject } = useProjectStore()
   const { selectedCanvasId } = useCanvasStore()
   const { selectedTodoId, editPopupMode, openEditPopup, closeEditPopup } = useUIStore()
@@ -37,7 +38,7 @@ export function useTaskEditCallbacks() {
     [todos, selectedTodoId]
   )
 
-  const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; orgIds: number[] }) => {
+  const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; orgIds: number[]; tagIds?: number[] }) => {
     const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, projects, orgs)
     let pid = resolved.projectId ?? partial.projectId
     if (!pid && selectedCanvasId) {
@@ -68,12 +69,16 @@ export function useTaskEditCallbacks() {
     const allOrgIds = new Set([...resolved.orgIds, ...(assignments?.orgIds ?? [])])
     for (const personId of allPersonIds) await assignPerson(id, personId)
     for (const orgId of allOrgIds) await assignOrg(id, orgId)
+    // Registry-side writes (tags v2): resolve-or-create NLP tags + apply any
+    // pending ids picked in the popup's chip selector. Phase 9 drops the inline
+    // setTags call below; until then it runs so Phase 1–8 consumers still
+    // reading `todo.tags` keep working.
+    const nlpTagIds = resolved.tags.length > 0
+      ? await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
+      : []
+    const allTagIds = new Set<number>([...nlpTagIds, ...(assignments?.tagIds ?? [])])
+    for (const tagId of allTagIds) await useTagStore.getState().assignTag(id, tagId)
     if (resolved.tags.length > 0) {
-      // Registry-side writes (tags v2): resolve-or-create and assign via tag-store.
-      // Phase 9 drops the inline setTags call below; until then both paths run so
-      // any Phase 1–8 consumer still reading `todo.tags` keeps working.
-      const tagIds = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
-      for (const tagId of tagIds) await useTagStore.getState().assignTag(id, tagId)
       await setTags(id, resolved.tags)
     }
     return id
@@ -117,6 +122,7 @@ export function useTaskEditCallbacks() {
       todo: selectedTodo,
       assignedPeople: assignedPeopleMap.get(selectedTodo.id) ?? [],
       assignedOrgs: assignedOrgsMap.get(selectedTodo.id) ?? [],
+      assignedTags: assignedTagsMap.get(selectedTodo.id) ?? [],
       onUpdate: bulkAwareUpdate,
       onToggleComplete: () => useTodoStore.getState().toggleComplete(selectedTodo.id),
       onDelete: () => {
@@ -131,8 +137,10 @@ export function useTaskEditCallbacks() {
       onUnassignPerson: bulkAssign(unassignPerson, usePersonStore.getState().bulkUnassignPerson),
       onAssignOrg: bulkAssign(assignOrg, useOrgStore.getState().bulkAssignOrg),
       onUnassignOrg: bulkAssign(unassignOrg, useOrgStore.getState().bulkUnassignOrg),
+      onAssignTag: bulkAssign(assignTag, useTagStore.getState().bulkAssignTag),
+      onUnassignTag: bulkAssign(unassignTag, useTagStore.getState().bulkUnassignTag),
     }
-  }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedOrgsMap, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignOrg, unassignOrg])
+  }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignOrg, unassignOrg, assignTag, unassignTag])
 
   const entityCreators = useMemo(() => ({
     onCreatePerson: (name: string) => {
@@ -140,6 +148,7 @@ export function useTaskEditCallbacks() {
       return usePersonStore.getState().add(name, initials)
     },
     onCreateOrg: (name: string) => useOrgStore.getState().add(name),
+    onCreateTag: (name: string) => useTagStore.getState().add(name),
   }), [])
 
   return {
@@ -148,6 +157,7 @@ export function useTaskEditCallbacks() {
     closeEditPopup,
     allPeople: people,
     allOrgs: orgs,
+    allTags: tags,
     onCreate,
     editProps,
     entityCreators,

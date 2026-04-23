@@ -4,7 +4,7 @@ import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { makePerson, makeOrg, makeTodo } from '../helpers'
-import type { Person, Org, PersistedTodoItem } from '../../models'
+import type { Person, Org, Tag, PersistedTodoItem } from '../../models'
 
 // Suppress showPicker (not supported in jsdom)
 beforeEach(() => {
@@ -17,6 +17,8 @@ const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })
 const acmeOrg: Org & { id: number } = makeOrg({ id: 1, name: 'Acme' })
 const globexOrg: Org & { id: number } = makeOrg({ id: 2, name: 'Globex' })
+const urgentTag: Tag & { id: number } = { id: 1, name: 'urgent', color: '#f00' }
+const followupTag: Tag & { id: number } = { id: 2, name: 'followup', color: '#0a0' }
 
 function resetStores() {
   useProjectStore.setState({ projects: [] })
@@ -37,6 +39,11 @@ function openPeopleDropdown() {
   fireEvent.click(addButtons[0])
 }
 
+function openTagsDropdown() {
+  const addButtons = screen.getAllByText('+ Add')
+  fireEvent.click(addButtons[1])
+}
+
 function renderCreateMode(overrides: Record<string, unknown> = {}) {
   const onCreate = vi.fn().mockResolvedValue(42)
   const onClose = vi.fn()
@@ -47,13 +54,18 @@ function renderCreateMode(overrides: Record<string, unknown> = {}) {
     allPeople: [alice, bob],
     assignedOrgs: [],
     allOrgs: [acmeOrg, globexOrg],
+    assignedTags: [],
+    allTags: [urgentTag, followupTag],
     onClose,
     onCreate,
     onAssignPerson: vi.fn(),
     onUnassignPerson: vi.fn(),
     onAssignOrg: vi.fn(),
     onUnassignOrg: vi.fn(),
+    onAssignTag: vi.fn(),
+    onUnassignTag: vi.fn(),
     onCreatePerson: vi.fn().mockResolvedValue(99),
+    onCreateTag: vi.fn().mockResolvedValue(77),
     ...overrides,
   }
 
@@ -67,6 +79,9 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
   const onUnassignPerson = vi.fn()
   const onAssignOrg = vi.fn()
   const onUnassignOrg = vi.fn()
+  const onAssignTag = vi.fn()
+  const onUnassignTag = vi.fn()
+  const onCreateTag = vi.fn().mockResolvedValue(77)
 
   const props = {
     mode: 'edit' as const,
@@ -75,6 +90,8 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     allPeople: [alice, bob],
     assignedOrgs: [],
     allOrgs: [acmeOrg, globexOrg],
+    assignedTags: [],
+    allTags: [urgentTag, followupTag],
     onClose: vi.fn(),
     onUpdate,
     onToggleComplete: vi.fn(),
@@ -84,11 +101,14 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     onUnassignPerson,
     onAssignOrg,
     onUnassignOrg,
+    onAssignTag,
+    onUnassignTag,
+    onCreateTag,
     ...overrides,
   }
 
   const result = render(<TaskEditPopup {...props} />)
-  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignOrg, onUnassignOrg }
+  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignOrg, onUnassignOrg, onAssignTag, onUnassignTag, onCreateTag }
 }
 
 describe('TaskEditPopup', () => {
@@ -262,6 +282,150 @@ describe('TaskEditPopup', () => {
 
       fireEvent.click(screen.getByText('Acme'))
       expect(onAssignOrg).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('create mode — pending tag assignments', () => {
+    it('toggling a tag includes it in onCreate assignments', async () => {
+      const { onCreate } = renderCreateMode()
+
+      openTagsDropdown()
+      fireEvent.click(screen.getByText('urgent'))
+
+      // Tag chip appears with # prefix (distinct from dropdown item)
+      expect(screen.getByText('#urgent')).toBeInTheDocument()
+
+      typeTitle('Tagged task')
+      clickCreate()
+
+      await vi.waitFor(() => {
+        expect(onCreate).toHaveBeenCalledOnce()
+      })
+
+      const [partial, assignments] = onCreate.mock.calls[0]
+      expect(partial.title).toBe('Tagged task')
+      expect(assignments.tagIds).toEqual([1])
+    })
+
+    it('toggling a tag twice removes it from pending', async () => {
+      const { onCreate } = renderCreateMode()
+
+      openTagsDropdown()
+      fireEvent.click(screen.getByText('urgent'))
+      expect(screen.getByText('#urgent')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('urgent'))
+      expect(screen.queryByText('#urgent')).not.toBeInTheDocument()
+
+      typeTitle('No tag')
+      clickCreate()
+
+      await vi.waitFor(() => {
+        expect(onCreate).toHaveBeenCalledOnce()
+      })
+
+      const [, assignments] = onCreate.mock.calls[0]
+      expect(assignments.tagIds).toEqual([])
+    })
+
+    it('inline-creating a tag calls onCreateTag and adds it to pending', async () => {
+      const onCreateTag = vi.fn().mockResolvedValue(50)
+      const { onCreate } = renderCreateMode({ onCreateTag })
+
+      openTagsDropdown()
+
+      const searchInput = screen.getByPlaceholderText('Search tags...')
+      fireEvent.change(searchInput, { target: { value: 'blocker' } })
+      fireEvent.click(screen.getByText('+ Create "blocker"'))
+
+      await vi.waitFor(() => {
+        expect(onCreateTag).toHaveBeenCalledWith('blocker')
+      })
+
+      typeTitle('Blocker task')
+      clickCreate()
+
+      await vi.waitFor(() => {
+        expect(onCreate).toHaveBeenCalledOnce()
+      })
+
+      const [, assignments] = onCreate.mock.calls[0]
+      expect(assignments.tagIds).toContain(50)
+    })
+
+    it('does not call the no-op tag assignment callbacks in create mode', () => {
+      const { props } = renderCreateMode()
+
+      openTagsDropdown()
+      fireEvent.click(screen.getByText('urgent'))
+      expect(props.onAssignTag).not.toHaveBeenCalled()
+      expect(props.onUnassignTag).not.toHaveBeenCalled()
+    })
+
+    it('empty tag assignments are passed when no chips selected', async () => {
+      const { onCreate } = renderCreateMode()
+
+      typeTitle('Plain task')
+      clickCreate()
+
+      await vi.waitFor(() => {
+        expect(onCreate).toHaveBeenCalledOnce()
+      })
+
+      const [, assignments] = onCreate.mock.calls[0]
+      expect(assignments.tagIds).toEqual([])
+    })
+  })
+
+  describe('edit mode — tag callbacks', () => {
+    it('toggling an unassigned tag calls onAssignTag', () => {
+      const todo = makeTodo({ id: 10, title: 'Edit task' })
+      const { onAssignTag } = renderEditMode(todo)
+
+      openTagsDropdown()
+      fireEvent.click(screen.getByText('urgent'))
+
+      expect(onAssignTag).toHaveBeenCalledWith(1)
+    })
+
+    it('toggling an assigned tag calls onUnassignTag', () => {
+      const todo = makeTodo({ id: 10, title: 'Edit task' })
+      const { onUnassignTag } = renderEditMode(todo, { assignedTags: [urgentTag] })
+
+      openTagsDropdown()
+      fireEvent.click(screen.getByText('urgent'))
+
+      expect(onUnassignTag).toHaveBeenCalledWith(1)
+    })
+
+    it('removing a chip via × fires onUnassignTag', () => {
+      const todo = makeTodo({ id: 10, title: 'Edit task' })
+      const { onUnassignTag } = renderEditMode(todo, { assignedTags: [urgentTag] })
+
+      const chip = screen.getByText('#urgent')
+      const removeBtn = chip.querySelector('span')!
+      fireEvent.click(removeBtn)
+
+      expect(onUnassignTag).toHaveBeenCalledWith(1)
+    })
+
+    it('inline-creating a tag calls onCreateTag then onAssignTag', async () => {
+      const onCreateTag = vi.fn().mockResolvedValue(99)
+      const todo = makeTodo({ id: 10, title: 'Edit task' })
+      const { onAssignTag } = renderEditMode(todo, { onCreateTag })
+
+      openTagsDropdown()
+
+      const searchInput = screen.getByPlaceholderText('Search tags...')
+      fireEvent.change(searchInput, { target: { value: 'newtag' } })
+      fireEvent.click(screen.getByText('+ Create "newtag"'))
+
+      await vi.waitFor(() => {
+        expect(onCreateTag).toHaveBeenCalledWith('newtag')
+      })
+      await vi.waitFor(() => {
+        expect(onAssignTag).toHaveBeenCalledWith(99)
+      })
     })
   })
 })

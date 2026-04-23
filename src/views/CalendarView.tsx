@@ -556,10 +556,14 @@ export function CalendarView() {
             onCreate={taskEdit.onCreate}
             assignedOrgs={[]}
             allOrgs={taskEdit.allOrgs}
+            assignedTags={[]}
+            allTags={taskEdit.allTags}
             onAssignPerson={() => {}}
             onUnassignPerson={() => {}}
             onAssignOrg={() => {}}
             onUnassignOrg={() => {}}
+            onAssignTag={() => {}}
+            onUnassignTag={() => {}}
             {...taskEdit.entityCreators}
           />
         )}

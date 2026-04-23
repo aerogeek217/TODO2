@@ -1,4 +1,4 @@
-import type { Person, Org, RecurrenceType, PersistedTodoItem } from '../../models'
+import type { Person, Org, Tag, RecurrenceType, PersistedTodoItem } from '../../models'
 import type { ScheduledValue } from '../../models/scheduled-value'
 import { ChipSelector } from '../shared/ChipSelector'
 import { SchedulePicker } from '../shared/SchedulePicker'
@@ -30,20 +30,26 @@ interface TaskEditMetadataProps {
   // People & Orgs
   assignedPeople: Person[]
   assignedOrgs: Org[]
+  assignedTags: Tag[]
   allPeople: Person[]
   allOrgs: Org[]
+  allTags: Tag[]
   assignedPeopleIds: Set<number>
   assignedOrgIds: Set<number>
+  assignedTagIds: Set<number>
   isEdit: boolean
   peopleRef: React.RefObject<HTMLDivElement | null>
   orgsRef: React.RefObject<HTMLDivElement | null>
+  tagsRef: React.RefObject<HTMLDivElement | null>
   onTogglePerson: (id: number) => void
   onToggleOrg: (id: number) => void
+  onToggleTag: (id: number) => void
   onCreatePerson?: (name: string) => Promise<void>
+  onCreateTag?: (name: string) => Promise<void>
 
   // Dropdown state
-  openDropdown: 'people' | 'orgs' | 'project' | null
-  setOpenDropdown: (dd: 'people' | 'orgs' | 'project' | null) => void
+  openDropdown: 'people' | 'orgs' | 'project' | 'tags' | null
+  setOpenDropdown: (dd: 'people' | 'orgs' | 'project' | 'tags' | null) => void
 
   // For project select save in edit mode
   todo?: PersistedTodoItem
@@ -55,9 +61,11 @@ export function TaskEditMetadata({
   onScheduledChange, onDeadlineChange, onRecurrenceChange,
   projectId, projects, projectSearch, projectRef, projectSearchRef,
   onProjectSelect, onProjectSearchChange,
-  assignedPeople, assignedOrgs, allPeople, allOrgs,
-  assignedPeopleIds, assignedOrgIds, isEdit,
-  peopleRef, orgsRef, onTogglePerson, onToggleOrg, onCreatePerson,
+  assignedPeople, assignedOrgs, assignedTags, allPeople, allOrgs, allTags,
+  assignedPeopleIds, assignedOrgIds, assignedTagIds, isEdit,
+  peopleRef, orgsRef, tagsRef,
+  onTogglePerson, onToggleOrg, onToggleTag,
+  onCreatePerson, onCreateTag,
   openDropdown, setOpenDropdown,
   todo, onUpdate,
 }: TaskEditMetadataProps) {
@@ -213,6 +221,36 @@ export function TaskEditMetadata({
                 onToggle={(id) => id < 0 ? onToggleOrg(-id) : onTogglePerson(id)}
                 onCreate={onCreatePerson}
                 placeholder="Search people & orgs..."
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tags */}
+      <div className={styles.metaRow}>
+        <span className={styles.metaLabel}>Tags</span>
+        <div className={styles.chipArea} ref={tagsRef}>
+          {assignedTags.map((tag) => (
+            <button key={`t-${tag.id}`} className={styles.tagChip}
+              style={{ color: tag.color, borderColor: tag.color }}
+              onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
+              #{tag.name}
+              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onToggleTag(tag.id!) }}>&times;</span>
+            </button>
+          ))}
+          <button className={styles.chipAddBtn}
+            onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
+            + Add
+          </button>
+          {openDropdown === 'tags' && (
+            <div className={styles.chipDropdown}>
+              <ChipSelector
+                items={allTags.toSorted((a, b) => a.name.localeCompare(b.name)).map(t => ({ id: t.id!, name: t.name, color: t.color }))}
+                selectedIds={assignedTagIds}
+                onToggle={onToggleTag}
+                onCreate={onCreateTag}
+                placeholder="Search tags..."
               />
             </div>
           )}
