@@ -1,8 +1,9 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, Tag, TodoTag } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import type { HorizonKey } from '../services/horizons'
+import { DEFAULT_ENTITY_COLOR } from '../constants'
 
 export interface SettingRow {
   key: string
@@ -29,6 +30,8 @@ export class Todo2Database extends Dexie {
   floatingCalendars!: Table<FloatingCalendar, number>
   floatingNotes!: Table<FloatingNote, number>
   floatingTaskboards!: Table<FloatingTaskboard, number>
+  tags!: Table<Tag, number>
+  todoTags!: Table<TodoTag, number>
 
   constructor() {
     super('todo2')
@@ -223,6 +226,23 @@ export class Todo2Database extends Dexie {
     // existing rows need no rewriting (the field is optional and omitted when
     // empty).
     this.version(35).stores({})
+
+    // v36: tags v2 — recreate the normalized `tags` + `todoTags` tables that
+    // v29 dropped. Seed the registry from existing inline `todo.tags` slugs
+    // (case-folded, first-seen canonical casing, `DEFAULT_ENTITY_COLOR`);
+    // emit `todoTags` join rows per todo; translate stored predicate/saved-
+    // view `tags: string[]` clauses to `tags: number[]` via the same slug→id
+    // lookup. Unknown names on stored predicates are dropped with a single
+    // console warning. The inline `todo.tags` field survives transiently
+    // through Phase 8; v37 removes it.
+    this.version(36)
+      .stores({
+        tags: '++id, name',
+        todoTags: '++id, todoId, tagId',
+      })
+      .upgrade(async (tx) => {
+        await runV36Migration(tx)
+      })
   }
 }
 
@@ -747,7 +767,7 @@ export async function persistHorizonSlots(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.tags, db.todoTags] as const
 
 /**
  * Append `" #tagname"` for every assigned tag to each todo's title. Mutates
@@ -1240,4 +1260,132 @@ export async function runV34Migration(tx: Transaction): Promise<void> {
     }
   })
   if (stripped > 0) console.info(`v34 migration: stripped parentId from ${stripped} todo row(s)`)
+}
+
+/**
+ * Collect unique tag slugs (lowercase) from every todo's inline `tags` field
+ * in first-seen order, plus a per-todo slug list for emitting `todoTags` join
+ * rows. Case-folds, trims, drops empties. Pure — shared between the in-place
+ * v36 migration and the post-v35 restore branch.
+ */
+export function buildTagRegistryFromInline(
+  todos: Array<{ id?: number; tags?: unknown }>,
+): { uniqueSlugs: string[]; joinsByTodoId: Map<number, string[]> } {
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  const joinsByTodoId = new Map<number, string[]>()
+  for (const t of todos) {
+    if (!Array.isArray(t.tags) || typeof t.id !== 'number') continue
+    const perTodo: string[] = []
+    for (const raw of t.tags) {
+      if (typeof raw !== 'string') continue
+      const slug = raw.trim().toLowerCase()
+      if (slug.length === 0) continue
+      if (!seen.has(slug)) { seen.add(slug); ordered.push(slug) }
+      perTodo.push(slug)
+    }
+    if (perTodo.length > 0) joinsByTodoId.set(t.id, perTodo)
+  }
+  return { uniqueSlugs: ordered, joinsByTodoId }
+}
+
+/**
+ * In-place translate a `tags` array on a stored object from `string[]`
+ * (case-folded lookup) to `number[]` (tag ids). No-op when `tags` is not an
+ * array. Entries already stored as numbers pass through (keeps the function
+ * idempotent if the migration runs twice). Unknown slug names are collected
+ * via `unknownCollector` so the caller can log them once. Returns true when
+ * the field was translated.
+ */
+export function translatePredicateTagsInPlace(
+  obj: Record<string, unknown>,
+  slugToId: Map<string, number>,
+  unknownCollector: Set<string>,
+): boolean {
+  const raw = obj.tags
+  if (!Array.isArray(raw)) return false
+  const translated: number[] = []
+  for (const s of raw) {
+    if (typeof s === 'number' && Number.isInteger(s)) {
+      translated.push(s)
+      continue
+    }
+    if (typeof s !== 'string') continue
+    const slug = s.trim().toLowerCase()
+    if (slug.length === 0) continue
+    const id = slugToId.get(slug)
+    if (id != null) translated.push(id)
+    else unknownCollector.add(slug)
+  }
+  obj.tags = translated
+  return true
+}
+
+/** Translate `membership.predicate.tags` on a list-definition row. No-op for non-custom membership. */
+export function translateListDefinitionTagsInPlace(
+  def: Record<string, unknown>,
+  slugToId: Map<string, number>,
+  unknownCollector: Set<string>,
+): boolean {
+  const m = def.membership as Record<string, unknown> | undefined
+  if (!m || m.kind !== 'custom') return false
+  const p = m.predicate as Record<string, unknown> | undefined
+  if (!p) return false
+  return translatePredicateTagsInPlace(p, slugToId, unknownCollector)
+}
+
+/** Translate `filters.tags` on a saved-view row. */
+export function translateSavedViewTagsInPlace(
+  sv: Record<string, unknown>,
+  slugToId: Map<string, number>,
+  unknownCollector: Set<string>,
+): boolean {
+  const f = sv.filters as Record<string, unknown> | undefined
+  if (!f) return false
+  return translatePredicateTagsInPlace(f, slugToId, unknownCollector)
+}
+
+/**
+ * v36 upgrade: recreate the `tags` + `todoTags` tables (dropped by v29),
+ * seed them from inline `todo.tags` slugs, and translate stored predicate /
+ * saved-view `tags` clauses from `string[]` to `number[]`. Inline `todo.tags`
+ * is preserved transiently (Phase 9 removes it).
+ */
+export async function runV36Migration(tx: Transaction): Promise<void> {
+  const todosTable = tx.table('todos')
+  const tagsTable = tx.table<Tag>('tags')
+  const todoTagsTable = tx.table<TodoTag>('todoTags')
+
+  const todos = await todosTable.toArray() as Array<{ id?: number; tags?: unknown }>
+  const { uniqueSlugs, joinsByTodoId } = buildTagRegistryFromInline(todos)
+
+  const slugToId = new Map<string, number>()
+  for (const slug of uniqueSlugs) {
+    const id = (await tagsTable.add({ name: slug, color: DEFAULT_ENTITY_COLOR } as Tag)) as number
+    slugToId.set(slug, id)
+  }
+
+  const joins: Array<Omit<TodoTag, 'id'>> = []
+  for (const [todoId, slugs] of joinsByTodoId) {
+    for (const slug of slugs) {
+      const tagId = slugToId.get(slug)
+      if (tagId != null) joins.push({ todoId, tagId })
+    }
+  }
+  if (joins.length > 0) await todoTagsTable.bulkAdd(joins as TodoTag[])
+
+  const unknownCollector = new Set<string>()
+  await tx.table('listDefinitions').toCollection().modify((def: Record<string, unknown>) => {
+    translateListDefinitionTagsInPlace(def, slugToId, unknownCollector)
+  })
+  await tx.table('savedViews').toCollection().modify((sv: Record<string, unknown>) => {
+    translateSavedViewTagsInPlace(sv, slugToId, unknownCollector)
+  })
+  if (unknownCollector.size > 0) {
+    console.warn(
+      `v36 migration: dropped ${unknownCollector.size} unknown tag name(s) from stored predicates: ${[...unknownCollector].join(', ')}`,
+    )
+  }
+
+  console.info(`v36 migration: seeded ${uniqueSlugs.length} tag(s) + ${joins.length} assignment(s) from inline`)
 }

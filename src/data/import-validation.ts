@@ -1,8 +1,10 @@
 import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
 
 /**
- * Pre-v29 tag types. Retained here so import validation can read pre-v29
- * backups, bake `#tagname` suffixes into todo titles, and drop the rows.
+ * Top-level tag registry rows. Shape is shared between pre-v29 backups
+ * (restore bakes `#tagname` into titles) and post-v36 backups (restore
+ * bulk-adds them into the re-introduced `tags` + `todoTags` tables). The
+ * disambiguation happens in `restoreFromImportData`, not here.
  */
 export interface ImportTag {
   id?: number
@@ -1096,10 +1098,16 @@ export interface ImportData {
   projects: Project[]
   todos: TodoItem[]
   people: Person[]
-  /** Pre-v29 tag rows preserved so restore can bake names into titles, then dropped. */
+  /**
+   * Tag registry rows. Pre-v29 backups: baked into titles by restore.
+   * Post-v36 backups: bulk-added into the `tags` table. Absent for v29–v35.
+   */
   tags?: ImportTag[]
   listInsets: ImportListInset[]
-  /** Pre-v29 tag-join rows preserved for the same reason as `tags`. */
+  /**
+   * Tag assignment rows. Pre-v29 backups: join data for title-baking.
+   * Post-v36 backups: bulk-added into `todoTags`. Absent for v29–v35.
+   */
   todoTags?: ImportTodoTag[]
   todoPeople: TodoPerson[]
   todoOrgs: TodoOrg[]

@@ -112,6 +112,41 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
+  // Post-v36 export shape: top-level tags + todoTags coexist with inline
+  // `todo.tags`. The same validators gate both sides — no dedicated logic,
+  // but assert they round-trip together so the combination is covered.
+  describe('v36 tag registry + inline tags coexistence', () => {
+    it('accepts a full post-v36 shape with tags, todoTags, and inline tags', () => {
+      const result = validateImportData(validData({
+        todos: [makeTodo({ tags: ['urgent'] })],
+        tags: [{ id: 1, name: 'urgent', color: '#537FE7' }],
+        todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data.tags).toEqual([{ id: 1, name: 'urgent', color: '#537FE7' }])
+        expect(result.data.todoTags).toEqual([{ id: 1, todoId: 1, tagId: 1 }])
+        expect(result.data.todos[0].tags).toEqual(['urgent'])
+      }
+    })
+
+    it('accepts post-v36 shape with tag registry but no todoTags joins', () => {
+      // A user can have Tag rows without any assignments yet.
+      const result = validateImportData(validData({
+        tags: [{ id: 1, name: 'someday', color: '#abcdef' }],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) expect(result.data.tags).toHaveLength(1)
+    })
+
+    it('rejects todoTag rows referencing non-integer ids', () => {
+      const result = validateImportData(validData({
+        todoTags: [{ id: 1, todoId: 1, tagId: 'not-a-number' as unknown as number }],
+      }))
+      expect(result.ok).toBe(false)
+    })
+  })
+
   // v35 inline-tags validation on todo rows
   describe('v35 inline todo.tags', () => {
     it('accepts lowercase slug arrays', () => {

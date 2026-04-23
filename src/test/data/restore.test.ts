@@ -169,12 +169,15 @@ describe('restoreFromImportData', () => {
       expect(todo!.tags).toBeUndefined()
     })
 
-    it('restoreFromImportData_withInlineTags_persistsThemPostV35', async () => {
-      // Post-v35 backups carry tags as an inline `todo.tags?: string[]`. They
-      // must round-trip to the new row intact — no baking, no stripping.
+    it('restoreFromImportData_withInlineTagsOnly_seedsRegistryAndPersistsInline', async () => {
+      // Post-v35, pre-v36 backups carry tags inline on todos but no top-level
+      // `tags` / `todoTags`. Restore seeds the re-introduced registry from
+      // inline (same logic as the in-place v36 upgrade) and preserves the
+      // inline field transiently (Phase 9 removes it).
       const data = makeImportData({
         todos: [
           { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, tags: ['urgent', 'today'] },
+          { id: 2, title: 'Ship it', isCompleted: false, sortOrder: 1, createdAt: now, modifiedAt: now, tags: ['urgent'] },
         ],
       })
 
@@ -183,26 +186,58 @@ describe('restoreFromImportData', () => {
       const todo = await db.todos.get(1)
       expect(todo!.title).toBe('Fix bug')
       expect(todo!.tags).toEqual(['urgent', 'today'])
+
+      const tags = await db.tags.toArray()
+      expect(tags.map((t) => t.name).sort()).toEqual(['today', 'urgent'])
+      for (const t of tags) expect(t.color).toBe('#537FE7')
+
+      const joins = await db.todoTags.toArray()
+      expect(joins).toHaveLength(3)
     })
 
-    it('restoreFromImportData_withMixedLegacyAndInlineTags_preservesBoth', async () => {
-      // Shouldn't occur in practice — a backup is either pre-v29 (top-level
-      // tags+todoTags) or post-v35 (inline tags). If both are present, the two
-      // paths must coexist: the legacy arrays bake into the title, the inline
-      // array survives untouched.
+    it('restoreFromImportData_withPostV36Shape_bulkAddsTagTables', async () => {
+      // Post-v36 backups carry BOTH top-level `tags` + `todoTags` AND inline
+      // `todo.tags`. Restore trusts the top-level arrays, bulk-adds them into
+      // the tables, and leaves inline alone (v37 removes inline later).
       const data = makeImportData({
         todos: [
-          { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, tags: ['inline-tag'] },
+          { id: 1, title: 'Fix bug', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now, tags: ['urgent'] },
         ],
-        tags: [{ id: 1, name: 'legacy', color: '#ff0000' }],
-        todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
+        tags: [{ id: 7, name: 'urgent', color: '#123456' }],
+        todoTags: [{ id: 1, todoId: 1, tagId: 7 }],
       })
 
       await restoreFromImportData(data)
 
       const todo = await db.todos.get(1)
-      expect(todo!.title).toContain('#legacy')
-      expect(todo!.tags).toEqual(['inline-tag'])
+      expect(todo!.title).toBe('Fix bug')
+      expect(todo!.tags).toEqual(['urgent'])
+
+      const tags = await db.tags.toArray()
+      expect(tags).toHaveLength(1)
+      expect(tags[0].name).toBe('urgent')
+      expect(tags[0].color).toBe('#123456') // user-chosen color preserved
+
+      const joins = await db.todoTags.toArray()
+      expect(joins).toHaveLength(1)
+      expect(joins[0].todoId).toBe(1)
+      expect(joins[0].tagId).toBe(7)
+    })
+
+    it('restoreFromImportData_withPostV36Shape_clearsExistingTagTables', async () => {
+      // Existing tags must be cleared before the new ones land — same rule
+      // as every other table restore.
+      await db.tags.add({ name: 'stale', color: '#abcdef' })
+      const data = makeImportData({
+        todos: [{ id: 1, title: 't', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now }],
+        tags: [{ id: 1, name: 'fresh', color: '#112233' }],
+      })
+
+      await restoreFromImportData(data)
+
+      const tags = await db.tags.toArray()
+      expect(tags).toHaveLength(1)
+      expect(tags[0].name).toBe('fresh')
     })
 
     it('restoreFromImportData_withStatuses_persistsStatusTable', async () => {

@@ -10,12 +10,16 @@ import {
   buildListDefFromLegacyInset,
   appendTagNamesToTitle,
   buildTagNamesByTodo,
+  buildTagRegistryFromInline,
+  translateListDefinitionTagsInPlace,
+  translateSavedViewTagsInPlace,
   coalesceTaskboardRows,
 } from './database'
-import type { ImportData, ImportListInset, ImportNote } from './import-validation'
+import type { ImportData, ImportListInset, ImportNote, ImportTag, ImportTodoTag } from './import-validation'
 import { validateImportData, isLegacyMembershipKind } from './import-validation'
 import type { ListDefinition } from '../models/list-definition'
-import type { ListInset, Note, FloatingNote, Taskboard, TaskboardEntry } from '../models'
+import type { ListInset, Note, FloatingNote, Taskboard, TaskboardEntry, Tag, TodoTag } from '../models'
+import { DEFAULT_ENTITY_COLOR } from '../constants'
 
 /** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
 const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
@@ -121,10 +125,26 @@ async function restoreNoteBuckets(importNotes: ImportNote[]): Promise<{ global: 
 
 /** Clear all data tables and bulk-add from validated import data, then auto-seed statuses + list definitions and translate legacy fields. */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
-  // Pre-v29 backups carry `tags` + `todoTags` arrays. Bake the tag names into
-  // todo titles (` #tagname`) before the bulk-add so the surviving DB has no
-  // tag-feature footprint. Mirrors the in-place `runV29Migration`.
-  const isPreV29 = !!(v.tags?.length || v.todoTags?.length)
+  // Disambiguate legacy vs current tag shapes on the backup:
+  //   • pre-v29: `todoTags` join rows present but no inline `todo.tags` (the
+  //     feature predated v35). Bake `#tagname` into titles via the v29 rule;
+  //     do not resurrect the rows in the re-introduced tag tables.
+  //   • v29–v34: neither top-level nor inline. No-op.
+  //   • post-v35 inline-only: inline `todo.tags` present but no top-level
+  //     arrays. Seed top-level from inline (mirrors `runV36Migration`) and
+  //     translate stored predicate / saved-view `tags: string[]` → `number[]`.
+  //   • post-v36: top-level arrays present (optionally with inline). Bulk-add
+  //     the arrays; inline passes through transiently (v37 removes it).
+  //
+  // Using "todoTag joins present without inline" as the pre-v29 marker means
+  // a post-v36 backup with Tag rows but no assignments is treated as post-v36
+  // (its tags land in the registry), matching what the user intended.
+  const hasTopLevelTags = !!(v.tags?.length || v.todoTags?.length)
+  const hasTodoTagJoins = !!(v.todoTags?.length)
+  const hasInlineTags = v.todos.some((t) => Array.isArray(t.tags) && t.tags.length > 0)
+  const isPreV29 = hasTodoTagJoins && !hasInlineTags
+  const isPostV35InlineOnly = hasInlineTags && !hasTopLevelTags
+
   let tagsBaked = 0
   if (isPreV29) {
     const namesByTodo = buildTagNamesByTodo(v.todoTags ?? [], v.tags ?? [])
@@ -135,6 +155,58 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
         if (!names || names.length === 0) continue
         todo.title = appendTagNamesToTitle(todo.title, names)
         tagsBaked++
+      }
+    }
+  }
+
+  // For post-v35 inline-only backups: build the top-level tag registry from
+  // inline data so the restore converges on the same state as the in-place
+  // v36 upgrade.
+  if (isPostV35InlineOnly) {
+    const { uniqueSlugs, joinsByTodoId } = buildTagRegistryFromInline(
+      v.todos as unknown as Array<{ id?: number; tags?: unknown }>,
+    )
+    if (uniqueSlugs.length > 0) {
+      // Assign synthetic positive ids (1..N) for the seeded tags. The bulk-add
+      // below uses these as `id` overrides; Dexie accepts explicit ids on
+      // ++id tables. Downstream, `todoTags` references these same ids.
+      const seededTags: ImportTag[] = uniqueSlugs.map((slug, i) => ({
+        id: i + 1,
+        name: slug,
+        color: DEFAULT_ENTITY_COLOR,
+      }))
+      const slugToId = new Map<string, number>()
+      for (const t of seededTags) slugToId.set(t.name, t.id!)
+      const seededJoins: ImportTodoTag[] = []
+      let joinId = 1
+      for (const [todoId, slugs] of joinsByTodoId) {
+        for (const slug of slugs) {
+          const tagId = slugToId.get(slug)
+          if (tagId != null) seededJoins.push({ id: joinId++, todoId, tagId })
+        }
+      }
+      v.tags = seededTags
+      v.todoTags = seededJoins
+
+      const unknownCollector = new Set<string>()
+      for (const def of v.listDefinitions ?? []) {
+        translateListDefinitionTagsInPlace(
+          def as unknown as Record<string, unknown>,
+          slugToId,
+          unknownCollector,
+        )
+      }
+      for (const sv of v.savedViews ?? []) {
+        translateSavedViewTagsInPlace(
+          sv as unknown as Record<string, unknown>,
+          slugToId,
+          unknownCollector,
+        )
+      }
+      if (unknownCollector.size > 0) {
+        console.warn(
+          `Restore: dropped ${unknownCollector.size} unknown tag name(s) from stored predicates: ${[...unknownCollector].join(', ')}`,
+        )
       }
     }
   }
@@ -159,17 +231,28 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     }
   }
 
-  const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes, db.taskboards])
+  const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes, db.taskboards, db.tags, db.todoTags])
   await db.transaction('rw', tables, async () => {
     for (const { table } of TABLE_KEY_PAIRS) await table.clear()
     await db.listInsets.clear()
     await db.notes.clear()
     await db.taskboards.clear()
+    await db.tags.clear()
+    await db.todoTags.clear()
 
     for (const { table, key } of TABLE_KEY_PAIRS) {
       const rows = v[key]
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (rows?.length) await (table as any).bulkAdd(rows)
+    }
+
+    // Post-v36 backups carry `tags` + `todoTags` top-level arrays that belong
+    // in the re-introduced tables. Pre-v29 backups also carry these arrays but
+    // restore has already baked their names into titles and intentionally
+    // does not resurrect the tag rows (plan tags-v2 P1 / runV29Migration).
+    if (!isPreV29) {
+      if (v.tags?.length) await db.tags.bulkAdd(v.tags as Tag[])
+      if (v.todoTags?.length) await db.todoTags.bulkAdd(v.todoTags as TodoTag[])
     }
 
     if (tagsBaked > 0) {
