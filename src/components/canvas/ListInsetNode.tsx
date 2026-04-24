@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { ListInset, PersistedTodoItem, Person, Org } from '../../models'
 import type { SlotKind } from '../../models/canvas-rails'
@@ -6,11 +6,14 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useCanvasStore } from '../../stores/canvas-store'
+import { usePersonStore } from '../../stores/person-store'
+import { useStatusStore } from '../../stores/status-store'
 import { ListDefinitionBody } from './ListDefinitionBody'
 import { DraggableTaskRow } from './shared/DraggableTaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { convertFloatingKind } from '../../services/float-kind-switch'
+import { copyTasksRich } from '../../services/task-copy'
 import styles from './ListInsetNode.module.css'
 
 // Re-exported for back-compat with existing call sites.
@@ -38,7 +41,11 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const definition = useListDefinitionStore((s) => s.listDefinitions.find(d => d.id === inset.listDefinitionId))
   const [count, setCount] = useState(0)
+  const [listTodos, setListTodos] = useState<PersistedTodoItem[]>([])
   const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const statuses = useStatusStore((s) => s.statuses)
+  const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
@@ -72,7 +79,25 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       <WidgetHeader
         kind="lens"
         title={headerLabel}
-        meta={count}
+        meta={
+          <>
+            <span>{count}</span>
+            <button
+              type="button"
+              className={`${styles.exportButton} nopan nodrag`}
+              onClick={() => {
+                void copyTasksRich(
+                  [{ todos: listTodos }],
+                  { assignedPeopleMap, statusMap },
+                )
+              }}
+              aria-label="Copy tasks"
+              title="Copy tasks"
+            >
+              ⧉
+            </button>
+          </>
+        }
         onDock={() => {
           if (inset.id == null) return
           useCanvasRailsStore.getState().createAndDockSlot('lens', inset.listDefinitionId)
@@ -90,7 +115,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
       >
         <ListDefinitionBody
           listDefinitionId={inset.listDefinitionId}
-          onResult={({ count }) => setCount(count)}
+          onResult={({ count, todos }) => { setCount(count); setListTodos(todos) }}
           emptyClassName={styles.emptyMessage}
           renderRow={({ todo, assignedPeople }) => (
             <DraggableTaskRow

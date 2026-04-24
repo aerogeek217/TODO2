@@ -1,10 +1,11 @@
+import type { PersistedTodoItem } from '../../../models'
 import { ListDefinitionBody } from '../ListDefinitionBody'
 import { DraggableTaskRow } from '../shared/DraggableTaskRow'
 import styles from './LensSlotContent.module.css'
 
 interface LensSlotContentProps {
   listDefinitionId: number | undefined
-  onTitleChange?: (title: string, count: number) => void
+  onTitleChange?: (title: string, count: number, todos: PersistedTodoItem[]) => void
 }
 
 export function LensSlotContent({ listDefinitionId, onTitleChange }: LensSlotContentProps) {
@@ -14,7 +15,7 @@ export function LensSlotContent({ listDefinitionId, onTitleChange }: LensSlotCon
   return (
     <ListDefinitionBody
       listDefinitionId={listDefinitionId}
-      onResult={({ name, count }) => onTitleChange?.(name ?? '(Deleted list)', count)}
+      onResult={({ name, count, todos }) => onTitleChange?.(name ?? '(Deleted list)', count, todos)}
       showContext
       compact
       className={styles.list}

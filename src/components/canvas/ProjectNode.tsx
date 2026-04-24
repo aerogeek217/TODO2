@@ -11,7 +11,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { effectiveDate } from '../../utils/effective-date'
 import { startOfToday } from '../../utils/date'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
-import { PlainTextExportPopup } from '../overlays/PlainTextExportPopup'
+import { copyTasksRich } from '../../services/task-copy'
 import { TASK_DROP_KIND, projectDropId } from '../../utils/task-dnd'
 import styles from './ProjectNode.module.css'
 
@@ -74,7 +74,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   const renameInputRef = useRef<HTMLInputElement>(null)
   const renameTimerRef = useRef<number | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
-  const [showExport, setShowExport] = useState(false)
   const [showSortMenu, setShowSortMenu] = useState(false)
   const [lastSort, setLastSort] = useState<{ by: SortBy; asc: boolean } | null>(null)
   const sortMenuRef = useRef<HTMLDivElement>(null)
@@ -177,7 +176,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
         const items: ContextMenuItem[] = [
           { label: 'Rename', action: () => { setRenameText(project.name); setIsRenaming(true) } },
           { label: project.isCollapsed ? 'Expand' : 'Collapse', action: () => onToggleCollapse(project.id!) },
-          { label: 'Export as text', action: () => setShowExport(true) },
           { separator: true, label: '', action: () => {} },
           { label: 'Delete', action: () => onDeleteProject(project.id!), danger: true },
         ]
@@ -244,8 +242,14 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
 
         <button
           className={`${styles.exportButton} nopan nodrag`}
-          onClick={(e) => { e.stopPropagation(); setShowExport(true) }}
-          title="Export as plain text"
+          onClick={(e) => {
+            e.stopPropagation()
+            void copyTasksRich(
+              [{ todos }],
+              { assignedPeopleMap, statusMap },
+            )
+          }}
+          title="Copy tasks"
         >
           ⧉
         </button>
@@ -356,16 +360,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
           y={ctxMenu.y}
           items={ctxMenu.items}
           onClose={() => setCtxMenu(null)}
-        />,
-        document.body,
-      )}
-
-      {showExport && createPortal(
-        <PlainTextExportPopup
-          sections={[{ key: `project-${project.id}`, label: project.name, todos }]}
-          assignedPeopleMap={assignedPeopleMap}
-          statusMap={statusMap}
-          onClose={() => setShowExport(false)}
         />,
         document.body,
       )}

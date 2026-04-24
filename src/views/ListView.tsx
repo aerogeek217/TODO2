@@ -37,7 +37,7 @@ import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { SectionHeader } from '../components/shared/SectionHeader'
 import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
-import { PlainTextExportPopup } from '../components/overlays/PlainTextExportPopup'
+import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
@@ -597,7 +597,6 @@ export function ListView() {
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
   const [overSectionKey, setOverSectionKey] = useState<string | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
-  const [showExport, setShowExport] = useState(false)
   const [renamingViewId, setRenamingViewId] = useState<number | null>(null)
   const [renameText, setRenameText] = useState('')
   const [showSaveViewDialog, setShowSaveViewDialog] = useState(false)
@@ -1068,8 +1067,14 @@ export function ListView() {
               </button>
               <button
                 className={styles.toolbarActionBtn}
-                onClick={() => setShowExport(true)}
-                title="Export as plain text"
+                onClick={() => {
+                  const copySections: CopyTaskSection[] = displaySections.map((s) => ({
+                    label: listGroupBy === 'none' ? undefined : s.label,
+                    todos: s.todos,
+                  }))
+                  void copyTasksRich(copySections, { assignedPeopleMap, statusMap })
+                }}
+                title="Copy tasks"
               >
                 ⧉
               </button>
@@ -1251,14 +1256,6 @@ export function ListView() {
             </div>
           </div>
         </>
-      )}
-      {showExport && (
-        <PlainTextExportPopup
-          sections={sections}
-          assignedPeopleMap={assignedPeopleMap}
-          statusMap={statusMap}
-          onClose={() => setShowExport(false)}
-        />
       )}
       {viewContextMenu && createPortal(
         <CanvasContextMenu

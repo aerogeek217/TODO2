@@ -127,7 +127,7 @@ describe('ListDefinitionBody', () => {
         <ListDefinitionBody listDefinitionId={1} onResult={onResult} />
       </Wrapper>,
     )
-    expect(onResult).toHaveBeenLastCalledWith({ name: 'Due this week', count: 2 })
+    expect(onResult).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Due this week', count: 2 }))
   })
 
   it('reports a null name when the definition was deleted', () => {
@@ -138,7 +138,7 @@ describe('ListDefinitionBody', () => {
         <ListDefinitionBody listDefinitionId={1} onResult={onResult} />
       </Wrapper>,
     )
-    expect(onResult).toHaveBeenLastCalledWith({ name: null, count: 0 })
+    expect(onResult).toHaveBeenLastCalledWith(expect.objectContaining({ name: null, count: 0 }))
   })
 
   it('uses the custom renderRow when provided', () => {

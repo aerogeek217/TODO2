@@ -8,7 +8,11 @@ import { useFloatingCalendarStore } from '../../../stores/floating-calendar-stor
 import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
+import { usePersonStore } from '../../../stores/person-store'
+import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { copyTasksRich } from '../../../services/task-copy'
+import type { PersistedTodoItem } from '../../../models'
 import type { CalendarOrientation, Corner, CornerOwner, RailSide, RailsState, Slot, Tab } from '../../../models/canvas-rails'
 import { computeRailGridArea, cornerForSideClaim, getActiveTab, isRailCollapsed, railSize } from '../../../models/canvas-rails'
 import { RailContainer } from './RailContainer'
@@ -186,6 +190,10 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
   const rails = useCanvasRailsStore((s) => s.rails)
   const [count, setCount] = useState<number>(0)
+  const [lensTodos, setLensTodos] = useState<PersistedTodoItem[]>([])
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const statuses = useStatusStore((s) => s.statuses)
+  const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
   // When set, the picker's onSelect creates a new lens tab (or converts the
   // active tab to a lens) instead of updating the current tab's listDefinitionId.
@@ -269,7 +277,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     body = (
       <LensSlotContent
         listDefinitionId={activeTab.listDefinitionId}
-        onTitleChange={(_t, c) => setCount(c)}
+        onTitleChange={(_t, c, todos) => { setCount(c); setLensTodos(todos) }}
       />
     )
   } else if (activeTab.type === 'calendar') {
@@ -309,10 +317,26 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     addTab(slot.id, kind)
   }
 
-  const lensCountBadge = activeTab.type === 'lens' && count > 0 ? (
-    <span aria-label={`${count} items`}>{count}</span>
+  const lensMeta = activeTab.type === 'lens' ? (
+    <>
+      {count > 0 && <span aria-label={`${count} items`}>{count}</span>}
+      <button
+        type="button"
+        onClick={() => {
+          void copyTasksRich(
+            [{ todos: lensTodos }],
+            { assignedPeopleMap, statusMap },
+          )
+        }}
+        aria-label="Copy tasks"
+        title="Copy tasks"
+        style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 4px', opacity: 0.7 }}
+      >
+        ⧉
+      </button>
+    </>
   ) : null
-  const metaContent = headerMeta ?? lensCountBadge
+  const metaContent = headerMeta ?? lensMeta
   const header = (
     <TabStrip
       slot={slot}

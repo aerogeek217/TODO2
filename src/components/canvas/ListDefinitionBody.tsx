@@ -24,7 +24,7 @@ export interface ListDefinitionBodyRenderRowArgs {
 
 interface ListDefinitionBodyProps {
   listDefinitionId: number | undefined
-  onResult?: (result: { name: string | null; count: number }) => void
+  onResult?: (result: { name: string | null; count: number; todos: PersistedTodoItem[] }) => void
   renderRow?: (args: ListDefinitionBodyRenderRowArgs) => ReactNode
   showContext?: boolean
   compact?: boolean
@@ -115,8 +115,8 @@ export function ListDefinitionBody({
 
   useEffect(() => {
     if (!onResult) return
-    onResult({ name: definition?.name ?? null, count: filteredTodos.length })
-  }, [definition?.name, filteredTodos.length, onResult])
+    onResult({ name: definition?.name ?? null, count: filteredTodos.length, todos: filteredTodos })
+  }, [definition?.name, filteredTodos, onResult])
 
   if (filteredTodos.length === 0) {
     return <div className={emptyClassName}>{emptyLabel}</div>
