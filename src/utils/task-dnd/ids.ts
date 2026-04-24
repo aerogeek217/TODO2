@@ -17,6 +17,7 @@
  * | taskboard-float   | `tb-<floatingId>-<id>`  | floating canvas taskboard entry |
  * | calendar-view     | `calview-todo-<id>`     | native HTML5 today; reserved for Phase 7 |
  * | calendar-strip    | `calstrip-todo-<id>`    | native HTML5 today; reserved for Phase 7 |
+ * | search            | `search-todo-<id>`      | TopBar search-result row (P3)  |
  */
 
 export type TaskSurfaceKey =
@@ -29,6 +30,7 @@ export type TaskSurfaceKey =
   | 'dashboard'
   | 'calendar-view'
   | 'calendar-strip'
+  | 'search'
 
 /**
  * Extras required by some surfaces:
@@ -78,6 +80,8 @@ export function taskDragId(
       return `calview-todo-${todoId}`
     case 'calendar-strip':
       return `calstrip-todo-${todoId}`
+    case 'search':
+      return `search-todo-${todoId}`
   }
 }
 
@@ -92,6 +96,7 @@ const TASK_DRAG_PREFIXES: readonly string[] = [
   'tb-',
   'calview-todo-',
   'calstrip-todo-',
+  'search-todo-',
 ]
 
 /**

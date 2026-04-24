@@ -19,6 +19,7 @@ describe('taskDragId — per-surface id format', () => {
     ['taskboard-panel' as TaskSurfaceKey, 42, undefined, 'tbp-42'],
     ['calendar-view' as TaskSurfaceKey, 42, undefined, 'calview-todo-42'],
     ['calendar-strip' as TaskSurfaceKey, 42, undefined, 'calstrip-todo-42'],
+    ['search' as TaskSurfaceKey, 42, undefined, 'search-todo-42'],
   ])('%s → %s', (surface, id, extras, expected) => {
     expect(taskDragId(surface, id, extras)).toBe(expected)
   })
@@ -52,6 +53,7 @@ describe('isTaskDragId', () => {
     expect(isTaskDragId('tb-7-1')).toBe(true)
     expect(isTaskDragId('calview-todo-1')).toBe(true)
     expect(isTaskDragId('calstrip-todo-1')).toBe(true)
+    expect(isTaskDragId('search-todo-1')).toBe(true)
   })
 
   it('rejects non-dashboard drop-target ids', () => {

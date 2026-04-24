@@ -34,6 +34,7 @@ describe('TaskDraggable — per-surface id + payload', () => {
     { surface: 'taskboard-float' as const, extras: { floatingId: 7 }, expectedId: 'tb-7-42' },
     { surface: 'calendar-view' as const, extras: {}, expectedId: 'calview-todo-42' },
     { surface: 'calendar-strip' as const, extras: {}, expectedId: 'calstrip-todo-42' },
+    { surface: 'search' as const, extras: {}, expectedId: 'search-todo-42' },
   ])('$surface emits id $expectedId', ({ surface, extras, expectedId }) => {
     const todo = makeTodo({ id: 42 })
     let capturedAttrs: Record<string, unknown> | null = null
