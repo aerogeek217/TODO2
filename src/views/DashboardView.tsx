@@ -49,6 +49,8 @@ import { DashboardListsEditor } from '../components/settings/DashboardListsEdito
 import { NotesBody } from '../components/shared/notes/NotesBody'
 import { useNoteStore } from '../stores/note-store'
 import { useUndoStore } from '../stores/undo-store'
+import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
+import type { RuntimeFilterSpec } from '../models/list-definition'
 import styles from './DashboardView.module.css'
 
 // Sentinel value in `settings.dashboardUserLists` marking the Notes tile's
@@ -300,6 +302,9 @@ function DashboardListCard({
   dragHandleIcon,
   dragHandleProps,
   headerMenu,
+  runtimeFilter,
+  runtimeFilterValue,
+  onRuntimeFilterChange,
 }: {
   list: DashboardList
   variant: 'hero' | 'secondary'
@@ -316,6 +321,10 @@ function DashboardListCard({
   dragHandleProps?: DashboardDragHandleProps
   /** Rendered after the count — overflow menu trigger + popover. */
   headerMenu?: React.ReactNode
+  /** Present when the list's definition declares a `runtimeFilter`. */
+  runtimeFilter?: RuntimeFilterSpec
+  runtimeFilterValue?: number
+  onRuntimeFilterChange?: (value: number | undefined) => void
 }) {
   const panelProps = tabpanelId
     ? { role: 'tabpanel' as const, id: tabpanelId, 'aria-labelledby': tabpanelLabelledBy }
@@ -336,8 +345,19 @@ function DashboardListCard({
         <span className={styles.cardCount}>{list.todos.length}</span>
         {headerMenu}
       </div>
+      {runtimeFilter && onRuntimeFilterChange && (
+        <RuntimeFilterPicker
+          spec={runtimeFilter}
+          value={runtimeFilterValue}
+          onChange={onRuntimeFilterChange}
+        />
+      )}
       <div className={`${styles.cardBody} ${variant === 'hero' ? styles.cardBodyHero : ''}`}>
-        {list.todos.length === 0 ? (
+        {list.runtimeFilterUnset ? (
+          <div className={styles.empty}>
+            Pick a {(runtimeFilter?.label?.trim() || runtimeFilter?.field || 'value').toLowerCase()} to populate…
+          </div>
+        ) : list.todos.length === 0 ? (
           <div className={styles.empty}>No tasks</div>
         ) : list.groups !== undefined ? (
           list.groups.map((group) => (
@@ -387,6 +407,21 @@ export function DashboardView() {
   const taskEdit = useTaskEditCallbacks()
   const isMobile = useIsMobile()
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
+  // Component-scope runtime-filter picks, keyed by list-def id. Not persisted
+  // — dashboard cards are single-instance per def, so first-render resets are
+  // acceptable. Canvas lens tabs + floating list insets persist their picks
+  // via the rails / inset stores instead.
+  const [runtimeFilterValues, setRuntimeFilterValues] = useState<ReadonlyMap<number, number>>(
+    () => new Map(),
+  )
+  const setRuntimeFilterValue = useCallback((defId: number, value: number | undefined) => {
+    setRuntimeFilterValues((prev) => {
+      const next = new Map(prev)
+      if (value == null) next.delete(defId)
+      else next.set(defId, value)
+      return next
+    })
+  }, [])
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number } | null>(null)
   const [slotPickerAt, setSlotPickerAt] = useState<{ key: HorizonKey; x: number; y: number } | null>(null)
   const [showEditor, setShowEditor] = useState(false)
@@ -539,8 +574,15 @@ export function DashboardView() {
       today,
       evalPredicate,
       assignedTagsMap,
+      runtimeFilterValues,
     })
-  }, [listDefinitions, todos, today, evalPredicate, assignedTagsMap])
+  }, [listDefinitions, todos, today, evalPredicate, assignedTagsMap, runtimeFilterValues])
+
+  const defsById = useMemo(() => {
+    const map = new Map<number, typeof listDefinitions[number]>()
+    for (const d of listDefinitions) map.set(d.id, d)
+    return map
+  }, [listDefinitions])
 
   const listsById = useMemo(() => {
     const map = new Map<number, DashboardList>()
@@ -840,6 +882,9 @@ export function DashboardView() {
                         onAddTask={handleCreateHorizonTask}
                         dragHandleIcon={handleIcon}
                         dragHandleProps={dragHandleProps}
+                        runtimeFilter={defsById.get(heroList.id)?.runtimeFilter}
+                        runtimeFilterValue={runtimeFilterValues.get(heroList.id)}
+                        onRuntimeFilterChange={(v) => setRuntimeFilterValue(heroList.id, v)}
                       />
                     )}
                   />
@@ -910,6 +955,9 @@ export function DashboardView() {
                             isMobile={isMobile}
                             dragHandleIcon={handleIcon}
                             dragHandleProps={dragHandleProps}
+                            runtimeFilter={defsById.get(list.id)?.runtimeFilter}
+                            runtimeFilterValue={runtimeFilterValues.get(list.id)}
+                            onRuntimeFilterChange={(v) => setRuntimeFilterValue(list.id, v)}
                             headerMenu={
                               <CardOverflowMenu
                                 open={openMenuId === list.id}

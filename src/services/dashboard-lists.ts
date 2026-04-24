@@ -4,6 +4,7 @@ import type {
   ListSort,
   ListGrouping,
   PersistedListDefinition,
+  RuntimeFilterSpec,
 } from '../models/list-definition'
 import { effectiveDate, isScheduledExpired, resolveScheduled } from '../utils/effective-date'
 import { startOfDay, MS_PER_DAY } from '../utils/date'
@@ -28,6 +29,16 @@ export interface DashboardListsContext {
    * empty group list (untagged bucket still emits).
    */
   assignedTagsMap?: Map<number, Tag[]>
+  /**
+   * Per-definition runtime-filter picks keyed by def id. When a def declares a
+   * `runtimeFilter`, the interpreter reads the caller's current pick here and
+   * merges it into the predicate as an equality before membership is
+   * evaluated. A missing key means the user has not picked yet — the list
+   * returns with `todos: []` and `runtimeFilterUnset: true` so the surface can
+   * render a "Pick a {label} to populate…" placeholder instead of an empty
+   * state.
+   */
+  runtimeFilterValues?: ReadonlyMap<number, number>
 }
 
 export interface DashboardListGroup {
@@ -42,6 +53,27 @@ export interface DashboardList {
   label: string
   todos: PersistedTodoItem[]
   groups?: DashboardListGroup[]
+  /** True when the def declares a `runtimeFilter` but the caller has no pick yet. */
+  runtimeFilterUnset?: true
+}
+
+/**
+ * Return a new predicate that narrows the given field to the supplied id.
+ * Replaces any existing id filter on that field — the runtime pick is
+ * authoritative for the prompted field. Other clauses are preserved so the
+ * def's baseline predicate (status / date window / etc.) still applies.
+ */
+export function applyRuntimeFilter(
+  predicate: TodoPredicate,
+  spec: RuntimeFilterSpec,
+  value: number,
+): TodoPredicate {
+  switch (spec.field) {
+    case 'person': return { ...predicate, personIds: [value] }
+    case 'org': return { ...predicate, orgIds: [value] }
+    case 'project': return { ...predicate, projectIds: [value] }
+    case 'status': return { ...predicate, statusIds: [value] }
+  }
 }
 
 export function buildDashboardLists(
@@ -52,15 +84,36 @@ export function buildDashboardLists(
   const ordered = [...definitions].sort((a, b) => a.sortOrder - b.sortOrder)
   const result: DashboardList[] = []
   for (const def of ordered) {
-    const members = todos.filter((t) => interpretMembership(def.membership, t, ctx))
-    const sorted = [...members].sort((a, b) => interpretSort(def.sort, a, b, ctx))
-    const groups = interpretGrouping(def.grouping, def.sort, sorted, ctx)
+    let effectiveDef = def
+    let runtimeFilterUnset: true | undefined
+    if (def.runtimeFilter) {
+      const pick = ctx.runtimeFilterValues?.get(def.id)
+      if (pick == null) {
+        runtimeFilterUnset = true
+      } else if (def.membership.kind === 'custom') {
+        effectiveDef = {
+          ...def,
+          membership: {
+            kind: 'custom',
+            predicate: applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick),
+          },
+        }
+      }
+    }
+    const members = runtimeFilterUnset
+      ? []
+      : todos.filter((t) => interpretMembership(effectiveDef.membership, t, ctx))
+    const sorted = [...members].sort((a, b) => interpretSort(effectiveDef.sort, a, b, ctx))
+    const groups = runtimeFilterUnset
+      ? undefined
+      : interpretGrouping(effectiveDef.grouping, effectiveDef.sort, sorted, ctx)
     result.push({
       id: def.id,
       key: `def-${def.id}`,
       label: def.name,
       todos: sorted,
       groups,
+      ...(runtimeFilterUnset ? { runtimeFilterUnset } : {}),
     })
   }
   return result

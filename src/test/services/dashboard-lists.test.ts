@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  applyRuntimeFilter,
   buildDashboardLists,
   interpretMembership,
   type DashboardListsContext,
@@ -174,6 +175,73 @@ describe('buildDashboardLists — predicate tags clause', () => {
     ]
     const lists = buildDashboardLists([def], todos, makeCtx({ evalPredicate }))
     expect(lists[0].todos.map(t => t.id).sort()).toEqual([1, 2])
+  })
+})
+
+describe('buildDashboardLists — runtime filter', () => {
+  // Runtime filter merges a caller-supplied id into the def's predicate right
+  // before membership evaluation. We verify three branches: unset, picked +
+  // matching, picked + non-matching; and that `applyRuntimeFilter` rewrites
+  // the predicate field for each supported entity.
+
+  it('returns an empty list with runtimeFilterUnset=true when no pick supplied', () => {
+    const def = customDef({
+      id: 7,
+      runtimeFilter: { field: 'person' },
+    })
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
+    const [list] = buildDashboardLists([def], todos, makeCtx())
+    expect(list.runtimeFilterUnset).toBe(true)
+    expect(list.todos).toEqual([])
+  })
+
+  it('merges the pick into the predicate and filters via evalPredicate', () => {
+    const def = customDef({
+      id: 7,
+      runtimeFilter: { field: 'person' },
+    })
+    const calls: TodoPredicate[] = []
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      calls.push(p)
+      // Stand-in: the test evaluator treats predicate.personIds as ground truth.
+      if (!p.personIds) return true
+      return p.personIds.includes(t.id)
+    }
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const ctx = makeCtx({
+      evalPredicate,
+      runtimeFilterValues: new Map([[7, 2]]),
+    })
+    const [list] = buildDashboardLists([def], todos, ctx)
+    expect(list.runtimeFilterUnset).toBeUndefined()
+    expect(list.todos.map((t) => t.id)).toEqual([2])
+    // All eval calls saw the rewritten predicate with personIds=[2]
+    expect(calls.every((p) => p.personIds?.length === 1 && p.personIds[0] === 2)).toBe(true)
+  })
+
+  it('leaves other batched defs untouched by the runtime pick', () => {
+    const withRt = customDef({ id: 1, name: 'rt', runtimeFilter: { field: 'project' } })
+    const plain = customDef({ id: 2, name: 'plain' })
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
+    const lists = buildDashboardLists([withRt, plain], todos, makeCtx({
+      runtimeFilterValues: new Map([[1, 9]]),
+    }))
+    // rt applies pick; plain is unaffected and matches all (evalPredicate default)
+    expect(lists.find((l) => l.id === 1)?.runtimeFilterUnset).toBeUndefined()
+    expect(lists.find((l) => l.id === 2)?.todos.map((t) => t.id).sort()).toEqual([1, 2])
+  })
+
+  it('applyRuntimeFilter rewrites the appropriate id list for each field', () => {
+    const base = emptyPredicate()
+    expect(applyRuntimeFilter(base, { field: 'person' }, 5).personIds).toEqual([5])
+    expect(applyRuntimeFilter(base, { field: 'org' }, 6).orgIds).toEqual([6])
+    expect(applyRuntimeFilter(base, { field: 'project' }, 7).projectIds).toEqual([7])
+    expect(applyRuntimeFilter(base, { field: 'status' }, 8).statusIds).toEqual([8])
+  })
+
+  it('applyRuntimeFilter overwrites any prior id filter on the same field', () => {
+    const base: TodoPredicate = { ...emptyPredicate(), personIds: [1, 2, 3] }
+    expect(applyRuntimeFilter(base, { field: 'person' }, 9).personIds).toEqual([9])
   })
 })
 

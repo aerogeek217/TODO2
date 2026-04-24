@@ -12,6 +12,12 @@ export interface Tab {
   id: string
   type: TabType
   listDefinitionId?: number
+  /**
+   * Lens-only: the user's current pick for a runtime-filter list-def (see
+   * `ListDefinition.runtimeFilter`). Stored on the tab so remounting the rail
+   * doesn't reset the pick. Ignored on non-lens tabs.
+   */
+  runtimeFilterValue?: number
 }
 
 export interface Slot {
@@ -161,6 +167,9 @@ function parseTab(raw: unknown): Tab | null {
   const tab: Tab = { id: r.id, type: r.type as TabType }
   if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
     tab.listDefinitionId = r.listDefinitionId
+  }
+  if (typeof r.runtimeFilterValue === 'number' && Number.isFinite(r.runtimeFilterValue)) {
+    tab.runtimeFilterValue = r.runtimeFilterValue
   }
   // Legacy `taskboardId` fields on persisted tabs are silently ignored —
   // taskboard became a singleton in the widget-taskboard-dnd Phase 1 collapse.

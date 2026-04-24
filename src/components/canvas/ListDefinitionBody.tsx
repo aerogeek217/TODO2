@@ -15,6 +15,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { buildDashboardLists } from '../../services/dashboard-lists'
 import { startOfToday } from '../../utils/date'
 import { TaskRow } from '../task/TaskRow'
+import { RuntimeFilterPicker } from './RuntimeFilterPicker'
 
 export interface ListDefinitionBodyRenderRowArgs {
   todo: PersistedTodoItem
@@ -31,6 +32,15 @@ interface ListDefinitionBodyProps {
   emptyLabel?: string
   className?: string
   emptyClassName?: string
+  /**
+   * Caller-owned runtime-filter pick for definitions that declare
+   * `runtimeFilter`. When the definition has a runtime filter but `value` is
+   * undefined, the body renders a "Pick a {label} to populate…" placeholder
+   * and emits zero todos. Ignored when the definition has no runtime filter.
+   */
+  runtimeFilterValue?: number
+  /** Setter paired with `runtimeFilterValue`. Required when runtime filter is active. */
+  onRuntimeFilterChange?: (value: number | undefined) => void
 }
 
 /**
@@ -49,6 +59,8 @@ export function ListDefinitionBody({
   emptyLabel = 'No tasks',
   className,
   emptyClassName,
+  runtimeFilterValue,
+  onRuntimeFilterChange,
 }: ListDefinitionBodyProps) {
   const statuses = useStatusStore((s) => s.statuses)
   const definition = useListDefinitionStore((s) =>
@@ -85,8 +97,11 @@ export function ListDefinitionBody({
     return () => clearTimeout(timer)
   }, [dayKey])
 
+  const runtimeFilterPending = definition?.runtimeFilter != null && runtimeFilterValue == null
+
   const filteredTodos = useMemo(() => {
     if (!definition) return [] as PersistedTodoItem[]
+    if (runtimeFilterPending) return [] as PersistedTodoItem[]
     const today = startOfToday()
     const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
       const criteria = predicateToCriteria(predicate)
@@ -102,15 +117,20 @@ export function ListDefinitionBody({
         criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, undefined, assignedTagIds,
       )
     }
+    const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
+      ? new Map<number, number>([[definition.id, runtimeFilterValue]])
+      : undefined
     const [list] = buildDashboardLists([definition], todos, {
       today,
       evalPredicate,
       assignedTagsMap,
+      runtimeFilterValues,
     })
     return list?.todos ?? []
   }, [
     definition, todos, assignedPeopleMap,
     assignedOrgsMap, personOrgMap, assignedTagsMap, statuses, dayKey,
+    runtimeFilterValue, runtimeFilterPending,
   ])
 
   useEffect(() => {
@@ -118,30 +138,46 @@ export function ListDefinitionBody({
     onResult({ name: definition?.name ?? null, count: filteredTodos.length, todos: filteredTodos })
   }, [definition?.name, filteredTodos, onResult])
 
-  if (filteredTodos.length === 0) {
-    return <div className={emptyClassName}>{emptyLabel}</div>
-  }
+  const pickerLabel = definition?.runtimeFilter?.label?.trim() || (definition?.runtimeFilter
+    ? definition.runtimeFilter.field[0].toUpperCase() + definition.runtimeFilter.field.slice(1)
+    : '')
+  const placeholderText = runtimeFilterPending
+    ? `Pick a ${pickerLabel.toLowerCase()} to populate…`
+    : emptyLabel
 
   return (
-    <div className={className}>
-      {filteredTodos.map((todo) => {
-        const args: ListDefinitionBodyRenderRowArgs = {
-          todo,
-          assignedPeople: assignedPeopleMap.get(todo.id),
-          onOpenDetail: openEditPopup,
-        }
-        if (renderRow) return <Fragment key={todo.id}>{renderRow(args)}</Fragment>
-        return (
-          <TaskRow
-            key={todo.id}
-            todo={todo}
-            assignedPeople={args.assignedPeople}
-            onOpenDetail={() => openEditPopup(todo.id)}
-            showContext={showContext}
-            compact={compact}
-          />
-        )
-      })}
-    </div>
+    <>
+      {definition?.runtimeFilter && onRuntimeFilterChange && (
+        <RuntimeFilterPicker
+          spec={definition.runtimeFilter}
+          value={runtimeFilterValue}
+          onChange={onRuntimeFilterChange}
+        />
+      )}
+      {filteredTodos.length === 0 ? (
+        <div className={emptyClassName}>{placeholderText}</div>
+      ) : (
+        <div className={className}>
+          {filteredTodos.map((todo) => {
+            const args: ListDefinitionBodyRenderRowArgs = {
+              todo,
+              assignedPeople: assignedPeopleMap.get(todo.id),
+              onOpenDetail: openEditPopup,
+            }
+            if (renderRow) return <Fragment key={todo.id}>{renderRow(args)}</Fragment>
+            return (
+              <TaskRow
+                key={todo.id}
+                todo={todo}
+                assignedPeople={args.assignedPeople}
+                onOpenDetail={() => openEditPopup(todo.id)}
+                showContext={showContext}
+                compact={compact}
+              />
+            )
+          })}
+        </div>
+      )}
+    </>
   )
 }

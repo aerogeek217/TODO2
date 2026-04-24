@@ -186,6 +186,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
   const addTab = useCanvasRailsStore((s) => s.addTab)
   const closeTab = useCanvasRailsStore((s) => s.closeTab)
   const activateTab = useCanvasRailsStore((s) => s.activateTab)
+  const setTabRuntimeFilterValue = useCanvasRailsStore((s) => s.setTabRuntimeFilterValue)
   const pendingFocusSlotId = useCanvasRailsStore((s) => s.pendingFocusSlotId)
   const clearPendingFocus = useCanvasRailsStore((s) => s.clearPendingFocus)
   const rails = useCanvasRailsStore((s) => s.rails)
@@ -278,6 +279,8 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       <LensSlotContent
         listDefinitionId={activeTab.listDefinitionId}
         onTitleChange={(_t, c, todos) => { setCount(c); setLensTodos(todos) }}
+        runtimeFilterValue={activeTab.runtimeFilterValue}
+        onRuntimeFilterChange={(v) => setTabRuntimeFilterValue(slot.id, activeTab.id, v)}
       />
     )
   } else if (activeTab.type === 'calendar') {

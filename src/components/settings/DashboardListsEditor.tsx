@@ -28,6 +28,7 @@ import type {
   ListGrouping,
   ListSort,
   PersistedListDefinition,
+  RuntimeFilterField,
 } from '../../models/list-definition'
 import type { ListGroupBy, ListItemSortBy, ListSortBy, TodoPredicate } from '../../models'
 import styles from './EntityEditor.module.css'
@@ -81,6 +82,14 @@ const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
   { value: 'org', label: 'Org' },
+]
+
+const RUNTIME_FILTER_OPTIONS: { value: RuntimeFilterField | 'none'; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'person', label: 'Person' },
+  { value: 'org', label: 'Org' },
+  { value: 'project', label: 'Project' },
+  { value: 'status', label: 'Status' },
 ]
 
 /** Map a persisted list-definition's grouping to ListView's groupBy field. */
@@ -226,6 +235,17 @@ function ConfigPanel({
     onChange({ ...def, grouping: { kind: 'by-field', by } })
   }
 
+  const setRuntimeFilter = (value: RuntimeFilterField | 'none') => {
+    if (value === 'none') {
+      if (!def.runtimeFilter) return
+      const { runtimeFilter: _drop, ...rest } = def
+      onChange(rest as PersistedListDefinition)
+      return
+    }
+    if (def.runtimeFilter?.field === value) return
+    onChange({ ...def, runtimeFilter: { field: value } })
+  }
+
   return (
     <div className={local.configPanel}>
       <div className={local.configRow}>
@@ -322,6 +342,24 @@ function ConfigPanel({
           </select>
         </div>
       )}
+
+      <div className={local.configRow}>
+        <span
+          className={local.configLabel}
+          title="When set, the list surface asks the user for a value before rendering — e.g. 'Tasks for {assignee}'."
+        >
+          Runtime filter
+        </span>
+        <select
+          className={local.configSelect}
+          value={def.runtimeFilter?.field ?? 'none'}
+          onChange={(e) => setRuntimeFilter(e.target.value as RuntimeFilterField | 'none')}
+        >
+          {RUNTIME_FILTER_OPTIONS.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </div>
 
       <div className={local.configFooter}>
         <button type="button" className={local.configDoneBtn} onClick={onClose}>Done</button>

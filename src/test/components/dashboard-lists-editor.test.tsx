@@ -142,6 +142,51 @@ describe('DashboardListsEditor — Match sort field grouping option', () => {
   })
 })
 
+describe('DashboardListsEditor — runtime filter control', () => {
+  beforeEach(() => {
+    useListDefinitionStore.setState({
+      listDefinitions: [makeDef({ id: 1, name: 'Tasks for…' })],
+    })
+  })
+  afterEach(() => { cleanup() })
+
+  it('round-trips a runtime-filter pick through the store', async () => {
+    const updates: PersistedListDefinition[] = []
+    useListDefinitionStore.setState({
+      update: async (def: PersistedListDefinition) => {
+        updates.push(def)
+        const prev = useListDefinitionStore.getState().listDefinitions
+        useListDefinitionStore.setState({
+          listDefinitions: prev.map((d) => (d.id === def.id ? def : d)),
+        })
+      },
+    } as Partial<ReturnType<typeof useListDefinitionStore.getState>> as never)
+
+    const { getAllByText, container } = render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    const configBtns = getAllByText('⚙')
+    fireEvent.click(configBtns[0])
+
+    // The runtime-filter select is the one whose options include "Person".
+    const selects = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
+    const runtimeSelect = selects.find((el) =>
+      Array.from(el.options).some((o) => o.value === 'person'),
+    )
+    expect(runtimeSelect).toBeTruthy()
+
+    fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
+    expect(updates.length).toBeGreaterThan(0)
+    expect(updates.at(-1)?.runtimeFilter).toEqual({ field: 'person' })
+
+    // Picking None again clears it.
+    fireEvent.change(runtimeSelect!, { target: { value: 'none' } })
+    expect(updates.at(-1)?.runtimeFilter).toBeUndefined()
+  })
+})
+
 describe('DashboardListsEditor — initialSelectedId', () => {
   beforeEach(() => {
     useListDefinitionStore.setState({

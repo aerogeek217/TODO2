@@ -6,9 +6,16 @@ import styles from './LensSlotContent.module.css'
 interface LensSlotContentProps {
   listDefinitionId: number | undefined
   onTitleChange?: (title: string, count: number, todos: PersistedTodoItem[]) => void
+  runtimeFilterValue?: number
+  onRuntimeFilterChange?: (value: number | undefined) => void
 }
 
-export function LensSlotContent({ listDefinitionId, onTitleChange }: LensSlotContentProps) {
+export function LensSlotContent({
+  listDefinitionId,
+  onTitleChange,
+  runtimeFilterValue,
+  onRuntimeFilterChange,
+}: LensSlotContentProps) {
   if (listDefinitionId == null) {
     return <div className={styles.empty}>No list configured</div>
   }
@@ -20,6 +27,8 @@ export function LensSlotContent({ listDefinitionId, onTitleChange }: LensSlotCon
       compact
       className={styles.list}
       emptyClassName={styles.empty}
+      runtimeFilterValue={runtimeFilterValue}
+      onRuntimeFilterChange={onRuntimeFilterChange}
       renderRow={({ todo, assignedPeople, onOpenDetail }) => (
         <DraggableTaskRow
           key={todo.id}

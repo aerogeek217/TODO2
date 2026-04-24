@@ -71,8 +71,26 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
     const store = useListInsetStore.getState()
     const current = store.insets.find((i) => i.id === inset.id)
     if (!current) return
-    void store.update({ ...current, listDefinitionId })
+    // Clear any stale runtime-filter pick when the list-def changes — the new
+    // def's runtime-filter field may be different or absent.
+    const { runtimeFilterValue: _drop, ...rest } = current
+    void _drop
+    void store.update({ ...rest, listDefinitionId })
   }
+
+  const handleRuntimeFilterChange = useCallback((value: number | undefined) => {
+    if (inset.id == null) return
+    const store = useListInsetStore.getState()
+    const current = store.insets.find((i) => i.id === inset.id)
+    if (!current) return
+    if (value == null) {
+      const { runtimeFilterValue: _drop, ...rest } = current
+      void _drop
+      void store.update(rest)
+    } else {
+      void store.update({ ...current, runtimeFilterValue: value })
+    }
+  }, [inset.id])
 
   return (
     <div className={styles.inset} style={{ width: inset.width }}>
@@ -117,6 +135,8 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           listDefinitionId={inset.listDefinitionId}
           onResult={({ count, todos }) => { setCount(count); setListTodos(todos) }}
           emptyClassName={styles.emptyMessage}
+          runtimeFilterValue={inset.runtimeFilterValue}
+          onRuntimeFilterChange={handleRuntimeFilterChange}
           renderRow={({ todo, assignedPeople }) => (
             <DraggableTaskRow
               todo={todo}

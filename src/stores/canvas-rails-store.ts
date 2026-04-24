@@ -124,6 +124,11 @@ interface CanvasRailsState {
    * `setSlotKind` but targets an arbitrary tab rather than the active one.
    */
   changeTabType: (slotId: string, tabId: string, nextKind: SlotKind, seed?: { listDefinitionId?: number }) => void
+  /**
+   * Store the user's runtime-filter pick on a lens tab. Pass `undefined` to
+   * clear. No-op when the tab is not a lens (only lens honours runtime filter).
+   */
+  setTabRuntimeFilterValue: (slotId: string, tabId: string, value: number | undefined) => void
   /** Calendar-slot only: set the row/column orientation. No-op when active tab is not calendar. */
   setSlotOrientation: (slotId: string, orientation: CalendarOrientation) => void
   /** Calendar-slot only: set the week offset (clamped to ±WEEK_OFFSET_MAX). */
@@ -393,6 +398,23 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       if (current.activeTabId === tabId) return current
       if (!current.tabs.some((t) => t.id === tabId)) return current
       return { ...current, activeTabId: tabId }
+    })
+    return next === state.rails ? state : { rails: next }
+  }),
+
+  setTabRuntimeFilterValue: (slotId, tabId, value) => set((state) => {
+    const next = mapSlot(state.rails, slotId, (current) => {
+      const idx = current.tabs.findIndex((t) => t.id === tabId)
+      if (idx === -1) return current
+      const tab = current.tabs[idx]
+      if (tab.type !== 'lens') return current
+      if (tab.runtimeFilterValue === value) return current
+      const nextTab: Tab = { ...tab }
+      if (value == null) delete nextTab.runtimeFilterValue
+      else nextTab.runtimeFilterValue = value
+      const tabs = current.tabs.slice()
+      tabs[idx] = nextTab
+      return { ...current, tabs }
     })
     return next === state.rails ? state : { rails: next }
   }),

@@ -31,6 +31,21 @@ export type ListGrouping =
    *  many-to-many pattern). Separate kind because tags aren't a `ListSortBy`. */
   | { kind: 'by-tag' }
 
+/** Which entity a saved list's runtime-filter picker narrows on. */
+export type RuntimeFilterField = 'person' | 'org' | 'project' | 'status'
+
+/**
+ * Optional per-card prompt: the consumer supplies one id at render time that
+ * is merged into the definition's predicate as an equality on the chosen
+ * field (e.g. "Tasks for {assignee}"). Not persisted — each surface keeps its
+ * own current pick.
+ */
+export interface RuntimeFilterSpec {
+  field: RuntimeFilterField
+  /** Optional override for the picker label; defaults to the capitalised field. */
+  label?: string
+}
+
 export interface ListDefinition {
   id?: number
   name: string
@@ -40,6 +55,8 @@ export interface ListDefinition {
   grouping: ListGrouping
   /** When true, the list appears as a Dashboard card. Default true on migration from pre-v22. */
   pinnedToDashboard: boolean
+  /** When set, the list exposes a picker at render time; see `RuntimeFilterSpec`. */
+  runtimeFilter?: RuntimeFilterSpec
 }
 
 export type PersistedListDefinition = ListDefinition & { id: number }

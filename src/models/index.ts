@@ -36,4 +36,6 @@ export {
   type ListMembership,
   type ListSort,
   type ListGrouping,
+  type RuntimeFilterField,
+  type RuntimeFilterSpec,
 } from './list-definition'
