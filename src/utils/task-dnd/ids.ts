@@ -15,8 +15,8 @@
  * | dashboard         | `dashboard-<listKey>-<id>` | dashboard card row (needs listKey) |
  * | taskboard-panel   | `tbp-<id>`              | singleton taskboard entry      |
  * | taskboard-float   | `tb-<floatingId>-<id>`  | floating canvas taskboard entry |
- * | calendar-view     | `calview-todo-<id>`     | native HTML5 today; reserved for Phase 7 |
- * | calendar-strip    | `calstrip-todo-<id>`    | native HTML5 today; reserved for Phase 7 |
+ * | calendar-view     | `calview-todo-<id>`     | CalendarView row; drops via dispatchTaskDrop → reschedule |
+ * | calendar-strip    | `calstrip-todo-<id>`    | rail/float CalendarStrip row; drops via dispatchTaskDrop → reschedule |
  * | search            | `search-todo-<id>`      | TopBar search-result row (P3)  |
  */
 

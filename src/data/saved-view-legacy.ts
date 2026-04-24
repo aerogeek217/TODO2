@@ -7,7 +7,7 @@ import type {
   TodoPredicate,
 } from '../models'
 import type { ListGrouping, ListSort, ListDefinition } from '../models/list-definition'
-import { readDateAnchor } from '../stores/filter-store'
+import { readDateAnchor } from '../utils/date-anchor'
 
 /**
  * Legacy SavedView types. Kept here (not re-exported as models) so the v39

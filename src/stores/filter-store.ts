@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, Tag, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor, RelativeDateToken } from '../models'
-import { RELATIVE_DATE_TOKENS } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, Tag, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor } from '../models'
 import { startOfDay, startOfToday } from '../utils/date'
+import { readDateAnchor } from '../utils/date-anchor'
 import { effectiveDate, resolveDateAnchor, resolveScheduled, getConfiguredWeekStart } from '../utils/effective-date'
 import { matchTodoText, type TextMatchContext } from '../utils/filter'
 
@@ -295,28 +295,6 @@ export function applyFilter(
       : undefined
     return matchesFilter(filters, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, searchCtx, tagIds)
   })
-}
-
-/**
- * Accept either a legacy ISO string (pre-DSL-extension predicates) or a
- * `DateAnchor` object. Legacy strings auto-upgrade to `{kind:'fixed', iso}`.
- * Other shapes are treated as no-filter.
- */
-/** Read a persisted date-range endpoint — accepts both new `DateAnchor` objects and legacy ISO strings. */
-export function readDateAnchor(v: unknown): DateAnchor | null {
-  if (v === null || v === undefined) return null
-  if (typeof v === 'string') return { kind: 'fixed', iso: v }
-  if (typeof v === 'object') {
-    const o = v as Record<string, unknown>
-    if (o.kind === 'fixed' && typeof o.iso === 'string') {
-      return { kind: 'fixed', iso: o.iso }
-    }
-    if (o.kind === 'relative' && typeof o.token === 'string'
-        && (RELATIVE_DATE_TOKENS as readonly string[]).includes(o.token)) {
-      return { kind: 'relative', token: o.token as RelativeDateToken }
-    }
-  }
-  return null
 }
 
 /** Runtime (Sets) → serializable (arrays) for saved views / list definitions. */

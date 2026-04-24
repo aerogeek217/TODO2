@@ -898,14 +898,16 @@ export async function runV29Migration(tx: Transaction): Promise<void> {
   })
 
   // Strip tagIds from any persisted saved-view filter set.
-  await tx.table('savedViews').toCollection().modify((sv: Record<string, unknown>) => {
-    const f = sv.filters as Record<string, unknown> | undefined
-    if (!f) return
-    if ('tagIds' in f) delete f.tagIds
-    // Translate sortBy === 'tag' into a benign default so the view still loads.
-    if (sv.sortBy === 'tag') sv.sortBy = 'date'
-    if (sv.groupBy === 'tag') sv.groupBy = 'none'
-  })
+  try {
+    await tx.table('savedViews').toCollection().modify((sv: Record<string, unknown>) => {
+      const f = sv.filters as Record<string, unknown> | undefined
+      if (!f) return
+      if ('tagIds' in f) delete f.tagIds
+      // Translate sortBy === 'tag' into a benign default so the view still loads.
+      if (sv.sortBy === 'tag') sv.sortBy = 'date'
+      if (sv.groupBy === 'tag') sv.groupBy = 'none'
+    })
+  } catch { /* savedViews already dropped — post-v39 restore chain */ }
 
   console.info(`v29 migration: baked tag names into ${mutated} todo title(s); dropped tags + todoTags tables`)
 }
@@ -1419,9 +1421,11 @@ export async function runV36Migration(tx: Transaction): Promise<void> {
   await tx.table('listDefinitions').toCollection().modify((def: Record<string, unknown>) => {
     translateListDefinitionTagsInPlace(def, slugToId, unknownCollector)
   })
-  await tx.table('savedViews').toCollection().modify((sv: Record<string, unknown>) => {
-    translateSavedViewTagsInPlace(sv, slugToId, unknownCollector)
-  })
+  try {
+    await tx.table('savedViews').toCollection().modify((sv: Record<string, unknown>) => {
+      translateSavedViewTagsInPlace(sv, slugToId, unknownCollector)
+    })
+  } catch { /* savedViews already dropped — post-v39 restore chain */ }
   if (unknownCollector.size > 0) {
     console.warn(
       `v36 migration: dropped ${unknownCollector.size} unknown tag name(s) from stored predicates: ${[...unknownCollector].join(', ')}`,

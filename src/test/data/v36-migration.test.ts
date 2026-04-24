@@ -288,4 +288,60 @@ describe('runV36Migration (end-to-end)', () => {
     expect(warnSpy).not.toHaveBeenCalled()
     post.close()
   })
+
+  it('runs cleanly when savedViews table is already absent (post-v39 restore chain)', async () => {
+    // Simulate the restore-then-upgrade edge case: the DB's v1 schema never
+    // declares `savedViews`, so `tx.table('savedViews')` inside the v36
+    // upgrade throws. The defensive try/catch must swallow that so the rest
+    // of v36 (tag seeding + listDefinition translation) still runs.
+    const pre = new Dexie(DB_NAME)
+    pre.version(1).stores({
+      todos: V35_TODOS_SCHEMA,
+      listDefinitions: '++id, sortOrder',
+      // note: no savedViews store
+    })
+    await pre.open()
+    await pre.table('todos').add({
+      title: 't', isCompleted: false, sortOrder: 0, tags: ['urgent'],
+    })
+    await pre.table('listDefinitions').add({
+      name: 'Urgent list',
+      sortOrder: 0,
+      pinnedToDashboard: true,
+      membership: {
+        kind: 'custom',
+        predicate: { tags: ['urgent', 'does-not-exist'] },
+      },
+      sort: { kind: 'sort-order' },
+      grouping: { kind: 'none' },
+    })
+    pre.close()
+
+    const post = new Dexie(DB_NAME)
+    post.version(1).stores({
+      todos: V35_TODOS_SCHEMA,
+      listDefinitions: '++id, sortOrder',
+    })
+    post.version(2)
+      .stores({
+        tags: '++id, name',
+        todoTags: '++id, todoId, tagId',
+      })
+      .upgrade(async (tx) => {
+        await runV36Migration(tx)
+      })
+    await expect(post.open()).resolves.toBeDefined()
+
+    // Tag registry seeded + join created, despite savedViews being absent.
+    const tags = await post.table('tags').toArray()
+    expect(tags).toHaveLength(1)
+    expect(tags[0].name).toBe('urgent')
+    const joins = await post.table('todoTags').toArray()
+    expect(joins).toHaveLength(1)
+
+    // listDefinitions translation also ran.
+    const defs = await post.table('listDefinitions').toArray()
+    expect(defs[0].membership.predicate.tags).toEqual([tags[0].id])
+    post.close()
+  })
 })
