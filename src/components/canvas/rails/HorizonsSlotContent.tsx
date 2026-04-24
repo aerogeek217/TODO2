@@ -31,6 +31,7 @@ import styles from './HorizonsSlotContent.module.css'
  */
 export function HorizonsSlotContent() {
   const todos = useTodoStore((s) => s.todos)
+  const todosVersion = useTodoStore((s) => s.todosVersion)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
@@ -64,10 +65,17 @@ export function HorizonsSlotContent() {
   }, [dayKey])
   const today = useMemo(() => startOfToday(), [dayKey])
 
+  // Reload tag assignments only when the id-set changes — a field-edit-only
+  // render (same ids, new `todos` reference) would otherwise refire the join
+  // load and bump `assignedTagsMap` identity, invalidating the `lists` memo
+  // below for no membership change. Gating on `${length}:${todosVersion}`
+  // keeps both ends stable across field edits.
+  const todoIdsKey = `${todos.length}:${todosVersion}`
   useEffect(() => {
     if (todos.length === 0) return
     loadTagAssignments(todos.map((t) => t.id))
-  }, [todos, loadTagAssignments])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todoIdsKey, loadTagAssignments])
 
   const evalPredicate = useCallback(
     (predicate: TodoPredicate, todo: PersistedTodoItem) => {

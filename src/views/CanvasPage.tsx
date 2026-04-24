@@ -36,7 +36,7 @@ import { DashboardListsEditor } from '../components/settings/DashboardListsEdito
 import { WidgetKindMenu } from '../components/shared/WidgetKindMenu'
 import type { SlotKind } from '../models/canvas-rails'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import type { PersistedTodoItem } from '../models'
+import type { PersistedTodoItem, Project, Status } from '../models'
 import type { ReactFlowInstance } from '@xyflow/react'
 import { DragInsertContext, DragPreviewContext } from '../components/canvas/DragInsertContext'
 import { shouldNormalize, normalizeSortOrders } from '../services/task-placement'
@@ -232,13 +232,20 @@ export function CanvasPage() {
       filters.tags !== null
     if (!hasGhostFilter) return undefined
     const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
+    // Hoist O(n) lookups out of the per-todo loop. At 10k todos × P projects ×
+    // S statuses these would otherwise contribute quadratic-ish work on every
+    // filter change; one-pass maps turn each access into O(1).
+    const projectsById = new Map<number, Project>()
+    for (const p of projects) if (p.id != null) projectsById.set(p.id, p)
+    const statusesById = new Map<number, Status>()
+    for (const s of statuses) if (s.id != null) statusesById.set(s.id, s)
     const ghost = new Set<number>()
     for (const todo of todos) {
       if (todo.projectId == null) continue
       // Skip tasks already hidden by todosByProject
       if (!filters.showCompleted && todo.isCompleted) continue
       if (!filters.showHiddenStatuses) {
-        const s = statuses.find(x => x.id === todo.statusId)
+        const s = todo.statusId != null ? statusesById.get(todo.statusId) : undefined
         if (s?.hideByDefault) continue
       }
       const people = assignedPeopleMap.get(todo.id) ?? []
@@ -249,10 +256,10 @@ export function CanvasPage() {
       const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const searchCtx = filters.searchText
         ? {
-            projectName: todo.projectId != null ? projects.find(p => p.id === todo.projectId)?.name : undefined,
+            projectName: todo.projectId != null ? projectsById.get(todo.projectId)?.name : undefined,
             personNames: people.map(p => p.name),
             orgNames: orgs.map(o => o.name),
-            statusName: todo.statusId != null ? statuses.find(s => s.id === todo.statusId)?.name : undefined,
+            statusName: todo.statusId != null ? statusesById.get(todo.statusId)?.name : undefined,
           }
         : undefined
       if (!matchesFilter(filters, todo, personIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses, undefined, searchCtx, tagIds)) {

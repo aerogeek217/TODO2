@@ -52,11 +52,31 @@ describe('useTagStore', () => {
     expect(await db.tags.count()).toBe(2)
   })
 
-  it('add rejects duplicate names case-insensitively', async () => {
-    await useTagStore.getState().add('urgent')
-    await expect(useTagStore.getState().add('URGENT')).rejects.toThrow(/already exists/i)
-    await expect(useTagStore.getState().add('Urgent')).rejects.toThrow(/already exists/i)
-    // Store state unchanged after rejection.
+  it('add is idempotent — returns existing id on case-insensitive match', async () => {
+    // Post-M1, `add` is resolve-or-create: duplicate creates no longer throw,
+    // they return the existing id. Keeps the registry free of races from
+    // concurrent NLP calls (see concurrent test below). Explicit UI-level
+    // duplicate-rejection lives in `TagEditor` via a pre-check on `tags[]`.
+    const aId = await useTagStore.getState().add('urgent')
+    const bId = await useTagStore.getState().add('URGENT')
+    const cId = await useTagStore.getState().add('Urgent')
+    expect(bId).toBe(aId)
+    expect(cId).toBe(aId)
+    expect(useTagStore.getState().tags).toHaveLength(1)
+    expect(await db.tags.count()).toBe(1)
+  })
+
+  it('concurrent add for the same name resolves to one id with no duplicate rows', async () => {
+    // Simulates two NLP pipelines racing to create `#foo` — the tag-repository
+    // transaction serialises them so exactly one row lands in `db.tags`.
+    const [id1, id2, id3] = await Promise.all([
+      useTagStore.getState().add('foo'),
+      useTagStore.getState().add('foo'),
+      useTagStore.getState().add('FOO'),
+    ])
+    expect(id1).toBe(id2)
+    expect(id2).toBe(id3)
+    expect(await db.tags.count()).toBe(1)
     expect(useTagStore.getState().tags).toHaveLength(1)
   })
 

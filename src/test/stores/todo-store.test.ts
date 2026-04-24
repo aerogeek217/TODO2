@@ -8,7 +8,7 @@ import { todoRepository } from '../../data/todo-repository'
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useTodoStore.setState({ todos: [], loading: false })
+  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
   useUndoStore.getState().clear()
 })
 
@@ -116,6 +116,36 @@ describe('todoStore', () => {
 
     expect(await db.todos.get(id1)).toBeUndefined()
     expect(await db.todos.get(id3)).toBeUndefined()
+  })
+
+  it('todosVersion bumps on id-set changes but not on field edits', async () => {
+    // Dashboard/ListView memoize assignment-load effects on
+    // `${todos.length}:${todosVersion}`, so the bump contract is load-bearing:
+    // add / remove / bulkRemove / restore / purge should tick the counter,
+    // update / toggleComplete / reorder / bulk-field setters should not.
+    const v0 = useTodoStore.getState().todosVersion
+    const id1 = await useTodoStore.getState().add('Task 1')
+    const vAfterAdd = useTodoStore.getState().todosVersion
+    expect(vAfterAdd).toBeGreaterThan(v0)
+
+    // Field edits (update + toggleComplete + reorder + bulkSet*) keep the
+    // version pinned — those don't change the id-set.
+    await useTodoStore.getState().toggleComplete(id1)
+    await useTodoStore.getState().reorder(id1, 99)
+    await useTodoStore.getState().bulkSetStatus([id1], undefined)
+    expect(useTodoStore.getState().todosVersion).toBe(vAfterAdd)
+
+    // Second add bumps again.
+    const id2 = await useTodoStore.getState().add('Task 2')
+    const vAfterSecondAdd = useTodoStore.getState().todosVersion
+    expect(vAfterSecondAdd).toBeGreaterThan(vAfterAdd)
+
+    // remove + bulkRemove both bump.
+    await useTodoStore.getState().remove(id1)
+    const vAfterRemove = useTodoStore.getState().todosVersion
+    expect(vAfterRemove).toBeGreaterThan(vAfterSecondAdd)
+    await useTodoStore.getState().bulkRemove([id2])
+    expect(useTodoStore.getState().todosVersion).toBeGreaterThan(vAfterRemove)
   })
 
   it('applyMutations applies projectId/sortOrder changes', async () => {

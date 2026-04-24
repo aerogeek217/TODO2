@@ -11,10 +11,13 @@ function makeMockTagStore(initialTags: Tag[] = []): TagStoreLike & { nextId: num
     tags,
     nextId: Math.max(0, ...tags.map((t) => t.id ?? 0)) + 1,
     async add(name: string, color = DEFAULT_ENTITY_COLOR): Promise<number> {
+      // Mirrors the real `tagStore.add` post-M1: idempotent, returns the
+      // existing id on case-insensitive match instead of throwing.
       const lower = name.trim().toLowerCase()
-      if (store.tags.some((t) => t.name.trim().toLowerCase() === lower)) {
-        throw new Error(`A tag named "${name}" already exists`)
-      }
+      const existing = store.tags.find(
+        (t) => t.name.trim().toLowerCase() === lower && t.id !== undefined,
+      )
+      if (existing?.id != null) return existing.id
       const id = store.nextId++
       store.tags.push({ id, name, color })
       return id

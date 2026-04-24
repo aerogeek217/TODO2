@@ -70,9 +70,18 @@ export function TagEditor({ onClose }: TagEditorProps) {
   }
 
   const saveAdd = async () => {
-    if (!newName.trim()) return
+    const trimmed = newName.trim()
+    if (!trimmed) return
+    // Pre-check for duplicate-rejection UX. `tagStore.add` is idempotent
+    // post-M1 (returns the existing id silently) so the user would otherwise
+    // see no feedback on a collision.
+    const lower = trimmed.toLowerCase()
+    if (tags.some((t) => t.name.trim().toLowerCase() === lower)) {
+      setNameError(`A tag named "${trimmed}" already exists`)
+      return
+    }
     try {
-      await add(newName.trim(), newColor)
+      await add(trimmed, newColor)
       setAdding(false)
       setNewName('')
       setNewColor(DEFAULT_ENTITY_COLOR)

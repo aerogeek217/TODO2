@@ -22,6 +22,23 @@ export const tagRepository = {
     return db.tags.add(tag as Tag)
   },
 
+  /**
+   * Atomic lookup-or-insert. Wraps `findConflictingTag` + `db.tags.add` in a
+   * single `rw` transaction on the `tags` table so two concurrent creates of
+   * the same slug cannot both pass the lookup and both insert a row. Returns
+   * the existing tag's id on case-insensitive match, or the newly-inserted id
+   * otherwise. Used by `tagStore.add` / NLP `resolveTags` — the UI-level
+   * `tagStore.add` pre-checks in-memory state for duplicate-rejection UX, so
+   * this path is the race-safe lower rail.
+   */
+  async getOrCreate(name: string, color: string): Promise<number> {
+    return db.transaction('rw', db.tags, async () => {
+      const existing = await findConflictingTag(name)
+      if (existing?.id != null) return existing.id
+      return (await db.tags.add({ name, color } as Tag)) as number
+    })
+  },
+
   async update(tag: Tag): Promise<void> {
     if (tag.id === undefined) return
     const conflict = await findConflictingTag(tag.name, tag.id)

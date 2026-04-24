@@ -356,6 +356,36 @@ describe('flex reconciliation on insert/remove', () => {
     expect(next.right!.slots[0].id).toBe('a')
     expect(next.right!.slots[0].flex).toBeUndefined()
   })
+
+  it('repeated docks into a flex-ed rail keep sibling values within ±20% of the initial mean', () => {
+    // Regression probe for a suspected drift in `reconcileIncomingFlex`: when
+    // a new slot joins a rail whose siblings already have pixel-derived flex,
+    // it's assigned the mean of those values. Repeating that 5× shouldn't
+    // cause the originals to wander. The reconcile function only writes to
+    // the incoming slot, so this test is structural — a future change that
+    // also rebalances siblings needs to preserve the ±20% band or document
+    // the drift in `rail-dnd.ts`.
+    const a: Slot = { ...lensSlot('a'), flex: 200 }
+    const b: Slot = { ...lensSlot('b'), flex: 100 }
+    let rails = railsWith({ right: { orientation: 'vertical', slots: [a, b] } })
+    const initialA = rails.right!.slots.find((s) => s.id === 'a')!.flex!
+    const initialB = rails.right!.slots.find((s) => s.id === 'b')!.flex!
+    const initialMean = (initialA + initialB) / 2
+
+    for (let i = 0; i < 5; i++) {
+      const newId = `c${i}`
+      rails = applySplitButton(rails, 'b', 'below', { genSlotId: () => newId })
+      const newSlot = rails.right!.slots.find((s) => s.id === newId)!
+      expect(newSlot.flex).toBeDefined()
+      expect(newSlot.flex!).toBeGreaterThan(initialMean * 0.8)
+      expect(newSlot.flex!).toBeLessThan(initialMean * 1.2)
+    }
+
+    const aFinal = rails.right!.slots.find((s) => s.id === 'a')!.flex!
+    const bFinal = rails.right!.slots.find((s) => s.id === 'b')!.flex!
+    expect(aFinal).toBe(initialA)
+    expect(bFinal).toBe(initialB)
+  })
 })
 
 describe('pointerToSplitZone', () => {

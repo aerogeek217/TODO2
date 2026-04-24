@@ -10,6 +10,16 @@ import { useSettingsStore } from './settings-store'
 
 interface TodoState {
   todos: PersistedTodoItem[]
+  /**
+   * Monotonic counter bumped on every mutation that changes the id-set
+   * (add / remove / bulkRemove / restore / purge). Callers that previously
+   * derived cache keys via `todos.map(t => t.id).sort().join(',')` can use
+   * `${todos.length}:${todosVersion}` instead — O(1) and stable.
+   * Not bumped on pure-field edits (update, toggleComplete, reorder,
+   * bulkSetStatus/Scheduled/Deadline/Project) because those keep the same
+   * ids.
+   */
+  todosVersion: number
   loading: boolean
   error: string | null
 
@@ -39,22 +49,23 @@ interface TodoState {
 
 export const useTodoStore = create<TodoState>((set, get) => ({
   todos: [],
+  todosVersion: 0,
   loading: false,
   error: null,
 
   async loadByCanvas(canvasId: number) {
     const todos = await loadWithState(set, () => todoRepository.getByCanvas(canvasId), 'todos by canvas')
-    if (todos) set({ todos })
+    if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
   },
 
   async loadByProject(projectId: number) {
     const todos = await loadWithState(set, () => todoRepository.getByProject(projectId), 'todos by project')
-    if (todos) set({ todos })
+    if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
   },
 
   async loadAll() {
     const todos = await loadWithState(set, () => todoRepository.getAll(), 'all todos')
-    if (todos) set({ todos })
+    if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
   },
 
   async add(title: string, canvasId?: number, projectId?: number) {
@@ -75,7 +86,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       })
       const todo = await todoRepository.getById(id)
       if (todo) {
-        set({ todos: [...get().todos, todo] })
+        set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
       }
       undoable(
         `Add "${title}"`,
@@ -102,7 +113,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       })
       const todo = await todoRepository.getById(id)
       if (todo) {
-        set({ todos: [...get().todos, todo] })
+        set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
       }
       undoable(
         `Add "${title}"`,
@@ -222,7 +233,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       const { personIds, orgIds } = await captureAssignments(id)
 
       await todoRepository.delete(id)
-      set({ todos: get().todos.filter((t) => t.id !== id) })
+      set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
 
       undoable(
         `Delete "${todo.title}"`,
@@ -382,7 +393,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
       await todoRepository.bulkDelete(ids)
       const idSet = new Set(ids)
-      set({ todos: get().todos.filter((t) => !idSet.has(t.id)) })
+      set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
 
       undoable(
         `Delete ${ids.length} tasks`,
@@ -492,7 +503,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
       })
       const newTodo = await todoRepository.getById(newId)
       if (newTodo) {
-        set({ todos: [...get().todos, newTodo] })
+        set({ todos: [...get().todos, newTodo], todosVersion: get().todosVersion + 1 })
       }
       // Copy assignments at repo level (bypasses store undo registration)
       const { personIds, orgIds } = await captureAssignments(id)
@@ -519,7 +530,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
   async _restore(todo: PersistedTodoItem, personIds: number[], orgIds: number[] = []) {
     await todoRepository.restoreWithAssignments(todo, personIds, orgIds)
-    set({ todos: [...get().todos, todo] })
+    set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
     // Refresh assignment caches
     const todoIds = get().todos.map(t => t.id)
     if (personIds.length > 0 || orgIds.length > 0) {
@@ -536,7 +547,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
 
   async _removeNoUndo(id: number) {
     await todoRepository.delete(id)
-    set({ todos: get().todos.filter((t) => t.id !== id) })
+    set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
   },
 
   async purgeExpiredCompleted(retentionDays: number) {
@@ -552,7 +563,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     const ids = expired.map((t) => t.id)
     await todoRepository.bulkDelete(ids)
     const idSet = new Set(ids)
-    set({ todos: get().todos.filter((t) => !idSet.has(t.id)) })
+    set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
     return ids.length
   },
 

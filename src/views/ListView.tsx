@@ -566,6 +566,7 @@ function ListDefinitionSelector({
 
 export function ListView() {
   const { todos, loadAll, update: updateTodo } = useTodoStore()
+  const todosVersion = useTodoStore((s) => s.todosVersion)
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments, assignPerson, unassignPerson } = usePersonStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
@@ -625,18 +626,19 @@ export function ListView() {
 
   // Re-load assignment joins only when the set of todo ids changes.
   // Identity-based dep on `todos` would re-fire on every attribute edit;
-  // sort-join lets us no-op when the composition is unchanged.
-  const todoIdsKey = useMemo(() => {
-    const ids = todos.map((t) => t.id)
-    ids.sort((a, b) => a - b)
-    return ids.join(',')
-  }, [todos])
+  // `todosVersion` is bumped only on add / remove / bulk-remove / restore /
+  // purge, so `${length}:${version}` is a stable O(1) key.
+  const todoIdsKey = `${todos.length}:${todosVersion}`
   useEffect(() => {
-    if (todoIdsKey.length === 0) return
-    const ids = todoIdsKey.split(',').map(Number)
+    if (todos.length === 0) return
+    const ids = todos.map((t) => t.id)
     loadPeopleAssignments(ids)
     loadOrgAssignments(ids)
     loadTagAssignments(ids)
+    // `todos` identity-changes on every mutation, but `todoIdsKey` only
+    // changes when the id-set does — gating the effect on the key keeps this
+    // join-load pinned to real composition changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todoIdsKey, loadPeopleAssignments, loadOrgAssignments, loadTagAssignments])
 
   useEffect(() => {

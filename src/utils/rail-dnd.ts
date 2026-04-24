@@ -139,6 +139,12 @@ function removeSlot(rails: RailsState, slotId: string): { rails: RailsState; slo
  * defaults to `flex-grow: 1` alongside its siblings. Without the strip a slot
  * carrying a pixel-valued flex from a prior rail would dwarf its new neighbors
  * (flex-grow: 180 vs 1) and collapse them to a sliver.
+ *
+ * Drift note: this function only writes to the incoming slot; existing
+ * siblings keep their flex values verbatim across repeated docks. A regression
+ * test in `rail-dnd.test.ts` asserts that 5 consecutive docks hold every
+ * sibling's flex within ±20% of the initial mean. If a future refactor
+ * rebalances siblings on insert, tighten or re-document that band.
  */
 function reconcileIncomingFlex(rail: Rail, slot: Slot): Slot {
   const values: number[] = []

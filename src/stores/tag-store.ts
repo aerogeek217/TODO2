@@ -67,15 +67,22 @@ export const useTagStore = create<TagState>((set, get) => {
     },
 
     async add(name: string, color = DEFAULT_ENTITY_COLOR) {
+      const trimmed = name.trim()
+      const target = trimmed.toLowerCase()
+      const existing = get().tags.find(
+        (t) => t.name.trim().toLowerCase() === target && t.id !== undefined,
+      )
+      if (existing?.id != null) return existing.id
       const { maxTags } = useSettingsStore.getState()
       if (get().tags.length >= maxTags) {
         throw new TagLimitError(
           `Tag limit reached (${maxTags}) — delete unused tags in Settings → Tags.`,
         )
       }
-      const tag: Tag = { name, color }
-      const id = await tagRepository.insert(tag)
-      set({ tags: [...get().tags, { ...tag, id }] })
+      const id = await tagRepository.getOrCreate(trimmed, color)
+      if (!get().tags.some((t) => t.id === id)) {
+        set({ tags: [...get().tags, { id, name: trimmed, color }] })
+      }
       return id
     },
 
