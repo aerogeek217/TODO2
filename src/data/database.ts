@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, Tag, TodoTag } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, Tag, TodoTag } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import type { HorizonKey } from '../services/horizons'
@@ -30,6 +30,7 @@ export class Todo2Database extends Dexie {
   floatingCalendars!: Table<FloatingCalendar, number>
   floatingNotes!: Table<FloatingNote, number>
   floatingTaskboards!: Table<FloatingTaskboard, number>
+  floatingHorizons!: Table<FloatingHorizons, number>
   tags!: Table<Tag, number>
   todoTags!: Table<TodoTag, number>
 
@@ -253,6 +254,15 @@ export class Todo2Database extends Dexie {
       .upgrade(async (tx) => {
         await runV37Migration(tx)
       })
+
+    // v38: add `floatingHorizons` table — backing store for the horizon widget
+    // popped out to canvas (Phase 5 of features-batch-2026-04). No data
+    // migration; the table starts empty. Mirrors the v27 floatingCalendars
+    // bump + v33 floatingTaskboards shape (placement-only; ribbon state lives
+    // in settings).
+    this.version(38).stores({
+      floatingHorizons: '++id, canvasId',
+    })
   }
 }
 
@@ -777,7 +787,7 @@ export async function persistHorizonSlots(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.tags, db.todoTags] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.tags, db.todoTags] as const
 
 /**
  * Append `" #tagname"` for every assigned tag to each todo's title. Mutates

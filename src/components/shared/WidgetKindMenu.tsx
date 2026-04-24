@@ -10,6 +10,7 @@ const KINDS: { kind: SlotKind; label: string }[] = [
   { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
   { kind: 'taskboard', label: 'Taskboard' },
+  { kind: 'horizons', label: 'Horizons' },
 ]
 
 export interface WidgetKindMenuProps {

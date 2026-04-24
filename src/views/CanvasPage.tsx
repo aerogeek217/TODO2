@@ -22,6 +22,7 @@ import { useListInsetStore } from '../stores/list-inset-store'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
+import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -83,6 +84,12 @@ export function CanvasPage() {
   const setFloatingTaskboardCollapsed = useFloatingTaskboardStore((s) => s.setCollapsed)
   const removeFloatingTaskboard = useFloatingTaskboardStore((s) => s.remove)
 
+  const floatingHorizons = useFloatingHorizonsStore((s) => s.horizons)
+  const loadFloatingHorizons = useFloatingHorizonsStore((s) => s.loadByCanvas)
+  const updateFloatingHorizonsPosition = useFloatingHorizonsStore((s) => s.updatePosition)
+  const updateFloatingHorizonsSize = useFloatingHorizonsStore((s) => s.updateSize)
+  const removeFloatingHorizons = useFloatingHorizonsStore((s) => s.remove)
+
   const taskboard = useTaskboardStore((s) => s.board)
   const loadTaskboard = useTaskboardStore((s) => s.load)
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
@@ -108,8 +115,9 @@ export function CanvasPage() {
       loadFloatingNotes(selectedCanvasId)
       loadFloatingCalendars(selectedCanvasId)
       loadFloatingTaskboards(selectedCanvasId)
+      loadFloatingHorizons(selectedCanvasId)
     }
-  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadFloatingNotes, loadFloatingCalendars, loadFloatingTaskboards])
+  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadFloatingNotes, loadFloatingCalendars, loadFloatingTaskboards, loadFloatingHorizons])
 
   // Reset normalization guard when file-storage completes an operation (e.g. import)
   const normalizedRef = useRef(false)
@@ -410,6 +418,8 @@ export function CanvasPage() {
       } else if (kind === 'taskboard') {
         await useTaskboardStore.getState().ensureLoaded()
         await useFloatingTaskboardStore.getState().add(selectedCanvasId, flowX, flowY)
+      } else if (kind === 'horizons') {
+        await useFloatingHorizonsStore.getState().add(selectedCanvasId, flowX, flowY)
       }
     },
     [selectedCanvasId, addWidgetMenuPos],
@@ -527,6 +537,18 @@ export function CanvasPage() {
     updateFloatingTaskboardSize(id, w, h)
   }, [updateFloatingTaskboardSize])
 
+  const handleHorizonsDragStop = useCallback((id: number, x: number, y: number) => {
+    updateFloatingHorizonsPosition(id, x, y)
+  }, [updateFloatingHorizonsPosition])
+
+  const handleCloseHorizons = useCallback((id: number) => {
+    removeFloatingHorizons(id)
+  }, [removeFloatingHorizons])
+
+  const handleResizeHorizons = useCallback((id: number, w: number, h: number) => {
+    updateFloatingHorizonsSize(id, w, h)
+  }, [updateFloatingHorizonsSize])
+
   /**
    * Float-dock handler — called by `CanvasView` on release of a floating
    * widget over a rail drop zone. Builds the `FloatDescriptor` from the
@@ -569,6 +591,9 @@ export function CanvasPage() {
         descriptor = { kind: 'taskboard', id: desc.floatId, taskboardId: board.id }
         break
       }
+      case 'horizons':
+        descriptor = { kind: 'horizons', id: desc.floatId }
+        break
     }
     if (!descriptor) return
 
@@ -665,6 +690,10 @@ export function CanvasPage() {
           onCloseTaskboard={handleCloseTaskboard}
           onTaskboardDragStop={handleTaskboardDragStop}
           onResizeTaskboard={handleResizeTaskboard}
+          floatingHorizons={floatingHorizons}
+          onHorizonsDragStop={handleHorizonsDragStop}
+          onCloseHorizons={handleCloseHorizons}
+          onResizeHorizons={handleResizeHorizons}
           onCascadeShift={handleCascadeShift}
           showCompleted={filters.showCompleted}
           showHiddenStatuses={filters.showHiddenStatuses}

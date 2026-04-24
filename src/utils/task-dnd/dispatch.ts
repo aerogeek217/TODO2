@@ -62,8 +62,7 @@ function fullIndexForSortableDrop(
 
 /**
  * Shared drop dispatcher for task-shaped drags that target a taskboard. Owns
- * the three taskboard-specific branches that previously lived in both
- * `use-canvas-dnd.ts:handleDragEnd` and `DashboardView.handleDragEnd`:
+ * the three taskboard-specific branches for `use-canvas-dnd.ts:handleDragEnd`:
  *
  *   1. Taskboard entry dragged onto another entry → reorder.
  *   2. Taskboard entry dragged onto the panel's outer drop zone → move to end.

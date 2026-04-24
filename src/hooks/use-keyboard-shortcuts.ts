@@ -68,10 +68,6 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
             e.preventDefault()
             navigate('/')
             return
-          } else if (e.key === 'd') {
-            e.preventDefault()
-            navigate('/dashboard')
-            return
           } else if (e.key === 'l') {
             e.preventDefault()
             navigate('/list')

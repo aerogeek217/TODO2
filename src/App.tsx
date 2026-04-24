@@ -31,7 +31,6 @@ import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
 const CanvasPage = lazy(() => import('./views/CanvasPage').then(m => ({ default: m.CanvasPage })))
-const DashboardView = lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })))
 const ListView = lazy(() => import('./views/ListView').then(m => ({ default: m.ListView })))
 const CalendarView = lazy(() => import('./views/CalendarView').then(m => ({ default: m.CalendarView })))
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
@@ -88,7 +87,7 @@ function AppShell() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const showFab = location.pathname !== '/settings' && location.pathname !== '/calendar' && location.pathname !== '/dashboard'
+  const showFab = location.pathname !== '/settings' && location.pathname !== '/calendar'
 
   // Reset filter sheet when viewport transitions from mobile to desktop
   useEffect(() => {
@@ -249,14 +248,14 @@ function AppShell() {
         <div className={styles.content}>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={isMobile ? <Navigate to="/dashboard" replace /> : (
+            <Route path="/" element={isMobile ? <Navigate to="/list" replace /> : (
               <ErrorBoundary scope="Canvas">
                 <CanvasPage />
               </ErrorBoundary>
             )} />
-            <Route path="/dashboard" element={<DashboardView />} />
+            <Route path="/dashboard" element={<Navigate to="/" replace />} />
             <Route path="/list" element={<ListView />} />
-            <Route path="/calendar" element={isMobile ? <Navigate to="/dashboard" replace /> : <CalendarView />} />
+            <Route path="/calendar" element={isMobile ? <Navigate to="/list" replace /> : <CalendarView />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Suspense>

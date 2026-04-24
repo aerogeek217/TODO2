@@ -2,6 +2,7 @@ import type { SlotKind } from '../models/canvas-rails'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
+import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { listInsetRepository } from '../data'
@@ -54,6 +55,7 @@ export async function convertFloatingKind(args: FloatConversionArgs): Promise<nu
     case 'calendar': await useFloatingCalendarStore.getState().remove(sourceId); break
     case 'taskboard': await useFloatingTaskboardStore.getState().remove(sourceId); break
     case 'lens': await useListInsetStore.getState().remove(sourceId); break
+    case 'horizons': await useFloatingHorizonsStore.getState().remove(sourceId); break
   }
 
   const { x, y, width, height } = rect
@@ -71,6 +73,11 @@ export async function convertFloatingKind(args: FloatConversionArgs): Promise<nu
   if (nextKind === 'taskboard') {
     const id = await useFloatingTaskboardStore.getState().add(canvasId, x, y)
     if (width && height) await useFloatingTaskboardStore.getState().updateSize(id, width, height)
+    return id
+  }
+  if (nextKind === 'horizons') {
+    const id = await useFloatingHorizonsStore.getState().add(canvasId, x, y)
+    if (width && height) await useFloatingHorizonsStore.getState().updateSize(id, width, height)
     return id
   }
   // lens

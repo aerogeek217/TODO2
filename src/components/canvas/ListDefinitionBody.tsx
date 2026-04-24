@@ -76,7 +76,7 @@ export function ListDefinitionBody({
 
   // Tag filter predicate clauses read via `assignedTagsMap`; make sure the
   // map is populated for the current todo corpus. Mirrors people/org loads
-  // in `CanvasPage` / `DashboardView` for the filter-store path.
+  // in `CanvasPage` for the filter-store path.
   useEffect(() => {
     if (todos.length === 0) return
     loadTagAssignments(todos.map((t) => t.id))

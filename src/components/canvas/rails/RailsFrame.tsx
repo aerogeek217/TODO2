@@ -5,6 +5,7 @@ import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useCanvasStore } from '../../../stores/canvas-store'
 import { useListInsetStore } from '../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../stores/floating-calendar-store'
+import { useFloatingHorizonsStore } from '../../../stores/floating-horizons-store'
 import { useFloatingNoteStore } from '../../../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../../../stores/floating-taskboard-store'
 import { useCanvasRailsStore, createLensSlot } from '../../../stores/canvas-rails-store'
@@ -24,6 +25,7 @@ import { CalendarSlotContent } from './CalendarSlotContent'
 import { CalendarOrientationToggle } from './calendar/CalendarOrientationToggle'
 import { NotesSlotContent } from './NotesSlotContent'
 import { TaskboardSlotContent } from './TaskboardSlotContent'
+import { HorizonsSlotContent } from './HorizonsSlotContent'
 import { DockOverlay } from './DockOverlay'
 import { SlotMenu } from './SlotMenu'
 import { WidgetKindMenu } from '../../shared/WidgetKindMenu'
@@ -137,6 +139,10 @@ export async function popTabAtPosition(
   }
   if (tab.type === 'taskboard') {
     await useFloatingTaskboardStore.getState().add(canvasId, x, y)
+    return true
+  }
+  if (tab.type === 'horizons') {
+    await useFloatingHorizonsStore.getState().add(canvasId, x, y)
     return true
   }
   return false
@@ -303,6 +309,8 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     body = <NotesSlotContent />
   } else if (activeTab.type === 'taskboard') {
     body = <TaskboardSlotContent />
+  } else if (activeTab.type === 'horizons') {
+    body = <HorizonsSlotContent />
   } else {
     body = (
       <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-meta)' }}>

@@ -82,10 +82,10 @@ interface SettingsState {
   /** Ordering of the dashboard top row (taskboard + hero horizon). */
   dashboardTopOrder: DashboardTopSlot[]
   /**
-   * Ordered `listDefinitionId`s for the dashboard "Your lists" grid.
-   * null = not yet seeded (first load post-P6); DashboardView falls back to the
-   * legacy derivation and seeds this setting from it once list definitions load.
-   * May contain a horizon-mapped id — the grid and ribbon are independent.
+   * Ordered `listDefinitionId`s for the dashboard "Your lists" grid. Dormant
+   * post-Dashboard retirement — kept in settings for one release so reinstating
+   * the feature (or reading an older backup) doesn't lose the ordering.
+   * null = never seeded. May contain a horizon-mapped id.
    */
   dashboardUserLists: number[] | null
 

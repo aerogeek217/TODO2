@@ -21,6 +21,7 @@ import {
   type TabDropTarget,
 } from '../utils/rail-dnd'
 import { useFloatingCalendarStore } from './floating-calendar-store'
+import { useFloatingHorizonsStore } from './floating-horizons-store'
 import { useFloatingNoteStore } from './floating-note-store'
 import { useFloatingTaskboardStore } from './floating-taskboard-store'
 import { useListInsetStore } from './list-inset-store'
@@ -45,6 +46,7 @@ async function removeFloatRow(descriptor: FloatDescriptor): Promise<void> {
     case 'calendar':  await useFloatingCalendarStore.getState().remove(descriptor.id); return
     case 'taskboard': await useFloatingTaskboardStore.getState().remove(descriptor.id); return
     case 'lens':      await useListInsetStore.getState().remove(descriptor.id); return
+    case 'horizons':  await useFloatingHorizonsStore.getState().remove(descriptor.id); return
   }
 }
 

@@ -105,7 +105,7 @@ describe('buildDashboardLists', () => {
 })
 
 describe('buildDashboardLists — predicate tags clause', () => {
-  // End-to-end: the same evalPredicate used by DashboardView + ListDefinitionBody,
+  // End-to-end: the same evalPredicate used by HorizonsSlotContent + ListDefinitionBody,
   // wired to the canonical matchesFilter. A custom list with `tags: [<id>]`
   // should include only todos whose assignment map contains the id via OR.
   // Predicate tag ids are into the registry; assigned-tag resolution lives at

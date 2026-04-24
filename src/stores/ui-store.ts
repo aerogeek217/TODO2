@@ -37,7 +37,7 @@ export interface CanvasViewport {
  * the UI store so the rails `DockOverlay` and the Phase 2 hit-test can observe
  * an in-flight float-dock gesture without plumbing refs through the tree.
  */
-export type FloatDragKind = 'note' | 'calendar' | 'inset' | 'taskboard'
+export type FloatDragKind = 'note' | 'calendar' | 'inset' | 'taskboard' | 'horizons'
 
 export interface FloatDragState {
   kind: FloatDragKind

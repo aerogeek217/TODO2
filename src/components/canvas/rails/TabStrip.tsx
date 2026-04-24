@@ -39,6 +39,7 @@ function tabLabel(tab: Tab, listName: string | undefined): string {
   if (tab.type === 'lens') return listName ?? 'List'
   if (tab.type === 'taskboard') return 'Taskboard'
   if (tab.type === 'notes') return 'Notes'
+  if (tab.type === 'horizons') return 'Horizons'
   return 'Calendar'
 }
 

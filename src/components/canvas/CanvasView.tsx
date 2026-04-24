@@ -18,10 +18,11 @@ import { ListInsetNode, type ListInsetNodeData } from './ListInsetNode'
 import { FloatingNoteNode, type FloatingNoteNodeData } from './FloatingNoteNode'
 import { FloatingCalendarNode, type FloatingCalendarNodeData } from './FloatingCalendarNode'
 import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
+import { FloatingHorizonsNode, type FloatingHorizonsNodeData } from './FloatingHorizonsNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findAlignmentsScoped, findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
 import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from './cascade-shift'
-import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, Taskboard } from '../../models'
+import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, Taskboard } from '../../models'
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
@@ -62,6 +63,7 @@ const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
 const CALENDAR_PREFIX = 'calendar-'
 const TASKBOARD_PREFIX = 'taskboard-'
+const HORIZONS_PREFIX = 'horizons-'
 
 /**
  * Decode a React Flow node id into its floating-widget kind + numeric id, or
@@ -75,6 +77,7 @@ function floatKindForNodeId(id: string): { kind: FloatDragKind; floatId: number 
   if (id.startsWith(NOTE_PREFIX)) return { kind: 'note', floatId: Number(id.slice(NOTE_PREFIX.length)) }
   if (id.startsWith(CALENDAR_PREFIX)) return { kind: 'calendar', floatId: Number(id.slice(CALENDAR_PREFIX.length)) }
   if (id.startsWith(TASKBOARD_PREFIX)) return { kind: 'taskboard', floatId: Number(id.slice(TASKBOARD_PREFIX.length)) }
+  if (id.startsWith(HORIZONS_PREFIX)) return { kind: 'horizons', floatId: Number(id.slice(HORIZONS_PREFIX.length)) }
   return null
 }
 
@@ -85,6 +88,7 @@ function floatKindLabel(kind: FloatDragKind): string {
     case 'calendar': return 'calendar'
     case 'inset': return 'list'
     case 'taskboard': return 'taskboard'
+    case 'horizons': return 'horizons'
   }
 }
 
@@ -115,6 +119,7 @@ const nodeTypes: NodeTypes = {
   floatingNote: FloatingNoteNode as unknown as NodeTypes[string],
   floatingCalendar: FloatingCalendarNode as unknown as NodeTypes[string],
   taskboard: TaskboardNode as unknown as NodeTypes[string],
+  floatingHorizons: FloatingHorizonsNode as unknown as NodeTypes[string],
 }
 
 export interface ProjectHandlers {
@@ -175,6 +180,10 @@ interface CanvasViewProps {
   onToggleTaskboardCollapse?: (id: number) => void
   onCloseTaskboard?: (id: number) => void
   onResizeTaskboard?: (id: number, width: number, height: number) => void
+  floatingHorizons?: FloatingHorizons[]
+  onHorizonsDragStop?: (id: number, x: number, y: number) => void
+  onCloseHorizons?: (id: number) => void
+  onResizeHorizons?: (id: number, width: number, height: number) => void
   onCascadeShift?: (shifts: Array<{ projectId: number; x: number; y: number }>) => void
   showCompleted?: boolean
   showHiddenStatuses?: boolean
@@ -219,6 +228,10 @@ export function CanvasView({
   onToggleTaskboardCollapse,
   onCloseTaskboard,
   onResizeTaskboard,
+  floatingHorizons,
+  onHorizonsDragStop,
+  onCloseHorizons,
+  onResizeHorizons,
   onCascadeShift,
   showCompleted,
   showHiddenStatuses,
@@ -475,8 +488,24 @@ export function CanvasView({
       }
     })
 
+    const horizonsNodes: Node[] = (floatingHorizons ?? []).map((fh) => {
+      const id = `${HORIZONS_PREFIX}${fh.id}`
+      const data: FloatingHorizonsNodeData = {
+        horizons: fh,
+        onDelete: onCloseHorizons ?? NOOP,
+        onResize: onResizeHorizons,
+      }
+      return {
+        id,
+        type: 'floatingHorizons',
+        position: { x: fh.x, y: fh.y },
+        zIndex: 10,
+        data: stabilize(id, data as unknown as Record<string, unknown>),
+      }
+    })
+
     nodeDataCacheRef.current = nextCache
-    return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...tbNodes]
+    return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...tbNodes, ...horizonsNodes]
   }, [
     projects, todosByProject, assignedPeopleMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
@@ -486,6 +515,7 @@ export function CanvasView({
     floatingCalendars, onDeleteCalendar, onResizeCalendar,
     allPeople, allOrgs,
     floatingTaskboards, taskboard, onToggleTaskboardCollapse, onCloseTaskboard, onResizeTaskboard,
+    floatingHorizons, onCloseHorizons, onResizeHorizons,
     showCompleted, showHiddenStatuses,
   ])
 
@@ -645,6 +675,8 @@ export function CanvasView({
                 onNoteDragStop?.(Number(id.slice(NOTE_PREFIX.length)), change.position.x, change.position.y)
               } else if (id.startsWith(CALENDAR_PREFIX)) {
                 onCalendarDragStop?.(Number(id.slice(CALENDAR_PREFIX.length)), change.position.x, change.position.y)
+              } else if (id.startsWith(HORIZONS_PREFIX)) {
+                onHorizonsDragStop?.(Number(id.slice(HORIZONS_PREFIX.length)), change.position.x, change.position.y)
               } else {
                 onNodeDragStop(Number(id), change.position.x, change.position.y)
               }
@@ -730,7 +762,7 @@ export function CanvasView({
         for (const change of changes) {
           if (change.type === 'dimensions' && !change.resizing && change.dimensions) {
             const id = change.id
-            if (id.startsWith(INSET_PREFIX) || id.startsWith(NOTE_PREFIX) || id.startsWith(CALENDAR_PREFIX) || id.startsWith(TASKBOARD_PREFIX)) continue
+            if (id.startsWith(INSET_PREFIX) || id.startsWith(NOTE_PREFIX) || id.startsWith(CALENDAR_PREFIX) || id.startsWith(TASKBOARD_PREFIX) || id.startsWith(HORIZONS_PREFIX)) continue
             const prevH = prevHeightsRef.current.get(id)
             const newH = change.dimensions.height
             if (prevH != null && Math.abs(newH - prevH) > 1) {
@@ -774,7 +806,7 @@ export function CanvasView({
                   width: internal?.measured?.width ?? 280,
                   height: internal?.measured?.height ?? 200,
                 })
-                if (!n.id.startsWith(INSET_PREFIX) && !n.id.startsWith(NOTE_PREFIX) && !n.id.startsWith(CALENDAR_PREFIX) && !n.id.startsWith(TASKBOARD_PREFIX)) {
+                if (!n.id.startsWith(INSET_PREFIX) && !n.id.startsWith(NOTE_PREFIX) && !n.id.startsWith(CALENDAR_PREFIX) && !n.id.startsWith(TASKBOARD_PREFIX) && !n.id.startsWith(HORIZONS_PREFIX)) {
                   projectIds.add(n.id)
                 }
               }

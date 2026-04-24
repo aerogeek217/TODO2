@@ -30,14 +30,13 @@ describe('BottomTabBar', () => {
 
   // ── Rendering ─────────────────────────────────────────────────────
 
-  it('renders four tabs', () => {
+  it('renders three tabs', () => {
     renderTabBar()
-    expect(screen.getAllByRole('tab')).toHaveLength(4)
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
   })
 
   it('renders tab labels', () => {
     renderTabBar()
-    expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.getByText('List')).toBeInTheDocument()
     expect(screen.getByText('Filters')).toBeInTheDocument()
     expect(screen.getByText('Settings')).toBeInTheDocument()
@@ -51,34 +50,24 @@ describe('BottomTabBar', () => {
   // ── Active tab states ─────────────────────────────────────────────
 
   describe('active states', () => {
-    it('Dashboard tab is active on /dashboard', () => {
-      renderTabBar('/dashboard')
+    it('List tab is active on /list', () => {
+      renderTabBar('/list')
       const tabs = screen.getAllByRole('tab')
       expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
       expect(tabs[1]).toHaveAttribute('aria-selected', 'false')
       expect(tabs[2]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[3]).toHaveAttribute('aria-selected', 'false')
     })
 
-    it('Dashboard tab is active on /', () => {
+    it('List tab is active on /', () => {
       renderTabBar('/')
       expect(screen.getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
-    })
-
-    it('List tab is active on /list', () => {
-      renderTabBar('/list')
-      const tabs = screen.getAllByRole('tab')
-      expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
-      expect(tabs[2]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[3]).toHaveAttribute('aria-selected', 'false')
     })
 
     it('Settings tab is active on /settings', () => {
       renderTabBar('/settings')
       const tabs = screen.getAllByRole('tab')
-      expect(tabs[1]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[3]).toHaveAttribute('aria-selected', 'true')
+      expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
+      expect(tabs[2]).toHaveAttribute('aria-selected', 'true')
     })
 
     it('Filters tab is active when filter sheet is open', () => {
@@ -86,9 +75,9 @@ describe('BottomTabBar', () => {
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
       const tabs = screen.getAllByRole('tab')
-      expect(tabs[2]).toHaveAttribute('aria-selected', 'true')
+      expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
       // List tab deactivates when filter sheet is open
-      expect(tabs[1]).toHaveAttribute('aria-selected', 'false')
+      expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
     })
 
     it('Settings tab deactivates when filter sheet is open', () => {
@@ -96,8 +85,8 @@ describe('BottomTabBar', () => {
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
       const tabs = screen.getAllByRole('tab')
-      expect(tabs[3]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[2]).toHaveAttribute('aria-selected', 'true')
+      expect(tabs[2]).toHaveAttribute('aria-selected', 'false')
+      expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
     })
   })
 

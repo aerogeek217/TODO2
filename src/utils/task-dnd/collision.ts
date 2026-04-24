@@ -58,8 +58,8 @@ export interface CollisionActive {
 
 /**
  * Build a `CollisionDetection` from a declarative rules table. Replaces the
- * hand-rolled per-context functions in `CanvasPage`, `DashboardView`, and any
- * other route that wants to scope which droppables a given drag can hit.
+ * hand-rolled per-context functions in `CanvasPage` and any other route
+ * that wants to scope which droppables a given drag can hit.
  *
  * Rules are checked in order; the first `when` that matches wins and the
  * others are skipped. When no rule matches, the returned detection falls back

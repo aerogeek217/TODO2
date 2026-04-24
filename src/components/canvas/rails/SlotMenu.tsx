@@ -17,6 +17,7 @@ const KIND_LABEL: Record<SlotKind, string> = {
   notes: 'notes',
   calendar: 'calendar',
   taskboard: 'taskboard',
+  horizons: 'horizons',
 }
 
 type SplitItem = { dir: 'above' | 'below' | 'left' | 'right'; label: string }
