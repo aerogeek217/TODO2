@@ -147,12 +147,28 @@ export function NotesEditor({
     })
   }, [extraKeymap])
 
+  // Clicking below the last line of content lands on `.cm-scroller` (its
+  // bottom padding) or on `.host` itself — neither is contenteditable, so
+  // CM6 doesn't auto-focus. Catch those clicks on mousedown (to beat the
+  // native focus race), move the caret to doc end, and focus the editor.
+  const handleHostMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    const view = viewRef.current
+    if (!view) return
+    const target = event.target as HTMLElement | null
+    if (!target) return
+    if (target.closest('.cm-content')) return
+    event.preventDefault()
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+    view.focus()
+  }
+
   return (
     <div
       className={styles.host}
       ref={hostRef}
       data-placeholder={placeholder ?? undefined}
       data-shortcut-scope="none"
+      onMouseDown={handleHostMouseDown}
     />
   )
 }

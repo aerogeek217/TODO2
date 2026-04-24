@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { render, cleanup } from '@testing-library/react'
+import { render, cleanup, fireEvent } from '@testing-library/react'
 import { createRef } from 'react'
 import type { EditorView } from '@codemirror/view'
 import { NotesEditor } from '../../../components/shared/notes/NotesEditor'
@@ -69,5 +69,55 @@ describe('NotesEditor — rich-text paste', () => {
     // CM's default paste should have inserted the plain text verbatim — our
     // handler must NOT have converted it (there's no HTML to convert from).
     expect(view.state.doc.toString()).toBe('**literal**')
+  })
+})
+
+describe('NotesEditor — click-to-focus below content', () => {
+  it('moves caret to doc end + focuses when mousedown lands outside .cm-content', () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const { container } = render(
+      <NotesEditor
+        value={'hello\nworld'}
+        onChange={() => {}}
+        viewRef={viewRef}
+      />,
+    )
+    const view = viewRef.current!
+    // Start with the caret at position 0 so the end-of-doc move is observable.
+    view.dispatch({ selection: { anchor: 0 } })
+    expect(view.state.selection.main.head).toBe(0)
+
+    // The dead zone lives on .cm-scroller (its bottom padding) — simulate a
+    // click there. `.cm-scroller` is never a child of `.cm-content`, so the
+    // handler should run.
+    const scroller = container.querySelector('.cm-scroller') as HTMLElement
+    expect(scroller).toBeTruthy()
+    fireEvent.mouseDown(scroller)
+
+    expect(view.state.selection.main.head).toBe(view.state.doc.length)
+    expect(view.hasFocus).toBe(true)
+  })
+
+  it('does not hijack mousedown inside .cm-content', () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const { container } = render(
+      <NotesEditor
+        value={'hello\nworld'}
+        onChange={() => {}}
+        viewRef={viewRef}
+      />,
+    )
+    const view = viewRef.current!
+    view.dispatch({ selection: { anchor: 2 } })
+
+    const content = container.querySelector('.cm-content') as HTMLElement
+    expect(content).toBeTruthy()
+    fireEvent.mouseDown(content)
+
+    // Our handler must early-return — if it had run, the caret would have
+    // snapped to doc end. CM6's own mousedown logic may move the caret
+    // elsewhere based on click coords, so assert the specific "handler ran"
+    // signature (caret === doc.length) is absent.
+    expect(view.state.selection.main.head).not.toBe(view.state.doc.length)
   })
 })
