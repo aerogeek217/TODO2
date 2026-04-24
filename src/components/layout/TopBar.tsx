@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router'
 import {
   DndContext,
@@ -26,6 +27,8 @@ import { toggleItem, matchTodoText, type TextMatchField } from '../../utils/filt
 import { StatusIcon } from '../shared/StatusIcon'
 import { DateAnchorInput } from '../shared/DateAnchorInput'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
+import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
+import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import styles from './TopBar.module.css'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status', 'tag']
@@ -61,20 +64,66 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
 }
 
 /**
+ * Build the context-menu items shown when a search result is right-clicked —
+ * P4 of `docs/plans/features/features-batch-2026-04`.
+ *
+ * Mirrors the items on `TaskRow`'s menu: Open / Mark (in)complete /
+ * Add-or-Remove from Taskboard / Move to project… / Delete. Extracted as a
+ * pure helper so unit tests can exercise each action without mounting a
+ * full TopBar.
+ */
+export function buildSearchContextMenuItems(params: {
+  todo: PersistedTodoItem
+  onBoard: boolean
+  onOpen: (todoId: number) => void
+  onMoveToProject: () => void
+}): ContextMenuItem[] {
+  const { todo, onBoard, onOpen, onMoveToProject } = params
+  return [
+    { label: 'Open', action: () => onOpen(todo.id) },
+    {
+      label: todo.isCompleted ? 'Mark incomplete' : 'Mark complete',
+      action: () => { void useTodoStore.getState().toggleComplete(todo.id) },
+    },
+    onBoard
+      ? {
+          label: 'Remove from Taskboard',
+          action: () => { void useTaskboardStore.getState().removeEntry(todo.id) },
+        }
+      : {
+          label: 'Add to Taskboard',
+          action: () => { void useTaskboardStore.getState().add(todo.id) },
+        },
+    { label: 'Move to project…', action: onMoveToProject },
+    { label: '', action: () => {}, separator: true },
+    {
+      label: 'Delete',
+      action: () => useUIStore.getState().showBulkConfirmation('delete', [todo.id]),
+      danger: true,
+    },
+  ]
+}
+
+/**
  * One search-result row. Draggable via the shared `TaskDraggable` primitive
  * (surface `'search'`, kind `'task'`) so the same taskboard drop handlers that
  * accept canvas/dashboard task drags pick these up too — see
  * P3 of `docs/plans/features/features-batch-2026-04`.
  *
+ * Right-clicking surfaces the same context menu as `TaskRow`, but the menu
+ * itself lives on the parent `TopBar` so it survives the search dropdown
+ * unmounting while the menu is open (P4).
+ *
  * Click-to-open uses `onClick` (not `onMouseDown`): dnd-kit's PointerSensor
  * has a 5-px activation distance, so a short press still fires click; a press
  * + drag activates the drag and suppresses the click.
  */
-function SearchResultRow({ todo, field, onOpen, onKeyDown }: {
+function SearchResultRow({ todo, field, onOpen, onKeyDown, onOpenContextMenu }: {
   todo: PersistedTodoItem
   field: TextMatchField
   onOpen: (todoId: number) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, todoId: number) => void
+  onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
 }) {
   return (
     <TaskDraggable todo={todo} surface="search">
@@ -88,6 +137,11 @@ function SearchResultRow({ todo, field, onOpen, onKeyDown }: {
           className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => onOpen(todo.id)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onOpenContextMenu(todo, e.clientX, e.clientY)
+          }}
           onKeyDown={(e) => onKeyDown(e, todo.id)}
           style={{ opacity: isDragging ? 0 : undefined, cursor: 'pointer' }}
         >
@@ -113,7 +167,8 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
   searchInputRef: React.RefObject<HTMLInputElement | null>
   onOpen: (todoId: number) => void
   onBlur: (e: React.FocusEvent<HTMLDivElement>) => void
-}>(function SearchResultsGroups({ groups, query, searchInputRef, onOpen, onBlur }, ref) {
+  onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
+}>(function SearchResultsGroups({ groups, query, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
   const [expanded, setExpanded] = useState<Set<TextMatchField>>(() => new Set())
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -170,6 +225,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
                 field={field}
                 onOpen={onOpen}
                 onKeyDown={onItemKeyDown}
+                onOpenContextMenu={onOpenContextMenu}
               />
             ))}
             {items.length > MAX_GROUP_PREVIEW && !expanded.has(field) && (
@@ -541,6 +597,15 @@ export function TopBar() {
   const searchSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   )
+  // P4: right-click menu state is kept on TopBar (not SearchResultRow) so the
+  // menu + project picker outlive the search dropdown closing when the menu
+  // opens — the row would otherwise unmount along with its portals.
+  const [searchContextMenu, setSearchContextMenu] = useState<
+    { todoId: number; x: number; y: number; onBoard: boolean } | null
+  >(null)
+  const [searchProjectPicker, setSearchProjectPicker] = useState<
+    { todoId: number; x: number; y: number } | null
+  >(null)
   const todos = useTodoStore((s) => s.todos)
   const projects = useProjectStore((s) => s.projects)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -741,6 +806,30 @@ export function TopBar() {
     searchInputRef.current?.focus()
   }, [cleanupSearchDrag])
 
+  const handleOpenTodo = useCallback((todoId: number) => {
+    openEditPopup(todoId)
+    handleSearchChange('')
+    setSearchFocused(false)
+    searchInputRef.current?.blur()
+  }, [openEditPopup, handleSearchChange])
+
+  const handleOpenSearchContextMenu = useCallback((todo: PersistedTodoItem, x: number, y: number) => {
+    const onBoard = useTaskboardStore.getState().has(todo.id)
+    setSearchContextMenu({ todoId: todo.id, x, y, onBoard })
+    // Close the dropdown; the menu lives on TopBar so it survives the close.
+    setSearchFocused(false)
+    searchInputRef.current?.blur()
+  }, [])
+
+  const menuTodo = useMemo(() => {
+    if (!searchContextMenu) return null
+    return todos.find((t) => t.id === searchContextMenu.todoId) ?? null
+  }, [searchContextMenu, todos])
+  const projectPickerTodo = useMemo(() => {
+    if (!searchProjectPicker) return null
+    return todos.find((t) => t.id === searchProjectPicker.todoId) ?? null
+  }, [searchProjectPicker, todos])
+
   if (isSettingsPage) return null
 
   return (
@@ -797,12 +886,8 @@ export function TopBar() {
             groups={miniListGroups}
             query={localSearch}
             searchInputRef={searchInputRef}
-            onOpen={(todoId) => {
-              openEditPopup(todoId)
-              handleSearchChange('')
-              setSearchFocused(false)
-              searchInputRef.current?.blur()
-            }}
+            onOpen={handleOpenTodo}
+            onOpenContextMenu={handleOpenSearchContextMenu}
             onBlur={(e) => {
               if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
                 setSearchFocused(false)
@@ -1036,6 +1121,40 @@ export function TopBar() {
 
       {isSupported && !isConnected && (
         <span className={styles.storageStatus}>Local only</span>
+      )}
+
+      {searchContextMenu && menuTodo && createPortal(
+        <CanvasContextMenu
+          x={searchContextMenu.x}
+          y={searchContextMenu.y}
+          items={buildSearchContextMenuItems({
+            todo: menuTodo,
+            onBoard: searchContextMenu.onBoard,
+            onOpen: handleOpenTodo,
+            onMoveToProject: () => setSearchProjectPicker({
+              todoId: menuTodo.id,
+              x: searchContextMenu.x,
+              y: searchContextMenu.y,
+            }),
+          })}
+          onClose={() => setSearchContextMenu(null)}
+        />,
+        document.body,
+      )}
+
+      {searchProjectPicker && projectPickerTodo && createPortal(
+        <ProjectPickerPopup
+          x={searchProjectPicker.x}
+          y={searchProjectPicker.y}
+          projectId={projectPickerTodo.projectId}
+          projects={projects}
+          onSelect={(id) => {
+            const fresh = useTodoStore.getState().todos.find((t) => t.id === projectPickerTodo.id)
+            if (fresh) useTodoStore.getState().update({ ...fresh, projectId: id })
+          }}
+          onClose={() => setSearchProjectPicker(null)}
+        />,
+        document.body,
       )}
     </header>
   )
