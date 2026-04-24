@@ -15,6 +15,16 @@ import { computeSearchDropIndex } from '../../../components/layout/TopBar'
  * add confidence over what the surface-id contract (see
  * `task-dnd/ids.test.ts` and `TaskDraggable.test.tsx`) plus this helper
  * already cover.
+ *
+ * P1 of `search-and-notes-bugs`: the drag-end handler *must* read the dragged
+ * todo from a component ref, not from `event.active.data.current`. The
+ * dropdown unmounts on drag start, which deletes the `SearchResultRow`'s
+ * entry from dnd-kit's `draggableNodes`; once that happens, dnd-kit falls
+ * `active.data` back to its internal `defaultData` (`{ current: {} }`), so at
+ * drag end `event.active.data.current?.todo` is undefined and the handler
+ * previously early-returned before `addAt` ran. The fix captures the todo in
+ * `searchDragTodoRef` at drag start. If you change the data source, re-verify
+ * the manual exit criteria.
  */
 describe('computeSearchDropIndex — bisection by pointer Y', () => {
   it('returns 0 for an empty taskboard', () => {

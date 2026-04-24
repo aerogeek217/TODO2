@@ -592,6 +592,12 @@ export function TopBar() {
   const [searchFocused, setSearchFocused] = useState(false)
   const miniListRef = useRef<HTMLDivElement>(null)
   const [searchDragTodo, setSearchDragTodo] = useState<PersistedTodoItem | null>(null)
+  // The dropdown unmounts on drag start, which deletes the SearchResultRow's
+  // `useDraggable` entry from dnd-kit's `draggableNodes` map; after that
+  // `event.active.data.current` falls back to `defaultData` (`{}`), so the
+  // drag-end handler can't recover the todo from there. Mirror `searchPointerRef`
+  // with a dedicated ref that outlives the source component.
+  const searchDragTodoRef = useRef<PersistedTodoItem | null>(null)
   const searchPointerRef = useRef<{ x: number; y: number } | null>(null)
   const searchMoveListenerRef = useRef<((e: PointerEvent) => void) | null>(null)
   const searchSensors = useSensors(
@@ -759,7 +765,10 @@ export function TopBar() {
     const activator = event.activatorEvent as PointerEvent
     searchPointerRef.current = { x: activator.clientX, y: activator.clientY }
     const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
-    if (todo) setSearchDragTodo(todo)
+    if (todo) {
+      searchDragTodoRef.current = todo
+      setSearchDragTodo(todo)
+    }
     const onMove = (e: PointerEvent) => {
       searchPointerRef.current = { x: e.clientX, y: e.clientY }
     }
@@ -776,11 +785,14 @@ export function TopBar() {
       searchMoveListenerRef.current = null
     }
     setSearchDragTodo(null)
+    searchDragTodoRef.current = null
     searchPointerRef.current = null
   }, [])
 
   const handleSearchDragEnd = useCallback(async (event: DragEndEvent) => {
-    const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
+    // Pull from the local ref, not `event.active.data.current`: the source row
+    // has already unmounted, so dnd-kit's `active.data` is the `{}` fallback.
+    const todo = searchDragTodoRef.current ?? (event.active.data.current?.todo as PersistedTodoItem | undefined)
     const p = searchPointerRef.current
     cleanupSearchDrag()
     if (!todo || !p) return
