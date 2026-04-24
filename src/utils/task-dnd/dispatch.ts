@@ -108,13 +108,16 @@ export async function dispatchTaskDrop(
   // ── Taskboard entry being dragged ──
   if (activeType === TASK_DRAG_KIND.taskboardTask) {
     if (overData?.type === TASK_DROP_KIND.taskboardTask && over?.id != null) {
-      const entries = tb.getEntries()
-      const fromIndex = entries.findIndex((e) => e.todoId === activeTodo.id)
       // `over.id` is the sortable id (e.g. `tbp-42` or `tb-7-42`); parse it
       // into its todo id so we can resolve the full-array target index
-      // regardless of which taskboard panel owns the over entry.
-      const overTodoId = parseTaskboardEntryId(String(over.id))?.todoId ?? NaN
-      const toIndex = entries.findIndex((e) => e.todoId === overTodoId)
+      // regardless of which taskboard panel owns the over entry. A malformed
+      // id (e.g. `tbp-NaN`) means this isn't a real taskboard drop — bail out
+      // so the caller can fall through to its route-specific handler.
+      const parsed = parseTaskboardEntryId(String(over.id))
+      if (parsed == null) return false
+      const entries = tb.getEntries()
+      const fromIndex = entries.findIndex((e) => e.todoId === activeTodo.id)
+      const toIndex = entries.findIndex((e) => e.todoId === parsed.todoId)
       if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
         await tb.reorder(fromIndex, toIndex)
       }

@@ -309,21 +309,34 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
 
   updateSlot: (slotId, patch) => set((state) => {
     const next = mapSlot(state.rails, slotId, (current) => {
+      let changed = false
       const nextSlot: Slot = { ...current }
-      if (patch.flex !== undefined) nextSlot.flex = patch.flex
-      if (patch.orientation !== undefined) nextSlot.orientation = patch.orientation
-      if (patch.weekOffset !== undefined) nextSlot.weekOffset = patch.weekOffset
+      if (patch.flex !== undefined && patch.flex !== current.flex) {
+        nextSlot.flex = patch.flex
+        changed = true
+      }
+      if (patch.orientation !== undefined && patch.orientation !== current.orientation) {
+        nextSlot.orientation = patch.orientation
+        changed = true
+      }
+      if (patch.weekOffset !== undefined && patch.weekOffset !== current.weekOffset) {
+        nextSlot.weekOffset = patch.weekOffset
+        changed = true
+      }
 
       if (patch.listDefinitionId !== undefined) {
         const activeIdx = current.tabs.findIndex((t) => t.id === current.activeTabId)
         const resolvedIdx = activeIdx === -1 ? 0 : activeIdx
         const active = current.tabs[resolvedIdx]
-        const nextTab: Tab = { ...active, listDefinitionId: patch.listDefinitionId }
-        const tabs = current.tabs.slice()
-        tabs[resolvedIdx] = nextTab
-        nextSlot.tabs = tabs
+        if (active.listDefinitionId !== patch.listDefinitionId) {
+          const nextTab: Tab = { ...active, listDefinitionId: patch.listDefinitionId }
+          const tabs = current.tabs.slice()
+          tabs[resolvedIdx] = nextTab
+          nextSlot.tabs = tabs
+          changed = true
+        }
       }
-      return nextSlot
+      return changed ? nextSlot : current
     })
     return next === state.rails ? state : { rails: next }
   }),
@@ -388,6 +401,12 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
           // Prefer left sibling, else right.
           const fallback = current.tabs[i - 1] ?? current.tabs[i + 1]
           activeTabId = fallback.id
+        }
+        // Defensive: if activeTabId no longer resolves to a tab (unreachable
+        // under the walk-through today, but closes the reasoning loophole),
+        // fall back to the first remaining tab.
+        if (!tabs.some((t) => t.id === activeTabId)) {
+          activeTabId = tabs[0]?.id ?? activeTabId
         }
         return { ...current, tabs, activeTabId }
       })

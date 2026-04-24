@@ -559,7 +559,7 @@ export function CanvasPage() {
    * pattern. Store reducers delete the source float row on success, so
    * `CanvasView`'s usual position-persist path does not run for this release.
    */
-  const handleFloatDock = useCallback((
+  const handleFloatDock = useCallback(async (
     desc: { kind: FloatDragKind; floatId: number },
     target: FloatDockTarget,
   ) => {
@@ -586,8 +586,12 @@ export function CanvasPage() {
         break
       }
       case 'taskboard': {
+        await useTaskboardStore.getState().ensureLoaded()
         const board = useTaskboardStore.getState().board
-        if (!board?.id) return
+        if (!board?.id) {
+          console.warn('handleFloatDock: taskboard still unavailable after ensureLoaded')
+          return
+        }
         descriptor = { kind: 'taskboard', id: desc.floatId, taskboardId: board.id }
         break
       }

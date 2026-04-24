@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -750,32 +750,28 @@ export function ListView() {
     setActiveLoadedDefId(def.id)
   }, [setAllFilters, setListGroupBy, setListSortBy])
 
-  // Clear the active-loaded highlight once the user edits any input externally.
-  // `runtimeFilterValue` is intentionally omitted — only the spec is persisted
-  // on the def, so only spec edits should flag the def as dirty.
-  const applyingRef = useRef(false)
-  useEffect(() => {
-    if (applyingRef.current) { applyingRef.current = false; return }
-    setActiveLoadedDefId(null)
-  }, [filters, listGroupBy, listSortBy, maxTasks, limitMode, runtimeFilterSpec])
-
   const applyAndMarkLoaded = useCallback((def: PersistedListDefinition) => {
-    applyingRef.current = true
     applyDefinition(def)
   }, [applyDefinition])
 
   const writeCurrentStateToDef = useCallback(async (def: PersistedListDefinition) => {
     const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
-    await updateListDefinition({
+    const next: PersistedListDefinition = {
       ...def,
       membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
       sort,
       grouping,
-      ...(maxTasks != null ? { maxTasks } : { maxTasks: undefined as unknown as number | undefined }),
-      ...(maxTasks != null ? { limitMode } : { limitMode: undefined }),
-      runtimeFilter: runtimeFilterSpec ?? undefined,
-    } as PersistedListDefinition)
-    applyingRef.current = true
+    }
+    if (maxTasks != null) {
+      next.maxTasks = maxTasks
+      next.limitMode = limitMode
+    } else {
+      delete next.maxTasks
+      delete next.limitMode
+    }
+    if (runtimeFilterSpec) next.runtimeFilter = runtimeFilterSpec
+    else delete next.runtimeFilter
+    await updateListDefinition(next)
     setActiveLoadedDefId(def.id)
   }, [listGroupBy, listSortBy, filters, maxTasks, limitMode, runtimeFilterSpec, updateListDefinition])
 
@@ -821,7 +817,6 @@ export function ListView() {
         ...(maxTasks != null ? { maxTasks, limitMode } : {}),
         ...(runtimeFilterSpec ? { runtimeFilter: runtimeFilterSpec } : {}),
       })
-      applyingRef.current = true
       setActiveLoadedDefId(id)
       setShowNewListPrompt(false)
       setNewListName('')
@@ -986,7 +981,7 @@ export function ListView() {
                 <IconSelect<ListGroupBy>
                   value={listGroupBy}
                   options={groupByOptions}
-                  onChange={(v) => setListGroupBy(v)}
+                  onChange={(v) => { setListGroupBy(v); setActiveLoadedDefId(null) }}
                   ariaLabel="Group tasks by"
                 />
               </div>
@@ -995,7 +990,7 @@ export function ListView() {
                 <IconSelect<ListItemSortBy>
                   value={listSortBy}
                   options={itemSortByOptions}
-                  onChange={(v) => setListSortBy(v)}
+                  onChange={(v) => { setListSortBy(v); setActiveLoadedDefId(null) }}
                   ariaLabel="Sort tasks by"
                 />
               </div>
@@ -1012,9 +1007,9 @@ export function ListView() {
                   onChange={(e) => {
                     const raw = e.target.value
                     setMaxTasksInput(raw)
-                    if (raw.trim() === '') { setMaxTasks(null); return }
+                    if (raw.trim() === '') { setMaxTasks(null); setActiveLoadedDefId(null); return }
                     const n = Number(raw)
-                    if (Number.isFinite(n) && n >= 1) setMaxTasks(Math.floor(n))
+                    if (Number.isFinite(n) && n >= 1) { setMaxTasks(Math.floor(n)); setActiveLoadedDefId(null) }
                   }}
                 />
               </div>
@@ -1023,13 +1018,13 @@ export function ListView() {
                   <button
                     type="button"
                     className={`${styles.limitModeBtn} ${limitMode === 'hard' ? styles.limitModeBtnActive : ''}`}
-                    onClick={() => setLimitMode('hard')}
+                    onClick={() => { setLimitMode('hard'); setActiveLoadedDefId(null) }}
                     title="Hide tasks beyond the limit"
                   >Hard</button>
                   <button
                     type="button"
                     className={`${styles.limitModeBtn} ${limitMode === 'scroll' ? styles.limitModeBtnActive : ''}`}
-                    onClick={() => setLimitMode('scroll')}
+                    onClick={() => { setLimitMode('scroll'); setActiveLoadedDefId(null) }}
                     title="Show all tasks inside a scrollable region"
                   >Scroll</button>
                 </div>
@@ -1053,6 +1048,7 @@ export function ListView() {
                       setRuntimeFilterSpec({ field: next })
                     }
                     setRuntimeFilterValue(undefined)
+                    setActiveLoadedDefId(null)
                   }}
                 >
                   {runtimeFilterOptions.map(({ value, label }) => (
@@ -1172,7 +1168,7 @@ export function ListView() {
               <button
                 type="button"
                 className={styles.limitIndicatorAction}
-                onClick={() => setLimitMode('scroll')}
+                onClick={() => { setLimitMode('scroll'); setActiveLoadedDefId(null) }}
               >switch to scroll</button>
             </div>
           )}

@@ -101,6 +101,41 @@ describe('canvas-rails-store', () => {
     expect(useCanvasRailsStore.getState().rails.right?.slots[0].id).toBe(slot.id)
   })
 
+  it('updateSlot with an empty patch returns the same rails ref (no re-render)', () => {
+    // M2: the early-out branch — an updateSlot call whose patch doesn't
+    // change any slot field must not mint a new rails object, so subscribers
+    // via Zustand's referential equality skip the render cycle.
+    const slot = createLensSlot(1)
+    useCanvasRailsStore.setState({
+      rails: {
+        left: null,
+        right: { orientation: 'vertical', slots: [slot] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+    const before = useCanvasRailsStore.getState().rails
+    useCanvasRailsStore.getState().updateSlot(slot.id, {})
+    expect(useCanvasRailsStore.getState().rails).toBe(before)
+  })
+
+  it('updateSlot with a patch matching current values returns the same rails ref', () => {
+    const slot = createLensSlot(7)
+    useCanvasRailsStore.setState({
+      rails: {
+        left: null,
+        right: { orientation: 'vertical', slots: [slot] },
+        top: null,
+        bottom: null,
+      },
+      hydrated: true,
+    })
+    const before = useCanvasRailsStore.getState().rails
+    useCanvasRailsStore.getState().updateSlot(slot.id, { listDefinitionId: 7 })
+    expect(useCanvasRailsStore.getState().rails).toBe(before)
+  })
+
   it('dropSlotToSide delegates to the pure reducer', () => {
     const a = createLensSlot(1)
     useCanvasRailsStore.setState({
@@ -273,6 +308,21 @@ describe('canvas-rails-store', () => {
       useCanvasRailsStore.getState().closeTab(slot.id, activeBefore)
       const s = useCanvasRailsStore.getState().rails.right!.slots[0]
       expect(s.activeTabId).toBe(s.tabs[0].id)
+    })
+
+    it('closeTab on a middle tab keeps activeTabId valid (M7)', () => {
+      // Seed three tabs [lens, notes, calendar]. Active is the last-added
+      // (calendar, idx 2). Close the middle tab (notes). activeTabId should
+      // still resolve to a real tab — this is the reasoning loophole M7
+      // closes: any splice + fallback path ends with a tab that exists.
+      const slot = seedOneSlot()
+      useCanvasRailsStore.getState().addTab(slot.id, 'notes')
+      useCanvasRailsStore.getState().addTab(slot.id, 'calendar')
+      const midId = useCanvasRailsStore.getState().rails.right!.slots[0].tabs[1].id
+      useCanvasRailsStore.getState().closeTab(slot.id, midId)
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
+      expect(s.tabs).toHaveLength(2)
+      expect(s.tabs.some((t) => t.id === s.activeTabId)).toBe(true)
     })
 
     it('changeTabType rewrites a specific tab', () => {

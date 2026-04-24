@@ -310,6 +310,27 @@ describe('dispatchTaskDrop — taskboard entry drags', () => {
     )
     expect(tb.removeEntry).not.toHaveBeenCalled()
   })
+
+  it('taskboard-task reorder with unparseable over.id returns false (no silent no-op)', async () => {
+    // L12 / M6: the reorder branch used to parse the over.id into a todo id
+    // and coalesce a failed parse to `NaN`, silently no-op'ing the reorder
+    // and returning `true` — swallowing the drop entirely. Post-M6 a malformed
+    // id (e.g. `tbp-NaN`) falls through to `return false` so the caller's
+    // route-specific handler can run instead.
+    const tb = taskboardOps([10, 20, 30])
+    const handled = await dispatchTaskDrop(
+      makeEvent({
+        activeId: 'tbp-10',
+        activeTodoId: 10,
+        activeType: TASK_DRAG_KIND.taskboardTask,
+        over: { id: 'tbp-NaN', type: TASK_DROP_KIND.taskboardTask },
+      }),
+      { taskboard: tb },
+    )
+    expect(handled).toBe(false)
+    expect(tb.reorder).not.toHaveBeenCalled()
+    expect(tb.removeEntry).not.toHaveBeenCalled()
+  })
 })
 
 // ─── F3: target panel unmount mid-drag ───────────────────────────────

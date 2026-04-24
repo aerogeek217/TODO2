@@ -218,3 +218,51 @@ describe('DashboardListsEditor — initialSelectedId', () => {
     expect(panels.length).toBe(1)
   })
 })
+
+describe('DashboardListsEditor — draft dirty-gating (L5)', () => {
+  beforeEach(() => {
+    useListDefinitionStore.setState({
+      listDefinitions: [makeDef({ id: 1, name: 'Original name' })],
+    })
+  })
+  afterEach(() => { cleanup() })
+
+  it('preserves mid-edit runtime-filter pick when the upstream name changes', async () => {
+    // User edits the runtime-filter select (makes draft dirty), then an
+    // external write renames the def in the store. The panel's re-sync
+    // effect must forward name/pin/sortOrder but leave the user's
+    // runtime-filter pick intact until Save.
+    const { getAllByText, container } = render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    const configBtns = getAllByText('⚙')
+    fireEvent.click(configBtns[0])
+
+    const selects = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
+    const runtimeSelect = selects.find((el) =>
+      Array.from(el.options).some((o) => o.value === 'person'),
+    )
+    expect(runtimeSelect).toBeTruthy()
+
+    fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
+    expect(runtimeSelect!.value).toBe('person')
+
+    // External def-level rename while the draft is dirty — mimics an
+    // inline-rename path writing through the store.
+    const prev = useListDefinitionStore.getState().listDefinitions
+    useListDefinitionStore.setState({
+      listDefinitions: prev.map((d) => (d.id === 1 ? { ...d, name: 'Renamed' } : d)),
+    })
+    await Promise.resolve()
+
+    // The user's edit (`person`) is still selected — the external rename did
+    // not clobber the draft's runtime filter.
+    const selects2 = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
+    const runtimeSelect2 = selects2.find((el) =>
+      Array.from(el.options).some((o) => o.value === 'person'),
+    )
+    expect(runtimeSelect2!.value).toBe('person')
+  })
+})

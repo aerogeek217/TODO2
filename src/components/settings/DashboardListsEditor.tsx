@@ -25,6 +25,7 @@ import type {
   RuntimeFilterField,
 } from '../../models/list-definition'
 import type { ListSortBy, TodoPredicate } from '../../models'
+import type { DateAnchor } from '../../models/filter-predicate'
 import { ListFilterEditor } from './ListFilterEditor'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
@@ -128,8 +129,43 @@ function decodeGroupingValue(value: GroupingSelectValue): ListGrouping {
   return { kind: value as Exclude<ListGrouping['kind'], 'by-field'> }
 }
 
+function idArraysEqualAsSet(a: number[] | null | undefined, b: number[] | null | undefined): boolean {
+  if (a == null && b == null) return true
+  if (a == null || b == null) return false
+  if (a.length !== b.length) return false
+  const set = new Set(a)
+  for (const x of b) if (!set.has(x)) return false
+  return true
+}
+
+function anchorsEqual(a: DateAnchor | null, b: DateAnchor | null): boolean {
+  if (a == null && b == null) return true
+  if (a == null || b == null) return false
+  if (a.kind !== b.kind) return false
+  if (a.kind === 'fixed' && b.kind === 'fixed') return a.iso === b.iso
+  if (a.kind === 'relative' && b.kind === 'relative') return a.token === b.token
+  return false
+}
+
 function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
+  return (
+    a.showCompleted === b.showCompleted &&
+    a.showHiddenStatuses === b.showHiddenStatuses &&
+    a.personFilterMode === b.personFilterMode &&
+    a.orgFilterMode === b.orgFilterMode &&
+    a.searchText === b.searchText &&
+    a.dateField === b.dateField &&
+    a.dateRangeIncludeNoDate === b.dateRangeIncludeNoDate &&
+    a.hasScheduled === b.hasScheduled &&
+    a.hasDeadline === b.hasDeadline &&
+    idArraysEqualAsSet(a.personIds, b.personIds) &&
+    idArraysEqualAsSet(a.orgIds, b.orgIds) &&
+    idArraysEqualAsSet(a.projectIds, b.projectIds) &&
+    idArraysEqualAsSet(a.statusIds, b.statusIds) &&
+    idArraysEqualAsSet(a.tags, b.tags) &&
+    anchorsEqual(a.dateRangeStart, b.dateRangeStart) &&
+    anchorsEqual(a.dateRangeEnd, b.dateRangeEnd)
+  )
 }
 
 function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
@@ -159,17 +195,22 @@ function ConfigPanel({
   const [draft, setDraft] = useState<PersistedListDefinition>(def)
 
   // Re-sync the draft when the upstream def changes (post-Save rehydration,
-  // rename via the inline path, pin toggle from the row). Draft stays
-  // authoritative for sort / grouping / predicate / runtimeFilter — the panel
-  // only writes those through Save.
+  // rename via the inline path, pin toggle from the row). When the draft is
+  // clean (no pending edits), sync every field. When dirty, preserve the
+  // user's in-flight edits and only forward externally-managed fields
+  // (name / pin / sortOrder) so a rename or pin toggle upstream doesn't get
+  // clobbered.
   useEffect(() => {
-    setDraft((prev) => ({
-      ...def,
-      sort: prev.sort,
-      grouping: prev.grouping,
-      runtimeFilter: prev.runtimeFilter,
-      membership: prev.membership,
-    }))
+    setDraft((prev) => {
+      const dirty = !defsEqual(prev, def)
+      if (!dirty) return def
+      return {
+        ...prev,
+        name: def.name,
+        pinnedToDashboard: def.pinnedToDashboard,
+        sortOrder: def.sortOrder,
+      }
+    })
   }, [def])
 
   const dirty = useMemo(() => !defsEqual(draft, def), [draft, def])
