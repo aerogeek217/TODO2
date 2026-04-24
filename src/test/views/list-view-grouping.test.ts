@@ -134,7 +134,7 @@ describe('buildTagSections', () => {
     const assigned = new Map<number, Tag[]>([
       [10, [URGENT, WORK]],
     ])
-    const sections = buildTagSections(todos, [URGENT, WORK], assigned)
+    const sections = buildTagSections(todos, assigned)
     expect(sections.map((s) => s.key)).toEqual(['tag-1', 'tag-2'])
     expect(sections[0].todos.map((t) => t.id)).toEqual([10])
     expect(sections[1].todos.map((t) => t.id)).toEqual([10])
@@ -151,7 +151,7 @@ describe('buildTagSections', () => {
       [11, [ALPHA]],
       [12, [MU]],
     ])
-    const sections = buildTagSections(todos, [ZETA, ALPHA, MU], assigned)
+    const sections = buildTagSections(todos, assigned)
     expect(sections.map((s) => s.key)).toEqual(['tag-3', 'tag-4', 'tag-5'])
     expect(sections.map((s) => s.label)).toEqual(['#alpha', '#mu', '#zeta'])
   })
@@ -159,7 +159,7 @@ describe('buildTagSections', () => {
   it('surfaces the registry color as the section accentColor', () => {
     const todos = [makeTodo({ id: 10 })]
     const assigned = new Map<number, Tag[]>([[10, [URGENT]]])
-    const sections = buildTagSections(todos, [URGENT], assigned)
+    const sections = buildTagSections(todos, assigned)
     expect(sections[0].accentColor).toBe('#f00')
   })
 
@@ -167,7 +167,7 @@ describe('buildTagSections', () => {
     const pascal: Tag = { id: 7, name: 'Urgent', color: '#f00' }
     const todos = [makeTodo({ id: 10 })]
     const assigned = new Map<number, Tag[]>([[10, [pascal]]])
-    const sections = buildTagSections(todos, [pascal], assigned)
+    const sections = buildTagSections(todos, assigned)
     expect(sections[0].label).toBe('#Urgent')
   })
 
@@ -182,7 +182,7 @@ describe('buildTagSections', () => {
       // 11 unassigned; 12 has an empty array
       [12, []],
     ])
-    const sections = buildTagSections(todos, [URGENT], assigned)
+    const sections = buildTagSections(todos, assigned)
     expect(sections.map((s) => s.key)).toEqual(['tag-1', 'no-tag'])
     const noTag = sections[1]
     expect(noTag.label).toBe('No tag')
@@ -194,22 +194,25 @@ describe('buildTagSections', () => {
     const assigned = new Map<number, Tag[]>([
       [10, [URGENT, URGENT, URGENT]],
     ])
-    const sections = buildTagSections(todos, [URGENT], assigned)
+    const sections = buildTagSections(todos, assigned)
     expect(sections).toHaveLength(1)
     expect(sections[0].key).toBe('tag-1')
     expect(sections[0].todos).toHaveLength(1)
   })
 
-  it('prunes tags with no assignments from the result (empty buckets drop)', () => {
+  it('emits no bucket for tags with no assignments (discover-on-fly)', () => {
+    // Post-L8 the helper discovers tags from `assignedTagsMap` rather than the
+    // registry list, so a registry tag that has no assignments simply never
+    // appears in the result. Same observable shape as the pre-L8 explicit
+    // prune-empty-buckets pass.
     const todos = [makeTodo({ id: 10 })]
     const assigned = new Map<number, Tag[]>([[10, [URGENT]]])
-    // WORK is in the registry but has no assignments — should not appear.
-    const sections = buildTagSections(todos, [URGENT, WORK], assigned)
+    const sections = buildTagSections(todos, assigned)
     expect(sections.map((s) => s.key)).toEqual(['tag-1'])
   })
 
   it('renders an empty result when the input is empty', () => {
-    expect(buildTagSections([], [], new Map())).toEqual([])
+    expect(buildTagSections([], new Map())).toEqual([])
   })
 })
 

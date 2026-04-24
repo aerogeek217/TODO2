@@ -31,3 +31,5 @@ export {
   type TaskboardOps,
   type CalendarOps,
 } from './dispatch'
+
+export { computeSearchDropIndex } from './search-drop'

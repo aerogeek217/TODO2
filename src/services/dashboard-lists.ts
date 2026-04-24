@@ -17,6 +17,11 @@ import type {
 } from '../models/list-definition'
 import { effectiveDate, isScheduledExpired, resolveScheduled } from '../utils/effective-date'
 import { startOfDay, MS_PER_DAY } from '../utils/date'
+import {
+  bucketByTag as bucketByTagUtil,
+  UNTAGGED_BUCKET_KEY,
+  UNTAGGED_BUCKET_LABEL,
+} from '../utils/bucket-by-tag'
 
 export interface DashboardListsContext {
   today: Date
@@ -570,41 +575,21 @@ function bucketByOrg(
  * todos go into a trailing "No tag" bucket. Buckets sort alphabetically by
  * registry name. Parallels `buildTagSections` in ListView so widget +
  * ListView grouping stays consistent; reads from `ctx.assignedTagsMap`
- * rather than the (transient) inline `todo.tags` string bag.
+ * rather than the (transient) inline `todo.tags` string bag. Bucketing
+ * logic is shared with `ListView.buildTagSections` via `utils/bucket-by-tag`.
  */
 function bucketByTag(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
 ): DashboardListGroup[] {
-  const assignedTagsMap = ctx.assignedTagsMap
-  const buckets = new Map<number, { tag: Tag; todos: PersistedTodoItem[] }>()
-  const untagged: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const assigned = assignedTagsMap?.get(t.id) ?? []
-    if (assigned.length === 0) { untagged.push(t); continue }
-    const seen = new Set<number>()
-    for (const tg of assigned) {
-      const id = tg.id!
-      if (seen.has(id)) continue
-      seen.add(id)
-      let entry = buckets.get(id)
-      if (!entry) {
-        entry = { tag: tg, todos: [] }
-        buckets.set(id, entry)
-      }
-      entry.todos.push(t)
-    }
-  }
-
-  const sortedEntries = [...buckets.values()].sort((a, b) =>
-    a.tag.name.localeCompare(b.tag.name),
-  )
-  const groups: DashboardListGroup[] = sortedEntries.map(({ tag, todos }) => ({
+  const { tagged, untagged } = bucketByTagUtil(todos, ctx.assignedTagsMap)
+  const groups: DashboardListGroup[] = tagged.map(({ tag, todos: ts }) => ({
     key: `tag-${tag.id}`,
     label: `#${tag.name}`,
-    todos,
+    todos: ts,
   }))
-  if (untagged.length > 0) groups.push({ key: 'no-tag', label: 'No tag', todos: untagged })
+  if (untagged.length > 0) {
+    groups.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: untagged })
+  }
   return groups
 }

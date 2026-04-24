@@ -586,7 +586,7 @@ export function CanvasPage() {
         }
         break
       }
-      case 'inset': {
+      case 'lens': {
         const inset = useListInsetStore.getState().insets.find((i) => i.id === desc.floatId)
         if (!inset) return
         descriptor = { kind: 'lens', id: desc.floatId, listDefinitionId: inset.listDefinitionId }

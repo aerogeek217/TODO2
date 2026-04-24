@@ -29,6 +29,7 @@ import { DateAnchorInput } from '../shared/DateAnchorInput'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
+import { computeSearchDropIndex } from '../../utils/task-dnd'
 import styles from './TopBar.module.css'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status', 'tag']
@@ -565,26 +566,6 @@ function EntityDropdownItems({
   )
 }
 
-
-/**
- * Compute the drop index for a pointer release over a taskboard panel, by
- * bisecting visible `[data-tbp-entry]` children by Y. Returns `entries.length`
- * (append) when the pointer is past the last entry, or when the panel is
- * empty.
- *
- * Exported for unit testing — the TopBar drag-end handler calls this with
- * real DOM; tests can feed fake rects.
- */
-export function computeSearchDropIndex(
-  pointerY: number,
-  entryRects: readonly { top: number; height: number }[],
-): number {
-  for (let i = 0; i < entryRects.length; i++) {
-    const r = entryRects[i]
-    if (pointerY < r.top + r.height / 2) return i
-  }
-  return entryRects.length
-}
 
 export function TopBar() {
   const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setProjectIds, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, setTags, clearAll } = useFilterStore()

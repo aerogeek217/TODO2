@@ -36,8 +36,16 @@ export interface CanvasViewport {
  * React Flow node id prefix in `CanvasView.handleNodesChange` and stashed on
  * the UI store so the rails `DockOverlay` and the Phase 2 hit-test can observe
  * an in-flight float-dock gesture without plumbing refs through the tree.
+ *
+ * `'lens'` is the floating list widget — `ListInsetNode` on the canvas, the
+ * `lens` slot kind on rails, and the `lens` arm of `FloatDescriptor`. The
+ * React Flow node id prefix is still `inset-` (see `CanvasView.INSET_PREFIX`)
+ * for DOM/test stability; `floatKindForNodeId` performs the prefix→kind
+ * translation. `TaskSurfaceKey` separately uses `'inset'` and `'lens'` to
+ * distinguish the floating list row's drag id from a rail-docked list row's
+ * — those are distinct surfaces and live in `utils/task-dnd/ids.ts`.
  */
-export type FloatDragKind = 'note' | 'calendar' | 'inset' | 'taskboard' | 'horizons'
+export type FloatDragKind = 'note' | 'calendar' | 'lens' | 'taskboard' | 'horizons'
 
 export interface FloatDragState {
   kind: FloatDragKind

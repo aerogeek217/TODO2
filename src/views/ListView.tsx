@@ -34,6 +34,7 @@ import type { RuntimeFilterSpec, RuntimeFilterField } from '../models/list-defin
 import { applyRuntimeFilter } from '../services/dashboard-lists'
 import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
+import { bucketByTag, UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
@@ -318,44 +319,23 @@ export function buildStatusSections(
  * Tag grouping explodes a todo with N tags into N buckets (mirrors the
  * people/org many-to-many pattern). Untagged todos land in a "No tag"
  * bucket. Buckets sort alphabetically by tag name. Labels use the
- * registry's canonical casing; accent uses `tag.color`.
+ * registry's canonical casing; accent uses `tag.color`. Bucketing logic
+ * is shared with `dashboard-lists.bucketByTag` via `utils/bucket-by-tag`.
  */
 export function buildTagSections(
   todos: PersistedTodoItem[],
-  tags: Tag[],
   assignedTagsMap: Map<number, Tag[]>,
 ): Section[] {
-  const buckets = new Map<number, PersistedTodoItem[]>()
-  for (const tg of tags) buckets.set(tg.id!, [])
-  const untagged: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const assigned = assignedTagsMap.get(t.id) ?? []
-    if (assigned.length === 0) { untagged.push(t); continue }
-    const seen = new Set<number>()
-    for (const tg of assigned) {
-      const id = tg.id!
-      if (seen.has(id)) continue
-      seen.add(id)
-      const bucket = buckets.get(id)
-      if (bucket) bucket.push(t)
-    }
+  const { tagged, untagged } = bucketByTag(todos, assignedTagsMap)
+  const sections: Section[] = tagged.map(({ tag, todos: ts }) => ({
+    key: `tag-${tag.id}`,
+    label: `#${tag.name}`,
+    accentColor: tag.color,
+    todos: ts,
+  }))
+  if (untagged.length > 0) {
+    sections.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: untagged })
   }
-
-  const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name))
-  const sections: Section[] = []
-  for (const tg of sortedTags) {
-    const ts = buckets.get(tg.id!)!
-    if (ts.length > 0) {
-      sections.push({
-        key: `tag-${tg.id}`,
-        label: `#${tg.name}`,
-        accentColor: tg.color,
-        todos: ts,
-      })
-    }
-  }
-  if (untagged.length > 0) sections.push({ key: 'no-tag', label: 'No tag', todos: untagged })
   return sections
 }
 
@@ -570,7 +550,6 @@ export function ListView() {
   const { people, assignedPeopleMap, load: loadPeople, loadAssignments: loadPeopleAssignments, assignPerson, unassignPerson } = usePersonStore()
   const { projects, loadAll: loadAllProjects } = useProjectStore()
   const { orgs, assignedOrgsMap, personOrgMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
-  const tags = useTagStore((s) => s.tags)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTags = useTagStore((s) => s.load)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
@@ -685,9 +664,9 @@ export function ListView() {
       case 'status':
         return buildStatusSections(activeTodos, statuses)
       case 'tag':
-        return buildTagSections(activeTodos, tags, assignedTagsMap)
+        return buildTagSections(activeTodos, assignedTagsMap)
     }
-  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, tags, assignedTagsMap])
+  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, assignedTagsMap])
 
   const withinGroupComparator = useMemo(
     () => itemSortComparator(listSortBy),

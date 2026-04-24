@@ -59,11 +59,40 @@ const AlignmentGuides = memo(function AlignmentGuides({ lines }: { lines: Alignm
   )
 })
 
+// React Flow node id prefixes for the five floating widget kinds. Kept as
+// `inset-` (not `lens-`) for DOM/test stability — `floatKindForNodeId` below
+// translates the legacy DOM prefix into the canonical kind name `'lens'` that
+// matches `FloatDescriptor.kind` / `SlotKind` / `FloatDragKind`.
+//
+// Translation table (DOM prefix → FloatDragKind):
+//   inset-     → lens
+//   note-      → note
+//   calendar-  → calendar
+//   taskboard- → taskboard
+//   horizons-  → horizons
+//
+// Adding a sixth widget kind: define a new prefix here, add a branch in
+// `floatKindForNodeId` + `floatKindLabel`, extend `isFloatNodeId` (it walks
+// every prefix), and add the kind to `FloatDragKind` / `FloatDescriptor`.
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
 const CALENDAR_PREFIX = 'calendar-'
 const TASKBOARD_PREFIX = 'taskboard-'
 const HORIZONS_PREFIX = 'horizons-'
+
+const FLOAT_NODE_PREFIXES = [
+  INSET_PREFIX,
+  NOTE_PREFIX,
+  CALENDAR_PREFIX,
+  TASKBOARD_PREFIX,
+  HORIZONS_PREFIX,
+] as const
+
+/** True iff `id` is the React Flow node id of any floating canvas widget. */
+function isFloatNodeId(id: string): boolean {
+  for (const p of FLOAT_NODE_PREFIXES) if (id.startsWith(p)) return true
+  return false
+}
 
 /**
  * Decode a React Flow node id into its floating-widget kind + numeric id, or
@@ -73,7 +102,7 @@ const HORIZONS_PREFIX = 'horizons-'
  * zones and Phase 2's hit-test can gate its pointer tracker.
  */
 function floatKindForNodeId(id: string): { kind: FloatDragKind; floatId: number } | null {
-  if (id.startsWith(INSET_PREFIX)) return { kind: 'inset', floatId: Number(id.slice(INSET_PREFIX.length)) }
+  if (id.startsWith(INSET_PREFIX)) return { kind: 'lens', floatId: Number(id.slice(INSET_PREFIX.length)) }
   if (id.startsWith(NOTE_PREFIX)) return { kind: 'note', floatId: Number(id.slice(NOTE_PREFIX.length)) }
   if (id.startsWith(CALENDAR_PREFIX)) return { kind: 'calendar', floatId: Number(id.slice(CALENDAR_PREFIX.length)) }
   if (id.startsWith(TASKBOARD_PREFIX)) return { kind: 'taskboard', floatId: Number(id.slice(TASKBOARD_PREFIX.length)) }
@@ -86,7 +115,7 @@ function floatKindLabel(kind: FloatDragKind): string {
   switch (kind) {
     case 'note': return 'note'
     case 'calendar': return 'calendar'
-    case 'inset': return 'list'
+    case 'lens': return 'list'
     case 'taskboard': return 'taskboard'
     case 'horizons': return 'horizons'
   }
@@ -762,7 +791,7 @@ export function CanvasView({
         for (const change of changes) {
           if (change.type === 'dimensions' && !change.resizing && change.dimensions) {
             const id = change.id
-            if (id.startsWith(INSET_PREFIX) || id.startsWith(NOTE_PREFIX) || id.startsWith(CALENDAR_PREFIX) || id.startsWith(TASKBOARD_PREFIX) || id.startsWith(HORIZONS_PREFIX)) continue
+            if (isFloatNodeId(id)) continue
             const prevH = prevHeightsRef.current.get(id)
             const newH = change.dimensions.height
             if (prevH != null && Math.abs(newH - prevH) > 1) {
@@ -806,7 +835,7 @@ export function CanvasView({
                   width: internal?.measured?.width ?? 280,
                   height: internal?.measured?.height ?? 200,
                 })
-                if (!n.id.startsWith(INSET_PREFIX) && !n.id.startsWith(NOTE_PREFIX) && !n.id.startsWith(CALENDAR_PREFIX) && !n.id.startsWith(TASKBOARD_PREFIX) && !n.id.startsWith(HORIZONS_PREFIX)) {
+                if (!isFloatNodeId(n.id)) {
                   projectIds.add(n.id)
                 }
               }

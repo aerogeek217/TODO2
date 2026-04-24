@@ -232,4 +232,54 @@ describe('ListDefinitionBody', () => {
     // Suppress unused-import lint
     fireEvent.scroll(container)
   })
+
+  describe('runtime-filter unset', () => {
+    function defWithRuntimeFilter(): PersistedListDefinition {
+      const def = futureDef()
+      return { ...def, runtimeFilter: { field: 'project', label: 'Project' } }
+    }
+
+    it('renders the "Pick a {label}…" placeholder and emits zero rows when value is unset', () => {
+      // Even if matching todos exist, an unset runtime filter should suppress
+      // the row list and show the picker placeholder instead.
+      useTodoStore.setState({
+        todos: [
+          makeTodo({ id: 1, title: 'Would match', dueDate: new Date(2026, 3, 18) }),
+        ],
+      })
+      useListDefinitionStore.setState({ listDefinitions: [defWithRuntimeFilter()] })
+      const onResult = vi.fn()
+      render(
+        <Wrapper>
+          <ListDefinitionBody
+            listDefinitionId={1}
+            onResult={onResult}
+            onRuntimeFilterChange={vi.fn()}
+          />
+        </Wrapper>,
+      )
+      expect(screen.getByText('Pick a project to populate…')).toBeInTheDocument()
+      expect(screen.queryByText('Would match')).not.toBeInTheDocument()
+      expect(onResult).toHaveBeenLastCalledWith(
+        expect.objectContaining({ name: 'Due this week', count: 0, todos: [] }),
+      )
+    })
+
+    it('lowercases the field name when no explicit label is supplied', () => {
+      useTodoStore.setState({ todos: [] })
+      const def = futureDef()
+      useListDefinitionStore.setState({
+        listDefinitions: [{ ...def, runtimeFilter: { field: 'org' } }],
+      })
+      render(
+        <Wrapper>
+          <ListDefinitionBody
+            listDefinitionId={1}
+            onRuntimeFilterChange={vi.fn()}
+          />
+        </Wrapper>,
+      )
+      expect(screen.getByText('Pick a org to populate…')).toBeInTheDocument()
+    })
+  })
 })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeSearchDropIndex } from '../../../components/layout/TopBar'
+import { computeSearchDropIndex } from '../../../utils/task-dnd'
 
 /**
  * P3 (features-batch-2026-04) — search-result drag to taskboard.
