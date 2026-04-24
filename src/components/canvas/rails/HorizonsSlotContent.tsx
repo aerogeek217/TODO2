@@ -207,7 +207,6 @@ export function HorizonsSlotContent() {
         <ListDefinitionPickerPopup
           x={slotPickerAt.x}
           y={slotPickerAt.y}
-          mode="canvas"
           onSelect={(id) => { void handleSlotPick(id) }}
           onCreateNew={() => { setShowHorizonEditor(true); setSlotPickerAt(null) }}
           onClose={() => setSlotPickerAt(null)}

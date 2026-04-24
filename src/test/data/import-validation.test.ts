@@ -201,15 +201,6 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('accepts dashboardTopOrder permutations', () => {
-    for (const order of [['taskboard', 'horizon'], ['horizon', 'taskboard']]) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'dashboardTopOrder', value: JSON.stringify(order) }],
-      }))
-      expect(result.ok).toBe(true)
-    }
-  })
-
   it('accepts dashboardUserLists with integer ids', () => {
     for (const value of [[], [1, 2, 3], [42]]) {
       const result = validateImportData(validData({
@@ -328,22 +319,6 @@ describe('validateImportData', () => {
       settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
     }))
     expect(result.ok).toBe(false)
-  })
-
-  it('rejects dashboardTopOrder with wrong length, duplicates, or unknown slots', () => {
-    const bad = [
-      ['taskboard'],
-      ['taskboard', 'horizon', 'taskboard'],
-      ['taskboard', 'taskboard'],
-      ['taskboard', 'notes'],
-      'taskboard,horizon',
-    ]
-    for (const value of bad) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'dashboardTopOrder', value: JSON.stringify(value) }],
-      }))
-      expect(result.ok).toBe(false)
-    }
   })
 
   // Backward compat

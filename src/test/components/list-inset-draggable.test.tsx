@@ -37,7 +37,7 @@ describe('ListInsetNode DraggableTaskRow', () => {
   })
 
   function getWrapper(todoId: number): HTMLElement {
-    return document.querySelector(`[data-inset-todo-id="${todoId}"]`) as HTMLElement
+    return document.querySelector(`[data-task-drag-id="${todoId}"]`) as HTMLElement
   }
 
   it('renders the task title', () => {
@@ -58,7 +58,7 @@ describe('ListInsetNode DraggableTaskRow', () => {
     const wrapper = getWrapper(42)
     expect(wrapper).toBeInTheDocument()
     expect(wrapper).toHaveAttribute('aria-roledescription', 'draggable')
-    expect(wrapper).toHaveAttribute('data-inset-todo-id', '42')
+    expect(wrapper).toHaveAttribute('data-task-drag-id', '42')
   })
 
   it('calls onOpenDetail with the todo id when invoked from TaskRow', () => {
@@ -83,7 +83,7 @@ describe('ListInsetNode DraggableTaskRow', () => {
       </DndContext>,
     )
     // Draggable is registered under the `inset-todo-*` id (readable from the wrapper)
-    expect(getWrapper(3)).toHaveAttribute('data-inset-todo-id', '3')
+    expect(getWrapper(3)).toHaveAttribute('data-task-drag-id', '3')
     // No drag has fired yet — just confirming the monitor is wired
     expect(started).toBeNull()
   })

@@ -18,14 +18,11 @@ interface SharedProps {
   todo: PersistedTodoItem
   /** Which surface is rendering the row. Determines the emitted drag id. */
   surface: TaskSurfaceKey
-  /** Required when `surface === 'dashboard'`. Differentiates the same todo
-   * rendered in multiple grid cards on the same dashboard. */
-  listKey?: string
   /** Required when `surface === 'taskboard-float'`. Differentiates a todo
    * rendered in multiple floating taskboard widgets on the same canvas. */
   floatingId?: number
   /** Drag data `type`. Defaults to `TASK_DRAG_KIND.task`; taskboard entries
-   * pass `TASK_DRAG_KIND.taskboardTask` so the canvas/dashboard handlers can
+   * pass `TASK_DRAG_KIND.taskboardTask` so the canvas handlers can
    * distinguish "reorder within board / remove on drop-off" from plain task
    * drops. */
   kind?: TaskDragKind
@@ -66,7 +63,6 @@ export interface TaskDraggableProps extends SharedProps {
 export function TaskDraggable({
   todo,
   surface,
-  listKey,
   floatingId,
   kind,
   extraData,
@@ -74,7 +70,7 @@ export function TaskDraggable({
   children,
 }: TaskDraggableProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: taskDragId(surface, todo.id, { listKey, floatingId }),
+    id: taskDragId(surface, todo.id, { floatingId }),
     data: { ...extraData, type: kind ?? TASK_DRAG_KIND.task, todo },
     disabled,
   })
@@ -95,7 +91,6 @@ export interface SortableTaskDraggableProps extends SharedProps {
 export function SortableTaskDraggable({
   todo,
   surface,
-  listKey,
   floatingId,
   kind,
   extraData,
@@ -110,7 +105,7 @@ export function SortableTaskDraggable({
     transform,
     transition,
   } = useSortable({
-    id: taskDragId(surface, todo.id, { listKey, floatingId }),
+    id: taskDragId(surface, todo.id, { floatingId }),
     data: { ...extraData, type: kind ?? TASK_DRAG_KIND.task, todo },
     disabled,
   })

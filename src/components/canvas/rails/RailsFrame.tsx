@@ -381,7 +381,6 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
         <ListDefinitionPickerPopup
           x={pickerPos.x}
           y={pickerPos.y}
-          mode="canvas"
           onSelect={(listDefinitionId) => {
             if (pendingLensAction?.kind === 'add-tab') {
               addTab(slot.id, 'lens', { listDefinitionId })

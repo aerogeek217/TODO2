@@ -541,7 +541,7 @@ function checkSavedView(v: unknown): CheckResult {
 
 // `defaultTaskboardId` is a pre-v33 legacy key accepted here so backups still
 // validate; restore / the v33 migration drops it from settings.
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardTopOrder', 'dashboardUserLists', 'defaultTaskboardId']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId']
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -716,22 +716,6 @@ function checkSetting(v: unknown): CheckResult {
       return true
     } catch {
       return 'value (dashboardUserLists must be valid JSON)'
-    }
-  }
-  if (v.key === 'dashboardTopOrder') {
-    try {
-      const parsed = JSON.parse(v.value as string) as unknown
-      if (!Array.isArray(parsed) || parsed.length !== 2) return 'value (dashboardTopOrder must be an array of 2 items)'
-      const allowed = new Set(['taskboard', 'horizon'])
-      const seen = new Set<string>()
-      for (const item of parsed) {
-        if (typeof item !== 'string' || !allowed.has(item)) return 'value (dashboardTopOrder contains invalid slot)'
-        if (seen.has(item)) return 'value (dashboardTopOrder contains duplicate slot)'
-        seen.add(item)
-      }
-      return true
-    } catch {
-      return 'value (dashboardTopOrder must be valid JSON)'
     }
   }
   return true

@@ -138,7 +138,7 @@ describe('ListInsetNode (v23 — backed by a ListDefinition)', () => {
 
   describe('legacy due-this-week parity (custom predicate, dateRangeEnd=today+7d)', () => {
     function renderedTitles(container: HTMLElement): string[] {
-      return Array.from(container.querySelectorAll('[data-inset-todo-id]')).map((el) => {
+      return Array.from(container.querySelectorAll('[data-task-drag-id]')).map((el) => {
         return (el.textContent ?? '').trim()
       })
     }
@@ -206,7 +206,7 @@ describe('ListInsetNode (v23 — backed by a ListDefinition)', () => {
       })
       expect(container.textContent).toContain('(Deleted list)')
       // Body renders zero task rows because the interpreter short-circuits.
-      expect(container.querySelectorAll('[data-inset-todo-id]')).toHaveLength(0)
+      expect(container.querySelectorAll('[data-task-drag-id]')).toHaveLength(0)
     })
   })
 })

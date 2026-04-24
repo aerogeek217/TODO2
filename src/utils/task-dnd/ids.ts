@@ -12,7 +12,6 @@
  * | inset             | `inset-todo-<id>`       | ListInsetNode floating widget  |
  * | lens              | `lens-todo-<id>`        | rail lens slot row             |
  * | list              | `list-todo-<id>`        | ListView row                   |
- * | dashboard         | `dashboard-<listKey>-<id>` | dashboard card row (needs listKey) |
  * | taskboard-panel   | `tbp-<id>`              | singleton taskboard entry      |
  * | taskboard-float   | `tb-<floatingId>-<id>`  | floating canvas taskboard entry |
  * | calendar-view     | `calview-todo-<id>`     | CalendarView row; drops via dispatchTaskDrop → reschedule |
@@ -27,28 +26,24 @@ export type TaskSurfaceKey =
   | 'taskboard-panel'
   | 'taskboard-float'
   | 'list'
-  | 'dashboard'
   | 'calendar-view'
   | 'calendar-strip'
   | 'search'
 
 /**
  * Extras required by some surfaces:
- *  - `dashboard` needs `listKey` (one dashboard grid can show the same todo in
- *    several list cards).
  *  - `taskboard-float` needs `floatingId` (one canvas can host multiple
  *    floating taskboard widgets that all view the singleton board).
  */
 export interface TaskDragIdExtras {
-  listKey?: string
   floatingId?: number
 }
 
 /**
  * Emit the draggable/sortable id for a given surface + todo id.
  *
- * `extras` are required for `dashboard` (`listKey`) and `taskboard-float`
- * (`floatingId`); omitted for all other surfaces.
+ * `extras` are required for `taskboard-float` (`floatingId`); omitted for all
+ * other surfaces.
  */
 export function taskDragId(
   surface: TaskSurfaceKey,
@@ -64,11 +59,6 @@ export function taskDragId(
       return `lens-todo-${todoId}`
     case 'list':
       return `list-todo-${todoId}`
-    case 'dashboard':
-      if (extras?.listKey == null) {
-        throw new Error('taskDragId("dashboard") requires extras.listKey')
-      }
-      return `dashboard-${extras.listKey}-${todoId}`
     case 'taskboard-panel':
       return `tbp-${todoId}`
     case 'taskboard-float':
@@ -91,7 +81,6 @@ const TASK_DRAG_PREFIXES: readonly string[] = [
   'inset-todo-',
   'lens-todo-',
   'list-todo-',
-  'dashboard-',
   'tbp-',
   'tb-',
   'calview-todo-',

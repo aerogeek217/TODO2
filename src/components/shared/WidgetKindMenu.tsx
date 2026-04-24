@@ -254,7 +254,6 @@ export function WidgetKindMenu({
           onPointerLeave={scheduleClose}
         >
           <ListDefinitionPickerBody
-            mode="canvas"
             emptyLabel="No lists yet."
             onPick={(id) => { pickListForLens(id); onClose() }}
           />

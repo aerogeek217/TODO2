@@ -24,17 +24,8 @@ describe('taskDragId — per-surface id format', () => {
     expect(taskDragId(surface, id, extras)).toBe(expected)
   })
 
-  it('dashboard embeds listKey', () => {
-    expect(taskDragId('dashboard', 42, { listKey: 'hero' })).toBe('dashboard-hero-42')
-    expect(taskDragId('dashboard', 42, { listKey: 'user-7' })).toBe('dashboard-user-7-42')
-  })
-
   it('taskboard-float embeds floatingId', () => {
     expect(taskDragId('taskboard-float', 42, { floatingId: 7 })).toBe('tb-7-42')
-  })
-
-  it('throws when dashboard extras are missing', () => {
-    expect(() => taskDragId('dashboard', 42)).toThrow(/listKey/)
   })
 
   it('throws when taskboard-float extras are missing', () => {
@@ -48,7 +39,6 @@ describe('isTaskDragId', () => {
     expect(isTaskDragId('inset-todo-1')).toBe(true)
     expect(isTaskDragId('lens-todo-1')).toBe(true)
     expect(isTaskDragId('list-todo-1')).toBe(true)
-    expect(isTaskDragId('dashboard-hero-1')).toBe(true)
     expect(isTaskDragId('tbp-1')).toBe(true)
     expect(isTaskDragId('tb-7-1')).toBe(true)
     expect(isTaskDragId('calview-todo-1')).toBe(true)
@@ -56,18 +46,11 @@ describe('isTaskDragId', () => {
     expect(isTaskDragId('search-todo-1')).toBe(true)
   })
 
-  it('rejects non-dashboard drop-target ids', () => {
+  it('rejects drop-target ids', () => {
     expect(isTaskDragId('project-drop-5')).toBe(false)
     expect(isTaskDragId('taskboard-drop-7')).toBe(false)
     expect(isTaskDragId('rails:slot:s-1')).toBe(false)
-  })
-
-  // Pinned: isTaskDragId is a cheap prefix-only check. The dashboard
-  // singleton-taskboard droppable happens to start with `dashboard-`, so this
-  // conservative helper says "maybe a drag id" — callers that need precision
-  // must decode further (drop handlers route on `over.data.current.type`).
-  it('conservatively accepts the dashboard-taskboard-drop id (documented)', () => {
-    expect(isTaskDragId('dashboard-taskboard-drop')).toBe(true)
+    expect(isTaskDragId('dashboard-taskboard-drop')).toBe(false)
   })
 
   it('rejects non-string / null / number ids', () => {
@@ -89,7 +72,6 @@ describe('parseTaskboardEntryId — F9 regression', () => {
   it('returns null for other id shapes', () => {
     expect(parseTaskboardEntryId('todo-1')).toBeNull()
     expect(parseTaskboardEntryId('list-todo-1')).toBeNull()
-    expect(parseTaskboardEntryId('dashboard-hero-1')).toBeNull()
     expect(parseTaskboardEntryId('project-drop-1')).toBeNull()
   })
 
@@ -119,7 +101,7 @@ describe('parseTaskboardEntryId — F9 regression', () => {
   // parser instead returns null so callers can fall through safely.
   it('rejects a <prefix>-<n>-<n> shape that would have fooled the legacy parse', () => {
     // A future hypothetical task-surface id
-    expect(parseTaskboardEntryId('dashboard-user-7-42')).toBeNull()
+    expect(parseTaskboardEntryId('lens-user-7-42')).toBeNull()
   })
 })
 
@@ -132,7 +114,7 @@ describe('drop-zone id helpers', () => {
     expect(taskboardFloatDropId(77)).toBe('taskboard-drop-77')
   })
 
-  it('TASKBOARD_SINGLETON_DROP_ID is the dashboard/rail singleton id', () => {
+  it('TASKBOARD_SINGLETON_DROP_ID is the singleton taskboard drop id', () => {
     expect(TASKBOARD_SINGLETON_DROP_ID).toBe('dashboard-taskboard-drop')
   })
 

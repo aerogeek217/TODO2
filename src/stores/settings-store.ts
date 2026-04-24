@@ -10,32 +10,6 @@ import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-export type DashboardTopSlot = 'taskboard' | 'horizon'
-
-export const DASHBOARD_TOP_SLOTS: readonly DashboardTopSlot[] = ['taskboard', 'horizon'] as const
-
-export const DEFAULT_DASHBOARD_TOP_ORDER: readonly DashboardTopSlot[] = ['taskboard', 'horizon'] as const
-
-export function isValidDashboardTopOrder(value: unknown): value is DashboardTopSlot[] {
-  if (!Array.isArray(value) || value.length !== DASHBOARD_TOP_SLOTS.length) return false
-  const seen = new Set<string>()
-  for (const item of value) {
-    if (typeof item !== 'string' || !(DASHBOARD_TOP_SLOTS as readonly string[]).includes(item)) return false
-    if (seen.has(item)) return false
-    seen.add(item)
-  }
-  return true
-}
-
-function parseDashboardTopOrder(value: string | undefined | null): DashboardTopSlot[] {
-  if (!value) return [...DEFAULT_DASHBOARD_TOP_ORDER]
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (isValidDashboardTopOrder(parsed)) return parsed
-  } catch { /* ignore */ }
-  return [...DEFAULT_DASHBOARD_TOP_ORDER]
-}
-
 export interface ThemeColors {
   accent: string
   canvasBg: string
@@ -79,8 +53,6 @@ interface SettingsState {
   notesPinnedToDashboard: boolean
   /** Persisted canvas rails layout (null = no persisted state). */
   canvasRails: RailsState | null
-  /** Ordering of the dashboard top row (taskboard + hero horizon). */
-  dashboardTopOrder: DashboardTopSlot[]
   /**
    * Ordered `listDefinitionId`s for the dashboard "Your lists" grid. Dormant
    * post-Dashboard retirement — kept in settings for one release so reinstating
@@ -104,7 +76,6 @@ interface SettingsState {
   setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
   setNotesPinnedToDashboard: (pinned: boolean) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
-  setDashboardTopOrder: (order: DashboardTopSlot[]) => Promise<void>
   setDashboardUserLists: (ids: number[]) => Promise<void>
 }
 
@@ -291,7 +262,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   horizonCollapsed: {},
   notesPinnedToDashboard: true,
   canvasRails: null,
-  dashboardTopOrder: [...DEFAULT_DASHBOARD_TOP_ORDER],
   dashboardUserLists: null,
 
   async load() {
@@ -315,7 +285,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let legacyNotesDock: string | undefined
       let legacyNotesVisible: string | undefined
       let canvasRails: RailsState | null = null
-      let dashboardTopOrder: DashboardTopSlot[] = [...DEFAULT_DASHBOARD_TOP_ORDER]
       let dashboardUserLists: number[] | null = null
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
@@ -363,8 +332,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           legacyNotesVisible = row.value
         } else if (row.key === 'canvasRails') {
           canvasRails = parseRailsState(row.value)
-        } else if (row.key === 'dashboardTopOrder') {
-          dashboardTopOrder = parseDashboardTopOrder(row.value)
         } else if (row.key === 'dashboardUserLists') {
           dashboardUserLists = parseDashboardUserLists(row.value)
         }
@@ -388,7 +355,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (legacyNotesDock != null || legacyNotesVisible != null) {
         await settingsRepository.bulkDelete(['notesDock', 'notesVisible'])
       }
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesPinnedToDashboard, canvasRails, dashboardTopOrder, dashboardUserLists })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesPinnedToDashboard, canvasRails, dashboardUserLists })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -492,12 +459,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async setNotesPinnedToDashboard(pinned: boolean) {
     await settingsRepository.put('notesPinnedToDashboard', pinned ? 'true' : 'false')
     set({ notesPinnedToDashboard: pinned })
-  },
-
-  async setDashboardTopOrder(order: DashboardTopSlot[]) {
-    if (!isValidDashboardTopOrder(order)) return
-    await settingsRepository.put('dashboardTopOrder', JSON.stringify(order))
-    set({ dashboardTopOrder: [...order] })
   },
 
   async setDashboardUserLists(ids: number[]) {

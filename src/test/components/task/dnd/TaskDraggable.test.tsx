@@ -29,7 +29,6 @@ describe('TaskDraggable — per-surface id + payload', () => {
     { surface: 'inset' as const, extras: {}, expectedId: 'inset-todo-42' },
     { surface: 'lens' as const, extras: {}, expectedId: 'lens-todo-42' },
     { surface: 'list' as const, extras: {}, expectedId: 'list-todo-42' },
-    { surface: 'dashboard' as const, extras: { listKey: 'hero' }, expectedId: 'dashboard-hero-42' },
     { surface: 'taskboard-panel' as const, extras: {}, expectedId: 'tbp-42' },
     { surface: 'taskboard-float' as const, extras: { floatingId: 7 }, expectedId: 'tb-7-42' },
     { surface: 'calendar-view' as const, extras: {}, expectedId: 'calview-todo-42' },
@@ -43,7 +42,6 @@ describe('TaskDraggable — per-surface id + payload', () => {
         <TaskDraggable
           todo={todo}
           surface={surface}
-          listKey={(extras as { listKey?: string }).listKey}
           floatingId={(extras as { floatingId?: number }).floatingId}
         >
           {({ attributes, setNodeRef }) => {
@@ -61,22 +59,6 @@ describe('TaskDraggable — per-surface id + payload', () => {
     expect(capturedAttrs!['aria-roledescription']).toBe('draggable')
     const wrapper = document.querySelector(`[data-id="${expectedId}"]`)
     expect(wrapper).not.toBeNull()
-  })
-
-  it('throws when dashboard surface is missing listKey', () => {
-    const todo = makeTodo({ id: 1 })
-    // React logs the error — suppress for a clean test run.
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    expect(() =>
-      render(
-        <DndContext>
-          <TaskDraggable todo={todo} surface="dashboard">
-            {() => <div />}
-          </TaskDraggable>
-        </DndContext>,
-      ),
-    ).toThrow(/listKey/)
-    spy.mockRestore()
   })
 
   it('throws when taskboard-float surface is missing floatingId', () => {

@@ -774,7 +774,6 @@ export function CanvasPage() {
         <ListDefinitionPickerPopup
           x={addListPickerPos.x}
           y={addListPickerPos.y}
-          mode="canvas"
           onSelect={handlePickListDef}
           onCreateNew={() => { void handleCreateNewListOnCanvas() }}
           onClose={() => setAddListPickerPos(null)}

@@ -37,7 +37,7 @@ export function DraggableTaskRow({
       {({ attributes, listeners, setNodeRef, isDragging }) => (
         <div
           ref={setNodeRef}
-          data-inset-todo-id={todo.id}
+          data-task-drag-id={todo.id}
           style={{ outline: 'none', opacity: isDragging ? 0 : undefined }}
           {...attributes}
           {...listeners}

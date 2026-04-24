@@ -16,7 +16,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useUIStore } from '../../stores/ui-store'
 import type {
   ListGrouping,
@@ -361,7 +360,6 @@ function SortableRow({
   expanded,
   onEdit,
   onConfigure,
-  onTogglePin,
   onToggleFavorite,
   onDelete,
   hideDelete,
@@ -370,7 +368,6 @@ function SortableRow({
   expanded: boolean
   onEdit: (d: PersistedListDefinition) => void
   onConfigure: (id: number) => void
-  onTogglePin: (id: number, next: boolean) => void
   onToggleFavorite: (id: number, next: boolean) => void
   onDelete: (id: number) => void
   hideDelete?: boolean
@@ -406,17 +403,6 @@ function SortableRow({
         />
         Favorite
       </label>
-      <label
-        className={local.pinToggle}
-        title={def.pinnedToDashboard ? 'Pinned to Dashboard' : 'Not pinned'}
-      >
-        <input
-          type="checkbox"
-          checked={def.pinnedToDashboard}
-          onChange={(e) => onTogglePin(def.id, e.target.checked)}
-        />
-        Pin
-      </label>
       {!hideDelete && (
         <div className={styles.actions}>
           <button
@@ -431,7 +417,7 @@ function SortableRow({
 }
 
 export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
-  const { listDefinitions, load, add, update, rename, setPinned, setFavorited, remove, reorder } = useListDefinitionStore()
+  const { listDefinitions, load, add, update, rename, setFavorited, remove, reorder } = useListDefinitionStore()
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
@@ -456,22 +442,6 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   }, [configDirty, showBulkConfirmation])
 
   useEffect(() => { load() }, [load])
-
-  // Pin toggles from the editor must also mutate `settings.dashboardUserLists`
-  // so the Dashboard grid and the pin flag stay in sync for non-horizon defs.
-  // Horizon-mapped defs keep their pinnedToDashboard state (ribbon resolution
-  // depends on it) but their grid membership is decoupled.
-  const handleTogglePin = useCallback(async (id: number, pinned: boolean) => {
-    await setPinned(id, pinned)
-    const { dashboardUserLists, setDashboardUserLists, horizonSlots } = useSettingsStore.getState()
-    const horizonIds = new Set(Object.values(horizonSlots).filter((v): v is number => v != null))
-    const cur = dashboardUserLists ?? []
-    if (pinned) {
-      if (!cur.includes(id)) await setDashboardUserLists([...cur, id])
-    } else if (!horizonIds.has(id) && cur.includes(id)) {
-      await setDashboardUserLists(cur.filter((x) => x !== id))
-    }
-  }, [setPinned])
 
   const sorted = useMemo(() => {
     const all = [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
@@ -638,7 +608,6 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
                       expanded={configuringId === d.id}
                       onEdit={startEdit}
                       onConfigure={handleConfigure}
-                      onTogglePin={handleTogglePin}
                       onToggleFavorite={(id, next) => { void setFavorited(id, next) }}
                       onDelete={(id) => { setDeleteId(id); setEditing(null); setAdding(false) }}
                       hideDelete={!!filterIds}
