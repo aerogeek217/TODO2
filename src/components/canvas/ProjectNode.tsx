@@ -284,6 +284,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
               <SortableTaskList
                 projectId={project.id!}
                 todos={todos}
+                groupBy={project.groupBy ?? null}
                 assignedPeopleMap={assignedPeopleMap}
                 ghostTodoIds={ghostTodoIds}
                 onOpenDetail={onOpenDetail}
