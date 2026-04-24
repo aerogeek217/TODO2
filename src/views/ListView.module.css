@@ -193,6 +193,28 @@
   -moz-appearance: textfield;
 }
 
+.runtimeSelect {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  padding: 5px 6px 5px 10px;
+  outline: none;
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+}
+
+.runtimeSelect:hover {
+  border-color: var(--color-text-muted);
+}
+
+.runtimeSelect:focus {
+  border-color: var(--color-accent);
+}
+
 .limitModeGroup {
   display: inline-flex;
   border: 1px solid var(--color-border);
@@ -285,6 +307,13 @@
   color: var(--color-text-primary);
   border-color: var(--color-text-muted);
   background: var(--color-surface-high);
+}
+
+.runtimeFilterWrap {
+  margin-bottom: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .section {

@@ -30,6 +30,9 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy } from '../models'
+import type { RuntimeFilterSpec, RuntimeFilterField } from '../models/list-definition'
+import { applyRuntimeFilter } from '../services/dashboard-lists'
+import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
@@ -63,6 +66,14 @@ const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.Rea
   { value: 'date', label: 'Effective Date', icon: itemSortByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: itemSortByIcons.scheduled },
   { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
+]
+
+const runtimeFilterOptions: { value: RuntimeFilterField | 'none'; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'person', label: 'Person' },
+  { value: 'org', label: 'Org' },
+  { value: 'project', label: 'Project' },
+  { value: 'status', label: 'Status' },
 ]
 
 
@@ -592,6 +603,12 @@ export function ListView() {
   const [limitMode, setLimitMode] = useState<'hard' | 'scroll'>('hard')
   const [maxTasksInput, setMaxTasksInput] = useState('')
 
+  // Per-view runtime-filter state. `spec` persists on the loaded def (via Save);
+  // `value` is transient — mirrors widget surfaces, which cache the value per
+  // widget but never write it onto the def.
+  const [runtimeFilterSpec, setRuntimeFilterSpec] = useState<RuntimeFilterSpec | null>(null)
+  const [runtimeFilterValue, setRuntimeFilterValue] = useState<number | undefined>(undefined)
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
@@ -631,9 +648,21 @@ export function ListView() {
   }, [people, orgs, loadPersonOrgMap])
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
+
+  // When a loaded def declares a runtime filter, merge the picked value into
+  // the criteria via the same helper widgets use. If the spec is set but no
+  // value is picked yet, the list returns empty — mirrors widget behavior and
+  // prompts the user to pick via the visible picker.
+  const effectiveFilters = useMemo(() => {
+    if (!runtimeFilterSpec || runtimeFilterValue == null) return filters
+    const narrowed = applyRuntimeFilter(criteriaToPredicate(filters), runtimeFilterSpec, runtimeFilterValue)
+    return predicateToCriteria(narrowed)
+  }, [filters, runtimeFilterSpec, runtimeFilterValue])
+
   const activeTodos = useMemo(() => {
-    return applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
-  }, [todos, filters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap])
+    if (runtimeFilterSpec && runtimeFilterValue == null) return []
+    return applyFilter(effectiveFilters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
+  }, [todos, effectiveFilters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
 
   const sections = useMemo(() => {
     switch (listGroupBy) {
@@ -716,15 +745,19 @@ export function ListView() {
     setMaxTasks(def.maxTasks ?? null)
     setMaxTasksInput(def.maxTasks != null ? String(def.maxTasks) : '')
     setLimitMode(def.limitMode ?? 'hard')
+    setRuntimeFilterSpec(def.runtimeFilter ?? null)
+    setRuntimeFilterValue(undefined)
     setActiveLoadedDefId(def.id)
   }, [setAllFilters, setListGroupBy, setListSortBy])
 
   // Clear the active-loaded highlight once the user edits any input externally.
+  // `runtimeFilterValue` is intentionally omitted — only the spec is persisted
+  // on the def, so only spec edits should flag the def as dirty.
   const applyingRef = useRef(false)
   useEffect(() => {
     if (applyingRef.current) { applyingRef.current = false; return }
     setActiveLoadedDefId(null)
-  }, [filters, listGroupBy, listSortBy, maxTasks, limitMode])
+  }, [filters, listGroupBy, listSortBy, maxTasks, limitMode, runtimeFilterSpec])
 
   const applyAndMarkLoaded = useCallback((def: PersistedListDefinition) => {
     applyingRef.current = true
@@ -740,10 +773,11 @@ export function ListView() {
       grouping,
       ...(maxTasks != null ? { maxTasks } : { maxTasks: undefined as unknown as number | undefined }),
       ...(maxTasks != null ? { limitMode } : { limitMode: undefined }),
+      runtimeFilter: runtimeFilterSpec ?? undefined,
     } as PersistedListDefinition)
     applyingRef.current = true
     setActiveLoadedDefId(def.id)
-  }, [listGroupBy, listSortBy, filters, maxTasks, limitMode, updateListDefinition])
+  }, [listGroupBy, listSortBy, filters, maxTasks, limitMode, runtimeFilterSpec, updateListDefinition])
 
   const handleSaveClick = useCallback(() => {
     setShowSaveSelector(true)
@@ -785,6 +819,7 @@ export function ListView() {
         pinnedToDashboard: false,
         favorited: true,
         ...(maxTasks != null ? { maxTasks, limitMode } : {}),
+        ...(runtimeFilterSpec ? { runtimeFilter: runtimeFilterSpec } : {}),
       })
       applyingRef.current = true
       setActiveLoadedDefId(id)
@@ -793,7 +828,7 @@ export function ListView() {
     } catch (e) {
       setNewListError((e as Error).message)
     }
-  }, [newListName, addListDefinition, filters, listGroupBy, listSortBy, maxTasks, limitMode])
+  }, [newListName, addListDefinition, filters, listGroupBy, listSortBy, maxTasks, limitMode, runtimeFilterSpec])
 
   const handleLoadPickDef = useCallback((def: PersistedListDefinition) => {
     // Unsaved-edits guard: if a def was last loaded and state diverged, prompt.
@@ -999,6 +1034,32 @@ export function ListView() {
                   >Scroll</button>
                 </div>
               )}
+              <div className={styles.toolbarField}>
+                <span
+                  className={styles.toolbarLabel}
+                  title="Prompt for a value at render time — e.g. 'Tasks for {assignee}'."
+                >
+                  Prompt
+                </span>
+                <select
+                  className={styles.runtimeSelect}
+                  value={runtimeFilterSpec?.field ?? 'none'}
+                  aria-label="Runtime filter field"
+                  onChange={(e) => {
+                    const next = e.target.value as RuntimeFilterField | 'none'
+                    if (next === 'none') {
+                      setRuntimeFilterSpec(null)
+                    } else {
+                      setRuntimeFilterSpec({ field: next })
+                    }
+                    setRuntimeFilterValue(undefined)
+                  }}
+                >
+                  {runtimeFilterOptions.map(({ value, label }) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className={styles.toolbarActions}>
               <button
@@ -1031,9 +1092,21 @@ export function ListView() {
             </div>
           </div>
 
+          {runtimeFilterSpec && (
+            <div className={styles.runtimeFilterWrap}>
+              <RuntimeFilterPicker
+                spec={runtimeFilterSpec}
+                value={runtimeFilterValue}
+                onChange={setRuntimeFilterValue}
+              />
+            </div>
+          )}
+
           {totalActive === 0 && (
             <div className={styles.empty}>
-              {isFilterActive ? (
+              {runtimeFilterSpec && runtimeFilterValue == null ? (
+                `Pick a ${(runtimeFilterSpec.label ?? runtimeFilterSpec.field).toLowerCase()} to populate this list.`
+              ) : isFilterActive ? (
                 <>
                   No tasks match your current filters.
                   <button className={styles.clearFiltersButton} onClick={() => useFilterStore.getState().clearAll()}>Clear filters</button>
