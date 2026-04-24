@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
-import { useTagStore } from '../../stores/tag-store'
+import { useTagStore, TagLimitError } from '../../stores/tag-store'
+import { useSettingsStore } from '../../stores/settings-store'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+  useSettingsStore.setState({ maxTags: 500 })
 })
 
 async function addTodo(title = 'Task'): Promise<number> {
@@ -36,6 +38,18 @@ describe('useTagStore', () => {
   it('add respects explicit color', async () => {
     await useTagStore.getState().add('urgent', '#ff0000')
     expect(useTagStore.getState().tags[0].color).toBe('#ff0000')
+  })
+
+  it('add throws TagLimitError when tags.length >= settings.maxTags', async () => {
+    useSettingsStore.setState({ maxTags: 2 })
+    await useTagStore.getState().add('one')
+    await useTagStore.getState().add('two')
+    await expect(useTagStore.getState().add('three')).rejects.toBeInstanceOf(TagLimitError)
+    await expect(useTagStore.getState().add('three')).rejects.toThrow(/tag limit/i)
+    // Store state unchanged beyond the configured ceiling.
+    expect(useTagStore.getState().tags).toHaveLength(2)
+    // No row persisted to the registry either.
+    expect(await db.tags.count()).toBe(2)
   })
 
   it('add rejects duplicate names case-insensitively', async () => {

@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { resolveInput, resolveTags, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
+import { TagLimitError } from '../../stores/tag-store'
 import type { Person, Project, Org, Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 
@@ -247,5 +248,34 @@ describe('resolveTags', () => {
     const ids = await resolveTags([], { tagStore })
     expect(ids).toEqual([])
     expect(tagStore.tags).toHaveLength(0)
+  })
+
+  it('catches TagLimitError, surfaces via console.error, and returns ids resolved so far', async () => {
+    const tagStore: TagStoreLike = {
+      tags: [{ id: 1, name: 'existing', color: '#aaa' }],
+      async add(): Promise<number> {
+        throw new TagLimitError('Tag limit reached (1) — delete unused tags in Settings → Tags.')
+      },
+    }
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      // 'existing' resolves via lookup (no `add` call). 'neu' hits the limit
+      // — loop should break and return [1] rather than throwing.
+      const ids = await resolveTags(['existing', 'neu', 'alsofail'], { tagStore })
+      expect(ids).toEqual([1])
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringMatching(/tag limit/i))
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('rethrows non-TagLimitError errors from tag-store.add', async () => {
+    const tagStore: TagStoreLike = {
+      tags: [],
+      async add(): Promise<number> {
+        throw new Error('dexie write failed')
+      },
+    }
+    await expect(resolveTags(['neu'], { tagStore })).rejects.toThrow(/dexie write failed/)
   })
 })

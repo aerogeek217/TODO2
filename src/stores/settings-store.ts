@@ -10,6 +10,10 @@ import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
+/** Default ceiling for the tag registry. No Settings UI exposes this yet;
+ * override by writing a `maxTags` row to the settings repo. */
+const DEFAULT_MAX_TAGS = 500
+
 export interface ThemeColors {
   accent: string
   canvasBg: string
@@ -60,6 +64,10 @@ interface SettingsState {
    * null = never seeded. May contain a horizon-mapped id.
    */
   dashboardUserLists: number[] | null
+  /** Ceiling for tag registry size. `tag-store.add` throws when `tags.length`
+   * reaches this value. Guards against runaway `#tag` creation from NLP input.
+   */
+  maxTags: number
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -263,6 +271,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   notesPinnedToDashboard: true,
   canvasRails: null,
   dashboardUserLists: null,
+  maxTags: DEFAULT_MAX_TAGS,
 
   async load() {
     try {
@@ -286,6 +295,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let legacyNotesVisible: string | undefined
       let canvasRails: RailsState | null = null
       let dashboardUserLists: number[] | null = null
+      let maxTags: number = DEFAULT_MAX_TAGS
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -334,6 +344,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           canvasRails = parseRailsState(row.value)
         } else if (row.key === 'dashboardUserLists') {
           dashboardUserLists = parseDashboardUserLists(row.value)
+        } else if (row.key === 'maxTags') {
+          const parsed = Number(row.value)
+          if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
         }
       }
       customizedColorKeys = customKeys
@@ -355,7 +368,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (legacyNotesDock != null || legacyNotesVisible != null) {
         await settingsRepository.bulkDelete(['notesDock', 'notesVisible'])
       }
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesPinnedToDashboard, canvasRails, dashboardUserLists })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesPinnedToDashboard, canvasRails, dashboardUserLists, maxTags })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)

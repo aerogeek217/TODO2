@@ -5,6 +5,20 @@ import { createAssignmentActions } from './assignment-helpers'
 import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
+import { useSettingsStore } from './settings-store'
+
+/**
+ * Thrown when `useTagStore.add` is called while the registry is at the
+ * configured ceiling (`settings.maxTags`). The message is phrased for direct
+ * user surfacing; `nlp-resolver.resolveTags` catches and logs it so a single
+ * runaway `#tag` input can't break the whole task-create flow.
+ */
+export class TagLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'TagLimitError'
+  }
+}
 
 interface TagState {
   tags: Tag[]
@@ -53,6 +67,12 @@ export const useTagStore = create<TagState>((set, get) => {
     },
 
     async add(name: string, color = DEFAULT_ENTITY_COLOR) {
+      const { maxTags } = useSettingsStore.getState()
+      if (get().tags.length >= maxTags) {
+        throw new TagLimitError(
+          `Tag limit reached (${maxTags}) — delete unused tags in Settings → Tags.`,
+        )
+      }
       const tag: Tag = { name, color }
       const id = await tagRepository.insert(tag)
       set({ tags: [...get().tags, { ...tag, id }] })

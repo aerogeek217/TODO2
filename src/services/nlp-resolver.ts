@@ -2,6 +2,7 @@ import type { Person, Project, Org, RecurrenceType, Tag } from '../models'
 import type { ScheduledValue } from '../models/scheduled-value'
 import type { ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
+import { TagLimitError } from '../stores/tag-store'
 
 export interface ResolvedInput {
   title: string
@@ -109,10 +110,21 @@ export async function resolveTags(
       id = existing?.id
     }
     if (id === undefined) {
-      id = await ctx.tagStore.add(trimmed, DEFAULT_ENTITY_COLOR)
-      createdByLower.set(lower, id)
+      try {
+        id = await ctx.tagStore.add(trimmed, DEFAULT_ENTITY_COLOR)
+        createdByLower.set(lower, id)
+      } catch (e) {
+        if (e instanceof TagLimitError) {
+          // Surface the user-readable message; once the ceiling is hit,
+          // every subsequent create would rethrow, so stop early and return
+          // whatever ids resolved successfully.
+          console.error(e.message)
+          break
+        }
+        throw e
+      }
     }
-    if (!seen.has(id)) {
+    if (id !== undefined && !seen.has(id)) {
       ids.push(id)
       seen.add(id)
     }

@@ -76,10 +76,12 @@ export function sanitizeHref(raw: string): string {
   const colonIdx = lower.indexOf(':')
   const slashIdx = lower.indexOf('/')
   // Schemeless (relative path, anchor, //host) — no colon before first slash.
-  if (colonIdx === -1) return raw
-  if (slashIdx !== -1 && slashIdx < colonIdx) return raw
+  // Return the stripped/decoded value (`s`) on allowed branches so we can't
+  // smuggle whitespace or entity-obfuscated bytes past downstream consumers.
+  if (colonIdx === -1) return s
+  if (slashIdx !== -1 && slashIdx < colonIdx) return s
   const scheme = lower.slice(0, colonIdx + 1)
-  return SAFE_URL_SCHEMES.includes(scheme) ? raw : '#'
+  return SAFE_URL_SCHEMES.includes(scheme) ? s : '#'
 }
 
 function inlineMd(s: string): string {
@@ -89,7 +91,11 @@ function inlineMd(s: string): string {
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
       const safe = sanitizeHref(href)
-      return `<a href="${escapeHtmlAttr(safe)}">${text}</a>`
+      // Defensive re-escape: `text` is already HTML-safe via the outer
+      // `escapeHtml(s)`, but applying `escapeHtml` again here pins the
+      // invariant against a future chain reorder that might introduce raw
+      // `<` / `>` before the link regex runs.
+      return `<a href="${escapeHtmlAttr(safe)}">${escapeHtml(text)}</a>`
     })
 }
 

@@ -170,6 +170,19 @@ describe('sanitizeHref', () => {
   it('returns # for empty input', () => {
     expect(sanitizeHref('')).toBe('#')
   })
+
+  it('returns stripped value (no whitespace smuggling) on allowlisted hrefs', () => {
+    // Pre-fix, an allowlisted scheme returned `raw`, leaking tabs / control
+    // chars to downstream consumers. Post-fix, the stripped form is returned.
+    const stripped = sanitizeHref('http:\t//evil')
+    expect(stripped).not.toContain('\t')
+    expect(stripped).toBe('http://evil')
+  })
+
+  it('returns stripped value for schemeless inputs (no whitespace smuggling)', () => {
+    expect(sanitizeHref('/path\t/x')).toBe('/path/x')
+    expect(sanitizeHref('rel\native.html')).toBe('relative.html')
+  })
 })
 
 describe('notes-export XSS hardening', () => {
@@ -203,6 +216,17 @@ describe('notes-export XSS hardening', () => {
     expect(html).toContain('href="https://example.com"')
     const md = htmlToMarkdown('<a href="https://example.com">X</a>')
     expect(md).toBe('[X](https://example.com)')
+  })
+
+  it('inlineMd defensively re-escapes link text (chain-reorder safety)', () => {
+    const html = mdToHtml('[<script>x](https://example.com)')
+    // No active <script> tag reaches the output regardless of chain order.
+    expect(html).not.toMatch(/<script[\s>]/i)
+    // The defensive re-escape double-encodes `&lt;` → `&amp;lt;` — that marker
+    // pins the fix, so a future regression that drops the escape at the
+    // link-substitution site fails this test.
+    expect(html).toContain('&amp;lt;')
+    expect(html).toContain('href="https://example.com"')
   })
 })
 
