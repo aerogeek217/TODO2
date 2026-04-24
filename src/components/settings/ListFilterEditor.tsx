@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type {
   DateAnchor,
   OrgFilterMode,
@@ -286,7 +286,9 @@ function DateRangeDropdown({
   onChangeHasDeadline: (v: boolean | null) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [alignEnd, setAlignEnd] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -295,6 +297,18 @@ function DateRangeDropdown({
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  // Flip the panel to right-anchored when the default left-anchored
+  // position would push past the viewport's right edge — e.g. when the
+  // chip sits near the right side of a bounded container like the lists
+  // editor modal. Runs before paint so there's no visible flash.
+  useLayoutEffect(() => {
+    if (!open) { setAlignEnd(false); return }
+    const panel = panelRef.current
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    if (rect.right > window.innerWidth - 8) setAlignEnd(true)
   }, [open])
 
   const handleOpen = () => {
@@ -327,7 +341,11 @@ function DateRangeDropdown({
         <span className={`${topBar.chevron} ${open ? topBar.chevronOpen : ''}`}>&#9662;</span>
       </button>
       {open && (
-        <div className={topBar.dropdownPanel}>
+        <div
+          ref={panelRef}
+          className={topBar.dropdownPanel}
+          data-align={alignEnd ? 'end' : undefined}
+        >
           <div className={topBar.dateFieldSelector}>
             {(['date', 'scheduled', 'deadline', 'created', 'modified'] as const).map((field) => (
               <button

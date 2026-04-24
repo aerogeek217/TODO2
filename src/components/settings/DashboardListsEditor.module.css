@@ -8,6 +8,14 @@
   flex-shrink: 0;
 }
 
+/* Override of EntityEditor's `.modal { width: 520px }` for the lists
+ * editor: the ListFilterEditor chip row + expanded date panel need more
+ * horizontal room before they start clipping. 90vw cap (inherited) keeps
+ * narrow viewports behaving. */
+.modalWide {
+  width: 760px;
+}
+
 .pinToggle {
   display: flex;
   align-items: center;

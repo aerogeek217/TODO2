@@ -17,6 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useUIStore } from '../../stores/ui-store'
 import type {
   ListGrouping,
   ListSort,
@@ -390,6 +391,7 @@ function SortableRow({
 
 export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
   const { listDefinitions, load, add, update, rename, setPinned, setFavorited, remove, reorder } = useListDefinitionStore()
+  const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -399,11 +401,18 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   const [configDirty, setConfigDirty] = useState(false)
 
   // Guard any action that dismisses the open ConfigPanel when there are
-  // unsaved edits. Returns true when the caller should proceed.
-  const confirmDirtyAction = useCallback((message: string): boolean => {
-    if (!configDirty) return true
-    return window.confirm(message)
-  }, [configDirty])
+  // unsaved edits. Runs `perform` immediately when clean; routes through
+  // the shared confirm dialog otherwise so the prompt matches other
+  // destructive confirmations (task delete, list overwrite, etc.).
+  const guardDirty = useCallback((perform: () => void) => {
+    if (!configDirty) { perform(); return }
+    showBulkConfirmation('custom', [], {
+      title: 'Discard changes?',
+      message: 'Unsaved changes to this list will be lost.',
+      confirmLabel: 'Discard',
+      onConfirm: perform,
+    })
+  }, [configDirty, showBulkConfirmation])
 
   useEffect(() => { load() }, [load])
 
@@ -445,13 +454,14 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   }, [sorted, reorder])
 
   const startEdit = (d: PersistedListDefinition) => {
-    if (configuringId !== null && !confirmDirtyAction('Discard unsaved changes to this list?')) return
-    setEditing({ id: d.id, name: d.name })
-    setAdding(false)
-    setDeleteId(null)
-    setConfiguringId(null)
-    setConfigDirty(false)
-    setError('')
+    guardDirty(() => {
+      setEditing({ id: d.id, name: d.name })
+      setAdding(false)
+      setDeleteId(null)
+      setConfiguringId(null)
+      setConfigDirty(false)
+      setError('')
+    })
   }
   const saveEdit = async () => {
     if (!editing) return
@@ -500,22 +510,25 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
 
   const handleConfigure = (id: number) => {
     if (configuringId === id) {
-      if (!confirmDirtyAction('Discard unsaved changes to this list?')) return
-      setConfiguringId(null)
-      setConfigDirty(false)
+      guardDirty(() => {
+        setConfiguringId(null)
+        setConfigDirty(false)
+      })
       return
     }
-    if (configuringId !== null && !confirmDirtyAction('Discard unsaved changes to this list?')) return
-    setConfiguringId(id)
-    setConfigDirty(false)
-    setEditing(null)
-    setDeleteId(null)
+    guardDirty(() => {
+      setConfiguringId(id)
+      setConfigDirty(false)
+      setEditing(null)
+      setDeleteId(null)
+    })
   }
 
   const handleCollapseConfig = () => {
-    if (!confirmDirtyAction('Discard unsaved changes to this list?')) return
-    setConfiguringId(null)
-    setConfigDirty(false)
+    guardDirty(() => {
+      setConfiguringId(null)
+      setConfigDirty(false)
+    })
   }
 
   const handleSaveConfig = useCallback(async (next: PersistedListDefinition) => {
@@ -524,14 +537,13 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   }, [update])
 
   const handleModalClose = () => {
-    if (!confirmDirtyAction('Discard unsaved changes to this list?')) return
-    onClose()
+    guardDirty(() => { onClose() })
   }
 
   return (
     <>
       <div className={styles.backdrop} onClick={handleModalClose} />
-      <div className={styles.modal}>
+      <div className={`${styles.modal} ${local.modalWide}`}>
         <div className={styles.header}>
           <div className={styles.title}>{title ?? 'Lists'}</div>
           <button className={styles.closeBtn} onClick={handleModalClose}>&times;</button>
