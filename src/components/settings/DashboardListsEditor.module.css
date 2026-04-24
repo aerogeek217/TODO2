@@ -71,6 +71,68 @@
   font-size: var(--font-size-meta);
 }
 
+.configHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 8px;
+}
+
+.configHeaderTitle {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.configHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.configSaveBtn {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border: none;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold);
+}
+
+.configSaveBtn:hover {
+  opacity: 0.85;
+}
+
+.configSaveBtn:disabled {
+  background: var(--color-surface-high);
+  color: var(--color-text-muted);
+  cursor: default;
+  opacity: 1;
+}
+
+.configDiscardBtn {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-chip);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.configDiscardBtn:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
+}
+
 .configRow {
   display: flex;
   flex-wrap: wrap;

@@ -150,7 +150,7 @@ describe('DashboardListsEditor — runtime filter control', () => {
   })
   afterEach(() => { cleanup() })
 
-  it('round-trips a runtime-filter pick through the store', async () => {
+  it('round-trips a runtime-filter pick through the store on Save', async () => {
     const updates: PersistedListDefinition[] = []
     useListDefinitionStore.setState({
       update: async (def: PersistedListDefinition) => {
@@ -162,7 +162,7 @@ describe('DashboardListsEditor — runtime filter control', () => {
       },
     } as Partial<ReturnType<typeof useListDefinitionStore.getState>> as never)
 
-    const { getAllByText, container } = render(
+    const { getAllByText, getByText, container } = render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
@@ -177,12 +177,19 @@ describe('DashboardListsEditor — runtime filter control', () => {
     )
     expect(runtimeSelect).toBeTruthy()
 
+    // Dirty-tracked save: changing the select only touches the draft; the
+    // store call happens when the user clicks Save.
     fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
-    expect(updates.length).toBeGreaterThan(0)
+    expect(updates.length).toBe(0)
+    fireEvent.click(getByText('Save'))
+    // Flush the microtask queue so the async update() resolves.
+    await Promise.resolve()
     expect(updates.at(-1)?.runtimeFilter).toEqual({ field: 'person' })
 
-    // Picking None again clears it.
+    // Picking None again clears it — still gated by a Save click.
     fireEvent.change(runtimeSelect!, { target: { value: 'none' } })
+    fireEvent.click(getByText('Save'))
+    await Promise.resolve()
     expect(updates.at(-1)?.runtimeFilter).toBeUndefined()
   })
 })

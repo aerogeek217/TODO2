@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
 import {
   DndContext,
   closestCenter,
@@ -18,19 +17,14 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
-import { useProjectStore } from '../../stores/project-store'
-import { useStatusStore } from '../../stores/status-store'
-import { useFilterStore, predicateToCriteria } from '../../stores/filter-store'
-import { useUIStore } from '../../stores/ui-store'
 import type {
   ListGrouping,
   ListSort,
   PersistedListDefinition,
   RuntimeFilterField,
 } from '../../models/list-definition'
-import type { ListGroupBy, ListItemSortBy, ListSortBy, TodoPredicate } from '../../models'
+import type { ListSortBy, TodoPredicate } from '../../models'
+import { ListFilterEditor } from './ListFilterEditor'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -133,176 +127,141 @@ function decodeGroupingValue(value: GroupingSelectValue): ListGrouping {
   return { kind: value as Exclude<ListGrouping['kind'], 'by-field'> }
 }
 
-/** Map a persisted list-definition's grouping to ListView's groupBy field. */
-function resolveGroupBy(def: PersistedListDefinition): ListGroupBy {
-  const g = def.grouping
-  if (g.kind === 'none') return 'none'
-  if (g.kind === 'by-tag') return 'tag'
-  if (g.kind === 'by-field') return g.by
-  if (g.kind === 'by-sortBy' && def.sort.kind === 'sortBy') return def.sort.by
-  if (g.kind === 'relative-deadline') return 'deadline'
-  if (g.kind === 'relative-effective') return 'date'
-  return 'date'
+function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
-/** Map a persisted list-definition's sort to ListView's within-group sort field. */
-function resolveItemSortBy(def: PersistedListDefinition): ListItemSortBy {
-  const s = def.sort
-  if (s.kind === 'sort-order') return 'manual'
-  if (s.kind === 'effective-date-asc') return 'date'
-  if (s.kind === 'scheduled-asc') return 'scheduled'
-  if (s.kind === 'deadline-asc') return 'deadline'
-  if (s.kind === 'sortBy') {
-    if (s.by === 'date' || s.by === 'scheduled' || s.by === 'deadline') return s.by
-    return 'manual'
+function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
+  // Ignore `sortOrder` (reorder is saved independently) and `name` (rename is inline/live).
+  if (a.pinnedToDashboard !== b.pinnedToDashboard) return false
+  if (JSON.stringify(a.sort) !== JSON.stringify(b.sort)) return false
+  if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) return false
+  if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) return false
+  if (a.membership.kind !== b.membership.kind) return false
+  if (a.membership.kind === 'custom' && b.membership.kind === 'custom') {
+    if (!predicatesEqual(a.membership.predicate, b.membership.predicate)) return false
   }
-  return 'manual'
-}
-
-interface PredicateChip {
-  key: string
-  label: string
-  color?: string
-}
-
-function usePredicateChips(predicate: TodoPredicate): PredicateChip[] {
-  const people = usePersonStore((s) => s.people)
-  const orgs = useOrgStore((s) => s.orgs)
-  const projects = useProjectStore((s) => s.projects)
-  const statuses = useStatusStore((s) => s.statuses)
-
-  return useMemo(() => {
-    const chips: PredicateChip[] = []
-    if (predicate.searchText) {
-      chips.push({ key: 'search', label: `“${predicate.searchText}”` })
-    }
-    if (predicate.personIds && predicate.personIds.length > 0) {
-      const names = predicate.personIds.map((id) => {
-        if (id === 0) return 'Unassigned'
-        const p = people.find((x) => x.id === id)
-        return p ? `@${p.name}` : `@?`
-      })
-      chips.push({ key: 'people', label: names.join(', ') })
-    }
-    if (predicate.orgIds && predicate.orgIds.length > 0) {
-      const names = predicate.orgIds.map((id) => {
-        if (id === 0) return 'No org'
-        const o = orgs.find((x) => x.id === id)
-        return o ? o.name : '?'
-      })
-      chips.push({ key: 'orgs', label: names.join(', ') })
-    }
-    if (predicate.projectIds && predicate.projectIds.length > 0) {
-      const names = predicate.projectIds.map((id) => {
-        if (id === 0) return 'No project'
-        const p = projects.find((x) => x.id === id)
-        return p ? p.name : '?'
-      })
-      chips.push({ key: 'projects', label: names.join(', ') })
-    }
-    if (predicate.statusIds && predicate.statusIds.length > 0) {
-      const names = predicate.statusIds.map((id) => {
-        if (id === 0) return 'No status'
-        const s = statuses.find((x) => x.id === id)
-        return s ? s.name : '?'
-      })
-      chips.push({ key: 'statuses', label: names.join(', ') })
-    }
-    if (predicate.dateRangeStart || predicate.dateRangeEnd) {
-      const fmt = (a: typeof predicate.dateRangeStart) => {
-        if (!a) return '…'
-        if (a.kind === 'fixed') return a.iso.slice(0, 10)
-        return a.token
-      }
-      chips.push({ key: 'date', label: `${predicate.dateField}: ${fmt(predicate.dateRangeStart)} → ${fmt(predicate.dateRangeEnd)}` })
-    }
-    if (predicate.hasScheduled !== null && predicate.hasScheduled !== undefined) {
-      chips.push({ key: 'hasSched', label: predicate.hasScheduled ? 'Has scheduled' : 'No scheduled' })
-    }
-    if (predicate.hasDeadline !== null && predicate.hasDeadline !== undefined) {
-      chips.push({ key: 'hasDead', label: predicate.hasDeadline ? 'Has deadline' : 'No deadline' })
-    }
-    if (predicate.showCompleted) chips.push({ key: 'completed', label: 'Show completed' })
-    if (predicate.showHiddenStatuses) chips.push({ key: 'hidden', label: 'Show hidden statuses' })
-    return chips
-  }, [predicate, people, orgs, projects, statuses])
+  return true
 }
 
 function ConfigPanel({
   def,
-  onChange,
-  onEditInListView,
-  onClose,
+  onSave,
+  onCollapse,
+  onDirtyChange,
 }: {
   def: PersistedListDefinition
-  onChange: (next: PersistedListDefinition) => void
-  onEditInListView: (def: PersistedListDefinition) => void
-  onClose: () => void
+  onSave: (next: PersistedListDefinition) => Promise<void> | void
+  onCollapse: () => void
+  onDirtyChange: (dirty: boolean) => void
 }) {
-  const chips = usePredicateChips(def.membership.predicate)
+  const [draft, setDraft] = useState<PersistedListDefinition>(def)
+
+  // Re-sync the draft when the upstream def changes (post-Save rehydration,
+  // rename via the inline path, pin toggle from the row). Draft stays
+  // authoritative for sort / grouping / predicate / runtimeFilter — the panel
+  // only writes those through Save.
+  useEffect(() => {
+    setDraft((prev) => ({
+      ...def,
+      sort: prev.sort,
+      grouping: prev.grouping,
+      runtimeFilter: prev.runtimeFilter,
+      membership: prev.membership,
+    }))
+  }, [def])
+
+  const dirty = useMemo(() => !defsEqual(draft, def), [draft, def])
+
+  useEffect(() => {
+    onDirtyChange(dirty)
+  }, [dirty, onDirtyChange])
 
   const setSort = (value: SortSelectValue) => {
     const next = decodeSortValue(value)
-    if (next.kind === def.sort.kind
-      && (next.kind !== 'sortBy' || (def.sort.kind === 'sortBy' && next.by === def.sort.by))) return
-    // If current grouping is by-sortBy but the new sort isn't sortBy, fall back to 'none'.
-    const grouping: ListGrouping = def.grouping.kind === 'by-sortBy' && next.kind !== 'sortBy'
+    if (next.kind === draft.sort.kind
+      && (next.kind !== 'sortBy' || (draft.sort.kind === 'sortBy' && next.by === draft.sort.by))) return
+    const grouping: ListGrouping = draft.grouping.kind === 'by-sortBy' && next.kind !== 'sortBy'
       ? { kind: 'none' }
-      : def.grouping
-    onChange({ ...def, sort: next, grouping })
+      : draft.grouping
+    setDraft({ ...draft, sort: next, grouping })
   }
 
   const setGrouping = (value: GroupingSelectValue) => {
-    const next = decodeGroupingValue(value)
-    onChange({ ...def, grouping: next })
+    setDraft({ ...draft, grouping: decodeGroupingValue(value) })
   }
 
   const setRuntimeFilter = (value: RuntimeFilterField | 'none') => {
     if (value === 'none') {
-      if (!def.runtimeFilter) return
-      const { runtimeFilter: _drop, ...rest } = def
-      onChange(rest as PersistedListDefinition)
+      if (!draft.runtimeFilter) return
+      const { runtimeFilter: _drop, ...rest } = draft
+      setDraft(rest as PersistedListDefinition)
       return
     }
-    if (def.runtimeFilter?.field === value) return
-    onChange({ ...def, runtimeFilter: { field: value } })
+    if (draft.runtimeFilter?.field === value) return
+    setDraft({ ...draft, runtimeFilter: { field: value } })
   }
+
+  const handlePredicateChange = (predicate: TodoPredicate) => {
+    setDraft({ ...draft, membership: { kind: 'custom', predicate } })
+  }
+
+  const handleSave = async () => {
+    if (!dirty) return
+    await onSave(draft)
+  }
+
+  const handleDiscard = () => {
+    setDraft(def)
+  }
+
+  const currentPredicate = draft.membership.kind === 'custom'
+    ? draft.membership.predicate
+    : def.membership.kind === 'custom' ? def.membership.predicate : undefined
 
   return (
     <div className={local.configPanel}>
-      <div className={local.configRow}>
-        <span className={local.configLabel}>Filter</span>
-        <div className={local.predicateBlock}>
-          {chips.length === 0 ? (
-            <span className={local.predicateEmpty}>No filters set — matches all tasks.</span>
-          ) : (
-            <div className={local.chipRow}>
-              {chips.map((c) => (
-                <span
-                  key={c.key}
-                  className={local.predicateChip}
-                  style={c.color ? { borderColor: c.color } : undefined}
-                >
-                  {c.label}
-                </span>
-              ))}
-            </div>
+      <div className={local.configHeader}>
+        <span className={local.configHeaderTitle}>Edit list</span>
+        <div className={local.configHeaderActions}>
+          {dirty && (
+            <button
+              type="button"
+              className={local.configDiscardBtn}
+              onClick={handleDiscard}
+            >
+              Discard
+            </button>
           )}
           <button
             type="button"
-            className={local.editInListBtn}
-            onClick={() => onEditInListView(def)}
+            className={local.configSaveBtn}
+            onClick={handleSave}
+            disabled={!dirty}
+            title={dirty ? 'Save changes' : 'No changes to save'}
           >
-            Edit in ListView…
+            Save
           </button>
         </div>
       </div>
+
+      {currentPredicate && (
+        <div className={local.configRow}>
+          <span className={local.configLabel}>Filter</span>
+          <div className={local.predicateBlock}>
+            <ListFilterEditor
+              predicate={currentPredicate}
+              onChange={handlePredicateChange}
+            />
+          </div>
+        </div>
+      )}
 
       <div className={local.configRow}>
         <span className={local.configLabel}>Sort</span>
         <select
           className={local.configSelect}
-          value={encodeSortValue(def.sort)}
+          value={encodeSortValue(draft.sort)}
           onChange={(e) => setSort(e.target.value as SortSelectValue)}
         >
           {SORT_OPTIONS.map(({ value, label }) => (
@@ -315,14 +274,14 @@ function ConfigPanel({
         <span className={local.configLabel}>Grouping</span>
         <select
           className={local.configSelect}
-          value={encodeGroupingValue(def.grouping)}
+          value={encodeGroupingValue(draft.grouping)}
           onChange={(e) => setGrouping(e.target.value as GroupingSelectValue)}
         >
           {GROUPING_OPTIONS.map(({ value, label, requiresSortBy }) => (
             <option
               key={value}
               value={value}
-              disabled={requiresSortBy && def.sort.kind !== 'sortBy'}
+              disabled={requiresSortBy && draft.sort.kind !== 'sortBy'}
             >
               {label}
             </option>
@@ -339,7 +298,7 @@ function ConfigPanel({
         </span>
         <select
           className={local.configSelect}
-          value={def.runtimeFilter?.field ?? 'none'}
+          value={draft.runtimeFilter?.field ?? 'none'}
           onChange={(e) => setRuntimeFilter(e.target.value as RuntimeFilterField | 'none')}
         >
           {RUNTIME_FILTER_OPTIONS.map(({ value, label }) => (
@@ -349,7 +308,9 @@ function ConfigPanel({
       </div>
 
       <div className={local.configFooter}>
-        <button type="button" className={local.configDoneBtn} onClick={onClose}>Done</button>
+        <button type="button" className={local.configDoneBtn} onClick={onCollapse}>
+          Close
+        </button>
       </div>
     </div>
   )
@@ -418,17 +379,20 @@ function SortableRow({
 
 export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
   const { listDefinitions, load, add, update, rename, setPinned, remove, reorder } = useListDefinitionStore()
-  const setAllFilters = useFilterStore((s) => s.setAllFilters)
-  const setListGroupBy = useUIStore((s) => s.setListGroupBy)
-  const setListSortBy = useUIStore((s) => s.setListSortBy)
-  const startEditingListDef = useUIStore((s) => s.startEditingListDef)
-  const navigate = useNavigate()
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [configuringId, setConfiguringId] = useState<number | null>(initialSelectedId ?? null)
+  const [configDirty, setConfigDirty] = useState(false)
+
+  // Guard any action that dismisses the open ConfigPanel when there are
+  // unsaved edits. Returns true when the caller should proceed.
+  const confirmDirtyAction = useCallback((message: string): boolean => {
+    if (!configDirty) return true
+    return window.confirm(message)
+  }, [configDirty])
 
   useEffect(() => { load() }, [load])
 
@@ -470,10 +434,12 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   }, [sorted, reorder])
 
   const startEdit = (d: PersistedListDefinition) => {
+    if (configuringId !== null && !confirmDirtyAction('Discard unsaved changes to this list?')) return
     setEditing({ id: d.id, name: d.name })
     setAdding(false)
     setDeleteId(null)
     setConfiguringId(null)
+    setConfigDirty(false)
     setError('')
   }
   const saveEdit = async () => {
@@ -518,32 +484,46 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     if (deleteId == null) return
     await remove(deleteId)
     setDeleteId(null)
-    if (configuringId === deleteId) setConfiguringId(null)
+    if (configuringId === deleteId) { setConfiguringId(null); setConfigDirty(false) }
   }
 
   const handleConfigure = (id: number) => {
-    setConfiguringId((cur) => (cur === id ? null : id))
+    if (configuringId === id) {
+      if (!confirmDirtyAction('Discard unsaved changes to this list?')) return
+      setConfiguringId(null)
+      setConfigDirty(false)
+      return
+    }
+    if (configuringId !== null && !confirmDirtyAction('Discard unsaved changes to this list?')) return
+    setConfiguringId(id)
+    setConfigDirty(false)
     setEditing(null)
     setDeleteId(null)
   }
 
-  const handleEditInListView = (def: PersistedListDefinition) => {
-    const criteria = predicateToCriteria(def.membership.predicate)
-    setAllFilters(criteria)
-    setListGroupBy(resolveGroupBy(def))
-    setListSortBy(resolveItemSortBy(def))
-    startEditingListDef(def.id, def.name)
+  const handleCollapseConfig = () => {
+    if (!confirmDirtyAction('Discard unsaved changes to this list?')) return
+    setConfiguringId(null)
+    setConfigDirty(false)
+  }
+
+  const handleSaveConfig = useCallback(async (next: PersistedListDefinition) => {
+    await update(next)
+    setConfigDirty(false)
+  }, [update])
+
+  const handleModalClose = () => {
+    if (!confirmDirtyAction('Discard unsaved changes to this list?')) return
     onClose()
-    navigate('/list')
   }
 
   return (
     <>
-      <div className={styles.backdrop} onClick={onClose} />
+      <div className={styles.backdrop} onClick={handleModalClose} />
       <div className={styles.modal}>
         <div className={styles.header}>
           <div className={styles.title}>{title ?? 'Lists'}</div>
-          <button className={styles.closeBtn} onClick={onClose}>&times;</button>
+          <button className={styles.closeBtn} onClick={handleModalClose}>&times;</button>
         </div>
 
         <div className={styles.list}>
@@ -600,10 +580,11 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
                     />
                     {configuringId === d.id && (
                       <ConfigPanel
+                        key={d.id}
                         def={d}
-                        onChange={(next) => update(next)}
-                        onEditInListView={handleEditInListView}
-                        onClose={() => setConfiguringId(null)}
+                        onSave={handleSaveConfig}
+                        onCollapse={handleCollapseConfig}
+                        onDirtyChange={setConfigDirty}
                       />
                     )}
                   </div>

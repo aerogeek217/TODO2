@@ -27,7 +27,8 @@ import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
-import { useFilterStore, applyFilter, criteriaToPredicate } from '../stores/filter-store'
+import { useFilterStore, applyFilter, criteriaToPredicate, predicateToCriteria } from '../stores/filter-store'
+import { ListFilterEditor } from '../components/settings/ListFilterEditor'
 import { useSavedViewStore, savedFiltersToRuntime, resolveSavedViewGrouping } from '../stores/saved-view-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -40,7 +41,7 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListSortBy, ListGroupBy, ListItemSortBy } from '../models'
+import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListSortBy, ListGroupBy, ListItemSortBy, TodoPredicate } from '../models'
 import type { ListGrouping, ListSort } from '../models/list-definition'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
@@ -591,6 +592,10 @@ export function ListView() {
   const loadListDefinitions = useListDefinitionStore((s) => s.load)
   const { filters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
+  const filterPredicate = useMemo(() => criteriaToPredicate(filters), [filters])
+  const handleFilterPredicateChange = useCallback((next: TodoPredicate) => {
+    setAllFilters(predicateToCriteria(next))
+  }, [setAllFilters])
   const taskEdit = useTaskEditCallbacks()
   const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, updateView, renameView, removeView, reorder: reorderViews, setActiveViewId } = useSavedViewStore()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -993,6 +998,11 @@ export function ListView() {
               </SortableContext>
             </DndContext>
           )}
+
+          <ListFilterEditor
+            predicate={filterPredicate}
+            onChange={handleFilterPredicateChange}
+          />
 
           <div className={styles.toolbar}>
             <div className={styles.toolbarControls}>
