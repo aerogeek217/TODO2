@@ -9,17 +9,17 @@ import { startOfToday } from '../utils/date'
  * JSON serialization (export, file-storage save, or backup snapshot).
  */
 export async function buildExportData() {
-  const [todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, savedViews, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes] =
+  const [todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes] =
     await Promise.all([
       db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(), db.listInsets.toArray(),
       db.people.toArray(), db.settings.toArray(),
       db.todoPeople.toArray(), db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
-      db.savedViews.toArray(), db.taskboards.toArray(), db.floatingTaskboards.toArray(),
+      db.taskboards.toArray(), db.floatingTaskboards.toArray(),
       db.statuses.toArray(), db.listDefinitions.toArray(), db.notes.toArray(),
       db.floatingCalendars.toArray(), db.floatingNotes.toArray(),
     ])
 
-  return { todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, savedViews, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes }
+  return { todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes }
 }
 
 /**

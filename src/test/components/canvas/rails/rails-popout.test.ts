@@ -74,6 +74,7 @@ describe('popSlotToCanvas', () => {
       name: 'Test list',
       sortOrder: 0,
       pinnedToDashboard: false,
+      favorited: false,
       membership: { kind: 'custom', predicate: {
         showCompleted: false,
         showHiddenStatuses: false,
@@ -331,6 +332,7 @@ describe('popTabAtPosition', () => {
       name: 'Drag list',
       sortOrder: 0,
       pinnedToDashboard: false,
+      favorited: false,
       membership: { kind: 'custom', predicate: {
         showCompleted: false,
         showHiddenStatuses: false,

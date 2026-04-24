@@ -15,7 +15,6 @@ export { type RecurrenceRule, type RecurrenceType } from './recurrence'
 export { type Backup, type BackupTrigger } from './backup'
 export { AppView } from './app-view'
 export { type ListSortBy, type ListGroupBy, type ListItemSortBy, type DateField } from './app-view'
-export { type SavedView, type PersistedSavedView, type SavedViewFilters } from './saved-view'
 export {
   type TodoPredicate,
   type OrgFilterMode,

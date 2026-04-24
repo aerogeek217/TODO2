@@ -63,6 +63,7 @@ function customDef(overrides: Partial<PersistedListDefinition> = {}): PersistedL
     name: 'List',
     sortOrder: 0,
     pinnedToDashboard: true,
+    favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: { kind: 'effective-date-asc' },
     grouping: { kind: 'none' },

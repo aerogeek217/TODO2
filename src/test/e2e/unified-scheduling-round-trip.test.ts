@@ -27,14 +27,14 @@ function snapshotTable<T>(rows: T[]): T[] {
 async function readAllTables() {
   const [
     todos, projects, canvases, listInsets, people, settings,
-    todoPeople, todoOrgs, personOrgs, orgs, savedViews, notes,
+    todoPeople, todoOrgs, personOrgs, orgs, notes,
     taskboards, statuses, listDefinitions,
   ] = await Promise.all([
     db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(),
     db.listInsets.toArray(), db.people.toArray(), db.settings.toArray(),
     db.todoPeople.toArray(),
     db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
-    db.savedViews.toArray(), db.notes.toArray(),
+    db.notes.toArray(),
     db.taskboards.toArray(), db.statuses.toArray(),
     db.listDefinitions.toArray(),
   ])
@@ -49,7 +49,6 @@ async function readAllTables() {
     todoOrgs: snapshotTable(todoOrgs),
     personOrgs: snapshotTable(personOrgs),
     orgs: snapshotTable(orgs),
-    savedViews: snapshotTable(savedViews),
     notes: snapshotTable(notes),
     taskboards: snapshotTable(taskboards),
     statuses: snapshotTable(statuses),
@@ -148,7 +147,7 @@ function makeLegacyImport(): ImportData {
     personOrgs: [],
     settings: [],
     orgs: [],
-    savedViews: [],
+    savedViews: [],  // Pre-v39 shape; translated to favorited list-defs on restore
     stickyNotes: [],
     taskboardEntries: [],
     taskboards: [],
@@ -279,7 +278,7 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       personOrgs: firstPass.personOrgs,
       settings: firstPass.settings as unknown as ImportData['settings'],
       orgs: firstPass.orgs,
-      savedViews: firstPass.savedViews as unknown as ImportData['savedViews'],
+      savedViews: [],
       stickyNotes: [],
       taskboardEntries: [],
       taskboards: firstPass.taskboards as unknown as ImportData['taskboards'],

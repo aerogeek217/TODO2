@@ -1,4 +1,5 @@
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, SavedView, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+import type { LegacySavedView, LegacySavedViewFilters } from './saved-view-legacy'
 
 /**
  * Top-level tag registry rows. Shape is shared between pre-v29 backups
@@ -239,6 +240,10 @@ function checkListDefinition(v: unknown): CheckResult {
     ['grouping', isValidGrouping(grouping)],
     // v22+: pinnedToDashboard required. v21 imports may omit; restore backfills.
     ['pinnedToDashboard', v.pinnedToDashboard === undefined || isBool(v.pinnedToDashboard)],
+    // v39+: favorited required. Pre-v39 imports may omit; restore backfills false.
+    ['favorited', v.favorited === undefined || isBool(v.favorited)],
+    ['maxTasks', v.maxTasks === undefined || (isFiniteNum(v.maxTasks) && (v.maxTasks as number) >= 1 && (v.maxTasks as number) <= 10000)],
+    ['limitMode', v.limitMode === undefined || v.limitMode === 'hard' || v.limitMode === 'scroll'],
   ])
 }
 
@@ -896,13 +901,13 @@ function pickStickyNote(v: Record<string, unknown>): ImportStickyNote {
   }
 }
 
-function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] {
+function pickSavedViewFilters(v: Record<string, unknown>): LegacySavedViewFilters {
   return {
     // Legacy + new coexist in the parsed structure. Translation at runtime.
     ...(v.priorities !== undefined ? { priorities: v.priorities as number[] | null } : {}),
     showCompleted: (v.showCompleted as boolean) ?? false,
     showHiddenStatuses: (v.showHiddenStatuses as boolean) ?? false,
-    // v19→v20 legacy — preserved for savedFiltersToRuntime translation at load time
+    // v19→v20 legacy — preserved for savedFiltersToPredicate translation at load time
     ...(v.completedFilter !== undefined ? { completedFilter: v.completedFilter as string } : {}),
     ...(v.assignedFilter !== undefined ? { assignedFilter: v.assignedFilter as string } : {}),
     ...(v.followupFilter !== undefined ? { followupFilter: v.followupFilter as string } : {}),
@@ -914,31 +919,31 @@ function pickSavedViewFilters(v: Record<string, unknown>): SavedView['filters'] 
     // v21 new — required; fall through to false when absent
     dateRangeIncludeNoDate: (v.dateRangeIncludeNoDate as boolean) ?? false,
     personIds: v.personIds as number[] | null,
-    ...(v.personFilterMode !== undefined ? { personFilterMode: v.personFilterMode as SavedView['filters']['personFilterMode'] } : {}),
+    ...(v.personFilterMode !== undefined ? { personFilterMode: v.personFilterMode as LegacySavedViewFilters['personFilterMode'] } : {}),
     // v29 retired tags; pre-v29 backups may carry tagIds — silently dropped here.
     orgIds: v.orgIds as number[] | null,
-    ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as SavedView['filters']['orgFilterMode'] } : {}),
+    ...(v.orgFilterMode !== undefined ? { orgFilterMode: v.orgFilterMode as LegacySavedViewFilters['orgFilterMode'] } : {}),
     ...(v.projectIds !== undefined ? { projectIds: v.projectIds as number[] | null } : {}),
     ...(v.statusIds !== undefined ? { statusIds: v.statusIds as number[] | null } : {}),
-    ...(v.dateField !== undefined ? { dateField: v.dateField as SavedView['filters']['dateField'] } : {}),
-    ...(v.dateRangeStart !== undefined ? { dateRangeStart: v.dateRangeStart as SavedView['filters']['dateRangeStart'] } : {}),
-    ...(v.dateRangeEnd !== undefined ? { dateRangeEnd: v.dateRangeEnd as SavedView['filters']['dateRangeEnd'] } : {}),
+    ...(v.dateField !== undefined ? { dateField: v.dateField as LegacySavedViewFilters['dateField'] } : {}),
+    ...(v.dateRangeStart !== undefined ? { dateRangeStart: v.dateRangeStart as LegacySavedViewFilters['dateRangeStart'] } : {}),
+    ...(v.dateRangeEnd !== undefined ? { dateRangeEnd: v.dateRangeEnd as LegacySavedViewFilters['dateRangeEnd'] } : {}),
     ...(v.hasScheduled !== undefined ? { hasScheduled: v.hasScheduled as boolean | null } : {}),
     ...(v.hasDeadline !== undefined ? { hasDeadline: v.hasDeadline as boolean | null } : {}),
   }
 }
 
-function pickSavedView(v: Record<string, unknown>): SavedView {
+function pickSavedView(v: Record<string, unknown>): LegacySavedView {
   return {
     id: v.id as number | undefined,
     name: v.name as string,
-    sortBy: v.sortBy as SavedView['sortBy'],
-    ...(v.groupBy !== undefined ? { groupBy: v.groupBy as SavedView['groupBy'] } : {}),
-    ...(v.itemSortBy !== undefined ? { itemSortBy: v.itemSortBy as SavedView['itemSortBy'] } : {}),
+    sortBy: v.sortBy as LegacySavedView['sortBy'],
+    ...(v.groupBy !== undefined ? { groupBy: v.groupBy as LegacySavedView['groupBy'] } : {}),
+    ...(v.itemSortBy !== undefined ? { itemSortBy: v.itemSortBy as LegacySavedView['itemSortBy'] } : {}),
     filters: pickSavedViewFilters(v.filters as Record<string, unknown>),
     sortOrder: v.sortOrder as number,
     ...(v.maxTasks !== undefined ? { maxTasks: v.maxTasks as number } : {}),
-    ...(v.limitMode !== undefined ? { limitMode: v.limitMode as SavedView['limitMode'] } : {}),
+    ...(v.limitMode !== undefined ? { limitMode: v.limitMode as LegacySavedView['limitMode'] } : {}),
   }
 }
 
@@ -1043,6 +1048,11 @@ function pickListDefinition(v: Record<string, unknown>): ListDefinition {
     // v21 exports omit pinnedToDashboard; treat as pinned (matches v22 migration).
     // v21 `seededKey` is silently dropped.
     pinnedToDashboard: typeof v.pinnedToDashboard === 'boolean' ? v.pinnedToDashboard : true,
+    // Pre-v39 exports omit favorited; default to false (matches v39 backfill).
+    favorited: typeof v.favorited === 'boolean' ? v.favorited : false,
+    ...(typeof v.maxTasks === 'number' ? { maxTasks: v.maxTasks } : {}),
+    ...(v.limitMode === 'hard' || v.limitMode === 'scroll' ? { limitMode: v.limitMode } : {}),
+    ...(v.runtimeFilter != null ? { runtimeFilter: v.runtimeFilter as ListDefinition['runtimeFilter'] } : {}),
   }
 }
 
@@ -1099,7 +1109,12 @@ export interface ImportData {
   personOrgs: PersonOrg[]
   settings: SettingRow[]
   orgs: Org[]
-  savedViews: SavedView[]
+  /**
+   * Pre-v39 backups carry saved-view rows. Restore translates each into a
+   * favorited `ListDefinition` via `savedViewToListDefinition`; the table no
+   * longer exists post-v39. Absent for post-v39 backups.
+   */
+  savedViews: LegacySavedView[]
   stickyNotes: ImportStickyNote[]
   /** Pre-v30 queue rows. Restore path collapses them into `taskboards[0].entries`. */
   taskboardEntries: TaskboardEntry[]

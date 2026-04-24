@@ -1,9 +1,11 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, SavedView, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, Tag, TodoTag } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, Tag, TodoTag } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import type { HorizonKey } from '../services/horizons'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
+import type { LegacySavedView } from './saved-view-legacy'
+import { savedViewToListDefinition } from './saved-view-legacy'
 
 export interface SettingRow {
   key: string
@@ -22,7 +24,6 @@ export class Todo2Database extends Dexie {
   todoOrgs!: Table<TodoOrg, number>
   personOrgs!: Table<PersonOrg, number>
   backups!: Table<Backup, number>
-  savedViews!: Table<SavedView, number>
   taskboards!: Table<Taskboard, number>
   statuses!: Table<Status, number>
   listDefinitions!: Table<ListDefinition, number>
@@ -263,6 +264,19 @@ export class Todo2Database extends Dexie {
     this.version(38).stores({
       floatingHorizons: '++id, canvasId',
     })
+
+    // v39: fold `savedViews` into `listDefinitions`. Every SavedView row
+    // becomes a `ListDefinition` with `favorited: true` + `pinnedToDashboard:
+    // false`, carrying over sort/grouping/filters/maxTasks/limitMode via the
+    // `savedViewToListDefinition` translator. Drops the `savedViews` table and
+    // backfills `favorited: false` on every pre-existing ListDefinition.
+    this.version(39)
+      .stores({
+        savedViews: null,
+      })
+      .upgrade(async (tx) => {
+        await runV39Migration(tx)
+      })
   }
 }
 
@@ -474,6 +488,7 @@ function horizonSeeds(): HorizonSeed[] {
         name: 'This week',
         sortOrder: 0,
         pinnedToDashboard: true,
+        favorited: false,
         membership: {
           kind: 'custom',
           predicate: {
@@ -493,6 +508,7 @@ function horizonSeeds(): HorizonSeed[] {
         name: 'Next week',
         sortOrder: 1,
         pinnedToDashboard: true,
+        favorited: false,
         membership: {
           kind: 'custom',
           predicate: {
@@ -512,6 +528,7 @@ function horizonSeeds(): HorizonSeed[] {
         name: 'Rest of month',
         sortOrder: 2,
         pinnedToDashboard: true,
+        favorited: false,
         membership: {
           kind: 'custom',
           predicate: {
@@ -531,6 +548,7 @@ function horizonSeeds(): HorizonSeed[] {
         name: 'Later',
         sortOrder: 3,
         pinnedToDashboard: true,
+        favorited: false,
         membership: {
           kind: 'custom',
           predicate: {
@@ -550,6 +568,7 @@ function horizonSeeds(): HorizonSeed[] {
         name: 'Someday',
         sortOrder: 4,
         pinnedToDashboard: true,
+        favorited: false,
         membership: {
           kind: 'custom',
           predicate: {
@@ -654,6 +673,7 @@ export function buildListDefFromLegacyInset(
     return {
       name: insetName ?? 'Due this week',
       pinnedToDashboard: false,
+      favorited: false,
       membership: {
         kind: 'custom',
         predicate: predicate as unknown as import('../models').TodoPredicate,
@@ -697,6 +717,7 @@ export function buildListDefFromLegacyInset(
     return {
       name: insetName ?? derivedName,
       pinnedToDashboard: false,
+      favorited: false,
       membership: {
         kind: 'custom',
         predicate: predicate as unknown as import('../models').TodoPredicate,
@@ -787,7 +808,7 @@ export async function persistHorizonSlots(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.savedViews, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.tags, db.todoTags] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.tags, db.todoTags] as const
 
 /**
  * Append `" #tagname"` for every assigned tag to each todo's title. Mutates
@@ -1424,4 +1445,54 @@ export async function runV37Migration(tx: Transaction): Promise<void> {
     }
   })
   if (stripped > 0) console.info(`v37 migration: stripped inline tags from ${stripped} todo row(s)`)
+}
+
+/**
+ * v39 upgrade: fold every `savedViews` row into `listDefinitions` with
+ * `favorited: true` + `pinnedToDashboard: false`, carrying over
+ * sort/grouping/filters/maxTasks/limitMode. Backfills `favorited: false` on
+ * pre-existing list defs so the new boolean is always present. Read order
+ * matters: savedViews rows are fetched inside the upgrade callback; Dexie
+ * removes the store AFTER the callback returns so the reads are safe.
+ */
+export async function runV39Migration(tx: Transaction): Promise<void> {
+  const listDefsTable = tx.table<ListDefinition>('listDefinitions')
+  const settingsTable = tx.table<SettingRow>('settings')
+  const statusesTable = tx.table<Status>('statuses')
+
+  let savedViewRows: LegacySavedView[] = []
+  try {
+    savedViewRows = await tx.table('savedViews').toArray() as LegacySavedView[]
+  } catch { /* table already gone — fresh install */ }
+
+  const [assignedSetting, followupSetting] = await Promise.all([
+    settingsTable.get('seededAssignedStatusId'),
+    settingsTable.get('seededFollowupStatusId'),
+  ])
+  const seededAssignedId = assignedSetting ? Number(assignedSetting.value) : null
+  const seededFollowupId = followupSetting ? Number(followupSetting.value) : null
+  const allStatuses = await statusesTable.toArray()
+
+  const existingDefs = await listDefsTable.toArray()
+  let nextSortOrder = existingDefs.reduce((m, d) => Math.max(m, d.sortOrder), -1) + 1
+
+  // Backfill favorited: false on pre-existing defs.
+  await listDefsTable.toCollection().modify((def) => {
+    const r = def as unknown as Record<string, unknown>
+    if (r.favorited === undefined) r.favorited = false
+  })
+
+  let translated = 0
+  for (const sv of savedViewRows) {
+    const base = savedViewToListDefinition(sv, seededAssignedId, seededFollowupId, allStatuses)
+    await listDefsTable.add({
+      ...base,
+      sortOrder: nextSortOrder++,
+    } as ListDefinition)
+    translated++
+  }
+
+  if (translated > 0) {
+    console.info(`v39 migration: translated ${translated} savedView(s) into favorited listDefinition(s)`)
+  }
 }

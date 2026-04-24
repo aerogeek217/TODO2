@@ -7,10 +7,10 @@ import {
   buildProjectSections,
   buildTagSections,
   itemSortComparator,
-  encodeGroupSort,
   truncateSections,
   type Section,
 } from '../../views/ListView'
+import { encodeGroupSort } from '../../data/saved-view-legacy'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
   return {

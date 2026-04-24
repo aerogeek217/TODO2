@@ -7,7 +7,6 @@ import { useProjectStore } from './project-store'
 import { usePersonStore } from './person-store'
 import { useListInsetStore } from './list-inset-store'
 import { useOrgStore } from './org-store'
-import { useSavedViewStore } from './saved-view-store'
 import { useNoteStore } from './note-store'
 import { useFloatingNoteStore } from './floating-note-store'
 import { useFloatingCalendarStore } from './floating-calendar-store'
@@ -30,7 +29,6 @@ async function refreshAllStores() {
     useOrgStore.getState().load(),
     useOrgStore.getState().loadPersonOrgMap(),
     useStatusStore.getState().load(),
-    useSavedViewStore.getState().load(),
     useTaskboardStore.getState().load(),
     useNoteStore.getState().load(),
     ...(canvasId != null ? [

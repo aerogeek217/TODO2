@@ -55,6 +55,16 @@ export interface ListDefinition {
   grouping: ListGrouping
   /** When true, the list appears as a Dashboard card. Default true on migration from pre-v22. */
   pinnedToDashboard: boolean
+  /**
+   * When true, the list shows up in ListView's favorites chip bar. Separate
+   * from `pinnedToDashboard` so the two discoverability surfaces can be
+   * toggled independently. Defaults to false.
+   */
+  favorited: boolean
+  /** Optional cap on the number of visible tasks. Undefined = unlimited. */
+  maxTasks?: number
+  /** How `maxTasks` is enforced. Defaults to `'hard'` when omitted. */
+  limitMode?: 'hard' | 'scroll'
   /** When set, the list exposes a picker at render time; see `RuntimeFilterSpec`. */
   runtimeFilter?: RuntimeFilterSpec
 }

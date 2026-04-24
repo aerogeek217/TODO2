@@ -507,6 +507,84 @@
   margin-top: 6px;
 }
 
+/* List-definition selector popup (Save / Load) */
+.selectorList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 10px 0 4px;
+}
+
+.selectorNewRow {
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 6px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.selectorNewRow:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg-light);
+}
+
+.selectorEmpty {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 8px 10px;
+  font-style: italic;
+}
+
+.selectorRow {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.selectorRow:hover {
+  border-color: var(--color-text-muted);
+}
+
+.selectorName {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 6px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.selectorName:hover {
+  color: var(--color-accent);
+}
+
+.selectorDelete {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-nav);
+  padding: 6px 10px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.selectorDelete:hover {
+  color: var(--color-danger);
+  background: var(--color-surface-high);
+}
+
 .editingPresetBanner {
   display: flex;
   align-items: center;

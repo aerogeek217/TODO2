@@ -26,6 +26,7 @@ describe('useListDefinitionStore load', () => {
     await listDefinitionRepository.insert({
       name: 'B', sortOrder: 2,
       pinnedToDashboard: true,
+      favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'relative-effective' },
@@ -33,6 +34,7 @@ describe('useListDefinitionStore load', () => {
     await listDefinitionRepository.insert({
       name: 'A', sortOrder: 1,
       pinnedToDashboard: true,
+      favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
       sort: { kind: 'effective-date-asc' },
       grouping: { kind: 'none' },

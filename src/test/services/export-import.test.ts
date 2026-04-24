@@ -21,7 +21,6 @@ describe('buildExportData', () => {
     expect(data.personOrgs).toEqual([])
     expect(data.listInsets).toEqual([])
     expect(data.settings).toEqual([])
-    expect(data.savedViews).toEqual([])
   })
 
   it('exports all table data', async () => {

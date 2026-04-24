@@ -282,7 +282,6 @@ describe('restoreFromImportData', () => {
       expect(await db.projects.count()).toBe(0)
       expect(await db.notes.count()).toBe(0)
       expect(await db.orgs.count()).toBe(0)
-      expect(await db.savedViews.count()).toBe(0)
     })
   })
 

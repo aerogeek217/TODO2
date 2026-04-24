@@ -20,6 +20,7 @@ import { validateImportData, isLegacyMembershipKind } from './import-validation'
 import type { ListDefinition } from '../models/list-definition'
 import type { ListInset, Note, FloatingNote, Taskboard, TaskboardEntry, Tag, TodoTag } from '../models'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
+import { savedViewToListDefinition } from './saved-view-legacy'
 
 /** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
 const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
@@ -35,7 +36,8 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   { table: db.todoOrgs, key: 'todoOrgs' },
   { table: db.personOrgs, key: 'personOrgs' },
   { table: db.orgs, key: 'orgs' },
-  { table: db.savedViews, key: 'savedViews' },
+  // Pre-v39 `savedViews` rows are translated into favorited `listDefinitions`
+  // via `savedViewToListDefinition`; the savedViews table no longer exists.
   // Legacy `stickyNotes` from pre-v26 backups are translated into `notes` rows
   // after the bulk-add pass below (see translateLegacyStickyNotes).
   // `taskboards` (post-v30) + legacy `taskboardEntries` (pre-v30) are handled
@@ -392,6 +394,28 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     const v23Translated = await translateLegacyListInsets()
     if (v23Translated > 0) {
       console.info(`Restore: translated ${v23Translated} legacy list inset(s) to listDefinitionId`)
+    }
+
+    // v39: backfill `favorited: false` on every imported list-def so the
+    // post-restore shape matches what in-place v39 produces.
+    await db.listDefinitions.toCollection().modify((def) => {
+      const r = def as unknown as Record<string, unknown>
+      if (r.favorited === undefined) r.favorited = false
+    })
+
+    // v39: fold pre-v39 saved-view rows into favorited listDefinitions.
+    if (v.savedViews?.length) {
+      const allStatuses = await db.statuses.toArray()
+      const existing = await db.listDefinitions.toArray()
+      let nextSortOrder = existing.reduce((m, d) => Math.max(m, d.sortOrder), -1) + 1
+      for (const sv of v.savedViews) {
+        const base = savedViewToListDefinition(sv, assignedId, followupId, allStatuses)
+        await db.listDefinitions.add({
+          ...base,
+          sortOrder: nextSortOrder++,
+        } as ListDefinition)
+      }
+      console.info(`Restore: translated ${v.savedViews.length} savedView(s) into favorited listDefinition(s)`)
     }
 
     if (v20Translated > 0) {

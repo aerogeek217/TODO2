@@ -322,6 +322,7 @@ function SortableRow({
   onEdit,
   onConfigure,
   onTogglePin,
+  onToggleFavorite,
   onDelete,
   hideDelete,
 }: {
@@ -330,6 +331,7 @@ function SortableRow({
   onEdit: (d: PersistedListDefinition) => void
   onConfigure: (id: number) => void
   onTogglePin: (id: number, next: boolean) => void
+  onToggleFavorite: (id: number, next: boolean) => void
   onDelete: (id: number) => void
   hideDelete?: boolean
 }) {
@@ -355,6 +357,17 @@ function SortableRow({
       </button>
       <label
         className={local.pinToggle}
+        title={def.favorited ? 'Shown in ListView Favorites' : 'Not in ListView Favorites'}
+      >
+        <input
+          type="checkbox"
+          checked={def.favorited}
+          onChange={(e) => onToggleFavorite(def.id, e.target.checked)}
+        />
+        Favorite
+      </label>
+      <label
+        className={local.pinToggle}
         title={def.pinnedToDashboard ? 'Pinned to Dashboard' : 'Not pinned'}
       >
         <input
@@ -378,7 +391,7 @@ function SortableRow({
 }
 
 export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
-  const { listDefinitions, load, add, update, rename, setPinned, remove, reorder } = useListDefinitionStore()
+  const { listDefinitions, load, add, update, rename, setPinned, setFavorited, remove, reorder } = useListDefinitionStore()
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -575,6 +588,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
                       onEdit={startEdit}
                       onConfigure={handleConfigure}
                       onTogglePin={handleTogglePin}
+                      onToggleFavorite={(id, next) => { void setFavorited(id, next) }}
                       onDelete={(id) => { setDeleteId(id); setEditing(null); setAdding(false) }}
                       hideDelete={!!filterIds}
                     />

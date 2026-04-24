@@ -3,8 +3,6 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  KeyboardSensor,
-  closestCenter,
   useSensor,
   useSensors,
   useDroppable,
@@ -12,25 +10,17 @@ import {
   type DragEndEvent,
   type DragOverEvent,
 } from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  horizontalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useProjectStore } from '../stores/project-store'
 import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
-import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter, criteriaToPredicate, predicateToCriteria } from '../stores/filter-store'
 import { ListFilterEditor } from '../components/settings/ListFilterEditor'
-import { useSavedViewStore, savedFiltersToRuntime, resolveSavedViewGrouping } from '../stores/saved-view-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
+import { encodeGroupSort } from '../data/saved-view-legacy'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskList } from '../components/task/TaskList'
 import { TaskRow } from '../components/task/TaskRow'
@@ -39,10 +29,8 @@ import { SectionHeader } from '../components/shared/SectionHeader'
 import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
-import { CanvasContextMenu, type ContextMenuItem } from '../components/overlays/CanvasContextMenu'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListSortBy, ListGroupBy, ListItemSortBy, TodoPredicate } from '../models'
-import type { ListGrouping, ListSort } from '../models/list-definition'
+import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy, TodoPredicate } from '../models'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
@@ -416,31 +404,6 @@ export function truncateSections(sections: Section[], maxTasks: number): { displ
 }
 
 /**
- * Encode current groupBy + itemSortBy into a list-definition's `sort` + `grouping`.
- * Symmetric with `resolveGroupBy` / `resolveItemSortBy` in DashboardListsEditor.
- */
-export function encodeGroupSort(
-  groupBy: ListGroupBy,
-  itemSortBy: ListItemSortBy,
-): { sort: ListSort; grouping: ListGrouping } {
-  const sort: ListSort = itemSortBy === 'manual'
-    ? { kind: 'sort-order' }
-    : { kind: 'sortBy', by: itemSortBy }
-
-  let grouping: ListGrouping
-  if (groupBy === 'none') {
-    grouping = { kind: 'none' }
-  } else if (groupBy === 'tag') {
-    grouping = { kind: 'by-tag' }
-  } else if (itemSortBy !== 'manual' && groupBy === itemSortBy) {
-    grouping = { kind: 'by-sortBy' }
-  } else {
-    grouping = { kind: 'by-field', by: groupBy }
-  }
-  return { sort, grouping }
-}
-
-/**
  * Compute the flat visual index in the CURRENT display where the drop indicator should appear.
  */
 function computeDropIndex(
@@ -502,72 +465,90 @@ interface PendingReassign {
   attribute: 'person'
 }
 
-// --- Sortable saved view chip ---
+// --- Favorites chip + selector popup ---
 
-interface SortableViewChipProps {
-  view: import('../models').PersistedSavedView
+function FavoriteChip({
+  def,
+  isActive,
+  onApply,
+}: {
+  def: PersistedListDefinition
   isActive: boolean
-  isRenaming: boolean
-  renameText: string
-  onRenameChange: (text: string) => void
-  onFinishRename: () => void
-  onCancelRename: () => void
-  onApply: (view: { sortBy: ListSortBy; filters: import('../models/saved-view').SavedViewFilters; id: number }) => void
-  onStartRename: (id: number, name: string) => void
-  onContextMenu: (e: React.MouseEvent, view: { id: number; name: string }) => void
-  onRemove: (id: number, name: string) => void
-}
-
-function SortableViewChip({
-  view, isActive, isRenaming, renameText, onRenameChange,
-  onFinishRename, onCancelRename, onApply, onStartRename, onContextMenu, onRemove,
-}: SortableViewChipProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: view.id })
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : undefined,
-  }
-
+  onApply: (def: PersistedListDefinition) => void
+}) {
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`${styles.savedViewChip} ${isActive ? styles.savedViewChipActive : ''}`}
-      {...attributes}
-      {...listeners}
-      onContextMenu={(e) => onContextMenu(e, view)}
-    >
-      {isRenaming ? (
-        <input
-          className={styles.savedViewRenameInput}
-          value={renameText}
-          onChange={(e) => onRenameChange(e.target.value)}
-          onBlur={onFinishRename}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onFinishRename()
-            if (e.key === 'Escape') onCancelRename()
-          }}
-          autoFocus
-        />
-      ) : (
-        <button
-          className={styles.savedViewName}
-          onClick={() => onApply(view)}
-          onDoubleClick={() => onStartRename(view.id, view.name)}
-          title="Click to apply, double-click to rename, right-click for options"
-        >
-          {view.name}
-        </button>
-      )}
+    <div className={`${styles.savedViewChip} ${isActive ? styles.savedViewChipActive : ''}`}>
       <button
-        className={styles.savedViewRemove}
-        onClick={() => onRemove(view.id, view.name)}
-        title="Remove saved view"
+        className={styles.savedViewName}
+        onClick={() => onApply(def)}
+        title="Click to load this list"
       >
-        ×
+        {def.name}
       </button>
     </div>
+  )
+}
+
+/**
+ * Anchor-less overlay listing every `ListDefinition`. Used for both Save (with
+ * a leading "+ New" entry) and Load (list only). Each row has a `×` that
+ * routes through `onDelete` with a confirmation. Click the row to pick it.
+ */
+function ListDefinitionSelector({
+  defs,
+  mode,
+  onPickDef,
+  onNew,
+  onDelete,
+  onClose,
+}: {
+  defs: PersistedListDefinition[]
+  mode: 'save' | 'load'
+  onPickDef: (def: PersistedListDefinition) => void
+  onNew?: () => void
+  onDelete: (def: PersistedListDefinition) => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <div className={styles.dialogBackdrop} onClick={onClose} />
+      <div className={styles.dialog}>
+        <div className={styles.dialogTitle}>
+          {mode === 'save' ? 'Save list' : 'Load list'}
+        </div>
+        <div className={styles.selectorList}>
+          {mode === 'save' && onNew && (
+            <button className={styles.selectorNewRow} onClick={onNew}>
+              + New list
+            </button>
+          )}
+          {defs.length === 0 && (
+            <div className={styles.selectorEmpty}>No saved lists yet.</div>
+          )}
+          {defs.map((d) => (
+            <div key={d.id} className={styles.selectorRow}>
+              <button
+                className={styles.selectorName}
+                onClick={() => onPickDef(d)}
+                title={mode === 'save' ? 'Overwrite this list' : 'Load this list'}
+              >
+                {d.name}
+              </button>
+              <button
+                className={styles.selectorDelete}
+                onClick={(e) => { e.stopPropagation(); onDelete(d) }}
+                title="Delete list"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className={styles.dialogActions}>
+          <button className={styles.dialogCancel} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -590,6 +571,7 @@ export function ListView() {
   const updateListDefinition = useListDefinitionStore((s) => s.update)
   const allListDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const loadListDefinitions = useListDefinitionStore((s) => s.load)
+  const removeListDefinition = useListDefinitionStore((s) => s.remove)
   const { filters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
   const filterPredicate = useMemo(() => criteriaToPredicate(filters), [filters])
@@ -597,19 +579,16 @@ export function ListView() {
     setAllFilters(predicateToCriteria(next))
   }, [setAllFilters])
   const taskEdit = useTaskEditCallbacks()
-  const { views: savedViews, activeViewId, load: loadSavedViews, saveCurrentView, updateView, renameView, removeView, reorder: reorderViews, setActiveViewId } = useSavedViewStore()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
   const [overSectionKey, setOverSectionKey] = useState<string | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
-  const [renamingViewId, setRenamingViewId] = useState<number | null>(null)
-  const [renameText, setRenameText] = useState('')
-  const [showSaveViewDialog, setShowSaveViewDialog] = useState(false)
-  const [saveViewName, setSaveViewName] = useState('')
-  const [showSavePresetDialog, setShowSavePresetDialog] = useState(false)
-  const [savePresetName, setSavePresetName] = useState('')
-  const [savePresetPin, setSavePresetPin] = useState(true)
-  const [savePresetError, setSavePresetError] = useState('')
+  const [activeLoadedDefId, setActiveLoadedDefId] = useState<number | null>(null)
+  const [showSaveSelector, setShowSaveSelector] = useState(false)
+  const [showLoadSelector, setShowLoadSelector] = useState(false)
+  const [showNewListPrompt, setShowNewListPrompt] = useState(false)
+  const [newListName, setNewListName] = useState('')
+  const [newListError, setNewListError] = useState('')
   const addListDefinition = useListDefinitionStore((s) => s.add)
   const isMobile = useIsMobile()
 
@@ -629,9 +608,8 @@ export function ListView() {
     loadOrgs()
     loadTags()
     loadStatuses()
-    loadSavedViews()
     loadListDefinitions()
-  }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadTags, loadStatuses, loadSavedViews, loadListDefinitions])
+  }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadTags, loadStatuses, loadListDefinitions])
 
   // Re-load assignment joins only when the set of todo ids changes.
   // Identity-based dep on `todos` would re-fire on every attribute edit;
@@ -715,67 +693,140 @@ export function ListView() {
     openEditPopup(todoId)
   }, [openEditPopup])
 
-  // --- Saved views ---
+  // --- Lists: Save / Load / Favorites (unified Phase 3 flow) ---
 
-  const applyingViewRef = useRef(false)
+  const favoritedDefs = useMemo(
+    () => allListDefinitions.filter((d) => d.favorited).sort((a, b) => a.sortOrder - b.sortOrder),
+    [allListDefinitions],
+  )
 
-  const handleApplyView = useCallback((view: {
-    sortBy: string
-    groupBy?: ListGroupBy
-    itemSortBy?: ListItemSortBy
-    filters: import('../models/saved-view').SavedViewFilters
-    id: number
-    maxTasks?: number
-    limitMode?: 'hard' | 'scroll'
-  }) => {
-    applyingViewRef.current = true
-    const { groupBy, itemSortBy } = resolveSavedViewGrouping(view)
-    setListGroupBy(groupBy)
-    setListSortBy(itemSortBy)
-    const { seededAssignedStatusId, seededFollowupStatusId } = useSettingsStore.getState()
-    const allStatuses = useStatusStore.getState().statuses
-    const { runtime } = savedFiltersToRuntime(view.filters, seededAssignedStatusId, seededFollowupStatusId, allStatuses)
-    setAllFilters({ ...useFilterStore.getState().filters, ...runtime })
-    setActiveViewId(view.id)
-    setMaxTasks(view.maxTasks ?? null)
-    setMaxTasksInput(view.maxTasks != null ? String(view.maxTasks) : '')
-    setLimitMode(view.limitMode ?? 'hard')
-  }, [setListGroupBy, setListSortBy, setAllFilters, setActiveViewId])
+  const allDefsSorted = useMemo(
+    () => [...allListDefinitions].sort((a, b) => a.sortOrder - b.sortOrder),
+    [allListDefinitions],
+  )
 
-  // Clear saved view highlight when filters or group/sort or limit change externally
+  const applyDefinition = useCallback((def: PersistedListDefinition) => {
+    if (def.membership.kind !== 'custom') return
+    setAllFilters(predicateToCriteria(def.membership.predicate))
+    if (def.grouping.kind === 'by-field') setListGroupBy(def.grouping.by)
+    else if (def.grouping.kind === 'by-tag') setListGroupBy('tag')
+    else if (def.grouping.kind === 'by-sortBy' && def.sort.kind === 'sortBy') setListGroupBy(def.sort.by)
+    else setListGroupBy('none')
+    // ListItemSortBy is a subset of ListSortBy — coerce unsupported values to manual.
+    const ITEM_SORTS: ListItemSortBy[] = ['manual', 'date', 'scheduled', 'deadline']
+    const itemSort: ListItemSortBy = def.sort.kind === 'sortBy' && (ITEM_SORTS as string[]).includes(def.sort.by)
+      ? def.sort.by as ListItemSortBy
+      : 'manual'
+    setListSortBy(itemSort)
+    setMaxTasks(def.maxTasks ?? null)
+    setMaxTasksInput(def.maxTasks != null ? String(def.maxTasks) : '')
+    setLimitMode(def.limitMode ?? 'hard')
+    setActiveLoadedDefId(def.id)
+  }, [setAllFilters, setListGroupBy, setListSortBy])
+
+  // Clear the active-loaded highlight once the user edits any input externally.
+  const applyingRef = useRef(false)
   useEffect(() => {
-    if (applyingViewRef.current) {
-      applyingViewRef.current = false
-      return
-    }
-    const { activeViewId: currentId, setActiveViewId: clearId } = useSavedViewStore.getState()
-    if (currentId !== null) {
-      clearId(null)
-    }
+    if (applyingRef.current) { applyingRef.current = false; return }
+    setActiveLoadedDefId(null)
   }, [filters, listGroupBy, listSortBy, maxTasks, limitMode])
 
-  const handleSaveView = useCallback(() => {
-    setSaveViewName('')
-    setShowSaveViewDialog(true)
+  const applyAndMarkLoaded = useCallback((def: PersistedListDefinition) => {
+    applyingRef.current = true
+    applyDefinition(def)
+  }, [applyDefinition])
+
+  const writeCurrentStateToDef = useCallback(async (def: PersistedListDefinition) => {
+    const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
+    await updateListDefinition({
+      ...def,
+      membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
+      sort,
+      grouping,
+      ...(maxTasks != null ? { maxTasks } : { maxTasks: undefined as unknown as number | undefined }),
+      ...(maxTasks != null ? { limitMode } : { limitMode: undefined }),
+    } as PersistedListDefinition)
+    applyingRef.current = true
+    setActiveLoadedDefId(def.id)
+  }, [listGroupBy, listSortBy, filters, maxTasks, limitMode, updateListDefinition])
+
+  const handleSaveClick = useCallback(() => {
+    setShowSaveSelector(true)
   }, [])
 
-  const handleConfirmSaveView = useCallback(async () => {
-    const name = saveViewName.trim()
-    if (!name) return
-    await saveCurrentView(name, listGroupBy, listSortBy, filters, {
-      maxTasks: maxTasks ?? undefined,
-      limitMode: maxTasks != null ? limitMode : undefined,
+  const handleLoadClick = useCallback(() => {
+    setShowLoadSelector(true)
+  }, [])
+
+  const handleSavePickDef = useCallback((def: PersistedListDefinition) => {
+    showBulkConfirmation('custom', [], {
+      title: `Overwrite "${def.name}"?`,
+      message: 'Replaces its filter, grouping, and sort with the current view.',
+      confirmLabel: 'Overwrite',
+      onConfirm: async () => {
+        await writeCurrentStateToDef(def)
+        setShowSaveSelector(false)
+      },
     })
-    setShowSaveViewDialog(false)
-    setSaveViewName('')
-  }, [saveViewName, saveCurrentView, listGroupBy, listSortBy, filters, maxTasks, limitMode])
+  }, [showBulkConfirmation, writeCurrentStateToDef])
 
-  const handleSavePreset = useCallback(() => {
-    setSavePresetName('')
-    setSavePresetPin(true)
-    setSavePresetError('')
-    setShowSavePresetDialog(true)
+  const handleSaveNew = useCallback(() => {
+    setNewListName('')
+    setNewListError('')
+    setShowSaveSelector(false)
+    setShowNewListPrompt(true)
   }, [])
+
+  const handleConfirmNewList = useCallback(async () => {
+    const name = newListName.trim()
+    if (!name) return
+    try {
+      const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
+      const id = await addListDefinition({
+        name,
+        membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
+        sort,
+        grouping,
+        pinnedToDashboard: false,
+        favorited: true,
+        ...(maxTasks != null ? { maxTasks, limitMode } : {}),
+      })
+      applyingRef.current = true
+      setActiveLoadedDefId(id)
+      setShowNewListPrompt(false)
+      setNewListName('')
+    } catch (e) {
+      setNewListError((e as Error).message)
+    }
+  }, [newListName, addListDefinition, filters, listGroupBy, listSortBy, maxTasks, limitMode])
+
+  const handleLoadPickDef = useCallback((def: PersistedListDefinition) => {
+    // Unsaved-edits guard: if a def was last loaded and state diverged, prompt.
+    const dirty = activeLoadedDefId !== null && activeLoadedDefId !== def.id
+    if (dirty) {
+      showBulkConfirmation('custom', [], {
+        title: 'Discard current changes?',
+        message: `Load "${def.name}" and replace the current filters/grouping.`,
+        confirmLabel: 'Load',
+        onConfirm: () => {
+          applyAndMarkLoaded(def)
+          setShowLoadSelector(false)
+        },
+      })
+      return
+    }
+    applyAndMarkLoaded(def)
+    setShowLoadSelector(false)
+  }, [activeLoadedDefId, applyAndMarkLoaded, showBulkConfirmation])
+
+  const handleDeleteFromSelector = useCallback((def: PersistedListDefinition) => {
+    showBulkConfirmation('custom', [], {
+      title: `Delete list "${def.name}"?`,
+      message: 'This action cannot be undone.',
+      confirmLabel: 'Delete',
+      onConfirm: () => removeListDefinition(def.id),
+    })
+  }, [showBulkConfirmation, removeListDefinition])
 
   const handleSaveEditedPreset = useCallback(async () => {
     if (editingListDefId == null) return
@@ -790,88 +841,6 @@ export function ListView() {
     })
     clearEditingListDef()
   }, [editingListDefId, allListDefinitions, updateListDefinition, filters, listGroupBy, listSortBy, clearEditingListDef])
-
-  const handleConfirmSavePreset = useCallback(async () => {
-    const name = savePresetName.trim()
-    if (!name) return
-    try {
-      const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
-      const id = await addListDefinition({
-        name,
-        membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
-        sort,
-        grouping,
-        pinnedToDashboard: savePresetPin,
-      })
-      if (savePresetPin) {
-        const { dashboardUserLists, setDashboardUserLists } = useSettingsStore.getState()
-        const cur = dashboardUserLists ?? []
-        if (!cur.includes(id)) await setDashboardUserLists([...cur, id])
-      }
-      setShowSavePresetDialog(false)
-      setSavePresetName('')
-    } catch (e) {
-      setSavePresetError((e as Error).message)
-    }
-  }, [savePresetName, savePresetPin, addListDefinition, filters, listGroupBy, listSortBy])
-
-  const handleStartRename = useCallback((id: number, currentName: string) => {
-    setRenamingViewId(id)
-    setRenameText(currentName)
-  }, [])
-
-  const handleFinishRename = useCallback(async () => {
-    if (renamingViewId === null) return
-    const trimmed = renameText.trim()
-    if (trimmed) await renameView(renamingViewId, trimmed)
-    setRenamingViewId(null)
-    setRenameText('')
-  }, [renamingViewId, renameText, renameView])
-
-  const handleUpdateView = useCallback(async (id: number) => {
-    await updateView(id, listGroupBy, listSortBy, filters, {
-      maxTasks: maxTasks ?? undefined,
-      limitMode: maxTasks != null ? limitMode : undefined,
-    })
-  }, [updateView, listGroupBy, listSortBy, filters, maxTasks, limitMode])
-
-  // --- Saved view reorder ---
-  const [viewReorderKey, setViewReorderKey] = useState(0)
-  const viewSortSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
-  const savedViewIds = useMemo(() => savedViews.map(v => v.id), [savedViews])
-
-  const handleViewDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const sorted = [...savedViews].sort((a, b) => a.sortOrder - b.sortOrder)
-    const fromIndex = sorted.findIndex(v => v.id === active.id)
-    const toIndex = sorted.findIndex(v => v.id === over.id)
-    if (fromIndex !== -1 && toIndex !== -1) {
-      reorderViews(fromIndex, toIndex)
-      setViewReorderKey(k => k + 1)
-    }
-  }, [savedViews, reorderViews])
-
-  // --- Saved view context menu ---
-  const [viewContextMenu, setViewContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
-
-  const handleViewContextMenu = useCallback((e: React.MouseEvent, view: { id: number; name: string }) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setViewContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      items: [
-        { label: 'Update to current settings', action: () => handleUpdateView(view.id) },
-        { label: 'Rename', action: () => handleStartRename(view.id, view.name) },
-        { separator: true, label: '', action: () => {} },
-        { label: 'Delete', action: () => removeView(view.id), danger: true },
-      ],
-    })
-  }, [handleUpdateView, handleStartRename, removeView])
 
   // --- DnD handlers ---
 
@@ -967,36 +936,17 @@ export function ListView() {
             </div>
           )}
 
-          {savedViews.length > 0 && (
-            <DndContext key={viewReorderKey} sensors={viewSortSensors} collisionDetection={closestCenter} onDragEnd={handleViewDragEnd}>
-              <SortableContext items={savedViewIds} strategy={horizontalListSortingStrategy}>
-                <div className={styles.savedViewsBar}>
-                  {savedViews.map((view) => {
-                    return (
-                      <SortableViewChip
-                        key={view.id}
-                        view={view}
-                        isActive={activeViewId === view.id}
-                        isRenaming={renamingViewId === view.id}
-                        renameText={renameText}
-                        onRenameChange={setRenameText}
-                        onFinishRename={handleFinishRename}
-                        onCancelRename={() => { setRenamingViewId(null); setRenameText('') }}
-                        onApply={handleApplyView}
-                        onStartRename={handleStartRename}
-                        onContextMenu={handleViewContextMenu}
-                        onRemove={(id, name) => showBulkConfirmation('custom', [], {
-                          title: `Delete saved view "${name}"?`,
-                          message: 'This action cannot be undone.',
-                          confirmLabel: 'Delete',
-                          onConfirm: () => removeView(id),
-                        })}
-                      />
-                    )
-                  })}
-                </div>
-              </SortableContext>
-            </DndContext>
+          {favoritedDefs.length > 0 && (
+            <div className={styles.savedViewsBar}>
+              {favoritedDefs.map((def) => (
+                <FavoriteChip
+                  key={def.id}
+                  def={def}
+                  isActive={activeLoadedDefId === def.id}
+                  onApply={applyAndMarkLoaded}
+                />
+              ))}
+            </div>
           )}
 
           <ListFilterEditor
@@ -1011,7 +961,7 @@ export function ListView() {
                 <IconSelect<ListGroupBy>
                   value={listGroupBy}
                   options={groupByOptions}
-                  onChange={(v) => { setListGroupBy(v); setActiveViewId(null) }}
+                  onChange={(v) => setListGroupBy(v)}
                   ariaLabel="Group tasks by"
                 />
               </div>
@@ -1020,7 +970,7 @@ export function ListView() {
                 <IconSelect<ListItemSortBy>
                   value={listSortBy}
                   options={itemSortByOptions}
-                  onChange={(v) => { setListSortBy(v); setActiveViewId(null) }}
+                  onChange={(v) => setListSortBy(v)}
                   ariaLabel="Sort tasks by"
                 />
               </div>
@@ -1063,17 +1013,17 @@ export function ListView() {
             <div className={styles.toolbarActions}>
               <button
                 className={styles.toolbarActionBtn}
-                onClick={handleSaveView}
-                title="Save current view"
+                onClick={handleSaveClick}
+                title="Save the current filter + grouping as a list"
               >
-                Save View
+                Save
               </button>
               <button
                 className={styles.toolbarActionBtn}
-                onClick={handleSavePreset}
-                title="Save as a Dashboard / Canvas list"
+                onClick={handleLoadClick}
+                title="Load a saved list"
               >
-                Save to Dashboard
+                Load
               </button>
               <button
                 className={styles.toolbarActionBtn}
@@ -1209,72 +1159,53 @@ export function ListView() {
         )}
       </div>
       <FilteredListPopup />
-      {showSaveViewDialog && (
-        <>
-          <div className={styles.dialogBackdrop} onClick={() => setShowSaveViewDialog(false)} />
-          <div className={styles.dialog}>
-            <div className={styles.dialogTitle}>Save View</div>
-            <input
-              className={styles.dialogInput}
-              value={saveViewName}
-              onChange={(e) => setSaveViewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleConfirmSaveView()
-                if (e.key === 'Escape') setShowSaveViewDialog(false)
-              }}
-              placeholder="View name"
-              autoFocus
-            />
-            <div className={styles.dialogActions}>
-              <button className={styles.dialogCancel} onClick={() => setShowSaveViewDialog(false)}>Cancel</button>
-              <button className={styles.dialogConfirm} onClick={handleConfirmSaveView} disabled={!saveViewName.trim()}>Save</button>
-            </div>
-          </div>
-        </>
-      )}
-      {showSavePresetDialog && (
-        <>
-          <div className={styles.dialogBackdrop} onClick={() => setShowSavePresetDialog(false)} />
-          <div className={styles.dialog}>
-            <div className={styles.dialogTitle}>Save to Dashboard</div>
-            <div className={styles.dialogHint}>
-              Captures current filters + grouping as a reusable list, available on the Dashboard and as a canvas inset.
-            </div>
-            <input
-              className={styles.dialogInput}
-              value={savePresetName}
-              onChange={(e) => { setSavePresetName(e.target.value); setSavePresetError('') }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleConfirmSavePreset()
-                if (e.key === 'Escape') setShowSavePresetDialog(false)
-              }}
-              placeholder="Preset name"
-              autoFocus
-            />
-            <label className={styles.dialogToggle}>
-              <input
-                type="checkbox"
-                checked={savePresetPin}
-                onChange={(e) => setSavePresetPin(e.target.checked)}
-              />
-              Pin to Dashboard
-            </label>
-            {savePresetError && <div className={styles.dialogError}>{savePresetError}</div>}
-            <div className={styles.dialogActions}>
-              <button className={styles.dialogCancel} onClick={() => setShowSavePresetDialog(false)}>Cancel</button>
-              <button className={styles.dialogConfirm} onClick={handleConfirmSavePreset} disabled={!savePresetName.trim()}>Save</button>
-            </div>
-          </div>
-        </>
-      )}
-      {viewContextMenu && createPortal(
-        <CanvasContextMenu
-          x={viewContextMenu.x}
-          y={viewContextMenu.y}
-          items={viewContextMenu.items}
-          onClose={() => setViewContextMenu(null)}
+      {showSaveSelector && createPortal(
+        <ListDefinitionSelector
+          defs={allDefsSorted}
+          mode="save"
+          onPickDef={handleSavePickDef}
+          onNew={handleSaveNew}
+          onDelete={handleDeleteFromSelector}
+          onClose={() => setShowSaveSelector(false)}
         />,
         document.body,
+      )}
+      {showLoadSelector && createPortal(
+        <ListDefinitionSelector
+          defs={allDefsSorted}
+          mode="load"
+          onPickDef={handleLoadPickDef}
+          onDelete={handleDeleteFromSelector}
+          onClose={() => setShowLoadSelector(false)}
+        />,
+        document.body,
+      )}
+      {showNewListPrompt && (
+        <>
+          <div className={styles.dialogBackdrop} onClick={() => setShowNewListPrompt(false)} />
+          <div className={styles.dialog}>
+            <div className={styles.dialogTitle}>New list</div>
+            <div className={styles.dialogHint}>
+              Captures current filter + grouping as a reusable list and adds it to Favorites.
+            </div>
+            <input
+              className={styles.dialogInput}
+              value={newListName}
+              onChange={(e) => { setNewListName(e.target.value); setNewListError('') }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleConfirmNewList()
+                if (e.key === 'Escape') setShowNewListPrompt(false)
+              }}
+              placeholder="List name"
+              autoFocus
+            />
+            {newListError && <div className={styles.dialogError}>{newListError}</div>}
+            <div className={styles.dialogActions}>
+              <button className={styles.dialogCancel} onClick={() => setShowNewListPrompt(false)}>Cancel</button>
+              <button className={styles.dialogConfirm} onClick={handleConfirmNewList} disabled={!newListName.trim()}>Save</button>
+            </div>
+          </div>
+        </>
       )}
     </>
   )

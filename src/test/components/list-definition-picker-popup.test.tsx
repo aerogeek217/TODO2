@@ -9,6 +9,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     name: `List ${overrides.id}`,
     sortOrder: overrides.id,
     pinnedToDashboard: false,
+    favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: { kind: 'sort-order' },
     grouping: { kind: 'none' },
