@@ -268,35 +268,49 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
 
       <div
         className={`${styles.resizeHandle} nopan nodrag`}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation()
+          resizeCleanupRef.current?.()
+          const handle = e.currentTarget as HTMLDivElement
+          const pointerId = e.pointerId
+          try { handle.setPointerCapture(pointerId) } catch { /* noop */ }
+
           const startX = e.clientX
           const startW = width
           const zoom = getZoom()
-          const nodeEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+          const nodeEl = handle.closest('.react-flow__node')
           const nodeDiv = nodeEl?.querySelector('.' + styles.node) as HTMLElement | null
+          let active = true
 
-          const onMouseMove = (ev: MouseEvent) => {
+          const onPointerMove = (ev: PointerEvent) => {
+            if (!active) return
             const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
             if (nodeDiv) {
               nodeDiv.style.width = `${newW}px`
             }
           }
 
-          const onMouseUp = (ev: MouseEvent) => {
+          const onPointerUp = (ev: PointerEvent) => {
+            if (!active) return
             const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
             onResize?.(newW, height)
             cleanup()
           }
 
           const cleanup = () => {
-            window.removeEventListener('mousemove', onMouseMove)
-            window.removeEventListener('mouseup', onMouseUp)
+            active = false
+            handle.removeEventListener('pointermove', onPointerMove)
+            handle.removeEventListener('pointerup', onPointerUp)
+            handle.removeEventListener('pointercancel', onPointerUp)
+            try {
+              if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+            } catch { /* noop */ }
             resizeCleanupRef.current = null
           }
           resizeCleanupRef.current = cleanup
-          window.addEventListener('mousemove', onMouseMove)
-          window.addEventListener('mouseup', onMouseUp)
+          handle.addEventListener('pointermove', onPointerMove)
+          handle.addEventListener('pointerup', onPointerUp)
+          handle.addEventListener('pointercancel', onPointerUp)
         }}
       />
       {kindAnchor && (

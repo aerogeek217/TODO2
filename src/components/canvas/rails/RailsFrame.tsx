@@ -483,6 +483,12 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
   const [draggingSlot, setDraggingSlot] = useState<RailsDragData | null>(null)
   const [announcement, setAnnouncement] = useState<string>('')
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
+  // Holds the active pointer-listener cleanup between onDragStart and
+  // onDragEnd/Cancel. A ref (rather than the old `as unknown as` laundering
+  // on `pointerRef`) plus an unmount effect covers the case where the dnd
+  // provider unmounts mid-drag without firing end/cancel.
+  const cleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => { cleanupRef.current?.(); cleanupRef.current = null }, [])
   const dropSlotToSide = useCanvasRailsStore((s) => s.dropSlotToSide)
   const splitDropSlot = useCanvasRailsStore((s) => s.splitDropSlot)
   const reorderTab = useCanvasRailsStore((s) => s.reorderTab)
@@ -551,15 +557,14 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
         pointerRef.current = { x: e.clientX, y: e.clientY }
       }
       window.addEventListener('pointermove', onMove)
-      const cleanup = () => {
+      cleanupRef.current = () => {
         window.removeEventListener('pointermove', onMove)
+        cleanupRef.current = null
       }
-      ;(pointerRef as unknown as { cleanup?: () => void }).cleanup = cleanup
     },
     onDragEnd: ({ active, over }) => {
       const data = active.data.current as RailsDragData | undefined
-      const cleanup = (pointerRef as unknown as { cleanup?: () => void }).cleanup
-      if (cleanup) { cleanup(); (pointerRef as unknown as { cleanup?: () => void }).cleanup = undefined }
+      cleanupRef.current?.()
       if (data?.type !== RAILS_DRAG_TYPE) { setDraggingSlot(null); return }
       setDraggingSlot(null)
       if (!over) { setAnnouncement('Drop cancelled'); return }
@@ -697,8 +702,7 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
       // don't merge into other slots' strips (that'd be a destructive op).
     },
     onDragCancel: () => {
-      const cleanup = (pointerRef as unknown as { cleanup?: () => void }).cleanup
-      if (cleanup) { cleanup(); (pointerRef as unknown as { cleanup?: () => void }).cleanup = undefined }
+      cleanupRef.current?.()
       setDraggingSlot(null)
       setAnnouncement('Drop cancelled')
     },

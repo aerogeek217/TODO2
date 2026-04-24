@@ -151,52 +151,71 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
         <>
           <div
             className={`${styles.bottomHandle} nopan nodrag`}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation()
               resizeCleanupRef.current?.()
+              const handle = e.currentTarget as HTMLDivElement
+              const pointerId = e.pointerId
+              try { handle.setPointerCapture(pointerId) } catch { /* noop */ }
+
               const startY = e.clientY
               const startH = inset.height || 300
               const zoom = getZoom()
-              const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+              const insetEl = handle.closest('.react-flow__node')
               const bodyEl = insetEl?.querySelector('.' + styles.body) as HTMLElement | null
+              let active = true
 
-              const onMouseMove = (ev: MouseEvent) => {
+              const onPointerMove = (ev: PointerEvent) => {
+                if (!active) return
                 const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
                 if (bodyEl) bodyEl.style.maxHeight = `${newH}px`
               }
 
-              const onMouseUp = (ev: MouseEvent) => {
+              const onPointerUp = (ev: PointerEvent) => {
+                if (!active) return
                 const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
                 if (inset.id && onResize) onResize(inset.id, inset.width, Math.round(newH))
                 cleanup()
               }
 
               const cleanup = () => {
-                window.removeEventListener('mousemove', onMouseMove)
-                window.removeEventListener('mouseup', onMouseUp)
+                active = false
+                handle.removeEventListener('pointermove', onPointerMove)
+                handle.removeEventListener('pointerup', onPointerUp)
+                handle.removeEventListener('pointercancel', onPointerUp)
+                try {
+                  if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+                } catch { /* noop */ }
                 resizeCleanupRef.current = null
               }
               resizeCleanupRef.current = cleanup
-              window.addEventListener('mousemove', onMouseMove)
-              window.addEventListener('mouseup', onMouseUp)
+              handle.addEventListener('pointermove', onPointerMove)
+              handle.addEventListener('pointerup', onPointerUp)
+              handle.addEventListener('pointercancel', onPointerUp)
             }}
           />
           <div
             className={`${styles.cornerHandle} nopan nodrag`}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
               e.stopPropagation()
               resizeCleanupRef.current?.()
+              const handle = e.currentTarget as HTMLDivElement
+              const pointerId = e.pointerId
+              try { handle.setPointerCapture(pointerId) } catch { /* noop */ }
+
               const startX = e.clientX
               const startY = e.clientY
               const startW = inset.width
               const startH = inset.height || 300
               const zoom = getZoom()
               const nodeId = `inset-${inset.id}`
-              const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+              const insetEl = handle.closest('.react-flow__node')
               const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
               const bodyEl = insetEl?.querySelector('.' + styles.body) as HTMLElement | null
+              let active = true
 
-              const onMouseMove = (ev: MouseEvent) => {
+              const onPointerMove = (ev: PointerEvent) => {
+                if (!active) return
                 let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
                 const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
                 if (onResizeSnap) {
@@ -208,7 +227,8 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
                 if (bodyEl) bodyEl.style.maxHeight = `${newH}px`
               }
 
-              const onMouseUp = (ev: MouseEvent) => {
+              const onPointerUp = (ev: PointerEvent) => {
+                if (!active) return
                 let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
                 const newH = Math.max(100, startH + (ev.clientY - startY) / zoom)
                 if (onResizeSnap) {
@@ -220,13 +240,19 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
               }
 
               const cleanup = () => {
-                window.removeEventListener('mousemove', onMouseMove)
-                window.removeEventListener('mouseup', onMouseUp)
+                active = false
+                handle.removeEventListener('pointermove', onPointerMove)
+                handle.removeEventListener('pointerup', onPointerUp)
+                handle.removeEventListener('pointercancel', onPointerUp)
+                try {
+                  if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+                } catch { /* noop */ }
                 resizeCleanupRef.current = null
               }
               resizeCleanupRef.current = cleanup
-              window.addEventListener('mousemove', onMouseMove)
-              window.addEventListener('mouseup', onMouseUp)
+              handle.addEventListener('pointermove', onPointerMove)
+              handle.addEventListener('pointerup', onPointerUp)
+              handle.addEventListener('pointercancel', onPointerUp)
             }}
           />
         </>
@@ -234,17 +260,23 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
 
       <div
         className={`${styles.resizeHandle} nopan nodrag`}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation()
           resizeCleanupRef.current?.()
+          const handle = e.currentTarget as HTMLDivElement
+          const pointerId = e.pointerId
+          try { handle.setPointerCapture(pointerId) } catch { /* noop */ }
+
           const startX = e.clientX
           const startW = inset.width
           const zoom = getZoom()
           const nodeId = `inset-${inset.id}`
-          const insetEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+          const insetEl = handle.closest('.react-flow__node')
           const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
+          let active = true
 
-          const onMouseMove = (ev: MouseEvent) => {
+          const onPointerMove = (ev: PointerEvent) => {
+            if (!active) return
             let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
             if (onResizeSnap) {
               const snap = onResizeSnap(nodeId, newW)
@@ -256,7 +288,8 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
             }
           }
 
-          const onMouseUp = (ev: MouseEvent) => {
+          const onPointerUp = (ev: PointerEvent) => {
+            if (!active) return
             let newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
             if (onResizeSnap) {
               newW = onResizeSnap(nodeId, newW).width
@@ -267,13 +300,19 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           }
 
           const cleanup = () => {
-            window.removeEventListener('mousemove', onMouseMove)
-            window.removeEventListener('mouseup', onMouseUp)
+            active = false
+            handle.removeEventListener('pointermove', onPointerMove)
+            handle.removeEventListener('pointerup', onPointerUp)
+            handle.removeEventListener('pointercancel', onPointerUp)
+            try {
+              if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+            } catch { /* noop */ }
             resizeCleanupRef.current = null
           }
           resizeCleanupRef.current = cleanup
-          window.addEventListener('mousemove', onMouseMove)
-          window.addEventListener('mouseup', onMouseUp)
+          handle.addEventListener('pointermove', onPointerMove)
+          handle.addEventListener('pointerup', onPointerUp)
+          handle.addEventListener('pointercancel', onPointerUp)
         }}
       />
       {kindAnchor && (

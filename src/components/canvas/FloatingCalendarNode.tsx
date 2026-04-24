@@ -31,6 +31,8 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
   const { getZoom } = useReactFlow()
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
+  useEffect(() => () => { resizeCleanupRef.current?.() }, [])
+
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
@@ -140,17 +142,24 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
 
       <div
         className={`${styles.resizeHandle} nopan nodrag`}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation()
+          resizeCleanupRef.current?.()
+          const handle = e.currentTarget as HTMLDivElement
+          const pointerId = e.pointerId
+          try { handle.setPointerCapture(pointerId) } catch { /* noop */ }
+
           const startX = e.clientX
           const startY = e.clientY
           const startW = width
           const startH = height
           const zoom = getZoom()
-          const nodeEl = (e.currentTarget as HTMLElement).closest('.react-flow__node')
+          const nodeEl = handle.closest('.react-flow__node')
           const calDiv = nodeEl?.querySelector('.' + styles.calendar) as HTMLElement | null
+          let active = true
 
-          const onMouseMove = (ev: MouseEvent) => {
+          const onPointerMove = (ev: PointerEvent) => {
+            if (!active) return
             const dx = ev.clientX - startX
             const dy = ev.clientY - startY
             const newW = Math.max(260, startW + dx / zoom)
@@ -161,21 +170,28 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
             }
           }
 
-          const onMouseUp = (ev: MouseEvent) => {
+          const onPointerUp = (ev: PointerEvent) => {
+            if (!active) return
             const newW = Math.max(260, startW + (ev.clientX - startX) / zoom)
             const newH = Math.max(200, startH + (ev.clientY - startY) / zoom)
             if (calendar.id != null && onResize) onResize(calendar.id, newW, newH)
-            resizeCleanupRef.current?.()
+            cleanup()
           }
 
           const cleanup = () => {
-            window.removeEventListener('mousemove', onMouseMove)
-            window.removeEventListener('mouseup', onMouseUp)
+            active = false
+            handle.removeEventListener('pointermove', onPointerMove)
+            handle.removeEventListener('pointerup', onPointerUp)
+            handle.removeEventListener('pointercancel', onPointerUp)
+            try {
+              if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+            } catch { /* noop */ }
             resizeCleanupRef.current = null
           }
           resizeCleanupRef.current = cleanup
-          window.addEventListener('mousemove', onMouseMove)
-          window.addEventListener('mouseup', onMouseUp)
+          handle.addEventListener('pointermove', onPointerMove)
+          handle.addEventListener('pointerup', onPointerUp)
+          handle.addEventListener('pointercancel', onPointerUp)
         }}
       />
       {kindAnchor && (
