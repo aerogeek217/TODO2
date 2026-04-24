@@ -83,6 +83,20 @@ describe('useTagStore', () => {
     expect(await db.todoTags.count()).toBe(0)
   })
 
+  it('remove prunes the deleted tag from assignedTagsMap', async () => {
+    const urgentId = await useTagStore.getState().add('urgent')
+    const todayId = await useTagStore.getState().add('today')
+    const todoId = await addTodo()
+    await useTagStore.getState().loadAssignments([todoId])
+    await useTagStore.getState().assignTag(todoId, urgentId)
+    await useTagStore.getState().assignTag(todoId, todayId)
+    expect(useTagStore.getState().assignedTagsMap.get(todoId)).toHaveLength(2)
+
+    await useTagStore.getState().remove(urgentId)
+    const remaining = useTagStore.getState().assignedTagsMap.get(todoId) ?? []
+    expect(remaining.map((t) => t.id)).toEqual([todayId])
+  })
+
   it('loadAssignments populates assignedTagsMap', async () => {
     const tagId = await useTagStore.getState().add('urgent')
     const todoId = await addTodo()

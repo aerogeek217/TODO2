@@ -369,6 +369,28 @@ describe('buildDashboardLists — grouping', () => {
     const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], [overdue], makeCtx())
     expect(lists[0].groups![0].key).toBe('overdue')
   })
+
+  it('deadline bucketing places todos without a deadline into a trailing noDeadline bucket', () => {
+    const withDeadline = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 2 * MS_PER_DAY) })
+    const withoutDeadline = makeTodo({ id: 2 })
+    const lists = buildDashboardLists(
+      [DEADLINE_GROUPED_DEF],
+      [withDeadline, withoutDeadline],
+      makeCtx(),
+    )
+    const groups = lists[0].groups!
+    const noDeadline = groups.find((g) => g.key === 'no-deadline')
+    expect(noDeadline).toBeDefined()
+    expect(noDeadline!.label).toBe('No deadline')
+    expect(noDeadline!.todos.map((t) => t.id)).toEqual([2])
+    expect(groups[groups.length - 1].key).toBe('no-deadline')
+  })
+
+  it('deadline bucketing omits the noDeadline bucket when every todo has a deadline', () => {
+    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 1 * MS_PER_DAY) })
+    const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], [t], makeCtx())
+    expect(lists[0].groups!.map((g) => g.key)).not.toContain('no-deadline')
+  })
 })
 
 describe('buildDashboardLists — no list caps', () => {

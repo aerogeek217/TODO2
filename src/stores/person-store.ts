@@ -79,7 +79,14 @@ export const usePersonStore = create<PersonState>((set, get) => {
         { table: db.personOrgs, key: 'personId', id },
       ])
       await personRepository.delete(id)
-      set({ people: get().people.filter((p) => p.id !== id) })
+      const prevMap = get().assignedPeopleMap
+      const nextMap = new Map(
+        Array.from(prevMap, ([k, people]) => [k, people.filter((p) => p.id !== id)] as const),
+      )
+      set({
+        people: get().people.filter((p) => p.id !== id),
+        assignedPeopleMap: nextMap,
+      })
       if (person) {
         undoable(
           `Delete person "${person.name}"`,

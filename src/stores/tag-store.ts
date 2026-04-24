@@ -80,7 +80,14 @@ export const useTagStore = create<TagState>((set, get) => {
         { table: db.todoTags, key: 'tagId', id },
       ])
       await tagRepository.delete(id)
-      set({ tags: get().tags.filter((t) => t.id !== id) })
+      const prevMap = get().assignedTagsMap
+      const nextMap = new Map(
+        Array.from(prevMap, ([k, tags]) => [k, tags.filter((t) => t.id !== id)] as const),
+      )
+      set({
+        tags: get().tags.filter((t) => t.id !== id),
+        assignedTagsMap: nextMap,
+      })
       if (tag) {
         undoable(
           `Delete tag "${tag.name}"`,

@@ -43,6 +43,20 @@ describe('useOrgStore', () => {
     expect(useOrgStore.getState().orgs).toHaveLength(0)
   })
 
+  it('remove prunes the deleted org from assignedOrgsMap', async () => {
+    const engId = await useOrgStore.getState().add('Engineering')
+    const designId = await useOrgStore.getState().add('Design')
+    const todoId = await addTodo()
+    await useOrgStore.getState().loadAssignments([todoId])
+    await useOrgStore.getState().assignOrg(todoId, engId)
+    await useOrgStore.getState().assignOrg(todoId, designId)
+    expect(useOrgStore.getState().assignedOrgsMap.get(todoId)).toHaveLength(2)
+
+    await useOrgStore.getState().remove(engId)
+    const remaining = useOrgStore.getState().assignedOrgsMap.get(todoId) ?? []
+    expect(remaining.map((o) => o.id)).toEqual([designId])
+  })
+
   it('loadAssignments populates assignedOrgsMap', async () => {
     const orgId = await useOrgStore.getState().add('Engineering')
     const todoId = await addTodo()

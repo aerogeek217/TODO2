@@ -90,7 +90,14 @@ export const useOrgStore = create<OrgState>((set, get) => {
         { table: db.todoOrgs, key: 'orgId', id },
       ])
       await orgRepository.delete(id)
-      set({ orgs: get().orgs.filter((o) => o.id !== id) })
+      const prevMap = get().assignedOrgsMap
+      const nextMap = new Map(
+        Array.from(prevMap, ([k, orgs]) => [k, orgs.filter((o) => o.id !== id)] as const),
+      )
+      set({
+        orgs: get().orgs.filter((o) => o.id !== id),
+        assignedOrgsMap: nextMap,
+      })
       if (org) {
         undoable(
           `Delete org "${org.name}"`,

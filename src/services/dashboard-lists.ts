@@ -361,10 +361,11 @@ function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext
   const nextWeek: PersistedTodoItem[] = []
   const thisMonth: PersistedTodoItem[] = []
   const later: PersistedTodoItem[] = []
+  const noDeadline: PersistedTodoItem[] = []
 
   for (const t of todos) {
     const d = t.dueDate ? startOfDay(new Date(t.dueDate)) : null
-    if (d === null) continue
+    if (d === null) { noDeadline.push(t); continue }
     const ms = d.getTime()
     if (ms < base) overdue.push(t)
     else if (ms < tomorrowStart) dueToday.push(t)
@@ -381,6 +382,7 @@ function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext
   if (nextWeek.length > 0) groups.push({ key: 'next-week', label: 'Next week', todos: nextWeek })
   if (thisMonth.length > 0) groups.push({ key: 'this-month', label: 'This month', todos: thisMonth })
   if (later.length > 0) groups.push({ key: 'later', label: 'Later', todos: later })
+  if (noDeadline.length > 0) groups.push({ key: 'no-deadline', label: 'No deadline', todos: noDeadline })
   return groups
 }
 

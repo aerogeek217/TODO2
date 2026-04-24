@@ -48,7 +48,21 @@ export function HorizonsSlotContent() {
   const [slotPickerAt, setSlotPickerAt] = useState<{ key: HorizonKey; x: number; y: number } | null>(null)
   const [showHorizonEditor, setShowHorizonEditor] = useState(false)
 
-  const today = useMemo(() => startOfToday(), [])
+  // Date-sensitive predicates roll at midnight; re-key `today` on day change.
+  const [dayKey, setDayKey] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+  })
+  useEffect(() => {
+    const now = new Date()
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
+    const timer = setTimeout(() => {
+      const d = new Date()
+      setDayKey(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
+    }, Math.max(1000, nextMidnight - now.getTime() + 50))
+    return () => clearTimeout(timer)
+  }, [dayKey])
+  const today = useMemo(() => startOfToday(), [dayKey])
 
   useEffect(() => {
     if (todos.length === 0) return

@@ -43,6 +43,20 @@ describe('usePersonStore', () => {
     expect(usePersonStore.getState().people).toHaveLength(0)
   })
 
+  it('remove prunes the deleted person from assignedPeopleMap', async () => {
+    const aliceId = await usePersonStore.getState().add('Alice', 'A')
+    const bobId = await usePersonStore.getState().add('Bob', 'B')
+    const todoId = await addTodo()
+    await usePersonStore.getState().loadAssignments([todoId])
+    await usePersonStore.getState().assignPerson(todoId, aliceId)
+    await usePersonStore.getState().assignPerson(todoId, bobId)
+    expect(usePersonStore.getState().assignedPeopleMap.get(todoId)).toHaveLength(2)
+
+    await usePersonStore.getState().remove(aliceId)
+    const remaining = usePersonStore.getState().assignedPeopleMap.get(todoId) ?? []
+    expect(remaining.map((p) => p.id)).toEqual([bobId])
+  })
+
   it('loadAssignments populates assignedPeopleMap', async () => {
     const personId = await usePersonStore.getState().add('Alice', 'A')
     const todoId = await addTodo()
