@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import type { EmptySideClaim, RailSide } from '../../../models/canvas-rails'
 import { encodeRailsDropId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
+import { useUIStore } from '../../../stores/ui-store'
 import styles from './DockOverlay.module.css'
 
 interface DockOverlayProps {
@@ -41,15 +43,40 @@ function stripPart(side: RailSide, claim?: EmptySideClaim): string {
 function SubZone({ side, claim }: { side: RailSide; claim?: EmptySideClaim }) {
   const id = encodeRailsDropId({ kind: 'empty-side', side, claim })
   const { setNodeRef, isOver } = useDroppable({ id, data: { type: RAILS_DRAG_TYPE } })
+  // React-Flow float drags don't fire dnd-kit `isOver`, so derive an
+  // equivalent hover flag from pointer position while a float is in flight.
+  const floatDragActive = useUIStore((s) => s.floatDrag !== null)
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [pointerInside, setPointerInside] = useState(false)
+  useEffect(() => {
+    if (!floatDragActive || isOver) {
+      setPointerInside(false)
+      return
+    }
+    const onMove = (e: PointerEvent) => {
+      const el = ref.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                     e.clientY >= rect.top && e.clientY <= rect.bottom
+      setPointerInside(inside)
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [floatDragActive, isOver])
+  const hoverActive = isOver || pointerInside
   const label = claim
     ? `Dock to ${SIDE_LABEL[side]} rail, claim ${CLAIM_LABEL[side][claim]} corner`
     : `Dock to ${SIDE_LABEL[side]} rail`
   const classes = [styles.zone, styles[stripPart(side, claim)]]
   if (claim) classes.push(styles.corner)
-  if (isOver) classes.push(styles.over)
+  if (hoverActive) classes.push(styles.over)
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el)
+        ref.current = el
+      }}
       className={classes.join(' ')}
       role="button"
       aria-label={label}
