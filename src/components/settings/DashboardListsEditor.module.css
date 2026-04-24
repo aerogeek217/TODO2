@@ -74,7 +74,6 @@
 .configHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 8px;
@@ -86,12 +85,6 @@
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-}
-
-.configHeaderActions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .configSaveBtn {
@@ -276,6 +269,10 @@
 .configFooter {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
 }
 
 .configDoneBtn {

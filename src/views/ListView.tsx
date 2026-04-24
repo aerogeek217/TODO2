@@ -18,7 +18,6 @@ import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter, criteriaToPredicate, predicateToCriteria } from '../stores/filter-store'
-import { ListFilterEditor } from '../components/settings/ListFilterEditor'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { encodeGroupSort } from '../data/saved-view-legacy'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
@@ -30,7 +29,7 @@ import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy, TodoPredicate } from '../models'
+import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy } from '../models'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled } from '../utils/effective-date'
@@ -574,10 +573,6 @@ export function ListView() {
   const removeListDefinition = useListDefinitionStore((s) => s.remove)
   const { filters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
-  const filterPredicate = useMemo(() => criteriaToPredicate(filters), [filters])
-  const handleFilterPredicateChange = useCallback((next: TodoPredicate) => {
-    setAllFilters(predicateToCriteria(next))
-  }, [setAllFilters])
   const taskEdit = useTaskEditCallbacks()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
@@ -949,11 +944,6 @@ export function ListView() {
             </div>
           )}
 
-          <ListFilterEditor
-            predicate={filterPredicate}
-            onChange={handleFilterPredicateChange}
-          />
-
           <div className={styles.toolbar}>
             <div className={styles.toolbarControls}>
               <div className={styles.toolbarField}>
@@ -1013,17 +1003,17 @@ export function ListView() {
             <div className={styles.toolbarActions}>
               <button
                 className={styles.toolbarActionBtn}
-                onClick={handleSaveClick}
-                title="Save the current filter + grouping as a list"
-              >
-                Save
-              </button>
-              <button
-                className={styles.toolbarActionBtn}
                 onClick={handleLoadClick}
                 title="Load a saved list"
               >
                 Load
+              </button>
+              <button
+                className={styles.toolbarActionBtn}
+                onClick={handleSaveClick}
+                title="Save the current filter + grouping as a list"
+              >
+                Save
               </button>
               <button
                 className={styles.toolbarActionBtn}

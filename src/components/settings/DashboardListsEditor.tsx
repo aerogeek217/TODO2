@@ -223,26 +223,6 @@ function ConfigPanel({
     <div className={local.configPanel}>
       <div className={local.configHeader}>
         <span className={local.configHeaderTitle}>Edit list</span>
-        <div className={local.configHeaderActions}>
-          {dirty && (
-            <button
-              type="button"
-              className={local.configDiscardBtn}
-              onClick={handleDiscard}
-            >
-              Discard
-            </button>
-          )}
-          <button
-            type="button"
-            className={local.configSaveBtn}
-            onClick={handleSave}
-            disabled={!dirty}
-            title={dirty ? 'Save changes' : 'No changes to save'}
-          >
-            Save
-          </button>
-        </div>
       </div>
 
       {currentPredicate && (
@@ -308,8 +288,26 @@ function ConfigPanel({
       </div>
 
       <div className={local.configFooter}>
+        {dirty && (
+          <button
+            type="button"
+            className={local.configDiscardBtn}
+            onClick={handleDiscard}
+          >
+            Discard
+          </button>
+        )}
         <button type="button" className={local.configDoneBtn} onClick={onCollapse}>
           Close
+        </button>
+        <button
+          type="button"
+          className={local.configSaveBtn}
+          onClick={handleSave}
+          disabled={!dirty}
+          title={dirty ? 'Save changes' : 'No changes to save'}
+        >
+          Save
         </button>
       </div>
     </div>
