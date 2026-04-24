@@ -110,9 +110,11 @@ export function buildSearchContextMenuItems(params: {
  * accept canvas/dashboard task drags pick these up too — see
  * P3 of `docs/plans/features/features-batch-2026-04`.
  *
- * Right-clicking surfaces the same context menu as `TaskRow`, but the menu
- * itself lives on the parent `TopBar` so it survives the search dropdown
- * unmounting while the menu is open (P4).
+ * Right-clicking surfaces the same context menu as `TaskRow`. The menu lives
+ * on the parent `TopBar` (not on each row) so it survives re-renders and so
+ * the dropdown stays mounted underneath the menu (P2 of
+ * `search-and-notes-bugs` — keep the result list visible while the menu is
+ * open so the user can pick another row).
  *
  * Click-to-open uses `onClick` (not `onMouseDown`): dnd-kit's PointerSensor
  * has a 5-px activation distance, so a short press still fires click; a press
@@ -828,9 +830,11 @@ export function TopBar() {
   const handleOpenSearchContextMenu = useCallback((todo: PersistedTodoItem, x: number, y: number) => {
     const onBoard = useTaskboardStore.getState().has(todo.id)
     setSearchContextMenu({ todoId: todo.id, x, y, onBoard })
-    // Close the dropdown; the menu lives on TopBar so it survives the close.
-    setSearchFocused(false)
-    searchInputRef.current?.blur()
+    // Keep the dropdown open so the user can pick another row after closing
+    // the menu. The row's `onMouseDown preventDefault` already blocks the
+    // right-click from transferring focus off the input; picking a menu item
+    // focuses the menu button and that natural blur collapses the dropdown —
+    // so actions still clean up both surfaces.
   }, [])
 
   const menuTodo = useMemo(() => {

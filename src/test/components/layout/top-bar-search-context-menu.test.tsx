@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { buildSearchContextMenuItems } from '../../../components/layout/TopBar'
+import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
+import { buildSearchContextMenuItems, TopBar } from '../../../components/layout/TopBar'
+import { useFilterStore } from '../../../stores/filter-store'
+import { usePersonStore } from '../../../stores/person-store'
+import { useOrgStore } from '../../../stores/org-store'
+import { useStatusStore } from '../../../stores/status-store'
+import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useProjectStore } from '../../../stores/project-store'
 import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { makeTodo } from '../../helpers'
@@ -138,5 +146,87 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
     const deleteItem = items[items.length - 1]
     deleteItem.action()
     expect(showBulkConfirmation).toHaveBeenCalledWith('delete', [99])
+  })
+})
+
+/**
+ * P2 (search-and-notes-bugs) — the search dropdown must stay mounted
+ * underneath the context menu on right-click. The previous P4 implementation
+ * eagerly blurred the input + flipped `searchFocused` to false when the menu
+ * opened; that collapsed the result list out from under the user. The fix in
+ * `handleOpenSearchContextMenu` drops those two lines and relies on the row's
+ * `onMouseDown preventDefault` to keep the input focused while the menu is
+ * visible. When the user picks a menu item, the menu button receives focus
+ * on mousedown — the input's natural blur still collapses the dropdown, so
+ * actions still clean up both surfaces.
+ */
+describe('TopBar search right-click — P2 dropdown survival', () => {
+  beforeEach(() => {
+    useFilterStore.getState().clearAll()
+    useTodoStore.setState({ todos: [], loading: false, error: null })
+    usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
+    useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
+    useStatusStore.setState({ statuses: [] })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+    useProjectStore.setState({ projects: [], loading: false, error: null })
+    useTaskboardStore.setState({ board: null, loading: false, error: null })
+  })
+
+  afterEach(cleanup)
+
+  function seedAndOpenResults() {
+    useTodoStore.setState({
+      todos: [makeTodo({ id: 1, title: 'buy milk' })],
+      loading: false,
+      error: null,
+    })
+    render(
+      <MemoryRouter initialEntries={['/list']}>
+        <TopBar />
+      </MemoryRouter>,
+    )
+    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    act(() => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'buy' } })
+    })
+    const listbox = screen.getByRole('listbox', { name: /search results/i })
+    const row = within(listbox).getByRole('option')
+    return { input, listbox, row }
+  }
+
+  it('keeps the listbox mounted when a row is right-clicked', () => {
+    const { listbox, row } = seedAndOpenResults()
+    act(() => {
+      fireEvent.contextMenu(row, { clientX: 50, clientY: 50 })
+    })
+    expect(screen.getByRole('listbox', { name: /search results/i })).toBe(listbox)
+    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+  })
+
+  it('closes both the menu and the listbox when a menu action runs', () => {
+    const toggleComplete = vi.fn()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ toggleComplete } as never)
+
+    const { input, row } = seedAndOpenResults()
+    act(() => {
+      fireEvent.contextMenu(row, { clientX: 50, clientY: 50 })
+    })
+    const markComplete = screen.getByRole('button', { name: 'Mark complete' })
+
+    // Simulate the real mousedown → focus-transfer → blur sequence. JSDOM
+    // only blurs the input when another element actually takes focus, so
+    // moving focus to the menu button before `click` matches what the
+    // browser does on a real pointer press.
+    act(() => {
+      markComplete.focus()
+      fireEvent.click(markComplete)
+    })
+
+    expect(toggleComplete).toHaveBeenCalledWith(1)
+    expect(screen.queryByRole('listbox', { name: /search results/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Mark complete' })).toBeNull()
+    expect(document.activeElement).not.toBe(input)
   })
 })
