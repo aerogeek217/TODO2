@@ -1,4 +1,13 @@
-import type { PersistedTodoItem, TodoPredicate, ListSortBy, Tag } from '../models'
+import type {
+  PersistedTodoItem,
+  TodoPredicate,
+  ListSortBy,
+  Tag,
+  Person,
+  Org,
+  Project,
+  Status,
+} from '../models'
 import type {
   ListMembership,
   ListSort,
@@ -29,6 +38,16 @@ export interface DashboardListsContext {
    * empty group list (untagged bucket still emits).
    */
   assignedTagsMap?: Map<number, Tag[]>
+  /** For `by-field` people/org bucketing. Missing → all todos go to "Unassigned" / "No organization". */
+  assignedPeopleMap?: Map<number, Person[]>
+  assignedOrgsMap?: Map<number, Org[]>
+  /** Person→org membership bridge for `by-field: 'org'`. */
+  personOrgMap?: Map<number, number[]>
+  /** Registries used to enumerate + label categorical buckets. Missing → only empty/unassigned buckets render. */
+  people?: Person[]
+  orgs?: Org[]
+  projects?: Project[]
+  statuses?: Status[]
   /**
    * Per-definition runtime-filter picks keyed by def id. When a def declares a
    * `runtimeFilter`, the interpreter reads the caller's current pick here and
@@ -274,10 +293,14 @@ function bucketByField(
       return bucketByScheduled(todos, ctx)
     case 'deadline':
       return bucketByDeadline(todos, ctx)
-    // Categorical buckets require assignment maps that the interpreter
-    // doesn't receive yet — ListView handles them locally.
-    default:
-      return undefined
+    case 'project':
+      return bucketByProject(todos, ctx)
+    case 'status':
+      return bucketByStatus(todos, ctx)
+    case 'people':
+      return bucketByPeople(todos, ctx)
+    case 'org':
+      return bucketByOrg(todos, ctx)
   }
 }
 
@@ -396,6 +419,147 @@ function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContex
   if (nextMonth.length > 0) groups.push({ key: 'next-month', label: 'Next month', todos: nextMonth })
   if (beyond.length > 0) groups.push({ key: 'beyond', label: 'Beyond', todos: beyond })
   if (noDate.length > 0) groups.push({ key: 'no-date', label: 'No scheduled date', todos: noDate })
+  return groups
+}
+
+/**
+ * Project bucketing — each todo lands in exactly one bucket based on
+ * `todo.projectId`. Unassigned todos go to a trailing "No project" bucket.
+ * Buckets enumerate from `ctx.projects` in registry order; empty buckets are
+ * dropped. Mirrors `buildProjectSections` in ListView.
+ */
+function bucketByProject(
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+): DashboardListGroup[] {
+  const projects = ctx.projects ?? []
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const p of projects) if (p.id != null) buckets.set(p.id, [])
+  const noProject: PersistedTodoItem[] = []
+
+  for (const t of todos) {
+    const bucket = t.projectId != null ? buckets.get(t.projectId) : undefined
+    if (bucket) bucket.push(t)
+    else noProject.push(t)
+  }
+
+  const groups: DashboardListGroup[] = []
+  for (const p of projects) {
+    const ts = p.id != null ? buckets.get(p.id)! : []
+    if (ts.length > 0) groups.push({ key: `project-${p.id}`, label: p.name, todos: ts })
+  }
+  if (noProject.length > 0) groups.push({ key: 'no-project', label: 'No project', todos: noProject })
+  return groups
+}
+
+/**
+ * Status bucketing — each todo lands in exactly one bucket based on
+ * `todo.statusId`. Unassigned todos go to a trailing "No status" bucket.
+ * Buckets enumerate from `ctx.statuses` in registry `sortOrder`.
+ */
+function bucketByStatus(
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+): DashboardListGroup[] {
+  const statuses = [...(ctx.statuses ?? [])].sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+  )
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const s of statuses) if (s.id != null) buckets.set(s.id, [])
+  const noStatus: PersistedTodoItem[] = []
+
+  for (const t of todos) {
+    const bucket = t.statusId != null ? buckets.get(t.statusId) : undefined
+    if (bucket) bucket.push(t)
+    else noStatus.push(t)
+  }
+
+  const groups: DashboardListGroup[] = []
+  for (const s of statuses) {
+    const ts = s.id != null ? buckets.get(s.id)! : []
+    if (ts.length > 0) groups.push({ key: `status-${s.id}`, label: s.name, todos: ts })
+  }
+  if (noStatus.length > 0) groups.push({ key: 'no-status', label: 'No status', todos: noStatus })
+  return groups
+}
+
+/**
+ * People bucketing — N-assignee todos land in all N buckets (many-to-many
+ * via `ctx.assignedPeopleMap`). Unassigned todos go to a trailing "Unassigned"
+ * bucket. Buckets enumerate from `ctx.people` in registry order.
+ */
+function bucketByPeople(
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+): DashboardListGroup[] {
+  const people = ctx.people ?? []
+  const assignedPeopleMap = ctx.assignedPeopleMap
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const p of people) if (p.id != null) buckets.set(p.id, [])
+  const unassigned: PersistedTodoItem[] = []
+
+  for (const t of todos) {
+    const assigned = assignedPeopleMap?.get(t.id) ?? []
+    if (assigned.length === 0) { unassigned.push(t); continue }
+    const seen = new Set<number>()
+    let hit = false
+    for (const p of assigned) {
+      const id = p.id!
+      if (seen.has(id)) continue
+      seen.add(id)
+      const bucket = buckets.get(id)
+      if (bucket) { bucket.push(t); hit = true }
+    }
+    if (!hit) unassigned.push(t)
+  }
+
+  const groups: DashboardListGroup[] = []
+  for (const p of people) {
+    const ts = p.id != null ? buckets.get(p.id)! : []
+    if (ts.length > 0) groups.push({ key: `person-${p.id}`, label: p.name, todos: ts })
+  }
+  if (unassigned.length > 0) groups.push({ key: 'unassigned', label: 'Unassigned', todos: unassigned })
+  return groups
+}
+
+/**
+ * Org bucketing — each todo's direct org assignments plus the orgs its
+ * assigned people belong to (via `personOrgMap`), deduped. Todos with no
+ * matched org go into a trailing "No organization" bucket.
+ */
+function bucketByOrg(
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+): DashboardListGroup[] {
+  const orgs = ctx.orgs ?? []
+  const assignedPeopleMap = ctx.assignedPeopleMap
+  const assignedOrgsMap = ctx.assignedOrgsMap
+  const personOrgMap = ctx.personOrgMap
+  const buckets = new Map<number, PersistedTodoItem[]>()
+  for (const o of orgs) if (o.id != null) buckets.set(o.id, [])
+  const noOrg: PersistedTodoItem[] = []
+
+  for (const t of todos) {
+    const matched = new Set<number>()
+    const directOrgs = assignedOrgsMap?.get(t.id) ?? []
+    for (const o of directOrgs) if (o.id != null && buckets.has(o.id)) matched.add(o.id)
+    const assignedPeople = assignedPeopleMap?.get(t.id) ?? []
+    for (const p of assignedPeople) {
+      const pid = p.id
+      if (pid == null) continue
+      const personOrgs = personOrgMap?.get(pid) ?? []
+      for (const oid of personOrgs) if (buckets.has(oid)) matched.add(oid)
+    }
+    if (matched.size === 0) noOrg.push(t)
+    else for (const oid of matched) buckets.get(oid)!.push(t)
+  }
+
+  const groups: DashboardListGroup[] = []
+  for (const o of orgs) {
+    const ts = o.id != null ? buckets.get(o.id)! : []
+    if (ts.length > 0) groups.push({ key: `org-${o.id}`, label: o.name, todos: ts })
+  }
+  if (noOrg.length > 0) groups.push({ key: 'no-org', label: 'No organization', todos: noOrg })
   return groups
 }
 

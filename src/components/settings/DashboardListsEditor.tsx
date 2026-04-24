@@ -47,41 +47,58 @@ interface Props {
    * entry point so users can't delete a horizon's mapped list-def from here.
    */
   filterIds?: number[]
-  /** Override modal title (default "Dashboard Lists"). */
+  /** Override modal title (default "Lists"). */
   title?: string
   /** When provided, mount with this definition's ConfigPanel already expanded. */
   initialSelectedId?: number
 }
 
-const SORT_KINDS: { value: ListSort['kind']; label: string }[] = [
+type SortSelectValue =
+  | 'sort-order'
+  | 'effective-date-asc'
+  | 'scheduled-asc'
+  | 'deadline-asc'
+  | `sortBy:${ListSortBy}`
+
+type GroupingSelectValue =
+  | 'none'
+  | 'relative-effective'
+  | 'relative-deadline'
+  | 'by-sortBy'
+  | `by-field:${ListSortBy}`
+  | 'by-tag'
+
+const SORT_OPTIONS: { value: SortSelectValue; label: string }[] = [
+  { value: 'sort-order', label: 'None' },
   { value: 'effective-date-asc', label: 'Effective date' },
   { value: 'scheduled-asc', label: 'Scheduled date' },
   { value: 'deadline-asc', label: 'Deadline' },
-  { value: 'sort-order', label: 'None' },
-  { value: 'sortBy', label: 'Group attribute' },
+  { value: 'sortBy:date', label: 'Date' },
+  { value: 'sortBy:scheduled', label: 'Scheduled' },
+  { value: 'sortBy:deadline', label: 'Deadline (within group)' },
+  { value: 'sortBy:project', label: 'Project' },
+  { value: 'sortBy:status', label: 'Status' },
+  { value: 'sortBy:people', label: 'People' },
+  { value: 'sortBy:org', label: 'Org' },
 ]
 
-const GROUPING_KINDS: { value: ListGrouping['kind']; label: string; title?: string }[] = [
+const GROUPING_OPTIONS: {
+  value: GroupingSelectValue
+  label: string
+  requiresSortBy?: true
+}[] = [
   { value: 'none', label: 'None' },
   { value: 'relative-effective', label: 'Relative (effective)' },
   { value: 'relative-deadline', label: 'Relative (deadline)' },
-  {
-    value: 'by-sortBy',
-    label: 'Match sort field',
-    title: 'Group by the same field used for sorting. Only available when Sort = Group attribute.',
-  },
-  { value: 'by-field', label: 'By field' },
+  { value: 'by-sortBy', label: 'Match sort field', requiresSortBy: true },
+  { value: 'by-field:date', label: 'By date' },
+  { value: 'by-field:scheduled', label: 'By scheduled' },
+  { value: 'by-field:deadline', label: 'By deadline' },
+  { value: 'by-field:project', label: 'By project' },
+  { value: 'by-field:status', label: 'By status' },
+  { value: 'by-field:people', label: 'By people' },
+  { value: 'by-field:org', label: 'By org' },
   { value: 'by-tag', label: 'By tag' },
-]
-
-const SORT_BY_OPTIONS: { value: ListSortBy; label: string }[] = [
-  { value: 'date', label: 'Effective Date' },
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'deadline', label: 'Deadline' },
-  { value: 'project', label: 'Project' },
-  { value: 'status', label: 'Status' },
-  { value: 'people', label: 'People' },
-  { value: 'org', label: 'Org' },
 ]
 
 const RUNTIME_FILTER_OPTIONS: { value: RuntimeFilterField | 'none'; label: string }[] = [
@@ -91,6 +108,30 @@ const RUNTIME_FILTER_OPTIONS: { value: RuntimeFilterField | 'none'; label: strin
   { value: 'project', label: 'Project' },
   { value: 'status', label: 'Status' },
 ]
+
+function encodeSortValue(sort: ListSort): SortSelectValue {
+  if (sort.kind === 'sortBy') return `sortBy:${sort.by}`
+  return sort.kind
+}
+
+function decodeSortValue(value: SortSelectValue): ListSort {
+  if (value.startsWith('sortBy:')) {
+    return { kind: 'sortBy', by: value.slice('sortBy:'.length) as ListSortBy }
+  }
+  return { kind: value as Exclude<ListSort['kind'], 'sortBy'> }
+}
+
+function encodeGroupingValue(grouping: ListGrouping): GroupingSelectValue {
+  if (grouping.kind === 'by-field') return `by-field:${grouping.by}`
+  return grouping.kind
+}
+
+function decodeGroupingValue(value: GroupingSelectValue): ListGrouping {
+  if (value.startsWith('by-field:')) {
+    return { kind: 'by-field', by: value.slice('by-field:'.length) as ListSortBy }
+  }
+  return { kind: value as Exclude<ListGrouping['kind'], 'by-field'> }
+}
 
 /** Map a persisted list-definition's grouping to ListView's groupBy field. */
 function resolveGroupBy(def: PersistedListDefinition): ListGroupBy {
@@ -200,39 +241,20 @@ function ConfigPanel({
 }) {
   const chips = usePredicateChips(def.membership.predicate)
 
-  const setSortKind = (kind: ListSort['kind']) => {
-    if (kind === def.sort.kind) return
-    let next: ListSort
-    switch (kind) {
-      case 'effective-date-asc': next = { kind: 'effective-date-asc' }; break
-      case 'scheduled-asc': next = { kind: 'scheduled-asc' }; break
-      case 'deadline-asc': next = { kind: 'deadline-asc' }; break
-      case 'sort-order': next = { kind: 'sort-order' }; break
-      case 'sortBy': next = { kind: 'sortBy', by: 'date' }; break
-    }
-    onChange({ ...def, sort: next })
+  const setSort = (value: SortSelectValue) => {
+    const next = decodeSortValue(value)
+    if (next.kind === def.sort.kind
+      && (next.kind !== 'sortBy' || (def.sort.kind === 'sortBy' && next.by === def.sort.by))) return
+    // If current grouping is by-sortBy but the new sort isn't sortBy, fall back to 'none'.
+    const grouping: ListGrouping = def.grouping.kind === 'by-sortBy' && next.kind !== 'sortBy'
+      ? { kind: 'none' }
+      : def.grouping
+    onChange({ ...def, sort: next, grouping })
   }
 
-  const setSortBy = (by: ListSortBy) => {
-    if (def.sort.kind !== 'sortBy') return
-    onChange({ ...def, sort: { kind: 'sortBy', by } })
-  }
-
-  const setGroupingKind = (kind: ListGrouping['kind']) => {
-    if (kind === def.grouping.kind) return
-    let next: ListGrouping
-    if (kind === 'by-field') {
-      const fallback: ListSortBy = def.sort.kind === 'sortBy' ? def.sort.by : 'date'
-      next = { kind: 'by-field', by: fallback }
-    } else {
-      next = { kind }
-    }
+  const setGrouping = (value: GroupingSelectValue) => {
+    const next = decodeGroupingValue(value)
     onChange({ ...def, grouping: next })
-  }
-
-  const setGroupingField = (by: ListSortBy) => {
-    if (def.grouping.kind !== 'by-field') return
-    onChange({ ...def, grouping: { kind: 'by-field', by } })
   }
 
   const setRuntimeFilter = (value: RuntimeFilterField | 'none') => {
@@ -278,70 +300,35 @@ function ConfigPanel({
 
       <div className={local.configRow}>
         <span className={local.configLabel}>Sort</span>
-        <div className={local.configButtons}>
-          {SORT_KINDS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`${local.configBtn} ${def.sort.kind === value ? local.configBtnActive : ''}`}
-              onClick={() => setSortKind(value)}
-            >
-              {label}
-            </button>
+        <select
+          className={local.configSelect}
+          value={encodeSortValue(def.sort)}
+          onChange={(e) => setSort(e.target.value as SortSelectValue)}
+        >
+          {SORT_OPTIONS.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
           ))}
-        </div>
+        </select>
       </div>
-
-      {def.sort.kind === 'sortBy' && (
-        <div className={local.configRow}>
-          <span className={local.configLabel}>Sort by</span>
-          <select
-            className={local.configSelect}
-            value={def.sort.by}
-            onChange={(e) => setSortBy(e.target.value as ListSortBy)}
-          >
-            {SORT_BY_OPTIONS.map(({ value, label }) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       <div className={local.configRow}>
         <span className={local.configLabel}>Grouping</span>
-        <div className={local.configButtons}>
-          {GROUPING_KINDS.map(({ value, label, title }) => {
-            const disabled = value === 'by-sortBy' && def.sort.kind !== 'sortBy'
-            return (
-              <button
-                key={value}
-                type="button"
-                className={`${local.configBtn} ${def.grouping.kind === value ? local.configBtnActive : ''}`}
-                onClick={() => setGroupingKind(value)}
-                disabled={disabled}
-                title={title}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+        <select
+          className={local.configSelect}
+          value={encodeGroupingValue(def.grouping)}
+          onChange={(e) => setGrouping(e.target.value as GroupingSelectValue)}
+        >
+          {GROUPING_OPTIONS.map(({ value, label, requiresSortBy }) => (
+            <option
+              key={value}
+              value={value}
+              disabled={requiresSortBy && def.sort.kind !== 'sortBy'}
+            >
+              {label}
+            </option>
+          ))}
+        </select>
       </div>
-
-      {def.grouping.kind === 'by-field' && (
-        <div className={local.configRow}>
-          <span className={local.configLabel}>Group by</span>
-          <select
-            className={local.configSelect}
-            value={def.grouping.by}
-            onChange={(e) => setGroupingField(e.target.value as ListSortBy)}
-          >
-            {SORT_BY_OPTIONS.map(({ value, label }) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       <div className={local.configRow}>
         <span
@@ -555,7 +542,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
       <div className={styles.backdrop} onClick={onClose} />
       <div className={styles.modal}>
         <div className={styles.header}>
-          <div className={styles.title}>{title ?? 'Dashboard Lists'}</div>
+          <div className={styles.title}>{title ?? 'Lists'}</div>
           <button className={styles.closeBtn} onClick={onClose}>&times;</button>
         </div>
 

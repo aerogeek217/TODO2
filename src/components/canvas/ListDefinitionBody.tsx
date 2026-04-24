@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PersistedTodoItem, Person, TodoPredicate } from '../../models'
 import {
   matchesFilter,
@@ -10,12 +10,20 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useProjectStore } from '../../stores/project-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
-import { buildDashboardLists } from '../../services/dashboard-lists'
+import { buildDashboardLists, type DashboardList } from '../../services/dashboard-lists'
 import { startOfToday } from '../../utils/date'
 import { TaskRow } from '../task/TaskRow'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
+import groupStyles from './ListDefinitionBody.module.css'
+
+// Stable empty array sentinel — reused across renders so `filteredTodos`
+// doesn't churn its reference when `builtList` is null (no def / runtime
+// filter unset). Without this, the `onResult` effect triggers an infinite
+// re-render loop with callers that pass an inline-arrow `onResult`.
+const EMPTY_TODOS: PersistedTodoItem[] = []
 
 export interface ListDefinitionBodyRenderRowArgs {
   todo: PersistedTodoItem
@@ -67,9 +75,12 @@ export function ListDefinitionBody({
     listDefinitionId != null ? s.listDefinitions.find((d) => d.id === listDefinitionId) : undefined,
   )
   const todos = useTodoStore((s) => s.todos)
+  const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const orgs = useOrgStore((s) => s.orgs)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
+  const projects = useProjectStore((s) => s.projects)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -99,15 +110,15 @@ export function ListDefinitionBody({
 
   const runtimeFilterPending = definition?.runtimeFilter != null && runtimeFilterValue == null
 
-  const filteredTodos = useMemo(() => {
-    if (!definition) return [] as PersistedTodoItem[]
-    if (runtimeFilterPending) return [] as PersistedTodoItem[]
+  const builtList = useMemo<DashboardList | null>(() => {
+    if (!definition) return null
+    if (runtimeFilterPending) return null
     const today = startOfToday()
     const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
       const criteria = predicateToCriteria(predicate)
-      const people = assignedPeopleMap.get(todo.id) ?? []
-      const personIds = people.map((p) => p.id!)
-      const personOrgIds = people.flatMap((p) => personOrgMap.get(p.id!) ?? [])
+      const assignedPeople = assignedPeopleMap.get(todo.id) ?? []
+      const personIds = assignedPeople.map((p) => p.id!)
+      const personOrgIds = assignedPeople.flatMap((p) => personOrgMap.get(p.id!) ?? [])
       const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
       const assignedTagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
       const filterPersonOrgIds = computeFilterPersonOrgIds(
@@ -124,19 +135,37 @@ export function ListDefinitionBody({
       today,
       evalPredicate,
       assignedTagsMap,
+      assignedPeopleMap,
+      assignedOrgsMap,
+      personOrgMap,
+      people,
+      orgs,
+      projects,
+      statuses,
       runtimeFilterValues,
     })
-    return list?.todos ?? []
+    return list ?? null
   }, [
-    definition, todos, assignedPeopleMap,
-    assignedOrgsMap, personOrgMap, assignedTagsMap, statuses, dayKey,
+    definition, todos, people, assignedPeopleMap,
+    orgs, assignedOrgsMap, personOrgMap, projects,
+    assignedTagsMap, statuses, dayKey,
     runtimeFilterValue, runtimeFilterPending,
   ])
 
+  const filteredTodos = builtList?.todos ?? EMPTY_TODOS
+  const groups = builtList?.groups
+
+  // Keep a live ref to `onResult` so the notify-effect doesn't depend on
+  // callback identity. Callers routinely pass inline arrows; depending on the
+  // callback ref would refire the effect every parent render and, combined
+  // with a fresh `todos` reference (see EMPTY_TODOS note), would cascade into
+  // an update loop. Ref pattern lets the effect fire only on real data change.
+  const onResultRef = useRef(onResult)
+  useEffect(() => { onResultRef.current = onResult }, [onResult])
+
   useEffect(() => {
-    if (!onResult) return
-    onResult({ name: definition?.name ?? null, count: filteredTodos.length, todos: filteredTodos })
-  }, [definition?.name, filteredTodos, onResult])
+    onResultRef.current?.({ name: definition?.name ?? null, count: filteredTodos.length, todos: filteredTodos })
+  }, [definition?.name, filteredTodos])
 
   const pickerLabel = definition?.runtimeFilter?.label?.trim() || (definition?.runtimeFilter
     ? definition.runtimeFilter.field[0].toUpperCase() + definition.runtimeFilter.field.slice(1)
@@ -144,6 +173,25 @@ export function ListDefinitionBody({
   const placeholderText = runtimeFilterPending
     ? `Pick a ${pickerLabel.toLowerCase()} to populate…`
     : emptyLabel
+
+  const renderTodoRow = (todo: PersistedTodoItem) => {
+    const args: ListDefinitionBodyRenderRowArgs = {
+      todo,
+      assignedPeople: assignedPeopleMap.get(todo.id),
+      onOpenDetail: openEditPopup,
+    }
+    if (renderRow) return <Fragment key={todo.id}>{renderRow(args)}</Fragment>
+    return (
+      <TaskRow
+        key={todo.id}
+        todo={todo}
+        assignedPeople={args.assignedPeople}
+        onOpenDetail={() => openEditPopup(todo.id)}
+        showContext={showContext}
+        compact={compact}
+      />
+    )
+  }
 
   return (
     <>
@@ -156,26 +204,21 @@ export function ListDefinitionBody({
       )}
       {filteredTodos.length === 0 ? (
         <div className={emptyClassName}>{placeholderText}</div>
+      ) : groups && groups.length > 0 ? (
+        <div className={className}>
+          {groups.map((g) => (
+            <div key={g.key}>
+              <div className={groupStyles.groupHeader}>
+                <span className={groupStyles.groupLabel}>{g.label}</span>
+                <span className={groupStyles.groupCount}>{g.todos.length}</span>
+              </div>
+              {g.todos.map(renderTodoRow)}
+            </div>
+          ))}
+        </div>
       ) : (
         <div className={className}>
-          {filteredTodos.map((todo) => {
-            const args: ListDefinitionBodyRenderRowArgs = {
-              todo,
-              assignedPeople: assignedPeopleMap.get(todo.id),
-              onOpenDetail: openEditPopup,
-            }
-            if (renderRow) return <Fragment key={todo.id}>{renderRow(args)}</Fragment>
-            return (
-              <TaskRow
-                key={todo.id}
-                todo={todo}
-                assignedPeople={args.assignedPeople}
-                onOpenDetail={() => openEditPopup(todo.id)}
-                showContext={showContext}
-                compact={compact}
-              />
-            )
-          })}
+          {filteredTodos.map(renderTodoRow)}
         </div>
       )}
     </>

@@ -86,7 +86,7 @@ describe('DashboardListsEditor — filterIds mode', () => {
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
     )
-    expect(getByText('Dashboard Lists')).toBeInTheDocument()
+    expect(getByText('Lists')).toBeInTheDocument()
     expect(getByText(/\+ Add List/i)).toBeInTheDocument()
     expect(getByText('Unpinned extra')).toBeInTheDocument()
     expect(container.querySelector('[class*="actions"]')).not.toBeNull()

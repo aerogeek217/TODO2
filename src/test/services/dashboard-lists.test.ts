@@ -497,14 +497,30 @@ describe('interpretGrouping — by-sortBy', () => {
     expect(lists[0].groups?.[0].key).toBe('overdue')
   })
 
-  it('by-sortBy with categorical sortBy returns undefined (not yet implemented)', () => {
-    const t = makeTodo({ id: 1 })
+  it('by-sortBy with categorical sortBy buckets via registry + assigned map', () => {
+    const ALICE: import('../../models').Person = { id: 1, name: 'Alice', initials: 'A' }
+    const BOB: import('../../models').Person = { id: 2, name: 'Bob', initials: 'B' }
+    const t1 = makeTodo({ id: 101 })
+    const t2 = makeTodo({ id: 102 })
+    const t3 = makeTodo({ id: 103 })
+    const assignedPeopleMap = new Map<number, import('../../models').Person[]>([
+      [101, [ALICE]],
+      [102, [BOB, ALICE]],
+      // 103 unassigned → "Unassigned"
+    ])
     const def = customDef({
       sort: { kind: 'sortBy', by: 'people' },
       grouping: { kind: 'by-sortBy' },
     })
-    const lists = buildDashboardLists([def], [t], makeCtx())
-    expect(lists[0].groups).toBeUndefined()
+    const lists = buildDashboardLists([def], [t1, t2, t3], makeCtx({
+      people: [ALICE, BOB],
+      assignedPeopleMap,
+    }))
+    const groups = lists[0].groups!
+    expect(groups.map((g) => g.key)).toEqual(['person-1', 'person-2', 'unassigned'])
+    expect(groups[0].todos.map((t) => t.id).sort()).toEqual([101, 102])
+    expect(groups[1].todos.map((t) => t.id)).toEqual([102])
+    expect(groups[2].todos.map((t) => t.id)).toEqual([103])
   })
 
   it('by-sortBy without a sortBy sort kind returns undefined', () => {

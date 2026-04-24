@@ -321,7 +321,7 @@ export function SettingsPage() {
               Manage Tags{tagCount > 0 && ` (${tagCount})`}
             </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowDashboardListsEditor(true)}>
-              Manage Dashboard Lists{listDefinitionCount > 0 && ` (${listDefinitionCount})`}
+              Lists{listDefinitionCount > 0 && ` (${listDefinitionCount})`}
             </button>
           </div>
         </div>
