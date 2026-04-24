@@ -17,6 +17,11 @@ interface ProjectState {
   update: (project: Project) => Promise<void>
   updatePosition: (id: number, x: number, y: number) => Promise<void>
   bulkUpdatePositions: (updates: Array<{ id: number; x: number; y: number }>) => Promise<void>
+  updateProjectGrouping: (
+    projectId: number,
+    groupBy: Project['groupBy'],
+    groupOrder?: Project['groupOrder'],
+  ) => Promise<void>
   remove: (id: number) => Promise<void>
 }
 
@@ -89,6 +94,31 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         ),
       }),
       'Failed to update project position',
+    )
+  },
+
+  async updateProjectGrouping(
+    projectId: number,
+    groupBy: Project['groupBy'],
+    groupOrder?: Project['groupOrder'],
+  ) {
+    const prev = get().projects.find((p) => p.id === projectId)
+    if (!prev) return
+    const snapshot = { ...prev }
+    return optimistic(
+      set,
+      () => set({
+        projects: get().projects.map((p) =>
+          p.id === projectId
+            ? { ...p, groupBy, ...(groupOrder !== undefined ? { groupOrder } : {}) }
+            : p,
+        ),
+      }),
+      () => projectRepository.updateGrouping(projectId, groupBy, groupOrder),
+      () => set({
+        projects: get().projects.map((p) => (p.id === projectId ? snapshot : p)),
+      }),
+      'Failed to update project grouping',
     )
   },
 

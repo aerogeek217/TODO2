@@ -27,6 +27,16 @@ export const projectRepository = {
     await db.projects.update(id, { positionX: x, positionY: y })
   },
 
+  async updateGrouping(
+    id: number,
+    groupBy: Project['groupBy'],
+    groupOrder?: Project['groupOrder'],
+  ): Promise<void> {
+    const changes: Partial<Project> = { groupBy }
+    if (groupOrder !== undefined) changes.groupOrder = groupOrder
+    await db.projects.update(id, changes)
+  },
+
   async bulkUpdatePositions(updates: Array<{ id: number; x: number; y: number }>): Promise<void> {
     if (updates.length === 0) return
     await db.transaction('rw', db.projects, async () => {

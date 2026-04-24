@@ -1,5 +1,5 @@
 export { type TodoItem, type PersistedTodoItem } from './todo-item'
-export { type Project } from './project'
+export { type Project, type ProjectGroupBy } from './project'
 export { type Canvas } from './canvas'
 export { type Person, type PersistedPerson } from './person'
 export { type Org, type PersistedOrg } from './org'

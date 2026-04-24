@@ -277,6 +277,12 @@ export class Todo2Database extends Dexie {
       .upgrade(async (tx) => {
         await runV39Migration(tx)
       })
+
+    // v40: add optional `groupBy` + `groupOrder` to projects (Phase 2 of
+    // task-grouping). Both fields are stored inline and neither is indexed, so
+    // the schema string is unchanged — version bump is for auditability.
+    // Existing rows need no rewriting (omitted fields are read as undefined).
+    this.version(40).stores({})
   }
 }
 

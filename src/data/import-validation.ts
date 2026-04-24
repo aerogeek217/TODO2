@@ -1,4 +1,4 @@
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
 import type { LegacySavedView, LegacySavedViewFilters } from './saved-view-legacy'
 
 /**
@@ -102,6 +102,20 @@ function isOptColor(v: unknown): boolean {
   return v === undefined || v === null || isValidCssColor(v)
 }
 
+const VALID_PROJECT_GROUP_BY = ['status', 'people', 'org', 'scheduled', 'deadline', 'date'] as const
+
+function isOptProjectGroupBy(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (typeof v !== 'string') return false
+  return (VALID_PROJECT_GROUP_BY as readonly string[]).includes(v)
+}
+
+function isOptStringArray(v: unknown, maxLen = 200): boolean {
+  if (v === undefined || v === null) return true
+  if (!Array.isArray(v)) return false
+  return v.every((s) => typeof s === 'string' && s.length <= maxLen)
+}
+
 function checkProject(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -114,6 +128,8 @@ function checkProject(v: unknown): CheckResult {
     ['createdAt', isDateLike(v.createdAt)],
     ['color', isOptColor(v.color)],
     ['width', isOptNum(v.width)],
+    ['groupBy', isOptProjectGroupBy(v.groupBy)],
+    ['groupOrder', isOptStringArray(v.groupOrder)],
   ])
 }
 
@@ -734,6 +750,8 @@ function pickProject(v: Record<string, unknown>): Project {
     sortOrder: v.sortOrder as number, createdAt: v.createdAt as Date,
     ...(v.color != null ? { color: v.color as string } : {}),
     ...(v.width != null ? { width: v.width as number } : {}),
+    ...(v.groupBy !== undefined ? { groupBy: v.groupBy as ProjectGroupBy | null } : {}),
+    ...(Array.isArray(v.groupOrder) ? { groupOrder: v.groupOrder as string[] } : {}),
   }
 }
 

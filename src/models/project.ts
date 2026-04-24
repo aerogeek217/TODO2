@@ -1,3 +1,5 @@
+export type ProjectGroupBy = 'status' | 'people' | 'org' | 'scheduled' | 'deadline' | 'date'
+
 export interface Project {
   id?: number
   name: string
@@ -9,4 +11,6 @@ export interface Project {
   color?: string
   sortOrder: number
   createdAt: Date
+  groupBy?: ProjectGroupBy | null
+  groupOrder?: string[]
 }
