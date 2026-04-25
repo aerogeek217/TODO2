@@ -7,11 +7,10 @@ import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTagStore } from '../../stores/tag-store'
-import { useFilterStore } from '../../stores/filter-store'
 import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { makeTodo, makePerson, makeProject } from '../helpers'
+import { makeTodo, makePerson, makeProject, resetEntityStores, clearFilterStore } from '../helpers'
 
 vi.mock('../../data/todo-repository', () => ({
   todoRepository: {
@@ -69,38 +68,12 @@ vi.mock('../../data/list-definition-repository', () => ({
   },
 }))
 
-function resetFilterStore() {
-  useFilterStore.getState().setAllFilters({
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-    tags: null,
-  })
-}
-
 function resetStores() {
-  useTodoStore.setState({ todos: [] })
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
-  useStatusStore.setState({ statuses: [] })
-  useProjectStore.setState({ projects: [] })
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
+  resetEntityStores()
   useListDefinitionStore.setState({ listDefinitions: [] })
   useUIStore.getState().closeEditPopup?.()
   useUIStore.getState().clearBulkConfirmation?.()
-  resetFilterStore()
+  clearFilterStore()
 }
 
 /**
@@ -144,20 +117,6 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
 
 describe('ListView — runtime-filter picker', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: (query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      }),
-    })
     resetStores()
     stubLoadActions()
   })
@@ -231,6 +190,53 @@ describe('ListView — runtime-filter picker', () => {
     // Alpha task is visible; Beta task is filtered out.
     expect(document.body.textContent).toMatch(/Alpha task/)
     expect(document.body.textContent).not.toMatch(/Beta task/)
+  })
+
+  it('multi-pick: picking two values OR-combines them across the task list', () => {
+    useProjectStore.setState({
+      projects: [
+        makeProject({ id: 1, canvasId: 1, name: 'Alpha' }),
+        makeProject({ id: 2, canvasId: 1, name: 'Beta' }),
+        makeProject({ id: 3, canvasId: 1, name: 'Gamma' }),
+      ],
+    })
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 10, title: 'Alpha task', projectId: 1 }),
+        makeTodo({ id: 11, title: 'Beta task', projectId: 2 }),
+        makeTodo({ id: 12, title: 'Gamma task', projectId: 3 }),
+      ],
+    })
+    const def = makeDef({
+      id: 1,
+      name: 'Tasks for…',
+      runtimeFilter: { field: 'project' },
+    })
+    useListDefinitionStore.setState({ listDefinitions: [def] })
+
+    const { getByText, getByLabelText } = render(<ListView />)
+    fireEvent.click(getByText('Tasks for…'))
+
+    const picker = getByLabelText(/Filter tasks by project/i) as HTMLInputElement
+    fireEvent.focus(picker)
+
+    // Pick Alpha first.
+    const alphaOption = Array.from(document.querySelectorAll('button'))
+      .find((b) => b.textContent === 'Alpha')
+    expect(alphaOption).toBeTruthy()
+    fireEvent.click(alphaOption!)
+
+    // Re-focus to re-open the option panel and pick Beta.
+    fireEvent.focus(picker)
+    const betaOption = Array.from(document.querySelectorAll('button'))
+      .find((b) => b.textContent === 'Beta')
+    expect(betaOption).toBeTruthy()
+    fireEvent.click(betaOption!)
+
+    // Both Alpha and Beta tasks visible; Gamma filtered out (OR semantics).
+    expect(document.body.textContent).toMatch(/Alpha task/)
+    expect(document.body.textContent).toMatch(/Beta task/)
+    expect(document.body.textContent).not.toMatch(/Gamma task/)
   })
 
   it('toggles the picker off when the toolbar Prompt select is set to None', () => {

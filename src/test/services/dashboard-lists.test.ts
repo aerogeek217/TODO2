@@ -9,31 +9,12 @@ import { resolveFuzzy } from '../../utils/effective-date'
 import { MS_PER_DAY, startOfDay } from '../../utils/date'
 import type { PersistedTodoItem, Tag, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
+import { emptyPredicate } from '../../stores/list-definition-store'
+import { makeTodo } from '../helpers'
 
 const today = startOfDay(new Date('2026-04-13T12:00:00'))
 
 const hiddenStatusId = 101
-
-function emptyPredicate(): TodoPredicate {
-  return {
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-    tags: null,
-  }
-}
 
 /**
  * Default: match every todo (grouping/sort tests don't care about membership).
@@ -46,17 +27,6 @@ function makeCtx(overrides: Partial<DashboardListsContext> = {}): DashboardLists
     evalPredicate: () => true,
     ...overrides,
   }
-}
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: `Task ${overrides.id}`,
-    isCompleted: false,
-    sortOrder: overrides.id * 1000,
-    createdAt: new Date(today),
-    modifiedAt: new Date(today),
-    ...overrides,
-  } as PersistedTodoItem
 }
 
 function customDef(overrides: Partial<PersistedListDefinition> = {}): PersistedListDefinition {

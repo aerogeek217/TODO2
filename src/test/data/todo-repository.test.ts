@@ -1,23 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
+import { makeTodo } from '../helpers'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
 })
-
-function makeTodo(overrides: Partial<import('../../models').TodoItem> = {}) {
-  const now = new Date()
-  return {
-    title: 'Test todo',
-    isCompleted: false,
-    createdAt: now,
-    modifiedAt: now,
-    sortOrder: 0,
-    ...overrides,
-  }
-}
 
 describe('todoRepository', () => {
   it('inserts and retrieves a todo', async () => {

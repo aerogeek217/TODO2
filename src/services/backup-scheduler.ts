@@ -10,7 +10,12 @@ class BackupScheduler {
 
   start(intervalMs = DEFAULT_INTERVAL_MS) {
     if (this.timer) return
-    this.timer = setInterval(() => this.autoSnapshot(), intervalMs)
+    this.timer = setInterval(() => {
+      // Don't burn IDB cycles on a backgrounded tab; the next foreground tick
+      // will catch up.
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      void this.autoSnapshot()
+    }, intervalMs)
   }
 
   stop() {
@@ -44,3 +49,9 @@ class BackupScheduler {
 }
 
 export const backupScheduler = new BackupScheduler()
+
+// Stop the interval on Vite HMR dispose so a hot-reloaded module doesn't leak
+// a second timer per edit. No-op in production builds.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => backupScheduler.stop())
+}

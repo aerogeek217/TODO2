@@ -2,22 +2,12 @@ import { describe, it, expect } from 'vitest'
 import type { PersistedTodoItem } from '../../models'
 import { effectiveDate } from '../../utils/effective-date'
 import { startOfToday } from '../../utils/date'
+import { makeTodo } from '../helpers'
 
 interface CalendarEntry {
   todo: PersistedTodoItem
   isVirtual: boolean
   displayKey: string
-}
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: `Task ${overrides.id}`,
-    isCompleted: false,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    sortOrder: overrides.id,
-    ...overrides,
-  }
 }
 
 // Matches CalendarView's same-day sort (ascending effectiveDate, sortOrder tiebreak).

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Tag } from '../models'
 import { db, tagRepository } from '../data'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 import { useSettingsStore } from './settings-store'
@@ -27,6 +27,7 @@ interface TagState {
   error: string | null
 
   load: () => Promise<void>
+  ensureLoaded: () => Promise<void>
   add: (name: string, color?: string) => Promise<number>
   update: (tag: Tag) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -39,6 +40,7 @@ interface TagState {
 }
 
 export const useTagStore = create<TagState>((set, get) => {
+  const tagEnsure = makeEnsureLoaded(() => get().load())
   const assignment = createAssignmentActions(
     {
       repo: {
@@ -65,6 +67,7 @@ export const useTagStore = create<TagState>((set, get) => {
       const tags = await loadWithState(set, () => tagRepository.getAll(), 'tags')
       if (tags) set({ tags })
     },
+    ensureLoaded: () => tagEnsure.ensureLoaded(),
 
     async add(name: string, color = DEFAULT_ENTITY_COLOR) {
       const trimmed = name.trim()

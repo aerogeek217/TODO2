@@ -9,7 +9,7 @@ import type {
   PersistedListDefinition,
 } from '../models/list-definition'
 import type { TodoPredicate } from '../models'
-import { loadWithState, mutate, optimistic } from './store-helpers'
+import { loadWithState, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface AddInput {
@@ -29,6 +29,7 @@ interface ListDefinitionState {
   error: string | null
 
   load: () => Promise<void>
+  ensureLoaded: () => Promise<void>
   add: (input: AddInput) => Promise<number>
   update: (def: PersistedListDefinition) => Promise<void>
   rename: (id: number, name: string) => Promise<void>
@@ -65,7 +66,9 @@ function nextSortOrder(defs: PersistedListDefinition[]): number {
   return defs.reduce((max, d) => Math.max(max, d.sortOrder), -1) + 1
 }
 
-export const useListDefinitionStore = create<ListDefinitionState>((set, get) => ({
+export const useListDefinitionStore = create<ListDefinitionState>((set, get) => {
+  const defEnsure = makeEnsureLoaded(() => get().load())
+  return {
   listDefinitions: [],
   loading: false,
   error: null,
@@ -74,6 +77,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     const rows = await loadWithState(set, () => listDefinitionRepository.getAll(), 'list definitions')
     if (rows) set({ listDefinitions: rows })
   },
+  ensureLoaded: () => defEnsure.ensureLoaded(),
 
   async add({ name, membership, sort, grouping, pinnedToDashboard = true, favorited = false, maxTasks, limitMode }) {
     const trimmed = name.trim()
@@ -189,4 +193,5 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       set({ listDefinitions: prev, error: 'Failed to reorder list definitions' })
     }
   },
-}))
+  }
+})

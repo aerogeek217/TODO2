@@ -4,12 +4,10 @@ import { RuntimeFilterPicker } from '../../../components/canvas/RuntimeFilterPic
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useProjectStore } from '../../../stores/project-store'
-import { makePerson, makeProject } from '../../helpers'
+import { makePerson, makeProject, resetEntityStores } from '../../helpers'
 
 function resetStores() {
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
-  useProjectStore.setState({ projects: [] })
+  resetEntityStores({ todos: false, orgs: false, statuses: false })
 }
 
 describe('RuntimeFilterPicker', () => {

@@ -202,7 +202,11 @@ class FileStorageService {
         }
       }
 
-      await backupScheduler.snapshotBeforeDestructive().catch(() => {})
+      await backupScheduler.snapshotBeforeDestructive().catch((err) => {
+        // Best-effort snapshot; surface in console so silent failures don't
+        // mask a problem with the backup table on the next destructive op.
+        console.warn('[file-storage] pre-destructive snapshot failed', err)
+      })
       await restoreFromImportData(result.data)
 
       // Notify caller to refresh all Zustand stores
@@ -211,7 +215,11 @@ class FileStorageService {
       if (e instanceof Error && e.name === 'NotFoundError') {
         this._error = 'File not found — it may have been moved or deleted'
         this.handle = null
-        await clearFileHandle().catch(() => {})
+        await clearFileHandle().catch((err) => {
+          console.warn('[file-storage] clearFileHandle failed after NotFoundError', err)
+        })
+      } else if (e instanceof Error) {
+        this._error = `Failed to read file: ${e.message}`
       } else {
         this._error = 'Failed to read file'
       }

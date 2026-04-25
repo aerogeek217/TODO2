@@ -3,7 +3,7 @@ import type { Project } from '../models'
 import { projectRepository } from '../data'
 import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from './todo-store'
-import { loadWithState, mutate, optimistic } from './store-helpers'
+import { loadWithState, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface ProjectState {
@@ -12,6 +12,7 @@ interface ProjectState {
   error: string | null
 
   loadAll: () => Promise<void>
+  ensureAllLoaded: () => Promise<void>
   loadByCanvas: (canvasId: number) => Promise<void>
   add: (name: string, canvasId: number, x?: number, y?: number) => Promise<number>
   update: (project: Project) => Promise<void>
@@ -25,7 +26,9 @@ interface ProjectState {
   remove: (id: number) => Promise<void>
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
+export const useProjectStore = create<ProjectState>((set, get) => {
+  const allEnsure = makeEnsureLoaded(() => get().loadAll())
+  return {
   projects: [],
   loading: false,
   error: null,
@@ -34,6 +37,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const projects = await loadWithState(set, () => projectRepository.getAll(), 'projects')
     if (projects) set({ projects })
   },
+  ensureAllLoaded: () => allEnsure.ensureLoaded(),
 
   async loadByCanvas(canvasId: number) {
     const projects = await loadWithState(set, () => projectRepository.getByCanvas(canvasId), 'projects')
@@ -211,4 +215,5 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
     }, 'Failed to delete project')
   },
-}))
+  }
+})

@@ -1,22 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem, Person, Org, Status, Tag } from '../../models'
+import type { Person, Org, Status, Tag } from '../../models'
 import {
   getGroupKey,
   getGroupLabel,
   partitionByGroup,
   type GroupingContext,
 } from '../../utils/task-grouping'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: 'Test',
-    isCompleted: false,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    sortOrder: 0,
-    ...overrides,
-  }
-}
+import { makeTodo } from '../helpers'
 
 function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
   return {

@@ -121,13 +121,13 @@ function DayDroppable({ day, children }: DayCellProps) {
 }
 
 export function CalendarView() {
-  const { todos, loadAll } = useTodoStore()
-  const { people, load: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
-  const { orgs, personOrgMap, assignedOrgsMap, load: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const { todos, ensureAllLoaded: loadAll } = useTodoStore()
+  const { people, ensureLoaded: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
+  const { orgs, personOrgMap, assignedOrgsMap, ensureLoaded: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const loadTags = useTagStore((s) => s.load)
+  const loadTags = useTagStore((s) => s.ensureLoaded)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
-  const { projects, loadAll: loadAllProjects } = useProjectStore()
+  const { projects, ensureAllLoaded: loadAllProjects } = useProjectStore()
   const { openEditPopup } = useUIStore()
   const { filters } = useFilterStore()
   const { statuses } = useStatusStore()

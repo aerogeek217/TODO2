@@ -3,15 +3,11 @@ import { render, cleanup, screen, fireEvent } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { ReactNode } from 'react'
 import { ListDefinitionBody } from '../../../components/canvas/ListDefinitionBody'
-import { usePersonStore } from '../../../stores/person-store'
-import { useOrgStore } from '../../../stores/org-store'
 import { useStatusStore } from '../../../stores/status-store'
-import { useProjectStore } from '../../../stores/project-store'
-import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore, emptyPredicate } from '../../../stores/list-definition-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import type { PersistedListDefinition } from '../../../models/list-definition'
-import { makeTodo } from '../../helpers'
+import { makeTodo, resetEntityStores, clearFilterStore } from '../../helpers'
 
 vi.mock('../../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
@@ -49,30 +45,9 @@ function futureDef(): PersistedListDefinition {
 }
 
 function resetStores() {
-  useTodoStore.setState({ todos: [] })
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
-  useStatusStore.setState({ statuses: [] })
-  useProjectStore.setState({ projects: [] })
+  resetEntityStores()
   useListDefinitionStore.setState({ listDefinitions: [futureDef()] })
-  useFilterStore.getState().setAllFilters({
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-    tags: null,
-  })
+  clearFilterStore()
 }
 
 describe('ListDefinitionBody', () => {
@@ -192,24 +167,7 @@ describe('ListDefinitionBody', () => {
       }],
     })
     // Global top-bar hides hidden statuses — should NOT affect the widget.
-    useFilterStore.getState().setAllFilters({
-      showCompleted: false,
-      showHiddenStatuses: false,
-      personIds: null,
-      personFilterMode: 'include-orgs',
-      orgIds: null,
-      orgFilterMode: 'include-people',
-      projectIds: null,
-      statusIds: null,
-      searchText: '',
-      dateField: 'date',
-      dateRangeStart: null,
-      dateRangeEnd: null,
-      dateRangeIncludeNoDate: false,
-      hasScheduled: null,
-      hasDeadline: null,
-      tags: null,
-    })
+    clearFilterStore()
     render(
       <Wrapper>
         <ListDefinitionBody listDefinitionId={1} />

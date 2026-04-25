@@ -13,8 +13,6 @@ export interface ResolvedInput {
   orgIds: number[]
   /** Person names that didn't match any existing person */
   unmatchedPersons: string[]
-  /** Org names that didn't match any existing org */
-  unmatchedOrgs: string[]
   /** Resolved project ID (first match wins) */
   projectId?: number
   /** Project names that didn't match any existing project */
@@ -150,7 +148,6 @@ export function resolveInput(parsed: ParsedInput, people: Person[], projects: Pr
     personIds: persons.ids,
     orgIds: orgResult.ids,
     unmatchedPersons: orgResult.unmatched,
-    unmatchedOrgs: [],
     projectId: projectResult.ids[0],
     unmatchedProjects: projectResult.unmatched,
     tags: parsed.tags,

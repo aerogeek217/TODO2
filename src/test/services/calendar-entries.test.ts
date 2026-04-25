@@ -1,18 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem } from '../../models'
 import { buildEntries } from '../../services/calendar-entries'
 import { startOfDay, MS_PER_DAY } from '../../utils/date'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: `Task ${overrides.id}`,
-    isCompleted: false,
-    sortOrder: overrides.id * 10,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    ...overrides,
-  } as PersistedTodoItem
-}
+import { makeTodo } from '../helpers'
 
 const today = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
 const days = Array.from({ length: 7 }, (_, i) =>

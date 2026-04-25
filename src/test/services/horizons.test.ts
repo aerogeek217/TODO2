@@ -6,19 +6,8 @@ import {
   horizonBins,
   horizonSomedayCount,
 } from '../../services/horizons'
-import type { PersistedTodoItem } from '../../models'
 import { MS_PER_DAY, startOfDay } from '../../utils/date'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: `Task ${overrides.id}`,
-    isCompleted: false,
-    sortOrder: overrides.id * 1000,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    ...overrides,
-  } as PersistedTodoItem
-}
+import { makeTodo } from '../helpers'
 
 describe('HORIZON_KEYS + HORIZON_GRAIN', () => {
   it('has 5 keys in the canonical order', () => {

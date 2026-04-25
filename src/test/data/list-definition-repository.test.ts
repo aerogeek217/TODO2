@@ -2,32 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
 import type { ListDefinition } from '../../models/list-definition'
-import type { TodoPredicate } from '../../models'
+import { emptyPredicate } from '../../stores/list-definition-store'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
 })
-
-function emptyPredicate(): TodoPredicate {
-  return {
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-  }
-}
 
 function makeDef(overrides: Partial<ListDefinition> = {}): ListDefinition {
   return {

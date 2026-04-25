@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Org } from '../models'
 import { db, orgRepository } from '../data'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 
@@ -15,6 +15,7 @@ interface OrgState {
   error: string | null
 
   load: () => Promise<void>
+  ensureLoaded: () => Promise<void>
   add: (name: string, color?: string, initials?: string) => Promise<number>
   update: (org: Org) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -28,6 +29,7 @@ interface OrgState {
 }
 
 export const useOrgStore = create<OrgState>((set, get) => {
+  const orgEnsure = makeEnsureLoaded(() => get().load())
   const assignment = createAssignmentActions(
     {
       repo: {
@@ -55,6 +57,7 @@ export const useOrgStore = create<OrgState>((set, get) => {
       const orgs = await loadWithState(set, () => orgRepository.getAll(), 'orgs')
       if (orgs) set({ orgs })
     },
+    ensureLoaded: () => orgEnsure.ensureLoaded(),
 
     async loadPersonOrgMap() {
       const map = await orgRepository.getPersonOrgMap()

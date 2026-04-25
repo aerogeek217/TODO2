@@ -3,7 +3,8 @@ import { parseTaskInput, applyNlpMetadata } from '../../services/nlp-task-creato
 import { resolveTags } from '../../services/nlp-resolver'
 import { useTagStore } from '../../stores/tag-store'
 import { db } from '../../data/database'
-import type { Person, Project, PersistedTodoItem } from '../../models'
+import type { Person, Project } from '../../models'
+import { makeTodo } from '../helpers'
 
 const people: Person[] = [
   { id: 1, name: 'Alice Smith', initials: 'AS' },
@@ -71,20 +72,8 @@ describe('parseTaskInput', () => {
 })
 
 describe('applyNlpMetadata', () => {
-  function makeTodo(overrides: Partial<PersistedTodoItem> = {}): PersistedTodoItem {
-    return {
-      id: 1,
-      title: 'Test task',
-      isCompleted: false,
-      createdAt: new Date(),
-      modifiedAt: new Date(),
-      sortOrder: 1,
-      ...overrides,
-    }
-  }
-
   it('calls updateTodo with scheduledDate when present', async () => {
-    const todo = makeTodo()
+    const todo = makeTodo({ id: 1, title: 'Test task' })
     const getTodo = vi.fn().mockReturnValue(todo)
     const updateTodo = vi.fn()
     const assignPerson = vi.fn()
@@ -97,7 +86,6 @@ describe('applyNlpMetadata', () => {
         personIds: [],
         orgIds: [],
         unmatchedPersons: [],
-        unmatchedOrgs: [],
         unmatchedProjects: [],
         tags: [],
       },
@@ -113,7 +101,7 @@ describe('applyNlpMetadata', () => {
 
   it('applies recurrence only when the todo has a deadline', async () => {
     const deadline = new Date('2026-03-15')
-    const todo = makeTodo({ dueDate: deadline })
+    const todo = makeTodo({ id: 1, title: 'Test task', dueDate: deadline })
     const getTodo = vi.fn().mockReturnValue(todo)
     const updateTodo = vi.fn()
 
@@ -125,7 +113,6 @@ describe('applyNlpMetadata', () => {
         personIds: [],
         orgIds: [],
         unmatchedPersons: [],
-        unmatchedOrgs: [],
         unmatchedProjects: [],
         tags: [],
       },
@@ -150,7 +137,6 @@ describe('applyNlpMetadata', () => {
         personIds: [1],
         orgIds: [],
         unmatchedPersons: [],
-        unmatchedOrgs: [],
         unmatchedProjects: [],
         tags: [],
       },
@@ -172,7 +158,6 @@ describe('applyNlpMetadata', () => {
         personIds: [1, 2],
         orgIds: [],
         unmatchedPersons: [],
-        unmatchedOrgs: [],
         unmatchedProjects: [],
         tags: [],
       },
@@ -203,7 +188,6 @@ describe('applyNlpMetadata', () => {
         personIds: [],
         orgIds: [],
         unmatchedPersons: [],
-        unmatchedOrgs: [],
         unmatchedProjects: [],
         tags: ['urgent', 'blocked'],
       },
@@ -235,7 +219,6 @@ describe('applyNlpMetadata', () => {
         personIds: [1],
         orgIds: [],
         unmatchedPersons: [],
-        unmatchedOrgs: [],
         unmatchedProjects: [],
         tags: [],
       },

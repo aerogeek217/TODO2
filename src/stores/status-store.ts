@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Status } from '../models'
 import { db, statusRepository, settingsRepository } from '../data'
-import { loadWithState, optimistic } from './store-helpers'
+import { loadWithState, optimistic, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 
@@ -11,13 +11,16 @@ interface StatusState {
   error: string | null
 
   load: () => Promise<void>
+  ensureLoaded: () => Promise<void>
   add: (name: string, color?: string, icon?: string, hideByDefault?: boolean) => Promise<number>
   update: (status: Status) => Promise<void>
   remove: (id: number) => Promise<void>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
 }
 
-export const useStatusStore = create<StatusState>((set, get) => ({
+export const useStatusStore = create<StatusState>((set, get) => {
+  const statusEnsure = makeEnsureLoaded(() => get().load())
+  return {
   statuses: [],
   loading: false,
   error: null,
@@ -26,6 +29,7 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     const statuses = await loadWithState(set, () => statusRepository.getAll(), 'statuses')
     if (statuses) set({ statuses })
   },
+  ensureLoaded: () => statusEnsure.ensureLoaded(),
 
   async add(name: string, color = DEFAULT_ENTITY_COLOR, icon = 'circle', hideByDefault?: boolean) {
     const { statuses } = get()
@@ -148,4 +152,5 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       set({ statuses: prev, error: 'Failed to reorder statuses' })
     }
   },
-}))
+  }
+})

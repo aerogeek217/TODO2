@@ -2,7 +2,6 @@ import { parseInput } from './natural-language-parser'
 import { resolveInput, resolveTags, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
 import { runNlpMetadataTransaction } from '../data'
-import { useTagStore } from '../stores/tag-store'
 import type { Person, Project, Org, PersistedTodoItem } from '../models'
 
 export interface NlpCreateResult {
@@ -84,6 +83,7 @@ export async function applyNlpMetadata(
   }
 
   if (hasTags) {
+    const { useTagStore } = await import('../stores/tag-store')
     const ids = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })
     for (const tagId of ids) {
       await useTagStore.getState().assignTag(todoId, tagId)

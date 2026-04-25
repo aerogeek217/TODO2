@@ -1,17 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useFilterStore, matchesFilter, applyFilter } from '../../stores/filter-store'
 import type { PersistedTodoItem } from '../../models'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: 'Test',
-    isCompleted: false,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    sortOrder: 0,
-    ...overrides,
-  }
-}
+import { makeTodo } from '../helpers'
 
 /** Short-hand: current active filter state from the store. */
 const f = () => useFilterStore.getState().filters

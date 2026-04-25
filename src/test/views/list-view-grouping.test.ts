@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem, Person, Project, Tag } from '../../models'
+import type { Person, Project, Tag } from '../../models'
 import {
   buildDateSections,
   buildFlatSection,
@@ -11,17 +11,7 @@ import {
   type Section,
 } from '../../views/ListView'
 import { encodeGroupSort } from '../../utils/list-view-encoding'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: 'Test',
-    isCompleted: false,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    sortOrder: 0,
-    ...overrides,
-  }
-}
+import { makeTodo } from '../helpers'
 
 describe('buildDateSections', () => {
   it('groups into overdue, today, this week, later, no date', () => {

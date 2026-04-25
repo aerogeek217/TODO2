@@ -1,18 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem } from '../../models'
 import { bucketByDate, dateBucketBoundaries } from '../../utils/bucket-by-date'
 import { startOfDay, MS_PER_DAY } from '../../utils/date'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: `Task ${overrides.id}`,
-    isCompleted: false,
-    sortOrder: overrides.id,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    ...overrides,
-  } as PersistedTodoItem
-}
+import { makeTodo } from '../helpers'
 
 describe('dateBucketBoundaries', () => {
   it('honors weekStartsOn = 1 (Mon-first)', () => {

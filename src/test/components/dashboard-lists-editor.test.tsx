@@ -2,32 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { DashboardListsEditor } from '../../components/settings/DashboardListsEditor'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
-import type { PersistedListDefinition, TodoPredicate } from '../../models'
+import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import type { PersistedListDefinition } from '../../models'
 
 vi.mock('../../data/list-definition-repository', () => ({
   listDefinitionRepository: { getAll: async () => [] },
 }))
-
-function emptyPredicate(): TodoPredicate {
-  return {
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-  }
-}
 
 function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): PersistedListDefinition {
   return {

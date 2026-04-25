@@ -1,5 +1,4 @@
 import type { SlotKind } from '../models/canvas-rails'
-import { useListDefinitionStore } from '../stores/list-definition-store'
 import { floatKindBySlotKind } from '../utils/float-kind-registry'
 
 export interface FloatRect {
@@ -39,8 +38,12 @@ export async function convertFloatingKind(args: FloatConversionArgs): Promise<nu
 
   let resolvedListId: number | undefined
   if (nextKind === 'lens') {
-    resolvedListId = seed?.listDefinitionId
-      ?? useListDefinitionStore.getState().listDefinitions[0]?.id
+    if (seed?.listDefinitionId != null) {
+      resolvedListId = seed.listDefinitionId
+    } else {
+      const { useListDefinitionStore } = await import('../stores/list-definition-store')
+      resolvedListId = useListDefinitionStore.getState().listDefinitions[0]?.id
+    }
     if (resolvedListId == null) return null
   }
 

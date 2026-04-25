@@ -6,14 +6,9 @@ import type { ReactNode } from 'react'
 import { ListInsetNode, type ListInsetNodeData } from '../../components/canvas/ListInsetNode'
 import type { ListInset } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
-import { useStatusStore } from '../../stores/status-store'
-import { useProjectStore } from '../../stores/project-store'
-import { useFilterStore } from '../../stores/filter-store'
 import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
-import { useTodoStore } from '../../stores/todo-store'
 import styles from '../../components/canvas/ListInsetNode.module.css'
+import { resetEntityStores, clearFilterStore } from '../helpers'
 
 vi.mock('../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
@@ -52,30 +47,9 @@ function emptyDef(): PersistedListDefinition {
 }
 
 function resetStores() {
-  useTodoStore.setState({ todos: [] })
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
-  useStatusStore.setState({ statuses: [] })
-  useProjectStore.setState({ projects: [] })
+  resetEntityStores()
   useListDefinitionStore.setState({ listDefinitions: [emptyDef()] })
-  useFilterStore.getState().setAllFilters({
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-    tags: null,
-  })
+  clearFilterStore()
 }
 
 function makeInset(overrides: Partial<ListInset> = {}): ListInset {

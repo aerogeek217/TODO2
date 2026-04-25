@@ -1,17 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem } from '../../models'
 import { sortProjectTasks, GROUP_OPTIONS } from '../../components/canvas/ProjectNode'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: `Task ${overrides.id}`,
-    isCompleted: false,
-    createdAt: new Date(2026, 3, 1),
-    modifiedAt: new Date(),
-    sortOrder: overrides.id,
-    ...overrides,
-  }
-}
+import { makeTodo } from '../helpers'
 
 describe('sortProjectTasks', () => {
   it('sorts by date ascending', () => {

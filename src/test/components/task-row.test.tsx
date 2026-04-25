@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
-import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
-import { makeTodo, makePerson, makeProject, makeOrg } from '../helpers'
+import { makeTodo, makePerson, makeProject, makeOrg, resetEntityStores } from '../helpers'
 
 const mockBulk = {
   toggleComplete: vi.fn(),
@@ -31,10 +30,7 @@ function getRow(): HTMLElement {
 }
 
 function resetStores() {
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
-  useStatusStore.setState({ statuses: [] })
-  useProjectStore.setState({ projects: [] })
+  resetEntityStores({ todos: false, tags: false })
   useTaskboardStore.setState({ board: null })
   useUIStore.setState({ hoveredTodoId: null })
 }

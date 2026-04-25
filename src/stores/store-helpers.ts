@@ -40,6 +40,40 @@ export async function loadWithState<T>(
 }
 
 /**
+ * Memoize a `load()` so callers (CanvasPage / ListView / CalendarView) can fire
+ * `ensureLoaded()` on every mount without re-hitting IndexedDB. Concurrent
+ * callers share the same in-flight promise; once the first load resolves,
+ * subsequent calls are a no-op until `resetLoaded()` is invoked (e.g. after
+ * an import / DB reset).
+ *
+ * Usage: keep one instance per store (`const ensure = makeEnsureLoaded(load)`)
+ * and expose `ensure` as the store action; expose `resetLoaded()` for paths
+ * that need to force a re-fetch.
+ */
+export function makeEnsureLoaded(load: () => Promise<void>): {
+  ensureLoaded: () => Promise<void>
+  resetLoaded: () => void
+} {
+  let loaded = false
+  let inflight: Promise<void> | null = null
+  return {
+    ensureLoaded() {
+      if (loaded) return Promise.resolve()
+      if (inflight) return inflight
+      const p = load()
+        .then(() => { loaded = true; inflight = null })
+        .catch((err) => { inflight = null; throw err })
+      inflight = p
+      return p
+    },
+    resetLoaded() {
+      loaded = false
+      inflight = null
+    },
+  }
+}
+
+/**
  * Wrap a store mutation with error handling: clears previous error, catches failures,
  * logs them, sets error state, and re-throws so callers can handle if needed.
  */

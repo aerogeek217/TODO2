@@ -6,26 +6,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useOrgStore } from '../../../stores/org-store'
 import { useProjectStore } from '../../../stores/project-store'
 import { useTagStore } from '../../../stores/tag-store'
-import type { TodoPredicate } from '../../../models'
-
-const emptyPredicate = (): TodoPredicate => ({
-  showCompleted: false,
-  showHiddenStatuses: false,
-  personIds: null,
-  personFilterMode: 'include-orgs',
-  orgIds: null,
-  orgFilterMode: 'include-people',
-  projectIds: null,
-  statusIds: null,
-  searchText: '',
-  dateField: 'date',
-  dateRangeStart: null,
-  dateRangeEnd: null,
-  dateRangeIncludeNoDate: false,
-  hasScheduled: null,
-  hasDeadline: null,
-  tags: null,
-})
+import { emptyPredicate } from '../../../stores/list-definition-store'
 
 const noop = () => {}
 

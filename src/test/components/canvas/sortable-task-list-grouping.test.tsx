@@ -5,14 +5,10 @@ import type { ReactNode } from 'react'
 import { SortableTaskList } from '../../../components/canvas/SortableTaskList'
 import { DragInsertContext, DragPreviewContext } from '../../../components/canvas/DragInsertContext'
 import { useStatusStore } from '../../../stores/status-store'
-import { useOrgStore } from '../../../stores/org-store'
-import { usePersonStore } from '../../../stores/person-store'
-import { useProjectStore } from '../../../stores/project-store'
-import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useTaskboardStore } from '../../../stores/taskboard-store'
 import type { Status, PersistedTodoItem } from '../../../models'
-import { makeTodo } from '../../helpers'
+import { makeTodo, resetEntityStores } from '../../helpers'
 
 vi.mock('../../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
@@ -35,10 +31,8 @@ const STATUSES: Status[] = [
 ]
 
 function resetStores() {
+  resetEntityStores({ statuses: false, tags: false })
   useStatusStore.setState({ statuses: STATUSES })
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useProjectStore.setState({ projects: [] })
   useTaskboardStore.setState({ board: null })
   useUIStore.setState({
     selectedTodoIds: new Set(),
@@ -48,7 +42,6 @@ function resetStores() {
     clipboardSourceProjectId: null,
     hoveredTodoId: null,
   } as Partial<ReturnType<typeof useUIStore.getState>>)
-  useTodoStore.setState({ todos: [] })
 }
 
 const idleDragInsert = { activeDragTodoId: null, dragExpandedProjectId: null, dragSelectionIds: null }

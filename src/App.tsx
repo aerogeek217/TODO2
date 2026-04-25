@@ -76,8 +76,8 @@ function AppBulkConfirmDialog() {
 
 function AppShell() {
   const { ensureDefault } = useCanvasStore()
-  const { load: loadPeople } = usePersonStore()
-  const { load: loadOrgs } = useOrgStore()
+  const { ensureLoaded: loadPeople } = usePersonStore()
+  const { ensureLoaded: loadOrgs } = useOrgStore()
   const { load: loadSettings } = useSettingsStore()
   const { initialize: initFileStorage } = useFileStorageStore()
   const { openCreatePopup } = useUIStore()
@@ -108,12 +108,12 @@ function AppShell() {
     Promise.all([ensureDefault(), loadSettings()])
       .then(() => initFileStorage())
       .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().loadAll(), useStatusStore.getState().load(), useTagStore.getState().load()]))
+      .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().ensureAllLoaded(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
       .then(async () => {
         // Purge expired completed tasks on startup
         const { completedRetentionDays } = useSettingsStore.getState()
         if (completedRetentionDays != null) {
-          await useTodoStore.getState().loadAll()
+          await useTodoStore.getState().ensureAllLoaded()
           await useTodoStore.getState().purgeExpiredCompleted(completedRetentionDays)
         }
       })
@@ -258,6 +258,7 @@ function AppShell() {
             <Route path="/list" element={<ListView />} />
             <Route path="/calendar" element={isMobile ? <Navigate to="/list" replace /> : <CalendarView />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to={isMobile ? '/list' : '/'} replace />} />
           </Routes>
         </Suspense>
         </div>

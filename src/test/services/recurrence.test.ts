@@ -104,6 +104,33 @@ describe('computeNextDueDate', () => {
     expect(result >= localDate(2026, 3, 1)).toBe(true)
     expect(result <= localDate(2026, 3, 8)).toBe(true)
   })
+
+  it('yearly leap-day: chained advances elevate back across multiple non-leap years', () => {
+    // From the Feb 29 anchor, walking 4 yearly steps must land back on Feb 29
+    // 4 years later — never silently lock to Feb 28. The advance reads
+    // originalDayOfMonth on every step (not getDate from the prior result).
+    // Anchor `today` BEFORE Feb 29 2028 so the iterator stops on the leap-year
+    // landing rather than rolling past it.
+    fakeToday(2028, 2, 1)
+    const rule: RecurrenceRule = { type: 'yearly', originalDayOfMonth: 29 }
+    const result = computeNextDueDate(localDate(2024, 2, 29), rule)
+    expect(fmt(result)).toBe('2028-02-29')
+  })
+
+  it('DST forward-spring (US 2026-03-08): re-anchors to local midnight', () => {
+    // Pre-DST anchor at 23:30 local on the day before spring-forward. Without
+    // setHours(0,0,0,0) the resulting timestamp can shift by an hour. The
+    // local-midnight reset means fmt() (which reads local Y/M/D) is stable.
+    fakeToday(2026, 3, 9)
+    const rule: RecurrenceRule = { type: 'daily' }
+    const preDst = new Date(2026, 2, 7, 23, 30, 0, 0) // March 7, 2026 23:30 local
+    const result = computeNextDueDate(preDst, rule)
+    // March 8 is the spring-forward day. The advance + setHours(0,0,0,0)
+    // pin the result to local midnight on March 9 (>= today).
+    expect(fmt(result)).toBe('2026-03-09')
+    expect(result.getHours()).toBe(0)
+    expect(result.getMinutes()).toBe(0)
+  })
 })
 
 describe('generateRecurringInstances', () => {

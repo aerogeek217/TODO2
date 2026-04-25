@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Person } from '../models'
 import { db, personRepository } from '../data'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface PersonState {
@@ -12,6 +12,7 @@ interface PersonState {
   error: string | null
 
   load: () => Promise<void>
+  ensureLoaded: () => Promise<void>
   add: (name: string, initials: string) => Promise<number>
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -24,6 +25,7 @@ interface PersonState {
 }
 
 export const usePersonStore = create<PersonState>((set, get) => {
+  const personEnsure = makeEnsureLoaded(() => get().load())
   const assignment = createAssignmentActions(
     {
       repo: {
@@ -50,6 +52,7 @@ export const usePersonStore = create<PersonState>((set, get) => {
       const people = await loadWithState(set, () => personRepository.getAll(), 'people')
       if (people) set({ people })
     },
+    ensureLoaded: () => personEnsure.ensureLoaded(),
 
     async add(name: string, initials: string) {
       const id = await personRepository.insert({ name, initials })

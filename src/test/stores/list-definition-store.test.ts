@@ -6,6 +6,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { criteriaToPredicate, predicateToCriteria, matchesFilter } from '../../stores/filter-store'
 import { buildDashboardLists } from '../../services/dashboard-lists'
 import type { PersistedTodoItem, TodoPredicate } from '../../models'
+import { makeTodo } from '../helpers'
 
 beforeEach(async () => {
   await db.delete()
@@ -153,17 +154,6 @@ describe('useListDefinitionStore mutations', () => {
     ).rejects.toThrow(/Name is required/)
   })
 })
-
-function makeTodo(o: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: 'Task ' + o.id,
-    isCompleted: false,
-    createdAt: new Date('2026-04-18T00:00:00Z'),
-    modifiedAt: new Date('2026-04-18T00:00:00Z'),
-    sortOrder: 0,
-    ...o,
-  }
-}
 
 describe('Save-as-preset round-trip', () => {
   it('persists a custom predicate from filter criteria and evaluates correctly', async () => {

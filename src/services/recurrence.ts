@@ -12,7 +12,21 @@ export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null):
   return rule
 }
 
-/** Advance a due date by one recurrence interval. */
+/**
+ * Advance a due date by one recurrence interval.
+ *
+ * Day-of-month integrity: monthly/quarterly/yearly read `originalDayOfMonth`
+ * from the rule (captured at creation), so a Jan-31 monthly rule that lands on
+ * Feb-28 elevates back to Mar-31; a Feb-29 yearly rule that lands on Feb-28 in
+ * year N+1 elevates back to Feb-29 in the next leap year. The fallback to
+ * `next.getDate()` only applies when the rule was constructed without a date
+ * anchor (legacy rules); those will lock to whatever day they last landed on.
+ *
+ * DST: `setHours(0, 0, 0, 0)` re-anchors to local midnight so spring-forward
+ * (which can shift 00:00 → 01:00) and fall-back (00:00 → 23:00 prev day) don't
+ * leak into the stored date. Local-midnight semantics mean a same-day fixture
+ * is timezone-stable across the DST boundaries.
+ */
 function advanceOnce(date: Date, rule: RecurrenceRule): Date {
   const next = new Date(date)
   switch (rule.type) {
@@ -51,7 +65,7 @@ function advanceOnce(date: Date, rule: RecurrenceRule): Date {
       break
     }
   }
-  // Normalize to midnight to prevent DST drift (spring-forward can shift to 23:00 or 01:00)
+  // Re-anchor to local midnight; see advanceOnce JSDoc for DST rationale.
   next.setHours(0, 0, 0, 0)
   return next
 }

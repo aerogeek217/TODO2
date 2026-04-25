@@ -17,6 +17,14 @@ function openMetaDB(): Promise<IDBDatabase> {
     req.onsuccess = () => {
       cachedDB = req.result
       cachedDB.onclose = () => { cachedDB = null }
+      // Drop the cache + close on a version-change event so a concurrent tab
+      // running a newer schema can upgrade the meta DB without our held
+      // handle blocking it. Without this, the second tab would hang on
+      // openMetaDB() forever.
+      cachedDB.onversionchange = () => {
+        cachedDB?.close()
+        cachedDB = null
+      }
       resolve(cachedDB)
     }
     req.onerror = () => reject(req.error)

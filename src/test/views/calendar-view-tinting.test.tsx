@@ -2,13 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { CalendarView } from '../../views/CalendarView'
 import { useTodoStore } from '../../stores/todo-store'
-import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useProjectStore } from '../../stores/project-store'
-import { useFilterStore } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
-import { makeTodo } from '../helpers'
+import { makeTodo, resetEntityStores, clearFilterStore } from '../helpers'
 
 vi.mock('../../data/todo-repository', () => ({
   todoRepository: {
@@ -47,30 +43,9 @@ vi.mock('../../data/project-repository', () => ({
 }))
 
 function resetStores() {
-  useTodoStore.setState({ todos: [] })
-  usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
-  useStatusStore.setState({ statuses: [] })
-  useProjectStore.setState({ projects: [] })
+  resetEntityStores()
   useUIStore.getState().closeEditPopup?.()
-  useFilterStore.getState().setAllFilters({
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-    tags: null,
-  })
+  clearFilterStore()
 }
 
 function findTaskItem(container: HTMLElement, todoId: number): HTMLElement | null {
@@ -88,20 +63,6 @@ describe('CalendarView — date-type tinting', () => {
     vi.useFakeTimers()
     // Mid-month reference date so same-month neighbours fall inside the grid.
     vi.setSystemTime(new Date(2026, 3, 16)) // Thu Apr 16 2026
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: (query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      }),
-    })
     resetStores()
   })
 

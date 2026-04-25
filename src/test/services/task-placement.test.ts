@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem } from '../../models'
 import {
   computeInsertionSort,
   placeTaskAt,
@@ -7,17 +6,7 @@ import {
   normalizeSortOrders,
   shouldNormalize,
 } from '../../services/task-placement'
-
-function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
-  return {
-    title: `Task ${overrides.id}`,
-    isCompleted: false,
-    createdAt: new Date(),
-    modifiedAt: new Date(),
-    sortOrder: overrides.id,
-    ...overrides,
-  }
-}
+import { makeTodo } from '../helpers'
 
 describe('computeInsertionSort', () => {
   it('returns 1 for empty siblings', () => {

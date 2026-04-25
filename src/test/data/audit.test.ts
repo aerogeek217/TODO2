@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { auditData, cleanupIssues } from '../../data/audit'
+import { makeTodo } from '../helpers'
 
 beforeEach(async () => {
   await db.delete()
@@ -8,17 +9,6 @@ beforeEach(async () => {
 })
 
 const now = new Date()
-
-function makeTodo(overrides: Partial<import('../../models').TodoItem> = {}) {
-  return {
-    title: 'Test todo',
-    isCompleted: false,
-    createdAt: now,
-    modifiedAt: now,
-    sortOrder: 0,
-    ...overrides,
-  }
-}
 
 /** Seed a canvas + project + todo so FKs are valid. Returns their IDs. */
 async function seedBase() {
@@ -271,7 +261,7 @@ describe('cleanupIssues', () => {
 
     const todo = await db.todos.get(todoId)
     expect(todo!.projectId).toBeUndefined()
-    expect(todo!.title).toBe('Test todo') // rest of todo intact
+    expect(todo!.title).toBe('Task') // rest of todo intact (canonical makeTodo's default)
   })
 
   it('clears dangling statusId on todos', async () => {
@@ -283,7 +273,7 @@ describe('cleanupIssues', () => {
 
     const todo = await db.todos.get(todoId)
     expect(todo!.statusId).toBeUndefined()
-    expect(todo!.title).toBe('Test todo')
+    expect(todo!.title).toBe('Task')
   })
 
   it('deletes orphaned listInsets and floating notes', async () => {

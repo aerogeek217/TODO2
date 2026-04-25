@@ -5,7 +5,7 @@ import { todoRepository } from '../data'
 import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
-import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField } from './store-helpers'
+import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded } from './store-helpers'
 import { useSettingsStore } from './settings-store'
 
 interface TodoState {
@@ -26,6 +26,7 @@ interface TodoState {
   loadByCanvas: (canvasId: number) => Promise<void>
   loadByProject: (projectId: number) => Promise<void>
   loadAll: () => Promise<void>
+  ensureAllLoaded: () => Promise<void>
   add: (title: string, canvasId?: number, projectId?: number) => Promise<number>
   addAt: (title: string, projectId: number, canvasId: number, sortOrder: number) => Promise<number>
   update: (todo: PersistedTodoItem) => Promise<void>
@@ -47,7 +48,9 @@ interface TodoState {
   _removeNoUndo: (id: number) => Promise<void>
 }
 
-export const useTodoStore = create<TodoState>((set, get) => ({
+export const useTodoStore = create<TodoState>((set, get) => {
+  const allEnsure = makeEnsureLoaded(() => get().loadAll())
+  return {
   todos: [],
   todosVersion: 0,
   loading: false,
@@ -67,6 +70,7 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     const todos = await loadWithState(set, () => todoRepository.getAll(), 'all todos')
     if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
   },
+  ensureAllLoaded: () => allEnsure.ensureLoaded(),
 
   async add(title: string, canvasId?: number, projectId?: number) {
     return mutate(set, async () => {
@@ -567,4 +571,5 @@ export const useTodoStore = create<TodoState>((set, get) => ({
     return ids.length
   },
 
-}))
+  }
+})
