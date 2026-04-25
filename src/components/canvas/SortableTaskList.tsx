@@ -6,6 +6,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useTagStore } from '../../stores/tag-store'
 import { TaskRow } from '../task/TaskRow'
 import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { bySortOrder } from '../../utils/sort-order'
@@ -117,6 +118,7 @@ export function SortableTaskList({
   // full ctx through. assignedPeopleMap stays as a prop because callers
   // already pass a per-canvas filtered/stable reference.
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const today = useMemo(() => startOfToday(), [])
 
@@ -170,6 +172,7 @@ export function SortableTaskList({
     const partition = partitionByGroup(displayItems, groupBy, {
       assignedPeopleMap: assignedPeopleMap ?? new Map(),
       assignedOrgsMap,
+      assignedTagsMap,
       statuses,
       today,
     })
@@ -184,7 +187,7 @@ export function SortableTaskList({
       out[i].nextBlockFirstId = out[i + 1].todos[0]?.id ?? null
     }
     return out
-  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, statuses, today])
+  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, today])
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])

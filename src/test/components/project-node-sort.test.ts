@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { PersistedTodoItem } from '../../models'
-import { sortProjectTasks } from '../../components/canvas/ProjectNode'
+import { sortProjectTasks, GROUP_OPTIONS } from '../../components/canvas/ProjectNode'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
   return {
@@ -48,5 +48,11 @@ describe('sortProjectTasks', () => {
     ]
     const sorted = sortProjectTasks(todos, 'name', false)
     expect(sorted.map((t) => t.title)).toEqual(['Y', 'X', 'B', 'A'])
+  })
+})
+
+describe('GROUP_OPTIONS', () => {
+  it('exposes Tag as a grouping dimension', () => {
+    expect(GROUP_OPTIONS).toContainEqual({ value: 'tag', label: 'Tag' })
   })
 })

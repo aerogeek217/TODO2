@@ -1,4 +1,4 @@
-export type ProjectGroupBy = 'status' | 'people' | 'org' | 'scheduled' | 'deadline' | 'date'
+export type ProjectGroupBy = 'status' | 'people' | 'org' | 'tag' | 'scheduled' | 'deadline' | 'date'
 
 export interface Project {
   id?: number

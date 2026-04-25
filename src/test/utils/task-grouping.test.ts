@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem, Person, Org, Status } from '../../models'
+import type { PersistedTodoItem, Person, Org, Status, Tag } from '../../models'
 import {
   getGroupKey,
   getGroupLabel,
@@ -22,6 +22,7 @@ function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
   return {
     assignedPeopleMap: new Map(),
     assignedOrgsMap: new Map(),
+    assignedTagsMap: new Map(),
     statuses: [],
     today: new Date(2026, 0, 15),
     ...over,
@@ -90,6 +91,32 @@ describe('getGroupKey', () => {
     })
   })
 
+  describe('tag', () => {
+    it('returns array with one key per assigned tag', () => {
+      const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
+      const followup: Tag = { id: 2, name: 'followup', color: '#0f0' }
+      const todo = makeTodo({ id: 10 })
+      const ctx = makeCtx({
+        assignedTagsMap: new Map([[10, [urgent, followup]]]),
+      })
+      expect(getGroupKey(todo, 'tag', ctx)).toEqual(['tag-1', 'tag-2'])
+    })
+
+    it('returns null when no tags assigned', () => {
+      const todo = makeTodo({ id: 10 })
+      expect(getGroupKey(todo, 'tag', makeCtx())).toBeNull()
+    })
+
+    it('dedupes repeated tag entries on a single todo', () => {
+      const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
+      const todo = makeTodo({ id: 10 })
+      const ctx = makeCtx({
+        assignedTagsMap: new Map([[10, [urgent, urgent]]]),
+      })
+      expect(getGroupKey(todo, 'tag', ctx)).toEqual(['tag-1'])
+    })
+  })
+
   describe('date / scheduled / deadline', () => {
     const today = new Date(2026, 0, 15)
     const yesterday = new Date(today.getTime() - 86400000)
@@ -148,6 +175,12 @@ describe('getGroupLabel', () => {
     const acme: Org = { id: 1, name: 'Acme' }
     const ctx = makeCtx({ assignedOrgsMap: new Map([[10, [acme]]]) })
     expect(getGroupLabel('org-1', 'org', ctx)).toBe('Acme')
+  })
+
+  it('returns the tag name from the assigned map', () => {
+    const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
+    const ctx = makeCtx({ assignedTagsMap: new Map([[10, [urgent]]]) })
+    expect(getGroupLabel('tag-1', 'tag', ctx)).toBe('urgent')
   })
 
   it('returns the canonical date-bucket labels', () => {
@@ -273,6 +306,63 @@ describe('partitionByGroup', () => {
     expect(result.groups).toHaveLength(2)
     expect(result.groups[0].label).toBe('Acme')
     expect(result.groups[1].label).toBe('Initech')
+  })
+
+  it('groups by tag with untagged routed to ungrouped', () => {
+    const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
+    const followup: Tag = { id: 2, name: 'followup', color: '#0f0' }
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }), // untagged
+    ]
+    const ctx = makeCtx({
+      assignedTagsMap: new Map([
+        [10, [urgent]],
+        [11, [followup]],
+      ]),
+    })
+    const result = partitionByGroup(todos, 'tag', ctx)
+    expect(result.ungrouped.map((t) => t.id)).toEqual([12])
+    // Alphabetical: followup before urgent
+    expect(result.groups.map((g) => g.label)).toEqual(['followup', 'urgent'])
+    expect(result.groups[0].todos.map((t) => t.id)).toEqual([11])
+    expect(result.groups[1].todos.map((t) => t.id)).toEqual([10])
+  })
+
+  it('places a todo into multiple tag groups when assigned to multiple tags', () => {
+    const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
+    const followup: Tag = { id: 2, name: 'followup', color: '#0f0' }
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedTagsMap: new Map([[10, [urgent, followup]]]),
+    })
+    const result = partitionByGroup(todos, 'tag', ctx)
+    expect(result.groups).toHaveLength(2)
+    expect(result.groups[0].todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[1].todos.map((t) => t.id)).toEqual([10])
+    // Same row reference, no clone
+    expect(result.groups[0].todos[0]).toBe(result.groups[1].todos[0])
+  })
+
+  it('orders tag groups alphabetically by label', () => {
+    const zeta: Tag = { id: 3, name: 'zeta', color: '#fff' }
+    const alpha: Tag = { id: 4, name: 'alpha', color: '#fff' }
+    const mu: Tag = { id: 5, name: 'mu', color: '#fff' }
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
+    ]
+    const ctx = makeCtx({
+      assignedTagsMap: new Map([
+        [10, [zeta]],
+        [11, [alpha]],
+        [12, [mu]],
+      ]),
+    })
+    const result = partitionByGroup(todos, 'tag', ctx)
+    expect(result.groups.map((g) => g.label)).toEqual(['alpha', 'mu', 'zeta'])
   })
 
   it('orders date groups in canonical bucket order regardless of input order', () => {

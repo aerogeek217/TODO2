@@ -18,7 +18,7 @@ import styles from './ProjectNode.module.css'
 
 type SortBy = 'name' | 'date' | 'created'
 
-const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
+export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
   { value: null, label: 'None' },
   { value: 'date', label: 'Effective Date' },
   { value: 'scheduled', label: 'Scheduled' },
@@ -26,6 +26,7 @@ const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
   { value: 'org', label: 'Org' },
+  { value: 'tag', label: 'Tag' },
 ]
 
 export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean): PersistedTodoItem[] {

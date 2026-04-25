@@ -1,10 +1,11 @@
-import type { PersistedTodoItem, Person, Org, Status, ProjectGroupBy } from '../models'
+import type { PersistedTodoItem, Person, Org, Status, Tag, ProjectGroupBy } from '../models'
 import { effectiveDate, resolveScheduled } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
 
 export interface GroupingContext {
   assignedPeopleMap: Map<number, Person[]>
   assignedOrgsMap: Map<number, Org[]>
+  assignedTagsMap: Map<number, Tag[]>
   statuses: readonly Status[]
   today: Date
 }
@@ -82,6 +83,14 @@ export function getGroupKey(
       }
       return keys.size === 0 ? null : [...keys]
     }
+    case 'tag': {
+      const assigned = ctx.assignedTagsMap.get(todo.id) ?? []
+      const keys = new Set<string>()
+      for (const t of assigned) {
+        if (t.id != null) keys.add(`tag-${t.id}`)
+      }
+      return keys.size === 0 ? null : [...keys]
+    }
     case 'date':
       return bucketDateKey(effectiveDate(todo, ctx.today), ctx.today)
     case 'scheduled':
@@ -130,6 +139,15 @@ export function getGroupLabel(
       }
       return ''
     }
+    case 'tag': {
+      const id = parseId('tag-', key)
+      if (id == null) return ''
+      for (const arr of ctx.assignedTagsMap.values()) {
+        const hit = arr.find((t) => t.id === id)
+        if (hit) return hit.name
+      }
+      return ''
+    }
     case 'date':
     case 'scheduled':
     case 'deadline':
@@ -168,6 +186,7 @@ function orderGroupKeys(
     }
     case 'people':
     case 'org':
+    case 'tag':
       return keys.slice().sort((a, b) =>
         getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
       )
