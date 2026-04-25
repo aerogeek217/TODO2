@@ -1020,7 +1020,7 @@ export function ListView() {
                 <select
                   className={styles.runtimeSelect}
                   value={runtimeFilterSpec?.field ?? 'none'}
-                  aria-label="Runtime filter field"
+                  aria-label="Prompt field"
                   onChange={(e) => {
                     const next = e.target.value as RuntimeFilterField | 'none'
                     if (next === 'none') {

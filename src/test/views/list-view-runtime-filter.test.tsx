@@ -238,7 +238,7 @@ describe('ListView — runtime-filter picker', () => {
     fireEvent.click(getByText('Tasks for…'))
     expect(queryByLabelText(/Filter tasks by person/i)).toBeTruthy()
 
-    const promptSelect = getByLabelText(/Runtime filter field/i) as HTMLSelectElement
+    const promptSelect = getByLabelText(/Prompt field/i) as HTMLSelectElement
     fireEvent.change(promptSelect, { target: { value: 'none' } })
     expect(queryByLabelText(/Filter tasks by person/i)).toBeNull()
   })
@@ -265,7 +265,7 @@ describe('ListView — runtime-filter picker', () => {
     fireEvent.click(getByText('Tasks for…'))
 
     // Change the spec from 'person' → 'project'.
-    const promptSelect = getByLabelText(/Runtime filter field/i) as HTMLSelectElement
+    const promptSelect = getByLabelText(/Prompt field/i) as HTMLSelectElement
     fireEvent.change(promptSelect, { target: { value: 'project' } })
 
     async function triggerSaveConfirm() {

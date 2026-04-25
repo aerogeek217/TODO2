@@ -315,7 +315,7 @@ function ConfigPanel({
           className={local.configLabel}
           title="When set, the list surface asks the user for a value before rendering — e.g. 'Tasks for {assignee}'."
         >
-          Runtime filter
+          Prompt
         </span>
         <select
           className={local.configSelect}
