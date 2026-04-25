@@ -87,6 +87,25 @@ function TagIcon() {
   )
 }
 
+function NameIcon() {
+  return (
+    <svg {...svgBase}>
+      <text
+        x="8"
+        y="11"
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="600"
+        fontFamily="system-ui, sans-serif"
+        fill="currentColor"
+        stroke="none"
+      >
+        Aa
+      </text>
+    </svg>
+  )
+}
+
 export const groupByIcons: Record<ListGroupBy, React.ReactNode> = {
   none: <FlatIcon />,
   date: <DateIcon />,
@@ -101,6 +120,7 @@ export const groupByIcons: Record<ListGroupBy, React.ReactNode> = {
 
 export const itemSortByIcons: Record<ListItemSortBy, React.ReactNode> = {
   manual: <ManualIcon />,
+  name: <NameIcon />,
   date: <DateIcon />,
   scheduled: <ScheduledIcon />,
   deadline: <DeadlineIcon />,

@@ -64,6 +64,7 @@ const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode
 
 const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.ReactNode }[] = [
   { value: 'manual', label: 'None', icon: itemSortByIcons.manual },
+  { value: 'name', label: 'Name', icon: itemSortByIcons.name },
   { value: 'date', label: 'Effective Date', icon: itemSortByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: itemSortByIcons.scheduled },
   { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
@@ -348,6 +349,13 @@ export function itemSortComparator(
   today: Date = startOfToday(),
 ): ((a: PersistedTodoItem, b: PersistedTodoItem) => number) | undefined {
   if (sortBy === 'manual') return undefined
+  if (sortBy === 'name') {
+    return (a, b) => {
+      const cmp = a.title.localeCompare(b.title)
+      if (cmp !== 0) return cmp
+      return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
+    }
+  }
   const pick = (t: PersistedTodoItem): Date | null => {
     if (sortBy === 'date') return effectiveDate(t, today)
     if (sortBy === 'scheduled') return t.scheduledDate ? resolveScheduled(t.scheduledDate, today) : null
@@ -713,12 +721,13 @@ export function ListView() {
   const applyDefinition = useCallback((def: PersistedListDefinition) => {
     if (def.membership.kind !== 'custom') return
     setAllFilters(predicateToCriteria(def.membership.predicate))
-    if (def.grouping.kind === 'by-field') setListGroupBy(def.grouping.by)
+    // 'name' is sort-only — never a group; coerce to 'none' on load.
+    if (def.grouping.kind === 'by-field') setListGroupBy(def.grouping.by === 'name' ? 'none' : def.grouping.by)
     else if (def.grouping.kind === 'by-tag') setListGroupBy('tag')
-    else if (def.grouping.kind === 'by-sortBy' && def.sort.kind === 'sortBy') setListGroupBy(def.sort.by)
+    else if (def.grouping.kind === 'by-sortBy' && def.sort.kind === 'sortBy') setListGroupBy(def.sort.by === 'name' ? 'none' : def.sort.by)
     else setListGroupBy('none')
     // ListItemSortBy is a subset of ListSortBy — coerce unsupported values to manual.
-    const ITEM_SORTS: ListItemSortBy[] = ['manual', 'date', 'scheduled', 'deadline']
+    const ITEM_SORTS: ListItemSortBy[] = ['manual', 'name', 'date', 'scheduled', 'deadline']
     const itemSort: ListItemSortBy = def.sort.kind === 'sortBy' && (ITEM_SORTS as string[]).includes(def.sort.by)
       ? def.sort.by as ListItemSortBy
       : 'manual'

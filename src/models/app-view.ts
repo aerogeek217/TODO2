@@ -6,7 +6,7 @@ export enum AppView {
   Settings = 'settings',
 }
 
-export type ListSortBy = 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status'
+export type ListSortBy = 'name' | 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status'
 
 /** What ListView / list-definition groups tasks by. `'none'` = flat list (no grouping).
  *  `'tag'` is not a `ListSortBy` — a tag-as-sort is meaningless for a many-per-task
@@ -16,8 +16,9 @@ export type ListGroupBy = 'none' | 'date' | 'scheduled' | 'deadline' | 'people' 
 /** Sort applied within each group (or across the whole list when groupBy='none').
  *  Kept aligned with preset `ListSort` so ListView state round-trips losslessly
  *  into a saved list-definition: 'manual' ↔ sort-order, chronological values ↔
- *  `{kind:'sortBy', by:X}`.
+ *  `{kind:'sortBy', by:X}`. `'name'` is /list-only today; dashboard widgets fall
+ *  back to sortOrder via `compareBySortBy`'s default branch.
  */
-export type ListItemSortBy = 'manual' | 'date' | 'scheduled' | 'deadline'
+export type ListItemSortBy = 'manual' | 'name' | 'date' | 'scheduled' | 'deadline'
 
 export type DateField = 'date' | 'scheduled' | 'deadline' | 'created' | 'modified'

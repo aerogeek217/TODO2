@@ -273,6 +273,23 @@ describe('itemSortComparator', () => {
     const cmp = itemSortComparator('deadline', today)!
     expect([a, b].sort(cmp).map((t) => t.id)).toEqual([2, 1])
   })
+
+  it('sorts name ascending via localeCompare, case-insensitive', () => {
+    const a = makeTodo({ id: 1, title: 'banana', sortOrder: 0 })
+    const b = makeTodo({ id: 2, title: 'Apple', sortOrder: 0 })
+    const c = makeTodo({ id: 3, title: 'cherry', sortOrder: 0 })
+    const cmp = itemSortComparator('name')!
+    const sorted = [a, b, c].sort(cmp)
+    expect(sorted.map((t) => t.id)).toEqual([2, 1, 3])
+  })
+
+  it('breaks name ties with sortOrder, then id', () => {
+    const a = makeTodo({ id: 1, title: 'Same', sortOrder: 10 })
+    const b = makeTodo({ id: 2, title: 'Same', sortOrder: 5 })
+    const c = makeTodo({ id: 3, title: 'Same', sortOrder: 5 })
+    const cmp = itemSortComparator('name')!
+    expect([a, b, c].sort(cmp).map((t) => t.id)).toEqual([2, 3, 1])
+  })
 })
 
 describe('encodeGroupSort', () => {

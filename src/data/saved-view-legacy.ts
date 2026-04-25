@@ -61,7 +61,14 @@ export function resolveSavedViewGrouping(v: { sortBy: string; groupBy?: ListGrou
   groupBy: ListGroupBy
   itemSortBy: ListItemSortBy
 } {
-  const groupBy: ListGroupBy = v.groupBy ?? translateSortBy(v.sortBy)
+  let groupBy: ListGroupBy
+  if (v.groupBy != null) {
+    groupBy = v.groupBy
+  } else {
+    const translated = translateSortBy(v.sortBy)
+    // 'name' is sort-only — never a group; fall back to 'date'.
+    groupBy = translated === 'name' ? 'date' : translated
+  }
   const itemSortBy: ListItemSortBy = v.itemSortBy ?? 'manual'
   return { groupBy, itemSortBy }
 }
