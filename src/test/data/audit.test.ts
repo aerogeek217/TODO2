@@ -85,6 +85,33 @@ describe('auditData', () => {
     expect(report.issues.find((i) => i.table === 'personOrgs')!.count).toBe(1)
   })
 
+  it('detects orphaned todoTags (deleted todo)', async () => {
+    const tagId = await db.tags.add({ name: 'urgent', color: '#000' } as any)
+    await db.todoTags.add({ todoId: 999, tagId })
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'todoTags')!
+    expect(issue.count).toBe(1)
+    expect(issue.fix).toBe('delete')
+  })
+
+  it('detects orphaned todoTags (deleted tag)', async () => {
+    const { todoId } = await seedBase()
+    await db.todoTags.add({ todoId, tagId: 999 })
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.table === 'todoTags')!.count).toBe(1)
+  })
+
+  it('detects floating horizons with deleted canvasId', async () => {
+    await db.floatingHorizons.add({ canvasId: 999, x: 0, y: 0, width: 520, height: 360 } as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'floatingHorizons')!
+    expect(issue.count).toBe(1)
+    expect(issue.fix).toBe('delete')
+  })
+
   it('detects orphaned taskboard entries referencing deleted todos', async () => {
     await db.taskboards.add({
       entries: [
@@ -269,6 +296,18 @@ describe('cleanupIssues', () => {
 
     expect(await db.listInsets.count()).toBe(0)
     expect(await db.floatingNotes.count()).toBe(0)
+  })
+
+  it('deletes orphaned todoTags and floating horizons', async () => {
+    await db.todoTags.add({ todoId: 999, tagId: 888 })
+    await db.floatingHorizons.add({ canvasId: 999, x: 0, y: 0, width: 520, height: 360 } as any)
+
+    const report = await auditData()
+    const cleaned = await cleanupIssues(report.issues)
+    expect(cleaned).toBe(2)
+
+    expect(await db.todoTags.count()).toBe(0)
+    expect(await db.floatingHorizons.count()).toBe(0)
   })
 
   it('preserves valid data while cleaning orphans', async () => {

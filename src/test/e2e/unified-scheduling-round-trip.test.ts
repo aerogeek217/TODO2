@@ -158,6 +158,7 @@ function makeLegacyImport(): ImportData {
     notes: [],
     floatingCalendars: [],
     floatingNotes: [],
+    floatingHorizons: [],
   }
 }
 
@@ -288,6 +289,7 @@ describe('Unified scheduling round-trip (v19/v20 → v21)', () => {
       notes: firstPass.notes as unknown as ImportData['notes'],
       floatingCalendars: [],
       floatingNotes: [],
+      floatingHorizons: [],
     }
 
     // 4) Clear DB via a fresh open then bulk re-import

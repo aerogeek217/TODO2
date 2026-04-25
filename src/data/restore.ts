@@ -49,6 +49,7 @@ const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
   // placement fields that we split into `floatingNotes` at restore time.
   { table: db.floatingCalendars, key: 'floatingCalendars' },
   { table: db.floatingNotes, key: 'floatingNotes' },
+  { table: db.floatingHorizons, key: 'floatingHorizons' },
 ]
 
 /**

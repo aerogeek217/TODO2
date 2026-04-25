@@ -294,6 +294,29 @@ describe('validateImportData', () => {
     }
   })
 
+  // selectedHorizon
+  it('accepts selectedHorizon when its value is a valid HorizonKey', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'selectedHorizon', value: 'thisweek' }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects selectedHorizon when the value is not a known HorizonKey', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'selectedHorizon', value: 'never' }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  // maxTags accepted as a known setting key (P1 of code-review-2026-04-25)
+  it('accepts maxTags setting key', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'maxTags', value: '20' }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
   // canvasRails
   it('accepts structurally valid canvasRails', () => {
     const rails = {

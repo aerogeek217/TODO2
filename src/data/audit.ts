@@ -19,9 +19,9 @@ export interface AuditReport {
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
   const [
-    todos, projects, canvases, people, orgs, statuses,
-    todoPeople, todoOrgs, personOrgs, taskboards,
-    listInsets, floatingNotes, floatingCalendars, floatingTaskboards,
+    todos, projects, canvases, people, orgs, statuses, tags,
+    todoPeople, todoOrgs, todoTags, personOrgs, taskboards,
+    listInsets, floatingNotes, floatingCalendars, floatingTaskboards, floatingHorizons,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
@@ -29,14 +29,17 @@ export async function auditData(): Promise<AuditReport> {
     db.people.toArray(),
     db.orgs.toArray(),
     db.statuses.toArray(),
+    db.tags.toArray(),
     db.todoPeople.toArray(),
     db.todoOrgs.toArray(),
+    db.todoTags.toArray(),
     db.personOrgs.toArray(),
     db.taskboards.toArray(),
     db.listInsets.toArray(),
     db.floatingNotes.toArray(),
     db.floatingCalendars.toArray(),
     db.floatingTaskboards.toArray(),
+    db.floatingHorizons.toArray(),
   ])
 
   const todoIds = new Set(todos.map((t) => t.id!))
@@ -45,6 +48,7 @@ export async function auditData(): Promise<AuditReport> {
   const personIds = new Set(people.map((p) => p.id!))
   const orgIds = new Set(orgs.map((o) => o.id!))
   const statusIds = new Set(statuses.map((s) => s.id!))
+  const tagIds = new Set(tags.map((t) => t.id!))
 
   const issues: AuditIssue[] = []
 
@@ -85,6 +89,19 @@ export async function auditData(): Promise<AuditReport> {
       description: 'Person-org memberships referencing deleted people or orgs',
       count: orphanedPersonOrgs.length,
       ids: orphanedPersonOrgs.map((r) => r.id!),
+      fix: 'delete',
+    })
+  }
+
+  const orphanedTodoTags = todoTags.filter(
+    (r) => !todoIds.has(r.todoId) || !tagIds.has(r.tagId),
+  )
+  if (orphanedTodoTags.length > 0) {
+    issues.push({
+      table: 'todoTags',
+      description: 'Tag assignments referencing deleted todos or tags',
+      count: orphanedTodoTags.length,
+      ids: orphanedTodoTags.map((r) => r.id!),
       fix: 'delete',
     })
   }
@@ -218,6 +235,19 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
+  const floatingHorizonsWithBadCanvas = floatingHorizons.filter(
+    (h) => !canvasIds.has(h.canvasId),
+  )
+  if (floatingHorizonsWithBadCanvas.length > 0) {
+    issues.push({
+      table: 'floatingHorizons',
+      description: 'Floating horizons referencing deleted canvases',
+      count: floatingHorizonsWithBadCanvas.length,
+      ids: floatingHorizonsWithBadCanvas.map((h) => h.id!),
+      fix: 'delete',
+    })
+  }
+
   // --- Unplaced tasks: on a canvas but not in any project (invisible in canvas view) ---
 
   const unplacedTasks = todos.filter(
@@ -246,9 +276,9 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   let cleaned = 0
   await db.transaction(
     'rw',
-    [db.todos, db.projects, db.todoPeople, db.todoOrgs,
+    [db.todos, db.projects, db.todoPeople, db.todoOrgs, db.todoTags,
      db.personOrgs, db.taskboards, db.floatingTaskboards, db.listInsets, db.notes,
-     db.floatingNotes, db.floatingCalendars, db.statuses],
+     db.floatingNotes, db.floatingCalendars, db.floatingHorizons, db.statuses],
     async () => {
       // Taskboards need a special per-row entry filter rather than a blind field-clear.
       const todoIds = new Set((await db.todos.toArray()).map((t) => t.id!))

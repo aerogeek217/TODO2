@@ -74,9 +74,10 @@ export const todoRepository = {
   },
 
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboards], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.todoTags, db.taskboards], async () => {
       await db.todoPeople.where('todoId').equals(id).delete()
       await db.todoOrgs.where('todoId').equals(id).delete()
+      await db.todoTags.where('todoId').equals(id).delete()
       await stripTodoFromTaskboards([id])
       await db.todos.delete(id)
     })
@@ -84,10 +85,11 @@ export const todoRepository = {
 
   async bulkDelete(ids: number[]): Promise<void> {
     if (ids.length === 0) return
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.taskboards], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.todoTags, db.taskboards], async () => {
       for (const id of ids) {
         await db.todoPeople.where('todoId').equals(id).delete()
         await db.todoOrgs.where('todoId').equals(id).delete()
+        await db.todoTags.where('todoId').equals(id).delete()
         await db.todos.delete(id)
       }
       await stripTodoFromTaskboards(ids)

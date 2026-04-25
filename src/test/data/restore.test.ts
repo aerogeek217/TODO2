@@ -28,6 +28,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     notes: [],
     floatingCalendars: [],
     floatingNotes: [],
+    floatingHorizons: [],
     ...overrides,
   }
 }
@@ -238,6 +239,47 @@ describe('restoreFromImportData', () => {
       const tags = await db.tags.toArray()
       expect(tags).toHaveLength(1)
       expect(tags[0].name).toBe('fresh')
+    })
+
+    it('restoreFromImportData_withFloatingHorizons_roundTripsFaithfully', async () => {
+      // Round-trip a single floatingHorizons placement (P1 of code-review-2026-04-25):
+      // pre-fix the table was missing from TABLE_KEY_PAIRS, silently dropping
+      // every row on restore.
+      const data = makeImportData({
+        floatingHorizons: [
+          { id: 1, canvasId: 1, x: 100, y: 200, width: 520, height: 360, collapsed: true },
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const placements = await db.floatingHorizons.toArray()
+      expect(placements).toHaveLength(1)
+      expect(placements[0]).toMatchObject({
+        canvasId: 1,
+        x: 100,
+        y: 200,
+        width: 520,
+        height: 360,
+        collapsed: true,
+      })
+    })
+
+    it('restoreFromImportData_withExistingFloatingHorizons_clearsBeforeRestore', async () => {
+      // Existing rows must be wiped before the new ones land — same rule as
+      // every other table restore.
+      await db.floatingHorizons.add({ canvasId: 1, x: 0, y: 0, width: 520, height: 360 })
+
+      await restoreFromImportData(makeImportData({
+        floatingHorizons: [
+          { id: 7, canvasId: 1, x: 50, y: 60, width: 520, height: 360 },
+        ],
+      }))
+
+      const placements = await db.floatingHorizons.toArray()
+      expect(placements).toHaveLength(1)
+      expect(placements[0].id).toBe(7)
+      expect(placements[0].x).toBe(50)
     })
 
     it('restoreFromImportData_withStatuses_persistsStatusTable', async () => {

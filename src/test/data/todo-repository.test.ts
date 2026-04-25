@@ -83,6 +83,36 @@ describe('todoRepository', () => {
     expect(todo).toBeUndefined()
   })
 
+  it('delete cascades todoTags so no orphan join rows remain', async () => {
+    // P1 of code-review-2026-04-25: pre-fix, deleting a todo left its
+    // todoTags rows behind because db.todoTags wasn't in the rw transaction.
+    const tagId = await db.tags.add({ name: 'urgent', color: '#ff0000' })
+    const id = await todoRepository.insert(makeTodo())
+    await db.todoTags.add({ todoId: id, tagId })
+    expect(await db.todoTags.where('todoId').equals(id).count()).toBe(1)
+
+    await todoRepository.delete(id)
+
+    expect(await db.todoTags.where('todoId').equals(id).count()).toBe(0)
+    // The tag itself is unaffected — only the join row goes.
+    expect(await db.tags.count()).toBe(1)
+  })
+
+  it('bulkDelete cascades todoTags for every removed todo', async () => {
+    const tagId = await db.tags.add({ name: 'urgent', color: '#ff0000' })
+    const id1 = await todoRepository.insert(makeTodo({ title: 'a' }))
+    const id2 = await todoRepository.insert(makeTodo({ title: 'b' }))
+    await db.todoTags.bulkAdd([
+      { todoId: id1, tagId },
+      { todoId: id2, tagId },
+    ])
+
+    await todoRepository.bulkDelete([id1, id2])
+
+    expect(await db.todoTags.count()).toBe(0)
+    expect(await db.tags.count()).toBe(1)
+  })
+
   it('reorder updates sortOrder', async () => {
     const id = await todoRepository.insert(makeTodo({ sortOrder: 1 }))
     await todoRepository.reorder(id, 5)

@@ -1,4 +1,4 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons } from '../models'
 import type { LegacySavedView, LegacySavedViewFilters } from './saved-view-legacy'
 
 /**
@@ -511,6 +511,18 @@ function checkFloatingCalendar(v: unknown): CheckResult {
   ])
 }
 
+function checkFloatingHorizons(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['canvasId', isFiniteNum(v.canvasId)],
+    ['x', isFiniteNum(v.x)],
+    ['y', isFiniteNum(v.y)],
+    ['width', isFiniteNum(v.width)],
+    ['height', isFiniteNum(v.height)],
+    ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
+  ])
+}
+
 function checkTaskboardEntry(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -565,7 +577,7 @@ function checkSavedView(v: unknown): CheckResult {
 
 // `defaultTaskboardId` is a pre-v33 legacy key accepted here so backups still
 // validate; restore / the v33 migration drops it from settings.
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId', 'maxTags']
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -727,6 +739,9 @@ function checkSetting(v: unknown): CheckResult {
     } catch {
       return 'value (horizonCollapsed must be valid JSON)'
     }
+  }
+  if (v.key === 'selectedHorizon') {
+    return HORIZON_KEYS_SET.has(v.value as string) ? true : `value (selectedHorizon must be one of: ${(HORIZON_KEYS as readonly string[]).join(', ')})`
   }
   if (v.key === 'dashboardUserLists') {
     try {
@@ -1064,6 +1079,18 @@ function pickFloatingCalendar(v: Record<string, unknown>): FloatingCalendar {
   }
 }
 
+function pickFloatingHorizons(v: Record<string, unknown>): FloatingHorizons {
+  return {
+    id: v.id as number | undefined,
+    canvasId: v.canvasId as number,
+    x: v.x as number,
+    y: v.y as number,
+    width: v.width as number,
+    height: v.height as number,
+    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
+  }
+}
+
 function pickListDefinition(v: Record<string, unknown>): ListDefinition {
   return {
     id: v.id as number | undefined,
@@ -1113,6 +1140,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'notes', check: checkNote },
   { key: 'floatingCalendars', check: checkFloatingCalendar },
   { key: 'floatingNotes', check: checkFloatingNote },
+  { key: 'floatingHorizons', check: checkFloatingHorizons },
 ]
 
 export interface ImportData {
@@ -1152,6 +1180,7 @@ export interface ImportData {
   notes: ImportNote[]
   floatingCalendars: FloatingCalendar[]
   floatingNotes: FloatingNote[]
+  floatingHorizons: FloatingHorizons[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -1242,6 +1271,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       notes: ((raw.notes ?? []) as Record<string, unknown>[]).map(pickNote),
       floatingCalendars: ((raw.floatingCalendars ?? []) as Record<string, unknown>[]).map(pickFloatingCalendar),
       floatingNotes: ((raw.floatingNotes ?? []) as Record<string, unknown>[]).map(pickFloatingNote),
+      floatingHorizons: ((raw.floatingHorizons ?? []) as Record<string, unknown>[]).map(pickFloatingHorizons),
     },
   }
 }
