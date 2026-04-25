@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { useFilterStore, fixedAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
-import type { DateAnchor, PersistedTodoItem } from '../../models'
+import type { DateAnchor, Org, Person, PersistedTodoItem, Status } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -22,8 +22,10 @@ import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { startOfToday, formatDateShort } from '../../utils/date'
-import { scheduledLabel } from '../../utils/effective-date'
+import { scheduledLabel, isScheduledPast, isDeadlinePast } from '../../utils/effective-date'
 import { toggleItem, matchTodoText, type TextMatchField } from '../../utils/filter'
+import { resolvePersonColor } from '../../utils/person-color'
+import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
 import { StatusIcon } from '../shared/StatusIcon'
 import { DateAnchorInput } from '../shared/DateAnchorInput'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
@@ -106,6 +108,113 @@ export function buildSearchContextMenuItems(params: {
 }
 
 /**
+ * Per-row pill context resolved once on TopBar and threaded down to every
+ * `SearchResultRow`. Keeping it in one place avoids re-subscribing each row
+ * to the assigned-people / assigned-orgs / status stores.
+ */
+interface SearchResultPillContext {
+  peopleByTodoId: Map<number, Person[]>
+  orgsByTodoId: Map<number, Org[]>
+  statusesById: Map<number, Status>
+  personOrgMap: Map<number, number[]>
+  orgs: Org[]
+}
+
+/**
+ * Read-only avatar mirroring `AvatarStack`'s visual but rendered as plain
+ * spans (no nested `<button>`) so the pill bar can sit inside the
+ * SearchResultRow `<button>` without breaking HTML or click-through. The
+ * outer container is `pointer-events: none` so chips never intercept the
+ * row click or the dnd-kit drag listener.
+ */
+function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: SearchResultPillContext }) {
+  const today = startOfToday()
+  const people = ctx.peopleByTodoId.get(todo.id) ?? []
+  const orgs = ctx.orgsByTodoId.get(todo.id) ?? []
+  const status = todo.statusId != null ? ctx.statusesById.get(todo.statusId) : undefined
+  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today)
+  const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
+
+  if (people.length === 0 && orgs.length === 0 && !status && !todo.scheduledDate && !todo.dueDate) {
+    return null
+  }
+
+  const visiblePeople = people.slice(0, 3)
+  const peopleOverflow = people.length - visiblePeople.length
+  const visibleOrgs = orgs.slice(0, 3)
+  const orgsOverflow = orgs.length - visibleOrgs.length
+
+  return (
+    <span className={styles.miniListPills} aria-hidden="true">
+      {visiblePeople.length > 0 && (
+        <span className={styles.miniListAvatars}>
+          {visiblePeople.map((p) => {
+            const fill = resolvePersonColor(p.id, ctx.personOrgMap, ctx.orgs) ?? UNAFFILIATED_PERSON_COLOR
+            return (
+              <span
+                key={p.id}
+                className={styles.miniListAvatar}
+                style={{ background: fill, color: 'var(--color-text-on-accent)' }}
+                title={p.name}
+              >
+                {p.initials || p.name.slice(0, 2).toUpperCase()}
+              </span>
+            )
+          })}
+          {peopleOverflow > 0 && (
+            <span className={`${styles.miniListAvatar} ${styles.miniListAvatarOverflow}`}>+{peopleOverflow}</span>
+          )}
+        </span>
+      )}
+      {visibleOrgs.length > 0 && (
+        <span className={styles.miniListAvatars}>
+          {visibleOrgs.map((o) => (
+            <span
+              key={o.id}
+              className={`${styles.miniListAvatar} ${styles.miniListAvatarHollow}`}
+              style={o.color ? { borderColor: o.color, color: o.color } : undefined}
+              title={o.name}
+            >
+              {o.initials || o.name.slice(0, 2).toUpperCase()}
+            </span>
+          ))}
+          {orgsOverflow > 0 && (
+            <span className={`${styles.miniListAvatar} ${styles.miniListAvatarOverflow}`}>+{orgsOverflow}</span>
+          )}
+        </span>
+      )}
+      {todo.scheduledDate && (
+        <span
+          className={`${styles.miniListChip} ${styles.miniListScheduled} ${scheduledPast ? styles.miniListScheduledPast : ''}`}
+          title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
+        >
+          <StatusIcon icon="calendar" />
+          <span>{scheduledLabel(todo.scheduledDate, today)}</span>
+        </span>
+      )}
+      {todo.dueDate && (
+        <span
+          className={`${styles.miniListChip} ${styles.miniListDeadline} ${deadlinePast ? styles.miniListDeadlinePast : ''}`}
+          title={deadlinePast ? 'Deadline passed' : 'Deadline'}
+        >
+          <StatusIcon icon="clock" />
+          <span>{formatDateShort(todo.dueDate)}</span>
+        </span>
+      )}
+      {status && (
+        <span
+          className={styles.miniListStatus}
+          style={{ color: status.color }}
+          title={status.name}
+        >
+          <StatusIcon icon={status.icon || 'circle'} filled />
+        </span>
+      )}
+    </span>
+  )
+}
+
+/**
  * One search-result row. Draggable via the shared `TaskDraggable` primitive
  * (surface `'search'`, kind `'task'`) so the same taskboard drop handlers that
  * accept canvas/dashboard task drags pick these up too — see
@@ -121,9 +230,10 @@ export function buildSearchContextMenuItems(params: {
  * has a 5-px activation distance, so a short press still fires click; a press
  * + drag activates the drag and suppresses the click.
  */
-function SearchResultRow({ todo, field, onOpen, onKeyDown, onOpenContextMenu }: {
+function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContextMenu }: {
   todo: PersistedTodoItem
   field: TextMatchField
+  pillCtx: SearchResultPillContext
   onOpen: (todoId: number) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, todoId: number) => void
   onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
@@ -152,12 +262,7 @@ function SearchResultRow({ todo, field, onOpen, onKeyDown, onOpenContextMenu }: 
           {field === 'notes' && todo.notes && (
             <span className={styles.miniListMatchSnippet}>{todo.notes.replace(/\s+/g, ' ').trim()}</span>
           )}
-          {todo.scheduledDate && (
-            <span className={styles.miniListDue}>{scheduledLabel(todo.scheduledDate, startOfToday())}</span>
-          )}
-          {todo.dueDate && (
-            <span className={styles.miniListDue}>{formatDateShort(todo.dueDate)}</span>
-          )}
+          <SearchResultPills todo={todo} ctx={pillCtx} />
         </button>
       )}
     </TaskDraggable>
@@ -167,11 +272,12 @@ function SearchResultRow({ todo, field, onOpen, onKeyDown, onOpenContextMenu }: 
 const SearchResultsGroups = forwardRef<HTMLDivElement, {
   groups: Record<TextMatchField, PersistedTodoItem[]>
   query: string
+  pillCtx: SearchResultPillContext
   searchInputRef: React.RefObject<HTMLInputElement | null>
   onOpen: (todoId: number) => void
   onBlur: (e: React.FocusEvent<HTMLDivElement>) => void
   onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
-}>(function SearchResultsGroups({ groups, query, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
+}>(function SearchResultsGroups({ groups, query, pillCtx, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
   const [expanded, setExpanded] = useState<Set<TextMatchField>>(() => new Set())
   const containerRef = useRef<HTMLDivElement | null>(null)
 
@@ -226,6 +332,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
                 key={`${field}-${todo.id}-${localIdx}`}
                 todo={todo}
                 field={field}
+                pillCtx={pillCtx}
                 onOpen={onOpen}
                 onKeyDown={onItemKeyDown}
                 onOpenContextMenu={onOpenContextMenu}
@@ -713,6 +820,15 @@ export function TopBar() {
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
+
+  const searchPillCtx = useMemo<SearchResultPillContext>(() => ({
+    peopleByTodoId: assignedPeopleMap,
+    orgsByTodoId: assignedOrgsMap,
+    statusesById,
+    personOrgMap,
+    orgs,
+  }), [assignedPeopleMap, assignedOrgsMap, statusesById, personOrgMap, orgs])
 
   const miniListGroups = useMemo(() => {
     if (!localSearch || !searchFocused) return null
@@ -882,6 +998,7 @@ export function TopBar() {
             ref={miniListRef}
             groups={miniListGroups}
             query={localSearch}
+            pillCtx={searchPillCtx}
             searchInputRef={searchInputRef}
             onOpen={handleOpenTodo}
             onOpenContextMenu={handleOpenSearchContextMenu}
