@@ -10,6 +10,15 @@
   cursor: text;
 }
 
+/* The system I-beam follows the OS mouse-pointer scheme, not `color-scheme`.
+   On Windows installs configured to a white pointer it disappears against
+   the editor's white background in light mode. Force a small black I-beam
+   via an SVG data-URI cursor; dark mode keeps the system cursor (white
+   I-beam against the dark editor reads correctly). */
+:global([data-theme="light"]) .host {
+  cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='16'><path d='M2 1 H6 M4 1 V15 M2 15 H6' stroke='black' stroke-width='1' fill='none'/></svg>") 4 8, text;
+}
+
 .host :global(.cm-editor) {
   flex: 1;
   height: 100%;
