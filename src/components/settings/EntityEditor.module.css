@@ -58,6 +58,10 @@
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
+  /* Without this, `overflow-y: auto` resolves overflow-x to `auto` too;
+   * a chip-row picker that overflows the modal then produces a horizontal
+   * scrollbar that closes the picker the moment the user tries to scroll. */
+  overflow-x: hidden;
   flex: 1;
   min-height: 0;
 }
