@@ -5,6 +5,7 @@ import { generateInitials } from '../../utils/person'
 import type { Org } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
+import { ConfirmDialog } from '../shared/Dialog'
 import styles from './EntityEditor.module.css'
 
 interface OrgEditState {
@@ -100,19 +101,6 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
   }, [])
 
   const renderRow = (org: Org) => {
-    if (deleteId === org.id) {
-      return (
-        <div key={org.id} className={styles.deleteConfirm}>
-          {org.color && <div className={styles.colorSwatch} style={{ background: org.color }} />}
-          <div className={styles.deleteMsg}>
-            Delete <strong>{org.name}</strong>?{deleteCount > 0 && ` ${deleteCount} ${deleteCount === 1 ? 'person' : 'people'} will become unaffiliated.`}
-          </div>
-          <button className={styles.deleteBtnConfirm} onClick={confirmDelete}>Delete</button>
-          <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
-        </div>
-      )
-    }
-
     if (editing && editing.id === org.id) {
       const ed = editing
       return (
@@ -203,6 +191,26 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
           )}
         </div>
       </div>
+      {deleteId != null && (() => {
+        const target = orgs.find((o) => o.id === deleteId)
+        if (!target) return null
+        return (
+          <ConfirmDialog
+            open
+            title="Delete organization"
+            message={
+              <>
+                Delete <strong>{target.name}</strong>?
+                {deleteCount > 0 && ` ${deleteCount} ${deleteCount === 1 ? 'person' : 'people'} will become unaffiliated.`}
+              </>
+            }
+            confirmLabel="Delete"
+            danger
+            onConfirm={confirmDelete}
+            onCancel={() => setDeleteId(null)}
+          />
+        )
+      })()}
     </>
   )
 }

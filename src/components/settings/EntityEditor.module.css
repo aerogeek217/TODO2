@@ -289,40 +289,6 @@
   border-color: var(--color-text-muted);
 }
 
-/* Delete confirmation */
-.deleteConfirm {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--color-surface-high);
-  border-radius: var(--radius-card);
-  border: 1px solid var(--color-danger);
-}
-
-.deleteMsg {
-  flex: 1;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-secondary);
-}
-
-.deleteBtnConfirm {
-  background: var(--color-danger);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-chip);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  padding: 3px 10px;
-  cursor: pointer;
-  font-weight: var(--font-weight-semibold);
-  flex-shrink: 0;
-}
-
-.deleteBtnConfirm:hover {
-  opacity: 0.85;
-}
-
 /* Section divider between people and orgs */
 .sectionDivider {
   border-top: 1px solid var(--color-border);

@@ -28,6 +28,8 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const activeItemRef = useRef<HTMLDivElement>(null)
+  const listboxId = 'command-palette-listbox'
+  const optionId = (idx: number) => `command-palette-option-${idx}`
 
   // > prefix = commands only (no task/project search)
   const isCommandMode = query.startsWith('>')
@@ -126,8 +128,8 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   }, [activeIndex])
 
   const executeCommand = (cmd: Command) => {
-    onClose()
     cmd.action()
+    onClose()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -151,9 +153,11 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
 
   let flatIndex = 0
 
+  const activeOptionId = flatResults.length > 0 ? optionId(activeIndex) : undefined
+
   return (
     <div className={styles.backdrop} onClick={handleBackdropClick}>
-      <div className={styles.card}>
+      <div className={styles.card} role="dialog" aria-modal="true" aria-label="Command palette">
         <div className={styles.inputRow}>
           <input
             ref={inputRef}
@@ -162,15 +166,21 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search tasks, projects, commands... (> for commands only)"
+            role="combobox"
+            aria-expanded
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeOptionId}
+            autoFocus
           />
         </div>
 
-        <div className={styles.results}>
+        <div className={styles.results} role="listbox" id={listboxId}>
           {flatResults.length === 0 && (
             <div className={styles.empty}>No matching results</div>
           )}
           {grouped.map((group) => (
-            <div key={group.category}>
+            <div key={group.category} role="group" aria-label={group.label}>
               <div className={styles.sectionHeader}>{group.label}</div>
               {group.items.map((cmd) => {
                 const idx = flatIndex++
@@ -178,7 +188,10 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
                 return (
                   <div
                     key={cmd.id}
+                    id={optionId(idx)}
                     ref={isActive ? activeItemRef : undefined}
+                    role="option"
+                    aria-selected={isActive}
                     className={`${styles.resultItem} ${isActive ? styles.active : ''}`}
                     onClick={() => executeCommand(cmd)}
                     onMouseEnter={() => setActiveIndex(idx)}

@@ -202,8 +202,8 @@ describe('TopBar search right-click — P2 dropdown survival', () => {
       fireEvent.contextMenu(row, { clientX: 50, clientY: 50 })
     })
     expect(screen.getByRole('listbox', { name: /search results/i })).toBe(listbox)
-    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
   })
 
   it('closes both the menu and the listbox when a menu action runs', () => {
@@ -214,7 +214,7 @@ describe('TopBar search right-click — P2 dropdown survival', () => {
     act(() => {
       fireEvent.contextMenu(row, { clientX: 50, clientY: 50 })
     })
-    const markComplete = screen.getByRole('button', { name: 'Mark complete' })
+    const markComplete = screen.getByRole('menuitem', { name: 'Mark complete' })
 
     // Simulate the real mousedown → focus-transfer → blur sequence. JSDOM
     // only blurs the input when another element actually takes focus, so
@@ -227,7 +227,7 @@ describe('TopBar search right-click — P2 dropdown survival', () => {
 
     expect(toggleComplete).toHaveBeenCalledWith(1)
     expect(screen.queryByRole('listbox', { name: /search results/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Mark complete' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Mark complete' })).toBeNull()
     expect(document.activeElement).not.toBe(input)
   })
 })

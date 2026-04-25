@@ -1,3 +1,4 @@
+import { ConfirmDialog } from '../shared/Dialog'
 import styles from './ReassignDialog.module.css'
 
 interface ReassignDialogProps {
@@ -18,21 +19,20 @@ export function ReassignDialog({
   const noun = 'person'
 
   return (
-    <>
-      <div className={styles.backdrop} onClick={onCancel} />
-      <div className={styles.dialog}>
-        <div className={styles.title}>Reassign {noun}</div>
-        <div className={styles.body}>
+    <ConfirmDialog
+      open
+      title={`Reassign ${noun}`}
+      message={
+        <>
           Move <strong>{taskTitle}</strong> from <strong>{fromLabel}</strong> to <strong>{toLabel}</strong>?
           <div className={styles.detail}>
             This will remove the <em>{fromLabel}</em> {noun} and add <em>{toLabel}</em>.
           </div>
-        </div>
-        <div className={styles.actions}>
-          <button className={styles.cancelButton} onClick={onCancel}>Cancel</button>
-          <button className={styles.confirmButton} onClick={onConfirm}>Reassign</button>
-        </div>
-      </div>
-    </>
+        </>
+      }
+      confirmLabel="Reassign"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
   )
 }

@@ -1,5 +1,5 @@
 import type { BulkConfirmation } from '../../stores/ui-store'
-import styles from './ReassignDialog.module.css'
+import { ConfirmDialog } from '../shared/Dialog'
 
 interface BulkConfirmDialogProps {
   confirmation: BulkConfirmation
@@ -35,18 +35,15 @@ export function BulkConfirmDialog({ confirmation, onConfirm, onCancel }: BulkCon
   const cancelLabel = confirmation.cancelLabel ?? 'Cancel'
 
   return (
-    <>
-      <div className={styles.backdrop} onClick={onCancel} />
-      <div className={styles.dialog}>
-        <div className={styles.title}>{title}</div>
-        <div className={styles.body}>{message}</div>
-        <div className={styles.actions}>
-          <button className={styles.cancelButton} onClick={onCancel}>{cancelLabel}</button>
-          <button className={styles.confirmButton} onClick={onConfirm}>
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </>
+    <ConfirmDialog
+      open
+      title={title}
+      message={message}
+      confirmLabel={confirmLabel}
+      cancelLabel={cancelLabel}
+      danger={confirmation.action === 'delete'}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
   )
 }

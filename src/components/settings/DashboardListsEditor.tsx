@@ -27,6 +27,7 @@ import type { ListSortBy, TodoPredicate } from '../../models'
 import type { DateAnchor } from '../../models/filter-predicate'
 import { ListFilterEditor } from './ListFilterEditor'
 import { DragHandle } from '../shared/DragHandle'
+import { ConfirmDialog } from '../shared/Dialog'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -563,18 +564,6 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
               {sorted.map((d) => {
-                if (deleteId === d.id) {
-                  return (
-                    <div key={d.id} className={styles.deleteConfirm}>
-                      <div className={styles.deleteMsg}>
-                        Delete <strong>{d.name}</strong>?
-                      </div>
-                      <button className={styles.deleteBtnConfirm} onClick={confirmDelete}>Delete</button>
-                      <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
-                    </div>
-                  )
-                }
-
                 if (editing && editing.id === d.id) {
                   const ed = editing
                   return (
@@ -648,6 +637,21 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
           <button className={styles.addBtn} onClick={startAdd}>+ Add List</button>
         )}
       </div>
+      {deleteId != null && (() => {
+        const def = listDefinitions.find((d) => d.id === deleteId)
+        if (!def) return null
+        return (
+          <ConfirmDialog
+            open
+            title="Delete list"
+            message={<>Delete <strong>{def.name}</strong>?</>}
+            confirmLabel="Delete"
+            danger
+            onConfirm={confirmDelete}
+            onCancel={() => setDeleteId(null)}
+          />
+        )
+      })()}
     </>
   )
 }

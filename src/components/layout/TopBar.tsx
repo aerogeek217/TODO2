@@ -523,6 +523,10 @@ export function TopBar() {
           onFocus={() => setSearchFocused(true)}
           onBlur={(e) => {
             if (miniListRef.current?.contains(e.relatedTarget as Node)) return
+            // Right-click on a search row opens a context menu that autoFocuses
+            // its first item; preserve the listbox so the menu's actions can
+            // still target the row.
+            if (searchContextMenu) return
             setSearchFocused(false)
           }}
           onKeyDown={(e) => {
@@ -557,6 +561,7 @@ export function TopBar() {
             onOpenContextMenu={handleOpenSearchContextMenu}
             onBlur={(e) => {
               if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
+                if (searchContextMenu) return
                 setSearchFocused(false)
               }
             }}
@@ -599,7 +604,13 @@ export function TopBar() {
               y: searchContextMenu.y,
             }),
           })}
-          onClose={() => setSearchContextMenu(null)}
+          onClose={() => {
+            setSearchContextMenu(null)
+            // Match the prior onAction-closes-listbox UX: any path that closes
+            // the context menu (action click, outside click, Esc) also drops
+            // the search dropdown so the user is back to the unfocused state.
+            setSearchFocused(false)
+          }}
         />,
         document.body,
       )}

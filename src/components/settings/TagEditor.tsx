@@ -4,6 +4,7 @@ import { tagRepository } from '../../data'
 import type { Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
+import { ConfirmDialog } from '../shared/Dialog'
 import styles from './EntityEditor.module.css'
 
 interface EditState {
@@ -122,19 +123,6 @@ export function TagEditor({ onClose }: TagEditorProps) {
   }, [tags, searchText])
 
   const renderRow = (tag: Tag) => {
-    if (deleteId === tag.id) {
-      return (
-        <div key={tag.id} className={styles.deleteConfirm}>
-          <div className={styles.colorSwatch} style={{ background: tag.color }} />
-          <div className={styles.deleteMsg}>
-            Delete <strong>{tag.name}</strong>?{deleteCount > 0 && ` ${deleteCount} task${deleteCount !== 1 ? 's' : ''} currently tagged.`}
-          </div>
-          <button className={styles.deleteBtnConfirm} onClick={confirmDelete}>Delete</button>
-          <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
-        </div>
-      )
-    }
-
     if (editing && editing.id === tag.id) {
       const ed = editing
       return (
@@ -220,6 +208,26 @@ export function TagEditor({ onClose }: TagEditorProps) {
           <button className={styles.addBtn} onClick={startAdd}>+ Add Tag</button>
         )}
       </div>
+      {deleteId != null && (() => {
+        const target = tags.find((t) => t.id === deleteId)
+        if (!target) return null
+        return (
+          <ConfirmDialog
+            open
+            title="Delete tag"
+            message={
+              <>
+                Delete <strong>{target.name}</strong>?
+                {deleteCount > 0 && ` ${deleteCount} task${deleteCount !== 1 ? 's' : ''} currently tagged.`}
+              </>
+            }
+            confirmLabel="Delete"
+            danger
+            onConfirm={confirmDelete}
+            onCancel={() => setDeleteId(null)}
+          />
+        )
+      })()}
     </>
   )
 }

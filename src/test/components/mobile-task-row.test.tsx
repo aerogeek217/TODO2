@@ -268,10 +268,10 @@ describe('MobileTaskRow', () => {
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Move to project…' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 
     it('Add to Taskboard menu action targets the row todo', () => {
@@ -281,7 +281,7 @@ describe('MobileTaskRow', () => {
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Add to Taskboard' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Taskboard' }))
       expect(add).toHaveBeenCalledWith(42)
     })
 
@@ -292,7 +292,7 @@ describe('MobileTaskRow', () => {
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
       expect(mockRemove).toHaveBeenCalledWith(7)
     })
 
@@ -301,7 +301,7 @@ describe('MobileTaskRow', () => {
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      expect(screen.queryByRole('button', { name: 'Mark complete' })).toBeNull()
+      expect(screen.queryByRole('menuitem', { name: 'Mark complete' })).toBeNull()
     })
 
     afterEach(() => {

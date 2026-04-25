@@ -5,6 +5,7 @@ import { personRepository, orgRepository } from '../../data'
 import { generateInitials } from '../../utils/person'
 import { resolvePersonColor } from '../../utils/person-color'
 import { ChipSelector } from '../shared/ChipSelector'
+import { ConfirmDialog } from '../shared/Dialog'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import type { Person } from '../../models'
 import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
@@ -159,18 +160,6 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
 
   const renderPersonRow = (p: Person) => {
     const derived = resolvePersonColor(p.id, personOrgMap, orgs) ?? UNAFFILIATED_PERSON_COLOR
-    if (deleteId === p.id) {
-      return (
-        <div key={p.id} className={styles.deleteConfirm}>
-          <div className={styles.colorSwatch} style={{ background: derived }} />
-          <div className={styles.deleteMsg}>
-            Delete <strong>{p.name}</strong>?{deleteCount > 0 && ` Assigned to ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
-          </div>
-          <button className={styles.deleteBtnConfirm} onClick={confirmDeletePerson}>Delete</button>
-          <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
-        </div>
-      )
-    }
 
     if (editing && editing.id === p.id) {
       const ed = editing
@@ -276,6 +265,26 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
           )}
         </div>
       </div>
+      {deleteId != null && (() => {
+        const target = people.find((p) => p.id === deleteId)
+        if (!target) return null
+        return (
+          <ConfirmDialog
+            open
+            title="Delete person"
+            message={
+              <>
+                Delete <strong>{target.name}</strong>?
+                {deleteCount > 0 && ` Assigned to ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
+              </>
+            }
+            confirmLabel="Delete"
+            danger
+            onConfirm={confirmDeletePerson}
+            onCancel={() => setDeleteId(null)}
+          />
+        )
+      })()}
     </>
   )
 }

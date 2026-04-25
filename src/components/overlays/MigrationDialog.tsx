@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { MigrationInfo, LegacyImportInfo } from '../../services/migration-check'
 import { exportCurrentDatabase } from '../../services/migration-check'
 import { buildExportData } from '../../services/export-import'
+import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import styles from './MigrationDialog.module.css'
 
 interface SchemaUpgradeProps {
@@ -87,66 +88,65 @@ export function MigrationDialog(props: MigrationDialogProps) {
 
   if (cancelled) {
     return (
-      <div className={styles.container}>
-        <div className={styles.dialog}>
-          <div className={styles.title}>Update required</div>
-          <div className={styles.body}>
-            TODO2 needs this database update to run. Reload the page when you're ready to proceed.
-          </div>
-          <div className={styles.actions}>
-            <button className={styles.primaryButton} onClick={() => window.location.reload()}>
-              Reload
-            </button>
-          </div>
-        </div>
-      </div>
+      <Dialog
+        open
+        onClose={() => {}}
+        blockBackdropClose
+        title="Update required"
+      >
+        <DialogBody>
+          TODO2 needs this database update to run. Reload the page when you're ready to proceed.
+        </DialogBody>
+        <DialogActions>
+          <button className={styles.primaryButton} onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </DialogActions>
+      </Dialog>
     )
   }
 
-  const isOverlay = props.mode === 'legacy-import'
-
   return (
-    <div className={isOverlay ? styles.overlay : styles.container}>
-      <div className={styles.dialog}>
-        <div className={styles.title}>
-          {props.mode === 'schema-upgrade'
-            ? 'Database update required'
-            : 'Data migration required'}
-        </div>
-        <div className={styles.body}>
-          {props.mode === 'schema-upgrade'
-            ? `Your database needs to be updated from version ${props.info.currentVersion} to version ${props.info.targetVersion}.`
-            : 'The data you are loading contains legacy fields that will be converted.'}
-        </div>
-        <div className={styles.changeList}>
-          {descriptions.map((desc, i) => (
-            <div key={i} className={styles.changeItem}>
-              {desc}
-            </div>
-          ))}
-        </div>
-        <div className={styles.exportSection}>
-          <div className={styles.exportHint}>
-            We recommend exporting a backup before proceeding.
+    <Dialog
+      open
+      onClose={handleCancel}
+      blockBackdropClose
+      size="md"
+      title={props.mode === 'schema-upgrade' ? 'Database update required' : 'Data migration required'}
+    >
+      <DialogBody>
+        {props.mode === 'schema-upgrade'
+          ? `Your database needs to be updated from version ${props.info.currentVersion} to version ${props.info.targetVersion}.`
+          : 'The data you are loading contains legacy fields that will be converted.'}
+      </DialogBody>
+      <div className={styles.changeList}>
+        {descriptions.map((desc, i) => (
+          <div key={i} className={styles.changeItem}>
+            {desc}
           </div>
-          <button
-            className={styles.exportButton}
-            onClick={handleExport}
-            disabled={exporting}
-          >
-            {exporting ? 'Exporting...' : exported ? 'Exported!' : 'Export backup'}
-          </button>
-          {exportError && <div className={styles.exportError}>{exportError}</div>}
-        </div>
-        <div className={styles.actions}>
-          <button className={styles.cancelButton} onClick={handleCancel}>
-            Cancel
-          </button>
-          <button className={styles.primaryButton} onClick={props.onProceed}>
-            Apply update
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+      <div className={styles.exportSection}>
+        <div className={styles.exportHint}>
+          We recommend exporting a backup before proceeding.
+        </div>
+        <button
+          className={styles.exportButton}
+          onClick={handleExport}
+          disabled={exporting}
+        >
+          {exporting ? 'Exporting...' : exported ? 'Exported!' : 'Export backup'}
+        </button>
+        {exportError && <div className={styles.exportError}>{exportError}</div>}
+      </div>
+      <DialogActions>
+        <button className={styles.cancelButton} onClick={handleCancel}>
+          Cancel
+        </button>
+        <button className={styles.primaryButton} onClick={props.onProceed}>
+          Apply update
+        </button>
+      </DialogActions>
+    </Dialog>
   )
 }

@@ -20,6 +20,7 @@ import { statusRepository } from '../../data'
 import type { Status } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
+import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
 import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
 import styles from './EntityEditor.module.css'
@@ -241,19 +242,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
               {visible.map((s) => {
-                if (deleteId === s.id) {
-                  return (
-                    <div key={s.id} className={styles.deleteConfirm}>
-                      <div className={styles.colorSwatch} style={{ background: s.color }} />
-                      <div className={styles.deleteMsg}>
-                        Delete <strong>{s.name}</strong>?{deleteCount > 0 && ` Used on ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
-                      </div>
-                      <button className={styles.deleteBtnConfirm} onClick={confirmDelete}>Delete</button>
-                      <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Cancel</button>
-                    </div>
-                  )
-                }
-
                 if (editing && editing.id === s.id) {
                   const ed = editing
                   return (
@@ -322,6 +310,26 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           <button className={styles.addBtn} onClick={startAdd}>+ Add Status</button>
         )}
       </div>
+      {deleteId != null && (() => {
+        const target = statuses.find((s) => s.id === deleteId)
+        if (!target) return null
+        return (
+          <ConfirmDialog
+            open
+            title="Delete status"
+            message={
+              <>
+                Delete <strong>{target.name}</strong>?
+                {deleteCount > 0 && ` Used on ${deleteCount} task${deleteCount !== 1 ? 's' : ''}.`}
+              </>
+            }
+            confirmLabel="Delete"
+            danger
+            onConfirm={confirmDelete}
+            onCancel={() => setDeleteId(null)}
+          />
+        )
+      })()}
     </>
   )
 }

@@ -17,6 +17,7 @@ interface CanvasContextMenuProps {
 
 export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -24,8 +25,25 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
         onClose()
       }
     }
+    const focusables = (): HTMLButtonElement[] =>
+      itemRefs.current.filter((el): el is HTMLButtonElement => !!el)
     const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+        return
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const buttons = focusables()
+        if (buttons.length === 0) return
+        e.preventDefault()
+        const active = document.activeElement as HTMLElement | null
+        const currentIdx = buttons.findIndex((el) => el === active)
+        const nextIdx = e.key === 'ArrowDown'
+          ? (currentIdx + 1) % buttons.length
+          : (currentIdx <= 0 ? buttons.length - 1 : currentIdx - 1)
+        buttons[nextIdx]?.focus()
+      }
     }
     document.addEventListener('mousedown', handler, true)
     document.addEventListener('keydown', keyHandler, true)
@@ -34,6 +52,12 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
       document.removeEventListener('keydown', keyHandler, true)
     }
   }, [onClose])
+
+  // autoFocus the first menu item on mount.
+  useEffect(() => {
+    const first = itemRefs.current.find((el): el is HTMLButtonElement => !!el)
+    first?.focus()
+  }, [])
 
   // Clamp position so menu doesn't overflow viewport
   useEffect(() => {
@@ -48,13 +72,21 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
   }, [x, y])
 
   return (
-    <div ref={menuRef} className={styles.menu} style={{ left: x, top: y }}>
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-orientation="vertical"
+      className={styles.menu}
+      style={{ left: x, top: y }}
+    >
       {items.map((item, i) => (
         item.separator ? (
-          <div key={i} className={styles.separator} />
+          <div key={i} className={styles.separator} role="separator" />
         ) : (
           <button
             key={i}
+            ref={(el) => { itemRefs.current[i] = el }}
+            role="menuitem"
             className={`${styles.item} ${item.danger ? styles.itemDanger : ''}`}
             onClick={() => { item.action(); onClose() }}
           >
