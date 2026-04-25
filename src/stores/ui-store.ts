@@ -73,9 +73,6 @@ interface UIState {
   filteredListPopup: FilteredListPopup | null
   /** Pending canvas target from command palette navigation */
   pendingCanvasTarget: { x: number; y: number } | null
-  /** When set, ListView shows an "editing preset" banner with Save / Cancel actions. */
-  editingListDefId: number | null
-  editingListDefName: string | null
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
   /** Project navigator panel open state */
@@ -125,8 +122,6 @@ interface UIState {
   showFilteredList: (x: number, y: number, filter: AttributeFilter) => void
   hideFilteredList: () => void
   setPendingCanvasTarget: (target: { x: number; y: number } | null) => void
-  startEditingListDef: (id: number, name: string) => void
-  clearEditingListDef: () => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
   toggleProjectNavigator: () => void
@@ -154,8 +149,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   clipboardSourceProjectId: null,
   filteredListPopup: null,
   pendingCanvasTarget: null,
-  editingListDefId: null,
-  editingListDefName: null,
   isFilterSheetOpen: false,
   isProjectNavigatorOpen: false,
   isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
@@ -276,14 +269,6 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setPendingCanvasTarget(target: { x: number; y: number } | null) {
     set({ pendingCanvasTarget: target })
-  },
-
-  startEditingListDef(id: number, name: string) {
-    set({ editingListDefId: id, editingListDefName: name })
-  },
-
-  clearEditingListDef() {
-    set({ editingListDefId: null, editingListDefName: null })
   },
 
   toggleFilterSheet() {

@@ -490,5 +490,24 @@ describe('restoreFromImportData', () => {
       const followupStatus = await db.statuses.get(followupId)
       expect(followupStatus!.name).toBe('Follow-up')
     })
+
+    it('strips dormant Dashboard-era settings keys at restore', async () => {
+      const data = makeImportData({
+        settings: [
+          { key: 'dashboardUserLists', value: JSON.stringify([1, 2, 3]) },
+          { key: 'notesPinnedToDashboard', value: 'true' },
+          { key: 'themeMode', value: 'dark' },
+        ],
+      })
+
+      await restoreFromImportData(data)
+
+      const settings = await db.settings.toArray()
+      // Dormant keys must be stripped post-restore (P8).
+      expect(settings.find(s => s.key === 'dashboardUserLists')).toBeUndefined()
+      expect(settings.find(s => s.key === 'notesPinnedToDashboard')).toBeUndefined()
+      // Live keys still survive.
+      expect(settings.find(s => s.key === 'themeMode')!.value).toBe('dark')
+    })
   })
 })

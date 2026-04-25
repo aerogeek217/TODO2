@@ -201,23 +201,19 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('accepts dashboardUserLists with integer ids', () => {
-    for (const value of [[], [1, 2, 3], [42]]) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'dashboardUserLists', value: JSON.stringify(value) }],
-      }))
+  // `dashboardUserLists` + `notesPinnedToDashboard` are dormant Dashboard-era
+  // keys: validation accepts them so older backups still import, but restore
+  // strips both keys (see code-review-2026-04-25 P8). Length-bounded only.
+  it('accepts dormant dashboardUserLists / notesPinnedToDashboard payloads as legacy', () => {
+    const cases = [
+      { key: 'dashboardUserLists', value: JSON.stringify([1, 2, 3]) },
+      { key: 'dashboardUserLists', value: '' },
+      { key: 'notesPinnedToDashboard', value: 'true' },
+      { key: 'notesPinnedToDashboard', value: 'whatever' },
+    ]
+    for (const setting of cases) {
+      const result = validateImportData(validData({ settings: [setting] }))
       expect(result.ok).toBe(true)
-    }
-  })
-
-  it('rejects dashboardUserLists with non-integer or non-array payloads', () => {
-    const bad = [[1, 'two'], [1.5], { a: 1 }, 'not-json', [true]]
-    for (const value of bad) {
-      const v = typeof value === 'string' ? value : JSON.stringify(value)
-      const result = validateImportData(validData({
-        settings: [{ key: 'dashboardUserLists', value: v }],
-      }))
-      expect(result.ok).toBe(false)
     }
   })
 

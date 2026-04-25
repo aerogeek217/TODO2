@@ -11,7 +11,9 @@ export interface ListDefinitionPickerBodyProps {
   /** Rendered centered when there are no items. */
   emptyLabel?: string
   onPick: (listDefinitionId: number) => void
-  /** Optional "+ Create new list…" footer button. */
+  /** Optional "+ Create new list…" footer button. When the items list is
+   * empty, swaps to a primary CTA button (autoFocused) instead of the muted
+   * footer link — see `ListDefinitionPickerPopup`'s empty shape. */
   onCreateNew?: () => void
   /** Rendered above the list; omit for an un-chromed body. */
   header?: string
@@ -42,12 +44,24 @@ export function ListDefinitionPickerBody({
   }, [listDefinitions, excludeIds, filterDefinitions])
 
   const isEmpty = items.length === 0
+  const showEmptyCta = isEmpty && onCreateNew != null
 
   return (
     <>
       {header && <div className={styles.header}>{header}</div>}
       {isEmpty ? (
-        emptyLabel ? <div className={styles.empty}>{emptyLabel}</div> : null
+        showEmptyCta ? (
+          <div className={styles.emptyCta}>
+            <button
+              type="button"
+              className={styles.primaryCreateBtn}
+              onClick={onCreateNew}
+              autoFocus
+            >
+              + Create new list…
+            </button>
+          </div>
+        ) : emptyLabel ? <div className={styles.empty}>{emptyLabel}</div> : null
       ) : (
         <div className={styles.list}>
           {items.map(d => (
@@ -62,7 +76,7 @@ export function ListDefinitionPickerBody({
           ))}
         </div>
       )}
-      {onCreateNew && (
+      {!showEmptyCta && onCreateNew && (
         <div className={styles.footer}>
           <button className={styles.createBtn} onClick={onCreateNew}>
             + Create new list…

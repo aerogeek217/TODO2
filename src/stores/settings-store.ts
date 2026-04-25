@@ -53,17 +53,8 @@ interface SettingsState {
   selectedHorizon: HorizonKey
   /** Per-horizon collapse toggle (Phase 5 wires the UI). */
   horizonCollapsed: Partial<Record<HorizonKey, boolean>>
-  /** Whether the notes card is shown as a tile in the "Your lists" grid. */
-  notesPinnedToDashboard: boolean
   /** Persisted canvas rails layout (null = no persisted state). */
   canvasRails: RailsState | null
-  /**
-   * Ordered `listDefinitionId`s for the dashboard "Your lists" grid. Dormant
-   * post-Dashboard retirement — kept in settings for one release so reinstating
-   * the feature (or reading an older backup) doesn't lose the ordering.
-   * null = never seeded. May contain a horizon-mapped id.
-   */
-  dashboardUserLists: number[] | null
   /** Ceiling for tag registry size. `tag-store.add` throws when `tags.length`
    * reaches this value. Guards against runaway `#tag` creation from NLP input.
    */
@@ -82,9 +73,7 @@ interface SettingsState {
   setHorizonSlot: (key: HorizonKey, listDefinitionId: number | null) => Promise<void>
   setSelectedHorizon: (key: HorizonKey) => Promise<void>
   setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
-  setNotesPinnedToDashboard: (pinned: boolean) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
-  setDashboardUserLists: (ids: number[]) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -192,24 +181,6 @@ function isValidHorizonKey(v: unknown): v is HorizonKey {
   return typeof v === 'string' && (HORIZON_KEYS as readonly string[]).includes(v)
 }
 
-function parseDashboardUserLists(value: string | undefined | null): number[] | null {
-  if (!value) return null
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return null
-    const out: number[] = []
-    const seen = new Set<number>()
-    for (const item of parsed) {
-      if (typeof item !== 'number' || !Number.isInteger(item) || seen.has(item)) continue
-      out.push(item)
-      seen.add(item)
-    }
-    return out
-  } catch {
-    return null
-  }
-}
-
 function parseHorizonCollapsed(value: string | undefined | null): Partial<Record<HorizonKey, boolean>> {
   if (!value) return {}
   try {
@@ -268,9 +239,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   horizonSlots: {},
   selectedHorizon: 'thisweek' as HorizonKey,
   horizonCollapsed: {},
-  notesPinnedToDashboard: true,
   canvasRails: null,
-  dashboardUserLists: null,
   maxTags: DEFAULT_MAX_TAGS,
 
   async load() {
@@ -290,11 +259,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let horizonSlots: Partial<Record<HorizonKey, number>> = {}
       let selectedHorizon: HorizonKey = 'thisweek'
       let horizonCollapsed: Partial<Record<HorizonKey, boolean>> = {}
-      let notesPinnedToDashboard: boolean | undefined
-      let legacyNotesDock: string | undefined
-      let legacyNotesVisible: string | undefined
       let canvasRails: RailsState | null = null
-      let dashboardUserLists: number[] | null = null
       let maxTags: number = DEFAULT_MAX_TAGS
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
@@ -334,16 +299,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isValidHorizonKey(row.value)) selectedHorizon = row.value
         } else if (row.key === 'horizonCollapsed') {
           horizonCollapsed = parseHorizonCollapsed(row.value)
-        } else if (row.key === 'notesPinnedToDashboard') {
-          notesPinnedToDashboard = row.value !== 'false'
-        } else if (row.key === 'notesDock') {
-          legacyNotesDock = row.value
-        } else if (row.key === 'notesVisible') {
-          legacyNotesVisible = row.value
         } else if (row.key === 'canvasRails') {
           canvasRails = parseRailsState(row.value)
-        } else if (row.key === 'dashboardUserLists') {
-          dashboardUserLists = parseDashboardUserLists(row.value)
         } else if (row.key === 'maxTags') {
           const parsed = Number(row.value)
           if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
@@ -351,24 +308,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      // Migrate legacy notesDock/notesVisible → notesPinnedToDashboard on first
-      // load. Users who had notes visible in a docked (non-floating) mode get the
-      // tile pinned; floating-dock or hidden stays unpinned. The legacy rows are
-      // purged so this branch only ever fires once per install.
-      if (notesPinnedToDashboard == null) {
-        if (legacyNotesVisible != null || legacyNotesDock != null) {
-          const visible = legacyNotesVisible !== 'false'
-          const floating = legacyNotesDock === 'floating'
-          notesPinnedToDashboard = visible && !floating
-          await settingsRepository.put('notesPinnedToDashboard', notesPinnedToDashboard ? 'true' : 'false')
-        } else {
-          notesPinnedToDashboard = true
-        }
-      }
-      if (legacyNotesDock != null || legacyNotesVisible != null) {
-        await settingsRepository.bulkDelete(['notesDock', 'notesVisible'])
-      }
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, notesPinnedToDashboard, canvasRails, dashboardUserLists, maxTags })
+      // Strip dormant Dashboard-era keys (`dashboardUserLists`,
+      // `notesPinnedToDashboard`) and the older `notesDock` / `notesVisible`
+      // legacy rows so they don't accumulate forever in IndexedDB. The store
+      // surface for these was retired in code-review-2026-04-25 P8.
+      await settingsRepository.bulkDelete([
+        'dashboardUserLists',
+        'notesPinnedToDashboard',
+        'notesDock',
+        'notesVisible',
+      ])
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, canvasRails, maxTags })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -465,24 +415,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     else delete next[key]
     await settingsRepository.put('horizonCollapsed', JSON.stringify(next))
     set({ horizonCollapsed: next })
-  },
-
-  async setNotesPinnedToDashboard(pinned: boolean) {
-    await settingsRepository.put('notesPinnedToDashboard', pinned ? 'true' : 'false')
-    set({ notesPinnedToDashboard: pinned })
-  },
-
-  async setDashboardUserLists(ids: number[]) {
-    if (!Array.isArray(ids)) return
-    const clean: number[] = []
-    const seen = new Set<number>()
-    for (const id of ids) {
-      if (typeof id !== 'number' || !Number.isInteger(id) || seen.has(id)) continue
-      clean.push(id)
-      seen.add(id)
-    }
-    await settingsRepository.put('dashboardUserLists', JSON.stringify(clean))
-    set({ dashboardUserLists: clean })
   },
 
   setCanvasRails: createDebouncedPersist<RailsState>({

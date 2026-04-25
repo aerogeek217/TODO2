@@ -18,23 +18,6 @@ beforeEach(() => {
     clipboardTodoIds: [],
     clipboardSourceProjectId: null,
     filteredListPopup: null,
-    editingListDefId: null,
-    editingListDefName: null,
-  })
-})
-
-describe('useUIStore editing list-definition state', () => {
-  it('startEditingListDef sets id + name; clearEditingListDef resets both', () => {
-    expect(useUIStore.getState().editingListDefId).toBeNull()
-    expect(useUIStore.getState().editingListDefName).toBeNull()
-
-    useUIStore.getState().startEditingListDef(42, "Alice's tasks")
-    expect(useUIStore.getState().editingListDefId).toBe(42)
-    expect(useUIStore.getState().editingListDefName).toBe("Alice's tasks")
-
-    useUIStore.getState().clearEditingListDef()
-    expect(useUIStore.getState().editingListDefId).toBeNull()
-    expect(useUIStore.getState().editingListDefName).toBeNull()
   })
 })
 
@@ -164,5 +147,24 @@ describe('useUIStore', () => {
     useUIStore.getState().clearClipboard()
     expect(useUIStore.getState().clipboardTodoIds).toEqual([])
     expect(useUIStore.getState().clipboardSourceProjectId).toBeNull()
+  })
+
+  it('openListsEditor stores initialId; closeListsEditor resets both', () => {
+    expect(useUIStore.getState().listsEditorOpen).toBe(false)
+    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
+
+    useUIStore.getState().openListsEditor(42)
+    expect(useUIStore.getState().listsEditorOpen).toBe(true)
+    expect(useUIStore.getState().listsEditorInitialId).toBe(42)
+
+    useUIStore.getState().closeListsEditor()
+    expect(useUIStore.getState().listsEditorOpen).toBe(false)
+    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
+  })
+
+  it('openListsEditor without an id leaves initialId null', () => {
+    useUIStore.getState().openListsEditor()
+    expect(useUIStore.getState().listsEditorOpen).toBe(true)
+    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
   })
 })

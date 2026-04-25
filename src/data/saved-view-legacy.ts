@@ -6,13 +6,15 @@ import type {
   Status,
   TodoPredicate,
 } from '../models'
-import type { ListGrouping, ListSort, ListDefinition } from '../models/list-definition'
+import type { ListDefinition } from '../models/list-definition'
 import { readDateAnchor } from '../utils/date-anchor'
+import { encodeGroupSort, resolveSavedViewGrouping } from '../utils/list-view-encoding'
 
 /**
- * Legacy SavedView types. Kept here (not re-exported as models) so the v39
- * migration + restore pass can translate pre-v39 rows into `ListDefinition`s
- * without resurrecting the SavedView runtime surface.
+ * Legacy SavedView types + migration-only composers. The pure runtime
+ * encoders (`encodeGroupSort` / `resolveSavedViewGrouping` / `translateSortBy`)
+ * live in `utils/list-view-encoding.ts` so views/components don't have to
+ * reach into `data/` — only restore + the v39 migration call into this file.
  */
 export interface LegacySavedViewFilters extends Partial<TodoPredicate> {
   priorities?: number[] | null
@@ -35,68 +37,6 @@ export interface LegacySavedView {
   sortOrder: number
   maxTasks?: number
   limitMode?: 'hard' | 'scroll'
-}
-
-/**
- * Translate a persisted saved-view sortBy value into the current `ListSortBy`.
- * Legacy tokens (`priority`, `due`, `tag`) fold to `'date'` so old rows still
- * produce a readable group.
- */
-export function translateSortBy(sortBy: string): ListSortBy {
-  if (sortBy === 'priority' || sortBy === 'due' || sortBy === 'tag') return 'date'
-  if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline'
-      || sortBy === 'people'
-      || sortBy === 'project' || sortBy === 'org' || sortBy === 'status') {
-    return sortBy
-  }
-  return 'date'
-}
-
-/**
- * Resolve grouping + within-group sort from a persisted saved view, falling
- * back to the legacy single `sortBy` field for views saved before group/sort
- * were split.
- */
-export function resolveSavedViewGrouping(v: { sortBy: string; groupBy?: ListGroupBy; itemSortBy?: ListItemSortBy }): {
-  groupBy: ListGroupBy
-  itemSortBy: ListItemSortBy
-} {
-  let groupBy: ListGroupBy
-  if (v.groupBy != null) {
-    groupBy = v.groupBy
-  } else {
-    const translated = translateSortBy(v.sortBy)
-    // 'name' is sort-only — never a group; fall back to 'date'.
-    groupBy = translated === 'name' ? 'date' : translated
-  }
-  const itemSortBy: ListItemSortBy = v.itemSortBy ?? 'manual'
-  return { groupBy, itemSortBy }
-}
-
-/**
- * Encode runtime group/sort choice into a list-definition's `sort` + `grouping`.
- * Moved here from `ListView.tsx` so the save path and the v39 migration share
- * one encoder.
- */
-export function encodeGroupSort(
-  groupBy: ListGroupBy,
-  itemSortBy: ListItemSortBy,
-): { sort: ListSort; grouping: ListGrouping } {
-  const sort: ListSort = itemSortBy === 'manual'
-    ? { kind: 'sort-order' }
-    : { kind: 'sortBy', by: itemSortBy }
-
-  let grouping: ListGrouping
-  if (groupBy === 'none') {
-    grouping = { kind: 'none' }
-  } else if (groupBy === 'tag') {
-    grouping = { kind: 'by-tag' }
-  } else if (itemSortBy !== 'manual' && groupBy === itemSortBy) {
-    grouping = { kind: 'by-sortBy' }
-  } else {
-    grouping = { kind: 'by-field', by: groupBy }
-  }
-  return { sort, grouping }
 }
 
 /**

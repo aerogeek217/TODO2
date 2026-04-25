@@ -20,7 +20,7 @@ import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter, criteriaToPredicate, predicateToCriteria } from '../stores/filter-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
-import { encodeGroupSort } from '../data/saved-view-legacy'
+import { encodeGroupSort } from '../utils/list-view-encoding'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskList } from '../components/task/TaskList'
 import { TaskRow } from '../components/task/TaskRow'
@@ -567,9 +567,6 @@ export function ListView() {
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { statuses, load: loadStatuses } = useStatusStore()
   const { listGroupBy, setListGroupBy, listSortBy, setListSortBy, openEditPopup, showBulkConfirmation } = useUIStore()
-  const editingListDefId = useUIStore((s) => s.editingListDefId)
-  const editingListDefName = useUIStore((s) => s.editingListDefName)
-  const clearEditingListDef = useUIStore((s) => s.clearEditingListDef)
   const updateListDefinition = useListDefinitionStore((s) => s.update)
   const allListDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const loadListDefinitions = useListDefinitionStore((s) => s.load)
@@ -848,20 +845,6 @@ export function ListView() {
     })
   }, [showBulkConfirmation, removeListDefinition])
 
-  const handleSaveEditedPreset = useCallback(async () => {
-    if (editingListDefId == null) return
-    const def = allListDefinitions.find((d) => d.id === editingListDefId)
-    if (!def) { clearEditingListDef(); return }
-    const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
-    await updateListDefinition({
-      ...def,
-      membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
-      sort,
-      grouping,
-    })
-    clearEditingListDef()
-  }, [editingListDefId, allListDefinitions, updateListDefinition, filters, listGroupBy, listSortBy, clearEditingListDef])
-
   // --- DnD handlers ---
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -945,16 +928,6 @@ export function ListView() {
             <div className={styles.pageTitle}>List</div>
             <div className={styles.pageSubtitle}>{totalActive} active tasks</div>
           </div>
-
-          {editingListDefId !== null && (
-            <div className={styles.editingPresetBanner}>
-              <span className={styles.editingPresetLabel}>
-                Editing preset <strong>{editingListDefName ?? '…'}</strong>
-              </span>
-              <button className={styles.editingPresetSave} onClick={handleSaveEditedPreset}>Save changes</button>
-              <button className={styles.editingPresetCancel} onClick={clearEditingListDef}>Cancel</button>
-            </div>
-          )}
 
           {favoritedDefs.length > 0 && (
             <div className={styles.savedViewsBar}>

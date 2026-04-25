@@ -10,7 +10,7 @@ import {
   truncateSections,
   type Section,
 } from '../../views/ListView'
-import { encodeGroupSort } from '../../data/saved-view-legacy'
+import { encodeGroupSort } from '../../utils/list-view-encoding'
 
 function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
   return {

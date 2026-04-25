@@ -24,6 +24,7 @@ import { StatusEditor } from '../components/settings/StatusEditor'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
+import { useUIStore } from '../stores/ui-store'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -63,7 +64,10 @@ export function SettingsPage() {
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showStatusEditor, setShowStatusEditor] = useState(false)
-  const [showDashboardListsEditor, setShowDashboardListsEditor] = useState(false)
+  const listsEditorOpen = useUIStore((s) => s.listsEditorOpen)
+  const listsEditorInitialId = useUIStore((s) => s.listsEditorInitialId)
+  const openListsEditor = useUIStore((s) => s.openListsEditor)
+  const closeListsEditor = useUIStore((s) => s.closeListsEditor)
   const listDefinitionCount = useListDefinitionStore((s) => s.listDefinitions.length)
   const loadListDefinitions = useListDefinitionStore((s) => s.load)
   const backups = useFileOpsStore((s) => s.backups)
@@ -320,7 +324,7 @@ export function SettingsPage() {
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowTagEditor(true)}>
               Manage Tags{tagCount > 0 && ` (${tagCount})`}
             </button>
-            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowDashboardListsEditor(true)}>
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => openListsEditor()}>
               Lists{listDefinitionCount > 0 && ` (${listDefinitionCount})`}
             </button>
           </div>
@@ -718,7 +722,12 @@ export function SettingsPage() {
       {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showStatusEditor && <StatusEditor onClose={() => setShowStatusEditor(false)} />}
       {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
-      {showDashboardListsEditor && <DashboardListsEditor onClose={() => setShowDashboardListsEditor(false)} />}
+      {listsEditorOpen && (
+        <DashboardListsEditor
+          onClose={closeListsEditor}
+          initialSelectedId={listsEditorInitialId ?? undefined}
+        />
+      )}
 
       {showCleanupPopup && (
         <div className={styles.cleanupOverlay} onClick={() => setShowCleanupPopup(false)}>

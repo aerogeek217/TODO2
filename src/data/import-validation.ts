@@ -577,6 +577,10 @@ function checkSavedView(v: unknown): CheckResult {
 
 // `defaultTaskboardId` is a pre-v33 legacy key accepted here so backups still
 // validate; restore / the v33 migration drops it from settings.
+// `notesPinnedToDashboard` / `dashboardUserLists` are post-Dashboard dormant
+// keys: store + setter surface retired in code-review-2026-04-25 P8, but the
+// import-validation entry stays one release so older backups still validate.
+// Restore strips both keys; schedule deletion of the entry one release later.
 const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId', 'maxTags']
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
@@ -678,9 +682,6 @@ function checkSetting(v: unknown): CheckResult {
     const n = Number(v.value)
     return n === 0 || n === 1 ? true : 'value (weekStartsOn must be 0 or 1)'
   }
-  if (v.key === 'notesPinnedToDashboard') {
-    return v.value === 'true' || v.value === 'false' ? true : 'value (notesPinnedToDashboard must be true/false)'
-  }
   if (v.key === 'canvasRails') {
     let parsed: unknown
     try {
@@ -743,20 +744,9 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === 'selectedHorizon') {
     return HORIZON_KEYS_SET.has(v.value as string) ? true : `value (selectedHorizon must be one of: ${(HORIZON_KEYS as readonly string[]).join(', ')})`
   }
-  if (v.key === 'dashboardUserLists') {
-    try {
-      const parsed = JSON.parse(v.value as string) as unknown
-      if (!Array.isArray(parsed)) return 'value (dashboardUserLists must be an array)'
-      for (const item of parsed) {
-        if (typeof item !== 'number' || !Number.isInteger(item)) {
-          return 'value (dashboardUserLists entries must be integer ids)'
-        }
-      }
-      return true
-    } catch {
-      return 'value (dashboardUserLists must be valid JSON)'
-    }
-  }
+  // `notesPinnedToDashboard` / `dashboardUserLists` are accepted as legacy
+  // keys (see VALID_SETTING_KEYS comment); restore strips them so the format
+  // is irrelevant. Length bounded by SETTING_VALUE_MAX_LEN_BY_KEY above.
   return true
 }
 

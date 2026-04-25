@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { ListDefinitionPickerBody } from './ListDefinitionPickerBody'
 import styles from './ListDefinitionPickerPopup.module.css'
 
 interface Props {
@@ -19,7 +19,6 @@ const MARGIN_PX = 8
 
 export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose, excludeIds }: Props) {
   const popupRef = useRef<HTMLDivElement>(null)
-  const { listDefinitions } = useListDefinitionStore()
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -45,17 +44,8 @@ export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose
     }
   }, [x, y])
 
-  const items = useMemo(() => {
-    const all = [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
-    if (excludeIds == null) return all
-    const excluded = new Set(excludeIds)
-    return all.filter(d => d.id != null && !excluded.has(d.id))
-  }, [listDefinitions, excludeIds])
-
   const clampedX = Math.min(x, window.innerWidth - WIDTH_PX - MARGIN_PX)
   const clampedY = Math.min(y, window.innerHeight - EST_HEIGHT_PX - MARGIN_PX)
-
-  const isEmpty = items.length === 0
 
   return createPortal(
     <div
@@ -63,39 +53,13 @@ export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose
       className={styles.popup}
       style={{ left: Math.max(MARGIN_PX, clampedX), top: Math.max(MARGIN_PX, clampedY), width: WIDTH_PX }}
     >
-      <div className={styles.header}>Add list to canvas</div>
-      {isEmpty ? (
-        <div className={styles.emptyCta}>
-          <button
-            type="button"
-            className={styles.primaryCreateBtn}
-            onClick={() => { onCreateNew(); onClose() }}
-            autoFocus
-          >
-            + Create new list…
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className={styles.list}>
-            {items.map(d => (
-              <button
-                key={d.id}
-                className={styles.item}
-                onClick={() => { onSelect(d.id as number); onClose() }}
-              >
-                <span className={styles.itemName}>{d.name}</span>
-                <span className={styles.itemAction}>Add</span>
-              </button>
-            ))}
-          </div>
-          <div className={styles.footer}>
-            <button className={styles.createBtn} onClick={() => { onCreateNew(); onClose() }}>
-              + Create new list…
-            </button>
-          </div>
-        </>
-      )}
+      <ListDefinitionPickerBody
+        header="Add list to canvas"
+        actionLabel="Add"
+        excludeIds={excludeIds}
+        onPick={(id) => { onSelect(id); onClose() }}
+        onCreateNew={() => { onCreateNew(); onClose() }}
+      />
     </div>,
     document.body
   )

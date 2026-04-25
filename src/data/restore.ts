@@ -340,6 +340,17 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     } as Taskboard)
     // v33 strips the legacy `defaultTaskboardId` setting — never re-persist it.
     await db.settings.delete('defaultTaskboardId')
+    // code-review-2026-04-25 P8 retires the dormant Dashboard-era settings
+    // surface (`dashboardUserLists` / `notesPinnedToDashboard` + the older
+    // `notesDock` / `notesVisible` rows). Older backups still validate
+    // (legacy keys remain in `VALID_SETTING_KEYS`), but their values are
+    // stripped from IndexedDB on restore so they don't accumulate.
+    await db.settings.bulkDelete([
+      'dashboardUserLists',
+      'notesPinnedToDashboard',
+      'notesDock',
+      'notesVisible',
+    ])
 
     // Drop `taskboardId` from every imported floating-taskboard row (silently
     // stripped by the validator's picker, but belt-and-suspenders here).
