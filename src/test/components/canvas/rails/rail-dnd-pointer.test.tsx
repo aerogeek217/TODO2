@@ -82,6 +82,28 @@ function leftOnlyLens(): RailsState {
   }
 }
 
+// Symmetric single-rail seeds for the left/right corner-asymmetry regressions
+// (P3 of code-review-2026-04-25). The dropped slot ends up on left/right; the
+// perpendicular rail (top or bottom) is intentionally absent so the pre-fix
+// raw `var(--top-size)` / `var(--bottom-size)` collapse behaviour is exercised.
+function bottomOnlyLens(): RailsState {
+  return {
+    left: null,
+    right: null,
+    top: null,
+    bottom: { orientation: 'horizontal', slots: [s('slot-B', 'lens')] },
+  }
+}
+
+function topOnlyLens(): RailsState {
+  return {
+    left: null,
+    right: null,
+    top: { orientation: 'horizontal', slots: [s('slot-T', 'lens')] },
+    bottom: null,
+  }
+}
+
 describe('rails dragSlot — empty-side dock', () => {
   it('drags slot-A from left rail onto empty top rail', async () => {
     const h = await setupRailsHarness(leftLens())
@@ -192,6 +214,50 @@ describe('rails dragSlot — empty-side dock', () => {
     const rails = h.getRails()
     expect(rails.bottom?.slots.map((s) => s.id)).toEqual(['slot-L'])
     expect(rails.corners).toEqual({ se: 'h' })
+    h.cleanup()
+  })
+
+  // P3 of code-review-2026-04-25: the left/right corner sub-zones used the
+  // raw `var(--top-size)` / `var(--bottom-size)` (no floor) — symmetric to the
+  // top/bottom regressions above but unfixed in bugs-ui P2. CSS now mirrors
+  // the floor on every side; these four tests pin that.
+  it('claim=start on left resolves to left_start when top rail is absent', async () => {
+    const h = await setupRailsHarness(bottomOnlyLens())
+    await h.dragSlot('slot-B', { kind: 'empty-side', side: 'left', claim: 'start' })
+    const rails = h.getRails()
+    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-B'])
+    // start claimed → nw='v' (default → cleared). end pinched → sw='h' stored.
+    expect(rails.corners).toEqual({ sw: 'h' })
+    h.cleanup()
+  })
+
+  it('claim=end on left resolves to left_end when bottom rail is absent', async () => {
+    const h = await setupRailsHarness(topOnlyLens())
+    await h.dragSlot('slot-T', { kind: 'empty-side', side: 'left', claim: 'end' })
+    const rails = h.getRails()
+    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-T'])
+    // end claimed → sw='v' (default → cleared). start pinched → nw='h' stored.
+    expect(rails.corners).toEqual({ nw: 'h' })
+    h.cleanup()
+  })
+
+  it('claim=start on right resolves to right_start when top rail is absent', async () => {
+    const h = await setupRailsHarness(bottomOnlyLens())
+    await h.dragSlot('slot-B', { kind: 'empty-side', side: 'right', claim: 'start' })
+    const rails = h.getRails()
+    expect(rails.right?.slots.map((s) => s.id)).toEqual(['slot-B'])
+    // start claimed → ne='v' (default → cleared). end pinched → se='h' stored.
+    expect(rails.corners).toEqual({ se: 'h' })
+    h.cleanup()
+  })
+
+  it('claim=end on right resolves to right_end when bottom rail is absent', async () => {
+    const h = await setupRailsHarness(topOnlyLens())
+    await h.dragSlot('slot-T', { kind: 'empty-side', side: 'right', claim: 'end' })
+    const rails = h.getRails()
+    expect(rails.right?.slots.map((s) => s.id)).toEqual(['slot-T'])
+    // end claimed → se='v' (default → cleared). start pinched → ne='h' stored.
+    expect(rails.corners).toEqual({ ne: 'h' })
     h.cleanup()
   })
 

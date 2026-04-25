@@ -1,11 +1,6 @@
 import type { SlotKind } from '../models/canvas-rails'
-import { useFloatingNoteStore } from '../stores/floating-note-store'
-import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
-import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
-import { useListInsetStore } from '../stores/list-inset-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { listInsetRepository } from '../data'
+import { floatKindBySlotKind } from '../utils/float-kind-registry'
 
 export interface FloatRect {
   x: number
@@ -43,50 +38,21 @@ export async function convertFloatingKind(args: FloatConversionArgs): Promise<nu
   if (sourceKind === nextKind) return sourceId
 
   let resolvedListId: number | undefined
-
   if (nextKind === 'lens') {
     resolvedListId = seed?.listDefinitionId
       ?? useListDefinitionStore.getState().listDefinitions[0]?.id
     if (resolvedListId == null) return null
   }
 
-  switch (sourceKind) {
-    case 'notes': await useFloatingNoteStore.getState().remove(sourceId); break
-    case 'calendar': await useFloatingCalendarStore.getState().remove(sourceId); break
-    case 'taskboard': await useFloatingTaskboardStore.getState().remove(sourceId); break
-    case 'lens': await useListInsetStore.getState().remove(sourceId); break
-    case 'horizons': await useFloatingHorizonsStore.getState().remove(sourceId); break
-  }
+  await floatKindBySlotKind(sourceKind).remove(sourceId)
 
-  const { x, y, width, height } = rect
-
-  if (nextKind === 'notes') {
-    const id = await useFloatingNoteStore.getState().add(canvasId, x, y)
-    if (width && height) await useFloatingNoteStore.getState().updateSize(id, width, height)
-    return id
-  }
-  if (nextKind === 'calendar') {
-    const id = await useFloatingCalendarStore.getState().add(canvasId, x, y)
-    if (width && height) await useFloatingCalendarStore.getState().updateSize(id, width, height)
-    return id
-  }
-  if (nextKind === 'taskboard') {
-    const id = await useFloatingTaskboardStore.getState().add(canvasId, x, y)
-    if (width && height) await useFloatingTaskboardStore.getState().updateSize(id, width, height)
-    return id
-  }
-  if (nextKind === 'horizons') {
-    const id = await useFloatingHorizonsStore.getState().add(canvasId, x, y)
-    if (width && height) await useFloatingHorizonsStore.getState().updateSize(id, width, height)
-    return id
-  }
-  // lens
-  const id = await useListInsetStore.getState().add(resolvedListId!, canvasId, x, y)
-  if (width && height) {
-    const store = useListInsetStore.getState()
-    const inset = store.insets.find((i) => i.id === id)
-    if (inset) await listInsetRepository.update({ ...inset, width, height })
-    await store.loadByCanvas(canvasId)
-  }
+  const target = floatKindBySlotKind(nextKind)
+  const id = await target.addFloat({
+    canvasId,
+    x: rect.x,
+    y: rect.y,
+    listDefinitionId: resolvedListId,
+  })
+  if (rect.width && rect.height) await target.setSize(id, rect.width, rect.height)
   return id
 }

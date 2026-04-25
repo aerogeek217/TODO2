@@ -38,7 +38,7 @@ describe('tabFromFloat', () => {
   })
 
   it('maps a taskboard descriptor to a taskboard-type tab', () => {
-    const t = tabFromFloat({ kind: 'taskboard', id: 3, taskboardId: 7 }, 'tab-3')
+    const t = tabFromFloat({ kind: 'taskboard', id: 3 }, 'tab-3')
     expect(t).toEqual({ id: 'tab-3', type: 'taskboard' })
   })
 
@@ -77,7 +77,7 @@ describe('slotFromFloat', () => {
   it('never sets orientation/weekOffset for non-calendar kinds', () => {
     const note = slotFromFloat({ kind: 'note', id: 1 }, 'slot-a', 'tab-a')
     const lens = slotFromFloat({ kind: 'lens', id: 2, listDefinitionId: 99 }, 'slot-b', 'tab-b')
-    const tb = slotFromFloat({ kind: 'taskboard', id: 3, taskboardId: 1 }, 'slot-c', 'tab-c')
+    const tb = slotFromFloat({ kind: 'taskboard', id: 3 }, 'slot-c', 'tab-c')
     for (const s of [note, lens, tb]) {
       expect(s.orientation).toBeUndefined()
       expect(s.weekOffset).toBeUndefined()

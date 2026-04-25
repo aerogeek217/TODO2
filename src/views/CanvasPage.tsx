@@ -3,9 +3,10 @@ import {
   DndContext,
   DragOverlay,
 } from '@dnd-kit/core'
-import { RAILS_DRAG_TYPE, isRailsDropId, type FloatDescriptor, type FloatDockTarget } from '../utils/rail-dnd'
+import { RAILS_DRAG_TYPE, isRailsDropId, type FloatDockTarget } from '../utils/rail-dnd'
 import { useCanvasRailsStore } from '../stores/canvas-rails-store'
 import { describeFloatDockTarget, computeEmptySideCornerClaim } from '../utils/float-dock-announce'
+import { floatKindByDragKind } from '../utils/float-kind-registry'
 import type { FloatDragKind } from '../stores/ui-store'
 import { buildTaskCollision } from '../utils/task-dnd'
 import { useCanvasStore } from '../stores/canvas-store'
@@ -571,42 +572,7 @@ export function CanvasPage() {
     desc: { kind: FloatDragKind; floatId: number },
     target: FloatDockTarget,
   ) => {
-    let descriptor: FloatDescriptor | null = null
-    switch (desc.kind) {
-      case 'note':
-        descriptor = { kind: 'note', id: desc.floatId }
-        break
-      case 'calendar': {
-        const cal = useFloatingCalendarStore.getState().calendars.find((c) => c.id === desc.floatId)
-        if (!cal) return
-        descriptor = {
-          kind: 'calendar',
-          id: desc.floatId,
-          orientation: cal.orientation,
-          weekOffset: cal.weekOffset,
-        }
-        break
-      }
-      case 'lens': {
-        const inset = useListInsetStore.getState().insets.find((i) => i.id === desc.floatId)
-        if (!inset) return
-        descriptor = { kind: 'lens', id: desc.floatId, listDefinitionId: inset.listDefinitionId }
-        break
-      }
-      case 'taskboard': {
-        await useTaskboardStore.getState().ensureLoaded()
-        const board = useTaskboardStore.getState().board
-        if (!board?.id) {
-          console.warn('handleFloatDock: taskboard still unavailable after ensureLoaded')
-          return
-        }
-        descriptor = { kind: 'taskboard', id: desc.floatId, taskboardId: board.id }
-        break
-      }
-      case 'horizons':
-        descriptor = { kind: 'horizons', id: desc.floatId }
-        break
-    }
+    const descriptor = await floatKindByDragKind(desc.kind).buildDescriptor(desc.floatId)
     if (!descriptor) return
 
     const railsStore = useCanvasRailsStore.getState()

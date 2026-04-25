@@ -674,11 +674,16 @@ export function pointerToFlowPosition(
  * a fresh slot is built (empty-side / split / detach paths). Center-merge
  * appends into an existing slot and cannot override the destination's
  * existing slot-level state.
+ *
+ * Taskboard descriptors used to carry a `taskboardId` field, but the v33
+ * migration collapsed `taskboards` to a singleton — every taskboard tab
+ * resolves to the same row, so threading the id was vestigial. Dropped in
+ * code-review-2026-04-25 P3.
  */
 export type FloatDescriptor =
   | { kind: 'note'; id: number }
   | { kind: 'calendar'; id: number; orientation?: CalendarOrientation; weekOffset?: number }
-  | { kind: 'taskboard'; id: number; taskboardId: number }
+  | { kind: 'taskboard'; id: number }
   | { kind: 'lens'; id: number; listDefinitionId: number }
   | { kind: 'horizons'; id: number }
 

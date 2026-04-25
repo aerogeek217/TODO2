@@ -296,12 +296,12 @@ function rectForEmptySideSubzone(
   const topSize = rails.top ? layout.top.height : 0
   const bottomSize = rails.bottom ? layout.bottom.height : 0
 
+  // Mirror DockOverlay.module.css: every corner sub-zone gets a
+  // CORNER_HIT_MIN_PX hit-target floor on its perpendicular dimension when
+  // the adjacent rail is absent, and the matching center sub-zone's far
+  // edges shift to the same floor so corner + center never overlap.
   if (side === 'top' || side === 'bottom') {
     const y = side === 'top' ? 0 : frameHeight - STRIP_THICKNESS
-    // Mirror DockOverlay.module.css: top/bottom corner sub-zones get a
-    // CORNER_HIT_MIN_PX hit-target floor on width when the perpendicular
-    // rail is absent, and the matching center sub-zone's start/end edges
-    // shift to the same floor so the two never overlap.
     const startW = Math.max(leftSize, CORNER_HIT_MIN_PX)
     const endW = Math.max(rightSize, CORNER_HIT_MIN_PX)
     if (claim === 'start') {
@@ -313,16 +313,16 @@ function rectForEmptySideSubzone(
     return { left: startW, top: y, width: frameWidth - startW - endW, height: STRIP_THICKNESS }
   }
   const x = side === 'left' ? 0 : frameWidth - STRIP_THICKNESS
+  const startH = Math.max(topSize, CORNER_HIT_MIN_PX)
+  const endH = Math.max(bottomSize, CORNER_HIT_MIN_PX)
   if (claim === 'start') {
-    if (topSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
-    return { left: x, top: 0, width: STRIP_THICKNESS, height: topSize }
+    return { left: x, top: 0, width: STRIP_THICKNESS, height: startH }
   }
   if (claim === 'end') {
-    if (bottomSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
-    return { left: x, top: frameHeight - bottomSize, width: STRIP_THICKNESS, height: bottomSize }
+    return { left: x, top: frameHeight - endH, width: STRIP_THICKNESS, height: endH }
   }
   // center
-  return { left: x, top: topSize, width: STRIP_THICKNESS, height: frameHeight - topSize - bottomSize }
+  return { left: x, top: startH, width: STRIP_THICKNESS, height: frameHeight - startH - endH }
 }
 
 function rectForSlot(slotId: string, layout: Required<RailsLayout>): TestRect | null {

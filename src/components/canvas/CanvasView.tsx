@@ -27,6 +27,7 @@ import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../store
 import { useSettingsStore } from '../../stores/settings-store'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { encodeRailsDropId, RAILS_DRAG_TYPE, resolveFloatDockTarget, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
+import { floatKindForNodeId, isFloatNodeId } from '../../utils/float-kind-registry'
 import type { RailSide } from '../../models/canvas-rails'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import styles from './CanvasView.module.css'
@@ -59,67 +60,14 @@ const AlignmentGuides = memo(function AlignmentGuides({ lines }: { lines: Alignm
   )
 })
 
-// React Flow node id prefixes for the five floating widget kinds. Kept as
-// `inset-` (not `lens-`) for DOM/test stability — `floatKindForNodeId` below
-// translates the legacy DOM prefix into the canonical kind name `'lens'` that
-// matches `FloatDescriptor.kind` / `SlotKind` / `FloatDragKind`.
-//
-// Translation table (DOM prefix → FloatDragKind):
-//   inset-     → lens
-//   note-      → note
-//   calendar-  → calendar
-//   taskboard- → taskboard
-//   horizons-  → horizons
-//
-// Adding a sixth widget kind: define a new prefix here, add a branch in
-// `floatKindForNodeId` + `floatKindLabel`, extend `isFloatNodeId` (it walks
-// every prefix), and add the kind to `FloatDragKind` / `FloatDescriptor`.
+// React Flow node id prefixes for the five floating widget kinds live in
+// `utils/float-kind-registry.ts`. Adding a sixth widget kind: append an entry
+// there + define the matching floating-* store + dispatch handler.
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
 const CALENDAR_PREFIX = 'calendar-'
 const TASKBOARD_PREFIX = 'taskboard-'
 const HORIZONS_PREFIX = 'horizons-'
-
-const FLOAT_NODE_PREFIXES = [
-  INSET_PREFIX,
-  NOTE_PREFIX,
-  CALENDAR_PREFIX,
-  TASKBOARD_PREFIX,
-  HORIZONS_PREFIX,
-] as const
-
-/** True iff `id` is the React Flow node id of any floating canvas widget. */
-function isFloatNodeId(id: string): boolean {
-  for (const p of FLOAT_NODE_PREFIXES) if (id.startsWith(p)) return true
-  return false
-}
-
-/**
- * Decode a React Flow node id into its floating-widget kind + numeric id, or
- * return null if the id identifies a non-float node (project). Used by
- * `handleNodesChange` to flip the `floatDrag` slice on `ui-store` while a
- * float is being dragged, so Phase 1's `DockOverlay` can light up rail drop
- * zones and Phase 2's hit-test can gate its pointer tracker.
- */
-function floatKindForNodeId(id: string): { kind: FloatDragKind; floatId: number } | null {
-  if (id.startsWith(INSET_PREFIX)) return { kind: 'lens', floatId: Number(id.slice(INSET_PREFIX.length)) }
-  if (id.startsWith(NOTE_PREFIX)) return { kind: 'note', floatId: Number(id.slice(NOTE_PREFIX.length)) }
-  if (id.startsWith(CALENDAR_PREFIX)) return { kind: 'calendar', floatId: Number(id.slice(CALENDAR_PREFIX.length)) }
-  if (id.startsWith(TASKBOARD_PREFIX)) return { kind: 'taskboard', floatId: Number(id.slice(TASKBOARD_PREFIX.length)) }
-  if (id.startsWith(HORIZONS_PREFIX)) return { kind: 'horizons', floatId: Number(id.slice(HORIZONS_PREFIX.length)) }
-  return null
-}
-
-/** Human-readable label for a float drag kind, used in the a11y announcer. */
-function floatKindLabel(kind: FloatDragKind): string {
-  switch (kind) {
-    case 'note': return 'note'
-    case 'calendar': return 'calendar'
-    case 'lens': return 'list'
-    case 'taskboard': return 'taskboard'
-    case 'horizons': return 'horizons'
-  }
-}
 
 /** Stable no-op used as a fallback for optional callback props so that omitted
  *  handlers don't produce a fresh function reference each render. */
@@ -696,16 +644,15 @@ export function CanvasView({
 
               // Remember final position so the sync effect preserves it until the store updates
               droppedPositions.current.set(change.id, { ...change.position, setAt: performance.now() })
-              if (id.startsWith(TASKBOARD_PREFIX)) {
-                onTaskboardDragStop?.(Number(id.slice(TASKBOARD_PREFIX.length)), change.position.x, change.position.y)
-              } else if (id.startsWith(INSET_PREFIX)) {
-                onInsetDragStop?.(Number(id.slice(INSET_PREFIX.length)), change.position.x, change.position.y)
-              } else if (id.startsWith(NOTE_PREFIX)) {
-                onNoteDragStop?.(Number(id.slice(NOTE_PREFIX.length)), change.position.x, change.position.y)
-              } else if (id.startsWith(CALENDAR_PREFIX)) {
-                onCalendarDragStop?.(Number(id.slice(CALENDAR_PREFIX.length)), change.position.x, change.position.y)
-              } else if (id.startsWith(HORIZONS_PREFIX)) {
-                onHorizonsDragStop?.(Number(id.slice(HORIZONS_PREFIX.length)), change.position.x, change.position.y)
+              if (floatKind) {
+                const { x, y } = change.position
+                switch (floatKind.kind) {
+                  case 'taskboard': onTaskboardDragStop?.(floatKind.floatId, x, y); break
+                  case 'lens':      onInsetDragStop?.(floatKind.floatId, x, y); break
+                  case 'note':      onNoteDragStop?.(floatKind.floatId, x, y); break
+                  case 'calendar':  onCalendarDragStop?.(floatKind.floatId, x, y); break
+                  case 'horizons':  onHorizonsDragStop?.(floatKind.floatId, x, y); break
+                }
               } else {
                 onNodeDragStop(Number(id), change.position.x, change.position.y)
               }
@@ -719,7 +666,7 @@ export function CanvasView({
       // float is in flight. `setFloatDrag` is idempotent on identical
       // kind+id so repeated position frames don't re-render downstream.
       const setFloatDrag = useUIStore.getState().setFloatDrag
-      let floatDragNext: { kind: FloatDragKind; floatId: number } | null = null
+      let floatDragNext: ReturnType<typeof floatKindForNodeId> = null
       for (const dragId of draggingIds.current) {
         const kinded = floatKindForNodeId(dragId)
         if (kinded) { floatDragNext = kinded; break }
@@ -769,7 +716,7 @@ export function CanvasView({
         window.addEventListener('blur', onUpOrCancel)
         pointerCleanupRef.current = detach
         // Phase 4: reuse the rails-monitor announcer pattern for a11y.
-        useUIStore.getState().setFloatAnnouncement(`Dragging ${floatKindLabel(floatDragNext!.kind)}`)
+        useUIStore.getState().setFloatAnnouncement(`Dragging ${floatDragNext!.entry.label}`)
       } else if (floatWasDragging && !floatIsDragging && pointerCleanupRef.current) {
         pointerCleanupRef.current()
         pointerCleanupRef.current = null

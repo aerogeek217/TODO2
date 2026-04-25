@@ -1,5 +1,5 @@
-import { Fragment, memo, useMemo, useCallback, useState, useRef, useEffect } from 'react'
-import { type NodeProps, useReactFlow } from '@xyflow/react'
+import { Fragment, memo, useMemo, useCallback, useState, useRef } from 'react'
+import { type NodeProps } from '@xyflow/react'
 import { useDroppable, useDndMonitor, type DragMoveEvent } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -7,16 +7,14 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem, Person, FloatingTaskboard, TaskboardEntry } from '../../models'
-import type { SlotKind } from '../../models/canvas-rails'
-import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
-import { useCanvasStore } from '../../stores/canvas-store'
 import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
 import { TaskRow } from '../task/TaskRow'
 import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { convertFloatingKind } from '../../services/float-kind-switch'
+import { ResizeHandle } from '../shared/ResizeHandle'
+import { useFloatingWidget } from '../../hooks/use-floating-widget'
 import {
   TASK_DRAG_KIND,
   TASK_DROP_KIND,
@@ -104,8 +102,6 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     height,
     onResize,
   } = data
-  const { getZoom } = useReactFlow()
-  const resizeCleanupRef = useRef<(() => void) | null>(null)
 
   const droppableId = taskboardFloatDropId(floatingId)
   const { isOver, setNodeRef: setDropRef } = useDroppable({
@@ -113,26 +109,24 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     data: { type: TASK_DROP_KIND.taskboard, panelId: droppableId },
   })
 
-  const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
-    if (nextKind === 'taskboard') return
-    const canvasId = useCanvasStore.getState().selectedCanvasId
-    if (canvasId == null) return
-    const row = useFloatingTaskboardStore.getState().taskboards.find((t) => t.id === floatingId)
-    if (!row) return
-    await convertFloatingKind({
-      sourceKind: 'taskboard',
-      sourceId: floatingId,
-      canvasId,
-      rect: { x: row.x, y: row.y, width, height },
-      nextKind,
-    })
-  }, [floatingId, width, height])
+  // Read the row's x/y from the store at hook-call time so the kind-switch
+  // dispatcher has the live position; the floatingId is the entire identity
+  // surface for the canvas-rails store.
+  const row = useFloatingTaskboardStore((s) => s.taskboards.find((t) => t.id === floatingId))
+  const rect = useMemo(
+    () => ({ x: row?.x ?? 0, y: row?.y ?? 0, width, height }),
+    [row?.x, row?.y, width, height],
+  )
+
+  const { headerProps, handleChangeKind, kindAnchor, setKindAnchor } = useFloatingWidget({
+    kind: 'taskboard',
+    id: floatingId,
+    rect,
+    onDelete: onClose,
+  })
 
   const [isExternalDragOver, setIsExternalDragOver] = useState(false)
   const [tbInsertIndex, setTbInsertIndex] = useState<number | null>(null)
-  const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
-
-  useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
   const todoMap = useMemo(() => {
     const map = new Map<number, PersistedTodoItem>()
@@ -225,13 +219,7 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         meta={visibleEntries.length}
         collapsed={isCollapsed}
         onToggleCollapse={onToggleCollapse}
-        onDock={() => {
-          useCanvasRailsStore.getState().createAndDockSlot('taskboard')
-          onClose()
-        }}
-        onClose={onClose}
-        onTitleClick={(a) => setKindAnchor(a)}
-        titleMenuOpen={kindAnchor !== null}
+        {...headerProps}
         floating
       />
 
@@ -266,52 +254,14 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
         )}
       </div>
 
-      <div
+      <ResizeHandle
+        axis="x"
+        width={width}
+        height={height}
+        minW={220}
         className={`${styles.resizeHandle} nopan nodrag`}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-          resizeCleanupRef.current?.()
-          const handle = e.currentTarget as HTMLDivElement
-          const pointerId = e.pointerId
-          try { handle.setPointerCapture(pointerId) } catch { /* noop */ }
-
-          const startX = e.clientX
-          const startW = width
-          const zoom = getZoom()
-          const nodeEl = handle.closest('.react-flow__node')
-          const nodeDiv = nodeEl?.querySelector('.' + styles.node) as HTMLElement | null
-          let active = true
-
-          const onPointerMove = (ev: PointerEvent) => {
-            if (!active) return
-            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
-            if (nodeDiv) {
-              nodeDiv.style.width = `${newW}px`
-            }
-          }
-
-          const onPointerUp = (ev: PointerEvent) => {
-            if (!active) return
-            const newW = Math.max(220, startW + (ev.clientX - startX) / zoom)
-            onResize?.(newW, height)
-            cleanup()
-          }
-
-          const cleanup = () => {
-            active = false
-            handle.removeEventListener('pointermove', onPointerMove)
-            handle.removeEventListener('pointerup', onPointerUp)
-            handle.removeEventListener('pointercancel', onPointerUp)
-            try {
-              if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
-            } catch { /* noop */ }
-            resizeCleanupRef.current = null
-          }
-          resizeCleanupRef.current = cleanup
-          handle.addEventListener('pointermove', onPointerMove)
-          handle.addEventListener('pointerup', onPointerUp)
-          handle.addEventListener('pointercancel', onPointerUp)
-        }}
+        bodySelector={`.${styles.node}`}
+        onResize={(w) => onResize?.(w, height)}
       />
       {kindAnchor && (
         <WidgetKindMenu

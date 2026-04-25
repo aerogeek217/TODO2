@@ -1,11 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import type { ListInset, PersistedTodoItem, Person, Org } from '../../models'
-import type { SlotKind } from '../../models/canvas-rails'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
-import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
-import { useCanvasStore } from '../../stores/canvas-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -13,7 +10,7 @@ import { ListDefinitionBody } from './ListDefinitionBody'
 import { DraggableTaskRow } from './shared/DraggableTaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
-import { convertFloatingKind } from '../../services/float-kind-switch'
+import { useFloatingWidget } from '../../hooks/use-floating-widget'
 import { copyTasksRich } from '../../services/task-copy'
 import styles from './ListInsetNode.module.css'
 
@@ -39,11 +36,13 @@ type ListInsetNodeType = ListInsetNodeData
 function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const { inset, onDelete, onOpenDetail, onResize, onResizeSnap, onSetAlignmentLines } = data
   const { getZoom } = useReactFlow()
+  // ListInset's three handles each need their own resize lifecycle (custom DOM
+  // targets + alignment snap), so they don't ride the shared `<ResizeHandle>`
+  // primitive. Cleanup-on-unmount is handled per-handle below.
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const definition = useListDefinitionStore((s) => s.listDefinitions.find(d => d.id === inset.listDefinitionId))
   const [count, setCount] = useState(0)
   const [listTodos, setListTodos] = useState<PersistedTodoItem[]>([])
-  const [kindAnchor, setKindAnchor] = useState<{ x: number; y: number } | null>(null)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
   const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
@@ -53,19 +52,13 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const headerLabel = definition?.name ?? '(Deleted list)'
   const height = inset.height ?? 300
 
-  const handleChangeKind = useCallback(async (nextKind: SlotKind) => {
-    if (inset.id == null) return
-    if (nextKind === 'lens') return
-    const canvasId = useCanvasStore.getState().selectedCanvasId
-    if (canvasId == null) return
-    await convertFloatingKind({
-      sourceKind: 'lens',
-      sourceId: inset.id,
-      canvasId,
-      rect: { x: inset.x, y: inset.y, width: inset.width, height },
-      nextKind,
-    })
-  }, [inset.id, inset.x, inset.y, inset.width, height])
+  const { headerProps, handleChangeKind, kindAnchor, setKindAnchor } = useFloatingWidget({
+    kind: 'lens',
+    id: inset.id,
+    rect: { x: inset.x, y: inset.y, width: inset.width, height },
+    onDelete,
+    dockSeed: inset.listDefinitionId,
+  })
 
   const handleSelectList = (listDefinitionId: number) => {
     if (inset.id == null) return
@@ -115,14 +108,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
             </button>
           </>
         }
-        onDock={() => {
-          if (inset.id == null) return
-          useCanvasRailsStore.getState().createAndDockSlot('lens', inset.listDefinitionId)
-          onDelete(inset.id)
-        }}
-        onClose={() => inset.id && onDelete(inset.id)}
-        onTitleClick={(a) => setKindAnchor(a)}
-        titleMenuOpen={kindAnchor !== null}
+        {...headerProps}
         floating
       />
 

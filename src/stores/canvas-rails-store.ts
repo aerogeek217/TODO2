@@ -96,8 +96,9 @@ interface CanvasRailsState {
   closeSlot: (slotId: string) => void
   /**
    * Patch a slot. Slot-level fields (`flex`, `orientation`, `weekOffset`)
-   * apply to the slot; tab-level fields (`listDefinitionId`, `taskboardId`)
-   * apply to the active tab.
+   * apply to the slot; tab-level fields (`listDefinitionId`) apply to the
+   * active tab. Taskboard `taskboardId` was dropped in v33 (singleton
+   * collapse) — taskboard tabs need no per-tab seed.
    */
   updateSlot: (slotId: string, patch: SlotPatch) => void
   /**
