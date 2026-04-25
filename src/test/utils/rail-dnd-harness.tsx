@@ -26,6 +26,7 @@ import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { RailsFrame } from '../../components/canvas/rails/RailsFrame'
 import {
+  CORNER_HIT_MIN_PX,
   decodeRailsDropId,
   encodeRailsDropId,
   isRailsDropId,
@@ -297,16 +298,19 @@ function rectForEmptySideSubzone(
 
   if (side === 'top' || side === 'bottom') {
     const y = side === 'top' ? 0 : frameHeight - STRIP_THICKNESS
+    // Mirror DockOverlay.module.css: top/bottom corner sub-zones get a
+    // CORNER_HIT_MIN_PX hit-target floor on width when the perpendicular
+    // rail is absent, and the matching center sub-zone's start/end edges
+    // shift to the same floor so the two never overlap.
+    const startW = Math.max(leftSize, CORNER_HIT_MIN_PX)
+    const endW = Math.max(rightSize, CORNER_HIT_MIN_PX)
     if (claim === 'start') {
-      if (leftSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
-      return { left: 0, top: y, width: leftSize, height: STRIP_THICKNESS }
+      return { left: 0, top: y, width: startW, height: STRIP_THICKNESS }
     }
     if (claim === 'end') {
-      if (rightSize === 0) return { left: 0, top: 0, width: 0, height: 0 }
-      return { left: frameWidth - rightSize, top: y, width: rightSize, height: STRIP_THICKNESS }
+      return { left: frameWidth - endW, top: y, width: endW, height: STRIP_THICKNESS }
     }
-    // center
-    return { left: leftSize, top: y, width: frameWidth - leftSize - rightSize, height: STRIP_THICKNESS }
+    return { left: startW, top: y, width: frameWidth - startW - endW, height: STRIP_THICKNESS }
   }
   const x = side === 'left' ? 0 : frameWidth - STRIP_THICKNESS
   if (claim === 'start') {

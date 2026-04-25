@@ -45,6 +45,18 @@
   background: color-mix(in oklab, var(--color-accent) 4%, transparent);
 }
 
+/*
+ * Top + bottom corner sub-zones get a `max(var(--{perp}-size, 0px), 80px)`
+ * floor on their perpendicular dimension. When the adjacent rail is absent
+ * the raw `--left-size` / `--right-size` is 0 and the corner sub-zone would
+ * collapse — leaving the user's corner-claim intent with no target, so the
+ * adjacent center sub-zone intercepts the drop. The 80 px floor keeps the
+ * corner sub-zone hit-friendly and the matching `max(...)` on the center
+ * sub-zone's start/end edges keeps the two from overlapping. The literal
+ * 80 mirrors `CORNER_HIT_MIN_PX` in `src/utils/rail-dnd.ts` (consumed by
+ * the test harness).
+ */
+
 /* Top strip sub-zones */
 .top_start,
 .top_center,
@@ -54,9 +66,9 @@
   min-height: 60px;
   max-height: 120px;
 }
-.top_start { left: 0; width: var(--left-size, 0px); }
-.top_center { left: var(--left-size, 0px); right: var(--right-size, 0px); }
-.top_end { right: 0; width: var(--right-size, 0px); }
+.top_start { left: 0; width: max(var(--left-size, 0px), 80px); }
+.top_center { left: max(var(--left-size, 0px), 80px); right: max(var(--right-size, 0px), 80px); }
+.top_end { right: 0; width: max(var(--right-size, 0px), 80px); }
 
 /* Bottom strip sub-zones */
 .bottom_start,
@@ -67,9 +79,9 @@
   min-height: 60px;
   max-height: 120px;
 }
-.bottom_start { left: 0; width: var(--left-size, 0px); }
-.bottom_center { left: var(--left-size, 0px); right: var(--right-size, 0px); }
-.bottom_end { right: 0; width: var(--right-size, 0px); }
+.bottom_start { left: 0; width: max(var(--left-size, 0px), 80px); }
+.bottom_center { left: max(var(--left-size, 0px), 80px); right: max(var(--right-size, 0px), 80px); }
+.bottom_end { right: 0; width: max(var(--right-size, 0px), 80px); }
 
 /* Left strip sub-zones */
 .left_start,

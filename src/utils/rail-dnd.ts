@@ -5,6 +5,17 @@ export const RAILS_DRAG_TYPE = 'rails-slot' as const
 export const RAILS_DROP_ID_PREFIX = 'rails:' as const
 
 /**
+ * Minimum hit-target dimension for top/bottom corner sub-zones. When the
+ * perpendicular rail (left or right) is absent, `--left-size` / `--right-size`
+ * is 0 and `top_start` / `top_end` would otherwise collapse to 0 width — so
+ * the "claim NW/NE corner" intent has no target and the drop falls into the
+ * adjacent center sub-zone. CSS uses `max(var(--{perp}-size, 0px), 80px)` to
+ * keep the corner sub-zone targettable; the harness mirrors the same rule via
+ * this constant so tests stay in lock-step with the production geometry.
+ */
+export const CORNER_HIT_MIN_PX = 80
+
+/**
  * Drag payload carried on `active.data.current` for rail drags. Discriminated
  * by `kind`: slot drags move an entire slot; tab drags move a single tab
  * (pill) within or out of its source slot. Both share `type` + `fromSide` so
