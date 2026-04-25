@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useDroppable } from '@dnd-kit/core'
 import type { Rail, RailSide, Slot, SlotKind } from '../../../models/canvas-rails'
 import { RAIL_SIZE_MAX, RAIL_SIZE_MIN, clampRailSize } from '../../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../../stores/canvas-rails-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { KIND_ICON } from '../../../utils/slot-kind'
 import { getActiveTab } from '../../../models/canvas-rails'
+import { encodeRailsDropId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
 import styles from './RailContainer.module.css'
 
 interface RailContainerProps {
@@ -266,8 +268,22 @@ interface CollapsedSlotStubProps {
 function CollapsedSlotStub({ slot }: CollapsedSlotStubProps) {
   const active = getActiveTab(slot)
   const label = useSlotStubLabel(slot)
+  // P5 fix: collapsed rails render stubs in place of `DraggableSlot`, so the
+  // expanded-state `rails:slot:<id>` drop zone disappears with the body.
+  // Register the same id on the stub so float drags + dnd-kit slot/tab drags
+  // both treat the collapsed stub as the slot's drop target. `pointerWithin`
+  // matches via the stub's small rect, and `resolveFloatDockTarget` walks
+  // `elementsFromPoint` for the `data-rails-drop-id` attribute.
+  const dropId = encodeRailsDropId({ kind: 'slot', slotId: slot.id })
+  const droppable = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId: slot.id } })
   return (
-    <div className={styles.iconStub} title={label}>
+    <div
+      ref={droppable.setNodeRef}
+      className={`${styles.iconStub} ${droppable.isOver ? styles.iconStubOver : ''}`}
+      title={label}
+      data-rails-drop-id={dropId}
+      data-slot-id={slot.id}
+    >
       <span className={styles.iconStubIcon} aria-hidden="true">{KIND_ICON[active.type]}</span>
       <span className={styles.iconStubLabel}>{label}</span>
     </div>

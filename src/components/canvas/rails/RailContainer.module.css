@@ -165,6 +165,14 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+}
+
+/* P5: drag-over highlight when a float / slot / tab drag is over a collapsed
+   stub. Matches the expanded slot's `.over` accent intensity in DraggableSlot. */
+.iconStubOver {
+  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
 }
 
 .rail.vertical .iconStub {

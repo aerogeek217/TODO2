@@ -587,8 +587,14 @@ function useRailsDragMonitor(): RailsDragMonitorResult {
           const canvasEl = document.querySelector<HTMLElement>(
             `[data-rails-drop-id="${encodeRailsDropId({ kind: 'canvas' })}"]`,
           )
-          const vp = useSettingsStore.getState().canvasViewport
-          if (!canvasEl || !vp) return
+          if (!canvasEl) return
+          // P5 fix: `canvasViewport` is null until the user pans/zooms (it's
+          // populated by React Flow's `onViewportChange`, which doesn't fire
+          // on initial render). Without a fallback, the pop-out path silently
+          // aborts on a fresh canvas — fall back to identity so the widget
+          // still lands under the cursor in flow coords (= canvas coords when
+          // no transform has been applied).
+          const vp = useSettingsStore.getState().canvasViewport ?? { x: 0, y: 0, zoom: 1 }
           const srcSlot = (['left', 'right', 'top', 'bottom'] as RailSide[])
             .map((s) => rails[s]?.slots.find((sl) => sl.id === data.slotId))
             .find((s): s is Slot => Boolean(s))

@@ -154,3 +154,81 @@ describe('RailContainer resize handle', () => {
     expect(rail.style.width).toBe('420px')
   })
 })
+
+/**
+ * P5 (T1 facet B): when a rail collapses, `RailContainer` renders icon stubs
+ * in place of `DraggableSlot` — but the slot's `rails:slot:<id>` drop zone
+ * disappeared along with the body. The fix re-registers the drop id on each
+ * collapsed stub so float drags + dnd-kit slot/tab drags still target the
+ * slot. These tests pin the DOM contract `resolveFloatDockTarget` walks.
+ */
+describe('CollapsedSlotStub drop zone', () => {
+  it('renders data-rails-drop-id="rails:slot:<id>" on each stub when collapsed', () => {
+    const multiSlotRail: Rail = {
+      orientation: 'vertical',
+      slots: [
+        { id: 'slot-a', tabs: [{ id: 'a-t0', type: 'lens' }], activeTabId: 'a-t0' },
+        { id: 'slot-b', tabs: [{ id: 'b-t0', type: 'notes' }], activeTabId: 'b-t0' },
+      ],
+    }
+    const { container } = render(
+      <DndContext>
+        <RailContainer side="right" rail={multiSlotRail} size={28} collapsed onResize={() => {}}>
+          <div />
+        </RailContainer>
+      </DndContext>,
+    )
+    const rail = container.querySelector('[data-rail-side="right"]') as HTMLElement
+    expect(rail.dataset.railCollapsed).toBe('true')
+    const stubA = container.querySelector('[data-slot-id="slot-a"]') as HTMLElement
+    const stubB = container.querySelector('[data-slot-id="slot-b"]') as HTMLElement
+    expect(stubA.dataset.railsDropId).toBe('rails:slot:slot-a')
+    expect(stubB.dataset.railsDropId).toBe('rails:slot:slot-b')
+  })
+
+  it('does NOT render stubs (or their drop zones) when expanded', () => {
+    const { container } = render(
+      <DndContext>
+        <RailContainer side="right" rail={lensRail} size={340} onResize={() => {}}>
+          <div />
+        </RailContainer>
+      </DndContext>,
+    )
+    // Expanded: no `data-rail-collapsed="true"`, and no stub drop zones —
+    // `DraggableSlot` (rendered by the parent in production) owns the drop id.
+    const rail = container.querySelector('[data-rail-side="right"]') as HTMLElement
+    expect(rail.dataset.railCollapsed).toBe('false')
+    expect(container.querySelector('[data-slot-id="slot-a"]')).toBeNull()
+  })
+
+  it('resolves a float drag onto a collapsed stub via resolveFloatDockTarget', async () => {
+    const { resolveFloatDockTarget } = await import('../../../../utils/rail-dnd')
+    const multiSlotRail: Rail = {
+      orientation: 'vertical',
+      slots: [{ id: 'slot-x', tabs: [{ id: 'x-t0', type: 'calendar' }], activeTabId: 'x-t0' }],
+    }
+    const { container } = render(
+      <DndContext>
+        <RailContainer side="right" rail={multiSlotRail} size={28} collapsed onResize={() => {}}>
+          <div />
+        </RailContainer>
+      </DndContext>,
+    )
+    const stub = container.querySelector('[data-slot-id="slot-x"]') as HTMLElement
+    // Stub won't lay out under jsdom (zero rect by default); patch its rect so
+    // the resolver's `pointerToSplitZone` returns a deterministic 'center'.
+    stub.getBoundingClientRect = (() => ({
+      left: 1900, top: 80, right: 1928, bottom: 160,
+      width: 28, height: 80, x: 1900, y: 80,
+      toJSON() { return this },
+    })) as unknown as () => DOMRect
+    const target = resolveFloatDockTarget(
+      { x: 1914, y: 120 },
+      {
+        elementsFromPoint: () => [stub],
+        getSlotOrientation: () => 'vertical',
+      },
+    )
+    expect(target).toEqual({ kind: 'slot', slotId: 'slot-x', zone: 'center' })
+  })
+})
