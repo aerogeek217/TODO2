@@ -113,7 +113,7 @@
   background: transparent;
   color: var(--color-text-primary);
   border: none;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: var(--font-weight-bold);
   font-family: inherit;
   outline: none;
@@ -977,7 +977,7 @@
   }
 
   .titleInput {
-    font-size: 18px;
+    font-size: 15px;
   }
 
   .scrollBody {
