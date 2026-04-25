@@ -17,6 +17,7 @@ import { InsertTrigger } from './InsertTrigger'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { pasteTasksAt } from '../../services/clipboard'
 import { partitionByGroup } from '../../utils/task-grouping'
+import { UNGROUPED_GROUP_KEY, blockContextId } from '../../utils/cross-group-drag'
 import { startOfToday } from '../../utils/date'
 import { TaskGroup } from './shared/TaskGroup'
 import styles from './SortableTaskList.module.css'
@@ -178,7 +179,7 @@ export function SortableTaskList({
     })
     const out: RenderBlock[] = []
     if (partition.ungrouped.length > 0) {
-      out.push({ key: '__ungrouped', label: null, todos: partition.ungrouped, nextBlockFirstId: null })
+      out.push({ key: UNGROUPED_GROUP_KEY, label: null, todos: partition.ungrouped, nextBlockFirstId: null })
     }
     for (const g of partition.groups) {
       out.push({ key: g.key, label: g.label, todos: g.todos, nextBlockFirstId: null })
@@ -465,7 +466,11 @@ export function SortableTaskList({
         renderRow(todo, i, block.todos, isFirstBlock, block.nextBlockFirstId, block.key),
       )
       return (
-        <SortableContext key={block.key} items={items}>
+        <SortableContext
+          key={block.key}
+          id={blockContextId(projectId, block.key)}
+          items={items}
+        >
           {block.label != null ? (
             <TaskGroup label={block.label} count={block.todos.length}>
               {rows}

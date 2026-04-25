@@ -15,6 +15,9 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
+import { usePersonStore } from '../stores/person-store'
+import { useOrgStore } from '../stores/org-store'
+import { useTagStore } from '../stores/tag-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { bySortOrder } from '../utils/sort-order'
@@ -23,6 +26,11 @@ import {
   TASK_DROP_KIND,
   dispatchTaskDrop,
 } from '../utils/task-dnd'
+import {
+  resolveCrossGroupMutation,
+  parseBlockContextId,
+  type CrossGroupMutation,
+} from '../utils/cross-group-drag'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -360,6 +368,45 @@ export function useCanvasDnD({
     [projects]
   )
 
+  const dispatchCrossGroupMutation = useCallback(
+    async (mutation: CrossGroupMutation) => {
+      switch (mutation.kind) {
+        case 'status': {
+          await useTodoStore.getState().bulkSetStatus([mutation.todoId], mutation.statusId)
+          return
+        }
+        case 'people': {
+          if (mutation.removeId != null) {
+            await usePersonStore.getState().unassignPerson(mutation.todoId, mutation.removeId)
+          }
+          if (mutation.addId != null) {
+            await usePersonStore.getState().assignPerson(mutation.todoId, mutation.addId)
+          }
+          return
+        }
+        case 'org': {
+          if (mutation.removeId != null) {
+            await useOrgStore.getState().unassignOrg(mutation.todoId, mutation.removeId)
+          }
+          if (mutation.addId != null) {
+            await useOrgStore.getState().assignOrg(mutation.todoId, mutation.addId)
+          }
+          return
+        }
+        case 'tag': {
+          if (mutation.removeId != null) {
+            await useTagStore.getState().unassignTag(mutation.todoId, mutation.removeId)
+          }
+          if (mutation.addId != null) {
+            await useTagStore.getState().assignTag(mutation.todoId, mutation.addId)
+          }
+          return
+        }
+      }
+    },
+    [],
+  )
+
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       // Cache values needed for drop execution before resetting state
@@ -450,8 +497,38 @@ export function useCanvasDnD({
       }
 
       await executeDrop(ctx)
+
+      // Cross-group drag mutation (Phase 6 of lists-consistency). Triggered
+      // only for single-task, same-project drops where both the dragged row
+      // and the hovered row sit in `SortableTaskList` group containers:
+      // replace semantics on people/org/tag, scalar set for status, skip
+      // for date dimensions. Cross-project drags fall through to the
+      // existing project-change behavior alone (no field mutation layered
+      // on). Multi-drag is skipped to keep semantics unambiguous when the
+      // selection spans multiple source groups.
+      if (!dragIds) {
+        const sourceContainer = parseBlockContextId(active.data.current?.sortable?.containerId)
+        const targetContainer = parseBlockContextId(over?.data.current?.sortable?.containerId)
+        if (
+          sourceContainer
+          && targetContainer
+          && sourceContainer.projectId === targetContainer.projectId
+          && sourceContainer.projectId === activeTodo.projectId
+        ) {
+          const project = projects.find((p) => p.id === sourceContainer.projectId)
+          if (project?.groupBy) {
+            const mutation = resolveCrossGroupMutation(
+              project.groupBy,
+              sourceContainer.blockKey,
+              targetContainer.blockKey,
+              activeTodo.id,
+            )
+            if (mutation) await dispatchCrossGroupMutation(mutation)
+          }
+        }
+      }
     },
-    [todosByProject, selectedCanvasId, executeDrop, resetDragState, expandTargetArea, rfInstanceRef]
+    [todosByProject, selectedCanvasId, executeDrop, resetDragState, expandTargetArea, rfInstanceRef, projects, dispatchCrossGroupMutation]
   )
 
   return {
