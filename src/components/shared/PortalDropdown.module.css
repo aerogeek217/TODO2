@@ -1,0 +1,11 @@
+/* Portal-rendered dropdown container — children render statically inside */
+.portalDropdown {
+  position: fixed;
+  z-index: var(--z-dropdown);
+}
+
+/* Reset position:absolute from composed dropdown styles inside portals */
+.portalDropdown > div {
+  position: static;
+  margin-top: 0;
+}

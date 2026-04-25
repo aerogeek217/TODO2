@@ -13,7 +13,6 @@ interface DraggableTaskRowProps {
   surface?: Extract<TaskSurfaceKey, 'inset' | 'lens'>
   /** Render as the context-showing row variant (rail lens / search). */
   showContext?: boolean
-  compact?: boolean
 }
 
 /**
@@ -30,7 +29,6 @@ export function DraggableTaskRow({
   onOpenDetail,
   surface = 'inset',
   showContext,
-  compact = true,
 }: DraggableTaskRowProps) {
   return (
     <TaskDraggable todo={todo} surface={surface}>
@@ -47,7 +45,6 @@ export function DraggableTaskRow({
             assignedPeople={assignedPeople}
             onOpenDetail={onOpenDetail ? () => onOpenDetail(todo.id) : undefined}
             showContext={showContext}
-            compact={compact}
           />
         </div>
       )}

@@ -550,26 +550,6 @@
   min-width: 140px;
 }
 
-.chipDropdownItem {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 5px 10px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s;
-}
-
-.chipDropdownItem:hover {
-  background: var(--color-surface-high);
-}
-
 .chipCheck {
   width: 14px;
   text-align: center;
@@ -687,13 +667,6 @@
   opacity: 1;
 }
 
-.extraLabel {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .statusButton {
   background: transparent;
   border: none;
@@ -723,16 +696,4 @@
 
 .row:hover .statusDotEmpty {
   opacity: 1;
-}
-
-/* Portal-rendered dropdown container — children are static inside */
-.portalDropdown {
-  position: fixed;
-  z-index: var(--z-dropdown);
-}
-
-/* Reset position:absolute from composed dropdown styles inside portals */
-.portalDropdown > div {
-  position: static;
-  margin-top: 0;
 }

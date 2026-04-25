@@ -1206,7 +1206,6 @@ export function ListView() {
             taskTitle={pendingReassign.todo.title}
             fromLabel={pendingReassign.fromLabel}
             toLabel={pendingReassign.toLabel}
-            attribute={pendingReassign.attribute}
             onConfirm={confirmReassign}
             onCancel={cancelReassign}
           />

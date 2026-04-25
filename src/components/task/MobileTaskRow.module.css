@@ -163,6 +163,10 @@
   background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
   color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
   white-space: nowrap;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .scheduledChipPast {
@@ -185,6 +189,10 @@
   background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
   color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
   white-space: nowrap;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .deadlineChipPast {
@@ -257,6 +265,40 @@
 .notesIcon {
   color: var(--color-text-muted);
   flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.peopleGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.hiddenDateInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.emptyDateAction {
+  background: none;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--radius-chip);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .overflow {

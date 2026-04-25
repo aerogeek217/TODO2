@@ -31,6 +31,7 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
   const [searchText, setSearchText] = useState('')
+  const [nameError, setNameError] = useState('')
 
   useEffect(() => { loadOrgs() }, [loadOrgs])
 
@@ -38,6 +39,7 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
     setEditing(null)
     setAdding(false)
     setDeleteId(null)
+    setNameError('')
   }
 
   const startEdit = (o: Org) => {
@@ -49,8 +51,13 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
   const saveEdit = async () => {
     if (!editing || !editing.name.trim()) return
     const initials = editing.initials || generateInitials(editing.name)
-    await updateOrg({ id: editing.id, name: editing.name.trim(), initials, color: editing.color })
-    setEditing(null)
+    try {
+      await updateOrg({ id: editing.id, name: editing.name.trim(), initials, color: editing.color })
+      setEditing(null)
+      setNameError('')
+    } catch (e) {
+      setNameError((e as Error).message)
+    }
   }
 
   const startAdd = () => {
@@ -65,8 +72,13 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
   const saveAdd = async () => {
     if (!newName.trim()) return
     const initials = newInitials || generateInitials(newName)
-    await addOrg(newName.trim(), newColor, initials)
-    setAdding(false)
+    try {
+      await addOrg(newName.trim(), newColor, initials)
+      setAdding(false)
+      setNameError('')
+    } catch (e) {
+      setNameError((e as Error).message)
+    }
   }
 
   const startDelete = async (id: number) => {
@@ -104,14 +116,17 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
     if (editing && editing.id === org.id) {
       const ed = editing
       return (
-        <div key={org.id} className={styles.editRow} onKeyDown={handleKeyDown(saveEdit, () => setEditing(null))}>
-          <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-          <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }) }} placeholder="Org name" autoFocus />
-          <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 3) }) }} placeholder="AB" />
-          <div className={styles.editActions}>
-            <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
-            <button className={styles.cancelBtn} onClick={() => setEditing(null)}>Cancel</button>
+        <div key={org.id}>
+          <div className={styles.editRow} onKeyDown={handleKeyDown(saveEdit, () => { setEditing(null); setNameError('') })}>
+            <ColorInput value={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
+            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Org name" autoFocus />
+            <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 3) }) }} placeholder="AB" />
+            <div className={styles.editActions}>
+              <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
+              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+            </div>
           </div>
+          {nameError && <div className={styles.errorHint}>{nameError}</div>}
         </div>
       )
     }
@@ -170,14 +185,17 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
           })()}
 
           {adding && (
-            <div className={styles.editRow} onKeyDown={handleKeyDown(saveAdd, () => setAdding(false))}>
-              <ColorInput value={newColor} onChange={setNewColor} />
-              <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)) }} placeholder="Org name" autoFocus />
-              <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 3)) }} placeholder="AB" />
-              <div className={styles.editActions}>
-                <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
-                <button className={styles.cancelBtn} onClick={() => setAdding(false)}>Cancel</button>
+            <div>
+              <div className={styles.editRow} onKeyDown={handleKeyDown(saveAdd, () => { setAdding(false); setNameError('') })}>
+                <ColorInput value={newColor} onChange={setNewColor} />
+                <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)); setNameError('') }} placeholder="Org name" autoFocus />
+                <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 3)) }} placeholder="AB" />
+                <div className={styles.editActions}>
+                  <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
+                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+                </div>
               </div>
+              {nameError && <div className={styles.errorHint}>{nameError}</div>}
             </div>
           )}
           {!adding && (

@@ -24,7 +24,6 @@ export function LensSlotContent({
       listDefinitionId={listDefinitionId}
       onResult={({ name, count, todos }) => onTitleChange?.(name ?? '(Deleted list)', count, todos)}
       showContext
-      compact
       className={styles.list}
       emptyClassName={styles.empty}
       runtimeFilterValue={runtimeFilterValue}

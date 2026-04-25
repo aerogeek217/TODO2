@@ -26,6 +26,7 @@ import type {
 import type { ListSortBy, TodoPredicate } from '../../models'
 import type { DateAnchor } from '../../models/filter-predicate'
 import { ListFilterEditor } from './ListFilterEditor'
+import { DragHandle } from '../shared/DragHandle'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -377,13 +378,7 @@ function SortableRow({
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
     <div ref={setNodeRef} style={style} className={`${styles.row} ${isDragging ? styles.rowDragging : ''}`}>
-      <span className={styles.dragHandle} {...attributes} {...listeners}>
-        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
-          <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
-          <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
-          <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
-        </svg>
-      </span>
+      <DragHandle className={styles.dragHandle} attributes={attributes} listeners={listeners} ariaHidden={false} />
       <span className={styles.nameEditable} onClick={() => onEdit(def)}>{def.name}</span>
       <button
         type="button"

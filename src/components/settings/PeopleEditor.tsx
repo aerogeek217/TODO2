@@ -38,6 +38,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
   const [searchText, setSearchText] = useState('')
+  const [nameError, setNameError] = useState('')
 
   // Org dropdown for person edit/add
   const [showOrgDropdown, setShowOrgDropdown] = useState<'edit' | 'add' | null>(null)
@@ -51,6 +52,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     setAdding(false)
     setDeleteId(null)
     setShowOrgDropdown(null)
+    setNameError('')
   }
 
   // --- Person CRUD ---
@@ -63,10 +65,15 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
 
   const saveEditPerson = async () => {
     if (!editing || !editing.name.trim()) return
-    await updatePerson({ id: editing.id, name: editing.name.trim(), initials: editing.initials || generateInitials(editing.name) })
-    await orgRepository.setPersonOrgs(editing.id, editing.orgIds)
-    await loadPersonOrgMap()
-    setEditing(null)
+    try {
+      await updatePerson({ id: editing.id, name: editing.name.trim(), initials: editing.initials || generateInitials(editing.name) })
+      await orgRepository.setPersonOrgs(editing.id, editing.orgIds)
+      await loadPersonOrgMap()
+      setEditing(null)
+      setNameError('')
+    } catch (e) {
+      setNameError((e as Error).message)
+    }
   }
 
   const toggleEditOrg = (orgId: number) => {
@@ -90,12 +97,17 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
 
   const saveAddPerson = async () => {
     if (!newName.trim()) return
-    const id = await addPerson(newName.trim(), newInitials || generateInitials(newName))
-    if (newOrgIds.length > 0) {
-      await orgRepository.setPersonOrgs(id, newOrgIds)
-      await loadPersonOrgMap()
+    try {
+      const id = await addPerson(newName.trim(), newInitials || generateInitials(newName))
+      if (newOrgIds.length > 0) {
+        await orgRepository.setPersonOrgs(id, newOrgIds)
+        await loadPersonOrgMap()
+      }
+      setAdding(false)
+      setNameError('')
+    } catch (e) {
+      setNameError((e as Error).message)
     }
-    setAdding(false)
   }
 
   const startDeletePerson = async (id: number) => {
@@ -163,15 +175,18 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     if (editing && editing.id === p.id) {
       const ed = editing
       return (
-        <div key={p.id} className={styles.editRow} onKeyDown={handleKeyDown(saveEditPerson, () => setEditing(null))}>
-          <div className={styles.colorSwatch} style={{ background: derived }} title="Color derived from assigned org" />
-          <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }) }} placeholder="Name" autoFocus />
-          <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 2) }) }} placeholder="AB" />
-          {orgs.length > 0 && renderOrgSelector(ed.orgIds, toggleEditOrg, 'edit')}
-          <div className={styles.editActions}>
-            <button className={styles.saveBtn} onClick={saveEditPerson}>Save</button>
-            <button className={styles.cancelBtn} onClick={() => setEditing(null)}>Cancel</button>
+        <div key={p.id}>
+          <div className={styles.editRow} onKeyDown={handleKeyDown(saveEditPerson, () => { setEditing(null); setNameError('') })}>
+            <div className={styles.colorSwatch} style={{ background: derived }} title="Color derived from assigned org" />
+            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus />
+            <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 2) }) }} placeholder="AB" />
+            {orgs.length > 0 && renderOrgSelector(ed.orgIds, toggleEditOrg, 'edit')}
+            <div className={styles.editActions}>
+              <button className={styles.saveBtn} onClick={saveEditPerson}>Save</button>
+              <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
+            </div>
           </div>
+          {nameError && <div className={styles.errorHint}>{nameError}</div>}
         </div>
       )
     }
@@ -241,15 +256,18 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
               .find((c): c is string => !!c)
               ?? UNAFFILIATED_PERSON_COLOR
             return (
-            <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => setAdding(false))}>
-              <div className={styles.colorSwatch} style={{ background: previewColor }} title="Color derived from assigned org" />
-              <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)) }} placeholder="Name" autoFocus />
-              <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 2)) }} placeholder="AB" />
-              {orgs.length > 0 && renderOrgSelector(newOrgIds, toggleNewOrg, 'add')}
-              <div className={styles.editActions}>
-                <button className={styles.saveBtn} onClick={saveAddPerson}>Add</button>
-                <button className={styles.cancelBtn} onClick={() => setAdding(false)}>Cancel</button>
+            <div>
+              <div className={styles.editRow} onKeyDown={handleKeyDown(saveAddPerson, () => { setAdding(false); setNameError('') })}>
+                <div className={styles.colorSwatch} style={{ background: previewColor }} title="Color derived from assigned org" />
+                <input className={styles.editInput} value={newName} onChange={(e) => { setNewName(e.target.value); if (!newInitialsManual) setNewInitials(generateInitials(e.target.value)); setNameError('') }} placeholder="Name" autoFocus />
+                <input className={styles.editInputSmall} value={newInitials} onChange={(e) => { setNewInitialsManual(true); setNewInitials(e.target.value.toUpperCase().slice(0, 2)) }} placeholder="AB" />
+                {orgs.length > 0 && renderOrgSelector(newOrgIds, toggleNewOrg, 'add')}
+                <div className={styles.editActions}>
+                  <button className={styles.saveBtn} onClick={saveAddPerson}>Add</button>
+                  <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>
+                </div>
               </div>
+              {nameError && <div className={styles.errorHint}>{nameError}</div>}
             </div>
             )
           })()}

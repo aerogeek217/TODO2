@@ -116,10 +116,6 @@
   text-decoration: line-through;
 }
 
-.miniListItemAssigned {
-  border-left: 2px solid var(--color-assigned-border);
-}
-
 .miniListPriority {
   width: 3px;
   height: 16px;
@@ -262,12 +258,6 @@
   margin-left: auto;
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
-}
-
-.miniListItemFocused {
-  background: var(--color-surface-high);
-  outline: 1px solid var(--color-accent-dim);
-  outline-offset: -1px;
 }
 
 .miniListMatchSnippet {

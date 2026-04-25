@@ -4,7 +4,6 @@ interface ReassignDialogProps {
   taskTitle: string
   fromLabel: string
   toLabel: string
-  attribute: 'person'
   onConfirm: () => void
   onCancel: () => void
 }

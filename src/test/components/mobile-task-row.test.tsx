@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
 import { useOrgStore } from '../../stores/org-store'
+import { useTaskboardStore } from '../../stores/taskboard-store'
+import { useUIStore } from '../../stores/ui-store'
 import { makeTodo, makePerson, makeOrg } from '../helpers'
 
 const mockToggleComplete = vi.fn()
+const mockRemove = vi.fn()
 vi.mock('../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     toggleComplete: mockToggleComplete,
-    remove: vi.fn(),
+    remove: mockRemove,
     setScheduled: vi.fn(),
     setDeadline: vi.fn(),
     setProject: vi.fn(),
@@ -227,6 +230,84 @@ describe('MobileTaskRow', () => {
       expect(mockToggleComplete).not.toHaveBeenCalled()
     })
 
+  })
+
+  // ── Phase 6 parity ────────────────────────────────────────────────
+  //
+  // Mobile gains chip taps, a notes-icon trigger, and an `onContextMenu`
+  // handler that mirrors the desktop right-click menu. On real touch devices
+  // long-press fires the same `contextmenu` event, so the interactive surface
+  // is identical to TaskRow.
+
+  describe('Phase 6 parity', () => {
+    beforeEach(() => {
+      useTaskboardStore.setState({ board: null, loading: false, error: null })
+    })
+
+    it('exposes scheduled chip as a button (tap → opens scheduled menu)', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />)
+      const chip = screen.getByLabelText('Edit scheduled')
+      expect(chip.tagName).toBe('BUTTON')
+    })
+
+    it('exposes deadline chip as a button (tap → opens deadline picker)', () => {
+      const year = new Date().getFullYear()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
+      const chip = screen.getByLabelText('Edit deadline')
+      expect(chip.tagName).toBe('BUTTON')
+    })
+
+    it('exposes the notes icon as a button (tap → opens notes popover)', () => {
+      const { container } = render(<MobileTaskRow todo={makeTodo({ id: 1, notes: 'note text' })} />)
+      const notes = container.querySelector('[class*="notesIcon"]') as HTMLElement
+      expect(notes.tagName).toBe('BUTTON')
+    })
+
+    it('opens the context menu on right-click / long-press', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
+      act(() => {
+        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
+      })
+      expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Move to project…' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    })
+
+    it('Add to Taskboard menu action targets the row todo', () => {
+      const add = vi.fn()
+      vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ has: () => false, add } as never)
+      render(<MobileTaskRow todo={makeTodo({ id: 42, title: 'Foo' })} />)
+      act(() => {
+        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Add to Taskboard' }))
+      expect(add).toHaveBeenCalledWith(42)
+    })
+
+    it('Delete menu action routes through bulk.remove (which queues the confirm dialog)', () => {
+      mockRemove.mockClear()
+      vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ has: () => false, add: vi.fn(), removeEntry: vi.fn() } as never)
+      render(<MobileTaskRow todo={makeTodo({ id: 7, title: 'Foo' })} />)
+      act(() => {
+        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+      expect(mockRemove).toHaveBeenCalledWith(7)
+    })
+
+    it('does not open the context menu in ghost mode', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} ghost />)
+      act(() => {
+        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
+      })
+      expect(screen.queryByRole('button', { name: 'Mark complete' })).toBeNull()
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      useUIStore.getState().clearBulkConfirmation?.()
+    })
   })
 
 })

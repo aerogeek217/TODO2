@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react'
+import { useRef, useState, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
@@ -9,8 +9,7 @@ import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useBulkActions } from '../../hooks/use-bulk-actions'
-import { useClickOutside } from '../../hooks/use-click-outside'
+import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
 import { startOfToday, formatDateShort, toDateInputValue } from '../../utils/date'
@@ -19,68 +18,13 @@ import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
 import { AvatarStack } from '../shared/AvatarStack'
+import { DragHandle } from '../shared/DragHandle'
+import { PortalDropdown } from '../shared/PortalDropdown'
 
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { TaskNotePopover } from './TaskNotePopover'
 import styles from './TaskRow.module.css'
-
-/** Portal-rendered dropdown anchored below a trigger element */
-function PortalDropdown({ anchorRef, onClickOutside, children }: {
-  anchorRef: React.RefObject<HTMLElement | null>
-  onClickOutside: () => void
-  children: React.ReactNode
-}) {
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
-
-  useClickOutside(dropdownRef, onClickOutside, true)
-
-  // Track anchor position: reposition on resize, scroll (any container, via capture),
-  // and canvas pan/zoom (React Flow viewport transform mutation).
-  useEffect(() => {
-    const update = () => {
-      const rect = anchorRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const margin = 8
-      let top = rect.bottom + 4
-      let left = rect.left
-      const dd = dropdownRef.current?.getBoundingClientRect()
-      if (dd && dd.width > 0) {
-        const maxLeft = window.innerWidth - dd.width - margin
-        if (left > maxLeft) left = Math.max(margin, maxLeft)
-        const maxTop = window.innerHeight - dd.height - margin
-        if (top > maxTop) top = Math.max(margin, maxTop)
-      }
-      setPos(prev => (prev.top === top && prev.left === left ? prev : { top, left }))
-    }
-    update()
-
-    const ro = new ResizeObserver(update)
-    if (anchorRef.current) ro.observe(anchorRef.current)
-    if (dropdownRef.current) ro.observe(dropdownRef.current)
-
-    window.addEventListener('scroll', update, true)
-    window.addEventListener('resize', update)
-
-    const transformEl = anchorRef.current?.closest('.react-flow')?.querySelector('.react-flow__viewport') as HTMLElement | null
-    const mo = transformEl ? new MutationObserver(update) : null
-    if (mo && transformEl) mo.observe(transformEl, { attributes: true, attributeFilter: ['style'] })
-
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('scroll', update, true)
-      window.removeEventListener('resize', update)
-      mo?.disconnect()
-    }
-  }, [anchorRef])
-
-  return (
-    <div ref={dropdownRef} className={styles.portalDropdown} style={{ top: pos.top, left: pos.left }}>
-      {children}
-    </div>
-  )
-}
 
 interface TaskRowProps {
   todo: PersistedTodoItem
@@ -89,12 +33,8 @@ interface TaskRowProps {
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
-  /** Show compact people chips (initials only) — retained for non-row surfaces */
-  compact?: boolean
   /** Task is in clipboard (cut) */
   cut?: boolean
-  /** Extra label shown after the date stack (e.g. "Modified 3d ago") */
-  extraLabel?: string
   /** Render an `in <project>` sub-line under the title (rail lens / search). */
   showContext?: boolean
   /** When true, the row is rendered inside a Taskboard surface. Delete removes the task from the board instead of deleting it. */
@@ -105,7 +45,7 @@ interface TaskRowProps {
 // search / filter / grouping only — they never become a row chip.
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
-  onSelect, onOpenDetail, cut, extraLabel, showContext, onTaskboard,
+  onSelect, onOpenDetail, cut, showContext, onTaskboard,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
@@ -139,8 +79,8 @@ export const TaskRow = memo(function TaskRow({
   )
 
 
-  // Bulk-aware mutation callbacks
-  const bulk = useBulkActions()
+  // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
+  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo, ghost, onTaskboard })
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
@@ -171,16 +111,6 @@ export const TaskRow = memo(function TaskRow({
     const raw = e.target.value
     bulk.setDeadline(todo.id, raw ? new Date(raw + 'T00:00:00') : null)
   }, [bulk, todo.id])
-  // Ghost rows are non-interactive (drag overlay visuals)
-  const handleToggleComplete = useCallback(() => { if (!ghost) bulk.toggleComplete(todo.id) }, [ghost, bulk, todo.id])
-  const handleDelete = useCallback(() => {
-    if (ghost) return
-    if (onTaskboard) {
-      void useTaskboardStore.getState().removeEntry(todo.id)
-      return
-    }
-    bulk.remove(todo.id)
-  }, [ghost, bulk, todo.id, onTaskboard])
 
   const togglePerson = (id: number) => {
     if (ghost) return
@@ -228,13 +158,7 @@ export const TaskRow = memo(function TaskRow({
       }}
     >
 
-      <span className={styles.dragHandle} aria-hidden="true">
-        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
-          <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
-          <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
-          <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
-        </svg>
-      </span>
+      <DragHandle className={styles.dragHandle} />
 
       <input
         type="checkbox"
@@ -479,8 +403,6 @@ export const TaskRow = memo(function TaskRow({
         document.body,
       )}
 
-      {extraLabel && <span className={styles.extraLabel}>{extraLabel}</span>}
-
       {!ghost && (
         <div ref={statusRef} className={styles.statusWrapper}>
           <button
@@ -529,39 +451,15 @@ export const TaskRow = memo(function TaskRow({
         <CanvasContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          items={[
-            ...(onOpenDetail ? [{
-              label: 'Open',
-              action: () => onOpenDetail(todo.id),
-            }] : []),
-            {
-              label: todo.isCompleted ? 'Mark incomplete' : 'Mark complete',
-              action: () => handleToggleComplete(),
-            },
-            contextMenu.onBoard
-              ? {
-                  label: 'Remove from Taskboard',
-                  action: async () => {
-                    await useTaskboardStore.getState().removeEntry(todo.id)
-                  },
-                }
-              : {
-                  label: 'Add to Taskboard',
-                  action: async () => {
-                    await useTaskboardStore.getState().add(todo.id)
-                  },
-                },
-            {
-              label: 'Move to project…',
-              action: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
-            },
-            { label: '', action: () => {}, separator: true },
-            {
-              label: onTaskboard ? 'Remove from Taskboard' : 'Delete',
-              action: () => handleDelete(),
-              danger: true,
-            },
-          ]}
+          items={buildTaskRowMenuItems({
+            todo,
+            onBoard: contextMenu.onBoard,
+            onTaskboard,
+            onOpenDetail,
+            onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
+            onComplete: handleToggleComplete,
+            onDelete: handleDelete,
+          })}
           onClose={() => setContextMenu(null)}
         />,
         document.body,

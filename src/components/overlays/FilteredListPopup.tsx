@@ -236,7 +236,6 @@ export function FilteredListPopup() {
                 todo={todo}
                 assignedPeople={assignedPeopleMap.get(todo.id)}
                 onOpenDetail={() => { hideFilteredList(); openEditPopup(todo.id) }}
-                compact
               />
             ))
           )}

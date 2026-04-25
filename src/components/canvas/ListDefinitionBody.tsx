@@ -37,7 +37,6 @@ interface ListDefinitionBodyProps {
   onResult?: (result: { name: string | null; count: number; todos: PersistedTodoItem[] }) => void
   renderRow?: (args: ListDefinitionBodyRenderRowArgs) => ReactNode
   showContext?: boolean
-  compact?: boolean
   emptyLabel?: string
   className?: string
   emptyClassName?: string
@@ -57,16 +56,15 @@ interface ListDefinitionBodyProps {
 /**
  * Shared body for `ListInsetNode` (canvas) and `LensSlotContent` (rails).
  * Reads global filter + membership stores, runs the definition through
- * `buildDashboardLists`, and renders a flat list via `renderRow` (or
- * `<TaskRow compact>` by default). `onResult` reports `{name, count}` so
- * callers can drive their title chrome without rebuilding the pipeline.
+ * `buildDashboardLists`, and renders a flat list via `renderRow` (or a plain
+ * `<TaskRow>` by default). `onResult` reports `{name, count}` so callers can
+ * drive their title chrome without rebuilding the pipeline.
  */
 export function ListDefinitionBody({
   listDefinitionId,
   onResult,
   renderRow,
   showContext,
-  compact = true,
   emptyLabel = 'No tasks',
   className,
   emptyClassName,
@@ -193,7 +191,6 @@ export function ListDefinitionBody({
         assignedPeople={args.assignedPeople}
         onOpenDetail={() => openEditPopup(todo.id)}
         showContext={showContext}
-        compact={compact}
       />
     )
   }

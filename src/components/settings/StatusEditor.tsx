@@ -20,6 +20,7 @@ import { statusRepository } from '../../data'
 import type { Status } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
+import { DragHandle } from '../shared/DragHandle'
 import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
 import styles from './EntityEditor.module.css'
 
@@ -88,13 +89,7 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
 
   return (
     <div ref={setNodeRef} style={style} className={`${styles.row} ${isDragging ? styles.rowDragging : ''}`}>
-      <span className={styles.dragHandle} {...attributes} {...listeners}>
-        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
-          <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
-          <circle cx="2" cy="7" r="1.2" /><circle cx="6" cy="7" r="1.2" />
-          <circle cx="2" cy="12" r="1.2" /><circle cx="6" cy="12" r="1.2" />
-        </svg>
-      </span>
+      <DragHandle className={styles.dragHandle} attributes={attributes} listeners={listeners} ariaHidden={false} />
       <div className={styles.colorSwatch} style={{ background: status.color }} onClick={() => onEdit(status)} />
       <span className={styles.iconPreview} style={{ color: status.color }} onClick={() => onEdit(status)}>
         <StatusIcon icon={status.icon || 'circle'} />

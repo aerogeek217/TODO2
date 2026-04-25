@@ -11,7 +11,6 @@ import styles from './TaskList.module.css'
 interface TaskListProps {
   todos: PersistedTodoItem[]
   assignedPeopleMap?: Map<number, Person[]>
-  ghostIds?: Set<number>
   draggable?: boolean
   sectionKey?: string
   /** Index in the flat visual list where the drop indicator should appear, or undefined to hide */
@@ -45,7 +44,6 @@ function DraggableRow({
 export function TaskList({
   todos,
   assignedPeopleMap,
-  ghostIds,
   draggable,
   sectionKey,
   dropIndicatorIndex,
@@ -97,7 +95,6 @@ export function TaskList({
             todo={todo}
             assignedPeople={assignedPeopleMap?.get(todo.id)}
             isSelected={isSel}
-            ghost={ghostIds?.has(todo.id)}
             cut={clipboardSet.has(todo.id)}
             onSelect={handleSelect}
             onOpenDetail={onOpenDetail}

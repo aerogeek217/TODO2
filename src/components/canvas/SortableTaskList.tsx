@@ -72,7 +72,6 @@ function SortableTaskRow({
               cut={cut}
               onSelect={onSelect}
               onOpenDetail={onOpenDetail}
-              compact
             />
           )}
         </div>

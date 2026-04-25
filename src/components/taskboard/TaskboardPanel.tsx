@@ -65,7 +65,7 @@ function SortableEntry({ panelId, index, todo, assignedPeople, onOpenDetail }: S
           >
             <span className={styles.orderNumber}>{index + 1}</span>
             <div className={styles.taskWrapper}>
-              <TaskRow todo={todo} assignedPeople={assignedPeople} compact onOpenDetail={onOpenDetail} onTaskboard />
+              <TaskRow todo={todo} assignedPeople={assignedPeople} onOpenDetail={onOpenDetail} onTaskboard />
             </div>
           </div>
         )
