@@ -84,13 +84,11 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
     const store = useListInsetStore.getState()
     const current = store.insets.find((i) => i.id === inset.id)
     if (!current) return
-    if (value == null || value.length === 0) {
-      const { runtimeFilterValue: _drop, ...rest } = current
-      void _drop
-      void store.update(rest)
-    } else {
-      void store.update({ ...current, runtimeFilterValue: value })
-    }
+    // `update` spread-merges via `updateItemInList`, so a key absent from the
+    // patch is preserved from the prior item. Pass `undefined` explicitly to
+    // overwrite the stale array; Dexie strips `undefined` on `put`.
+    const next = value == null || value.length === 0 ? undefined : value
+    void store.update({ ...current, runtimeFilterValue: next })
   }, [inset.id])
 
   return (

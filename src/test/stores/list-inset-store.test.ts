@@ -99,6 +99,24 @@ describe('useListInsetStore', () => {
       const other = useListInsetStore.getState().insets.find((i) => i.id === id2)
       expect(other!.width).toBe(320)
     })
+
+    it('update_runtimeFilterValueExplicitUndefined_clearsPriorPickInState', async () => {
+      // Regression: an empty/cleared runtime filter must propagate through
+      // the in-memory store. `updateItemInList` spread-merges, so a key
+      // absent from the patch is preserved from the prior item — the caller
+      // must pass `undefined` explicitly to overwrite the stale array.
+      const id = await useListInsetStore.getState().add(1, 1, 0, 0)
+      const original = useListInsetStore.getState().insets.find((i) => i.id === id)!
+
+      await useListInsetStore.getState().update({ ...original, runtimeFilterValue: [7, 9] })
+      expect(useListInsetStore.getState().insets.find((i) => i.id === id)!.runtimeFilterValue).toEqual([7, 9])
+
+      const withPick = useListInsetStore.getState().insets.find((i) => i.id === id)!
+      await useListInsetStore.getState().update({ ...withPick, runtimeFilterValue: undefined })
+
+      const cleared = useListInsetStore.getState().insets.find((i) => i.id === id)!
+      expect(cleared.runtimeFilterValue).toBeUndefined()
+    })
   })
 
   describe('updatePosition', () => {
