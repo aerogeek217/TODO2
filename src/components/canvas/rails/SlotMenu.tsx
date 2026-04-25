@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { SlotKind } from '../../../models/canvas-rails'
+import { KIND_LABEL } from '../../../utils/slot-kind'
 import styles from './SlotMenu.module.css'
 
 interface SlotMenuProps {
@@ -9,14 +10,6 @@ interface SlotMenuProps {
   onSplit: (dir: 'above' | 'below' | 'left' | 'right') => void
   onAddTab?: (anchor: { x: number; y: number }) => void
   onClose: () => void
-}
-
-const KIND_LABEL: Record<SlotKind, string> = {
-  lens: 'list',
-  notes: 'notes',
-  calendar: 'calendar',
-  taskboard: 'taskboard',
-  horizons: 'horizons',
 }
 
 type SplitItem = { dir: 'above' | 'below' | 'left' | 'right'; label: string }

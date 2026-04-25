@@ -1,5 +1,6 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { useReactFlow } from '@xyflow/react'
+import { REACT_FLOW_NODE_SELECTOR } from '../../utils/react-flow-dom'
 
 export type ResizeAxis = 'x' | 'y' | 'xy'
 
@@ -60,7 +61,7 @@ export function ResizeHandle({
     const startH = height
     const zoom = getZoom()
     const targetEl = bodySelector
-      ? (handle.closest('.react-flow__node')?.querySelector(bodySelector) as HTMLElement | null)
+      ? (handle.closest(REACT_FLOW_NODE_SELECTOR)?.querySelector(bodySelector) as HTMLElement | null)
       : null
     let active = true
 

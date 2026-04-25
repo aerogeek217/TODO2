@@ -12,6 +12,7 @@ import { WidgetHeader } from '../shared/WidgetHeader'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { useFloatingWidget } from '../../hooks/use-floating-widget'
 import { copyTasksRich } from '../../services/task-copy'
+import { REACT_FLOW_NODE_SELECTOR } from '../../utils/react-flow-dom'
 import styles from './ListInsetNode.module.css'
 
 // Re-exported for back-compat with existing call sites.
@@ -146,7 +147,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
               const startY = e.clientY
               const startH = inset.height || 300
               const zoom = getZoom()
-              const insetEl = handle.closest('.react-flow__node')
+              const insetEl = handle.closest(REACT_FLOW_NODE_SELECTOR)
               const bodyEl = insetEl?.querySelector('.' + styles.body) as HTMLElement | null
               let active = true
 
@@ -194,7 +195,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
               const startH = inset.height || 300
               const zoom = getZoom()
               const nodeId = `inset-${inset.id}`
-              const insetEl = handle.closest('.react-flow__node')
+              const insetEl = handle.closest(REACT_FLOW_NODE_SELECTOR)
               const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
               const bodyEl = insetEl?.querySelector('.' + styles.body) as HTMLElement | null
               let active = true
@@ -256,7 +257,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           const startW = inset.width
           const zoom = getZoom()
           const nodeId = `inset-${inset.id}`
-          const insetEl = handle.closest('.react-flow__node')
+          const insetEl = handle.closest(REACT_FLOW_NODE_SELECTOR)
           const insetDiv = insetEl?.querySelector('.' + styles.inset) as HTMLElement | null
           let active = true
 

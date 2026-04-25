@@ -129,7 +129,11 @@ describe('TabStrip', () => {
     expect(onAdd).toHaveBeenCalledWith('calendar', expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
   })
 
-  it('shows a caret button on the active pill when onOpenChangeType is wired', () => {
+  it('renders a caret on every pill when onOpenChangeType is wired', () => {
+    // code-review-2026-04-25 P5 widened the caret from active-only to per-pill
+    // so a non-active tab's kind can be changed without first activating it.
+    // The caret routes through `changeTabType` for non-active pills (see
+    // `SlotRenderer.handleChangeKind`).
     render(
       <TabStrip
         slot={makeSlot()}
@@ -141,26 +145,10 @@ describe('TabStrip', () => {
       />,
     )
     const caretBtns = screen.queryAllByLabelText(/tab options$/i)
-    expect(caretBtns.length).toBe(1)
+    expect(caretBtns.length).toBe(2)
   })
 
-  it('does not render the caret on inactive pills', () => {
-    render(
-      <TabStrip
-        slot={makeSlot()}
-        fromSide="right"
-        onActivateTab={() => {}}
-        onCloseTab={() => {}}
-        onAddTab={() => {}}
-        onOpenChangeType={() => {}}
-      />,
-    )
-    const caretBtns = screen.getAllByLabelText(/tab options$/i)
-    expect(caretBtns.length).toBe(1)
-    expect(screen.queryByLabelText(/Notes tab options/i)).toBeNull()
-  })
-
-  it('active-pill caret fires onOpenChangeType with its anchor', () => {
+  it('caret on a non-active pill fires onOpenChangeType with that pill\'s tabId', () => {
     const onOpenChangeType = vi.fn()
     render(
       <TabStrip
@@ -172,9 +160,32 @@ describe('TabStrip', () => {
         onOpenChangeType={onOpenChangeType}
       />,
     )
-    fireEvent.click(screen.getByLabelText(/tab options$/i))
+    // Active is 'slot-a-t0' (lens/Weekly) — click the inactive Notes pill's caret.
+    fireEvent.click(screen.getByLabelText(/Notes tab options/i))
     expect(onOpenChangeType).toHaveBeenCalledTimes(1)
-    const anchor = onOpenChangeType.mock.calls[0][0]
+    const [tabId, anchor] = onOpenChangeType.mock.calls[0]
+    expect(tabId).toBe('slot-a-t1')
+    expect(typeof anchor.x).toBe('number')
+    expect(typeof anchor.y).toBe('number')
+  })
+
+  it('active-pill caret fires onOpenChangeType with its tabId + anchor', () => {
+    const onOpenChangeType = vi.fn()
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={() => {}}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+        onOpenChangeType={onOpenChangeType}
+      />,
+    )
+    const activeCaret = screen.getAllByLabelText(/tab options$/i)[0]
+    fireEvent.click(activeCaret)
+    expect(onOpenChangeType).toHaveBeenCalledTimes(1)
+    const [tabId, anchor] = onOpenChangeType.mock.calls[0]
+    expect(tabId).toBe('slot-a-t0')
     expect(typeof anchor.x).toBe('number')
     expect(typeof anchor.y).toBe('number')
   })

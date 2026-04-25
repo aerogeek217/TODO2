@@ -9,6 +9,7 @@ import {
   RAILS_DRAG_TYPE,
   type RailsDragData,
 } from '../../../utils/rail-dnd'
+import { computeTabInsertIdx } from '../../../utils/rail-dnd-monitor-helpers'
 import styles from './TabStrip.module.css'
 
 export interface TabStripProps {
@@ -20,18 +21,28 @@ export interface TabStripProps {
   onMore?: (anchor: { x: number; y: number }) => void
   onPopOut?: () => void
   /**
-   * Called when the user clicks the active tab's drop-down caret. The parent
-   * opens its `WidgetKindMenu` at the anchor — that menu carries the
-   * type-change options.
+   * Called when the user clicks any tab pill's drop-down caret (every pill
+   * carries one). The parent opens its `WidgetKindMenu` at the anchor; the
+   * `tabId` arg picks which tab the menu's kind change applies to (routed
+   * through `changeTabType` for non-active pills, `setSlotKind` for the
+   * active pill so slot-level fields are preserved as a unit). Wired up by
+   * code-review-2026-04-25 P5 — the prior single-arg signature only fired on
+   * the active pill.
    */
-  onOpenChangeType?: (anchor: { x: number; y: number }) => void
+  onOpenChangeType?: (tabId: string, anchor: { x: number; y: number }) => void
   onClose?: () => void
   /** Optional meta slot rendered in the chrome area (e.g. calendar orientation toggle, lens count). */
   meta?: ReactNode
   /** Slot-level `⋯` options menu open state (for aria-expanded). */
   menuOpen?: boolean
-  /** Active-tab caret drop-down menu open state (for aria-expanded). */
+  /** Caret drop-down menu open state (for aria-expanded). */
   changeTypeMenuOpen?: boolean
+  /**
+   * When the per-pill caret menu is open, the tab id it targets — used to set
+   * `aria-expanded` on that specific pill's caret instead of every active
+   * pill's caret. `undefined` collapses to "no caret active".
+   */
+  changeTypeMenuTabId?: string
   moreButtonRef?: Ref<HTMLButtonElement>
   dragHandleProps?: HTMLAttributes<HTMLSpanElement> & { ref?: Ref<HTMLSpanElement> }
 }
@@ -51,8 +62,8 @@ interface TabPillProps {
   fromSide: RailSide
   onActivate: () => void
   onClose: () => void
-  /** When provided and the pill is active, renders a ▾ caret that opens the kind-change menu. */
-  onOpenChangeType?: (anchor: { x: number; y: number }) => void
+  /** When provided, renders a ▾ caret on every pill (active or not) that opens the kind-change menu for the specific tab. */
+  onOpenChangeType?: (tabId: string, anchor: { x: number; y: number }) => void
   caretMenuOpen?: boolean
 }
 
@@ -77,7 +88,7 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
     data: dragData,
   })
 
-  const showCaret = active && Boolean(onOpenChangeType)
+  const showCaret = Boolean(onOpenChangeType)
 
   return (
     <div
@@ -109,7 +120,7 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
           onClick={(e) => {
             e.stopPropagation()
             const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-            onOpenChangeType!({ x: rect.left, y: rect.bottom + 4 })
+            onOpenChangeType!(tab.id, { x: rect.left, y: rect.bottom + 4 })
           }}
           onPointerDown={(e) => e.stopPropagation()}
           aria-label={`${label} tab options`}
@@ -134,24 +145,6 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
   )
 }
 
-/**
- * Compute insertion index from pointer X against the strip's pill midpoints.
- * Returns a value in [0, tabCount] suitable for `applyReorderTab` /
- * `applyMoveTabToSlot`. Reads `[data-tab-id]` elements within the container.
- */
-function computeInsertIdx(stripEl: HTMLElement, pointerX: number, sourceTabId: string | null): number {
-  const pills = Array.from(stripEl.querySelectorAll<HTMLElement>('[data-tab-id]'))
-  const survivors = sourceTabId != null
-    ? pills.filter((p) => p.dataset.tabId !== sourceTabId)
-    : pills
-  for (let i = 0; i < survivors.length; i++) {
-    const rect = survivors[i].getBoundingClientRect()
-    const mid = rect.left + rect.width / 2
-    if (pointerX < mid) return i
-  }
-  return survivors.length
-}
-
 export function TabStrip({
   slot,
   fromSide,
@@ -165,6 +158,7 @@ export function TabStrip({
   meta,
   menuOpen,
   changeTypeMenuOpen,
+  changeTypeMenuTabId,
   moreButtonRef,
   dragHandleProps,
 }: TabStripProps) {
@@ -231,7 +225,7 @@ export function TabStrip({
     const onMove = (e: PointerEvent) => {
       const el = tabsContainerRef.current
       if (!el) return
-      setHoverIdx(computeInsertIdx(el, e.clientX, null))
+      setHoverIdx(computeTabInsertIdx(el, e.clientX, null))
     }
     window.addEventListener('pointermove', onMove)
     return () => window.removeEventListener('pointermove', onMove)
@@ -274,8 +268,8 @@ export function TabStrip({
                 fromSide={fromSide}
                 onActivate={() => onActivateTab(tab.id)}
                 onClose={() => onCloseTab(tab.id)}
-                onOpenChangeType={isActive ? onOpenChangeType : undefined}
-                caretMenuOpen={isActive && changeTypeMenuOpen}
+                onOpenChangeType={onOpenChangeType}
+                caretMenuOpen={changeTypeMenuOpen && changeTypeMenuTabId === tab.id}
                 buttonRef={(el) => {
                   if (el) pillButtonRefs.current.set(tab.id, el)
                   else pillButtonRefs.current.delete(tab.id)

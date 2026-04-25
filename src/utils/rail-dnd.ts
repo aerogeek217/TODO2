@@ -1,5 +1,6 @@
 import type { CalendarOrientation, EmptySideClaim, Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
 import { railOrientationForSide } from '../models/canvas-rails'
+import { computeTabInsertIdx } from './rail-dnd-monitor-helpers'
 
 export const RAILS_DRAG_TYPE = 'rails-slot' as const
 export const RAILS_DROP_ID_PREFIX = 'rails:' as const
@@ -552,21 +553,6 @@ function defaultElementsFromPoint(x: number, y: number): Element[] {
 }
 
 /**
- * Count `[data-tab-id]` descendants at pointerX and return the insertion
- * index among them (mirrors `TabStrip#computeInsertIdx` but without a
- * source-tab filter — a float always inserts a new tab).
- */
-function computeFloatInsertIdx(stripEl: HTMLElement, pointerX: number): number {
-  const pills = Array.from(stripEl.querySelectorAll<HTMLElement>('[data-tab-id]'))
-  for (let i = 0; i < pills.length; i++) {
-    const rect = pills[i].getBoundingClientRect()
-    const mid = rect.left + rect.width / 2
-    if (pointerX < mid) return i
-  }
-  return pills.length
-}
-
-/**
  * Walk `elementsFromPoint(x, y)` bottom-up and return the first element
  * carrying a `data-rails-drop-id`. Decodes the id via `decodeRailsDropId`;
  * for slot hits, disambiguates center-merge vs split via `pointerToSplitZone`
@@ -597,7 +583,10 @@ export function resolveFloatDockTarget(
       : { kind: 'empty-side', side: zone.side }
   }
   if (zone.kind === 'tab-strip') {
-    const insertIdx = computeFloatInsertIdx(hit, pointer.x)
+    // Float dock onto a tab strip — every existing pill counts as a survivor
+    // (no source pill to exclude). Intra-strip tab reorder uses the same
+    // helper but passes the dragged tab's id.
+    const insertIdx = computeTabInsertIdx(hit, pointer.x)
     return { kind: 'tab-strip', slotId: zone.slotId, insertIdx }
   }
   if (zone.kind === 'canvas') {

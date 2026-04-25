@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../../../data/database'
-import { popSlotToCanvas, popTabAtPosition, popTabToCanvas } from '../../../../components/canvas/rails/RailsFrame'
+import { popSlotToCanvas, popTabAtPosition, popTabToCanvas } from '../../../../services/rail-pop-out'
 import { useCanvasStore } from '../../../../stores/canvas-store'
 import { useNoteStore } from '../../../../stores/note-store'
 import { useFloatingNoteStore } from '../../../../stores/floating-note-store'
