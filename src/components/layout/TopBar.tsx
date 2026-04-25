@@ -10,8 +10,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
-import { useFilterStore, fixedAnchor, type DateField, type OrgFilterMode, type PersonFilterMode } from '../../stores/filter-store'
-import type { DateAnchor, Org, Person, PersistedTodoItem, Status } from '../../models'
+import { useFilterStore, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
+import type { Org, Person, PersistedTodoItem, Status, TodoPredicate } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -24,15 +24,16 @@ import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { startOfToday, formatDateShort } from '../../utils/date'
 import { scheduledLabel, isScheduledPast, isDeadlinePast } from '../../utils/effective-date'
-import { toggleItem, matchTodoText, type TextMatchField } from '../../utils/filter'
+import { matchTodoText, type TextMatchField } from '../../utils/filter'
 import { resolvePersonColor } from '../../utils/person-color'
 import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
 import { StatusIcon } from '../shared/StatusIcon'
-import { DateAnchorInput } from '../shared/DateAnchorInput'
+import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
-import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
+import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { computeSearchDropIndex } from '../../utils/task-dnd'
+import { buildSearchContextMenuItems } from './top-bar-search-menu'
 import styles from './TopBar.module.css'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status', 'tag']
@@ -65,47 +66,6 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
     case 'tag':
       return <svg {...common}><path d="M3 6h10M3 10h10M6 3l-1 10M11 3l-1 10" /></svg>
   }
-}
-
-/**
- * Build the context-menu items shown when a search result is right-clicked —
- * P4 of `docs/plans/features/features-batch-2026-04`.
- *
- * Mirrors the items on `TaskRow`'s menu: Open / Mark (in)complete /
- * Add-or-Remove from Taskboard / Move to project… / Delete. Extracted as a
- * pure helper so unit tests can exercise each action without mounting a
- * full TopBar.
- */
-export function buildSearchContextMenuItems(params: {
-  todo: PersistedTodoItem
-  onBoard: boolean
-  onOpen: (todoId: number) => void
-  onMoveToProject: () => void
-}): ContextMenuItem[] {
-  const { todo, onBoard, onOpen, onMoveToProject } = params
-  return [
-    { label: 'Open', action: () => onOpen(todo.id) },
-    {
-      label: todo.isCompleted ? 'Mark incomplete' : 'Mark complete',
-      action: () => { void useTodoStore.getState().toggleComplete(todo.id) },
-    },
-    onBoard
-      ? {
-          label: 'Remove from Taskboard',
-          action: () => { void useTaskboardStore.getState().removeEntry(todo.id) },
-        }
-      : {
-          label: 'Add to Taskboard',
-          action: () => { void useTaskboardStore.getState().add(todo.id) },
-        },
-    { label: 'Move to project…', action: onMoveToProject },
-    { label: '', action: () => {}, separator: true },
-    {
-      label: 'Delete',
-      action: () => useUIStore.getState().showBulkConfirmation('delete', [todo.id]),
-      danger: true,
-    },
-  ]
 }
 
 /**
@@ -355,329 +315,10 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
   )
 })
 
-function FilterDropdown({
-  label,
-  active,
-  allSelected,
-  noneSelected,
-  onSelectAll,
-  onDeselectAll,
-  onOpen,
-  onClose,
-  searchable,
-  children,
-}: {
-  label: React.ReactNode
-  active: boolean
-  allSelected: boolean
-  noneSelected: boolean
-  onSelectAll: () => void
-  onDeselectAll: () => void
-  onOpen?: () => void
-  onClose?: () => void
-  searchable?: boolean
-  children: React.ReactNode | ((searchText: string) => React.ReactNode)
-}) {
-  const [open, setOpen] = useState(false)
-  const [searchText, setSearchText] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
-
-  const handleToggle = useCallback(() => {
-    if (open) {
-      setOpen(false)
-      setSearchText('')
-      onClose?.()
-    } else {
-      setOpen(true)
-      onOpen?.()
-    }
-  }, [open, onOpen, onClose])
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-        setSearchText('')
-        onClose?.()
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open, onClose])
-
-  useEffect(() => {
-    if (open && searchable) {
-      requestAnimationFrame(() => searchRef.current?.focus())
-    }
-  }, [open, searchable])
-
-  const renderedChildren = typeof children === 'function' ? children(searchText) : children
-
-  return (
-    <div className={styles.dropdownWrapper} ref={ref}>
-      <button
-        className={`${styles.filterChip} ${active ? styles.filterChipActive : ''}`}
-        onClick={handleToggle}
-        aria-expanded={open}
-      >
-        {label}
-        <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}>&#9662;</span>
-      </button>
-      {open && (
-        <div className={styles.dropdownPanel}>
-          <div className={styles.dropdownActions}>
-            <button
-              className={`${styles.dropdownAction} ${allSelected ? styles.dropdownActionDisabled : ''}`}
-              onClick={allSelected ? undefined : onSelectAll}
-            >
-              Select all
-            </button>
-            <span className={styles.dropdownActionSep}>/</span>
-            <button
-              className={`${styles.dropdownAction} ${noneSelected ? styles.dropdownActionDisabled : ''}`}
-              onClick={noneSelected ? undefined : onDeselectAll}
-            >
-              Deselect all
-            </button>
-          </div>
-          <div className={styles.dropdownDivider} />
-          {searchable && (
-            <div className={styles.dropdownSearchWrapper}>
-              <input
-                ref={searchRef}
-                className={styles.dropdownSearchInput}
-                type="text"
-                placeholder="Search..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    if (searchText) {
-                      setSearchText('')
-                    } else {
-                      setOpen(false)
-                      setSearchText('')
-                      onClose?.()
-                    }
-                  }
-                }}
-              />
-            </div>
-          )}
-          <div className={searchable ? styles.dropdownItemsScrollable : undefined}>
-            {renderedChildren}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-const DATE_FIELD_LABELS: Record<DateField, string> = {
-  date: 'Effective Date',
-  scheduled: 'Scheduled',
-  deadline: 'Deadline',
-  created: 'Created',
-  modified: 'Modified',
-}
-
-function TriStateRow({ label, value, onChange }: {
-  label: string
-  value: boolean | null
-  onChange: (v: boolean | null) => void
-}) {
-  // cycle: null → true → false → null
-  const next = value === null ? true : value === true ? false : null
-  const icon = value === null ? '—' : value === true ? '✓' : '✕'
-  return (
-    <label
-      className={styles.dropdownItem}
-      onClick={() => onChange(next)}
-      title={value === null ? 'No filter' : value ? 'Only tasks with this field' : 'Only tasks without this field'}
-    >
-      <span className={`${styles.triState} ${value !== null ? styles.triStateActive : ''}`}>{icon}</span>
-      {label}
-    </label>
-  )
-}
-
-function DateRangeDropdown({
-  active,
-  dateField,
-  startAnchor,
-  endAnchor,
-  includeNoDate,
-  hasScheduled,
-  hasDeadline,
-  onChangeDateField,
-  onChangeAnchors,
-  onChangeIncludeNoDate,
-  onChangeHasScheduled,
-  onChangeHasDeadline,
-}: {
-  active: boolean
-  dateField: DateField
-  startAnchor: DateAnchor | null
-  endAnchor: DateAnchor | null
-  includeNoDate: boolean
-  hasScheduled: boolean | null
-  hasDeadline: boolean | null
-  onChangeDateField: (field: DateField) => void
-  onChangeAnchors: (start: DateAnchor | null, end: DateAnchor | null) => void
-  onChangeIncludeNoDate: (include: boolean) => void
-  onChangeHasScheduled: (v: boolean | null) => void
-  onChangeHasDeadline: (v: boolean | null) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
-
-  const handleOpen = () => {
-    if (!open && !active) {
-      const todayAnchor = fixedAnchor(startOfToday())
-      if (dateField === 'date' || dateField === 'scheduled' || dateField === 'deadline') {
-        onChangeAnchors(todayAnchor, null)
-      } else {
-        onChangeAnchors(null, todayAnchor)
-      }
-    }
-    setOpen(!open)
-  }
-
-  return (
-    <div className={styles.dropdownWrapper} ref={ref}>
-      <button
-        className={`${styles.filterChip} ${active ? styles.filterChipActive : ''}`}
-        onClick={handleOpen}
-        aria-expanded={open}
-      >
-        <svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        {' '}Date
-        <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}>&#9662;</span>
-      </button>
-      {open && (
-        <div className={styles.dropdownPanel}>
-          <div className={styles.dateFieldSelector}>
-            {(['date', 'scheduled', 'deadline', 'created', 'modified'] as const).map((field) => (
-              <button
-                key={field}
-                className={`${styles.dateFieldOption} ${dateField === field ? styles.dateFieldOptionActive : ''}`}
-                onClick={() => {
-                  if (field === dateField) return
-                  onChangeDateField(field)
-                  const todayAnchor = fixedAnchor(startOfToday())
-                  if (field === 'date' || field === 'scheduled' || field === 'deadline') {
-                    onChangeAnchors(todayAnchor, null)
-                  } else {
-                    onChangeAnchors(null, todayAnchor)
-                  }
-                }}
-              >
-                {DATE_FIELD_LABELS[field]}
-              </button>
-            ))}
-          </div>
-          <div className={styles.dropdownDivider} />
-          <div className={styles.dateRangeRow}>
-            <label className={styles.dateLabel}>From</label>
-            <DateAnchorInput
-              value={startAnchor}
-              onChange={(v) => onChangeAnchors(v, endAnchor)}
-              aria-label="Date range start"
-            />
-          </div>
-          <div className={styles.dateRangeRow}>
-            <label className={styles.dateLabel}>To</label>
-            <DateAnchorInput
-              value={endAnchor}
-              onChange={(v) => onChangeAnchors(startAnchor, v)}
-              aria-label="Date range end"
-            />
-          </div>
-          {dateField === 'date' && (
-            <>
-              <div className={styles.dropdownDivider} />
-              <label className={styles.dropdownItem} onClick={() => onChangeIncludeNoDate(!includeNoDate)}>
-                <span className={`${styles.check} ${includeNoDate ? styles.checked : ''}`} />
-                Include tasks with no scheduled or deadline date
-              </label>
-            </>
-          )}
-          <div className={styles.dropdownDivider} />
-          <TriStateRow label="Has scheduled" value={hasScheduled} onChange={onChangeHasScheduled} />
-          <TriStateRow label="Has deadline" value={hasDeadline} onChange={onChangeHasDeadline} />
-          <div className={styles.dropdownDivider} />
-          <div className={styles.dropdownActions}>
-            <button
-              className={`${styles.dropdownAction} ${!active ? styles.dropdownActionDisabled : ''}`}
-              onClick={() => { onChangeAnchors(null, null); onChangeHasScheduled(null); onChangeHasDeadline(null); setOpen(false) }}
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function EntityDropdownItems({
-  searchText,
-  entities,
-  isChecked,
-  onToggle,
-  namePrefix,
-  showDot = true,
-}: {
-  searchText: string
-  entities: { id?: number; name: string; color?: string; icon?: string }[]
-  isChecked: (id: number) => boolean
-  onToggle: (id: number) => void
-  namePrefix?: string
-  showDot?: boolean
-}) {
-  const q = searchText.toLowerCase()
-  const showNone = !q || 'none'.includes(q)
-  const filtered = (q ? entities.filter(e => e.name.toLowerCase().includes(q)) : entities).toSorted((a, b) => a.name.localeCompare(b.name))
-  return (
-    <>
-      {showNone && (
-        <label className={styles.dropdownItem} onClick={() => onToggle(0)}>
-          <span className={`${styles.check} ${isChecked(0) ? styles.checked : ''}`} />
-          <span className={styles.noneLabel}>None</span>
-        </label>
-      )}
-      {filtered.map(entity => (
-        <label key={entity.id} className={styles.dropdownItem} onClick={() => onToggle(entity.id!)}>
-          <span className={`${styles.check} ${isChecked(entity.id!) ? styles.checked : ''}`} />
-          {entity.icon ? (
-            <span className={styles.dotIcon} style={{ color: entity.color }}><StatusIcon icon={entity.icon} filled /></span>
-          ) : showDot && entity.color ? (
-            <span className={styles.dot} style={{ background: entity.color }} />
-          ) : null}
-          {namePrefix}{entity.name}
-        </label>
-      ))}
-      {q && !showNone && filtered.length === 0 && (
-        <div className={styles.dropdownEmpty}>No matches</div>
-      )}
-    </>
-  )
-}
-
-
 export function TopBar() {
-  const { filters, isActive, setShowCompleted, setShowHiddenStatuses, setPersonIds, setPersonFilterMode, setOrgIds, setOrgFilterMode, setProjectIds, setStatusIds, setSearchText, setDateField, setDateRangeAnchors, setDateRangeIncludeNoDate, setHasScheduled, setHasDeadline, setTags, clearAll } = useFilterStore()
+  const filters = useFilterStore((s) => s.filters)
+  const isActive = useFilterStore((s) => s.isActive)
+  const setSearchText = useFilterStore((s) => s.setSearchText)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSearch, setLocalSearch] = useState(filters.searchText)
@@ -706,6 +347,7 @@ export function TopBar() {
   >(null)
   const todos = useTodoStore((s) => s.todos)
   const projects = useProjectStore((s) => s.projects)
+  const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
@@ -722,107 +364,16 @@ export function TopBar() {
   useEffect(() => {
     setLocalSearch(storeSearchText)
   }, [storeSearchText])
-  const people = usePersonStore((s) => s.people)
   const orgs = useOrgStore((s) => s.orgs)
-  const statuses = useStatusStore((s) => s.statuses)
-  const tags = useTagStore((s) => s.tags)
-
-  // Track which filter dropdown is in "preview empty" mode:
-  // when opened with all selected, show unchecked visually but don't commit to store
-  // until user clicks an item. If closed without selection, stays at all (null).
-  const [previewEmpty, setPreviewEmpty] = useState<'project' | 'people' | 'org' | 'status' | 'tags' | null>(null)
-
-  const peopleActive = filters.personIds !== null
-  const orgsActive = filters.orgIds !== null
-  const projectsActive = filters.projectIds !== null
-  const statusActive = filters.statusIds !== null
-  const tagsActive = filters.tags !== null
-  const dateRangeActive = filters.dateRangeStart !== null || filters.dateRangeEnd !== null || filters.hasScheduled !== null || filters.hasDeadline !== null
-
-  // Tags come from the registry; alphabetize by name for stable chip layout.
-  const sortedTags = useMemo(
-    () => [...tags].sort((a, b) => a.name.localeCompare(b.name)),
-    [tags],
-  )
-  const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
-
-  const handlePersonToggle = useCallback(
-    (personId: number) => {
-      if (previewEmpty === 'people') {
-        // First click during preview: commit just this item
-        setPreviewEmpty(null)
-        setPersonIds(new Set([personId]))
-        return
-      }
-      const allIds = [0, ...people.map((p) => p.id!)]
-      setPersonIds(toggleItem(filters.personIds, personId, allIds))
-    },
-    [filters.personIds, people, setPersonIds, previewEmpty],
-  )
-  const handleOrgToggle = useCallback(
-    (orgId: number) => {
-      if (previewEmpty === 'org') {
-        setPreviewEmpty(null)
-        setOrgIds(new Set([orgId]))
-        return
-      }
-      const allIds = [0, ...orgs.map((o) => o.id!)]
-      setOrgIds(toggleItem(filters.orgIds, orgId, allIds))
-    },
-    [filters.orgIds, orgs, setOrgIds, previewEmpty],
-  )
-  const handleStatusToggle = useCallback(
-    (statusId: number) => {
-      if (previewEmpty === 'status') {
-        setPreviewEmpty(null)
-        setStatusIds(new Set([statusId]))
-        return
-      }
-      const allIds = [0, ...statuses.map((s) => s.id!)]
-      setStatusIds(toggleItem(filters.statusIds, statusId, allIds))
-    },
-    [filters.statusIds, statuses, setStatusIds, previewEmpty],
-  )
-
-  const handleProjectToggle = useCallback(
-    (projectId: number) => {
-      if (previewEmpty === 'project') {
-        setPreviewEmpty(null)
-        setProjectIds(new Set([projectId]))
-        return
-      }
-      const allIds = [0, ...projects.map((p) => p.id!)]
-      setProjectIds(toggleItem(filters.projectIds, projectId, allIds))
-    },
-    [filters.projectIds, projects, setProjectIds, previewEmpty],
-  )
-  const handleTagToggle = useCallback(
-    (tagId: number) => {
-      if (previewEmpty === 'tags') {
-        setPreviewEmpty(null)
-        setTags(new Set([tagId]))
-        return
-      }
-      setTags(toggleItem(filters.tags, tagId, allTagIds))
-    },
-    [filters.tags, allTagIds, setTags, previewEmpty],
-  )
-
-  const isPersonChecked = (id: number) => previewEmpty === 'people' ? false : filters.personIds === null || filters.personIds.has(id)
-  const isOrgChecked = (id: number) => previewEmpty === 'org' ? false : filters.orgIds === null || filters.orgIds.has(id)
-  const isProjectChecked = (id: number) => previewEmpty === 'project' ? false : filters.projectIds === null || filters.projectIds.has(id)
-  const isStatusChecked = (id: number) => previewEmpty === 'status' ? false : filters.statusIds === null || filters.statusIds.has(id)
-  const isTagChecked = (tagId: number) => previewEmpty === 'tags' ? false : filters.tags === null || filters.tags.has(tagId)
-
-  const peopleNone = previewEmpty === 'people' || (filters.personIds !== null && filters.personIds.size === 0)
-  const orgsNone = previewEmpty === 'org' || (filters.orgIds !== null && filters.orgIds.size === 0)
-  const projectsNone = previewEmpty === 'project' || (filters.projectIds !== null && filters.projectIds.size === 0)
-  const statusNone = previewEmpty === 'status' || (filters.statusIds !== null && filters.statusIds.size === 0)
-  const tagsNone = previewEmpty === 'tags' || (filters.tags !== null && filters.tags.size === 0)
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
+
+  const filterPredicate = useMemo<TodoPredicate>(() => criteriaToPredicate(filters), [filters])
+  const handleFilterChange = useCallback((next: TodoPredicate) => {
+    useFilterStore.getState().setAllFilters(predicateToCriteria(next))
+  }, [])
 
   const searchPillCtx = useMemo<SearchResultPillContext>(() => ({
     peopleByTodoId: assignedPeopleMap,
@@ -1028,212 +579,7 @@ export function TopBar() {
       </DragOverlay>
       </DndContext>
 
-          {projects.length > 0 && (
-            <FilterDropdown
-              label={
-                <>
-                  <svg className={styles.filterIconSvg} width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 4.5l6-3 6 3v7l-6 3-6-3z" />
-                    <path d="M2 4.5l6 3 6-3M8 7.5v7" />
-                  </svg>
-                  {' '}Project
-                </>
-              }
-              active={projectsActive || previewEmpty === 'project'}
-              allSelected={!projectsActive && previewEmpty !== 'project'}
-              noneSelected={projectsNone}
-              onSelectAll={() => { setPreviewEmpty(null); setProjectIds(null) }}
-              onDeselectAll={() => { setPreviewEmpty(null); setProjectIds(new Set()) }}
-              onOpen={() => { if (!projectsActive) setPreviewEmpty('project') }}
-              onClose={() => { if (previewEmpty === 'project') setPreviewEmpty(null) }}
-              searchable
-            >
-              {(searchText: string) => (
-                <EntityDropdownItems
-                  searchText={searchText}
-                  entities={projects}
-                  isChecked={isProjectChecked}
-                  onToggle={handleProjectToggle}
-                />
-              )}
-            </FilterDropdown>
-          )}
-
-          {people.length > 0 && (
-            <FilterDropdown
-              label={<><span className={styles.filterIcon}>@</span> People</>}
-              active={peopleActive || previewEmpty === 'people'}
-              allSelected={!peopleActive && previewEmpty !== 'people'}
-              noneSelected={peopleNone}
-              onSelectAll={() => { setPreviewEmpty(null); setPersonIds(null) }}
-              onDeselectAll={() => { setPreviewEmpty(null); setPersonIds(new Set()) }}
-              onOpen={() => { if (!peopleActive) setPreviewEmpty('people') }}
-              onClose={() => { if (previewEmpty === 'people') setPreviewEmpty(null) }}
-              searchable
-            >
-              {(searchText: string) => (
-                <>
-                  <div className={styles.orgModeToggle}>
-                    {([['include-orgs', 'Orgs'], ['direct-only', 'People only']] as [PersonFilterMode, string][]).map(([mode, label]) => (
-                      <button
-                        key={mode}
-                        className={`${styles.orgModeOption} ${filters.personFilterMode === mode ? styles.orgModeOptionActive : ''}`}
-                        onClick={() => setPersonFilterMode(mode)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <EntityDropdownItems
-                    searchText={searchText}
-                    entities={people}
-                    isChecked={isPersonChecked}
-                    onToggle={handlePersonToggle}
-                    namePrefix="@"
-                    showDot={false}
-                  />
-                </>
-              )}
-            </FilterDropdown>
-          )}
-
-          {orgs.length > 0 && (
-            <FilterDropdown
-              label={<><span className={styles.filterIcon}>@</span> Org</>}
-              active={orgsActive || previewEmpty === 'org'}
-              allSelected={!orgsActive && previewEmpty !== 'org'}
-              noneSelected={orgsNone}
-              onSelectAll={() => { setPreviewEmpty(null); setOrgIds(null) }}
-              onDeselectAll={() => { setPreviewEmpty(null); setOrgIds(new Set()) }}
-              onOpen={() => { if (!orgsActive) setPreviewEmpty('org') }}
-              onClose={() => { if (previewEmpty === 'org') setPreviewEmpty(null) }}
-              searchable
-            >
-              {(searchText: string) => (
-                <>
-                  <div className={styles.orgModeToggle}>
-                    {([['include-people', 'People'], ['direct-only', 'Org only']] as [OrgFilterMode, string][]).map(([mode, label]) => (
-                      <button
-                        key={mode}
-                        className={`${styles.orgModeOption} ${filters.orgFilterMode === mode ? styles.orgModeOptionActive : ''}`}
-                        onClick={() => setOrgFilterMode(mode)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <EntityDropdownItems
-                    searchText={searchText}
-                    entities={orgs}
-                    isChecked={isOrgChecked}
-                    onToggle={handleOrgToggle}
-                  />
-                </>
-              )}
-            </FilterDropdown>
-          )}
-
-          {sortedTags.length > 0 && (
-            <FilterDropdown
-              label={<><span className={styles.filterIcon}>#</span> Tags</>}
-              active={tagsActive || previewEmpty === 'tags'}
-              allSelected={!tagsActive && previewEmpty !== 'tags'}
-              noneSelected={tagsNone}
-              onSelectAll={() => { setPreviewEmpty(null); setTags(null) }}
-              onDeselectAll={() => { setPreviewEmpty(null); setTags(new Set()) }}
-              onOpen={() => { if (!tagsActive) setPreviewEmpty('tags') }}
-              onClose={() => { if (previewEmpty === 'tags') setPreviewEmpty(null) }}
-              searchable
-            >
-              {(searchText: string) => {
-                const q = searchText.toLowerCase()
-                const filtered = q ? sortedTags.filter(t => t.name.toLowerCase().includes(q)) : sortedTags
-                if (filtered.length === 0) {
-                  return <div className={styles.dropdownEmpty}>{q ? 'No matches' : 'No tags yet'}</div>
-                }
-                return (
-                  <>
-                    {filtered.map(tag => (
-                      <label key={tag.id} className={styles.dropdownItem} onClick={() => handleTagToggle(tag.id!)}>
-                        <span className={`${styles.check} ${isTagChecked(tag.id!) ? styles.checked : ''}`} />
-                        {tag.color && <span className={styles.dot} style={{ background: tag.color }} />}
-                        #{tag.name}
-                      </label>
-                    ))}
-                  </>
-                )
-              }}
-            </FilterDropdown>
-          )}
-
-          <DateRangeDropdown
-            active={dateRangeActive}
-            dateField={filters.dateField}
-            startAnchor={filters.dateRangeStart}
-            endAnchor={filters.dateRangeEnd}
-            includeNoDate={filters.dateRangeIncludeNoDate}
-            hasScheduled={filters.hasScheduled}
-            hasDeadline={filters.hasDeadline}
-            onChangeDateField={setDateField}
-            onChangeAnchors={setDateRangeAnchors}
-            onChangeIncludeNoDate={setDateRangeIncludeNoDate}
-            onChangeHasScheduled={setHasScheduled}
-            onChangeHasDeadline={setHasDeadline}
-          />
-
-          {statuses.length > 0 && (
-            <FilterDropdown
-              label={<><span className={styles.filterIcon}>&#x25C9;</span> Status</>}
-              active={statusActive || previewEmpty === 'status'}
-              allSelected={!statusActive && previewEmpty !== 'status'}
-              noneSelected={statusNone}
-              onSelectAll={() => { setPreviewEmpty(null); setStatusIds(null) }}
-              onDeselectAll={() => { setPreviewEmpty(null); setStatusIds(new Set()) }}
-              onOpen={() => { if (!statusActive) setPreviewEmpty('status') }}
-              onClose={() => { if (previewEmpty === 'status') setPreviewEmpty(null) }}
-              searchable
-            >
-              {(searchText: string) => (
-                <EntityDropdownItems
-                  searchText={searchText}
-                  entities={statuses.map(s => s.hideByDefault ? { ...s, name: `${s.name} (hidden)` } : s)}
-                  isChecked={isStatusChecked}
-                  onToggle={handleStatusToggle}
-                />
-              )}
-            </FilterDropdown>
-          )}
-
-          <button
-            className={`${styles.filterChip} ${filters.showHiddenStatuses ? styles.filterChipActive : ''}`}
-            onClick={() => setShowHiddenStatuses(!filters.showHiddenStatuses)}
-            role="switch"
-            aria-checked={filters.showHiddenStatuses}
-          >
-            <svg className={styles.filterIcon} width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 2C5 2 3 4.5 3 7v4c0 .5-.3 1-.7 1.3-.3.2-.3.7.2.7h1.3c.3 0 .5.3.4.6-.2.4.1.9.5.9s.6-.3.9-.6c.2-.2.5-.4.9-.4s.7.2.9.4c.3.3.5.6.9.6s.7-.5.5-.9c-.1-.3.1-.6.4-.6h1.3c.5 0 .5-.5.2-.7-.4-.2-.7-.8-.7-1.3V7c0-2.5-2-5-5-5z" />
-              <circle cx="6.5" cy="7" r="1" />
-              <circle cx="9.5" cy="7" r="1" />
-            </svg> Show hidden
-          </button>
-
-          <button
-            className={`${styles.filterChip} ${filters.showCompleted ? styles.filterChipActive : ''}`}
-            onClick={() => setShowCompleted(!filters.showCompleted)}
-            role="switch"
-            aria-checked={filters.showCompleted}
-          >
-            <span className={styles.filterIcon}>✓</span> Show completed
-          </button>
-
-      {isActive && (
-        <button className={styles.clearFilters} onClick={() => { clearAll(); setPreviewEmpty(null) }} title="Clear all filters">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1.5 2h13l-5 6.5V14l-3-2V8.5L1.5 2z" />
-            <line x1="2" y1="14" x2="14" y2="2" stroke="var(--color-overdue)" strokeWidth="2" />
-          </svg>
-        </button>
-      )}
+      <FilterChipBar predicate={filterPredicate} onChange={handleFilterChange} />
 
       {isSupported && !isConnected && (
         <span className={styles.storageStatus}>Local only</span>
