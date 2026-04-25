@@ -64,8 +64,10 @@ export function CanvasPage() {
   const addListDefinition = useListDefinitionStore((s) => s.add)
   const [addListPickerPos, setAddListPickerPos] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
   const [addWidgetMenuPos, setAddWidgetMenuPos] = useState<{ x: number; y: number; flowX: number; flowY: number } | null>(null)
-  const [showListEditor, setShowListEditor] = useState(false)
-  const [listEditorInitialId, setListEditorInitialId] = useState<number | null>(null)
+  const showListEditor = useUIStore((s) => s.listsEditorOpen)
+  const listEditorInitialId = useUIStore((s) => s.listsEditorInitialId)
+  const openListsEditor = useUIStore((s) => s.openListsEditor)
+  const closeListsEditor = useUIStore((s) => s.closeListsEditor)
   const floatingNotes = useFloatingNoteStore((s) => s.notes)
   const loadFloatingNotes = useFloatingNoteStore((s) => s.loadByCanvas)
   const updateFloatingNotePosition = useFloatingNoteStore((s) => s.updatePosition)
@@ -453,9 +455,8 @@ export function CanvasPage() {
     const id = await addListDefinition({ name: candidate })
     await addInset(id, selectedCanvasId, addListPickerPos.flowX, addListPickerPos.flowY)
     setAddListPickerPos(null)
-    setListEditorInitialId(id)
-    setShowListEditor(true)
-  }, [selectedCanvasId, addListPickerPos, addListDefinition, addInset])
+    openListsEditor(id)
+  }, [selectedCanvasId, addListPickerPos, addListDefinition, addInset, openListsEditor])
 
   const handleClickTask = useCallback(
     (todoId: number) => openEditPopup(todoId),
@@ -788,7 +789,7 @@ export function CanvasPage() {
       )}
       {showListEditor && (
         <DashboardListsEditor
-          onClose={() => { setShowListEditor(false); setListEditorInitialId(null) }}
+          onClose={closeListsEditor}
           initialSelectedId={listEditorInitialId ?? undefined}
         />
       )}

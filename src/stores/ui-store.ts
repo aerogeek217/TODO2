@@ -82,6 +82,15 @@ interface UIState {
   isProjectNavigatorOpen: boolean
   /** Taskboard panel open state */
   isTaskboardOpen: boolean
+  /**
+   * Lists editor (`DashboardListsEditor`) open state. Owned here so any
+   * component (canvas list widget's kind menu, rail lens slot, etc.) can
+   * dispatch "open editor for def N" without prop-drilling. CanvasPage
+   * subscribes and renders the modal when `listsEditorOpen` is true.
+   */
+  listsEditorOpen: boolean
+  /** Optional def id to preselect + auto-expand the ConfigPanel for. */
+  listsEditorInitialId: number | null
   /** Descriptor of the floating canvas widget currently being dragged, or null. */
   floatDrag: FloatDragState | null
   /**
@@ -124,6 +133,8 @@ interface UIState {
   toggleTaskboard: () => void
   setFloatDrag: (next: FloatDragState | null) => void
   setFloatAnnouncement: (text: string) => void
+  openListsEditor: (initialId?: number | null) => void
+  closeListsEditor: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -148,6 +159,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFilterSheetOpen: false,
   isProjectNavigatorOpen: false,
   isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
+  listsEditorOpen: false,
+  listsEditorInitialId: null,
   floatDrag: null,
   floatAnnouncement: '',
 
@@ -301,5 +314,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   setFloatAnnouncement(text) {
     if (get().floatAnnouncement === text) return
     set({ floatAnnouncement: text })
+  },
+
+  openListsEditor(initialId) {
+    set({ listsEditorOpen: true, listsEditorInitialId: initialId ?? null })
+  },
+
+  closeListsEditor() {
+    set({ listsEditorOpen: false, listsEditorInitialId: null })
   },
 }))

@@ -406,6 +406,11 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           currentKind={activeTab.type}
           onChangeKind={(kind) => { handleChangeKind(kind, kindMenuAnchor) }}
           pickListForLens={activeTab.type === 'lens' ? handlePickListForLens : undefined}
+          onEditList={
+            activeTab.type === 'lens' && activeTab.listDefinitionId != null
+              ? () => useUIStore.getState().openListsEditor(activeTab.listDefinitionId)
+              : undefined
+          }
           onPopOut={handlePopOut}
           onClose={() => setKindMenuAnchor(null)}
         />

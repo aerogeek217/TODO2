@@ -24,6 +24,12 @@ export interface WidgetKindMenuProps {
    * secondary row; clicking a list picks it and closes the menu.
    */
   pickListForLens?: (listDefinitionId: number) => void
+  /**
+   * Lens-only: when provided alongside `currentKind === 'lens'`, renders an
+   * "Edit list" action above the kind switcher. Caller binds the widget's
+   * list-definition id; the menu just forwards the click and closes.
+   */
+  onEditList?: () => void
   onClose: () => void
   /** Optional label override for the secondary row (e.g. the current list-def name). */
   secondaryLabel?: string
@@ -42,6 +48,7 @@ export function WidgetKindMenu({
   currentKind,
   onChangeKind,
   pickListForLens,
+  onEditList,
   onClose,
   secondaryLabel,
   heading = 'Change widget',
@@ -177,6 +184,7 @@ export function WidgetKindMenu({
 
   const showSecondary = currentKind === 'lens' && pickListForLens != null
   const secondary = showSecondary ? 'Change list…' : null
+  const showEditList = currentKind === 'lens' && onEditList != null
 
   return createPortal(
     <div
@@ -197,6 +205,20 @@ export function WidgetKindMenu({
           >
             <span className={styles.icon} aria-hidden="true">↗</span>
             <span className={styles.label}>Pop out to canvas</span>
+          </button>
+          <div className={styles.separator} />
+        </>
+      )}
+      {showEditList && (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.item}
+            onClick={() => { onEditList!(); onClose() }}
+          >
+            <span className={styles.icon} aria-hidden="true">✎</span>
+            <span className={styles.label}>Edit list</span>
           </button>
           <div className={styles.separator} />
         </>

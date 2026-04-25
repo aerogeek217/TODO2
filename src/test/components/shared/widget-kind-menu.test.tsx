@@ -104,4 +104,56 @@ describe('WidgetKindMenu', () => {
     fireEvent.keyDown(menu, { key: 'ArrowDown' })
     expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /Notes/ }))
   })
+
+  it('renders an "Edit list" item only when current kind is lens and onEditList is provided', () => {
+    const { rerender } = render(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="notes"
+        onChangeKind={() => {}}
+        onEditList={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('menuitem', { name: /Edit list/ })).toBeNull()
+
+    rerender(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="lens"
+        onChangeKind={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('menuitem', { name: /Edit list/ })).toBeNull()
+
+    rerender(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="lens"
+        onChangeKind={() => {}}
+        onEditList={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.getByRole('menuitem', { name: /Edit list/ })).toBeInTheDocument()
+  })
+
+  it('clicking "Edit list" fires onEditList with the bound def id and closes the menu', () => {
+    const onEditList = vi.fn()
+    const onClose = vi.fn()
+    const DEF_ID = 7
+    render(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="lens"
+        onChangeKind={() => {}}
+        onEditList={() => onEditList(DEF_ID)}
+        onClose={onClose}
+      />,
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: /Edit list/ }))
+    expect(onEditList).toHaveBeenCalledWith(DEF_ID)
+    expect(onClose).toHaveBeenCalled()
+  })
 })

@@ -8,6 +8,7 @@ import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useUIStore } from '../../stores/ui-store'
 import { ListDefinitionBody } from './ListDefinitionBody'
 import { DraggableTaskRow } from './shared/DraggableTaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
@@ -321,6 +322,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           currentKind="lens"
           onChangeKind={(k) => { void handleChangeKind(k) }}
           pickListForLens={handleSelectList}
+          onEditList={() => useUIStore.getState().openListsEditor(inset.listDefinitionId)}
           onClose={() => setKindAnchor(null)}
           secondaryLabel={definition ? `Change list (${definition.name})…` : undefined}
         />
