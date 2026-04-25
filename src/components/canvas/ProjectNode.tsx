@@ -2,11 +2,12 @@ import { useState, useRef, useEffect, useContext, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDroppable } from '@dnd-kit/core'
-import type { Project, PersistedTodoItem, Person, Status } from '../../models'
+import type { Project, PersistedTodoItem, Person, ProjectGroupBy, Status } from '../../models'
 import { SortableTaskList } from './SortableTaskList'
 import { DragInsertContext } from './DragInsertContext'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
 import { effectiveDate } from '../../utils/effective-date'
 import { startOfToday } from '../../utils/date'
@@ -16,6 +17,16 @@ import { TASK_DROP_KIND, projectDropId } from '../../utils/task-dnd'
 import styles from './ProjectNode.module.css'
 
 type SortBy = 'name' | 'date' | 'created'
+
+const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
+  { value: null, label: 'None' },
+  { value: 'date', label: 'Effective Date' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'deadline', label: 'Deadline' },
+  { value: 'status', label: 'Status' },
+  { value: 'people', label: 'People' },
+  { value: 'org', label: 'Org' },
+]
 
 export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean): PersistedTodoItem[] {
   const today = startOfToday()
@@ -77,6 +88,8 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   const [showSortMenu, setShowSortMenu] = useState(false)
   const [lastSort, setLastSort] = useState<{ by: SortBy; asc: boolean } | null>(null)
   const sortMenuRef = useRef<HTMLDivElement>(null)
+  const [showGroupMenu, setShowGroupMenu] = useState(false)
+  const groupMenuRef = useRef<HTMLDivElement>(null)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
   // Clean up resize listeners and rename timer on unmount
@@ -107,6 +120,31 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
   }, [showSortMenu])
+
+  const handleGroup = (groupBy: ProjectGroupBy | null) => {
+    setShowGroupMenu(false)
+    if (!project.id) return
+    void useProjectStore.getState().updateProjectGrouping(project.id, groupBy)
+  }
+
+  // Close group menu on outside click + Esc
+  useEffect(() => {
+    if (!showGroupMenu) return
+    const onMouseDown = (e: MouseEvent) => {
+      if (groupMenuRef.current && !groupMenuRef.current.contains(e.target as Node)) {
+        setShowGroupMenu(false)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowGroupMenu(false)
+    }
+    document.addEventListener('mousedown', onMouseDown, true)
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown, true)
+      document.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [showGroupMenu])
 
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: projectDropId(project.id!),
@@ -239,6 +277,32 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
             )}
           </div>
         )}
+
+        <div className={styles.groupWrapper} ref={groupMenuRef}>
+          <button
+            className={`${styles.groupButton} nopan nodrag`}
+            onClick={(e) => { e.stopPropagation(); setShowGroupMenu(v => !v) }}
+            title="Group tasks"
+          >
+            ⊟
+          </button>
+          {showGroupMenu && (
+            <div className={styles.groupMenu}>
+              {GROUP_OPTIONS.map(({ value, label }) => {
+                const active = (project.groupBy ?? null) === value
+                return (
+                  <button
+                    key={value ?? 'none'}
+                    className={`${styles.groupOption} ${active ? styles.groupOptionActive : ''}`}
+                    onClick={(e) => { e.stopPropagation(); handleGroup(value) }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
         <button
           className={`${styles.exportButton} nopan nodrag`}
