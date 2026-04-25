@@ -49,8 +49,9 @@ function AppBulkConfirmDialog() {
         if (action === 'custom' && customHandler) {
           customHandler()
         } else if (action === 'delete') {
-          if (ids.length === 1) {
-            useTodoStore.getState().remove(ids[0])
+          const [first] = ids
+          if (ids.length === 1 && first != null) {
+            useTodoStore.getState().remove(first)
           } else {
             useTodoStore.getState().bulkRemove(ids)
           }

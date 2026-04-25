@@ -69,7 +69,7 @@ describe('backupRepository', () => {
       const list = await backupRepository.listSnapshots()
       expect(list).toHaveLength(3)
       // Ordered newest-first; each entry has a createdAt string
-      expect(list[0].createdAt >= list[1].createdAt).toBe(true)
+      expect(list[0]!.createdAt >= list[1]!.createdAt).toBe(true)
     })
 
     it('listSnapshots_doesNotIncludeDataField', async () => {
@@ -81,10 +81,10 @@ describe('backupRepository', () => {
     it('listSnapshots_includesIdTriggerSizeBytesCreatedAt', async () => {
       const id = await backupRepository.createSnapshot('manual' as any)
       const list = await backupRepository.listSnapshots()
-      expect(list[0].id).toBe(id)
-      expect(list[0].trigger).toBe('manual')
-      expect(list[0].sizeBytes).toBeGreaterThan(0)
-      expect(typeof list[0].createdAt).toBe('string')
+      expect(list[0]!.id).toBe(id)
+      expect(list[0]!.trigger).toBe('manual')
+      expect(list[0]!.sizeBytes).toBeGreaterThan(0)
+      expect(typeof list[0]!.createdAt).toBe('string')
     })
   })
 

@@ -114,6 +114,6 @@ describe('AvatarStack', () => {
     render(<AvatarStack people={people} onPersonContextMenu={onPersonContextMenu} />)
     fireEvent.contextMenu(screen.getByText('BO'))
     expect(onPersonContextMenu).toHaveBeenCalledTimes(1)
-    expect(onPersonContextMenu.mock.calls[0][1].id).toBe(2)
+    expect(onPersonContextMenu.mock.calls[0]![1].id).toBe(2)
   })
 })

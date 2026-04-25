@@ -94,7 +94,7 @@ describe('TaskNotePopover', () => {
     const calls = updateSpy.mock.calls
     // If jsdom's execCommand is unavailable, skip the assertion gracefully.
     if (calls.length > 0) {
-      const last = calls[calls.length - 1][0]
+      const last = calls[calls.length - 1]![0]
       expect(last.id).toBe(100)
       expect(last.notes).toBeTruthy()
     }

@@ -40,7 +40,7 @@ describe('DeadlinePicker', () => {
     const { container } = render(<DeadlinePicker value={null} onChange={onChange} />)
     fireEvent.change(getDateInput(container), { target: { value: '2026-05-15' } })
     expect(onChange).toHaveBeenCalledTimes(1)
-    const arg = onChange.mock.calls[0][0] as Date
+    const arg = onChange.mock.calls[0]![0] as Date
     expect(arg).toBeInstanceOf(Date)
     expect(arg.getFullYear()).toBe(2026)
     expect(arg.getMonth()).toBe(4)

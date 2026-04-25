@@ -296,13 +296,13 @@ describe('ListView — runtime-filter picker', () => {
 
     await triggerSaveConfirm()
     expect(updates.length).toBe(1)
-    expect(updates[0].runtimeFilter).toEqual({ field: 'project' })
+    expect(updates[0]!.runtimeFilter).toEqual({ field: 'project' })
 
     // Clear the spec via 'none'; Save again and confirm it persists as undefined.
     fireEvent.change(promptSelect, { target: { value: 'none' } })
     useUIStore.getState().clearBulkConfirmation()
     await triggerSaveConfirm()
     expect(updates.length).toBe(2)
-    expect(updates[1].runtimeFilter).toBeUndefined()
+    expect(updates[1]!.runtimeFilter).toBeUndefined()
   })
 })

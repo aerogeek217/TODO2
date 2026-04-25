@@ -92,7 +92,7 @@ describe('TopBar search-result pill bar — Phase 5', () => {
     })
 
     const listbox = await screen.findByRole('listbox', { name: /search results/i })
-    const option = within(listbox).getAllByRole('option')[0]
+    const option = within(listbox).getAllByRole('option')[0]!
 
     expect(within(option).getByText('AL')).toBeInTheDocument()
     expect(within(option).getByText('AC')).toBeInTheDocument()
@@ -119,7 +119,7 @@ describe('TopBar search-result pill bar — Phase 5', () => {
     })
 
     const listbox = await screen.findByRole('listbox', { name: /search results/i })
-    const option = within(listbox).getAllByRole('option')[0]
+    const option = within(listbox).getAllByRole('option')[0]!
     const statusPill = within(option).getByTitle('In Progress')
 
     // Sanity: clicking the row button itself fires onOpen → openEditPopup.
@@ -157,7 +157,7 @@ describe('TopBar search-result pill bar — Phase 5', () => {
     })
 
     const listbox = await screen.findByRole('listbox', { name: /search results/i })
-    const option = within(listbox).getAllByRole('option')[0]
+    const option = within(listbox).getAllByRole('option')[0]!
     // Title still renders; nothing else.
     expect(within(option).getByText('plain todo')).toBeInTheDocument()
     expect(within(option).queryByTitle('Scheduled')).toBeNull()

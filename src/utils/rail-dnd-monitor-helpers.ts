@@ -56,7 +56,9 @@ export function computeTabInsertIdx(
     ? pills.filter((p) => p.dataset.tabId !== sourceTabId)
     : pills
   for (let i = 0; i < survivors.length; i++) {
-    const rect = survivors[i].getBoundingClientRect()
+    const survivor = survivors[i]
+    if (!survivor) continue
+    const rect = survivor.getBoundingClientRect()
     const mid = rect.left + rect.width / 2
     if (pointerX < mid) return i
   }

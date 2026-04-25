@@ -103,6 +103,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     const match = line.text.match(LINE_PREFIX_RE)
     if (!match) return false
     const [, leading, rawRest] = match
+    if (rawRest == null) return false
     const rawTitle = rawRest.trim()
     if (!rawTitle) return false
 

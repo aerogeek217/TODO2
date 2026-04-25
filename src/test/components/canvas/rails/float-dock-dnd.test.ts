@@ -16,7 +16,7 @@ function tab(id: string, type: Tab['type'] = 'lens', listDefinitionId?: number):
 }
 
 function slotWith(id: string, tabs: Tab[], activeIdx = 0): Slot {
-  return { id, tabs, activeTabId: tabs[activeIdx].id }
+  return { id, tabs, activeTabId: tabs[activeIdx]!.id }
 }
 
 function railsWith(overrides: Partial<RailsState>): RailsState {
@@ -96,9 +96,9 @@ describe('applyDockFloatIntoSlot — center (merge-as-tab)', () => {
       rails, descriptor, 's1', 'center', undefined,
       () => 'slot-new', (pid) => `${pid}-t0`,
     )
-    const dest = next.right!.slots[0]
+    const dest = next.right!.slots[0]!
     expect(dest.tabs.map((t) => t.id)).toEqual(['t1', 's1-t0'])
-    expect(dest.tabs[1].type).toBe('notes')
+    expect(dest.tabs[1]!.type).toBe('notes')
     expect(dest.activeTabId).toBe('s1-t0')
   })
 
@@ -112,7 +112,7 @@ describe('applyDockFloatIntoSlot — center (merge-as-tab)', () => {
       rails, { kind: 'note', id: 1 }, 's1', 'center', 1,
       () => 'slot-new', (pid) => `${pid}-x`,
     )
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t1', 's1-x', 't2'])
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t1', 's1-x', 't2'])
   })
 
   it('clamps out-of-range insertIndex', () => {
@@ -124,7 +124,7 @@ describe('applyDockFloatIntoSlot — center (merge-as-tab)', () => {
       rails, { kind: 'note', id: 1 }, 's1', 'center', 99,
       () => 'slot-new', (pid) => `${pid}-x`,
     )
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t1', 's1-x'])
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t1', 's1-x'])
   })
 
   it('merges a lens descriptor and preserves its listDefinitionId on the appended tab', () => {
@@ -136,7 +136,7 @@ describe('applyDockFloatIntoSlot — center (merge-as-tab)', () => {
       rails, { kind: 'lens', id: 1, listDefinitionId: 77 }, 's1', 'center', undefined,
       () => 'slot-new', (pid) => `${pid}-L`,
     )
-    const appended = next.right!.slots[0].tabs[1]
+    const appended = next.right!.slots[0]!.tabs[1]!
     expect(appended.type).toBe('lens')
     expect(appended.listDefinitionId).toBe(77)
   })
@@ -155,8 +155,8 @@ describe('applyDockFloatIntoSlot — center (merge-as-tab)', () => {
     )
     // Slot-level fields on the destination remain untouched — this is the
     // architectural limitation noted in slotFromFloat's doc.
-    expect(next.right!.slots[0].orientation).toBe('vertical')
-    expect(next.right!.slots[0].weekOffset).toBe(0)
+    expect(next.right!.slots[0]!.orientation).toBe('vertical')
+    expect(next.right!.slots[0]!.weekOffset).toBe(0)
   })
 
   it('is a no-op when the target slot is unknown', () => {
@@ -183,7 +183,7 @@ describe('applyDockFloatIntoSlot — edge (split into new adjacent slot)', () =>
       () => 'new', (pid) => `${pid}-t`,
     )
     expect(next.right!.slots.map((s) => s.id)).toEqual(['new', 's1'])
-    expect(getActiveTab(next.right!.slots[0]).type).toBe('notes')
+    expect(getActiveTab(next.right!.slots[0]!).type).toBe('notes')
   })
 
   it('inserts a new slot below the target in a vertical rail', () => {
@@ -245,7 +245,7 @@ describe('applyDockFloatAsNewSlot — empty-side', () => {
     )
     expect(next.left?.orientation).toBe('vertical')
     expect(next.left?.slots.map((s) => s.id)).toEqual(['new'])
-    expect(getActiveTab(next.left!.slots[0]).type).toBe('notes')
+    expect(getActiveTab(next.left!.slots[0]!).type).toBe('notes')
   })
 
   it('creates a horizontal rail when docking to top', () => {
@@ -265,7 +265,7 @@ describe('applyDockFloatAsNewSlot — empty-side', () => {
       { kind: 'empty-side', side: 'bottom' },
       () => 'new', (pid) => `${pid}-t`,
     )
-    const slot = next.bottom!.slots[0]
+    const slot = next.bottom!.slots[0]!
     expect(slot.orientation).toBe('horizontal')
     expect(slot.weekOffset).toBe(-3)
   })
@@ -276,7 +276,7 @@ describe('applyDockFloatAsNewSlot — empty-side', () => {
       rails, { kind: 'lens', id: 1, listDefinitionId: 123 }, { kind: 'empty-side', side: 'left' },
       () => 'new', (pid) => `${pid}-t`,
     )
-    const appended = next.left!.slots[0].tabs[0]
+    const appended = next.left!.slots[0]!.tabs[0]!
     expect(appended.type).toBe('lens')
     expect(appended.listDefinitionId).toBe(123)
   })

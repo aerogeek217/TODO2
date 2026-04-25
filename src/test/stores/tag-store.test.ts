@@ -30,14 +30,14 @@ describe('useTagStore', () => {
     const id = await useTagStore.getState().add('urgent')
     const tags = useTagStore.getState().tags
     expect(tags).toHaveLength(1)
-    expect(tags[0].name).toBe('urgent')
-    expect(tags[0].color).toBe('#537FE7')
+    expect(tags[0]!.name).toBe('urgent')
+    expect(tags[0]!.color).toBe('#537FE7')
     expect(id).toBeGreaterThan(0)
   })
 
   it('add respects explicit color', async () => {
     await useTagStore.getState().add('urgent', '#ff0000')
-    expect(useTagStore.getState().tags[0].color).toBe('#ff0000')
+    expect(useTagStore.getState().tags[0]!.color).toBe('#ff0000')
   })
 
   it('add throws TagLimitError when tags.length >= settings.maxTags', async () => {
@@ -84,8 +84,8 @@ describe('useTagStore', () => {
     const id = await useTagStore.getState().add('urgent')
     await useTagStore.getState().update({ id, name: 'critical', color: '#ff00ff' })
     const tags = useTagStore.getState().tags
-    expect(tags[0].name).toBe('critical')
-    expect(tags[0].color).toBe('#ff00ff')
+    expect(tags[0]!.name).toBe('critical')
+    expect(tags[0]!.color).toBe('#ff00ff')
   })
 
   it('update refreshes tag references inside assignedTagsMap', async () => {
@@ -93,10 +93,10 @@ describe('useTagStore', () => {
     const todoId = await addTodo()
     await useTagStore.getState().loadAssignments([todoId])
     await useTagStore.getState().assignTag(todoId, tagId)
-    expect(useTagStore.getState().assignedTagsMap.get(todoId)![0].name).toBe('urgent')
+    expect(useTagStore.getState().assignedTagsMap.get(todoId)![0]!.name).toBe('urgent')
 
     await useTagStore.getState().update({ id: tagId, name: 'critical', color: '#ff00ff' })
-    expect(useTagStore.getState().assignedTagsMap.get(todoId)![0].name).toBe('critical')
+    expect(useTagStore.getState().assignedTagsMap.get(todoId)![0]!.name).toBe('critical')
   })
 
   it('update rejects a rename that collides with another tag', async () => {
@@ -139,7 +139,7 @@ describe('useTagStore', () => {
     await useTagStore.getState().loadAssignments([todoId])
     const map = useTagStore.getState().assignedTagsMap
     expect(map.get(todoId)).toHaveLength(1)
-    expect(map.get(todoId)![0].name).toBe('urgent')
+    expect(map.get(todoId)![0]!.name).toBe('urgent')
   })
 
   it('assignTag adds to assignedTagsMap and persists', async () => {
@@ -194,6 +194,6 @@ describe('useTagStore', () => {
     await useTagStore.getState().load()
     await useTagStore.getState().loadAssignments([todoId])
     expect(useTagStore.getState().assignedTagsMap.get(todoId)).toHaveLength(1)
-    expect(useTagStore.getState().assignedTagsMap.get(todoId)![0].name).toBe('urgent')
+    expect(useTagStore.getState().assignedTagsMap.get(todoId)![0]!.name).toBe('urgent')
   })
 })

@@ -62,7 +62,7 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
     for (let i = beforeCursor.length - 1; i >= 0; i--) {
       const ch = beforeCursor[i]
       if (ch === ' ' || ch === '\t' || ch === '\n') break // whitespace before finding trigger = no trigger
-      if ((ch === '@' || ch === '/' || ch === '#') && (i === 0 || /\s/.test(beforeCursor[i - 1]))) {
+      if ((ch === '@' || ch === '/' || ch === '#') && (i === 0 || /\s/.test(beforeCursor[i - 1] ?? ''))) {
         triggerIdx = i
         triggerChar = ch as '@' | '/' | '#'
         break

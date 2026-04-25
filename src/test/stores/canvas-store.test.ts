@@ -15,8 +15,8 @@ describe('canvasStore', () => {
     expect(selectedCanvasId).toBeTypeOf('number')
     const canvases = await db.canvases.toArray()
     expect(canvases).toHaveLength(1)
-    expect(canvases[0].name).toBe('My Canvas')
-    expect(selectedCanvasId).toBe(canvases[0].id)
+    expect(canvases[0]!.name).toBe('My Canvas')
+    expect(selectedCanvasId).toBe(canvases[0]!.id)
   })
 
   it('ensureDefault uses existing canvas if one exists', async () => {

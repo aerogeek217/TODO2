@@ -235,8 +235,10 @@ function mapSlot(rails: RailsState, slotId: string, fn: (slot: Slot) => Slot | n
     if (!rail) continue
     const idx = rail.slots.findIndex((s) => s.id === slotId)
     if (idx === -1) continue
-    const updated = fn(rail.slots[idx])
-    if (!updated || updated === rail.slots[idx]) return rails
+    const targetSlot = rail.slots[idx]
+    if (!targetSlot) continue
+    const updated = fn(targetSlot)
+    if (!updated || updated === targetSlot) return rails
     const nextSlots = rail.slots.slice()
     nextSlots[idx] = updated
     next[side] = { ...rail, slots: nextSlots }
@@ -281,9 +283,12 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       } else if (filtered.length === 1) {
         // Sole remaining slot's flex weight is meaningless for layout and
         // will bias the next sibling insertion — strip it.
-        const { flex: _ignore, ...rest } = filtered[0]
-        void _ignore
-        next[side] = { ...rail, slots: [rest as typeof filtered[0]] }
+        const onlySlot = filtered[0]
+        if (onlySlot) {
+          const { flex: _ignore, ...rest } = onlySlot
+          void _ignore
+          next[side] = { ...rail, slots: [rest as typeof onlySlot] }
+        }
       } else {
         next[side] = { ...rail, slots: filtered }
       }
@@ -330,7 +335,7 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
         const activeIdx = current.tabs.findIndex((t) => t.id === current.activeTabId)
         const resolvedIdx = activeIdx === -1 ? 0 : activeIdx
         const active = current.tabs[resolvedIdx]
-        if (active.listDefinitionId !== patch.listDefinitionId) {
+        if (active && active.listDefinitionId !== patch.listDefinitionId) {
           const nextTab: Tab = { ...active, listDefinitionId: patch.listDefinitionId }
           const tabs = current.tabs.slice()
           tabs[resolvedIdx] = nextTab
@@ -348,6 +353,7 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       const activeIdx = current.tabs.findIndex((t) => t.id === current.activeTabId)
       const resolvedIdx = activeIdx === -1 ? 0 : activeIdx
       const active = current.tabs[resolvedIdx]
+      if (!active) return current
       if (active.type === nextKind && !seed) return current
 
       // Rewrite the active tab's type and clear cross-kind seed fields.
@@ -402,7 +408,7 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
         if (current.activeTabId === tabId) {
           // Prefer left sibling, else right.
           const fallback = current.tabs[i - 1] ?? current.tabs[i + 1]
-          activeTabId = fallback.id
+          if (fallback) activeTabId = fallback.id
         }
         // Defensive: if activeTabId no longer resolves to a tab (unreachable
         // under the walk-through today, but closes the reasoning loophole),
@@ -430,6 +436,7 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       const idx = current.tabs.findIndex((t) => t.id === tabId)
       if (idx === -1) return current
       const tab = current.tabs[idx]
+      if (!tab) return current
       if (tab.type !== 'lens') return current
       const normalized = value == null || value.length === 0 ? undefined : value
       const same = normalized == null
@@ -453,6 +460,7 @@ export const useCanvasRailsStore = create<CanvasRailsState>((set, get) => ({
       const idx = current.tabs.findIndex((t) => t.id === tabId)
       if (idx === -1) return current
       const tab = current.tabs[idx]
+      if (!tab) return current
       if (tab.type === nextKind && !seed) return current
       const rebuilt: Tab = { id: tab.id, type: nextKind }
       if (nextKind === 'lens') {

@@ -14,6 +14,7 @@ import type { LegacyImportInfo } from '../services/migration-check'
 import { MigrationDialog } from '../components/overlays/MigrationDialog'
 import { buildExportData, buildMarkdownExport } from '../services/export-import'
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
+import { getSaveFilePicker, getOpenFilePicker } from '../utils/file-picker'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
 import { OrgEditor } from '../components/settings/OrgEditor'
@@ -165,10 +166,11 @@ export function SettingsPage() {
     const json = JSON.stringify(data, null, 2)
     const timestamp = now.toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
 
-    if ('showSaveFilePicker' in window) {
+    const showSaveFilePicker = getSaveFilePicker()
+    if (showSaveFilePicker) {
       try {
         const startIn = await getStartIn()
-        const handle = await (window as unknown as { showSaveFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+        const handle = await showSaveFilePicker({
           suggestedName: `todo2-backup-${timestamp}.json`,
           types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
           startIn,
@@ -200,13 +202,15 @@ export function SettingsPage() {
   }
 
   const handleImportClick = async () => {
-    if ('showOpenFilePicker' in window) {
+    const showOpenFilePicker = getOpenFilePicker()
+    if (showOpenFilePicker) {
       try {
         const startIn = await getStartIn()
-        const [handle] = await (window as unknown as { showOpenFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle[]> }).showOpenFilePicker({
+        const [handle] = await showOpenFilePicker({
           types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
           startIn,
         })
+        if (!handle) return
         saveLastPickerHandle(handle).catch(() => {})
         const file = await handle.getFile()
         await doImport(file)
@@ -269,10 +273,11 @@ export function SettingsPage() {
   const handleExportMarkdown = async () => {
     const md = await buildMarkdownExport()
 
-    if ('showSaveFilePicker' in window) {
+    const showSaveFilePicker = getSaveFilePicker()
+    if (showSaveFilePicker) {
       try {
         const startIn = await getStartIn()
-        const handle = await (window as unknown as { showSaveFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+        const handle = await showSaveFilePicker({
           suggestedName: `todos-${new Date().toISOString().split('T')[0]}.md`,
           types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
           startIn,
@@ -284,8 +289,8 @@ export function SettingsPage() {
         setExportMsg('Markdown exported!')
         track(() => setExportMsg(''), 2000)
         return
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return
       }
     }
 

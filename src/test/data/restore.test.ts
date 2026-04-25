@@ -57,8 +57,8 @@ describe('restoreFromImportData', () => {
       // Assert old data gone, new data present
       const todos = await db.todos.toArray()
       expect(todos).toHaveLength(1)
-      expect(todos[0].title).toBe('New Task')
-      expect(todos[0].id).toBe(10)
+      expect(todos[0]!.title).toBe('New Task')
+      expect(todos[0]!.id).toBe(10)
     })
 
     it('restoreFromImportData_withExistingCanvases_replacesWithImportedCanvases', async () => {
@@ -76,8 +76,8 @@ describe('restoreFromImportData', () => {
       // Assert
       const canvases = await db.canvases.toArray()
       expect(canvases).toHaveLength(1)
-      expect(canvases[0].name).toBe('New Canvas')
-      expect(canvases[0].id).toBe(5)
+      expect(canvases[0]!.name).toBe('New Canvas')
+      expect(canvases[0]!.id).toBe(5)
     })
 
     it('restoreFromImportData_withExistingPeople_clearsAll', async () => {
@@ -105,7 +105,7 @@ describe('restoreFromImportData', () => {
       // Assert
       const people = await db.people.toArray()
       expect(people).toHaveLength(1)
-      expect(people[0].name).toBe('Bob')
+      expect(people[0]!.name).toBe('Bob')
     })
 
     it('restoreFromImportData_withLegacyStickyNotes_translatesIntoFloatingNotePlacements', async () => {
@@ -127,10 +127,10 @@ describe('restoreFromImportData', () => {
       // A placement row in `floatingNotes`.
       const placements = await db.floatingNotes.where('canvasId').equals(1).toArray()
       expect(placements).toHaveLength(1)
-      expect(placements[0].x).toBe(100)
-      expect(placements[0].y).toBe(200)
-      expect(placements[0].width).toBe(240)
-      expect(placements[0].height).toBe(200)
+      expect(placements[0]!.x).toBe(100)
+      expect(placements[0]!.y).toBe(200)
+      expect(placements[0]!.width).toBe(240)
+      expect(placements[0]!.height).toBe(200)
     })
 
     it('restoreFromImportData_withJoinTables_persistsTodoPeople', async () => {
@@ -216,13 +216,13 @@ describe('restoreFromImportData', () => {
 
       const tags = await db.tags.toArray()
       expect(tags).toHaveLength(1)
-      expect(tags[0].name).toBe('urgent')
-      expect(tags[0].color).toBe('#123456') // user-chosen color preserved
+      expect(tags[0]!.name).toBe('urgent')
+      expect(tags[0]!.color).toBe('#123456') // user-chosen color preserved
 
       const joins = await db.todoTags.toArray()
       expect(joins).toHaveLength(1)
-      expect(joins[0].todoId).toBe(1)
-      expect(joins[0].tagId).toBe(7)
+      expect(joins[0]!.todoId).toBe(1)
+      expect(joins[0]!.tagId).toBe(7)
     })
 
     it('restoreFromImportData_withPostV36Shape_clearsExistingTagTables', async () => {
@@ -238,7 +238,7 @@ describe('restoreFromImportData', () => {
 
       const tags = await db.tags.toArray()
       expect(tags).toHaveLength(1)
-      expect(tags[0].name).toBe('fresh')
+      expect(tags[0]!.name).toBe('fresh')
     })
 
     it('restoreFromImportData_withFloatingHorizons_roundTripsFaithfully', async () => {
@@ -278,8 +278,8 @@ describe('restoreFromImportData', () => {
 
       const placements = await db.floatingHorizons.toArray()
       expect(placements).toHaveLength(1)
-      expect(placements[0].id).toBe(7)
-      expect(placements[0].x).toBe(50)
+      expect(placements[0]!.id).toBe(7)
+      expect(placements[0]!.x).toBe(50)
     })
 
     it('restoreFromImportData_withStatuses_persistsStatusTable', async () => {
@@ -345,11 +345,11 @@ describe('restoreFromImportData', () => {
       // Assert both were written in a single transaction
       const canvases = await db.canvases.toArray()
       expect(canvases).toHaveLength(1)
-      expect(canvases[0].name).toBe('Restored')
+      expect(canvases[0]!.name).toBe('Restored')
 
       const todos = await db.todos.toArray()
       expect(todos).toHaveLength(1)
-      expect(todos[0].title).toBe('Restored Task')
+      expect(todos[0]!.title).toBe('Restored Task')
     })
   })
 

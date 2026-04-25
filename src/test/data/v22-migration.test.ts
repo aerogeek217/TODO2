@@ -36,8 +36,8 @@ describe('v22 migration', () => {
     await runMigration()
     const rows = await db.listDefinitions.toArray() as unknown as Record<string, unknown>[]
     expect(rows).toHaveLength(1)
-    expect(rows[0].pinnedToDashboard).toBe(true)
-    expect('seededKey' in rows[0]).toBe(false)
+    expect(rows[0]!.pinnedToDashboard).toBe(true)
+    expect('seededKey' in rows[0]!).toBe(false)
   })
 
   it('keeps existing pinnedToDashboard=false untouched', async () => {
@@ -53,7 +53,7 @@ describe('v22 migration', () => {
 
     await runMigration()
     const rows = await db.listDefinitions.toArray()
-    expect(rows[0].pinnedToDashboard).toBe(false)
+    expect(rows[0]!.pinnedToDashboard).toBe(false)
   })
 
   it('is a no-op on an empty table', async () => {
@@ -84,6 +84,6 @@ describe('v22 migration', () => {
     await ensureSeededListDefinitions(db.listDefinitions)
     const rows = await db.listDefinitions.toArray()
     expect(rows).toHaveLength(1)
-    expect(rows[0].name).toBe('My Only List')
+    expect(rows[0]!.name).toBe('My Only List')
   })
 })

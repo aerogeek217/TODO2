@@ -24,7 +24,7 @@ describe('settingsRepository', () => {
 
     const all = await settingsRepository.getAll()
     expect(all).toHaveLength(1)
-    expect(all[0].value).toBe('light')
+    expect(all[0]!.value).toBe('light')
   })
 
   it('delete removes a key', async () => {
@@ -43,6 +43,6 @@ describe('settingsRepository', () => {
     await settingsRepository.bulkDelete(['a', 'c'])
     const all = await settingsRepository.getAll()
     expect(all).toHaveLength(1)
-    expect(all[0].key).toBe('b')
+    expect(all[0]!.key).toBe('b')
   })
 })

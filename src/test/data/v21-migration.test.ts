@@ -185,7 +185,7 @@ describe('v21 migration', () => {
     await runMigration()
     const insets = await db.listInsets.toArray() as unknown as Record<string, unknown>[]
     expect(insets).toHaveLength(1)
-    expect(insets[0].preset).toBe('due-this-week')
+    expect(insets[0]!.preset).toBe('due-this-week')
   })
 
   it('deletes list insets with attributeFilter.type=priority and preserves tag-attributeFilter', async () => {
@@ -203,7 +203,7 @@ describe('v21 migration', () => {
     await runMigration()
     const insets = await db.listInsets.toArray() as unknown as Record<string, unknown>[]
     expect(insets).toHaveLength(1)
-    const filter = insets[0].attributeFilter as { type: string } | undefined
+    const filter = insets[0]!.attributeFilter as { type: string } | undefined
     expect(filter?.type).toBe('tag')
   })
 
@@ -264,7 +264,7 @@ describe('v21 migration', () => {
     await runMigration()
     const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
     expect(defs).toHaveLength(1)
-    expect(defs[0].name).toBe('My Today')
+    expect(defs[0]!.name).toBe('My Today')
   })
 
   // ---------- ensureSeededListDefinitions directly ----------

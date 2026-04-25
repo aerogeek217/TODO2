@@ -131,6 +131,7 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
 
     const [moved] = sorted.splice(fromIndex, 1)
+    if (!moved) return
     sorted.splice(toIndex, 0, moved)
 
     const updated = sorted.map((s, i) => ({ ...s, sortOrder: i }))

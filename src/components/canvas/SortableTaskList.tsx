@@ -187,7 +187,11 @@ export function SortableTaskList({
       out.push({ key: g.key, label: g.label, todos: g.todos, nextBlockFirstId: null })
     }
     for (let i = 0; i < out.length - 1; i++) {
-      out[i].nextBlockFirstId = out[i + 1].todos[0]?.id ?? null
+      const current = out[i]
+      const next = out[i + 1]
+      if (current && next) {
+        current.nextBlockFirstId = next.todos[0]?.id ?? null
+      }
     }
     return out
   }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, today, weekStartsOn])

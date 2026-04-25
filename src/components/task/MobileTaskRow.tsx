@@ -257,7 +257,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
               {todo.progress}
               {(() => {
                 const m = todo.progress.match(/(\d+)\s*%/)
-                if (!m) return null
+                if (!m || m[1] == null) return null
                 const pct = Math.min(100, Math.max(0, parseInt(m[1])))
                 return (
                   <span className={styles.progressBarTrack}>

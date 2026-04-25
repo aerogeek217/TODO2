@@ -146,7 +146,7 @@ describe('findAlignments', () => {
       const vLines = result.lines.filter(l => l.orientation === 'vertical')
       expect(vLines.length).toBeGreaterThan(0)
       // Line should span from min-top to max-bottom of both rects
-      const line = vLines[0]
+      const line = vLines[0]!
       expect(line.position).toBe(50) // snapped left edge
       expect(line.start).toBe(100)   // min(200, 100) after snap: min(100, 100)
       // Actually after snap: dragging.y stays 200, other.y=100. Min=100, Max=max(250, 150)=250
@@ -161,7 +161,7 @@ describe('findAlignments', () => {
       expect(result.y).toBe(50)
       const hLines = result.lines.filter(l => l.orientation === 'horizontal')
       expect(hLines.length).toBeGreaterThan(0)
-      const line = hLines[0]
+      const line = hLines[0]!
       expect(line.position).toBe(50) // snapped top edge
       // min X = min(200, 50)=50, max right = max(300, 150)=300
       expect(line.start).toBe(50)
@@ -284,7 +284,7 @@ describe('findResizeSnap', () => {
       expect(result.width).toBe(250)
       const vLines = result.lines.filter(l => l.orientation === 'vertical')
       expect(vLines.length).toBeGreaterThan(0)
-      const line = vLines[0]
+      const line = vLines[0]!
       expect(line.position).toBe(250) // snapped right edge
       // Spans from min(50, 80)=50 to max(100, 130)=130
       expect(line.start).toBe(50)

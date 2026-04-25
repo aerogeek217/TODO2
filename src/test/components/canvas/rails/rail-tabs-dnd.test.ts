@@ -18,7 +18,7 @@ function tab(id: string, type: Tab['type'] = 'lens', listDefinitionId?: number):
 }
 
 function slotWith(id: string, tabs: Tab[], activeIdx = 0): Slot {
-  return { id, tabs, activeTabId: tabs[activeIdx].id }
+  return { id, tabs, activeTabId: tabs[activeIdx]!.id }
 }
 
 function railsWith(overrides: Partial<RailsState>): RailsState {
@@ -59,8 +59,8 @@ describe('extractTab', () => {
     })
     const { rails: next, tab: out } = extractTab(rails, 's1', 't2')
     expect(out).toEqual(t2)
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t1', 't3'])
-    expect(next.right!.slots[0].activeTabId).toBe('t1')
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t1', 't3'])
+    expect(next.right!.slots[0]!.activeTabId).toBe('t1')
   })
 
   it('cascades activeTabId to the left sibling when removing the active tab', () => {
@@ -71,7 +71,7 @@ describe('extractTab', () => {
       right: { orientation: 'vertical', slots: [slotWith('s1', [t1, t2, t3], 1)] },
     })
     const { rails: next } = extractTab(rails, 's1', 't2')
-    expect(next.right!.slots[0].activeTabId).toBe('t1')
+    expect(next.right!.slots[0]!.activeTabId).toBe('t1')
   })
 
   it('cascade-closes the slot when the last tab is removed', () => {
@@ -102,8 +102,8 @@ describe('extractTab', () => {
     // Removing a's only tab cascades the slot away, leaving b alone — its flex should clear.
     const { rails: next } = extractTab(rails, 'a', 't1')
     expect(next.right!.slots).toHaveLength(1)
-    expect(next.right!.slots[0].id).toBe('b')
-    expect(next.right!.slots[0].flex).toBeUndefined()
+    expect(next.right!.slots[0]!.id).toBe('b')
+    expect(next.right!.slots[0]!.flex).toBeUndefined()
   })
 
   it('is a no-op for unknown slot or tab ids', () => {
@@ -125,7 +125,7 @@ describe('applyReorderTab', () => {
       right: { orientation: 'vertical', slots: [slotWith('s1', [t1, t2, t3])] },
     })
     const next = applyReorderTab(rails, 's1', 't1', 2)
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t2', 't3', 't1'])
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t2', 't3', 't1'])
   })
 
   it('moves a tab backward within the same slot', () => {
@@ -136,7 +136,7 @@ describe('applyReorderTab', () => {
       right: { orientation: 'vertical', slots: [slotWith('s1', [t1, t2, t3])] },
     })
     const next = applyReorderTab(rails, 's1', 't3', 0)
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t3', 't1', 't2'])
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t3', 't1', 't2'])
   })
 
   it('preserves activeTabId across reorder', () => {
@@ -146,7 +146,7 @@ describe('applyReorderTab', () => {
       right: { orientation: 'vertical', slots: [slotWith('s1', [t1, t2], 1)] },
     })
     const next = applyReorderTab(rails, 's1', 't1', 1)
-    expect(next.right!.slots[0].activeTabId).toBe('t2')
+    expect(next.right!.slots[0]!.activeTabId).toBe('t2')
   })
 
   it('clamps out-of-range insertIdx', () => {
@@ -156,7 +156,7 @@ describe('applyReorderTab', () => {
       right: { orientation: 'vertical', slots: [slotWith('s1', [t1, t2])] },
     })
     const next = applyReorderTab(rails, 's1', 't1', 99)
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t2', 't1'])
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t2', 't1'])
   })
 
   it('is a no-op when source position equals target position', () => {
@@ -197,7 +197,7 @@ describe('applyMoveTabToSlot', () => {
       right: { orientation: 'vertical', slots: [slotWith('s1', [t1, t2])] },
     })
     const next = applyMoveTabToSlot(rails, 's1', 't1', 's1', 1)
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t2', 't1'])
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t2', 't1'])
   })
 
   it('is a no-op when src or dest slot is unknown', () => {
@@ -218,9 +218,9 @@ describe('applyDetachTabToNewSlot', () => {
       right: { orientation: 'vertical', slots: [slotWith('s1', [t1, t2])] },
     })
     const next = applyDetachTabToNewSlot(rails, 's1', 't2', { kind: 'empty-side', side: 'left' }, buildSlot('new'))
-    expect(next.right!.slots[0].tabs.map((t) => t.id)).toEqual(['t1'])
+    expect(next.right!.slots[0]!.tabs.map((t) => t.id)).toEqual(['t1'])
     expect(next.left!.slots.map((s) => s.id)).toEqual(['new'])
-    expect(getActiveTab(next.left!.slots[0]).id).toBe('t2')
+    expect(getActiveTab(next.left!.slots[0]!).id).toBe('t2')
   })
 
   it('cascade-closes the source slot when its only tab is detached into a slot quadrant', () => {

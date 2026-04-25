@@ -48,7 +48,7 @@ export function IconSelect<T extends string>({
       const dir = e.key === 'ArrowDown' ? 1 : -1
       const idx = options.findIndex((o) => o.value === value)
       const next = options[(idx + dir + options.length) % options.length]
-      onChange(next.value)
+      if (next) onChange(next.value)
     }
   }, [open, options, value, onChange])
 
@@ -58,6 +58,8 @@ export function IconSelect<T extends string>({
     window.addEventListener('keydown', onEsc)
     return () => window.removeEventListener('keydown', onEsc)
   }, [open])
+
+  if (!selected) return null
 
   return (
     <div className={styles.root} ref={rootRef} style={minWidth ? { minWidth } : undefined}>

@@ -127,7 +127,7 @@ describe('generateRecurringInstances', () => {
       localDate(2026, 1, 8),
     )
     expect(instances).toHaveLength(3) // Jan 5, 6, 7
-    expect(fmt(instances[0])).toBe('2026-01-05')
+    expect(fmt(instances[0]!)).toBe('2026-01-05')
   })
 
   it('stops at rangeEnd (exclusive)', () => {
@@ -139,7 +139,7 @@ describe('generateRecurringInstances', () => {
       localDate(2026, 1, 4),
     )
     expect(instances).toHaveLength(3) // Jan 1, 2, 3
-    expect(fmt(instances[2])).toBe('2026-01-03')
+    expect(fmt(instances[2]!)).toBe('2026-01-03')
   })
 
   it('returns empty array when dueDate is after rangeEnd', () => {

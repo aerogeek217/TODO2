@@ -40,7 +40,7 @@ function matchPerson(name: string, people: Person[]): Person | undefined {
   const lower = name.toLowerCase()
   return matchByName(name, people, (p) => p.name)
     ?? people.find((p) => p.initials.toLowerCase() === lower)
-    ?? people.find((p) => p.name.split(/\s+/)[0].toLowerCase() === lower)
+    ?? people.find((p) => (p.name.split(/\s+/)[0] ?? '').toLowerCase() === lower)
 }
 
 /**

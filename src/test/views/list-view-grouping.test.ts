@@ -40,11 +40,11 @@ describe('buildDateSections', () => {
     ]
     const sections = buildDateSections(todos, 1)
     expect(sections.map((s) => s.key)).toEqual(['overdue', 'today', 'week', 'later', 'none'])
-    expect(sections[0].todos).toHaveLength(1) // overdue
-    expect(sections[1].todos).toHaveLength(1) // today
-    expect(sections[2].todos).toHaveLength(1) // this week
-    expect(sections[3].todos).toHaveLength(1) // later
-    expect(sections[4].todos).toHaveLength(1) // no date
+    expect(sections[0]!.todos).toHaveLength(1) // overdue
+    expect(sections[1]!.todos).toHaveLength(1) // today
+    expect(sections[2]!.todos).toHaveLength(1) // this week
+    expect(sections[3]!.todos).toHaveLength(1) // later
+    expect(sections[4]!.todos).toHaveLength(1) // no date
   })
 
   it('preserves input order within a bucket (caller sorts upstream)', () => {
@@ -91,18 +91,18 @@ describe('buildPeopleSections', () => {
       makeTodo({ id: 12 }),
     ]
     const assignedPeopleMap = new Map<number, Person[]>([
-      [10, [people[0]]],
-      [11, [people[1]]],
+      [10, [people[0]!]],
+      [11, [people[1]!]],
       // 12 is unassigned
     ])
 
     const sections = buildPeopleSections(todos, people, assignedPeopleMap)
     expect(sections).toHaveLength(3)
-    expect(sections[0].label).toBe('Alice')
-    expect(sections[0].todos).toHaveLength(1)
-    expect(sections[1].label).toBe('Bob')
-    expect(sections[2].label).toBe('Unassigned')
-    expect(sections[2].todos).toHaveLength(1)
+    expect(sections[0]!.label).toBe('Alice')
+    expect(sections[0]!.todos).toHaveLength(1)
+    expect(sections[1]!.label).toBe('Bob')
+    expect(sections[2]!.label).toBe('Unassigned')
+    expect(sections[2]!.todos).toHaveLength(1)
   })
 
   it('shows todo in multiple sections when assigned to multiple people', () => {
@@ -112,13 +112,13 @@ describe('buildPeopleSections', () => {
     ]
     const todos = [makeTodo({ id: 10 })]
     const assignedPeopleMap = new Map<number, Person[]>([
-      [10, [people[0], people[1]]],
+      [10, [people[0]!, people[1]!]],
     ])
 
     const sections = buildPeopleSections(todos, people, assignedPeopleMap)
     expect(sections).toHaveLength(2)
-    expect(sections[0].todos).toHaveLength(1)
-    expect(sections[1].todos).toHaveLength(1)
+    expect(sections[0]!.todos).toHaveLength(1)
+    expect(sections[1]!.todos).toHaveLength(1)
   })
 })
 
@@ -136,8 +136,8 @@ describe('buildTagSections', () => {
     ])
     const sections = buildTagSections(todos, assigned)
     expect(sections.map((s) => s.key)).toEqual(['tag-1', 'tag-2'])
-    expect(sections[0].todos.map((t) => t.id)).toEqual([10])
-    expect(sections[1].todos.map((t) => t.id)).toEqual([10])
+    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
+    expect(sections[1]!.todos.map((t) => t.id)).toEqual([10])
   })
 
   it('sorts tag buckets alphabetically by registry name', () => {
@@ -160,7 +160,7 @@ describe('buildTagSections', () => {
     const todos = [makeTodo({ id: 10 })]
     const assigned = new Map<number, Tag[]>([[10, [URGENT]]])
     const sections = buildTagSections(todos, assigned)
-    expect(sections[0].accentColor).toBe('#f00')
+    expect(sections[0]!.accentColor).toBe('#f00')
   })
 
   it('uses the canonical casing from the registry, not whatever was typed first', () => {
@@ -168,7 +168,7 @@ describe('buildTagSections', () => {
     const todos = [makeTodo({ id: 10 })]
     const assigned = new Map<number, Tag[]>([[10, [pascal]]])
     const sections = buildTagSections(todos, assigned)
-    expect(sections[0].label).toBe('#Urgent')
+    expect(sections[0]!.label).toBe('#Urgent')
   })
 
   it('routes untagged todos into a trailing "No tag" bucket', () => {
@@ -184,7 +184,7 @@ describe('buildTagSections', () => {
     ])
     const sections = buildTagSections(todos, assigned)
     expect(sections.map((s) => s.key)).toEqual(['tag-1', 'no-tag'])
-    const noTag = sections[1]
+    const noTag = sections[1]!
     expect(noTag.label).toBe('No tag')
     expect(noTag.todos.map((t) => t.id).sort()).toEqual([11, 12])
   })
@@ -196,8 +196,8 @@ describe('buildTagSections', () => {
     ])
     const sections = buildTagSections(todos, assigned)
     expect(sections).toHaveLength(1)
-    expect(sections[0].key).toBe('tag-1')
-    expect(sections[0].todos).toHaveLength(1)
+    expect(sections[0]!.key).toBe('tag-1')
+    expect(sections[0]!.todos).toHaveLength(1)
   })
 
   it('emits no bucket for tags with no assignments (discover-on-fly)', () => {
@@ -230,9 +230,9 @@ describe('buildProjectSections', () => {
 
     const sections = buildProjectSections(todos, projects)
     expect(sections).toHaveLength(3)
-    expect(sections[0].label).toBe('Alpha')
-    expect(sections[1].label).toBe('Beta')
-    expect(sections[2].label).toBe('No Project')
+    expect(sections[0]!.label).toBe('Alpha')
+    expect(sections[1]!.label).toBe('Beta')
+    expect(sections[2]!.label).toBe('No Project')
   })
 })
 
@@ -241,8 +241,8 @@ describe('buildFlatSection', () => {
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
     const sections = buildFlatSection(todos)
     expect(sections).toHaveLength(1)
-    expect(sections[0].key).toBe('all')
-    expect(sections[0].todos).toHaveLength(3)
+    expect(sections[0]!.key).toBe('all')
+    expect(sections[0]!.todos).toHaveLength(3)
   })
 
   it('returns empty when no todos so the "empty state" message shows', () => {
@@ -336,8 +336,8 @@ describe('truncateSections', () => {
     const { displaySections, truncatedCount } = truncateSections(sections, 10)
     expect(truncatedCount).toBe(0)
     expect(displaySections).toHaveLength(2)
-    expect(displaySections[0].todos).toHaveLength(2)
-    expect(displaySections[1].todos).toHaveLength(1)
+    expect(displaySections[0]!.todos).toHaveLength(2)
+    expect(displaySections[1]!.todos).toHaveLength(1)
   })
 
   it('slices the section that straddles the cap', () => {
@@ -345,8 +345,8 @@ describe('truncateSections', () => {
     const { displaySections, truncatedCount } = truncateSections(sections, 4)
     expect(truncatedCount).toBe(2)
     expect(displaySections).toHaveLength(2)
-    expect(displaySections[0].todos.map((t) => t.id)).toEqual([1, 2, 3])
-    expect(displaySections[1].todos.map((t) => t.id)).toEqual([4])
+    expect(displaySections[0]!.todos.map((t) => t.id)).toEqual([1, 2, 3])
+    expect(displaySections[1]!.todos.map((t) => t.id)).toEqual([4])
   })
 
   it('drops entire tail sections after the cap', () => {
@@ -354,7 +354,7 @@ describe('truncateSections', () => {
     const { displaySections, truncatedCount } = truncateSections(sections, 2)
     expect(truncatedCount).toBe(4)
     expect(displaySections).toHaveLength(1)
-    expect(displaySections[0].todos.map((t) => t.id)).toEqual([1, 2])
+    expect(displaySections[0]!.todos.map((t) => t.id)).toEqual([1, 2])
   })
 
   it('preserves label, key, and accentColor on the sliced section', () => {
@@ -365,10 +365,10 @@ describe('truncateSections', () => {
       todos: [makeTodo({ id: 1 }), makeTodo({ id: 2 })],
     }]
     const { displaySections } = truncateSections(sections, 1)
-    expect(displaySections[0].key).toBe('a')
-    expect(displaySections[0].label).toBe('Alpha')
-    expect(displaySections[0].accentColor).toBe('#abc')
-    expect(displaySections[0].todos).toHaveLength(1)
+    expect(displaySections[0]!.key).toBe('a')
+    expect(displaySections[0]!.label).toBe('Alpha')
+    expect(displaySections[0]!.accentColor).toBe('#abc')
+    expect(displaySections[0]!.todos).toHaveLength(1)
   })
 
   it('cap of 0 drops everything', () => {

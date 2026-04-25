@@ -40,7 +40,7 @@ describe('buildExportData', () => {
     const data = await buildExportData()
 
     expect(data.todos).toHaveLength(1)
-    expect(data.todos[0].title).toBe('Task 1')
+    expect(data.todos[0]!.title).toBe('Task 1')
     expect(data.projects).toHaveLength(1)
     expect(data.canvases).toHaveLength(1)
     expect(data.people).toHaveLength(1)

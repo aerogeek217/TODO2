@@ -49,9 +49,12 @@ export function buildEntries(
 ): Map<string, CalendarEntry[]> {
   const map = new Map<string, CalendarEntry[]>()
   if (days.length === 0) return map
+  const firstDay = days[0]
+  const lastDay = days[days.length - 1]
+  if (!firstDay || !lastDay) return map
   const { today, weekStartsOn, sortMode } = options
-  const rangeStart = startOfDay(days[0])
-  const rangeEnd = new Date(startOfDay(days[days.length - 1]).getTime() + MS_PER_DAY)
+  const rangeStart = startOfDay(firstDay)
+  const rangeEnd = new Date(startOfDay(lastDay).getTime() + MS_PER_DAY)
   const inRange = (d: Date) => d.getTime() >= rangeStart.getTime() && d.getTime() < rangeEnd.getTime()
 
   const statusById = new Map<number, Status>()

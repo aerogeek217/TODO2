@@ -255,7 +255,7 @@ describe('applySplitButton', () => {
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a, b] } })
     const next = applySplitButton(rails, 'b', 'above', { genSlotId: () => 'new' })
     expect(next.right?.slots.map((s) => s.id)).toEqual(['a', 'new', 'b'])
-    expect(getActiveTab(next.right!.slots[1]).type).toBe('lens')
+    expect(getActiveTab(next.right!.slots[1]!).type).toBe('lens')
   })
 
   it('inserts below the source', () => {
@@ -269,7 +269,7 @@ describe('applySplitButton', () => {
     const a = lensSlot('a')
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
     const next = applySplitButton(rails, 'a', 'below', { genSlotId: () => 'new', kind: 'notes' })
-    expect(getActiveTab(next.right!.slots[1]).type).toBe('notes')
+    expect(getActiveTab(next.right!.slots[1]!).type).toBe('notes')
   })
 
   it('respects horizontal rail orientation (left = before, right = after)', () => {
@@ -320,7 +320,7 @@ describe('flex reconciliation on insert/remove', () => {
     const a: Slot = { ...lensSlot('a'), flex: 250 }
     const rails = railsWith({ right: { orientation: 'vertical', slots: [a] } })
     const next = applyDropToSide(rails, 'a', 'left')
-    expect(next.left!.slots[0].flex).toBeUndefined()
+    expect(next.left!.slots[0]!.flex).toBeUndefined()
   })
 
   it('strips stale flex from an incoming slot when destination rail has no flex', () => {
@@ -353,8 +353,8 @@ describe('flex reconciliation on insert/remove', () => {
     // Move b out to the left rail. Right should be left with only a, and a's flex should be cleared.
     const next = applySplitDrop(rails, 'b', 'c', 'above')
     expect(next.right!.slots).toHaveLength(1)
-    expect(next.right!.slots[0].id).toBe('a')
-    expect(next.right!.slots[0].flex).toBeUndefined()
+    expect(next.right!.slots[0]!.id).toBe('a')
+    expect(next.right!.slots[0]!.flex).toBeUndefined()
   })
 
   it('repeated docks into a flex-ed rail keep sibling values within ±20% of the initial mean', () => {

@@ -38,7 +38,7 @@ describe('canvasRepository', () => {
 
     const canvases = await canvasRepository.getAll()
     expect(canvases).toHaveLength(1)
-    expect(canvases[0].id).toBe(id1)
+    expect(canvases[0]!.id).toBe(id1)
     const projects = await projectRepository.getByCanvas(id1)
     expect(projects).toHaveLength(1)
   })

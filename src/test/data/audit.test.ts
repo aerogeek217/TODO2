@@ -325,7 +325,7 @@ describe('cleanupIssues', () => {
 
     const remaining = await db.todoPeople.toArray()
     expect(remaining).toHaveLength(1)
-    expect(remaining[0].todoId).toBe(todoId)
+    expect(remaining[0]!.todoId).toBe(todoId)
   })
 
   it('database is clean after cleanup', async () => {

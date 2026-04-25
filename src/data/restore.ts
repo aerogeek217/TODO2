@@ -18,38 +18,89 @@ import {
 import type { ImportData, ImportListInset, ImportNote, ImportTag, ImportTodoTag } from './import-validation'
 import { validateImportData, isLegacyMembershipKind } from './import-validation'
 import type { ListDefinition } from '../models/list-definition'
-import type { ListInset, Note, FloatingNote, Taskboard, TaskboardEntry, Tag, TodoTag } from '../models'
+import type { ListInset, Note, FloatingNote, Taskboard, TaskboardEntry, Tag, TodoTag, TodoItem } from '../models'
+
+/**
+ * Shape of a `todos` row read off disk during restore. Carries the current
+ * TodoItem fields plus optional legacy flags written by pre-v20 / pre-v21
+ * versions; the modify callback strips the legacy fields after translation.
+ */
+type LegacyTodoRow = TodoItem & {
+  isStarred?: boolean
+  isAssigned?: boolean
+  priority?: number
+  isHardDeadline?: boolean
+}
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { savedViewToListDefinition } from './saved-view-legacy'
 
+/**
+ * Restricts to keys whose value type is an array. The bulk-add dispatch only
+ * walks these keys; non-array fields (none today) wouldn't make sense.
+ */
+type ImportArrayKey = keyof {
+  [K in keyof ImportData as Required<ImportData>[K] extends ReadonlyArray<unknown> ? K : never]: ImportData[K]
+}
+
+type RowOf<K extends keyof ImportData> =
+  Required<ImportData>[K] extends ReadonlyArray<infer R> ? R : never
+
+interface BulkAddPair {
+  key: ImportArrayKey
+  table: Table
+  bulkAddIfPresent(data: ImportData): Promise<void>
+}
+
+/**
+ * Binds a key from `ImportData` to its destination Dexie table at construction
+ * time. The closure-captured `table` keeps its full generic shape so
+ * `bulkAdd(rows)` typechecks without per-call-site casts (replaces the prior
+ * `(table as any).bulkAdd(rows)` — code-review-2026-04-25 P10).
+ */
+function bulkAddPair<K extends ImportArrayKey & keyof ImportData>(
+  key: K,
+  table: Table<RowOf<K>>,
+): BulkAddPair {
+  return {
+    key,
+    table: table as unknown as Table,
+    async bulkAddIfPresent(data: ImportData) {
+      const rows = data[key] as ReadonlyArray<RowOf<K>> | undefined
+      if (rows && rows.length > 0) {
+        await table.bulkAdd(rows)
+      }
+    },
+  }
+}
+
 /** Type-safe table↔key pairs — eliminates implicit positional coupling (DC2) */
-const TABLE_KEY_PAIRS: { table: Table; key: keyof ImportData }[] = [
-  { table: db.todos, key: 'todos' },
-  { table: db.projects, key: 'projects' },
-  { table: db.canvases, key: 'canvases' },
+const TABLE_KEY_PAIRS: BulkAddPair[] = [
+  bulkAddPair('todos', db.todos),
+  bulkAddPair('projects', db.projects),
+  bulkAddPair('canvases', db.canvases),
   // Note: listInsets is handled separately (post v20→v21 list-inset cleanup
   // and the v22→v23 legacy → listDefinitionId translation both run before
   // the rows land in the table).
-  { table: db.people, key: 'people' },
-  { table: db.settings, key: 'settings' },
-  { table: db.todoPeople, key: 'todoPeople' },
-  { table: db.todoOrgs, key: 'todoOrgs' },
-  { table: db.personOrgs, key: 'personOrgs' },
-  { table: db.orgs, key: 'orgs' },
+  bulkAddPair('people', db.people),
+  bulkAddPair('settings', db.settings),
+  bulkAddPair('todoPeople', db.todoPeople),
+  bulkAddPair('todoOrgs', db.todoOrgs),
+  bulkAddPair('personOrgs', db.personOrgs),
+  bulkAddPair('orgs', db.orgs),
   // Pre-v39 `savedViews` rows are translated into favorited `listDefinitions`
   // via `savedViewToListDefinition`; the savedViews table no longer exists.
   // Legacy `stickyNotes` from pre-v26 backups are translated into `notes` rows
   // after the bulk-add pass below (see translateLegacyStickyNotes).
   // `taskboards` (post-v30) + legacy `taskboardEntries` (pre-v30) are handled
   // separately — see the taskboard-restore pass below.
-  { table: db.floatingTaskboards, key: 'floatingTaskboards' },
-  { table: db.statuses, key: 'statuses' },
-  { table: db.listDefinitions, key: 'listDefinitions' },
+  bulkAddPair('floatingTaskboards', db.floatingTaskboards),
+  bulkAddPair('statuses', db.statuses),
+  bulkAddPair('listDefinitions', db.listDefinitions),
   // `notes` is handled separately — pre-v28 rows may carry canvasId +
   // placement fields that we split into `floatingNotes` at restore time.
-  { table: db.floatingCalendars, key: 'floatingCalendars' },
-  { table: db.floatingNotes, key: 'floatingNotes' },
-  { table: db.floatingHorizons, key: 'floatingHorizons' },
+  bulkAddPair('floatingCalendars', db.floatingCalendars),
+  bulkAddPair('floatingNotes', db.floatingNotes),
+  bulkAddPair('floatingHorizons', db.floatingHorizons),
 ]
 
 /**
@@ -248,17 +299,15 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
 
   const tables = TABLE_KEY_PAIRS.map(p => p.table).concat([db.listInsets, db.notes, db.taskboards, db.tags, db.todoTags])
   await db.transaction('rw', tables, async () => {
-    for (const { table } of TABLE_KEY_PAIRS) await table.clear()
+    for (const p of TABLE_KEY_PAIRS) await p.table.clear()
     await db.listInsets.clear()
     await db.notes.clear()
     await db.taskboards.clear()
     await db.tags.clear()
     await db.todoTags.clear()
 
-    for (const { table, key } of TABLE_KEY_PAIRS) {
-      const rows = v[key]
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (rows?.length) await (table as any).bulkAdd(rows)
+    for (const p of TABLE_KEY_PAIRS) {
+      await p.bulkAddIfPresent(v)
     }
 
     // Post-v36 backups carry `tags` + `todoTags` top-level arrays that belong
@@ -370,17 +419,17 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
 
     let v20Translated = 0
     let v21Translated = 0
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.todos.toCollection().modify((todo: any) => {
+    await db.todos.toCollection().modify((todo) => {
+      const legacy = todo as LegacyTodoRow
       // v19→v20
-      if (todo.isStarred === true) { todo.statusId = followupId; v20Translated++ }
-      else if (todo.isAssigned === true) { todo.statusId = assignedId; v20Translated++ }
-      delete todo.isStarred
-      delete todo.isAssigned
+      if (legacy.isStarred === true) { legacy.statusId = followupId; v20Translated++ }
+      else if (legacy.isAssigned === true) { legacy.statusId = assignedId; v20Translated++ }
+      delete legacy.isStarred
+      delete legacy.isAssigned
 
       // v20→v21
-      const hadLegacy = todo.priority !== undefined || todo.isHardDeadline !== undefined
-      translateTodoV20ToV21(todo)
+      const hadLegacy = legacy.priority !== undefined || legacy.isHardDeadline !== undefined
+      translateTodoV20ToV21(legacy as unknown as Record<string, unknown>)
       if (hadLegacy) v21Translated++
     })
 

@@ -28,7 +28,7 @@ describe('buildTaskRowMenuItems — Phase 6 task-row + mobile parity', () => {
       '--',
       'Delete',
     ])
-    expect(items[items.length - 1].danger).toBe(true)
+    expect(items[items.length - 1]!.danger).toBe(true)
   })
 
   it('omits the Open item when onOpenDetail is missing', () => {
@@ -38,7 +38,7 @@ describe('buildTaskRowMenuItems — Phase 6 task-row + mobile parity', () => {
       onComplete: vi.fn(),
       onDelete: vi.fn(),
     })
-    expect(items[0].label).toBe('Mark complete')
+    expect(items[0]!.label).toBe('Mark complete')
   })
 
   it('omits the Move to project item when onMoveToProject is missing', () => {
@@ -66,7 +66,7 @@ describe('buildTaskRowMenuItems — Phase 6 task-row + mobile parity', () => {
       onComplete: vi.fn(),
       onDelete: vi.fn(),
     })
-    expect(items[0].label).toBe('Mark incomplete')
+    expect(items[0]!.label).toBe('Mark incomplete')
   })
 
   it('flips the taskboard item to Remove when onBoard is true', () => {
@@ -88,7 +88,7 @@ describe('buildTaskRowMenuItems — Phase 6 task-row + mobile parity', () => {
       onComplete: vi.fn(),
       onDelete: vi.fn(),
     })
-    const last = items[items.length - 1]
+    const last = items[items.length - 1]!
     expect(last.label).toBe('Remove from Taskboard')
     expect(last.danger).toBe(true)
   })
@@ -139,7 +139,7 @@ describe('buildTaskRowMenuItems — Phase 6 task-row + mobile parity', () => {
       onComplete: vi.fn(),
       onDelete,
     })
-    items[items.length - 1].action()
+    items[items.length - 1]!.action()
     expect(onDelete).toHaveBeenCalledOnce()
   })
 })

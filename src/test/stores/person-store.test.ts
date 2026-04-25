@@ -27,14 +27,14 @@ describe('usePersonStore', () => {
   it('add creates person', async () => {
     const id = await usePersonStore.getState().add('Alice', 'A')
     expect(usePersonStore.getState().people).toHaveLength(1)
-    expect(usePersonStore.getState().people[0].name).toBe('Alice')
+    expect(usePersonStore.getState().people[0]!.name).toBe('Alice')
     expect(id).toBeGreaterThan(0)
   })
 
   it('update modifies in store', async () => {
     const id = await usePersonStore.getState().add('Alice', 'A')
     await usePersonStore.getState().update({ id, name: 'Alice Smith', initials: 'AS' })
-    expect(usePersonStore.getState().people[0].name).toBe('Alice Smith')
+    expect(usePersonStore.getState().people[0]!.name).toBe('Alice Smith')
   })
 
   it('remove deletes from store', async () => {
@@ -65,7 +65,7 @@ describe('usePersonStore', () => {
     await usePersonStore.getState().loadAssignments([todoId])
     const map = usePersonStore.getState().assignedPeopleMap
     expect(map.get(todoId)).toHaveLength(1)
-    expect(map.get(todoId)![0].name).toBe('Alice')
+    expect(map.get(todoId)![0]!.name).toBe('Alice')
   })
 
   it('assignPerson adds to map and DB', async () => {

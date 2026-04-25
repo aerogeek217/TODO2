@@ -60,6 +60,7 @@ export function HorizonRibbon({
     else if (e.key === 'Home') nextIdx = 0
     else if (e.key === 'End') nextIdx = cells.length - 1
     const nextKey = cells[nextIdx]
+    if (!nextKey) return
     onSelect(nextKey)
     // Focus the newly-selected tab so keyboard roving follows selection.
     const el = document.querySelector<HTMLElement>(`[data-horizon="${nextKey}"]`)

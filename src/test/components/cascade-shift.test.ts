@@ -82,8 +82,8 @@ describe('computeCascadeShifts', () => {
 
       // Assert — B has horizontal overlap so it shifts
       expect(result).toHaveLength(1)
-      expect(result[0].nodeId).toBe('b')
-      expect(result[0].newY).toBe(270) // 220 + 50
+      expect(result[0]!.nodeId).toBe('b')
+      expect(result[0]!.newY).toBe(270) // 220 + 50
     })
   })
 
@@ -102,8 +102,8 @@ describe('computeCascadeShifts', () => {
 
       // Assert — B shifts down by 50
       expect(result).toHaveLength(1)
-      expect(result[0].nodeId).toBe('b')
-      expect(result[0].newY).toBe(270) // 220 + 50
+      expect(result[0]!.nodeId).toBe('b')
+      expect(result[0]!.newY).toBe(270) // 220 + 50
     })
   })
 
@@ -122,8 +122,8 @@ describe('computeCascadeShifts', () => {
 
       // Assert — B shifts up by 50
       expect(result).toHaveLength(1)
-      expect(result[0].nodeId).toBe('b')
-      expect(result[0].newY).toBe(170) // 220 - 50
+      expect(result[0]!.nodeId).toBe('b')
+      expect(result[0]!.newY).toBe(170) // 220 - 50
     })
   })
 
@@ -180,7 +180,7 @@ describe('computeCascadeShifts', () => {
 
       // Assert — gap exactly at threshold; condition is "> gapThreshold" so this does cascade
       expect(result).toHaveLength(1)
-      expect(result[0].nodeId).toBe('b')
+      expect(result[0]!.nodeId).toBe('b')
     })
   })
 
@@ -315,8 +315,8 @@ describe('computeCascadeShifts', () => {
 
       // Assert — delta == 1 passes the Math.abs(deltaY) < 1 guard and is applied
       expect(result).toHaveLength(1)
-      expect(result[0].nodeId).toBe('b')
-      expect(result[0].newY).toBe(221) // 220 + 1
+      expect(result[0]!.nodeId).toBe('b')
+      expect(result[0]!.newY).toBe(221) // 220 + 1
     })
   })
 })

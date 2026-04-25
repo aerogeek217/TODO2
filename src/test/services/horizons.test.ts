@@ -42,25 +42,25 @@ describe('horizonBinRanges', () => {
     const ranges = horizonBinRanges('thisweek', today, 1)
     expect(ranges).toHaveLength(7)
     // Monday of that week = 2026-04-13
-    expect(ranges[0].start.toDateString()).toBe(new Date(2026, 3, 13).toDateString())
+    expect(ranges[0]!.start.toDateString()).toBe(new Date(2026, 3, 13).toDateString())
     // Last bin = Sunday 2026-04-19
-    expect(ranges[6].start.toDateString()).toBe(new Date(2026, 3, 19).toDateString())
+    expect(ranges[6]!.start.toDateString()).toBe(new Date(2026, 3, 19).toDateString())
     // isToday marked on Wed cell only.
     expect(ranges.filter((r) => r.isToday)).toHaveLength(1)
-    expect(ranges[2].isToday).toBe(true)
+    expect(ranges[2]!.isToday).toBe(true)
   })
 
   it('thisweek honors Sunday-first week start', () => {
     const ranges = horizonBinRanges('thisweek', today, 0)
     // Sunday of that week = 2026-04-12
-    expect(ranges[0].start.toDateString()).toBe(new Date(2026, 3, 12).toDateString())
-    expect(ranges[6].start.toDateString()).toBe(new Date(2026, 3, 18).toDateString())
+    expect(ranges[0]!.start.toDateString()).toBe(new Date(2026, 3, 12).toDateString())
+    expect(ranges[6]!.start.toDateString()).toBe(new Date(2026, 3, 18).toDateString())
   })
 
   it('nextweek returns 7 bins one week ahead of thisweek', () => {
     const thisweek = horizonBinRanges('thisweek', today, 1)
     const nextweek = horizonBinRanges('nextweek', today, 1)
-    expect(nextweek[0].start.getTime()).toBe(thisweek[6].start.getTime() + MS_PER_DAY)
+    expect(nextweek[0]!.start.getTime()).toBe(thisweek[6]!.start.getTime() + MS_PER_DAY)
   })
 
   it('thismonth weekly bins cover up to end of month, may be <5 bins', () => {
@@ -69,15 +69,15 @@ describe('horizonBinRanges', () => {
     expect(ranges.length).toBeLessThanOrEqual(6)
     // Last bin must not extend past end-of-month (exclusive).
     const firstOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1).getTime()
-    expect(ranges[ranges.length - 1].end.getTime()).toBeLessThanOrEqual(firstOfNextMonth)
+    expect(ranges[ranges.length - 1]!.end.getTime()).toBeLessThanOrEqual(firstOfNextMonth)
   })
 
   it('later returns exactly 3 monthly bins starting next month', () => {
     const ranges = horizonBinRanges('later', today, 1)
     expect(ranges).toHaveLength(3)
-    expect(ranges[0].start.getMonth()).toBe(4) // May
-    expect(ranges[1].start.getMonth()).toBe(5) // Jun
-    expect(ranges[2].start.getMonth()).toBe(6) // Jul
+    expect(ranges[0]!.start.getMonth()).toBe(4) // May
+    expect(ranges[1]!.start.getMonth()).toBe(5) // Jun
+    expect(ranges[2]!.start.getMonth()).toBe(6) // Jul
   })
 
   it('someday returns zero ranges (grain null)', () => {
@@ -139,9 +139,9 @@ describe('horizonBins', () => {
     const may = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: new Date(2026, 4, 10) } })
     const jun = makeTodo({ id: 2, scheduledDate: { kind: 'date', value: new Date(2026, 5, 15) } })
     const bins = horizonBins('later', [may, jun], today, 1)
-    expect(bins[0].load).toBe(1) // May
-    expect(bins[1].load).toBe(1) // Jun
-    expect(bins[2].load).toBe(0) // Jul
+    expect(bins[0]!.load).toBe(1) // May
+    expect(bins[1]!.load).toBe(1) // Jun
+    expect(bins[2]!.load).toBe(0) // Jul
   })
 })
 

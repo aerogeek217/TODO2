@@ -99,7 +99,7 @@ describe('canvas-rails model', () => {
         bottom: null,
       })
       const parsed = parseRailsState(raw)
-      expect(parsed!.right!.slots[0].activeTabId).toBe('t1')
+      expect(parsed!.right!.slots[0]!.activeTabId).toBe('t1')
     })
 
     it('drops a slot whose tabs array is empty / all invalid', () => {
@@ -227,7 +227,7 @@ describe('canvas-rails model', () => {
         bottom: null,
       })
       const parsed = parseRailsState(raw)
-      const slot = parsed!.right!.slots[0]
+      const slot = parsed!.right!.slots[0]!
       expect(slot.orientation).toBe('horizontal')
       expect(slot.weekOffset).toBe(3)
     })
@@ -242,9 +242,9 @@ describe('canvas-rails model', () => {
         top: null,
         bottom: null,
       })
-      expect(parseRailsState(mkRaw(99999))!.right!.slots[0].weekOffset).toBe(WEEK_OFFSET_MAX)
-      expect(parseRailsState(mkRaw(-99999))!.right!.slots[0].weekOffset).toBe(-WEEK_OFFSET_MAX)
-      expect(parseRailsState(mkRaw(2.9))!.right!.slots[0].weekOffset).toBe(2) // truncated
+      expect(parseRailsState(mkRaw(99999))!.right!.slots[0]!.weekOffset).toBe(WEEK_OFFSET_MAX)
+      expect(parseRailsState(mkRaw(-99999))!.right!.slots[0]!.weekOffset).toBe(-WEEK_OFFSET_MAX)
+      expect(parseRailsState(mkRaw(2.9))!.right!.slots[0]!.weekOffset).toBe(2) // truncated
     })
 
     it('ignores invalid orientation + non-numeric weekOffset (pre-v32 rows round-trip without them)', () => {
@@ -257,7 +257,7 @@ describe('canvas-rails model', () => {
         top: null,
         bottom: null,
       })
-      const slot = parseRailsState(raw)!.right!.slots[0]
+      const slot = parseRailsState(raw)!.right!.slots[0]!
       expect(slot.orientation).toBeUndefined()
       expect(slot.weekOffset).toBeUndefined()
     })

@@ -69,7 +69,7 @@ describe('SchedulePicker', () => {
     const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement
     fireEvent.change(dateInput, { target: { value: '2026-05-20' } })
     expect(onChange).toHaveBeenCalledTimes(1)
-    const arg = onChange.mock.calls[0][0] as ScheduledValue
+    const arg = onChange.mock.calls[0]![0] as ScheduledValue
     expect(arg.kind).toBe('date')
     expect(arg.kind === 'date' && arg.value.getFullYear()).toBe(2026)
     expect(arg.kind === 'date' && arg.value.getMonth()).toBe(4)

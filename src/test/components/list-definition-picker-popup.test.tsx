@@ -62,7 +62,7 @@ describe('ListDefinitionPickerPopup', () => {
     expect(onSelect).toHaveBeenCalledWith(7)
     expect(onClose).toHaveBeenCalled()
     // The def should NOT have been pinned as a side-effect.
-    expect(useListDefinitionStore.getState().listDefinitions[0].pinnedToDashboard).toBe(false)
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.pinnedToDashboard).toBe(false)
   })
 
   it('renders empty state when there are no defs', () => {

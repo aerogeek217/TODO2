@@ -30,7 +30,7 @@ describe('TagEditor', () => {
 
     await findByText('urgent')
     expect(useTagStore.getState().tags).toHaveLength(1)
-    expect(useTagStore.getState().tags[0].name).toBe('urgent')
+    expect(useTagStore.getState().tags[0]!.name).toBe('urgent')
   })
 
   it('rejects a case-insensitive duplicate name with an inline error', async () => {
@@ -59,7 +59,7 @@ describe('TagEditor', () => {
     fireEvent.click(getByText('Save'))
 
     await findByText('critical')
-    expect(useTagStore.getState().tags[0].name).toBe('critical')
+    expect(useTagStore.getState().tags[0]!.name).toBe('critical')
   })
 
   it('surfaces the assigned task count in the delete confirmation and cascades the join rows', async () => {

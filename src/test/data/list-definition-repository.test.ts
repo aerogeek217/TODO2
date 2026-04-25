@@ -52,7 +52,7 @@ describe('listDefinitionRepository', () => {
     await listDefinitionRepository.insert(makeDef({ name: 'Upcoming', sortOrder: 1 }))
     const defs = await listDefinitionRepository.getAll()
     expect(defs).toHaveLength(1)
-    expect(defs[0].name).toBe('Upcoming')
+    expect(defs[0]!.name).toBe('Upcoming')
   })
 
   it('getAll returns rows ordered by sortOrder', async () => {

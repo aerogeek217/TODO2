@@ -52,7 +52,7 @@ describe('buildTaskCollision — basic dispatch', () => {
       { id: 'todo-5', data: { current: { type: TASK_DRAG_KIND.task } } },
     ))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
-    const args = pointerWithinSpy.mock.calls[0][0]
+    const args = pointerWithinSpy.mock.calls[0]![0]
     expect(args.droppableContainers.map((c: DroppableContainer) => c.id)).toEqual([
       'project-drop-1',
       'project-drop-2',
@@ -114,7 +114,7 @@ describe('buildTaskCollision — basic dispatch', () => {
     detect(callArgs(['a', 'b'], { id: 'other', data: { current: {} } }))
     expect(closestCenterSpy).toHaveBeenCalledTimes(1)
     // Fallback passes droppableContainers through unfiltered.
-    expect(closestCenterSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)).toEqual(['a', 'b'])
+    expect(closestCenterSpy.mock.calls[0]![0].droppableContainers.map((c: DroppableContainer) => c.id)).toEqual(['a', 'b'])
   })
 
   it('honors a custom fallback algorithm', () => {
@@ -171,7 +171,7 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
       data: { current: { type: RAILS_DRAG_TYPE, kind: 'slot', slotId: 's-1', fromSide: 'left' } },
     }))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
-    const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
+    const seen = pointerWithinSpy.mock.calls[0]![0].droppableContainers.map((c: DroppableContainer) => c.id)
     expect(seen).toEqual([
       'rails:slot:s-1',
       'rails:tab-strip:s-2',
@@ -197,7 +197,7 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
       data: { current: { type: RAILS_DRAG_TYPE, kind: 'tab', slotId: 's-1', tabId: 't-1' } },
     }))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
-    const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
+    const seen = pointerWithinSpy.mock.calls[0]![0].droppableContainers.map((c: DroppableContainer) => c.id)
     expect(seen).toEqual(railsOnly)
     expect(seen.every((id: string) => isRailsDropId(String(id)))).toBe(true)
   })
@@ -208,7 +208,7 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
       data: { current: { type: TASK_DRAG_KIND.task } },
     }))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
-    const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
+    const seen = pointerWithinSpy.mock.calls[0]![0].droppableContainers.map((c: DroppableContainer) => c.id)
     expect(seen).toEqual([
       'project-drop-1',
       'dashboard-taskboard-drop',
@@ -221,7 +221,7 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
       id: 'tbp-1',
       data: { current: { type: TASK_DRAG_KIND.taskboardTask } },
     }))
-    const seen = pointerWithinSpy.mock.calls[0][0].droppableContainers.map((c: DroppableContainer) => c.id)
+    const seen = pointerWithinSpy.mock.calls[0]![0].droppableContainers.map((c: DroppableContainer) => c.id)
     expect(seen.every((id: string) => !isRailsDropId(String(id)))).toBe(true)
   })
 })

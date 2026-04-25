@@ -49,18 +49,21 @@ export function RailsFrame({ children }: RailsFrameProps) {
         onResize={(px) => setRailSize(side, px)}
         style={gridStyle}
       >
-        {rail.slots.map((slot, idx) => (
-          <Fragment key={slot.id}>
-            <SlotRenderer slot={slot} fromSide={side} />
-            {idx < rail.slots.length - 1 && (
-              <SlotDivider
-                side={side}
-                aboveSlotId={slot.id}
-                belowSlotId={rail.slots[idx + 1].id}
-              />
-            )}
-          </Fragment>
-        ))}
+        {rail.slots.map((slot, idx) => {
+          const nextSlot = rail.slots[idx + 1]
+          return (
+            <Fragment key={slot.id}>
+              <SlotRenderer slot={slot} fromSide={side} />
+              {nextSlot && (
+                <SlotDivider
+                  side={side}
+                  aboveSlotId={slot.id}
+                  belowSlotId={nextSlot.id}
+                />
+              )}
+            </Fragment>
+          )
+        })}
       </RailContainer>
     )
   }

@@ -65,7 +65,7 @@ function taskboardOps(initial: number[] = []): TaskboardOps & {
     has: (todoId: number) => entries.some((e) => e.todoId === todoId),
     reorder: vi.fn(async (from: number, to: number) => {
       const [moved] = entries.splice(from, 1)
-      entries.splice(to, 0, moved)
+      entries.splice(to, 0, moved!)
     }),
     removeEntry: vi.fn(async (todoId: number) => {
       const idx = entries.findIndex((e) => e.todoId === todoId)

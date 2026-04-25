@@ -20,7 +20,7 @@ describe('useTaskboardStore (singleton)', () => {
     it('loads the single taskboard row', async () => {
       await seedBoard([{ todoId: 10, sortOrder: 1000 }])
       const { board } = useTaskboardStore.getState()
-      expect(board?.entries[0].todoId).toBe(10)
+      expect(board?.entries[0]!.todoId).toBe(10)
     })
 
     it('leaves board null when no row exists', async () => {
@@ -122,8 +122,8 @@ describe('useTaskboardStore (singleton)', () => {
       await useTaskboardStore.getState().addAt(30, 1)
       const entries = useTaskboardStore.getState().getEntries()
       expect(entries.map((e) => e.todoId)).toEqual([10, 30, 20])
-      expect(entries[0].sortOrder).toBeLessThan(entries[1].sortOrder)
-      expect(entries[1].sortOrder).toBeLessThan(entries[2].sortOrder)
+      expect(entries[0]!.sortOrder).toBeLessThan(entries[1]!.sortOrder)
+      expect(entries[1]!.sortOrder).toBeLessThan(entries[2]!.sortOrder)
     })
 
     it('addAt without collision does not normalize', async () => {
@@ -134,7 +134,7 @@ describe('useTaskboardStore (singleton)', () => {
       await useTaskboardStore.getState().addAt(30, 1)
       const entries = useTaskboardStore.getState().getEntries()
       expect(entries.map((e) => e.todoId)).toEqual([10, 30, 20])
-      expect(entries[1].sortOrder).toBe(2000)
+      expect(entries[1]!.sortOrder).toBe(2000)
     })
   })
 

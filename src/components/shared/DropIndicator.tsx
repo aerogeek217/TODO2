@@ -58,5 +58,5 @@ export function DropIndicator(props: DropIndicatorProps) {
  * ```
  */
 export function dropCellClassName(active: boolean): string {
-  return active ? styles.cell : ''
+  return active ? (styles.cell ?? '') : ''
 }

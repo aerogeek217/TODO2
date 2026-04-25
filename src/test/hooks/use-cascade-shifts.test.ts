@@ -156,7 +156,7 @@ describe('useCascadeShifts', () => {
       const { result } = renderHook(() => useCascadeShifts())
       const droppedPositions = { current: new Map<string, { x: number; y: number; setAt: number }>() }
       const onCascadeShift = (shifts: Array<{ projectId: number; x: number; y: number }>) => {
-        droppedPositions.current.set('persisted', { x: shifts[0].x, y: shifts[0].y, setAt: 0 })
+        droppedPositions.current.set('persisted', { x: shifts[0]!.x, y: shifts[0]!.y, setAt: 0 })
       }
       act(() => {
         result.current.persistCascadeShifts(

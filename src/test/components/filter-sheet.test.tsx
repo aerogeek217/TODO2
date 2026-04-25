@@ -58,7 +58,7 @@ describe('FilterSheet', () => {
     it('closes when backdrop is clicked', () => {
       const { container } = renderSheet()
       // Backdrop is the first child element in the fragment
-      fireEvent.click(container.children[0])
+      fireEvent.click(container.children[0]!)
       expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
     })
   })
@@ -120,7 +120,7 @@ describe('FilterSheet', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Date range'))
       const dateInputs = document.querySelectorAll('input[type="date"]')
-      fireEvent.change(dateInputs[0], { target: { value: '2026-04-01' } })
+      fireEvent.change(dateInputs[0]!, { target: { value: '2026-04-01' } })
 
       const { dateRangeStart } = useFilterStore.getState().filters
       expect(dateRangeStart).not.toBeNull()
@@ -134,7 +134,7 @@ describe('FilterSheet', () => {
       // First select is the date-field selector in dateFieldSelector (buttons, not a select).
       // The real <select> elements belong to DateAnchorInput (start, end).
       const selects = document.querySelectorAll('select')
-      fireEvent.change(selects[0], { target: { value: 'end-of-week' } })
+      fireEvent.change(selects[0]!, { target: { value: 'end-of-week' } })
 
       const { dateRangeStart } = useFilterStore.getState().filters
       expect(dateRangeStart).not.toBeNull()

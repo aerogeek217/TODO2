@@ -87,6 +87,7 @@ function formatMonthYear(date: Date): string {
 function formatWeekRange(days: Date[]): string {
   const first = days[0]
   const last = days[days.length - 1]
+  if (!first || !last) return ''
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
   if (first.getFullYear() !== last.getFullYear()) {
     return `${first.toLocaleDateString('en-US', { ...opts, year: 'numeric' })} - ${last.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
@@ -353,11 +354,11 @@ export function CalendarView() {
                         const pastDead = !isVirtual && isDeadlinePast(todo, today)
 
                         let tintClass: string | false = false
-                        if (hasDead && pastDead) tintClass = styles.taskItemPastDeadline
-                        else if (hasSched && pastSched) tintClass = styles.taskItemPastScheduled
-                        else if (hasSched && hasDead) tintClass = styles.taskItemBoth
-                        else if (hasSched) tintClass = styles.taskItemScheduled
-                        else if (hasDead) tintClass = styles.taskItemDeadline
+                        if (hasDead && pastDead) tintClass = styles.taskItemPastDeadline ?? false
+                        else if (hasSched && pastSched) tintClass = styles.taskItemPastScheduled ?? false
+                        else if (hasSched && hasDead) tintClass = styles.taskItemBoth ?? false
+                        else if (hasSched) tintClass = styles.taskItemScheduled ?? false
+                        else if (hasDead) tintClass = styles.taskItemDeadline ?? false
 
                         const intensityDate = isVirtual ? day : effectiveDate(todo, today, weekStartsOn)
                         const intensity = dateIntensity(daysUntil(intensityDate, today))

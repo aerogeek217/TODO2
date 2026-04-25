@@ -205,7 +205,7 @@ describe('<ResizeHandle>', () => {
     expect(onResize).toHaveBeenCalledOnce()
     expect(onEnd).toHaveBeenCalledOnce()
     // onEnd ordering: after onResize.
-    expect(onEnd.mock.invocationCallOrder[0])
-      .toBeGreaterThan(onResize.mock.invocationCallOrder[0])
+    expect(onEnd.mock.invocationCallOrder[0]!)
+      .toBeGreaterThan(onResize.mock.invocationCallOrder[0]!)
   })
 })

@@ -316,7 +316,7 @@ export async function runV20Migration(tx: Transaction): Promise<void> {
     delete todo.isAssigned
   })
 
-  const starredInsets = await listInsetsTable.filter(li => (li as any).preset === 'starred').toArray()
+  const starredInsets = await listInsetsTable.filter(li => (li as unknown as Record<string, unknown>).preset === 'starred').toArray()
   if (starredInsets.length > 0) {
     await listInsetsTable.bulkDelete(starredInsets.map(li => li.id!))
     console.info(`v20 migration: removed ${starredInsets.length} starred list inset(s)`)
@@ -1179,6 +1179,10 @@ export function coalesceTaskboardRows(
   }
   const sorted = [...rows].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
   const survivor = sorted[0]
+  if (!survivor) {
+    const now = new Date()
+    return { survivor: { entries: [], createdAt: now, updatedAt: now }, legacyIds: [] }
+  }
   const seen = new Set<number>()
   const entries: TaskboardEntry[] = []
   for (const row of sorted) {
@@ -1196,7 +1200,7 @@ export function coalesceTaskboardRows(
       createdAt: survivor.createdAt ?? now,
       updatedAt: now,
     },
-    legacyIds: sorted.slice(1).map((r) => r.id!).filter((id) => id != null),
+    legacyIds: sorted.slice(1).map((r) => r.id).filter((id): id is number => id != null),
   }
 }
 

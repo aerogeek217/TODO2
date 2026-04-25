@@ -38,12 +38,12 @@ function clickCreate() {
 
 function openPeopleDropdown() {
   const addButtons = screen.getAllByText('+ Add')
-  fireEvent.click(addButtons[0])
+  fireEvent.click(addButtons[0]!)
 }
 
 function openTagsDropdown() {
   const addButtons = screen.getAllByText('+ Add')
-  fireEvent.click(addButtons[1])
+  fireEvent.click(addButtons[1]!)
 }
 
 function renderCreateMode(overrides: Record<string, unknown> = {}) {
@@ -139,7 +139,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [partial, assignments] = onCreate.mock.calls[0]
+      const [partial, assignments] = onCreate.mock.calls[0]!
       expect(partial.title).toBe('Test task')
       expect(assignments.personIds).toEqual([1])
       expect(assignments.orgIds).toEqual([])
@@ -158,7 +158,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.orgIds).toEqual([1])
       expect(assignments.personIds).toEqual([])
     })
@@ -182,7 +182,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toEqual([])
     })
 
@@ -254,7 +254,7 @@ describe('TaskEditPopup', () => {
         expect(onCreate).toHaveBeenCalledOnce()
       })
 
-      const [, assignments] = onCreate.mock.calls[0]
+      const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toEqual([])
       expect(assignments.orgIds).toEqual([])
     })

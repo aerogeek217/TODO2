@@ -82,8 +82,10 @@ export function TaskList({
         const isSel = selectedTodoIds.has(todo.id)
         const isFocused = todo.id === focusedTodoId
         const isMultiSelect = selectedTodoIds.size > 1
-        const prevSel = idx > 0 && selectedTodoIds.has(sortedTodos[idx - 1].id)
-        const nextSel = idx < sortedTodos.length - 1 && selectedTodoIds.has(sortedTodos[idx + 1].id)
+        const prevTodo = sortedTodos[idx - 1]
+        const nextTodo = sortedTodos[idx + 1]
+        const prevSel = idx > 0 && prevTodo != null && selectedTodoIds.has(prevTodo.id)
+        const nextSel = idx < sortedTodos.length - 1 && nextTodo != null && selectedTodoIds.has(nextTodo.id)
         const selCls = isSel
           ? `${styles.sel} ${!prevSel ? styles.selFirst : ''} ${!nextSel ? styles.selLast : ''}`
           : ''

@@ -107,7 +107,7 @@ describe('applyNlpMetadata', () => {
     )
 
     expect(updateTodo).toHaveBeenCalledOnce()
-    const updated = updateTodo.mock.calls[0][0]
+    const updated = updateTodo.mock.calls[0]![0]
     expect(updated.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
   })
 
@@ -135,7 +135,7 @@ describe('applyNlpMetadata', () => {
     )
 
     expect(updateTodo).toHaveBeenCalledOnce()
-    const updated = updateTodo.mock.calls[0][0]
+    const updated = updateTodo.mock.calls[0]![0]
     expect(updated.recurrenceRule?.type).toBe('weekly')
   })
 
@@ -274,11 +274,11 @@ describe('NLP → tag registry end-to-end', () => {
 
     const allTags = await db.tags.toArray()
     expect(allTags).toHaveLength(1)
-    expect(allTags[0].name).toBe('urgent')
+    expect(allTags[0]!.name).toBe('urgent')
 
     const joins = await db.todoTags.where('todoId').equals(todoId).toArray()
     expect(joins).toHaveLength(1)
-    expect(joins[0].tagId).toBe(allTags[0].id)
+    expect(joins[0]!.tagId).toBe(allTags[0]!.id)
   })
 
   it('"fix #Urgent" reuses the existing `urgent` tag via case-insensitive lookup', async () => {
@@ -298,7 +298,7 @@ describe('NLP → tag registry end-to-end', () => {
     expect(allTags).toHaveLength(1) // no duplicate created
     const joins = await db.todoTags.where('todoId').equals(todoId).toArray()
     expect(joins).toHaveLength(1)
-    expect(joins[0].tagId).toBe(existingId)
+    expect(joins[0]!.tagId).toBe(existingId)
   })
 
   it('duplicate slugs from the same input collapse to one join row', async () => {

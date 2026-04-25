@@ -348,7 +348,7 @@ describe('validateImportData', () => {
     })
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.data.todos[0].projectId).toBe(5)
+      expect(result.data.todos[0]!.projectId).toBe(5)
     }
   })
 
@@ -547,7 +547,7 @@ describe('validateImportData', () => {
     }))
     expect(result.ok).toBe(true)
     expect(result.ok && result.data.listInsets).toHaveLength(1)
-    expect(result.ok && result.data.listInsets[0].preset).toBe('due-this-week')
+    expect(result.ok && result.data.listInsets[0]!.preset).toBe('due-this-week')
   })
 
   it('valid status object passes validation', () => {

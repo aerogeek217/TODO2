@@ -229,9 +229,11 @@ export function useCanvasDnD({
       const origPid = overTodo.projectId!
       const dragIds = multiDragIdsRef.current
       for (let i = idx + 1; i < sorted.length; i++) {
-        if (sorted[i].id === activeTodoId) continue
-        if (dragIds && dragIds.has(sorted[i].id)) continue
-        return { overType: 'task' as const, overTodo: sorted[i], overProjectId }
+        const candidate = sorted[i]
+        if (!candidate) continue
+        if (candidate.id === activeTodoId) continue
+        if (dragIds && dragIds.has(candidate.id)) continue
+        return { overType: 'task' as const, overTodo: candidate, overProjectId }
       }
       return { overType: 'project' as const, overTodo: null, overProjectId: origPid }
     },

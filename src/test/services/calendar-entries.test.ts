@@ -28,7 +28,7 @@ describe('buildEntries (shared)', () => {
     const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
     const entries = map.get(today.toISOString()) ?? []
     expect(entries.map((e) => e.todo.id)).toEqual([1])
-    expect(entries[0].isVirtual).toBe(false)
+    expect(entries[0]!.isVirtual).toBe(false)
   })
 
   it('places a deadline-only todo on its deadline day', () => {

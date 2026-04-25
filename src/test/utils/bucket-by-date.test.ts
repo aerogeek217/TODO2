@@ -58,8 +58,8 @@ describe('bucketByDate — 6-bucket effective form', () => {
       windows,
     )
     expect(buckets).toHaveLength(1)
-    expect(buckets[0].key).toBe('tomorrow')
-    expect(buckets[0].todos.map((x) => x.id)).toEqual([1])
+    expect(buckets[0]!.key).toBe('tomorrow')
+    expect(buckets[0]!.todos.map((x) => x.id)).toEqual([1])
   })
 
   it('places a Sunday-of-this-week date in this-week (Mon-first)', () => {
@@ -72,7 +72,7 @@ describe('bucketByDate — 6-bucket effective form', () => {
       1,
       windows,
     )
-    expect(buckets[0].key).toBe('thisWeek')
+    expect(buckets[0]!.key).toBe('thisWeek')
   })
 
   it('places the same Sunday-of-this-week in next-week with Sun-first (off-by-one shift)', () => {
@@ -85,7 +85,7 @@ describe('bucketByDate — 6-bucket effective form', () => {
       0,
       windows,
     )
-    expect(buckets[0].key).toBe('nextWeek')
+    expect(buckets[0]!.key).toBe('nextWeek')
   })
 
   it('places far-future dates in beyond', () => {
@@ -98,7 +98,7 @@ describe('bucketByDate — 6-bucket effective form', () => {
       1,
       windows,
     )
-    expect(buckets[0].key).toBe('beyond')
+    expect(buckets[0]!.key).toBe('beyond')
   })
 
   it('null-date todos go to noDate, never into a window', () => {
@@ -132,9 +132,9 @@ describe('bucketByDate — 4-bucket short form', () => {
       windows,
     )
     expect(buckets.map((b) => b.key)).toEqual(['overdue', 'today', 'thisWeek', 'later'])
-    expect(buckets[0].todos.map((t) => t.id)).toEqual([1])
-    expect(buckets[1].todos.map((t) => t.id)).toEqual([2])
-    expect(buckets[2].todos.map((t) => t.id)).toEqual([3])
-    expect(buckets[3].todos.map((t) => t.id)).toEqual([4])
+    expect(buckets[0]!.todos.map((t) => t.id)).toEqual([1])
+    expect(buckets[1]!.todos.map((t) => t.id)).toEqual([2])
+    expect(buckets[2]!.todos.map((t) => t.id)).toEqual([3])
+    expect(buckets[3]!.todos.map((t) => t.id)).toEqual([4])
   })
 })

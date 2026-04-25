@@ -118,7 +118,7 @@ describe('SortableTaskList — grouped render', () => {
     expect(rowIdsInGroup('Blocked')).toEqual([3])
 
     // The ungrouped row precedes the first named group in document order.
-    const firstRegion = screen.getAllByRole('region')[0]
+    const firstRegion = screen.getAllByRole('region')[0]!
     expect(
       ungroupedRow.compareDocumentPosition(firstRegion) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
@@ -157,8 +157,8 @@ describe('SortableTaskList — grouped render', () => {
     // past todo 2 — it'd be visually positioned below todo 2 in a flat list,
     // but since statusId=1 hasn't changed it must remain in the Active group.
     const afterDrag: PersistedTodoItem[] = [
-      { ...initial[0], sortOrder: 99 },
-      initial[1],
+      { ...initial[0]!, sortOrder: 99 },
+      initial[1]!,
     ]
     rerender(
       <Wrapper>

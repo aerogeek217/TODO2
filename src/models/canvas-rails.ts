@@ -159,7 +159,11 @@ export const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar', 'ta
  * `tabs.length >= 1` and `activeTabId` points at a tab (or has been repaired).
  */
 export function getActiveTab(slot: Slot): Tab {
-  return slot.tabs.find((t) => t.id === slot.activeTabId) ?? slot.tabs[0]
+  const found = slot.tabs.find((t) => t.id === slot.activeTabId) ?? slot.tabs[0]
+  if (!found) {
+    throw new Error(`getActiveTab: slot '${slot.id}' has no tabs (invariant violation)`)
+  }
+  return found
 }
 
 function parseTab(raw: unknown): Tab | null {
@@ -206,7 +210,9 @@ function parseSlot(raw: unknown): Slot | null {
     if (parsedTabs.length === 0) return null
     tabs = parsedTabs
     const want = typeof r.activeTabId === 'string' ? r.activeTabId : null
-    activeTabId = want && parsedTabs.some((t) => t.id === want) ? want : parsedTabs[0].id
+    const firstTab = parsedTabs[0]
+    if (!firstTab) return null
+    activeTabId = want && parsedTabs.some((t) => t.id === want) ? want : firstTab.id
   } else if (typeof r.kind === 'string' && SLOT_KINDS.includes(r.kind as SlotKind)) {
     // Legacy shape: { id, kind, listDefinitionId?, taskboardId?, flex?, orientation?, weekOffset? }
     const tab: Tab = { id: `${r.id}-t0`, type: r.kind as TabType }

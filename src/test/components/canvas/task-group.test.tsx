@@ -56,7 +56,7 @@ describe('TaskGroup', () => {
     ])
     // Ungrouped block precedes the first group in document order.
     const ungrouped = container.querySelector('[data-testid="ungrouped"]')!
-    expect(ungrouped.compareDocumentPosition(regions[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(ungrouped.compareDocumentPosition(regions[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // No header is rendered on the ungrouped block.
     expect(ungrouped.querySelector('header')).toBeNull()
   })

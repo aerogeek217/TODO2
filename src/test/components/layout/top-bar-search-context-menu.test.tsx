@@ -49,7 +49,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       '--',
       'Delete',
     ])
-    expect(items[items.length - 1].danger).toBe(true)
+    expect(items[items.length - 1]!.danger).toBe(true)
   })
 
   it('shows "Mark incomplete" when the todo is completed', () => {
@@ -59,7 +59,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    expect(items[1].label).toBe('Mark incomplete')
+    expect(items[1]!.label).toBe('Mark incomplete')
   })
 
   it('shows "Remove from Taskboard" when the todo is already on the board', () => {
@@ -69,7 +69,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    expect(items[2].label).toBe('Remove from Taskboard')
+    expect(items[2]!.label).toBe('Remove from Taskboard')
   })
 
   it('Open action calls the onOpen callback with the todo id', () => {
@@ -80,7 +80,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen,
       onMoveToProject: vi.fn(),
     })
-    items[0].action()
+    items[0]!.action()
     expect(onOpen).toHaveBeenCalledWith(42)
   })
 
@@ -93,7 +93,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    items[1].action()
+    items[1]!.action()
     expect(toggleComplete).toHaveBeenCalledWith(7)
   })
 
@@ -106,7 +106,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    items[2].action()
+    items[2]!.action()
     expect(add).toHaveBeenCalledWith(9)
   })
 
@@ -119,7 +119,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    items[2].action()
+    items[2]!.action()
     expect(removeEntry).toHaveBeenCalledWith(11)
   })
 
@@ -131,7 +131,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject,
     })
-    items[3].action()
+    items[3]!.action()
     expect(onMoveToProject).toHaveBeenCalled()
   })
 
@@ -144,7 +144,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    const deleteItem = items[items.length - 1]
+    const deleteItem = items[items.length - 1]!
     deleteItem.action()
     expect(showBulkConfirmation).toHaveBeenCalledWith('delete', [99])
   })

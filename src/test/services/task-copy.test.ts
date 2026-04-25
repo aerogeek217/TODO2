@@ -131,8 +131,8 @@ describe('copyTasksRich', () => {
     expect(ok).toBe(true)
     expect(writeSpy).toHaveBeenCalledTimes(1)
     expect(writeTextSpy).not.toHaveBeenCalled()
-    const arg = writeSpy.mock.calls[0][0] as Array<{ data: Record<string, Blob> }>
-    const kinds = Object.keys(arg[0].data)
+    const arg = writeSpy.mock.calls[0]![0] as Array<{ data: Record<string, Blob> }>
+    const kinds = Object.keys(arg[0]!.data)
     expect(kinds).toContain('text/html')
     expect(kinds).toContain('text/plain')
   })
@@ -157,9 +157,9 @@ describe('copyTasksRich', () => {
     const open = makeTodo({ id: 1, title: 'Open' })
     const done = makeTodo({ id: 2, title: 'Done', isCompleted: true })
     await copyTasksRich([{ todos: [open, done] }], ctx())
-    const arg = writeSpy.mock.calls[0][0] as Array<{ data: Record<string, Blob> }>
-    const htmlBlob = arg[0].data['text/html']
-    const html = await htmlBlob.text()
+    const arg = writeSpy.mock.calls[0]![0] as Array<{ data: Record<string, Blob> }>
+    const htmlBlob = arg[0]!.data['text/html']
+    const html = await htmlBlob!.text()
     expect(html).toContain('Open')
     expect(html).toContain('Done')
     expect(html).toContain('☑')

@@ -47,6 +47,7 @@ interface CalendarStripProps {
 function formatRange(days: Date[]): string {
   const first = days[0]
   const last = days[days.length - 1]
+  if (!first || !last) return ''
   const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()
   return sameMonth
     ? `${MONTH_NAMES[first.getMonth()]} ${first.getDate()} – ${last.getDate()}`

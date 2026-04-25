@@ -46,7 +46,7 @@ describe('checkMigrationNeeded', () => {
     expect(result!.currentVersion).toBe(22)
     expect(result!.targetVersion).toBe(23)
     expect(result!.migrations).toHaveLength(1)
-    expect(result!.migrations[0].version).toBe(23)
+    expect(result!.migrations[0]!.version).toBe(23)
   })
 
   it('detects migration from much older versions', async () => {

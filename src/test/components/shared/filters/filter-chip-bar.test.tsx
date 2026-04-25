@@ -111,7 +111,7 @@ describe('FilterChipBar — primitive', () => {
       // First click on Date opens the dropdown AND seeds today's anchor as the
       // start, so updates[0] reflects that. Click 'Has scheduled' next.
       fireEvent.click(screen.getByText('Has scheduled'))
-      const last = updates[updates.length - 1]
+      const last = updates[updates.length - 1]!
       expect(last.hasScheduled).toBe(true)
     })
 

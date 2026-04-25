@@ -27,14 +27,14 @@ describe('useOrgStore', () => {
   it('add inserts org', async () => {
     const id = await useOrgStore.getState().add('Engineering', '#ff0000')
     expect(useOrgStore.getState().orgs).toHaveLength(1)
-    expect(useOrgStore.getState().orgs[0].name).toBe('Engineering')
+    expect(useOrgStore.getState().orgs[0]!.name).toBe('Engineering')
     expect(id).toBeGreaterThan(0)
   })
 
   it('update modifies org in store array', async () => {
     const id = await useOrgStore.getState().add('Engineering')
     await useOrgStore.getState().update({ id, name: 'Platform', color: '#00ff00' })
-    expect(useOrgStore.getState().orgs[0].name).toBe('Platform')
+    expect(useOrgStore.getState().orgs[0]!.name).toBe('Platform')
   })
 
   it('remove deletes from store array', async () => {
@@ -65,7 +65,7 @@ describe('useOrgStore', () => {
     await useOrgStore.getState().loadAssignments([todoId])
     const map = useOrgStore.getState().assignedOrgsMap
     expect(map.get(todoId)).toHaveLength(1)
-    expect(map.get(todoId)![0].name).toBe('Engineering')
+    expect(map.get(todoId)![0]!.name).toBe('Engineering')
   })
 
   it('assignOrg adds to assignedOrgsMap', async () => {

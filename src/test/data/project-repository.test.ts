@@ -24,9 +24,9 @@ describe('projectRepository', () => {
     })
     const projects = await projectRepository.getByCanvas(canvasId)
     expect(projects).toHaveLength(1)
-    expect(projects[0].name).toBe('Bug Fixes')
-    expect(projects[0].positionX).toBe(100)
-    expect(projects[0].positionY).toBe(200)
+    expect(projects[0]!.name).toBe('Bug Fixes')
+    expect(projects[0]!.positionX).toBe(100)
+    expect(projects[0]!.positionY).toBe(200)
   })
 
   it('getByCanvas returns only projects for that canvas', async () => {
@@ -42,7 +42,7 @@ describe('projectRepository', () => {
 
     const projects = await projectRepository.getByCanvas(canvasId)
     expect(projects).toHaveLength(1)
-    expect(projects[0].name).toBe('Project A')
+    expect(projects[0]!.name).toBe('Project A')
   })
 
   it('updatePosition changes x and y', async () => {

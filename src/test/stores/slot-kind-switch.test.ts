@@ -15,7 +15,7 @@ describe('canvas-rails-store.setSlotKind', () => {
       rails: { ...EMPTY_RAILS, right: { orientation: 'vertical', slots: [slot] } },
     })
     useCanvasRailsStore.getState().setSlotKind(slot.id, 'notes')
-    const after = useCanvasRailsStore.getState().rails.right!.slots[0]
+    const after = useCanvasRailsStore.getState().rails.right!.slots[0]!
     const tab = getActiveTab(after)
     expect(tab.type).toBe('notes')
     expect(tab.listDefinitionId).toBeUndefined()
@@ -29,7 +29,7 @@ describe('canvas-rails-store.setSlotKind', () => {
       rails: { ...EMPTY_RAILS, left: { orientation: 'vertical', slots: [slot] } },
     })
     useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard')
-    const after = useCanvasRailsStore.getState().rails.left!.slots[0]
+    const after = useCanvasRailsStore.getState().rails.left!.slots[0]!
     const tab = getActiveTab(after)
     expect(tab.type).toBe('taskboard')
   })
@@ -47,7 +47,7 @@ describe('canvas-rails-store.setSlotKind', () => {
     useCanvasRailsStore.getState().setSlotKind('b', 'lens', { listDefinitionId: 11 })
     const slots = useCanvasRailsStore.getState().rails.right!.slots
     expect(slots.map((s) => s.id)).toEqual(['a', 'b', 'c'])
-    const tab = getActiveTab(slots[1])
+    const tab = getActiveTab(slots[1]!)
     expect(tab.type).toBe('lens')
     expect(tab.listDefinitionId).toBe(11)
   })
@@ -58,7 +58,7 @@ describe('canvas-rails-store.setSlotKind', () => {
       rails: { ...EMPTY_RAILS, top: { orientation: 'horizontal', slots: [slot] } },
     })
     useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard')
-    const after = useCanvasRailsStore.getState().rails.top!.slots[0]
+    const after = useCanvasRailsStore.getState().rails.top!.slots[0]!
     const tab = getActiveTab(after)
     expect(tab.type).toBe('taskboard')
     expect(tab.listDefinitionId).toBeUndefined()

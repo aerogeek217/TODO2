@@ -57,9 +57,9 @@ describe('placeTaskAt', () => {
       beforeTodoId: null,
     })
     expect(mutations).toHaveLength(1)
-    expect(mutations[0].todoId).toBe(3)
-    expect(mutations[0].changes.sortOrder).toBe(3)
-    expect(mutations[0].changes.projectId).toBe(10)
+    expect(mutations[0]!.todoId).toBe(3)
+    expect(mutations[0]!.changes.sortOrder).toBe(3)
+    expect(mutations[0]!.changes.projectId).toBe(10)
   })
 
   it('places task before a specific task', () => {
@@ -73,7 +73,7 @@ describe('placeTaskAt', () => {
       beforeTodoId: 2,
     })
     expect(mutations).toHaveLength(1)
-    expect(mutations[0].changes.sortOrder).toBe(3)
+    expect(mutations[0]!.changes.sortOrder).toBe(3)
   })
 
   it('same-project move does not set projectId', () => {
@@ -81,11 +81,11 @@ describe('placeTaskAt', () => {
       makeTodo({ id: 1, sortOrder: 1, projectId: 10 }),
       makeTodo({ id: 2, sortOrder: 2, projectId: 10 }),
     ]
-    const mutations = placeTaskAt(todos, todos[1], {
+    const mutations = placeTaskAt(todos, todos[1]!, {
       projectId: 10,
       beforeTodoId: 1,
     })
-    expect(mutations[0].changes.projectId).toBeUndefined()
+    expect(mutations[0]!.changes.projectId).toBeUndefined()
   })
 })
 

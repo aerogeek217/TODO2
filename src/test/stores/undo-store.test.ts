@@ -52,7 +52,7 @@ describe('useUndoStore', () => {
     const state = useUndoStore.getState()
     expect(state.undoStack).toHaveLength(50)
     // First entry should have been trimmed
-    expect(state.undoStack[0].description).toBe('action1')
+    expect(state.undoStack[0]!.description).toBe('action1')
     expect(state.undoStack[49]).toBe(newEntry)
   })
 
@@ -174,7 +174,7 @@ describe('useUndoStore', () => {
 
     const state = useUndoStore.getState()
     expect(state.undoStack).toHaveLength(1)
-    expect(state.undoStack[0].description).toBe('compound')
+    expect(state.undoStack[0]!.description).toBe('compound')
     expect(state.groupStartIndex).toBeNull()
   })
 

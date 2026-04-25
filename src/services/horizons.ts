@@ -172,14 +172,16 @@ export function horizonBins(
     const ms = eff.getTime()
     const idx = bins.findIndex((b) => ms >= b.start.getTime() && ms < b.end.getTime())
     if (idx === -1) continue
-    bins[idx].load++
-    if (ms < base.getTime()) bins[idx].overdue++
-    if (t.dueDate != null) bins[idx].hasDeadline++
+    const bin = bins[idx]
+    if (!bin) continue
+    bin.load++
+    if (ms < base.getTime()) bin.overdue++
+    if (t.dueDate != null) bin.hasDeadline++
     // Overdue-flag on today's bin: any task whose deadline is past today also
     // bumps the overdue count (covers past-deadline tasks still scheduled).
-    if (bins[idx].isToday && isDeadlinePast(t, base)) {
+    if (bin.isToday && isDeadlinePast(t, base)) {
       // Already counted in overdue above if eff < today; only add if not already.
-      if (ms >= base.getTime()) bins[idx].overdue++
+      if (ms >= base.getTime()) bin.overdue++
     }
   }
 

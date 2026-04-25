@@ -387,7 +387,7 @@ describe('FileStorageService — status notifications', () => {
     await svc.initialize()
 
     expect(listener).toHaveBeenCalled()
-    const lastStatus = listener.mock.calls[listener.mock.calls.length - 1][0]
+    const lastStatus = listener.mock.calls[listener.mock.calls.length - 1]![0]
     expect(lastStatus.isConnected).toBe(true)
   })
 

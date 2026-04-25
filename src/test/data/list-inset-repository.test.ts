@@ -27,7 +27,7 @@ describe('listInsetRepository', () => {
 
     const insets = await listInsetRepository.getByCanvas(1)
     expect(insets).toHaveLength(1)
-    expect(insets[0].listDefinitionId).toBe(1)
+    expect(insets[0]!.listDefinitionId).toBe(1)
   })
 
   it('getById returns correct inset', async () => {

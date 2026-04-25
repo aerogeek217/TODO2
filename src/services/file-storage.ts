@@ -106,6 +106,7 @@ class FileStorageService {
     this.removeHooks()
     try {
       const [handle] = await window.showOpenFilePicker({ types: FILE_TYPES })
+      if (!handle) return
       this.handle = handle
       this._error = null
       this._needsPermission = false

@@ -3,6 +3,7 @@ import type { MigrationInfo, LegacyImportInfo } from '../../services/migration-c
 import { exportCurrentDatabase } from '../../services/migration-check'
 import { buildExportData } from '../../services/export-import'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
+import { getSaveFilePicker } from '../../utils/file-picker'
 import styles from './MigrationDialog.module.css'
 
 interface SchemaUpgradeProps {
@@ -45,9 +46,10 @@ export function MigrationDialog(props: MigrationDialogProps) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
       const filename = `todo2-pre-migration-${timestamp}.json`
 
-      if ('showSaveFilePicker' in window) {
+      const showSaveFilePicker = getSaveFilePicker()
+      if (showSaveFilePicker) {
         try {
-          const handle = await (window as unknown as { showSaveFilePicker: (opts: Record<string, unknown>) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+          const handle = await showSaveFilePicker({
             suggestedName: filename,
             types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
           })

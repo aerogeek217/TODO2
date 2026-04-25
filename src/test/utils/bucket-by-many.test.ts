@@ -21,8 +21,8 @@ describe('bucketByMany', () => {
     const assigned = new Map<number, Person[]>([[10, [alice]]])
     const { buckets, unassigned } = bucketByMany([t], [alice, bob], assigned)
     expect(buckets).toHaveLength(1)
-    expect(buckets[0].entity.id).toBe(1)
-    expect(buckets[0].todos.map((x) => x.id)).toEqual([10])
+    expect(buckets[0]!.entity.id).toBe(1)
+    expect(buckets[0]!.todos.map((x) => x.id)).toEqual([10])
     expect(unassigned).toEqual([])
   })
 
@@ -33,8 +33,8 @@ describe('bucketByMany', () => {
     const assigned = new Map<number, Person[]>([[10, [alice, bob]]])
     const { buckets } = bucketByMany([t], [alice, bob], assigned)
     expect(buckets).toHaveLength(2)
-    expect(buckets[0].todos.map((x) => x.id)).toEqual([10])
-    expect(buckets[1].todos.map((x) => x.id)).toEqual([10])
+    expect(buckets[0]!.todos.map((x) => x.id)).toEqual([10])
+    expect(buckets[1]!.todos.map((x) => x.id)).toEqual([10])
   })
 
   it('emits buckets in the entity-list order', () => {
@@ -83,6 +83,6 @@ describe('bucketByMany', () => {
     const assigned = new Map<number, Person[]>([[10, [alice, alice]]])
     const { buckets } = bucketByMany([t], [alice], assigned)
     expect(buckets).toHaveLength(1)
-    expect(buckets[0].todos).toHaveLength(1)
+    expect(buckets[0]!.todos).toHaveLength(1)
   })
 })

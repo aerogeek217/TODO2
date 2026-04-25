@@ -71,6 +71,7 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     if (undoStack.length === 0 || isPerformingUndoRedo) return
 
     const entry = undoStack[undoStack.length - 1]
+    if (!entry) return
     set({
       undoStack: undoStack.slice(0, -1),
       isPerformingUndoRedo: true,
@@ -92,6 +93,7 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     if (redoStack.length === 0 || isPerformingUndoRedo) return
 
     const entry = redoStack[redoStack.length - 1]
+    if (!entry) return
     set({
       redoStack: redoStack.slice(0, -1),
       isPerformingUndoRedo: true,
@@ -125,7 +127,10 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     const compound: UndoEntry = {
       description,
       async undo() {
-        for (let i = grouped.length - 1; i >= 0; i--) await grouped[i].undo()
+        for (let i = grouped.length - 1; i >= 0; i--) {
+          const item = grouped[i]
+          if (item) await item.undo()
+        }
       },
       async redo() {
         for (const entry of grouped) await entry.redo()

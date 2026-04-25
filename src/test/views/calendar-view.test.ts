@@ -51,7 +51,7 @@ describe('CalendarView day-bucket sort', () => {
       { todo: makeTodo({ id: 2, title: 'b', dueDate: due, sortOrder: 20 }), isVirtual: false, displayKey: 'b' },
     ]
     const first = sortDayBucket(base)
-    const shuffled = [base[2], base[0], base[1]]
+    const shuffled = [base[2]!, base[0]!, base[1]!]
     const second = sortDayBucket(shuffled)
     expect(first.map((e) => e.todo.id)).toEqual(second.map((e) => e.todo.id))
   })

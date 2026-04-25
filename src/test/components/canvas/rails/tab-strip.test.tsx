@@ -88,7 +88,7 @@ describe('TabStrip', () => {
       />,
     )
     // Click the inactive tab's label button.
-    const inactive = screen.getAllByRole('tab')[1]
+    const inactive = screen.getAllByRole('tab')[1]!
     const button = inactive.querySelector('button')!
     fireEvent.click(button)
     expect(onActivate).toHaveBeenCalledWith('slot-a-t1')
@@ -181,7 +181,7 @@ describe('TabStrip', () => {
         onOpenChangeType={onOpenChangeType}
       />,
     )
-    const activeCaret = screen.getAllByLabelText(/tab options$/i)[0]
+    const activeCaret = screen.getAllByLabelText(/tab options$/i)[0]!
     fireEvent.click(activeCaret)
     expect(onOpenChangeType).toHaveBeenCalledTimes(1)
     const [tabId, anchor] = onOpenChangeType.mock.calls[0]
@@ -216,7 +216,7 @@ describe('TabStrip', () => {
         onAddTab={() => {}}
       />,
     )
-    const activePill = screen.getAllByRole('tab')[0]
+    const activePill = screen.getAllByRole('tab')[0]!
     const activeBtn = activePill.querySelector('button') as HTMLButtonElement
     activeBtn.focus()
     fireEvent.keyDown(activeBtn, { key: 'ArrowRight' })
@@ -234,7 +234,7 @@ describe('TabStrip', () => {
         onAddTab={() => {}}
       />,
     )
-    const activePill = screen.getAllByRole('tab')[0]
+    const activePill = screen.getAllByRole('tab')[0]!
     const activeBtn = activePill.querySelector('button') as HTMLButtonElement
     activeBtn.focus()
     fireEvent.keyDown(activeBtn, { key: 'ArrowLeft' })
@@ -261,7 +261,7 @@ describe('TabStrip', () => {
         onAddTab={() => {}}
       />,
     )
-    const middle = screen.getAllByRole('tab')[1].querySelector('button') as HTMLButtonElement
+    const middle = screen.getAllByRole('tab')[1]!.querySelector('button') as HTMLButtonElement
     middle.focus()
     fireEvent.keyDown(middle, { key: 'Home' })
     expect(onActivate).toHaveBeenLastCalledWith('s-t0')
@@ -280,7 +280,7 @@ describe('TabStrip', () => {
         onAddTab={() => {}}
       />,
     )
-    const secondPill = screen.getAllByRole('tab')[1]
+    const secondPill = screen.getAllByRole('tab')[1]!
     const secondBtn = secondPill.querySelector('button') as HTMLButtonElement
     secondBtn.focus()
     fireEvent.keyDown(secondBtn, { key: 'Delete' })
@@ -298,8 +298,8 @@ describe('TabStrip', () => {
       />,
     )
     const tabs = screen.getAllByRole('tab')
-    const activeBtn = tabs[0].querySelector('button') as HTMLButtonElement
-    const inactiveBtn = tabs[1].querySelector('button') as HTMLButtonElement
+    const activeBtn = tabs[0]!.querySelector('button') as HTMLButtonElement
+    const inactiveBtn = tabs[1]!.querySelector('button') as HTMLButtonElement
     expect(activeBtn.tabIndex).toBe(0)
     expect(inactiveBtn.tabIndex).toBe(-1)
   })

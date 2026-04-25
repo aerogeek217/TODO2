@@ -43,7 +43,7 @@ describe('todoRepository', () => {
 
     const result = await todoRepository.getByCanvas(1)
     expect(result).toHaveLength(1)
-    expect(result[0].title).toBe('In canvas 1')
+    expect(result[0]!.title).toBe('In canvas 1')
   })
 
   it('getByProject filters by projectId', async () => {
@@ -52,7 +52,7 @@ describe('todoRepository', () => {
 
     const result = await todoRepository.getByProject(1)
     expect(result).toHaveLength(1)
-    expect(result[0].title).toBe('In project 1')
+    expect(result[0]!.title).toBe('In project 1')
   })
 
   it('complete toggles isCompleted', async () => {

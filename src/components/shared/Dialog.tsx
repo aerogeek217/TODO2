@@ -52,8 +52,9 @@ export function Dialog({
         return
       }
       const focusables = dialog.querySelectorAll<HTMLElement>(FOCUSABLE)
-      if (focusables.length > 0) {
-        focusables[0].focus()
+      const firstFocusable = focusables[0]
+      if (firstFocusable) {
+        firstFocusable.focus()
       } else {
         dialog.focus()
       }
@@ -89,6 +90,7 @@ export function Dialog({
       }
       const first = focusables[0]
       const last = focusables[focusables.length - 1]
+      if (!first || !last) return
       const active = document.activeElement as HTMLElement | null
       if (e.shiftKey) {
         if (active === first || !dialog.contains(active)) {

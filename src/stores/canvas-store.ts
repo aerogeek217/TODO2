@@ -26,7 +26,10 @@ export const useCanvasStore = create<CanvasState>((set) => ({
         })
         set({ selectedCanvasId: id })
       } else {
-        set({ selectedCanvasId: canvases[0].id! })
+        const first = canvases[0]
+        if (first?.id != null) {
+          set({ selectedCanvasId: first.id })
+        }
       }
     } catch (e) {
       console.error('Failed to load canvas:', e)

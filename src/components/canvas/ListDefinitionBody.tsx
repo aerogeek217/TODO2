@@ -171,7 +171,7 @@ export function ListDefinitionBody({
   }, [definition?.name, filteredTodos])
 
   const pickerLabel = definition?.runtimeFilter?.label?.trim() || (definition?.runtimeFilter
-    ? definition.runtimeFilter.field[0].toUpperCase() + definition.runtimeFilter.field.slice(1)
+    ? (definition.runtimeFilter.field.charAt(0).toUpperCase() + definition.runtimeFilter.field.slice(1))
     : '')
   const placeholderText = runtimeFilterPending
     ? `Pick a ${pickerLabel.toLowerCase()} to populate…`

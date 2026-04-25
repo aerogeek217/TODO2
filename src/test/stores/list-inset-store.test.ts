@@ -47,7 +47,7 @@ describe('useListInsetStore', () => {
       // Assert
       const { insets } = useListInsetStore.getState()
       expect(insets).toHaveLength(1)
-      const inset = insets[0]
+      const inset = insets[0]!
       expect(inset.id).toBe(id)
       expect(inset.listDefinitionId).toBe(5)
       expect(inset.canvasId).toBe(1)
@@ -158,7 +158,7 @@ describe('useListInsetStore', () => {
       await useListInsetStore.getState().remove(id2)
       const { insets } = useListInsetStore.getState()
       expect(insets).toHaveLength(1)
-      expect(insets[0].id).toBe(id1)
+      expect(insets[0]!.id).toBe(id1)
     })
   })
 

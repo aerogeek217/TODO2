@@ -215,10 +215,10 @@ describe('partitionByGroup', () => {
     const result = partitionByGroup(todos, 'status', makeCtx({ statuses: STATUSES }))
     expect(result.ungrouped.map((t) => t.id)).toEqual([3])
     expect(result.groups.map((g) => g.key)).toEqual(['status-1', 'status-2'])
-    expect(result.groups[0].label).toBe('Active')
-    expect(result.groups[0].todos.map((t) => t.id)).toEqual([1, 4])
-    expect(result.groups[1].label).toBe('Blocked')
-    expect(result.groups[1].todos.map((t) => t.id)).toEqual([2])
+    expect(result.groups[0]!.label).toBe('Active')
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([1, 4])
+    expect(result.groups[1]!.label).toBe('Blocked')
+    expect(result.groups[1]!.todos.map((t) => t.id)).toEqual([2])
   })
 
   it('orders status groups by status sortOrder, not first-encounter', () => {
@@ -238,7 +238,7 @@ describe('partitionByGroup', () => {
       makeTodo({ id: 10, statusId: 1, sortOrder: 10 }),
     ]
     const result = partitionByGroup(todos, 'status', makeCtx({ statuses: STATUSES }))
-    expect(result.groups[0].todos.map((t) => t.id)).toEqual([30, 5, 10])
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([30, 5, 10])
   })
 
   it('groups by people with unassigned routed to ungrouped', () => {
@@ -258,8 +258,8 @@ describe('partitionByGroup', () => {
     const result = partitionByGroup(todos, 'people', ctx)
     expect(result.ungrouped.map((t) => t.id)).toEqual([12])
     expect(result.groups.map((g) => g.label)).toEqual(['Alice', 'Bob'])
-    expect(result.groups[0].todos.map((t) => t.id)).toEqual([10])
-    expect(result.groups[1].todos.map((t) => t.id)).toEqual([11])
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[1]!.todos.map((t) => t.id)).toEqual([11])
   })
 
   it('places a todo into multiple person groups when assigned to multiple people', () => {
@@ -271,9 +271,9 @@ describe('partitionByGroup', () => {
     })
     const result = partitionByGroup(todos, 'people', ctx)
     expect(result.groups).toHaveLength(2)
-    expect(result.groups[0].todos.map((t) => t.id)).toEqual([10])
-    expect(result.groups[1].todos.map((t) => t.id)).toEqual([10])
-    expect(result.groups[0].todos[0]).toBe(result.groups[1].todos[0])
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[1]!.todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[0]!.todos[0]).toBe(result.groups[1]!.todos[0])
   })
 
   it('orders people groups alphabetically by label', () => {
@@ -305,8 +305,8 @@ describe('partitionByGroup', () => {
     })
     const result = partitionByGroup(todos, 'org', ctx)
     expect(result.groups).toHaveLength(2)
-    expect(result.groups[0].label).toBe('Acme')
-    expect(result.groups[1].label).toBe('Initech')
+    expect(result.groups[0]!.label).toBe('Acme')
+    expect(result.groups[1]!.label).toBe('Initech')
   })
 
   it('groups by tag with untagged routed to ungrouped', () => {
@@ -327,8 +327,8 @@ describe('partitionByGroup', () => {
     expect(result.ungrouped.map((t) => t.id)).toEqual([12])
     // Alphabetical: followup before urgent
     expect(result.groups.map((g) => g.label)).toEqual(['followup', 'urgent'])
-    expect(result.groups[0].todos.map((t) => t.id)).toEqual([11])
-    expect(result.groups[1].todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([11])
+    expect(result.groups[1]!.todos.map((t) => t.id)).toEqual([10])
   })
 
   it('places a todo into multiple tag groups when assigned to multiple tags', () => {
@@ -340,10 +340,10 @@ describe('partitionByGroup', () => {
     })
     const result = partitionByGroup(todos, 'tag', ctx)
     expect(result.groups).toHaveLength(2)
-    expect(result.groups[0].todos.map((t) => t.id)).toEqual([10])
-    expect(result.groups[1].todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[1]!.todos.map((t) => t.id)).toEqual([10])
     // Same row reference, no clone
-    expect(result.groups[0].todos[0]).toBe(result.groups[1].todos[0])
+    expect(result.groups[0]!.todos[0]).toBe(result.groups[1]!.todos[0])
   })
 
   it('orders tag groups alphabetically by label', () => {
@@ -397,8 +397,8 @@ describe('partitionByGroup', () => {
       makeTodo({ id: 1, scheduledDate: { kind: 'date', value: inThreeDays } }),
     ]
     const result = partitionByGroup(todos, 'scheduled', makeCtx({ today }))
-    expect(result.groups[0].key).toBe('week')
-    expect(result.groups[0].todos.map((t) => t.id)).toEqual([1])
+    expect(result.groups[0]!.key).toBe('week')
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([1])
   })
 
   it('uses dueDate (not scheduledDate) for the deadline dimension', () => {

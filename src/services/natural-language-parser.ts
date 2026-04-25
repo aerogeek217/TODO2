@@ -66,9 +66,10 @@ function parseRelativeDate(text: string): Date | null {
 
   // "next Monday", "next friday", etc.
   const nextDayMatch = lower.match(/^next\s+(mon|tue|wed|thu|fri|sat|sun)\w*/i)
-  if (nextDayMatch) {
+  if (nextDayMatch && nextDayMatch[1] != null) {
     const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-    const targetDay = dayNames.findIndex((d) => nextDayMatch[1].toLowerCase().startsWith(d))
+    const matchedDay = nextDayMatch[1]
+    const targetDay = dayNames.findIndex((d) => matchedDay.toLowerCase().startsWith(d))
     if (targetDay >= 0) {
       const result = new Date(today)
       const currentDay = result.getDay()
@@ -81,7 +82,7 @@ function parseRelativeDate(text: string): Date | null {
 
   // "in N days"
   const inDaysMatch = lower.match(/^in\s+(\d+)\s+days?$/i)
-  if (inDaysMatch) {
+  if (inDaysMatch && inDaysMatch[1] != null) {
     return new Date(today.getTime() + parseInt(inDaysMatch[1]) * MS_PER_DAY)
   }
 
@@ -157,9 +158,11 @@ export function parseInput(text: string): ParsedInput {
   // Extract people (@name or @"First Last")
   PERSON_PATTERN.lastIndex = 0
   while ((match = PERSON_PATTERN.exec(text)) !== null) {
+    const value = match[1] ?? match[2]
+    if (value == null) continue
     tokens.push({
       type: 'person',
-      value: match[1] ?? match[2],
+      value,
       raw: match[0],
       start: match.index,
       end: match.index + match[0].length,
@@ -169,10 +172,12 @@ export function parseInput(text: string): ParsedInput {
   // Extract projects (/name) — only when preceded by whitespace or at start
   PROJECT_PATTERN.lastIndex = 0
   while ((match = PROJECT_PATTERN.exec(text)) !== null) {
-    if (match.index > 0 && !/\s/.test(text[match.index - 1])) continue
+    if (match.index > 0 && !/\s/.test(text[match.index - 1] ?? '')) continue
+    const value = match[1]
+    if (value == null) continue
     tokens.push({
       type: 'project',
-      value: match[1],
+      value,
       raw: match[0],
       start: match.index,
       end: match.index + match[0].length,
@@ -184,12 +189,15 @@ export function parseInput(text: string): ParsedInput {
   // hypothetical conflict; leading separator in group 1 stays in the title.
   TAG_PATTERN.lastIndex = 0
   while ((match = TAG_PATTERN.exec(text)) !== null) {
-    const sepLen = match[1].length
+    const sep = match[1]
+    const name = match[2]
+    if (sep == null || name == null) continue
+    const sepLen = sep.length
     const tagStart = match.index + sepLen
-    const tagEnd = tagStart + 1 + match[2].length
+    const tagEnd = tagStart + 1 + name.length
     tokens.push({
       type: 'tag',
-      value: match[2],
+      value: name,
       raw: text.slice(tagStart, tagEnd),
       start: tagStart,
       end: tagEnd,
@@ -201,9 +209,11 @@ export function parseInput(text: string): ParsedInput {
   // the inner date text.
   BY_DEADLINE_PATTERN.lastIndex = 0
   while ((match = BY_DEADLINE_PATTERN.exec(text)) !== null) {
+    const value = match[1]
+    if (value == null) continue
     tokens.push({
       type: 'deadline',
-      value: match[1],
+      value,
       raw: match[0],
       start: match.index,
       end: match.index + match[0].length,
@@ -211,9 +221,11 @@ export function parseInput(text: string): ParsedInput {
   }
   BANG_DEADLINE_PATTERN.lastIndex = 0
   while ((match = BANG_DEADLINE_PATTERN.exec(text)) !== null) {
+    const value = match[1]
+    if (value == null) continue
     tokens.push({
       type: 'deadline',
-      value: match[1],
+      value,
       raw: match[0],
       start: match.index,
       end: match.index + match[0].length,

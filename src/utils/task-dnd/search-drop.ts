@@ -15,6 +15,7 @@ export function computeSearchDropIndex(
 ): number {
   for (let i = 0; i < entryRects.length; i++) {
     const r = entryRects[i]
+    if (!r) continue
     if (pointerY < r.top + r.height / 2) return i
   }
   return entryRects.length

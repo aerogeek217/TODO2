@@ -30,20 +30,27 @@ function getSiblings(projectTodos: PersistedTodoItem[]): PersistedTodoItem[] {
 export function computeInsertionSort(siblings: PersistedTodoItem[], beforeId: number | null): number {
   if (siblings.length === 0) return 1
 
+  const last = siblings[siblings.length - 1]
+  const first = siblings[0]
+  if (!last || !first) return 1
+
   if (beforeId == null) {
-    return siblings[siblings.length - 1].sortOrder + 1
+    return last.sortOrder + 1
   }
 
   const idx = siblings.findIndex(t => t.id === beforeId)
   if (idx === -1) {
-    return siblings[siblings.length - 1].sortOrder + 1
+    return last.sortOrder + 1
   }
 
   if (idx === 0) {
-    return siblings[0].sortOrder - 1
+    return first.sortOrder - 1
   }
 
-  return (siblings[idx - 1].sortOrder + siblings[idx].sortOrder) / 2
+  const prev = siblings[idx - 1]
+  const at = siblings[idx]
+  if (!prev || !at) return last.sortOrder + 1
+  return (prev.sortOrder + at.sortOrder) / 2
 }
 
 /**
@@ -114,9 +121,11 @@ export function normalizeSortOrders(projectTodos: PersistedTodoItem[]): TaskMuta
   const sorted = [...projectTodos].sort(bySortOrder)
   const mutations: TaskMutation[] = []
   for (let i = 0; i < sorted.length; i++) {
+    const item = sorted[i]
+    if (!item) continue
     const order = i + 1
-    if (sorted[i].sortOrder !== order) {
-      mutations.push({ todoId: sorted[i].id, changes: { sortOrder: order } })
+    if (item.sortOrder !== order) {
+      mutations.push({ todoId: item.id, changes: { sortOrder: order } })
     }
   }
   return mutations
@@ -131,6 +140,8 @@ export function shouldNormalize(projectTodos: PersistedTodoItem[]): boolean {
     if (!Number.isInteger(t.sortOrder)) return true
   }
   const sorted = [...projectTodos].sort(bySortOrder)
-  const max = sorted[sorted.length - 1].sortOrder
+  const lastSorted = sorted[sorted.length - 1]
+  if (!lastSorted) return false
+  const max = lastSorted.sortOrder
   return max > projectTodos.length * 3
 }

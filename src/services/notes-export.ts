@@ -123,14 +123,14 @@ export function mdToHtml(md: string): string {
     }
 
     const h = line.match(/^(#{1,3})\s+(.+)$/)
-    if (h) {
+    if (h && h[1] != null && h[2] != null) {
       closeList()
       out.push(`<h${h[1].length}>${inlineMd(h[2])}</h${h[1].length}>`)
       continue
     }
 
     const chk = line.match(/^-\s*\[( |x|X)\]\s+(.+)$/)
-    if (chk) {
+    if (chk && chk[1] != null && chk[2] != null) {
       if (!inList) {
         out.push('<ul>')
         inList = true
@@ -141,7 +141,7 @@ export function mdToHtml(md: string): string {
     }
 
     const bul = line.match(/^[-*]\s+(.+)$/)
-    if (bul) {
+    if (bul && bul[1] != null) {
       if (!inList) {
         out.push('<ul>')
         inList = true

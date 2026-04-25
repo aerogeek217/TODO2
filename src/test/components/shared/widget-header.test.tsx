@@ -108,8 +108,8 @@ describe('WidgetHeader', () => {
     expect(titleBtn).toHaveAttribute('aria-haspopup', 'menu')
     fireEvent.click(titleBtn)
     expect(onTitleClick).toHaveBeenCalled()
-    expect(typeof onTitleClick.mock.calls[0][0].x).toBe('number')
-    expect(typeof onTitleClick.mock.calls[0][0].y).toBe('number')
+    expect(typeof onTitleClick.mock.calls[0]![0].x).toBe('number')
+    expect(typeof onTitleClick.mock.calls[0]![0].y).toBe('number')
   })
 
   it('exposes aria-expanded on the title button when menu is open', () => {

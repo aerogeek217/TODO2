@@ -125,7 +125,7 @@ describe('v20 migration', () => {
     await runMigration()
     const insets = await db.listInsets.toArray() as unknown as Record<string, unknown>[]
     expect(insets).toHaveLength(1)
-    expect(insets[0].preset).toBe('high-priority')
+    expect(insets[0]!.preset).toBe('high-priority')
   })
 
   it('does not duplicate seeded statuses on re-run (idempotent)', async () => {
@@ -198,7 +198,7 @@ describe('v20 migration', () => {
 
     const todos = await db.todos.toArray()
     expect(todos).toHaveLength(1)
-    expect('isStarred' in todos[0]).toBe(false)
+    expect('isStarred' in todos[0]!).toBe(false)
   })
 
   it('appends seeded statuses after existing user statuses in sortOrder', async () => {

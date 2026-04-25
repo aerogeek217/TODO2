@@ -54,7 +54,7 @@ describe('DateAnchorInput', () => {
     const { container } = render(<DateAnchorInput value={null} onChange={onChange} />)
     fireEvent.change(dateInput(container), { target: { value: '2026-04-20' } })
     expect(onChange).toHaveBeenCalledTimes(1)
-    const arg = onChange.mock.calls[0][0]
+    const arg = onChange.mock.calls[0]![0]
     expect(arg.kind).toBe('fixed')
     expect(arg.iso.slice(0, 10)).toBe('2026-04-20')
   })

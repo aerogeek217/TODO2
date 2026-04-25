@@ -189,22 +189,28 @@ export function TabStrip({
       e.preventDefault()
       const nextIdx = (currentIdx - 1 + slot.tabs.length) % slot.tabs.length
       const nextTab = slot.tabs[nextIdx]
+      if (!nextTab) return
       onActivateTab(nextTab.id)
       queueMicrotask(() => focusPillAt(nextIdx))
     } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
       e.preventDefault()
       const nextIdx = (currentIdx + 1) % slot.tabs.length
       const nextTab = slot.tabs[nextIdx]
+      if (!nextTab) return
       onActivateTab(nextTab.id)
       queueMicrotask(() => focusPillAt(nextIdx))
     } else if (e.key === 'Home') {
       e.preventDefault()
-      onActivateTab(slot.tabs[0].id)
+      const firstTab = slot.tabs[0]
+      if (!firstTab) return
+      onActivateTab(firstTab.id)
       queueMicrotask(() => focusPillAt(0))
     } else if (e.key === 'End') {
       e.preventDefault()
       const lastIdx = slot.tabs.length - 1
-      onActivateTab(slot.tabs[lastIdx].id)
+      const lastTab = slot.tabs[lastIdx]
+      if (!lastTab) return
+      onActivateTab(lastTab.id)
       queueMicrotask(() => focusPillAt(lastIdx))
     } else if (e.key === 'Delete') {
       e.preventDefault()

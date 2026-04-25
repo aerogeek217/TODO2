@@ -42,7 +42,9 @@ function writeEntries(
 }
 
 function nextSortOrder(entries: TaskboardEntry[]): number {
-  return entries.length === 0 ? 1000 : entries[entries.length - 1].sortOrder + 1000
+  if (entries.length === 0) return 1000
+  const last = entries[entries.length - 1]
+  return last ? last.sortOrder + 1000 : 1000
 }
 
 function normalize(entries: TaskboardEntry[]): TaskboardEntry[] {
@@ -107,16 +109,24 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
       const current = board.entries
       let sortOrder: number
       if (current.length === 0 || atIndex >= current.length) {
-        sortOrder = current.length > 0 ? current[current.length - 1].sortOrder + 1000 : 1000
+        const last = current[current.length - 1]
+        sortOrder = current.length > 0 && last ? last.sortOrder + 1000 : 1000
       } else if (atIndex <= 0) {
-        sortOrder = current[0].sortOrder - 1000
+        const first = current[0]
+        sortOrder = first ? first.sortOrder - 1000 : 1000
       } else {
-        const prev = current[atIndex - 1].sortOrder
-        const next = current[atIndex].sortOrder
+        const prevEntry = current[atIndex - 1]
+        const nextEntry = current[atIndex]
+        if (!prevEntry || !nextEntry) return
+        const prev = prevEntry.sortOrder
+        const next = nextEntry.sortOrder
         sortOrder = Math.floor((prev + next) / 2)
         if (sortOrder <= prev) {
           const normalized = normalize(current)
-          sortOrder = Math.floor((normalized[atIndex - 1].sortOrder + normalized[atIndex].sortOrder) / 2)
+          const nPrev = normalized[atIndex - 1]
+          const nNext = normalized[atIndex]
+          if (!nPrev || !nNext) return
+          sortOrder = Math.floor((nPrev.sortOrder + nNext.sortOrder) / 2)
           const withInsert = [...normalized]
           withInsert.splice(atIndex, 0, { todoId, sortOrder })
           writeEntries(set, get().board, withInsert)
@@ -147,14 +157,21 @@ export const useTaskboardStore = create<TaskboardState>((set, get) => ({
       let low: number, high: number
       if (current.length === 0) { low = 0; high = (count + 1) * 1000 }
       else if (atIndex >= current.length) {
-        low = current[current.length - 1].sortOrder
+        const last = current[current.length - 1]
+        if (!last) return
+        low = last.sortOrder
         high = low + (count + 1) * 1000
       } else if (atIndex <= 0) {
-        high = current[0].sortOrder
+        const first = current[0]
+        if (!first) return
+        high = first.sortOrder
         low = high - (count + 1) * 1000
       } else {
-        low = current[atIndex - 1].sortOrder
-        high = current[atIndex].sortOrder
+        const prevEntry = current[atIndex - 1]
+        const nextEntry = current[atIndex]
+        if (!prevEntry || !nextEntry) return
+        low = prevEntry.sortOrder
+        high = nextEntry.sortOrder
       }
       const step = Math.floor((high - low) / (count + 1))
       const inserts: TaskboardEntry[] = newIds.map((todoId, i) => ({ todoId, sortOrder: low + step * (i + 1) }))

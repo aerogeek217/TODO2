@@ -26,7 +26,7 @@ describe('canvas-rails-store', () => {
     })
     const s = useCanvasRailsStore.getState()
     expect(s.hydrated).toBe(true)
-    expect(getActiveTab(s.rails.right!.slots[0]).listDefinitionId).toBe(42)
+    expect(getActiveTab(s.rails.right!.slots[0]!).listDefinitionId).toBe(42)
   })
 
   it('addRail on an empty side creates a rail with the right orientation', () => {
@@ -43,7 +43,7 @@ describe('canvas-rails-store', () => {
     useCanvasRailsStore.getState().addRail('right', createLensSlot(2))
     const rail = useCanvasRailsStore.getState().rails.right
     expect(rail?.slots).toHaveLength(1)
-    expect(getActiveTab(rail!.slots[0]).listDefinitionId).toBe(1)
+    expect(getActiveTab(rail!.slots[0]!).listDefinitionId).toBe(1)
   })
 
   it('closeSlot removes the matching slot and collapses an empty rail to null', () => {
@@ -62,7 +62,7 @@ describe('canvas-rails-store', () => {
     useCanvasRailsStore.getState().closeSlot(a.id)
     let right = useCanvasRailsStore.getState().rails.right
     expect(right?.slots).toHaveLength(1)
-    expect(right?.slots[0].id).toBe(b.id)
+    expect(right?.slots[0]!.id).toBe(b.id)
 
     useCanvasRailsStore.getState().closeSlot(b.id)
     right = useCanvasRailsStore.getState().rails.right
@@ -98,7 +98,7 @@ describe('canvas-rails-store', () => {
       hydrated: true,
     })
     useCanvasRailsStore.getState().updateSlot(slot.id, { id: 'malicious' } as unknown as { listDefinitionId?: number })
-    expect(useCanvasRailsStore.getState().rails.right?.slots[0].id).toBe(slot.id)
+    expect(useCanvasRailsStore.getState().rails.right?.slots[0]!.id).toBe(slot.id)
   })
 
   it('updateSlot with an empty patch returns the same rails ref (no re-render)', () => {
@@ -150,7 +150,7 @@ describe('canvas-rails-store', () => {
     useCanvasRailsStore.getState().dropSlotToSide(a.id, 'left')
     const s = useCanvasRailsStore.getState().rails
     expect(s.right).toBeNull()
-    expect(s.left?.slots[0].id).toBe(a.id)
+    expect(s.left?.slots[0]!.id).toBe(a.id)
   })
 
   it('splitDropSlot inserts before a target slot', () => {
@@ -185,9 +185,9 @@ describe('canvas-rails-store', () => {
     useCanvasRailsStore.getState().splitSlot(a.id, 'below')
     const slots = useCanvasRailsStore.getState().rails.right?.slots ?? []
     expect(slots).toHaveLength(2)
-    expect(slots[0].id).toBe(a.id)
-    expect(slots[1].id).not.toBe(a.id)
-    expect(getActiveTab(slots[1]).type).toBe('lens')
+    expect(slots[0]!.id).toBe(a.id)
+    expect(slots[1]!.id).not.toBe(a.id)
+    expect(getActiveTab(slots[1]!).type).toBe('lens')
   })
 
   it('setRailSize persists per-side widths/heights and clamps out-of-range values', () => {
@@ -244,33 +244,33 @@ describe('canvas-rails-store', () => {
     it('addTab appends a tab and activates it', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'notes')
-      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]
+      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]!
       expect(updated.tabs).toHaveLength(2)
-      expect(updated.tabs[1].type).toBe('notes')
-      expect(updated.activeTabId).toBe(updated.tabs[1].id)
+      expect(updated.tabs[1]!.type).toBe('notes')
+      expect(updated.activeTabId).toBe(updated.tabs[1]!.id)
     })
 
     it('addTab seeds listDefinitionId for lens tabs', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'lens', { listDefinitionId: 42 })
-      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]
-      expect(updated.tabs[1].listDefinitionId).toBe(42)
+      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]!
+      expect(updated.tabs[1]!.listDefinitionId).toBe(42)
     })
 
     it('addTab appends a taskboard tab (no per-tab seed — singleton board)', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'taskboard')
-      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]
-      expect(updated.tabs[1].type).toBe('taskboard')
+      const updated = useCanvasRailsStore.getState().rails.right!.slots[0]!
+      expect(updated.tabs[1]!.type).toBe('taskboard')
     })
 
     it('activateTab switches active tab when the id exists', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'notes')
-      const s1 = useCanvasRailsStore.getState().rails.right!.slots[0]
-      const firstTabId = s1.tabs[0].id
+      const s1 = useCanvasRailsStore.getState().rails.right!.slots[0]!
+      const firstTabId = s1.tabs[0]!.id
       useCanvasRailsStore.getState().activateTab(slot.id, firstTabId)
-      const s2 = useCanvasRailsStore.getState().rails.right!.slots[0]
+      const s2 = useCanvasRailsStore.getState().rails.right!.slots[0]!
       expect(s2.activeTabId).toBe(firstTabId)
     })
 
@@ -286,17 +286,17 @@ describe('canvas-rails-store', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'notes')
       useCanvasRailsStore.getState().addTab(slot.id, 'calendar')
-      const mid = useCanvasRailsStore.getState().rails.right!.slots[0].tabs[1].id
+      const mid = useCanvasRailsStore.getState().rails.right!.slots[0]!.tabs[1]!.id
       // Active tab is the 'calendar' tab (last added). Close the middle ('notes') tab.
       useCanvasRailsStore.getState().closeTab(slot.id, mid)
-      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]!
       expect(s.tabs).toHaveLength(2)
       expect(s.tabs.find((t) => t.id === mid)).toBeUndefined()
     })
 
     it('closeTab closes the whole slot when only one tab remains', () => {
       const slot = seedOneSlot()
-      const onlyTabId = slot.tabs[0].id
+      const onlyTabId = slot.tabs[0]!.id
       useCanvasRailsStore.getState().closeTab(slot.id, onlyTabId)
       expect(useCanvasRailsStore.getState().rails.right).toBeNull()
     })
@@ -304,10 +304,10 @@ describe('canvas-rails-store', () => {
     it('closeTab activates the left sibling when the active tab is closed', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'notes') // index 1, now active
-      const activeBefore = useCanvasRailsStore.getState().rails.right!.slots[0].activeTabId
+      const activeBefore = useCanvasRailsStore.getState().rails.right!.slots[0]!.activeTabId
       useCanvasRailsStore.getState().closeTab(slot.id, activeBefore)
-      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
-      expect(s.activeTabId).toBe(s.tabs[0].id)
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]!
+      expect(s.activeTabId).toBe(s.tabs[0]!.id)
     })
 
     it('closeTab on a middle tab keeps activeTabId valid (M7)', () => {
@@ -318,9 +318,9 @@ describe('canvas-rails-store', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'notes')
       useCanvasRailsStore.getState().addTab(slot.id, 'calendar')
-      const midId = useCanvasRailsStore.getState().rails.right!.slots[0].tabs[1].id
+      const midId = useCanvasRailsStore.getState().rails.right!.slots[0]!.tabs[1]!.id
       useCanvasRailsStore.getState().closeTab(slot.id, midId)
-      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]!
       expect(s.tabs).toHaveLength(2)
       expect(s.tabs.some((t) => t.id === s.activeTabId)).toBe(true)
     })
@@ -328,12 +328,12 @@ describe('canvas-rails-store', () => {
     it('changeTabType rewrites a specific tab', () => {
       const slot = seedOneSlot()
       useCanvasRailsStore.getState().addTab(slot.id, 'notes')
-      const firstTabId = slot.tabs[0].id
+      const firstTabId = slot.tabs[0]!.id
       useCanvasRailsStore.getState().changeTabType(slot.id, firstTabId, 'calendar')
-      const s = useCanvasRailsStore.getState().rails.right!.slots[0]
-      expect(s.tabs[0].type).toBe('calendar')
+      const s = useCanvasRailsStore.getState().rails.right!.slots[0]!
+      expect(s.tabs[0]!.type).toBe('calendar')
       // Cross-kind seed cleared.
-      expect(s.tabs[0].listDefinitionId).toBeUndefined()
+      expect(s.tabs[0]!.listDefinitionId).toBeUndefined()
     })
   })
 

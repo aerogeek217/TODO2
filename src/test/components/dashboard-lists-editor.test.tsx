@@ -125,7 +125,7 @@ describe('DashboardListsEditor — Match sort field grouping option', () => {
     )
     // Open the first def's config panel.
     const configBtns = getAllByText('⚙')
-    fireEvent.click(configBtns[0])
+    fireEvent.click(configBtns[0]!)
     const matchBtn = getByText('Match sort field') as HTMLButtonElement
     expect(matchBtn.disabled).toBe(true)
   })
@@ -137,7 +137,7 @@ describe('DashboardListsEditor — Match sort field grouping option', () => {
       </MemoryRouter>,
     )
     const configBtns = getAllByText('⚙')
-    fireEvent.click(configBtns[1])
+    fireEvent.click(configBtns[1]!)
     const matchBtn = getByText('Match sort field') as HTMLButtonElement
     expect(matchBtn.disabled).toBe(false)
   })
@@ -169,7 +169,7 @@ describe('DashboardListsEditor — runtime filter control', () => {
       </MemoryRouter>,
     )
     const configBtns = getAllByText('⚙')
-    fireEvent.click(configBtns[0])
+    fireEvent.click(configBtns[0]!)
 
     // The runtime-filter select is the one whose options include "Person".
     const selects = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
@@ -238,7 +238,7 @@ describe('DashboardListsEditor — draft dirty-gating (L5)', () => {
       </MemoryRouter>,
     )
     const configBtns = getAllByText('⚙')
-    fireEvent.click(configBtns[0])
+    fireEvent.click(configBtns[0]!)
 
     const selects = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
     const runtimeSelect = selects.find((el) =>

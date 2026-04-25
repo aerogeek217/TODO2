@@ -185,8 +185,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           () => get().remove(id),
           async () => {
             // Find the current orphan project dynamically (may differ after redo cycles)
-            if (tasks.length > 0) {
-              const currentTodo = await todoRepository.getById(tasks[0].id)
+            const firstTask = tasks[0]
+            if (tasks.length > 0 && firstTask) {
+              const currentTodo = await todoRepository.getById(firstTask.id)
               const currentProjectId = currentTodo?.projectId
               if (currentProjectId != null && currentProjectId !== id) {
                 await projectRepository.delete(currentProjectId)

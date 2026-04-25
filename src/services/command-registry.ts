@@ -102,9 +102,10 @@ export function createCommands(ctx: CommandContext): Command[] {
       id: 'task-duplicate', name: 'Duplicate Task', category: 'task',
       action: async () => {
         const ids = ctx.getSelectedIds()
-        if (ids.length === 1) {
+        const onlyId = ids[0]
+        if (ids.length === 1 && onlyId != null) {
           const { useTodoStore } = await import('../stores/todo-store')
-          await useTodoStore.getState().duplicate(ids[0])
+          await useTodoStore.getState().duplicate(onlyId)
         }
       },
     })

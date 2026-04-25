@@ -78,10 +78,10 @@ export function decodeRailsDropId(id: string): RailsDropZone | null {
   if (parts[0] === 'canvas' && parts.length === 1) {
     return { kind: 'canvas' }
   }
-  if (parts[0] === 'empty-side' && parts.length === 2 && isSide(parts[1])) {
+  if (parts[0] === 'empty-side' && parts.length === 2 && parts[1] != null && isSide(parts[1])) {
     return { kind: 'empty-side', side: parts[1] }
   }
-  if (parts[0] === 'empty-side' && parts.length === 3 && isSide(parts[1]) && isClaim(parts[2])) {
+  if (parts[0] === 'empty-side' && parts.length === 3 && parts[1] != null && parts[2] != null && isSide(parts[1]) && isClaim(parts[2])) {
     return { kind: 'empty-side', side: parts[1], claim: parts[2] }
   }
   if (parts[0] === 'slot' && parts.length >= 2) {
@@ -124,6 +124,7 @@ function removeSlot(rails: RailsState, slotId: string): { rails: RailsState; slo
     const idx = rail.slots.findIndex((s) => s.id === slotId)
     if (idx === -1) continue
     const slot = rail.slots[idx]
+    if (!slot) continue
     const nextSlots = rail.slots.slice(0, idx).concat(rail.slots.slice(idx + 1))
     const next: RailsState = { ...rails }
     if (nextSlots.length === 0) {
@@ -131,9 +132,14 @@ function removeSlot(rails: RailsState, slotId: string): { rails: RailsState; slo
     } else if (nextSlots.length === 1) {
       // Sole remaining slot: strip stale flex so the rail doesn't bias a
       // later insertion (see closeSlot for the same invariant).
-      const { flex: _ignore, ...rest } = nextSlots[0]
-      void _ignore
-      next[side] = { ...rail, slots: [rest as Slot] }
+      const onlySlot = nextSlots[0]
+      if (onlySlot) {
+        const { flex: _ignore, ...rest } = onlySlot
+        void _ignore
+        next[side] = { ...rail, slots: [rest as Slot] }
+      } else {
+        next[side] = { ...rail, slots: nextSlots }
+      }
     } else {
       next[side] = { ...rail, slots: nextSlots }
     }
@@ -246,10 +252,12 @@ export function applyCenterSwap(
   const src = findSlotLocation(rails, slotId)
   const tgt = findSlotLocation(rails, targetSlotId)
   if (!src || !tgt) return rails
-  const srcRail = rails[src.side]!
-  const tgtRail = rails[tgt.side]!
+  const srcRail = rails[src.side]
+  const tgtRail = rails[tgt.side]
+  if (!srcRail || !tgtRail) return rails
   const srcSlot = srcRail.slots[src.index]
   const tgtSlot = tgtRail.slots[tgt.index]
+  if (!srcSlot || !tgtSlot) return rails
   const next: RailsState = { ...rails }
   if (src.side === tgt.side) {
     const slots = srcRail.slots.slice()
@@ -287,7 +295,8 @@ export function applySplitButton(
 ): RailsState {
   const loc = findSlotLocation(rails, slotId)
   if (!loc) return rails
-  const rail = rails[loc.side]!
+  const rail = rails[loc.side]
+  if (!rail) return rails
   const kind: SlotKind = options.kind ?? 'lens'
   let newSlot: Slot
   if (options.buildSlot) {
@@ -334,7 +343,9 @@ function cascadeRailAfterSlotRemoval(rail: Rail, nextSlots: Slot[]): Rail | null
   if (nextSlots.length === 1) {
     // Sole remaining slot — strip stale flex so it doesn't bias the next
     // insertion (mirrors closeSlot/removeSlot invariants).
-    const { flex: _ignore, ...rest } = nextSlots[0]
+    const onlySlot = nextSlots[0]
+    if (!onlySlot) return { ...rail, slots: nextSlots }
+    const { flex: _ignore, ...rest } = onlySlot
     void _ignore
     return { ...rail, slots: [rest as Slot] }
   }
@@ -357,11 +368,14 @@ export function extractTab(
 ): { rails: RailsState; tab: Tab | null } {
   const loc = findSlotLocation(rails, slotId)
   if (!loc) return { rails, tab: null }
-  const rail = rails[loc.side]!
+  const rail = rails[loc.side]
+  if (!rail) return { rails, tab: null }
   const slot = rail.slots[loc.index]
+  if (!slot) return { rails, tab: null }
   const tabIdx = slot.tabs.findIndex((t) => t.id === tabId)
   if (tabIdx === -1) return { rails, tab: null }
   const tab = slot.tabs[tabIdx]
+  if (!tab) return { rails, tab: null }
 
   if (slot.tabs.length === 1) {
     const nextSlots = rail.slots.slice(0, loc.index).concat(rail.slots.slice(loc.index + 1))
@@ -374,7 +388,7 @@ export function extractTab(
   let activeTabId = slot.activeTabId
   if (activeTabId === tabId) {
     const fallback = slot.tabs[tabIdx - 1] ?? slot.tabs[tabIdx + 1]
-    activeTabId = fallback.id
+    if (fallback) activeTabId = fallback.id
   }
   const nextSlot: Slot = { ...slot, tabs: nextTabs, activeTabId }
   const nextSlots = rail.slots.slice()
@@ -395,14 +409,18 @@ export function applyReorderTab(
 ): RailsState {
   const loc = findSlotLocation(rails, slotId)
   if (!loc) return rails
-  const rail = rails[loc.side]!
+  const rail = rails[loc.side]
+  if (!rail) return rails
   const slot = rail.slots[loc.index]
+  if (!slot) return rails
   const from = slot.tabs.findIndex((t) => t.id === tabId)
   if (from === -1) return rails
+  const movingTab = slot.tabs[from]
+  if (!movingTab) return rails
   const without = slot.tabs.slice(0, from).concat(slot.tabs.slice(from + 1))
   const clamped = Math.max(0, Math.min(insertIdx, without.length))
   if (clamped === from) return rails
-  const nextTabs = without.slice(0, clamped).concat([slot.tabs[from]]).concat(without.slice(clamped))
+  const nextTabs = without.slice(0, clamped).concat([movingTab]).concat(without.slice(clamped))
   const nextSlot: Slot = { ...slot, tabs: nextTabs }
   const nextSlots = rail.slots.slice()
   nextSlots[loc.index] = nextSlot
@@ -430,8 +448,10 @@ export function applyMoveTabToSlot(
   if (!tab) return rails
   const loc = findSlotLocation(afterExtract, destSlotId)
   if (!loc) return rails
-  const rail = afterExtract[loc.side]!
+  const rail = afterExtract[loc.side]
+  if (!rail) return rails
   const slot = rail.slots[loc.index]
+  if (!slot) return rails
   const clamped = Math.max(0, Math.min(insertIdx, slot.tabs.length))
   const nextTabs = slot.tabs.slice(0, clamped).concat([tab]).concat(slot.tabs.slice(clamped))
   const nextSlot: Slot = { ...slot, tabs: nextTabs, activeTabId: tab.id }
@@ -458,7 +478,8 @@ function placeNewSlot(rails: RailsState, slot: Slot, target: TabDropTarget): Rai
   if (target.kind === 'slot') {
     const loc = findSlotLocation(rails, target.slotId)
     if (!loc) return rails
-    const rail = rails[loc.side]!
+    const rail = rails[loc.side]
+    if (!rail) return rails
     // Center drop on a slot quadrant would mean "merge as tab" — tab drags
     // reach that case via the tab-strip drop zone, so treat center here as
     // a no-op to avoid unexpected merges on a generic slot body.
@@ -703,8 +724,10 @@ export function slotFromFloat(descriptor: FloatDescriptor, slotId: string, tabId
 function appendTabToSlot(rails: RailsState, slotId: string, tab: Tab, insertIdx: number): RailsState {
   const loc = findSlotLocation(rails, slotId)
   if (!loc) return rails
-  const rail = rails[loc.side]!
+  const rail = rails[loc.side]
+  if (!rail) return rails
   const slot = rail.slots[loc.index]
+  if (!slot) return rails
   const clamped = Math.max(0, Math.min(insertIdx, slot.tabs.length))
   const nextTabs = slot.tabs.slice(0, clamped).concat([tab]).concat(slot.tabs.slice(clamped))
   const nextSlot: Slot = { ...slot, tabs: nextTabs, activeTabId: tab.id }
@@ -735,7 +758,9 @@ export function applyDockFloatIntoSlot(
   if (!loc) return rails
   if (target === 'center') {
     const tab = tabFromFloat(descriptor, genTabId(slotId))
-    const destSlot = rails[loc.side]!.slots[loc.index]
+    const destRail = rails[loc.side]
+    const destSlot = destRail?.slots[loc.index]
+    if (!destSlot) return rails
     return appendTabToSlot(rails, slotId, tab, insertIndex ?? destSlot.tabs.length)
   }
   const newSlotId = genSlotId()

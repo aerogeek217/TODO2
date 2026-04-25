@@ -87,7 +87,7 @@ describe('useListDefinitionStore mutations', () => {
   it('rename updates name and persists', async () => {
     const id = await useListDefinitionStore.getState().add({ name: 'Old' })
     await useListDefinitionStore.getState().rename(id, 'New')
-    expect(useListDefinitionStore.getState().listDefinitions[0].name).toBe('New')
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.name).toBe('New')
 
     const row = await listDefinitionRepository.getById(id)
     expect(row?.name).toBe('New')
@@ -96,7 +96,7 @@ describe('useListDefinitionStore mutations', () => {
   it('setPinned toggles pinnedToDashboard', async () => {
     const id = await useListDefinitionStore.getState().add({ name: 'X' })
     await useListDefinitionStore.getState().setPinned(id, false)
-    expect(useListDefinitionStore.getState().listDefinitions[0].pinnedToDashboard).toBe(false)
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.pinnedToDashboard).toBe(false)
 
     const row = await listDefinitionRepository.getById(id)
     expect(row?.pinnedToDashboard).toBe(false)
@@ -112,7 +112,7 @@ describe('useListDefinitionStore mutations', () => {
     await useUndoStore.getState().undo()
     const after = useListDefinitionStore.getState().listDefinitions
     expect(after).toHaveLength(1)
-    expect(after[0].name).toBe('Going away')
+    expect(after[0]!.name).toBe('Going away')
   })
 
   it('clone duplicates with a unique name', async () => {
@@ -213,7 +213,7 @@ describe('Save-as-preset round-trip', () => {
     })
 
     expect(lists).toHaveLength(1)
-    const ids = lists[0].todos.map(t => t.id).sort()
+    const ids = lists[0]!.todos.map(t => t.id).sort()
     expect(ids).toEqual([2])  // only id=2 has person=7
   })
 

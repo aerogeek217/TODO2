@@ -203,7 +203,7 @@ describe('resolveTags', () => {
     const ids = await resolveTags(['urgent'], { tagStore })
     expect(ids).toEqual([7])
     expect(tagStore.tags).toHaveLength(1)
-    expect(tagStore.tags[0].name).toBe('Urgent')
+    expect(tagStore.tags[0]!.name).toBe('Urgent')
   })
 
   it('creates a new tag with DEFAULT_ENTITY_COLOR on miss', async () => {
@@ -211,8 +211,8 @@ describe('resolveTags', () => {
     const ids = await resolveTags(['newtag'], { tagStore })
     expect(ids).toHaveLength(1)
     expect(tagStore.tags).toHaveLength(1)
-    expect(tagStore.tags[0].name).toBe('newtag')
-    expect(tagStore.tags[0].color).toBe(DEFAULT_ENTITY_COLOR)
+    expect(tagStore.tags[0]!.name).toBe('newtag')
+    expect(tagStore.tags[0]!.color).toBe(DEFAULT_ENTITY_COLOR)
   })
 
   it('returns ids in input order, mixed hits and misses', async () => {
@@ -243,7 +243,7 @@ describe('resolveTags', () => {
     const ids = await resolveTags(['', '   ', 'real'], { tagStore })
     expect(ids).toHaveLength(1)
     expect(tagStore.tags).toHaveLength(1)
-    expect(tagStore.tags[0].name).toBe('real')
+    expect(tagStore.tags[0]!.name).toBe('real')
   })
 
   it('returns an empty array for an empty input', async () => {

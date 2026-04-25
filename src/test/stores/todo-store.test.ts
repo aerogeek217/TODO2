@@ -17,18 +17,18 @@ describe('todoStore', () => {
     await useTodoStore.getState().add('Buy milk', 1)
     const { todos } = useTodoStore.getState()
     expect(todos).toHaveLength(1)
-    expect(todos[0].title).toBe('Buy milk')
-    expect(todos[0].canvasId).toBe(1)
-    expect(todos[0].isCompleted).toBe(false)
+    expect(todos[0]!.title).toBe('Buy milk')
+    expect(todos[0]!.canvasId).toBe(1)
+    expect(todos[0]!.isCompleted).toBe(false)
   })
 
   it('toggleComplete flips isCompleted', async () => {
     const id = await useTodoStore.getState().add('Task')
     await useTodoStore.getState().toggleComplete(id)
-    expect(useTodoStore.getState().todos[0].isCompleted).toBe(true)
+    expect(useTodoStore.getState().todos[0]!.isCompleted).toBe(true)
 
     await useTodoStore.getState().toggleComplete(id)
-    expect(useTodoStore.getState().todos[0].isCompleted).toBe(false)
+    expect(useTodoStore.getState().todos[0]!.isCompleted).toBe(false)
   })
 
   it('remove deletes a todo from store and DB', async () => {
@@ -47,13 +47,13 @@ describe('todoStore', () => {
     await useTodoStore.getState().loadByCanvas(1)
     const { todos } = useTodoStore.getState()
     expect(todos).toHaveLength(1)
-    expect(todos[0].title).toBe('In 1')
+    expect(todos[0]!.title).toBe('In 1')
   })
 
   it('reorder updates sortOrder', async () => {
     const id = await useTodoStore.getState().add('Task')
     await useTodoStore.getState().reorder(id, 99)
-    expect(useTodoStore.getState().todos[0].sortOrder).toBe(99)
+    expect(useTodoStore.getState().todos[0]!.sortOrder).toBe(99)
   })
 
   it('addAt inserts with specific projectId and sortOrder', async () => {
@@ -112,7 +112,7 @@ describe('todoStore', () => {
 
     await useTodoStore.getState().bulkRemove([id1, id3])
     expect(useTodoStore.getState().todos).toHaveLength(1)
-    expect(useTodoStore.getState().todos[0].id).toBe(id2)
+    expect(useTodoStore.getState().todos[0]!.id).toBe(id2)
 
     expect(await db.todos.get(id1)).toBeUndefined()
     expect(await db.todos.get(id3)).toBeUndefined()
@@ -165,9 +165,9 @@ describe('todoStore', () => {
 
   it('applyMutations no-ops on empty array', async () => {
     await useTodoStore.getState().add('Task')
-    const before = useTodoStore.getState().todos[0]
+    const before = useTodoStore.getState().todos[0]!
     await useTodoStore.getState().applyMutations([])
-    const after = useTodoStore.getState().todos[0]
+    const after = useTodoStore.getState().todos[0]!
     expect(after.sortOrder).toBe(before.sortOrder)
   })
 

@@ -60,8 +60,8 @@ describe('popSlotToCanvas', () => {
     // A placement row was created — no content, just x/y/w/h.
     const floating = useFloatingNoteStore.getState().notes.filter((n) => n.canvasId === canvasId)
     expect(floating.length).toBe(1)
-    expect(floating[0].width).toBeGreaterThan(0)
-    expect(floating[0].height).toBeGreaterThan(0)
+    expect(floating[0]!.width).toBeGreaterThan(0)
+    expect(floating[0]!.height).toBeGreaterThan(0)
     // The global note is unchanged; the floating widget will view it via NotesBody.
     expect(useNoteStore.getState().notes.get(globalId)?.content).toBe('GLOBAL NOTE STAYS PUT')
     // And no per-floating content row was created in the notes table.
@@ -102,7 +102,7 @@ describe('popSlotToCanvas', () => {
 
     const insets = useListInsetStore.getState().insets.filter((i) => i.canvasId === canvasId)
     expect(insets.length).toBe(1)
-    expect(insets[0].listDefinitionId).toBe(defId)
+    expect(insets[0]!.listDefinitionId).toBe(defId)
   })
 
   it('skips a lens slot that has no list definition', async () => {
@@ -132,8 +132,8 @@ describe('popSlotToCanvas', () => {
 
     const calendars = useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId)
     expect(calendars.length).toBe(1)
-    expect(calendars[0].width).toBeGreaterThan(0)
-    expect(calendars[0].height).toBeGreaterThan(0)
+    expect(calendars[0]!.width).toBeGreaterThan(0)
+    expect(calendars[0]!.height).toBeGreaterThan(0)
   })
 
   it('threads the calendar slot\'s orientation + weekOffset onto the floating calendar (menu path)', async () => {
@@ -214,7 +214,7 @@ describe('pop-out + closeTab cascade', () => {
       hydrated: true,
     })
 
-    const slot = useCanvasRailsStore.getState().rails.right!.slots[0]
+    const slot = useCanvasRailsStore.getState().rails.right!.slots[0]!
     const moved = await popTabToCanvas(slot, activeTab.id)
     expect(moved).toBe(true)
     // Floating calendar got the add.
@@ -226,9 +226,9 @@ describe('pop-out + closeTab cascade', () => {
     // Slot survives, now with only the notes tab; activation moved to it.
     const right = useCanvasRailsStore.getState().rails.right
     expect(right?.slots.length).toBe(1)
-    const remaining = right!.slots[0]
+    const remaining = right!.slots[0]!
     expect(remaining.tabs.length).toBe(1)
-    expect(remaining.tabs[0].id).toBe(otherTab.id)
+    expect(remaining.tabs[0]!.id).toBe(otherTab.id)
     expect(remaining.activeTabId).toBe(otherTab.id)
   })
 
@@ -246,7 +246,7 @@ describe('pop-out + closeTab cascade', () => {
       hydrated: true,
     })
 
-    const slot = useCanvasRailsStore.getState().rails.right!.slots[0]
+    const slot = useCanvasRailsStore.getState().rails.right!.slots[0]!
     const moved = await popTabToCanvas(slot, tab.id)
     expect(moved).toBe(true)
     expect(useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId).length).toBe(1)
@@ -284,7 +284,7 @@ describe('createAndDockSlot', () => {
     const id = useCanvasRailsStore.getState().createAndDockSlot('calendar')
     const { rails } = useCanvasRailsStore.getState()
     expect(rails.right?.slots.length).toBe(2)
-    expect(rails.right?.slots[1].id).toBe(id)
+    expect(rails.right?.slots[1]!.id).toBe(id)
   })
 
   it('carries listDefinitionId through for lens slots', () => {
@@ -335,8 +335,8 @@ describe('popTabAtPosition', () => {
     expect(moved).toBe(true)
     const notes = useFloatingNoteStore.getState().notes.filter((n) => n.canvasId === canvasId)
     expect(notes.length).toBe(1)
-    expect(notes[0].x).toBe(123)
-    expect(notes[0].y).toBe(456)
+    expect(notes[0]!.x).toBe(123)
+    expect(notes[0]!.y).toBe(456)
   })
 
   it('routes a lens tab to the list-inset store, carrying listDefinitionId', async () => {
@@ -371,9 +371,9 @@ describe('popTabAtPosition', () => {
     expect(moved).toBe(true)
     const insets = useListInsetStore.getState().insets.filter((i) => i.canvasId === canvasId)
     expect(insets.length).toBe(1)
-    expect(insets[0].listDefinitionId).toBe(defId)
-    expect(insets[0].x).toBe(200)
-    expect(insets[0].y).toBe(100)
+    expect(insets[0]!.listDefinitionId).toBe(defId)
+    expect(insets[0]!.x).toBe(200)
+    expect(insets[0]!.y).toBe(100)
   })
 
   it('refuses a lens tab missing listDefinitionId (returns false, creates nothing)', async () => {
@@ -391,8 +391,8 @@ describe('popTabAtPosition', () => {
     expect(moved).toBe(true)
     const floats = useFloatingTaskboardStore.getState().taskboards.filter((t) => t.canvasId === canvasId)
     expect(floats.length).toBe(1)
-    expect(floats[0].x).toBe(50)
-    expect(floats[0].y).toBe(60)
+    expect(floats[0]!.x).toBe(50)
+    expect(floats[0]!.y).toBe(60)
   })
 
   it('routes a calendar tab and threads orientation + weekOffset from init opts', async () => {
@@ -405,10 +405,10 @@ describe('popTabAtPosition', () => {
     expect(moved).toBe(true)
     const cals = useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId)
     expect(cals.length).toBe(1)
-    expect(cals[0].x).toBe(10)
-    expect(cals[0].y).toBe(20)
-    expect(cals[0].orientation).toBe('horizontal')
-    expect(cals[0].weekOffset).toBe(3)
+    expect(cals[0]!.x).toBe(10)
+    expect(cals[0]!.y).toBe(20)
+    expect(cals[0]!.orientation).toBe('horizontal')
+    expect(cals[0]!.weekOffset).toBe(3)
   })
 
   it('omits calendar orientation/weekOffset when init opts are not provided', async () => {
@@ -419,7 +419,7 @@ describe('popTabAtPosition', () => {
     const cals = useFloatingCalendarStore.getState().calendars.filter((c) => c.canvasId === canvasId)
     expect(cals.length).toBe(1)
     // Stores default orientation+weekOffset to undefined when absent from the insert.
-    expect(cals[0].orientation).toBeUndefined()
-    expect(cals[0].weekOffset).toBeUndefined()
+    expect(cals[0]!.orientation).toBeUndefined()
+    expect(cals[0]!.weekOffset).toBeUndefined()
   })
 })

@@ -246,6 +246,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
       if (e.key === 'Enter' && ids.size === 1) {
         e.preventDefault()
         const todoId = Array.from(ids)[0]
+        if (todoId == null) return
         useUIStore.getState().openEditPopup(todoId)
         return
       }
@@ -267,7 +268,10 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
         if (ids.size > 1) {
           useUIStore.getState().showBulkConfirmation(action, Array.from(ids))
         } else {
-          useTodoStore.getState().toggleComplete(selectedTodos[0].id)
+          const firstSelected = selectedTodos[0]
+          if (firstSelected) {
+            useTodoStore.getState().toggleComplete(firstSelected.id)
+          }
         }
         return
       }
@@ -276,6 +280,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
       if (e.key === 'Insert' && ids.size === 1) {
         e.preventDefault()
         const todoId = Array.from(ids)[0]
+        if (todoId == null) return
         useUIStore.getState().clearSelection()
         useUIStore.getState().triggerInlineCreate(todoId)
         return
@@ -292,11 +297,13 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
           e.preventDefault()
           const { selectionFocusId, selectionAnchorId } = useUIStore.getState()
           const currentId = (e.shiftKey ? selectionFocusId : selectionAnchorId) ?? Array.from(ids)[0]
+          if (currentId == null) return
           const currentIdx = todoIds.indexOf(currentId)
           if (currentIdx === -1) return
           const nextIdx = e.key === 'ArrowUp' ? currentIdx - 1 : currentIdx + 1
           if (nextIdx < 0 || nextIdx >= todoIds.length) return
           const nextId = todoIds[nextIdx]
+          if (nextId == null) return
           if (e.shiftKey) {
             useUIStore.getState().rangeSelectTodo(nextId, todoIds)
           } else {
@@ -307,6 +314,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
           // No selection — select first or last task
           e.preventDefault()
           const targetId = e.key === 'ArrowDown' ? todoIds[0] : todoIds[todoIds.length - 1]
+          if (targetId == null) return
           useUIStore.getState().selectOneTodo(targetId)
           const targetIdx = e.key === 'ArrowDown' ? 0 : rows.length - 1
           rows[targetIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
@@ -321,6 +329,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
         e.preventDefault()
         const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
         const targetId = e.key === 'Home' ? todoIds[0] : todoIds[todoIds.length - 1]
+        if (targetId == null) return
         if (e.shiftKey && ids.size > 0) {
           useUIStore.getState().rangeSelectTodo(targetId, todoIds)
         } else {

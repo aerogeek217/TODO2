@@ -21,9 +21,9 @@ describe('undoable', () => {
 
     const { undoStack } = useUndoStore.getState()
     expect(undoStack).toHaveLength(1)
-    expect(undoStack[0].description).toBe('test action')
-    expect(undoStack[0].redo).toBe(doFn)
-    expect(undoStack[0].undo).toBe(undoFn)
+    expect(undoStack[0]!.description).toBe('test action')
+    expect(undoStack[0]!.redo).toBe(doFn)
+    expect(undoStack[0]!.undo).toBe(undoFn)
   })
 
   it('skips push when isPerformingUndoRedo is true', () => {

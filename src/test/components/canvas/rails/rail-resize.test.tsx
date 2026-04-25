@@ -71,7 +71,7 @@ describe('RailContainer resize handle', () => {
     dispatchPointer(handle, 'pointermove', { clientX: 420, clientY: 100 })
     dispatchPointer(handle, 'pointerup', { clientX: 420, clientY: 100 })
     expect(onResize).toHaveBeenCalled()
-    expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(420)
+    expect(onResize.mock.calls[onResize.mock.calls.length - 1]![0]).toBe(420)
   })
 
   it('inverts the delta for right rails (canvas sits to the left)', () => {
@@ -88,7 +88,7 @@ describe('RailContainer resize handle', () => {
     // Move the handle 80px to the RIGHT; right-rail width should SHRINK by 80.
     dispatchPointer(handle, 'pointermove', { clientX: 1080, clientY: 100 })
     dispatchPointer(handle, 'pointerup', { clientX: 1080, clientY: 100 })
-    expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(260)
+    expect(onResize.mock.calls[onResize.mock.calls.length - 1]![0]).toBe(260)
   })
 
   it('clamps drags past the 600 px maximum', () => {
@@ -104,7 +104,7 @@ describe('RailContainer resize handle', () => {
     dispatchPointer(handle, 'pointerdown', { clientX: 340, clientY: 100 })
     dispatchPointer(handle, 'pointermove', { clientX: 2000, clientY: 100 })
     dispatchPointer(handle, 'pointerup', { clientX: 2000, clientY: 100 })
-    expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(600)
+    expect(onResize.mock.calls[onResize.mock.calls.length - 1]![0]).toBe(600)
   })
 
   it('dragging inward shrinks the rail, clamped at RAIL_SIZE_MIN (no auto-collapse)', () => {
@@ -122,7 +122,7 @@ describe('RailContainer resize handle', () => {
     // Pull well past the 60 px minimum — should clamp, NOT collapse.
     dispatchPointer(handle, 'pointermove', { clientX: 0, clientY: 100 })
     dispatchPointer(handle, 'pointerup', { clientX: 0, clientY: 100 })
-    expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(60)
+    expect(onResize.mock.calls[onResize.mock.calls.length - 1]![0]).toBe(60)
     expect(useCanvasRailsStore.getState().rails.collapsed?.left).toBeUndefined()
   })
 
@@ -139,7 +139,7 @@ describe('RailContainer resize handle', () => {
     dispatchPointer(handle, 'pointerdown', { clientX: 500, clientY: 260 })
     dispatchPointer(handle, 'pointermove', { clientX: 500, clientY: 300 })
     dispatchPointer(handle, 'pointerup', { clientX: 500, clientY: 300 })
-    expect(onResize.mock.calls[onResize.mock.calls.length - 1][0]).toBe(300)
+    expect(onResize.mock.calls[onResize.mock.calls.length - 1]![0]).toBe(300)
   })
 
   it('applies the size as an inline width/height on the rail aside', () => {
