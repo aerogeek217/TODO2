@@ -7,7 +7,6 @@ interface SlotMenuProps {
   currentKind: SlotKind
   orientation: 'vertical' | 'horizontal'
   onSplit: (dir: 'above' | 'below' | 'left' | 'right') => void
-  onPopOut?: () => void
   onAddTab?: (anchor: { x: number; y: number }) => void
   onClose: () => void
 }
@@ -30,7 +29,7 @@ const HORIZONTAL_SPLITS: SplitItem[] = [
   { dir: 'right', label: 'Split right' },
 ]
 
-export function SlotMenu({ anchor, currentKind, orientation, onSplit, onPopOut, onAddTab, onClose }: SlotMenuProps) {
+export function SlotMenu({ anchor, currentKind, orientation, onSplit, onAddTab, onClose }: SlotMenuProps) {
   const splits = orientation === 'horizontal' ? HORIZONTAL_SPLITS : VERTICAL_SPLITS
   const ref = useRef<HTMLDivElement | null>(null)
 
@@ -139,19 +138,6 @@ export function SlotMenu({ anchor, currentKind, orientation, onSplit, onPopOut, 
             onClick={() => { onAddTab(anchor); onClose() }}
           >
             Add tab
-          </button>
-        </>
-      )}
-      {onPopOut && (
-        <>
-          <div className={styles.separator} />
-          <button
-            type="button"
-            role="menuitem"
-            className={styles.item}
-            onClick={() => { onPopOut(); onClose() }}
-          >
-            Pop out to canvas
           </button>
         </>
       )}

@@ -35,8 +35,6 @@ export interface WidgetKindMenuProps {
   secondaryLabel?: string
   /** Group-label heading. Defaults to "Change widget"; use "Add widget" in add mode. */
   heading?: string
-  /** When provided, renders a "Pop out to canvas" action at the top of the menu. */
-  onPopOut?: () => void
 }
 
 const FLYOUT_LEAVE_DELAY_MS = 120
@@ -52,7 +50,6 @@ export function WidgetKindMenu({
   onClose,
   secondaryLabel,
   heading = 'Change widget',
-  onPopOut,
 }: WidgetKindMenuProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const flyoutRef = useRef<HTMLDivElement | null>(null)
@@ -195,20 +192,6 @@ export function WidgetKindMenu({
       aria-label={heading}
       onKeyDown={onKeyDown}
     >
-      {onPopOut && (
-        <>
-          <button
-            type="button"
-            role="menuitem"
-            className={styles.item}
-            onClick={() => { onPopOut(); onClose() }}
-          >
-            <span className={styles.icon} aria-hidden="true">↗</span>
-            <span className={styles.label}>Pop out to canvas</span>
-          </button>
-          <div className={styles.separator} />
-        </>
-      )}
       {showEditList && (
         <>
           <button

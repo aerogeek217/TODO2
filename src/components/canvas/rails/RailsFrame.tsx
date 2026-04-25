@@ -356,6 +356,7 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       onCloseTab={(tabId) => closeTab(slot.id, tabId)}
       onAddTab={(kind, anchor) => { handleAddTab(kind, anchor) }}
       onMore={(anchor) => setMenuAnchor(anchor)}
+      onPopOut={handlePopOut}
       onClose={closeThisSlot}
       onOpenChangeType={(anchor) => setKindMenuAnchor(anchor)}
       meta={metaContent}
@@ -411,7 +412,6 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
               ? () => useUIStore.getState().openListsEditor(activeTab.listDefinitionId)
               : undefined
           }
-          onPopOut={handlePopOut}
           onClose={() => setKindMenuAnchor(null)}
         />
       )}
@@ -421,7 +421,6 @@ function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           currentKind={activeTab.type}
           orientation={fromSide === 'left' || fromSide === 'right' ? 'vertical' : 'horizontal'}
           onSplit={(dir) => handleSplit(dir, menuAnchor ?? undefined)}
-          onPopOut={handlePopOut}
           onAddTab={(anchor) => handleAddTab('lens', anchor)}
           onClose={closeMenuAndFocusTrigger}
         />

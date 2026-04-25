@@ -18,10 +18,11 @@ export interface TabStripProps {
   onCloseTab: (tabId: string) => void
   onAddTab: (kind: SlotKind, anchor: { x: number; y: number }) => void
   onMore?: (anchor: { x: number; y: number }) => void
+  onPopOut?: () => void
   /**
    * Called when the user clicks the active tab's drop-down caret. The parent
-   * opens its `WidgetKindMenu` at the anchor — that menu carries both the
-   * type-change options and (when wired) the "Pop out to canvas" action.
+   * opens its `WidgetKindMenu` at the anchor — that menu carries the
+   * type-change options.
    */
   onOpenChangeType?: (anchor: { x: number; y: number }) => void
   onClose?: () => void
@@ -158,6 +159,7 @@ export function TabStrip({
   onCloseTab,
   onAddTab,
   onMore,
+  onPopOut,
   onOpenChangeType,
   onClose,
   meta,
@@ -300,6 +302,17 @@ export function TabStrip({
       </div>
       <div className={styles.chrome}>
         {meta && <span className={styles.meta}>{meta}</span>}
+        {onPopOut && (
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={onPopOut}
+            aria-label="Pop out slot to canvas"
+            title="Pop out to canvas"
+          >
+            ↗
+          </button>
+        )}
         {onMore && (
           <button
             ref={moreButtonRef}
