@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import type { ScheduledValue } from '../../models/scheduled-value'
 import { StatusIcon } from './StatusIcon'
 import { scheduledLabel, isScheduledExpired } from '../../utils/effective-date'
+import { useSettingsStore } from '../../stores/settings-store'
 import { ScheduledValueMenu } from './ScheduledValueMenu'
 import styles from './SchedulePicker.module.css'
 
@@ -27,9 +28,10 @@ export function SchedulePicker({ value, onChange, today }: SchedulePickerProps) 
     return () => document.removeEventListener('mousedown', handler, true)
   }, [open])
 
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const todayDate = today ?? new Date()
   const label = value ? scheduledLabel(value, todayDate) : 'Schedule'
-  const expired = !!(value && isScheduledExpired({ scheduledDate: value }, todayDate))
+  const expired = !!(value && isScheduledExpired({ scheduledDate: value }, todayDate, weekStartsOn))
 
   const triggerCls = [
     styles.triggerChip,

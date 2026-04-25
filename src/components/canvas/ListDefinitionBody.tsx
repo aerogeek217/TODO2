@@ -13,6 +13,7 @@ import { useOrgStore } from '../../stores/org-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { buildDashboardLists, type DashboardList } from '../../services/dashboard-lists'
 import { startOfToday } from '../../utils/date'
 import { TaskRow } from '../task/TaskRow'
@@ -86,6 +87,7 @@ export function ListDefinitionBody({
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
 
   // Tag filter predicate clauses read via `assignedTagsMap`; make sure the
   // map is populated for the current todo corpus. Mirrors people/org loads
@@ -135,6 +137,7 @@ export function ListDefinitionBody({
       : undefined
     const [list] = buildDashboardLists([definition], todos, {
       today,
+      weekStartsOn,
       evalPredicate,
       assignedTagsMap,
       assignedPeopleMap,
@@ -150,7 +153,7 @@ export function ListDefinitionBody({
   }, [
     definition, todos, people, assignedPeopleMap,
     orgs, assignedOrgsMap, personOrgMap, projects,
-    assignedTagsMap, statuses, dayKey,
+    assignedTagsMap, statuses, dayKey, weekStartsOn,
     runtimeFilterValue, runtimeFilterPending,
   ])
 

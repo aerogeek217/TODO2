@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, Tag, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor } from '../models'
 import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
-import { effectiveDate, resolveDateAnchor, resolveScheduled, getConfiguredWeekStart } from '../utils/effective-date'
+import { effectiveDate, resolveDateAnchor, resolveScheduled } from '../utils/effective-date'
+import { useSettingsStore } from './settings-store'
 import { matchTodoText, type TextMatchContext } from '../utils/filter'
 
 export type { DateField, PersonFilterMode, OrgFilterMode }
@@ -220,17 +221,17 @@ export function matchesFilter(
   }
 
   if (filters.dateRangeStart !== null || filters.dateRangeEnd !== null) {
-    const ws = getConfiguredWeekStart()
+    const ws = useSettingsStore.getState().weekStartsOn
     const resolvedStart = filters.dateRangeStart ? resolveDateAnchor(filters.dateRangeStart, today, ws) : null
     const resolvedEnd = filters.dateRangeEnd ? resolveDateAnchor(filters.dateRangeEnd, today, ws) : null
 
     let rawDate: Date | null
     switch (filters.dateField) {
       case 'date':
-        rawDate = effectiveDate(todo, today)
+        rawDate = effectiveDate(todo, today, ws)
         break
       case 'scheduled':
-        rawDate = todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today) : null
+        rawDate = todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today, ws) : null
         break
       case 'deadline':
         rawDate = todo.dueDate ? new Date(todo.dueDate) : null

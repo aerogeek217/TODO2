@@ -1,5 +1,5 @@
 import type { PersistedTodoItem, Person, Org, Status, Tag, ProjectGroupBy } from '../models'
-import { effectiveDate, resolveScheduled } from './effective-date'
+import { effectiveDate, resolveScheduled, type WeekStart } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
 
 export interface GroupingContext {
@@ -8,6 +8,7 @@ export interface GroupingContext {
   assignedTagsMap: Map<number, Tag[]>
   statuses: readonly Status[]
   today: Date
+  weekStartsOn: WeekStart
 }
 
 export interface PartitionGroup<T extends PersistedTodoItem> {
@@ -92,9 +93,9 @@ export function getGroupKey(
       return keys.size === 0 ? null : [...keys]
     }
     case 'date':
-      return bucketDateKey(effectiveDate(todo, ctx.today), ctx.today)
+      return bucketDateKey(effectiveDate(todo, ctx.today, ctx.weekStartsOn), ctx.today)
     case 'scheduled':
-      return bucketDateKey(resolveScheduled(todo.scheduledDate, ctx.today), ctx.today)
+      return bucketDateKey(resolveScheduled(todo.scheduledDate, ctx.today, ctx.weekStartsOn), ctx.today)
     case 'deadline':
       return bucketDateKey(
         todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null,

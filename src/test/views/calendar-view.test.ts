@@ -24,8 +24,8 @@ function makeTodo(overrides: Partial<PersistedTodoItem> & { id: number }): Persi
 function sortDayBucket(arr: CalendarEntry[]): CalendarEntry[] {
   const today = startOfToday()
   return [...arr].sort((a, b) => {
-    const ae = effectiveDate(a.todo, today)
-    const be = effectiveDate(b.todo, today)
+    const ae = effectiveDate(a.todo, today, 1)
+    const be = effectiveDate(b.todo, today, 1)
     if (ae && be && ae.getTime() !== be.getTime()) return ae.getTime() - be.getTime()
     return a.todo.sortOrder - b.todo.sortOrder
   })

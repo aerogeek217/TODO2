@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { settingsRepository } from '../data'
 import { isValidCssColor } from '../utils/css'
 import { parseHorizonSlots } from '../utils/horizon-slots'
-import { setConfiguredWeekStart, type WeekStart } from '../utils/effective-date'
+import type { WeekStart } from '../utils/effective-date'
 import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
 import type { CanvasViewport } from './ui-store'
 import type { RailsState } from '../models/canvas-rails'
@@ -372,7 +372,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
-      setConfiguredWeekStart(weekStartsOn)
     } catch (e) {
       console.error('Failed to load settings:', e)
     }
@@ -433,7 +432,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (!isValidWeekStart(day)) return
     await settingsRepository.put('weekStartsOn', String(day))
     set({ weekStartsOn: day })
-    setConfiguredWeekStart(day)
   },
 
   async setCompletedRetentionDays(days: number | null) {

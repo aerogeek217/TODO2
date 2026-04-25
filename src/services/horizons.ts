@@ -47,7 +47,7 @@ export interface BinStats {
 }
 
 /** Start of the week containing `today`, honoring `weekStartsOn` (0 = Sun, 1 = Mon). */
-function startOfWeek(today: Date, ws: WeekStart): Date {
+export function startOfWeek(today: Date, ws: WeekStart): Date {
   const base = startOfDay(today)
   const dow = base.getDay()
   const days = (dow - ws + 7) % 7
@@ -167,7 +167,7 @@ export function horizonBins(
   }))
 
   for (const t of tasks) {
-    const eff = effectiveDate(t, base)
+    const eff = effectiveDate(t, base, weekStartsOn)
     if (!eff) continue
     const ms = eff.getTime()
     const idx = bins.findIndex((b) => ms >= b.start.getTime() && ms < b.end.getTime())

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   resolveFuzzy,
   resolveScheduled,
@@ -9,7 +9,6 @@ import {
   scheduledLabel,
   daysUntil,
   dateIntensity,
-  setConfiguredWeekStart,
   resolveDateAnchor,
   resolveRelativeToken,
 } from '../../utils/effective-date'
@@ -22,20 +21,20 @@ function d(iso: string): Date {
 describe('resolveFuzzy', () => {
   it('resolves today to today at midnight', () => {
     const today = d('2026-04-16')
-    const result = resolveFuzzy('today', today)
+    const result = resolveFuzzy('today', today, 1)
     expect(result.getTime()).toBe(startOfDay(today).getTime())
   })
 
   it('resolves tomorrow to today + 1 day', () => {
     const today = d('2026-04-16')
-    const result = resolveFuzzy('tomorrow', today)
+    const result = resolveFuzzy('tomorrow', today, 1)
     const expected = startOfDay(new Date(startOfDay(today).getTime() + MS_PER_DAY))
     expect(result.getTime()).toBe(expected.getTime())
   })
 
   it('resolves this-week on Thursday to Sunday of the same week', () => {
     const thursday = d('2026-04-16')
-    const result = resolveFuzzy('this-week', thursday)
+    const result = resolveFuzzy('this-week', thursday, 1)
     expect(result.getFullYear()).toBe(2026)
     expect(result.getMonth()).toBe(3)
     expect(result.getDate()).toBe(19)
@@ -44,65 +43,63 @@ describe('resolveFuzzy', () => {
 
   it('resolves this-week on Sunday to the same Sunday', () => {
     const sunday = d('2026-04-19')
-    const result = resolveFuzzy('this-week', sunday)
+    const result = resolveFuzzy('this-week', sunday, 1)
     expect(result.getDate()).toBe(19)
     expect(result.getDay()).toBe(0)
   })
 
   it('resolves this-week on Monday to upcoming Sunday', () => {
     const monday = d('2026-04-13')
-    const result = resolveFuzzy('this-week', monday)
+    const result = resolveFuzzy('this-week', monday, 1)
     expect(result.getDate()).toBe(19)
   })
 
   it('resolves next-week to Sunday of the week after the upcoming Sunday', () => {
     const thursday = d('2026-04-16')
-    const result = resolveFuzzy('next-week', thursday)
+    const result = resolveFuzzy('next-week', thursday, 1)
     expect(result.getDate()).toBe(26)
     expect(result.getDay()).toBe(0)
   })
 
   it('resolves this-month to the last day of the current month', () => {
-    const result = resolveFuzzy('this-month', d('2026-04-16'))
+    const result = resolveFuzzy('this-month', d('2026-04-16'), 1)
     expect(result.getMonth()).toBe(3)
     expect(result.getDate()).toBe(30)
   })
 
   it('resolves this-month on the last day to the same day', () => {
-    const result = resolveFuzzy('this-month', d('2026-04-30'))
+    const result = resolveFuzzy('this-month', d('2026-04-30'), 1)
     expect(result.getMonth()).toBe(3)
     expect(result.getDate()).toBe(30)
   })
 
   it('resolves this-month on leap-year Feb 15 to Feb 29', () => {
-    const result = resolveFuzzy('this-month', d('2028-02-15'))
+    const result = resolveFuzzy('this-month', d('2028-02-15'), 1)
     expect(result.getFullYear()).toBe(2028)
     expect(result.getMonth()).toBe(1)
     expect(result.getDate()).toBe(29)
   })
 
   it('resolves this-month on non-leap Feb 15 to Feb 28', () => {
-    const result = resolveFuzzy('this-month', d('2027-02-15'))
+    const result = resolveFuzzy('this-month', d('2027-02-15'), 1)
     expect(result.getMonth()).toBe(1)
     expect(result.getDate()).toBe(28)
   })
 
   it('resolves next-month on Jan 31 to Feb 28 (non-leap)', () => {
-    const result = resolveFuzzy('next-month', d('2026-01-31'))
+    const result = resolveFuzzy('next-month', d('2026-01-31'), 1)
     expect(result.getMonth()).toBe(1)
     expect(result.getDate()).toBe(28)
   })
 
   it('resolves next-month on Dec 15 to Jan 31 of the following year', () => {
-    const result = resolveFuzzy('next-month', d('2026-12-15'))
+    const result = resolveFuzzy('next-month', d('2026-12-15'), 1)
     expect(result.getFullYear()).toBe(2027)
     expect(result.getMonth()).toBe(0)
     expect(result.getDate()).toBe(31)
   })
 
   describe('week-start configurable', () => {
-    afterEach(() => setConfiguredWeekStart(1))
-
     it('with weekStartsOn=0 (Sunday-first), this-week on Thursday ends Saturday', () => {
       const thursday = d('2026-04-16')
       const result = resolveFuzzy('this-week', thursday, 0)
@@ -131,17 +128,9 @@ describe('resolveFuzzy', () => {
       expect(result.getDate()).toBe(25)
     })
 
-    it('setConfiguredWeekStart changes the default used when parameter omitted', () => {
-      setConfiguredWeekStart(0)
+    it('explicit Sunday-first vs Monday-first diverge on Thursday', () => {
       const thursday = d('2026-04-16')
-      expect(resolveFuzzy('this-week', thursday).getDay()).toBe(6)
-      setConfiguredWeekStart(1)
-      expect(resolveFuzzy('this-week', thursday).getDay()).toBe(0)
-    })
-
-    it('explicit parameter overrides configured default', () => {
-      setConfiguredWeekStart(0)
-      const thursday = d('2026-04-16')
+      expect(resolveFuzzy('this-week', thursday, 0).getDay()).toBe(6)
       expect(resolveFuzzy('this-week', thursday, 1).getDay()).toBe(0)
     })
   })
@@ -151,19 +140,19 @@ describe('resolveScheduled', () => {
   const today = d('2026-04-16')
 
   it('returns null for undefined input', () => {
-    expect(resolveScheduled(undefined, today)).toBeNull()
+    expect(resolveScheduled(undefined, today, 1)).toBeNull()
   })
 
   it('resolves a precise date to its start-of-day', () => {
     const value = new Date(2026, 3, 20, 10, 30)
-    const result = resolveScheduled({ kind: 'date', value }, today)
+    const result = resolveScheduled({ kind: 'date', value }, today, 1)
     expect(result).not.toBeNull()
     expect(result!.getHours()).toBe(0)
     expect(result!.getDate()).toBe(20)
   })
 
   it('resolves a fuzzy token via resolveFuzzy', () => {
-    const result = resolveScheduled({ kind: 'fuzzy', token: 'tomorrow' }, today)
+    const result = resolveScheduled({ kind: 'fuzzy', token: 'tomorrow' }, today, 1)
     expect(result).not.toBeNull()
     expect(result!.getDate()).toBe(17)
   })
@@ -176,7 +165,7 @@ describe('effectiveDate', () => {
     const result = effectiveDate({
       scheduledDate: { kind: 'date', value: new Date(2026, 3, 18) },
       dueDate: new Date(2026, 3, 20),
-    }, today)
+    }, today, 1)
     expect(result!.getDate()).toBe(18)
   })
 
@@ -184,31 +173,31 @@ describe('effectiveDate', () => {
     const result = effectiveDate({
       scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) },
       dueDate: new Date(2026, 3, 20),
-    }, today)
+    }, today, 1)
     expect(result!.getDate()).toBe(20)
   })
 
   it('returns scheduled when only scheduled is set (precise)', () => {
     const result = effectiveDate({
       scheduledDate: { kind: 'date', value: new Date(2026, 3, 22) },
-    }, today)
+    }, today, 1)
     expect(result!.getDate()).toBe(22)
   })
 
   it('returns resolved fuzzy when only fuzzy scheduled is set', () => {
     const result = effectiveDate({
       scheduledDate: { kind: 'fuzzy', token: 'this-week' },
-    }, today)
+    }, today, 1)
     expect(result!.getDate()).toBe(19)
   })
 
   it('returns deadline when only deadline is set', () => {
-    const result = effectiveDate({ dueDate: new Date(2026, 3, 24) }, today)
+    const result = effectiveDate({ dueDate: new Date(2026, 3, 24) }, today, 1)
     expect(result!.getDate()).toBe(24)
   })
 
   it('returns null when neither is set', () => {
-    expect(effectiveDate({}, today)).toBeNull()
+    expect(effectiveDate({}, today, 1)).toBeNull()
   })
 })
 
@@ -223,7 +212,7 @@ describe('isScheduledExpired', () => {
   it('returns false for precise scheduled in the past', () => {
     const result = isScheduledExpired({
       scheduledDate: { kind: 'date', value: new Date(2026, 3, 1) },
-    }, today)
+    }, today, 1)
     expect(result).toBe(false)
   })
 
@@ -232,6 +221,7 @@ describe('isScheduledExpired', () => {
     const result = isScheduledExpired(
       { scheduledDate: { kind: 'fuzzy', token: 'this-week' } },
       mondayAfter,
+      1,
     )
     expect(result).toBe(false)
   })
@@ -240,6 +230,7 @@ describe('isScheduledExpired', () => {
     const result = isScheduledExpired(
       { scheduledDate: { kind: 'fuzzy', token: 'today' } },
       d('2026-04-17'),
+      1,
     )
     expect(result).toBe(false)
   })
@@ -248,12 +239,13 @@ describe('isScheduledExpired', () => {
     const result = isScheduledExpired(
       { scheduledDate: { kind: 'fuzzy', token: 'tomorrow' } },
       d('2026-04-16'),
+      1,
     )
     expect(result).toBe(false)
   })
 
   it('returns false when no scheduled', () => {
-    expect(isScheduledExpired({}, today)).toBe(false)
+    expect(isScheduledExpired({}, today, 1)).toBe(false)
   })
 })
 
@@ -261,23 +253,23 @@ describe('isScheduledPast', () => {
   const today = d('2026-04-20')
 
   it('returns true for precise scheduled date in the past', () => {
-    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 1) } }, today)).toBe(true)
+    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 1) } }, today, 1)).toBe(true)
   })
 
   it('returns false for precise scheduled date today', () => {
-    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 20) } }, today)).toBe(false)
+    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 20) } }, today, 1)).toBe(false)
   })
 
   it('returns false for precise scheduled date in the future', () => {
-    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) } }, today)).toBe(false)
+    expect(isScheduledPast({ scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) } }, today, 1)).toBe(false)
   })
 
   it('returns false for fuzzy this-week (end-of-window always today or later)', () => {
-    expect(isScheduledPast({ scheduledDate: { kind: 'fuzzy', token: 'this-week' } }, today)).toBe(false)
+    expect(isScheduledPast({ scheduledDate: { kind: 'fuzzy', token: 'this-week' } }, today, 1)).toBe(false)
   })
 
   it('returns false when no scheduled', () => {
-    expect(isScheduledPast({}, today)).toBe(false)
+    expect(isScheduledPast({}, today, 1)).toBe(false)
   })
 })
 
@@ -395,58 +387,55 @@ describe('dateIntensity', () => {
 })
 
 describe('resolveRelativeToken', () => {
-  afterEach(() => setConfiguredWeekStart(1))
-
   const wed = d('2026-04-15') // Wednesday
 
   it('yesterday, today and tomorrow', () => {
-    expect(resolveRelativeToken('yesterday', wed).getDate()).toBe(14)
-    expect(resolveRelativeToken('today', wed).getDate()).toBe(15)
-    expect(resolveRelativeToken('tomorrow', wed).getDate()).toBe(16)
+    expect(resolveRelativeToken('yesterday', wed, 1).getDate()).toBe(14)
+    expect(resolveRelativeToken('today', wed, 1).getDate()).toBe(15)
+    expect(resolveRelativeToken('tomorrow', wed, 1).getDate()).toBe(16)
   })
 
-  it('start-of-week / end-of-week honor Monday-first default', () => {
-    const start = resolveRelativeToken('start-of-week', wed)
+  it('start-of-week / end-of-week with Monday-first', () => {
+    const start = resolveRelativeToken('start-of-week', wed, 1)
     expect(start.getDate()).toBe(13)      // Monday
     expect(start.getDay()).toBe(1)
-    const end = resolveRelativeToken('end-of-week', wed)
+    const end = resolveRelativeToken('end-of-week', wed, 1)
     expect(end.getDate()).toBe(19)        // Sunday
     expect(end.getDay()).toBe(0)
   })
 
-  it('start-of-week / end-of-week honor Sunday-first configuration', () => {
-    setConfiguredWeekStart(0)
-    const start = resolveRelativeToken('start-of-week', wed)
+  it('start-of-week / end-of-week with Sunday-first', () => {
+    const start = resolveRelativeToken('start-of-week', wed, 0)
     expect(start.getDate()).toBe(12)      // Sunday
     expect(start.getDay()).toBe(0)
-    const end = resolveRelativeToken('end-of-week', wed)
+    const end = resolveRelativeToken('end-of-week', wed, 0)
     expect(end.getDate()).toBe(18)        // Saturday
     expect(end.getDay()).toBe(6)
   })
 
   it('start-of-next-week / end-of-next-week add 7 days to this-week boundaries', () => {
-    expect(resolveRelativeToken('start-of-next-week', wed).getDate()).toBe(20)
-    expect(resolveRelativeToken('end-of-next-week', wed).getDate()).toBe(26)
+    expect(resolveRelativeToken('start-of-next-week', wed, 1).getDate()).toBe(20)
+    expect(resolveRelativeToken('end-of-next-week', wed, 1).getDate()).toBe(26)
   })
 
   it('start-of-month / end-of-month use calendar month', () => {
-    expect(resolveRelativeToken('start-of-month', wed).getDate()).toBe(1)
-    const end = resolveRelativeToken('end-of-month', wed)
+    expect(resolveRelativeToken('start-of-month', wed, 1).getDate()).toBe(1)
+    const end = resolveRelativeToken('end-of-month', wed, 1)
     expect(end.getMonth()).toBe(3)
     expect(end.getDate()).toBe(30)
   })
 
   it('start-of-next-month / end-of-next-month step one calendar month', () => {
-    const sm = resolveRelativeToken('start-of-next-month', wed)
+    const sm = resolveRelativeToken('start-of-next-month', wed, 1)
     expect(sm.getMonth()).toBe(4)
     expect(sm.getDate()).toBe(1)
-    const em = resolveRelativeToken('end-of-next-month', wed)
+    const em = resolveRelativeToken('end-of-next-month', wed, 1)
     expect(em.getMonth()).toBe(4)
     expect(em.getDate()).toBe(31)
   })
 
   it('end-of-month-plus-3 covers current month + 3', () => {
-    const end = resolveRelativeToken('end-of-month-plus-3', wed)
+    const end = resolveRelativeToken('end-of-month-plus-3', wed, 1)
     // Wednesday 2026-04-15 + 3 months = July; end of July is the 31st.
     expect(end.getMonth()).toBe(6)
     expect(end.getDate()).toBe(31)
@@ -454,10 +443,10 @@ describe('resolveRelativeToken', () => {
 
   it('month boundaries still work when today is the last day of the month', () => {
     const lastDay = d('2026-04-30')
-    const end = resolveRelativeToken('end-of-month', lastDay)
+    const end = resolveRelativeToken('end-of-month', lastDay, 1)
     expect(end.getMonth()).toBe(3)
     expect(end.getDate()).toBe(30)
-    const sm = resolveRelativeToken('start-of-next-month', lastDay)
+    const sm = resolveRelativeToken('start-of-next-month', lastDay, 1)
     expect(sm.getMonth()).toBe(4)
     expect(sm.getDate()).toBe(1)
   })
@@ -467,14 +456,14 @@ describe('resolveDateAnchor', () => {
   const today = d('2026-04-15')
 
   it('resolves a fixed anchor to the ISO date', () => {
-    const result = resolveDateAnchor({ kind: 'fixed', iso: '2026-05-01T12:00:00' }, today)
+    const result = resolveDateAnchor({ kind: 'fixed', iso: '2026-05-01T12:00:00' }, today, 1)
     expect(result.getFullYear()).toBe(2026)
     expect(result.getMonth()).toBe(4)
     expect(result.getDate()).toBe(1)
   })
 
   it('resolves a relative anchor via resolveRelativeToken', () => {
-    const result = resolveDateAnchor({ kind: 'relative', token: 'end-of-week' }, today)
+    const result = resolveDateAnchor({ kind: 'relative', token: 'end-of-week' }, today, 1)
     expect(result.getDate()).toBe(19)
   })
 })

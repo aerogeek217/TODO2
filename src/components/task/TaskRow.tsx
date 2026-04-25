@@ -8,6 +8,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
@@ -148,9 +149,10 @@ export const TaskRow = memo(function TaskRow({
   const edit = useInlineEdit(todo.title, handleSaveTitle)
 
   const today = startOfToday()
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
+  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
   const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
-  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today), today))
+  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today, weekStartsOn), today))
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
   const hasPeople = (assignedPeople && assignedPeople.length > 0) || assignedOrgs.length > 0

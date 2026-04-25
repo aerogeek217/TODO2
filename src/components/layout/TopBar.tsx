@@ -21,6 +21,7 @@ import { useProjectStore } from '../../stores/project-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { startOfToday, formatDateShort } from '../../utils/date'
 import { scheduledLabel, isScheduledPast, isDeadlinePast } from '../../utils/effective-date'
 import { toggleItem, matchTodoText, type TextMatchField } from '../../utils/filter'
@@ -129,10 +130,11 @@ interface SearchResultPillContext {
  */
 function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: SearchResultPillContext }) {
   const today = startOfToday()
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const people = ctx.peopleByTodoId.get(todo.id) ?? []
   const orgs = ctx.orgsByTodoId.get(todo.id) ?? []
   const status = todo.statusId != null ? ctx.statusesById.get(todo.statusId) : undefined
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today)
+  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
   const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
 
   if (people.length === 0 && orgs.length === 0 && !status && !todo.scheduledDate && !todo.dueDate) {

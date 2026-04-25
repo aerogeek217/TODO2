@@ -125,6 +125,10 @@ const FUZZY_SINGLE: Record<string, FuzzyToken> = {
 
 // Normalize a deadline date phrase to a concrete Date. Fuzzy windows
 // resolve to their end-of-window date (deadline is precise-only by schema).
+// Natural-language deadline parsing pins to Monday-first weeks regardless of
+// the user's `weekStartsOn`: the parse runs at type-time and the user sees the
+// resolved chip immediately, so locking parser semantics avoids surprise drift
+// if the user later flips the setting.
 function resolveDeadlineText(text: string, today: Date): Date | null {
   const lower = text.toLowerCase().trim().replace(/\s+/g, ' ')
   const fuzzyMap: Record<string, FuzzyToken> = {
@@ -137,7 +141,7 @@ function resolveDeadlineText(text: string, today: Date): Date | null {
     'next month': 'next-month',
   }
   const fuzzy = fuzzyMap[lower]
-  if (fuzzy) return resolveFuzzy(fuzzy, today)
+  if (fuzzy) return resolveFuzzy(fuzzy, today, 1)
   return parseRelativeDate(text)
 }
 

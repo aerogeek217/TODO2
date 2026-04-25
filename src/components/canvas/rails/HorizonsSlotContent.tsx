@@ -108,10 +108,11 @@ export function HorizonsSlotContent() {
   const lists = useMemo<DashboardList[]>(() => {
     return buildDashboardLists(horizonDefs, todos, {
       today,
+      weekStartsOn,
       evalPredicate,
       assignedTagsMap,
     })
-  }, [horizonDefs, todos, today, evalPredicate, assignedTagsMap])
+  }, [horizonDefs, todos, today, weekStartsOn, evalPredicate, assignedTagsMap])
 
   const listsById = useMemo(() => {
     const map = new Map<number, DashboardList>()

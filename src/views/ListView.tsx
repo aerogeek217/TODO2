@@ -19,6 +19,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter, criteriaToPredicate, predicateToCriteria } from '../stores/filter-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { encodeGroupSort } from '../data/saved-view-legacy'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskList } from '../components/task/TaskList'
@@ -36,7 +37,7 @@ import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { bucketByTag, UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
-import { effectiveDate, resolveScheduled } from '../utils/effective-date'
+import { effectiveDate, resolveScheduled, type WeekStart } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { IconSelect } from '../components/shared/IconSelect'
@@ -82,10 +83,10 @@ const runtimeFilterOptions: { value: RuntimeFilterField | 'none'; label: string 
 
 type DateBucketField = 'date' | 'scheduled' | 'deadline'
 
-function pickBucketDate(todo: PersistedTodoItem, field: DateBucketField, today: Date): Date | null {
+function pickBucketDate(todo: PersistedTodoItem, field: DateBucketField, today: Date, weekStartsOn: WeekStart): Date | null {
   switch (field) {
-    case 'date': return effectiveDate(todo, today)
-    case 'scheduled': return todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today) : null
+    case 'date': return effectiveDate(todo, today, weekStartsOn)
+    case 'scheduled': return todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today, weekStartsOn) : null
     case 'deadline': return todo.dueDate ? new Date(todo.dueDate) : null
   }
 }
@@ -94,6 +95,7 @@ function buildBucketSections(
   todos: PersistedTodoItem[],
   field: DateBucketField,
   today: Date,
+  weekStartsOn: WeekStart,
   noDateLabel: string,
 ): Section[] {
   const tomorrow = new Date(today.getTime() + MS_PER_DAY)
@@ -106,7 +108,7 @@ function buildBucketSections(
   const noDate: PersistedTodoItem[] = []
 
   for (const t of todos) {
-    const d = pickBucketDate(t, field, today)
+    const d = pickBucketDate(t, field, today, weekStartsOn)
     if (!d) { noDate.push(t); continue }
     if (d < today) overdue.push(t)
     else if (d < tomorrow) dueToday.push(t)
@@ -128,16 +130,16 @@ export function buildFlatSection(todos: PersistedTodoItem[]): Section[] {
   return [{ key: 'all', label: 'All tasks', todos }]
 }
 
-export function buildDateSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
-  return buildBucketSections(todos, 'date', today, 'No Date')
+export function buildDateSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
+  return buildBucketSections(todos, 'date', today, weekStartsOn, 'No Date')
 }
 
-export function buildScheduledSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
-  return buildBucketSections(todos, 'scheduled', today, 'Not Scheduled')
+export function buildScheduledSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
+  return buildBucketSections(todos, 'scheduled', today, weekStartsOn, 'Not Scheduled')
 }
 
-export function buildDeadlineSections(todos: PersistedTodoItem[], today: Date = startOfToday()): Section[] {
-  return buildBucketSections(todos, 'deadline', today, 'No Deadline')
+export function buildDeadlineSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
+  return buildBucketSections(todos, 'deadline', today, weekStartsOn, 'No Deadline')
 }
 
 export function buildPeopleSections(
@@ -347,6 +349,7 @@ export function buildTagSections(
  */
 export function itemSortComparator(
   sortBy: ListItemSortBy,
+  weekStartsOn: WeekStart,
   today: Date = startOfToday(),
 ): ((a: PersistedTodoItem, b: PersistedTodoItem) => number) | undefined {
   if (sortBy === 'manual') return undefined
@@ -358,8 +361,8 @@ export function itemSortComparator(
     }
   }
   const pick = (t: PersistedTodoItem): Date | null => {
-    if (sortBy === 'date') return effectiveDate(t, today)
-    if (sortBy === 'scheduled') return t.scheduledDate ? resolveScheduled(t.scheduledDate, today) : null
+    if (sortBy === 'date') return effectiveDate(t, today, weekStartsOn)
+    if (sortBy === 'scheduled') return t.scheduledDate ? resolveScheduled(t.scheduledDate, today, weekStartsOn) : null
     return t.dueDate ? new Date(t.dueDate) : null
   }
   return (a, b) => {
@@ -573,6 +576,7 @@ export function ListView() {
   const removeListDefinition = useListDefinitionStore((s) => s.remove)
   const { filters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const taskEdit = useTaskEditCallbacks()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
@@ -659,11 +663,11 @@ export function ListView() {
       case 'none':
         return buildFlatSection(activeTodos)
       case 'date':
-        return buildDateSections(activeTodos)
+        return buildDateSections(activeTodos, weekStartsOn)
       case 'scheduled':
-        return buildScheduledSections(activeTodos)
+        return buildScheduledSections(activeTodos, weekStartsOn)
       case 'deadline':
-        return buildDeadlineSections(activeTodos)
+        return buildDeadlineSections(activeTodos, weekStartsOn)
       case 'people':
         return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds)
       case 'project':
@@ -675,11 +679,11 @@ export function ListView() {
       case 'tag':
         return buildTagSections(activeTodos, assignedTagsMap)
     }
-  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, assignedTagsMap])
+  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, assignedTagsMap, weekStartsOn])
 
   const withinGroupComparator = useMemo(
-    () => itemSortComparator(listSortBy),
-    [listSortBy],
+    () => itemSortComparator(listSortBy, weekStartsOn),
+    [listSortBy, weekStartsOn],
   )
 
   // Apply hard limit by walking sections in order and truncating at the tail.

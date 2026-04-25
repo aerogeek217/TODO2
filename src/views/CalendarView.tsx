@@ -17,15 +17,15 @@ import { useProjectStore } from '../stores/project-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { TaskDraggable } from '../components/task/dnd/TaskDraggable'
 import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
-import { startOfDay, isSameDay, MS_PER_DAY } from '../utils/date'
-import { effectiveDate, resolveScheduled, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
-import { generateRecurringInstances, recurrenceAnchor } from '../services/recurrence'
+import { startOfDay, isSameDay } from '../utils/date'
+import { effectiveDate, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import {
   TASK_DROP_KIND,
@@ -38,14 +38,8 @@ import { StatusIcon } from '../components/shared/StatusIcon'
 import { dropCellClassName } from '../components/shared/DropIndicator'
 import { TaskRow } from '../components/task/TaskRow'
 import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
+import { buildEntries as buildCalendarEntries } from '../services/calendar-entries'
 import styles from './CalendarView.module.css'
-
-/** A calendar entry: either a real task or a virtual recurring instance. */
-interface CalendarEntry {
-  todo: PersistedTodoItem
-  isVirtual: boolean
-  displayKey: string
-}
 
 type ViewMode = 'month' | 'week'
 
@@ -136,6 +130,7 @@ export function CalendarView() {
   const { openEditPopup } = useUIStore()
   const { filters } = useFilterStore()
   const { statuses } = useStatusStore()
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const taskEdit = useTaskEditCallbacks()
 
   const [viewMode, setViewMode] = useState<ViewMode>('month')
@@ -190,11 +185,11 @@ export function CalendarView() {
     const scheduled: PersistedTodoItem[] = []
     const unscheduled: PersistedTodoItem[] = []
     for (const t of activeTodos) {
-      if (effectiveDate(t, today)) scheduled.push(t)
+      if (effectiveDate(t, today, weekStartsOn)) scheduled.push(t)
       else unscheduled.push(t)
     }
     return { scheduled, unscheduled }
-  }, [activeTodos, today])
+  }, [activeTodos, today, weekStartsOn])
 
   // Refresh "today" when the page becomes visible (e.g. after midnight)
   useEffect(() => {
@@ -216,55 +211,14 @@ export function CalendarView() {
     return viewMode === 'month' ? formatMonthYear(currentDate) : formatWeekRange(days)
   }, [viewMode, currentDate, days])
 
-  const entriesByDay = useMemo(() => {
-    const map = new Map<string, CalendarEntry[]>()
-
-    const addEntry = (dayDate: Date, todo: PersistedTodoItem, isVirtual: boolean, suffix = '') => {
-      const key = startOfDay(dayDate).toISOString()
-      const arr = map.get(key) ?? []
-      arr.push({ todo, isVirtual, displayKey: isVirtual ? `recurring-${todo.id}-${key}` : `task-${todo.id}${suffix}` })
-      map.set(key, arr)
-    }
-
-    // Compute visible range from the days grid
-    const rangeStart = days.length > 0 ? startOfDay(days[0]) : new Date()
-    const rangeEnd = days.length > 0 ? new Date(startOfDay(days[days.length - 1]).getTime() + MS_PER_DAY) : new Date()
-
-    // When both scheduled + deadline are set, render on the scheduled day —
-    // matches the tint logic ("both picks scheduled primary") and keeps the
-    // card on the day the user dragged it to even though min(sched, due)
-    // would clamp it back to the deadline.
-    for (const t of scheduled) {
-      const sched = resolveScheduled(t.scheduledDate, today)
-      const primary = sched ?? (t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
-      if (!primary) continue
-      const primaryDay = startOfDay(primary)
-      addEntry(primaryDay, t, false)
-
-      // Generate virtual future instances for recurring tasks.
-      // Anchored to dueDate when set, otherwise a precise scheduledDate.
-      if (t.recurrenceRule) {
-        const anchor = recurrenceAnchor(t)
-        if (anchor) {
-          const instances = generateRecurringInstances(anchor.date, t.recurrenceRule, rangeStart, rangeEnd)
-          for (const instanceDate of instances) {
-            const instDay = startOfDay(instanceDate)
-            if (instDay.getTime() === primaryDay.getTime()) continue
-            addEntry(instDay, t, true)
-          }
-        }
-      }
-    }
-    for (const [, arr] of map) {
-      arr.sort((a, b) => {
-        const ae = effectiveDate(a.todo, today)
-        const be = effectiveDate(b.todo, today)
-        if (ae && be && ae.getTime() !== be.getTime()) return ae.getTime() - be.getTime()
-        return a.todo.sortOrder - b.todo.sortOrder
-      })
-    }
-    return map
-  }, [scheduled, days, today])
+  const entriesByDay = useMemo(() => buildCalendarEntries(scheduled, days, {
+    today,
+    weekStartsOn,
+    sortMode: 'effective',
+    assignedPeopleMap,
+    assignedOrgsMap,
+    statuses,
+  }), [scheduled, days, today, weekStartsOn, assignedPeopleMap, assignedOrgsMap, statuses])
 
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
 
@@ -386,7 +340,7 @@ export function CalendarView() {
                         {day.getDate()}
                       </div>
 
-                      {visibleEntries.map(({ todo, isVirtual, displayKey }) => {
+                      {visibleEntries.map(({ todo, isVirtual, key: entryKey }) => {
                         const assigned = assignedPeopleMap.get(todo.id)
                         const initials = assigned?.map((p) => p.initials || generateInitials(p.name)).join(', ')
 
@@ -395,7 +349,7 @@ export function CalendarView() {
                         // Past states don't apply to virtual recurring instances — they
                         // represent future occurrences whose parent's dates are the past
                         // anchor, not the instance's day.
-                        const pastSched = !isVirtual && isScheduledPast(todo, today)
+                        const pastSched = !isVirtual && isScheduledPast(todo, today, weekStartsOn)
                         const pastDead = !isVirtual && isDeadlinePast(todo, today)
 
                         let tintClass: string | false = false
@@ -405,7 +359,7 @@ export function CalendarView() {
                         else if (hasSched) tintClass = styles.taskItemScheduled
                         else if (hasDead) tintClass = styles.taskItemDeadline
 
-                        const intensityDate = isVirtual ? day : effectiveDate(todo, today)
+                        const intensityDate = isVirtual ? day : effectiveDate(todo, today, weekStartsOn)
                         const intensity = dateIntensity(daysUntil(intensityDate, today))
 
                         const taskItemClass = [
@@ -427,7 +381,7 @@ export function CalendarView() {
                                 aria-label="Scheduled"
                               >
                                 <StatusIcon icon="calendar" />
-                                {isScheduledExpired(todo, today) && <span className={styles.markerExpired} />}
+                                {isScheduledExpired(todo, today, weekStartsOn) && <span className={styles.markerExpired} />}
                               </span>
                             )}
                             {hasDead && (
@@ -448,7 +402,7 @@ export function CalendarView() {
                         if (isVirtual) {
                           return (
                             <div
-                              key={displayKey}
+                              key={entryKey}
                               className={taskItemClass}
                               style={itemStyle}
                               onClick={(e) => handleTaskClick(e, todo.id)}
@@ -461,7 +415,7 @@ export function CalendarView() {
 
                         return (
                           <TaskDraggable
-                            key={displayKey}
+                            key={entryKey}
                             todo={todo}
                             surface="calendar-view"
                           >

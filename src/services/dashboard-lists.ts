@@ -15,16 +15,25 @@ import type {
   PersistedListDefinition,
   RuntimeFilterSpec,
 } from '../models/list-definition'
-import { effectiveDate, isScheduledExpired, resolveScheduled } from '../utils/effective-date'
-import { startOfDay, MS_PER_DAY } from '../utils/date'
+import {
+  effectiveDate,
+  isScheduledExpired,
+  resolveScheduled,
+  type WeekStart,
+} from '../utils/effective-date'
+import { startOfDay } from '../utils/date'
 import {
   bucketByTag as bucketByTagUtil,
   UNTAGGED_BUCKET_KEY,
   UNTAGGED_BUCKET_LABEL,
 } from '../utils/bucket-by-tag'
+import { bucketByDate, type DateBucketKey } from '../utils/bucket-by-date'
+import { bucketByMany } from '../utils/bucket-by-many'
 
 export interface DashboardListsContext {
   today: Date
+  /** Settings-driven week boundary used by every relative-date bucketer. */
+  weekStartsOn: WeekStart
   /**
    * Evaluator for `{kind:'custom', predicate}` membership. The caller closes
    * over assignment maps + statuses so the interpreter can stay UI-agnostic.
@@ -200,12 +209,13 @@ export function interpretSort(
 
 function compareEffectiveDateAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
   const today = startOfDay(ctx.today)
-  const aExpired = isScheduledExpired(a, today)
-  const bExpired = isScheduledExpired(b, today)
+  const ws = ctx.weekStartsOn
+  const aExpired = isScheduledExpired(a, today, ws)
+  const bExpired = isScheduledExpired(b, today, ws)
   if (aExpired !== bExpired) return aExpired ? -1 : 1
 
-  const ad = effectiveDate(a, today)
-  const bd = effectiveDate(b, today)
+  const ad = effectiveDate(a, today, ws)
+  const bd = effectiveDate(b, today, ws)
   if (ad === null && bd === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
   if (ad === null) return 1
   if (bd === null) return -1
@@ -233,8 +243,9 @@ function compareSortOrder(a: PersistedTodoItem, b: PersistedTodoItem): number {
 
 function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
   const today = startOfDay(ctx.today)
-  const as = a.scheduledDate ? resolveScheduled(a.scheduledDate, today) : null
-  const bs = b.scheduledDate ? resolveScheduled(b.scheduledDate, today) : null
+  const ws = ctx.weekStartsOn
+  const as = a.scheduledDate ? resolveScheduled(a.scheduledDate, today, ws) : null
+  const bs = b.scheduledDate ? resolveScheduled(b.scheduledDate, today, ws) : null
   if (as === null && bs === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
   if (as === null) return 1
   if (bs === null) return -1
@@ -263,11 +274,11 @@ function compareBySortBy(
       return compareScheduledAsc(a, b, ctx)
     case 'deadline':
       return compareDeadlineAsc(a, b)
+    case 'name':
     case 'people':
     case 'project':
     case 'org':
     case 'status':
-    default:
       return compareSortOrder(a, b)
   }
 }
@@ -319,122 +330,102 @@ function bucketByField(
   }
 }
 
-function weekBoundaries(today: Date) {
-  const base = startOfDay(today).getTime()
-  const dow = startOfDay(today).getDay()
-  const daysUntilSunday = dow === 0 ? 0 : 7 - dow
-  const thisWeekEnd = base + daysUntilSunday * MS_PER_DAY
-  const nextWeekEnd = thisWeekEnd + 7 * MS_PER_DAY
-  return { base, thisWeekEnd, nextWeekEnd }
+const DASHBOARD_BUCKET_KEYS: Record<DateBucketKey, string> = {
+  overdue: 'overdue',
+  today: 'today',
+  tomorrow: 'tomorrow',
+  thisWeek: 'this-week',
+  nextWeek: 'next-week',
+  thisMonth: 'this-month',
+  laterMonth: 'later-month',
+  nextMonth: 'next-month',
+  later: 'later',
+  beyond: 'beyond',
 }
+
+const DASHBOARD_BUCKET_LABELS: Record<DateBucketKey, string> = {
+  overdue: 'Overdue',
+  today: 'Today',
+  tomorrow: 'Tomorrow',
+  thisWeek: 'This week',
+  nextWeek: 'Next week',
+  thisMonth: 'This month',
+  laterMonth: 'Later this month',
+  nextMonth: 'Next month',
+  later: 'Later',
+  beyond: 'Beyond',
+}
+
+function toGroups(
+  buckets: { key: DateBucketKey; todos: PersistedTodoItem[] }[],
+): DashboardListGroup[] {
+  return buckets.map((b) => ({
+    key: DASHBOARD_BUCKET_KEYS[b.key],
+    label: DASHBOARD_BUCKET_LABELS[b.key],
+    todos: b.todos,
+  }))
+}
+
+const EFFECTIVE_WINDOWS: readonly DateBucketKey[] = [
+  'tomorrow', 'thisWeek', 'nextWeek', 'laterMonth', 'nextMonth', 'beyond',
+]
+const DEADLINE_WINDOWS: readonly DateBucketKey[] = [
+  'overdue', 'today', 'thisWeek', 'nextWeek', 'thisMonth', 'later',
+]
+const SCHEDULED_WINDOWS = EFFECTIVE_WINDOWS
 
 function bucketByEffective(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
   const today = startOfDay(ctx.today)
-  const { base, thisWeekEnd, nextWeekEnd } = weekBoundaries(today)
-  const tomorrowEnd = base + MS_PER_DAY
-  const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getTime()
-  const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0).getTime()
-
-  const tomorrow: PersistedTodoItem[] = []
-  const thisWeek: PersistedTodoItem[] = []
-  const nextWeek: PersistedTodoItem[] = []
-  const laterMonth: PersistedTodoItem[] = []
-  const nextMonth: PersistedTodoItem[] = []
-  const beyond: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const eff = effectiveDate(t, today)
-    if (eff === null) { beyond.push(t); continue }
-    const ms = eff.getTime()
-    if (ms <= tomorrowEnd) tomorrow.push(t)
-    else if (ms <= thisWeekEnd) thisWeek.push(t)
-    else if (ms <= nextWeekEnd) nextWeek.push(t)
-    else if (ms <= thisMonthEnd) laterMonth.push(t)
-    else if (ms <= nextMonthEnd) nextMonth.push(t)
-    else beyond.push(t)
+  const ws = ctx.weekStartsOn
+  const { buckets, noDate } = bucketByDate(
+    todos,
+    (t) => effectiveDate(t, today, ws),
+    today,
+    ws,
+    EFFECTIVE_WINDOWS,
+  )
+  const groups = toGroups(buckets)
+  // Effective-date bucketing folds null-date todos into the trailing 'beyond'
+  // bucket — they have neither scheduled nor deadline, so semantically they
+  // are "Someday / no specific date" which the surface renders as Beyond.
+  if (noDate.length > 0) {
+    const beyond = groups.find((g) => g.key === 'beyond')
+    if (beyond) beyond.todos.push(...noDate)
+    else groups.push({
+      key: DASHBOARD_BUCKET_KEYS.beyond,
+      label: DASHBOARD_BUCKET_LABELS.beyond,
+      todos: noDate,
+    })
   }
-
-  const groups: DashboardListGroup[] = []
-  if (tomorrow.length > 0) groups.push({ key: 'tomorrow', label: 'Tomorrow', todos: tomorrow })
-  if (thisWeek.length > 0) groups.push({ key: 'this-week', label: 'This week', todos: thisWeek })
-  if (nextWeek.length > 0) groups.push({ key: 'next-week', label: 'Next week', todos: nextWeek })
-  if (laterMonth.length > 0) groups.push({ key: 'later-month', label: 'Later this month', todos: laterMonth })
-  if (nextMonth.length > 0) groups.push({ key: 'next-month', label: 'Next month', todos: nextMonth })
-  if (beyond.length > 0) groups.push({ key: 'beyond', label: 'Beyond', todos: beyond })
   return groups
 }
 
 function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
   const today = startOfDay(ctx.today)
-  const { base, thisWeekEnd, nextWeekEnd } = weekBoundaries(today)
-  const tomorrowStart = base + MS_PER_DAY
-  const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getTime()
-
-  const overdue: PersistedTodoItem[] = []
-  const dueToday: PersistedTodoItem[] = []
-  const thisWeek: PersistedTodoItem[] = []
-  const nextWeek: PersistedTodoItem[] = []
-  const thisMonth: PersistedTodoItem[] = []
-  const later: PersistedTodoItem[] = []
-  const noDeadline: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const d = t.dueDate ? startOfDay(new Date(t.dueDate)) : null
-    if (d === null) { noDeadline.push(t); continue }
-    const ms = d.getTime()
-    if (ms < base) overdue.push(t)
-    else if (ms < tomorrowStart) dueToday.push(t)
-    else if (ms <= thisWeekEnd) thisWeek.push(t)
-    else if (ms <= nextWeekEnd) nextWeek.push(t)
-    else if (ms <= thisMonthEnd) thisMonth.push(t)
-    else later.push(t)
-  }
-
-  const groups: DashboardListGroup[] = []
-  if (overdue.length > 0) groups.push({ key: 'overdue', label: 'Overdue', todos: overdue })
-  if (dueToday.length > 0) groups.push({ key: 'today', label: 'Today', todos: dueToday })
-  if (thisWeek.length > 0) groups.push({ key: 'this-week', label: 'This week', todos: thisWeek })
-  if (nextWeek.length > 0) groups.push({ key: 'next-week', label: 'Next week', todos: nextWeek })
-  if (thisMonth.length > 0) groups.push({ key: 'this-month', label: 'This month', todos: thisMonth })
-  if (later.length > 0) groups.push({ key: 'later', label: 'Later', todos: later })
-  if (noDeadline.length > 0) groups.push({ key: 'no-deadline', label: 'No deadline', todos: noDeadline })
+  const ws = ctx.weekStartsOn
+  const { buckets, noDate } = bucketByDate(
+    todos,
+    (t) => t.dueDate ? startOfDay(new Date(t.dueDate)) : null,
+    today,
+    ws,
+    DEADLINE_WINDOWS,
+  )
+  const groups = toGroups(buckets)
+  if (noDate.length > 0) groups.push({ key: 'no-deadline', label: 'No deadline', todos: noDate })
   return groups
 }
 
 function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
   const today = startOfDay(ctx.today)
-  const { base, thisWeekEnd, nextWeekEnd } = weekBoundaries(today)
-  const tomorrowEnd = base + MS_PER_DAY
-  const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getTime()
-  const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0).getTime()
-
-  const noDate: PersistedTodoItem[] = []
-  const tomorrow: PersistedTodoItem[] = []
-  const thisWeek: PersistedTodoItem[] = []
-  const nextWeek: PersistedTodoItem[] = []
-  const laterMonth: PersistedTodoItem[] = []
-  const nextMonth: PersistedTodoItem[] = []
-  const beyond: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const resolved = t.scheduledDate ? resolveScheduled(t.scheduledDate, today) : null
-    if (!resolved) { noDate.push(t); continue }
-    const ms = resolved.getTime()
-    if (ms <= tomorrowEnd) tomorrow.push(t)
-    else if (ms <= thisWeekEnd) thisWeek.push(t)
-    else if (ms <= nextWeekEnd) nextWeek.push(t)
-    else if (ms <= thisMonthEnd) laterMonth.push(t)
-    else if (ms <= nextMonthEnd) nextMonth.push(t)
-    else beyond.push(t)
-  }
-
-  const groups: DashboardListGroup[] = []
-  if (tomorrow.length > 0) groups.push({ key: 'tomorrow', label: 'Tomorrow', todos: tomorrow })
-  if (thisWeek.length > 0) groups.push({ key: 'this-week', label: 'This week', todos: thisWeek })
-  if (nextWeek.length > 0) groups.push({ key: 'next-week', label: 'Next week', todos: nextWeek })
-  if (laterMonth.length > 0) groups.push({ key: 'later-month', label: 'Later this month', todos: laterMonth })
-  if (nextMonth.length > 0) groups.push({ key: 'next-month', label: 'Next month', todos: nextMonth })
-  if (beyond.length > 0) groups.push({ key: 'beyond', label: 'Beyond', todos: beyond })
+  const ws = ctx.weekStartsOn
+  const { buckets, noDate } = bucketByDate(
+    todos,
+    (t) => t.scheduledDate ? resolveScheduled(t.scheduledDate, today, ws) : null,
+    today,
+    ws,
+    SCHEDULED_WINDOWS,
+  )
+  const groups = toGroups(buckets)
   if (noDate.length > 0) groups.push({ key: 'no-date', label: 'No scheduled date', todos: noDate })
   return groups
 }
@@ -503,38 +494,19 @@ function bucketByStatus(
 /**
  * People bucketing — N-assignee todos land in all N buckets (many-to-many
  * via `ctx.assignedPeopleMap`). Unassigned todos go to a trailing "Unassigned"
- * bucket. Buckets enumerate from `ctx.people` in registry order.
+ * bucket. Buckets enumerate from `ctx.people` in registry order. Shares
+ * `bucketByMany` with task-grouping's people branch.
  */
 function bucketByPeople(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
 ): DashboardListGroup[] {
-  const people = ctx.people ?? []
-  const assignedPeopleMap = ctx.assignedPeopleMap
-  const buckets = new Map<number, PersistedTodoItem[]>()
-  for (const p of people) if (p.id != null) buckets.set(p.id, [])
-  const unassigned: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const assigned = assignedPeopleMap?.get(t.id) ?? []
-    if (assigned.length === 0) { unassigned.push(t); continue }
-    const seen = new Set<number>()
-    let hit = false
-    for (const p of assigned) {
-      const id = p.id!
-      if (seen.has(id)) continue
-      seen.add(id)
-      const bucket = buckets.get(id)
-      if (bucket) { bucket.push(t); hit = true }
-    }
-    if (!hit) unassigned.push(t)
-  }
-
-  const groups: DashboardListGroup[] = []
-  for (const p of people) {
-    const ts = p.id != null ? buckets.get(p.id)! : []
-    if (ts.length > 0) groups.push({ key: `person-${p.id}`, label: p.name, todos: ts })
-  }
+  const { buckets, unassigned } = bucketByMany(todos, ctx.people ?? [], ctx.assignedPeopleMap)
+  const groups: DashboardListGroup[] = buckets.map((b) => ({
+    key: `person-${b.entity.id}`,
+    label: b.entity.name,
+    todos: b.todos,
+  }))
   if (unassigned.length > 0) groups.push({ key: 'unassigned', label: 'Unassigned', todos: unassigned })
   return groups
 }
@@ -542,7 +514,9 @@ function bucketByPeople(
 /**
  * Org bucketing — each todo's direct org assignments plus the orgs its
  * assigned people belong to (via `personOrgMap`), deduped. Todos with no
- * matched org go into a trailing "No organization" bucket.
+ * matched org go into a trailing "No organization" bucket. Direct-org +
+ * inferred-via-person fall together so the bucketByMany helper isn't a clean
+ * fit; the inline walk stays here.
  */
 function bucketByOrg(
   todos: PersistedTodoItem[],

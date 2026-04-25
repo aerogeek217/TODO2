@@ -25,6 +25,7 @@ function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
     assignedTagsMap: new Map(),
     statuses: [],
     today: new Date(2026, 0, 15),
+    weekStartsOn: 1,
     ...over,
   }
 }

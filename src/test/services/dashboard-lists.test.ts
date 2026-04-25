@@ -42,6 +42,7 @@ function emptyPredicate(): TodoPredicate {
 function makeCtx(overrides: Partial<DashboardListsContext> = {}): DashboardListsContext {
   return {
     today,
+    weekStartsOn: 1,
     evalPredicate: () => true,
     ...overrides,
   }
@@ -314,7 +315,7 @@ describe('interpretMembership — custom', () => {
 
   it('without ctx.evalPredicate, matches zero todos', () => {
     const t = makeTodo({ id: 1 })
-    const ctx: DashboardListsContext = { today }
+    const ctx: DashboardListsContext = { today, weekStartsOn: 1 }
     expect(interpretMembership({ kind: 'custom', predicate: emptyPredicate() }, t, ctx)).toBe(false)
   })
 })
@@ -495,15 +496,44 @@ describe('buildDashboardLists — visibility via def predicate', () => {
 })
 
 describe('week boundary parity with resolveFuzzy', () => {
-  it('bucketByEffective thisWeekEnd matches resolveFuzzy("this-week")', () => {
+  it('bucketByEffective thisWeekEnd matches resolveFuzzy("this-week") for Mon-first', () => {
     const anchor = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
     // A task at this-week end should land in 'this-week' bucket, not 'next-week'.
-    const thisWeekEnd = resolveFuzzy('this-week', anchor)
+    const thisWeekEnd = resolveFuzzy('this-week', anchor, 1)
     const t = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: thisWeekEnd } })
-    const lists = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor }))
+    const lists = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 1 }))
     const grouped = lists[0]
     const thisWeekGroup = grouped.groups!.find((g) => g.key === 'this-week')
     expect(thisWeekGroup?.todos.map((x) => x.id)).toContain(1)
+  })
+
+  it('bucketByEffective thisWeekEnd matches resolveFuzzy("this-week") for Sun-first', () => {
+    const anchor = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
+    const thisWeekEndSun = resolveFuzzy('this-week', anchor, 0) // Saturday for Sun-first
+    const t = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: thisWeekEndSun } })
+    const lists = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 0 }))
+    const grouped = lists[0]
+    const thisWeekGroup = grouped.groups!.find((g) => g.key === 'this-week')
+    expect(thisWeekGroup?.todos.map((x) => x.id)).toContain(1)
+  })
+
+  it('Sunday-first vs Monday-first place a Saturday differently', () => {
+    // 2026-04-15 is Wed. With Mon-first (1), Saturday 4/18 lands in 'this-week'
+    // (week ends Sunday 4/19). With Sun-first (0), Saturday 4/18 lands in
+    // 'this-week' too (week ends Saturday 4/18). The divergence shows for
+    // Sunday 4/19: Mon-first puts it in 'this-week' (last day); Sun-first
+    // pushes it to 'next-week' (already past Saturday end).
+    const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
+    const sunday = startOfDay(new Date(anchor.getTime() + 4 * MS_PER_DAY)) // 2026-04-19
+    const t = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: sunday } })
+
+    const monFirst = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 1 }))
+    expect(monFirst[0].groups!.find((g) => g.key === 'this-week')?.todos.map((x) => x.id)).toContain(1)
+
+    const sunFirst = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 0 }))
+    expect(sunFirst[0].groups!.find((g) => g.key === 'next-week')?.todos.map((x) => x.id)).toContain(1)
+    // 'this-week' bucket is dropped when empty; find returns undefined.
+    expect(sunFirst[0].groups!.find((g) => g.key === 'this-week')).toBeUndefined()
   })
 })
 

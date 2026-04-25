@@ -5,27 +5,14 @@ import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 
 /**
  * 0 = Sunday-first week (week ends Saturday).
- * 1 = Monday-first week (week ends Sunday). Default — matches pre-setting behavior.
+ * 1 = Monday-first week (week ends Sunday).
  */
 export type WeekStart = 0 | 1
 
-let configuredWeekStart: WeekStart = 1
-
-/** Set the default week start used by resolveFuzzy when no explicit value is given. */
-export function setConfiguredWeekStart(day: WeekStart): void {
-  configuredWeekStart = day
-}
-
-export function getConfiguredWeekStart(): WeekStart {
-  return configuredWeekStart
-}
-
 /**
  * Resolve a fuzzy token to a concrete Date: the end-of-window (inclusive last day).
- * `weekStartsOn` defaults to the configured setting (see `setConfiguredWeekStart`).
  */
-export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn?: WeekStart): Date {
-  const ws = weekStartsOn ?? configuredWeekStart
+export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn: WeekStart): Date {
   const base = startOfDay(today)
   switch (token) {
     case 'today':
@@ -33,13 +20,13 @@ export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn?: Week
     case 'tomorrow':
       return startOfDay(new Date(base.getTime() + MS_PER_DAY))
     case 'this-week': {
-      const endDow = ws === 1 ? 0 : 6 // Sunday if Monday-first, Saturday if Sunday-first
+      const endDow = weekStartsOn === 1 ? 0 : 6 // Sunday if Monday-first, Saturday if Sunday-first
       const dow = base.getDay()
       const days = (endDow - dow + 7) % 7
       return startOfDay(new Date(base.getTime() + days * MS_PER_DAY))
     }
     case 'next-week': {
-      const endDow = ws === 1 ? 0 : 6
+      const endDow = weekStartsOn === 1 ? 0 : 6
       const dow = base.getDay()
       const days = (endDow - dow + 7) % 7
       return startOfDay(new Date(base.getTime() + (days + 7) * MS_PER_DAY))
@@ -53,15 +40,14 @@ export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn?: Week
 
 /**
  * Resolve a `RelativeDateToken` to a concrete midnight Date. Week tokens honor
- * `weekStartsOn` (defaults to the configured setting). Month tokens work off
- * calendar month boundaries regardless of week start.
+ * `weekStartsOn`. Month tokens work off calendar month boundaries regardless
+ * of week start.
  */
 export function resolveRelativeToken(
   token: RelativeDateToken,
   today: Date,
-  weekStartsOn?: WeekStart,
+  weekStartsOn: WeekStart,
 ): Date {
-  const ws = weekStartsOn ?? configuredWeekStart
   const base = startOfDay(today)
   const dow = base.getDay()
 
@@ -69,12 +55,12 @@ export function resolveRelativeToken(
     startOfDay(new Date(d.getTime() + n * MS_PER_DAY))
 
   const startOfWeek = () => {
-    const startDow = ws // 0 = Sun-first, 1 = Mon-first
+    const startDow = weekStartsOn // 0 = Sun-first, 1 = Mon-first
     const days = (dow - startDow + 7) % 7
     return addDays(base, -days)
   }
   const endOfWeek = () => {
-    const endDow = ws === 1 ? 0 : 6
+    const endDow = weekStartsOn === 1 ? 0 : 6
     const days = (endDow - dow + 7) % 7
     return addDays(base, days)
   }
@@ -116,17 +102,21 @@ export function resolveRelativeToken(
 export function resolveDateAnchor(
   anchor: DateAnchor,
   today: Date,
-  weekStartsOn?: WeekStart,
+  weekStartsOn: WeekStart,
 ): Date {
   if (anchor.kind === 'fixed') return startOfDay(new Date(anchor.iso))
   return resolveRelativeToken(anchor.token, today, weekStartsOn)
 }
 
 /** Resolve scheduledDate to a concrete Date, or null if unset. */
-export function resolveScheduled(s: ScheduledValue | undefined, today: Date): Date | null {
+export function resolveScheduled(
+  s: ScheduledValue | undefined,
+  today: Date,
+  weekStartsOn: WeekStart,
+): Date | null {
   if (!s) return null
   if (s.kind === 'date') return startOfDay(new Date(s.value))
-  return resolveFuzzy(s.token, today)
+  return resolveFuzzy(s.token, today, weekStartsOn)
 }
 
 /**
@@ -136,8 +126,9 @@ export function resolveScheduled(s: ScheduledValue | undefined, today: Date): Da
 export function effectiveDate(
   t: Pick<TodoItem, 'scheduledDate' | 'dueDate'>,
   today: Date,
+  weekStartsOn: WeekStart,
 ): Date | null {
-  const sched = resolveScheduled(t.scheduledDate, today)
+  const sched = resolveScheduled(t.scheduledDate, today, weekStartsOn)
   const due = t.dueDate ? startOfDay(new Date(t.dueDate)) : null
   if (sched && due) return sched < due ? sched : due
   return sched ?? due
@@ -150,9 +141,10 @@ export function effectiveDate(
 export function isScheduledExpired(
   t: Pick<TodoItem, 'scheduledDate'>,
   today: Date,
+  weekStartsOn: WeekStart,
 ): boolean {
   if (!t.scheduledDate || t.scheduledDate.kind !== 'fuzzy') return false
-  const resolved = resolveFuzzy(t.scheduledDate.token, today)
+  const resolved = resolveFuzzy(t.scheduledDate.token, today, weekStartsOn)
   return resolved < startOfDay(today)
 }
 
@@ -164,8 +156,9 @@ export function isScheduledExpired(
 export function isScheduledPast(
   t: Pick<TodoItem, 'scheduledDate'>,
   today: Date,
+  weekStartsOn: WeekStart,
 ): boolean {
-  const resolved = resolveScheduled(t.scheduledDate, today)
+  const resolved = resolveScheduled(t.scheduledDate, today, weekStartsOn)
   if (!resolved) return false
   return resolved < startOfDay(today)
 }

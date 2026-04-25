@@ -32,9 +32,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const bulk = useBulkActions()
   const today = startOfToday()
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
+  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
   const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
-  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today), today))
+  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today, weekStartsOn), today))
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
 

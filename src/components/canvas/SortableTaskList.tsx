@@ -7,6 +7,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { TaskRow } from '../task/TaskRow'
 import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { bySortOrder } from '../../utils/sort-order'
@@ -121,6 +122,7 @@ export function SortableTaskList({
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const today = useMemo(() => startOfToday(), [])
 
   // Which InsertTrigger is currently open (keyed by the todo id it follows, or BEFORE_FIRST)
@@ -176,6 +178,7 @@ export function SortableTaskList({
       assignedTagsMap,
       statuses,
       today,
+      weekStartsOn,
     })
     const out: RenderBlock[] = []
     if (partition.ungrouped.length > 0) {
@@ -188,7 +191,7 @@ export function SortableTaskList({
       out[i].nextBlockFirstId = out[i + 1].todos[0]?.id ?? null
     }
     return out
-  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, today])
+  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, today, weekStartsOn])
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])

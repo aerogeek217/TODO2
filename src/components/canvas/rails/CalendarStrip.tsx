@@ -5,6 +5,7 @@ import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { startOfDay, MS_PER_DAY } from '../../../utils/date'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { buildEntries, dayKey } from './calendar/calendar-events'
 import { EventRow } from './calendar/EventRow'
 import { dropCellClassName } from '../../shared/DropIndicator'
@@ -145,10 +146,11 @@ export function CalendarStrip({
 }: CalendarStripProps) {
   const autoScope = useId()
   const scope = scopeProp ?? autoScope
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const days = useMemo(() => buildDayRange(today, weekOffset), [today, weekOffset])
   const entriesByDay = useMemo(
-    () => buildEntries(todos, days, today, assignedPeopleMap, assignedOrgsMap, statuses),
-    [todos, days, today, assignedPeopleMap, assignedOrgsMap, statuses],
+    () => buildEntries(todos, days, today, weekStartsOn, assignedPeopleMap, assignedOrgsMap, statuses),
+    [todos, days, today, weekStartsOn, assignedPeopleMap, assignedOrgsMap, statuses],
   )
   const todayKey = dayKey(today)
 
