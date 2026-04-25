@@ -7,7 +7,8 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | Abstraction | Location | Purpose |
 |-------------|----------|---------|
 | Canvas | models/canvas.ts | Named spatial workspace |
-| Project | models/project.ts | Positioned group of tasks on a canvas (optional color) |
+| Project | models/project.ts | Positioned group of tasks on a canvas (optional color). Optional `groupBy?: ProjectGroupBy \| null` (`'status' \| 'people' \| 'org' \| 'scheduled' \| 'deadline' \| 'date'`) drives `SortableTaskList`'s grouped render path — null/undefined → flat list. Optional `groupOrder?: string[]` reserves slot for explicit group ordering; v1 has no UI for it (alphabetical / sortOrder fallback). Both fields are stored inline, not indexed |
+| ProjectGroupBy | models/project.ts | Union of the six group-by dimensions accepted by `Project.groupBy`. Validated in `import-validation.ts` via `VALID_PROJECT_GROUP_BY` so legacy / hand-edited backups can't smuggle in unknown keys |
 | TodoItem | models/todo-item.ts | Core todo entry (id optional, pre-insert); optional `progress`, `statusId`, `scheduledDate` (ScheduledValue), `dueDate` (deadline), `recurrenceRule` |
 | PersistedTodoItem | models/todo-item.ts | TodoItem with guaranteed id (post-insert) |
 | ScheduledValue | models/scheduled-value.ts | Discriminated union for `scheduledDate`: `{kind:'date', value:Date}` or `{kind:'fuzzy', token: FuzzyToken}` where FuzzyToken ∈ today/tomorrow/this-week/next-week/this-month/next-month |
@@ -60,7 +61,7 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | createJoinOps | data/join-helpers.ts | Factory for join table assign/unassign with dedup check |
 | buildAssignmentMap | data/join-helpers.ts | Generic join table → entity map builder (Map\<linkId, Entity[]\>) |
 | todoRepository | data/todo-repository.ts | Full CRUD + queries for TodoItem, bulkUpdate (batched transaction), bulkDelete (atomic multi-delete) |
-| projectRepository | data/project-repository.ts | CRUD + position updates (single + bulk) for Project |
+| projectRepository | data/project-repository.ts | CRUD + position updates (single + bulk) for Project. `updateGrouping(id, groupBy, groupOrder?)` writes the two grouping fields with a single `db.projects.update` (omits `groupOrder` from the changeset when undefined so a `null` from the caller would clear, but undefined is a no-touch) |
 | canvasRepository | data/canvas-repository.ts | CRUD for Canvas (cascading delete: todos, projects, todoPeople, todoOrgs, notes, listInsets) |
 | personRepository | data/person-repository.ts | CRUD for Person + todoPeople join queries |
 | orgRepository | data/org-repository.ts | CRUD for Org (cascading delete clears personOrgs + todoOrgs), todo-org assignment queries, person-org many-to-many (getOrgsForPerson, getPersonOrgMap, setPersonOrgs) |
@@ -84,6 +85,7 @@ Detail reference for `src/models/` (TypeScript interfaces) and `src/data/` (Dexi
 | settingsRepository | data/settings-repository.ts | CRUD for settings key-value pairs (getAll, put, delete, bulkDelete) |
 | listDefinitionRepository | data/list-definition-repository.ts | CRUD for ListDefinition (getAll ordered by sortOrder, reorder) |
 | runV39Migration / savedViewToListDefinition / savedFiltersToPredicate / resolveSavedViewGrouping / translateSortBy / encodeGroupSort | data/database.ts, data/saved-view-legacy.ts | v39 upgrade: fold `savedViews` into `listDefinitions`. Each row becomes a `ListDefinition` with `favorited: true` + `pinnedToDashboard: false`, carrying over sort / grouping / filters / `maxTasks` / `limitMode` via `savedViewToListDefinition` → `savedFiltersToPredicate` + `encodeGroupSort`. Backfills `favorited: false` on every pre-existing def then drops the `savedViews` table. Pure helpers live in `data/saved-view-legacy.ts` so in-place migration and file-import restore share one translator (legacy `sortBy` values `priority`/`due`/`tag` fold to `'date'` via `translateSortBy`) |
+| v40 schema bump | data/database.ts | No-op `version(40).stores({})` for `Project.groupBy` + `groupOrder` (task-grouping P2). Both fields are stored inline and unindexed, so the schema string is unchanged — bump exists for auditability and to keep a clean version record. Existing rows need no rewriting (omitted fields read as `undefined`) |
 | backupRepository | data/backup-repository.ts | Snapshot CRUD: createSnapshot, listSnapshots (lightweight), restoreSnapshot (validates + imports), pruneSnapshots |
 | auditData | data/audit.ts | Scan all tables for orphaned join rows, dangling foreign keys, and unplaced canvas tasks (canvasId set but no projectId); returns AuditReport |
 | cleanupIssues | data/audit.ts | Atomic cleanup of all audit issues (delete orphans, clear dangling FKs) in single transaction |
