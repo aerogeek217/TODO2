@@ -45,6 +45,7 @@ Detail reference for `src/services/` (non-UI logic), `src/hooks/` (custom React 
 | useInlineEdit | hooks/use-inline-edit.ts | Inline title editing: state, focus, save/cancel, 250ms click-to-edit timer |
 | useClickOutside | hooks/use-click-outside.ts | Click-outside detection hook for closing dropdowns/menus |
 | useNlpAutocomplete | hooks/use-nlp-autocomplete.ts | Hook for `@` / `/` / `#` autocomplete in input fields: tracks trigger position (whitespace-anchored), filters people/orgs/projects/tags (case-insensitive prefix match for `#`), handles arrow/Tab/Enter/Escape navigation. Accepting a tag suggestion completes the `#slug` text; the existing NLP pipeline + `resolveTags` then turns it into a registry id on save. A missing match on `#` surfaces a "create #new-tag" affordance so unknown slugs still create a row |
+| useRightEdgeFlip | hooks/use-right-edge-flip.ts | Shared `useLayoutEffect` panel-flip hook for dropdown panels that anchor to a chip's left edge by default. Returns `[panelRef, align]` (`'start' \| 'end'`); on the next layout tick after `open` flips `true`, measures `panel.getBoundingClientRect().right > window.innerWidth - 8` and switches `align` to `'end'` so the consumer renders `data-align="end"` (`topBar.dropdownPanel` flips to `right: 0; left: auto`). Consumed by every chip-row picker in `ListFilterEditor` (Project / People / Org / Tags / Status / Date); bugs-ui P1 extracted it from the per-picker `useLayoutEffect` originally added to `DateRangeDropdown` in list-bugs P2 so right-edge overflow is handled in one place |
 
 ## Utils
 
