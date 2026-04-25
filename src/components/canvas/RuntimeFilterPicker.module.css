@@ -1,4 +1,5 @@
 .row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -16,19 +17,165 @@
   flex-shrink: 0;
 }
 
-.select {
+/* Chip + input shell — reads as a single multi-value field. */
+.field {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  cursor: text;
+}
+
+.field:focus-within {
+  border-color: var(--color-accent);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 1px 4px 1px 8px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.chipName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipRemove {
+  background: none;
+  border: none;
+  padding: 0 4px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.chipRemove:hover {
+  color: var(--color-text-primary);
+}
+
+.input {
+  flex: 1;
+  min-width: 60px;
+  background: transparent;
+  border: none;
+  outline: none;
   color: var(--color-text-primary);
   font-family: inherit;
   font-size: var(--font-size-meta);
-  padding: 2px 6px;
-  outline: none;
+  padding: 2px 4px;
 }
 
-.select:focus {
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Anchored option list — same visual register as the TopBar dropdown panel
+ * (`useRightEdgeFlip` flips the alignment when the panel would overflow the
+ * right edge of the surrounding inset / lens). */
+.panel {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 180px;
+  max-width: 320px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  z-index: var(--z-overlay);
+  padding: 4px;
+}
+
+.panel[data-align="end"] {
+  left: auto;
+  right: 0;
+}
+
+.optionList {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-chip);
+  font-size: var(--font-size-nav);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.option:hover {
+  background: var(--color-surface-high);
+}
+
+.optionName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Checkbox marker — matches the TopBar dropdown's check style without
+ * importing across module boundaries. */
+.check {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-surface-high);
+  position: relative;
+}
+
+.check.checked {
+  background: var(--color-accent);
   border-color: var(--color-accent);
+}
+
+.check.checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--color-on-accent, #fff);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.empty {
+  padding: 8px 10px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-style: italic;
 }

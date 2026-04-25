@@ -56,13 +56,14 @@ export interface DashboardListsContext {
   /**
    * Per-definition runtime-filter picks keyed by def id. When a def declares a
    * `runtimeFilter`, the interpreter reads the caller's current pick here and
-   * merges it into the predicate as an equality before membership is
+   * merges it into the predicate as a multi-value OR before membership is
    * evaluated. A missing key means the user has not picked yet — the list
    * returns with `todos: []` and `runtimeFilterUnset: true` so the surface can
    * render a "Pick a {label} to populate…" placeholder instead of an empty
-   * state.
+   * state. An empty array is treated as a no-op (helper passes the predicate
+   * through unchanged) — matches "user cleared all chips" UX.
    */
-  runtimeFilterValues?: ReadonlyMap<number, number>
+  runtimeFilterValues?: ReadonlyMap<number, number[]>
 }
 
 export interface DashboardListGroup {
@@ -82,21 +83,30 @@ export interface DashboardList {
 }
 
 /**
- * Return a new predicate that narrows the given field to the supplied id.
- * Replaces any existing id filter on that field — the runtime pick is
- * authoritative for the prompted field. Other clauses are preserved so the
- * def's baseline predicate (status / date window / etc.) still applies.
+ * Return a new predicate that narrows the given field to the supplied ids
+ * (OR-combined). Replaces any existing id filter on that field — the runtime
+ * pick is authoritative for the prompted field. Other clauses are preserved so
+ * the def's baseline predicate (status / date window / etc.) still applies.
+ *
+ * An empty `values` array is a no-op: the predicate is returned unchanged so
+ * "user cleared all chips" doesn't short-circuit the list to "match nothing"
+ * (that would be the semantics of writing an empty id array into the
+ * predicate). Callers that want "show no rows when the filter is unset" must
+ * gate on the absence of a pick (see `buildDashboardLists` →
+ * `runtimeFilterUnset`).
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
   spec: RuntimeFilterSpec,
-  value: number,
+  values: number[],
 ): TodoPredicate {
+  if (values.length === 0) return predicate
   switch (spec.field) {
-    case 'person': return { ...predicate, personIds: [value] }
-    case 'org': return { ...predicate, orgIds: [value] }
-    case 'project': return { ...predicate, projectIds: [value] }
-    case 'status': return { ...predicate, statusIds: [value] }
+    case 'person': return { ...predicate, personIds: values }
+    case 'org': return { ...predicate, orgIds: values }
+    case 'project': return { ...predicate, projectIds: values }
+    case 'status': return { ...predicate, statusIds: values }
+    case 'tag': return { ...predicate, tags: values }
   }
 }
 

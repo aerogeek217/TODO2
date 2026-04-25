@@ -41,14 +41,16 @@ interface ListDefinitionBodyProps {
   className?: string
   emptyClassName?: string
   /**
-   * Caller-owned runtime-filter pick for definitions that declare
+   * Caller-owned runtime-filter picks for definitions that declare
    * `runtimeFilter`. When the definition has a runtime filter but `value` is
    * undefined, the body renders a "Pick a {label} to populate…" placeholder
-   * and emits zero todos. Ignored when the definition has no runtime filter.
+   * and emits zero todos. An empty array is "explicit no narrowing" — the
+   * placeholder is suppressed and the list shows every member of the
+   * baseline predicate. Ignored when the definition has no runtime filter.
    */
-  runtimeFilterValue?: number
+  runtimeFilterValue?: number[]
   /** Setter paired with `runtimeFilterValue`. Required when runtime filter is active. */
-  onRuntimeFilterChange?: (value: number | undefined) => void
+  onRuntimeFilterChange?: (value: number[] | undefined) => void
 }
 
 /**
@@ -129,7 +131,7 @@ export function ListDefinitionBody({
       )
     }
     const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
-      ? new Map<number, number>([[definition.id, runtimeFilterValue]])
+      ? new Map<number, number[]>([[definition.id, runtimeFilterValue]])
       : undefined
     const [list] = buildDashboardLists([definition], todos, {
       today,

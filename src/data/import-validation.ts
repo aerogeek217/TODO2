@@ -346,7 +346,15 @@ function checkListInset(v: unknown): CheckResult {
     ['width', isFiniteNum(v.width)],
     ['height', isFiniteNum(v.height)],
     ['isCollapsed', isBool(v.isCollapsed)],
+    // runtime-filter pick: post-v41 array, pre-v41 scalar, or absent.
+    ['runtimeFilterValue', isOptRuntimeFilterValue(v.runtimeFilterValue)],
   ])
+}
+
+function isOptRuntimeFilterValue(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (Array.isArray(v)) return v.every((x) => isFiniteNum(x))
+  return isFiniteNum(v)
 }
 
 function checkTodoTag(v: unknown): CheckResult {
@@ -826,6 +834,12 @@ export interface ImportListInset {
   width: number
   height: number
   isCollapsed: boolean
+  /**
+   * Runtime-filter pick. Always emitted as `number[]` (the post-v41 shape);
+   * `pickListInset` lifts a legacy scalar `number` into `[number]` so the
+   * restore path doesn't need to re-run the v41 migration.
+   */
+  runtimeFilterValue?: number[]
 }
 
 function pickAttributeFilter(f: Record<string, unknown>): LegacyAttributeFilter | undefined {
@@ -850,7 +864,18 @@ function pickListInset(v: Record<string, unknown>): ImportListInset {
     ...(v.attributeFilter != null ? { attributeFilter: pickAttributeFilter(v.attributeFilter as Record<string, unknown>) } : {}),
     canvasId: v.canvasId as number, x: v.x as number, y: v.y as number,
     width: v.width as number, height: v.height as number, isCollapsed: v.isCollapsed as boolean,
+    ...(pickRuntimeFilterValue(v.runtimeFilterValue) ?? {}),
   }
+}
+
+function pickRuntimeFilterValue(v: unknown): { runtimeFilterValue: number[] } | undefined {
+  if (Array.isArray(v)) {
+    const ids: number[] = []
+    for (const x of v) if (typeof x === 'number' && Number.isFinite(x)) ids.push(x)
+    return ids.length > 0 ? { runtimeFilterValue: ids } : undefined
+  }
+  if (typeof v === 'number' && Number.isFinite(v)) return { runtimeFilterValue: [v] }
+  return undefined
 }
 
 function pickTodoTag(v: Record<string, unknown>): ImportTodoTag {

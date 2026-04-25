@@ -32,7 +32,7 @@ export type ListGrouping =
   | { kind: 'by-tag' }
 
 /** Which entity a saved list's runtime-filter picker narrows on. */
-export type RuntimeFilterField = 'person' | 'org' | 'project' | 'status'
+export type RuntimeFilterField = 'person' | 'org' | 'project' | 'status' | 'tag'
 
 /**
  * Optional per-card prompt: the consumer supplies one id at render time that

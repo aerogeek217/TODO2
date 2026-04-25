@@ -102,6 +102,7 @@ const RUNTIME_FILTER_OPTIONS: { value: RuntimeFilterField | 'none'; label: strin
   { value: 'org', label: 'Org' },
   { value: 'project', label: 'Project' },
   { value: 'status', label: 'Status' },
+  { value: 'tag', label: 'Tag' },
 ]
 
 function encodeSortValue(sort: ListSort): SortSelectValue {

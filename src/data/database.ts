@@ -283,6 +283,16 @@ export class Todo2Database extends Dexie {
     // the schema string is unchanged — version bump is for auditability.
     // Existing rows need no rewriting (omitted fields are read as undefined).
     this.version(40).stores({})
+
+    // v41: lift runtime-filter pick from scalar to array (lists-consistency
+    // P5). Walks `listInsets` rows and rewrites `runtimeFilterValue: number`
+    // → `[number]`; walks `settings.canvasRails` JSON and lifts every tab's
+    // scalar `runtimeFilterValue` to a single-entry array. Idempotent — rows
+    // already in the array shape pass through unchanged.
+    this.version(41).stores({})
+      .upgrade(async (tx) => {
+        await runV41Migration(tx)
+      })
   }
 }
 
@@ -1504,5 +1514,76 @@ export async function runV39Migration(tx: Transaction): Promise<void> {
 
   if (translated > 0) {
     console.info(`v39 migration: translated ${translated} savedView(s) into favorited listDefinition(s)`)
+  }
+}
+
+/**
+ * Lift every tab's scalar `runtimeFilterValue` inside a serialized
+ * `canvasRails` JSON blob into a single-entry array (`number → [number]`).
+ * Pure; returns the updated JSON string (or the input when no change is
+ * needed). Invalid JSON is returned unchanged. Idempotent — array-shaped
+ * values pass through.
+ *
+ * Shared between `runV41Migration` (in-place migration) and any future
+ * restore-time path that needs to normalize older serialized rails state.
+ */
+export function liftRailsRuntimeFilterValues(railsJson: string | undefined): string | undefined {
+  if (!railsJson) return railsJson
+  let parsed: unknown
+  try { parsed = JSON.parse(railsJson) } catch { return railsJson }
+  if (!parsed || typeof parsed !== 'object') return railsJson
+  let touched = false
+  const sides = ['left', 'right', 'top', 'bottom'] as const
+  for (const side of sides) {
+    const rail = (parsed as Record<string, unknown>)[side]
+    if (!rail || typeof rail !== 'object') continue
+    const slots = (rail as Record<string, unknown>).slots
+    if (!Array.isArray(slots)) continue
+    for (const s of slots) {
+      if (!s || typeof s !== 'object') continue
+      const slot = s as Record<string, unknown>
+      if (!Array.isArray(slot.tabs)) continue
+      for (const raw of slot.tabs) {
+        if (!raw || typeof raw !== 'object') continue
+        const tab = raw as Record<string, unknown>
+        const v = tab.runtimeFilterValue
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          tab.runtimeFilterValue = [v]
+          touched = true
+        }
+      }
+    }
+  }
+  return touched ? JSON.stringify(parsed) : railsJson
+}
+
+/**
+ * v41 upgrade: lift every persisted `runtimeFilterValue` from a scalar
+ * `number` to a single-entry `number[]` so the new multi-value runtime
+ * filter (lists-consistency P5) reads existing data unchanged. Two carriers:
+ * `listInsets` rows (column field) and `settings.canvasRails` JSON (per-tab
+ * field). Idempotent — rows already in the array shape are skipped.
+ */
+export async function runV41Migration(tx: Transaction): Promise<void> {
+  let liftedInsets = 0
+  await tx.table('listInsets').toCollection().modify((row: Record<string, unknown>) => {
+    const v = row.runtimeFilterValue
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      row.runtimeFilterValue = [v]
+      liftedInsets++
+    }
+  })
+
+  const settingsTable = tx.table<SettingRow>('settings')
+  const railsSetting = await settingsTable.get('canvasRails')
+  if (railsSetting) {
+    const next = liftRailsRuntimeFilterValues(railsSetting.value)
+    if (next !== railsSetting.value && next != null) {
+      await settingsTable.put({ key: 'canvasRails', value: next })
+    }
+  }
+
+  if (liftedInsets > 0) {
+    console.info(`v41 migration: lifted runtimeFilterValue scalar→array on ${liftedInsets} list inset(s)`)
   }
 }

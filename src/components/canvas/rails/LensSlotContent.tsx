@@ -6,8 +6,8 @@ import styles from './LensSlotContent.module.css'
 interface LensSlotContentProps {
   listDefinitionId: number | undefined
   onTitleChange?: (title: string, count: number, todos: PersistedTodoItem[]) => void
-  runtimeFilterValue?: number
-  onRuntimeFilterChange?: (value: number | undefined) => void
+  runtimeFilterValue?: number[]
+  onRuntimeFilterChange?: (value: number[] | undefined) => void
 }
 
 export function LensSlotContent({

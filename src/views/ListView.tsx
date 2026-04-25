@@ -76,6 +76,7 @@ const runtimeFilterOptions: { value: RuntimeFilterField | 'none'; label: string 
   { value: 'org', label: 'Org' },
   { value: 'project', label: 'Project' },
   { value: 'status', label: 'Status' },
+  { value: 'tag', label: 'Tag' },
 ]
 
 
@@ -595,7 +596,7 @@ export function ListView() {
   // `value` is transient — mirrors widget surfaces, which cache the value per
   // widget but never write it onto the def.
   const [runtimeFilterSpec, setRuntimeFilterSpec] = useState<RuntimeFilterSpec | null>(null)
-  const [runtimeFilterValue, setRuntimeFilterValue] = useState<number | undefined>(undefined)
+  const [runtimeFilterValue, setRuntimeFilterValue] = useState<number[] | undefined>(undefined)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -643,7 +644,7 @@ export function ListView() {
   // value is picked yet, the list returns empty — mirrors widget behavior and
   // prompts the user to pick via the visible picker.
   const effectiveFilters = useMemo(() => {
-    if (!runtimeFilterSpec || runtimeFilterValue == null) return filters
+    if (!runtimeFilterSpec || runtimeFilterValue == null || runtimeFilterValue.length === 0) return filters
     const narrowed = applyRuntimeFilter(criteriaToPredicate(filters), runtimeFilterSpec, runtimeFilterValue)
     return predicateToCriteria(narrowed)
   }, [filters, runtimeFilterSpec, runtimeFilterValue])

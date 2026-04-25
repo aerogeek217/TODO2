@@ -31,6 +31,7 @@ function emptyPredicate(): TodoPredicate {
     dateRangeIncludeNoDate: false,
     hasScheduled: null,
     hasDeadline: null,
+    tags: null,
   }
 }
 
@@ -211,7 +212,7 @@ describe('buildDashboardLists — runtime filter', () => {
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
     const ctx = makeCtx({
       evalPredicate,
-      runtimeFilterValues: new Map([[7, 2]]),
+      runtimeFilterValues: new Map([[7, [2]]]),
     })
     const [list] = buildDashboardLists([def], todos, ctx)
     expect(list.runtimeFilterUnset).toBeUndefined()
@@ -220,12 +221,49 @@ describe('buildDashboardLists — runtime filter', () => {
     expect(calls.every((p) => p.personIds?.length === 1 && p.personIds[0] === 2)).toBe(true)
   })
 
+  it('OR-combines multi-value picks before membership eval', () => {
+    const def = customDef({ id: 7, runtimeFilter: { field: 'person' } })
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      if (!p.personIds) return true
+      return p.personIds.includes(t.id)
+    }
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const ctx = makeCtx({
+      evalPredicate,
+      runtimeFilterValues: new Map([[7, [1, 3]]]),
+    })
+    const [list] = buildDashboardLists([def], todos, ctx)
+    expect(list.todos.map((t) => t.id).sort()).toEqual([1, 3])
+  })
+
+  it('treats an empty pick array as a no-op (predicate passes through)', () => {
+    const def = customDef({ id: 7, runtimeFilter: { field: 'person' } })
+    // evalPredicate returns true unconditionally; if applyRuntimeFilter wrote
+    // `personIds: []` into the predicate, a strict evaluator would short-
+    // circuit to "match nothing". The helper must instead pass the predicate
+    // through unchanged so all 3 todos remain.
+    const evalPredicate = (p: TodoPredicate) => {
+      // If the helper had written an empty array, p.personIds would be `[]`;
+      // we expect it to remain `null` here so no narrowing happens.
+      expect(p.personIds).toBeNull()
+      return true
+    }
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const ctx = makeCtx({
+      evalPredicate,
+      runtimeFilterValues: new Map([[7, []]]),
+    })
+    const [list] = buildDashboardLists([def], todos, ctx)
+    expect(list.runtimeFilterUnset).toBeUndefined()
+    expect(list.todos.map((t) => t.id)).toEqual([1, 2, 3])
+  })
+
   it('leaves other batched defs untouched by the runtime pick', () => {
     const withRt = customDef({ id: 1, name: 'rt', runtimeFilter: { field: 'project' } })
     const plain = customDef({ id: 2, name: 'plain' })
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
     const lists = buildDashboardLists([withRt, plain], todos, makeCtx({
-      runtimeFilterValues: new Map([[1, 9]]),
+      runtimeFilterValues: new Map([[1, [9]]]),
     }))
     // rt applies pick; plain is unaffected and matches all (evalPredicate default)
     expect(lists.find((l) => l.id === 1)?.runtimeFilterUnset).toBeUndefined()
@@ -234,15 +272,31 @@ describe('buildDashboardLists — runtime filter', () => {
 
   it('applyRuntimeFilter rewrites the appropriate id list for each field', () => {
     const base = emptyPredicate()
-    expect(applyRuntimeFilter(base, { field: 'person' }, 5).personIds).toEqual([5])
-    expect(applyRuntimeFilter(base, { field: 'org' }, 6).orgIds).toEqual([6])
-    expect(applyRuntimeFilter(base, { field: 'project' }, 7).projectIds).toEqual([7])
-    expect(applyRuntimeFilter(base, { field: 'status' }, 8).statusIds).toEqual([8])
+    expect(applyRuntimeFilter(base, { field: 'person' }, [5]).personIds).toEqual([5])
+    expect(applyRuntimeFilter(base, { field: 'org' }, [6]).orgIds).toEqual([6])
+    expect(applyRuntimeFilter(base, { field: 'project' }, [7]).projectIds).toEqual([7])
+    expect(applyRuntimeFilter(base, { field: 'status' }, [8]).statusIds).toEqual([8])
+    expect(applyRuntimeFilter(base, { field: 'tag' }, [9]).tags).toEqual([9])
+  })
+
+  it('applyRuntimeFilter passes multi-value arrays through to the predicate', () => {
+    const base = emptyPredicate()
+    expect(applyRuntimeFilter(base, { field: 'person' }, [1, 2, 3]).personIds).toEqual([1, 2, 3])
+    expect(applyRuntimeFilter(base, { field: 'tag' }, [4, 5]).tags).toEqual([4, 5])
+  })
+
+  it('applyRuntimeFilter is a no-op when values is empty (predicate unchanged)', () => {
+    const base: TodoPredicate = { ...emptyPredicate(), personIds: [1, 2, 3] }
+    const result = applyRuntimeFilter(base, { field: 'person' }, [])
+    // Returned predicate has the same personIds — helper did NOT rewrite to
+    // `[]` (which would short-circuit a strict evaluator to "match nothing").
+    expect(result).toBe(base)
+    expect(result.personIds).toEqual([1, 2, 3])
   })
 
   it('applyRuntimeFilter overwrites any prior id filter on the same field', () => {
     const base: TodoPredicate = { ...emptyPredicate(), personIds: [1, 2, 3] }
-    expect(applyRuntimeFilter(base, { field: 'person' }, 9).personIds).toEqual([9])
+    expect(applyRuntimeFilter(base, { field: 'person' }, [9]).personIds).toEqual([9])
   })
 })
 

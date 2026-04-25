@@ -13,11 +13,14 @@ export interface Tab {
   type: TabType
   listDefinitionId?: number
   /**
-   * Lens-only: the user's current pick for a runtime-filter list-def (see
+   * Lens-only: the user's current picks for a runtime-filter list-def (see
    * `ListDefinition.runtimeFilter`). Stored on the tab so remounting the rail
-   * doesn't reset the pick. Ignored on non-lens tabs.
+   * doesn't reset the picks. OR-combined when the helper applies them.
+   * Ignored on non-lens tabs. Lifted from a scalar `number` to `number[]` by
+   * the v41 Dexie migration (rails state is serialized JSON in
+   * `settings.canvasRails`, so the migration walks that blob).
    */
-  runtimeFilterValue?: number
+  runtimeFilterValue?: number[]
 }
 
 export interface Slot {
@@ -168,8 +171,18 @@ function parseTab(raw: unknown): Tab | null {
   if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
     tab.listDefinitionId = r.listDefinitionId
   }
-  if (typeof r.runtimeFilterValue === 'number' && Number.isFinite(r.runtimeFilterValue)) {
-    tab.runtimeFilterValue = r.runtimeFilterValue
+  // Accept both shapes: legacy scalar (pre-v41) and array (post-v41). The
+  // v41 Dexie migration rewrites the persisted blob to the array shape, but
+  // an import of a pre-v41 backup may still land a scalar — coerce it here so
+  // hydration doesn't drop the pick.
+  if (Array.isArray(r.runtimeFilterValue)) {
+    const ids: number[] = []
+    for (const v of r.runtimeFilterValue) {
+      if (typeof v === 'number' && Number.isFinite(v)) ids.push(v)
+    }
+    if (ids.length > 0) tab.runtimeFilterValue = ids
+  } else if (typeof r.runtimeFilterValue === 'number' && Number.isFinite(r.runtimeFilterValue)) {
+    tab.runtimeFilterValue = [r.runtimeFilterValue]
   }
   // Legacy `taskboardId` fields on persisted tabs are silently ignored —
   // taskboard became a singleton in the widget-taskboard-dnd Phase 1 collapse.

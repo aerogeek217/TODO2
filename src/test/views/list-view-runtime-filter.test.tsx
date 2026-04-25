@@ -186,11 +186,13 @@ describe('ListView — runtime-filter picker', () => {
     const { getByText, getByLabelText } = render(<ListView />)
     fireEvent.click(getByText('Tasks for…'))
 
-    // Picker is visible.
-    const picker = getByLabelText(/Filter tasks by person/i) as HTMLSelectElement
+    // Picker input is visible (multi-select shape — chips + searchable list).
+    const picker = getByLabelText(/Filter tasks by person/i) as HTMLInputElement
     expect(picker).toBeTruthy()
-    // Alice option exists.
-    expect(Array.from(picker.options).some((o) => o.textContent === 'Alice')).toBe(true)
+    expect(picker.tagName).toBe('INPUT')
+    // Focusing the input opens the option list; Alice should appear.
+    fireEvent.focus(picker)
+    expect(document.body.textContent).toMatch(/Alice/)
     // Empty-state message prompts for a pick.
     expect(document.body.textContent).toMatch(/Pick a person/i)
   })
@@ -218,8 +220,13 @@ describe('ListView — runtime-filter picker', () => {
     const { getByText, getByLabelText } = render(<ListView />)
     fireEvent.click(getByText('Tasks for…'))
 
-    const picker = getByLabelText(/Filter tasks by project/i) as HTMLSelectElement
-    fireEvent.change(picker, { target: { value: '1' } })
+    const picker = getByLabelText(/Filter tasks by project/i) as HTMLInputElement
+    fireEvent.focus(picker)
+    // Click the Alpha option in the anchored panel.
+    const alphaOption = Array.from(document.querySelectorAll('button'))
+      .find((b) => b.textContent === 'Alpha')
+    expect(alphaOption).toBeTruthy()
+    fireEvent.click(alphaOption!)
 
     // Alpha task is visible; Beta task is filtered out.
     expect(document.body.textContent).toMatch(/Alpha task/)

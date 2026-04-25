@@ -79,12 +79,12 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
     void store.update({ ...rest, listDefinitionId })
   }
 
-  const handleRuntimeFilterChange = useCallback((value: number | undefined) => {
+  const handleRuntimeFilterChange = useCallback((value: number[] | undefined) => {
     if (inset.id == null) return
     const store = useListInsetStore.getState()
     const current = store.insets.find((i) => i.id === inset.id)
     if (!current) return
-    if (value == null) {
+    if (value == null || value.length === 0) {
       const { runtimeFilterValue: _drop, ...rest } = current
       void _drop
       void store.update(rest)
