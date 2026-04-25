@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { makePerson, makeOrg, makeTodo } from '../helpers'
+import { useTaskboardStore } from '../../stores/taskboard-store'
+import { makePerson, makeOrg, makeTodo, resetDb } from '../helpers'
 import type { Person, Org, Tag, PersistedTodoItem } from '../../models'
 
 // Suppress showPicker (not supported in jsdom)
@@ -23,6 +24,7 @@ const followupTag: Tag & { id: number } = { id: 2, name: 'followup', color: '#0a
 function resetStores() {
   useProjectStore.setState({ projects: [] })
   useSettingsStore.setState({ defaultProjectId: undefined, themeMode: 'dark' })
+  useTaskboardStore.setState({ board: { id: 1, entries: [], createdAt: new Date(), updatedAt: new Date() } })
 }
 
 function typeTitle(text: string) {
@@ -426,6 +428,54 @@ describe('TaskEditPopup', () => {
       await vi.waitFor(() => {
         expect(onAssignTag).toHaveBeenCalledWith(99)
       })
+    })
+  })
+
+  describe('edit mode — taskboard toggle', () => {
+    beforeEach(async () => {
+      await resetDb()
+      useTaskboardStore.setState({ board: null, loading: false, error: null })
+    })
+
+    it('clicking Add to Taskboard adds the todo and flips the label', async () => {
+      const todo = makeTodo({ id: 42, title: 'Taskboard target' })
+      renderEditMode(todo)
+
+      expect(screen.getByText('Add to Taskboard')).toBeInTheDocument()
+      expect(useTaskboardStore.getState().has(42)).toBe(false)
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Add to Taskboard'))
+      })
+
+      await waitFor(() => {
+        expect(useTaskboardStore.getState().has(42)).toBe(true)
+      })
+      expect(screen.getByText('Remove from Taskboard')).toBeInTheDocument()
+      expect(screen.queryByText('Add to Taskboard')).not.toBeInTheDocument()
+    })
+
+    it('clicking Remove from Taskboard removes the todo and flips the label back', async () => {
+      const todo = makeTodo({ id: 77, title: 'Already on board' })
+      renderEditMode(todo)
+
+      await act(async () => {
+        await useTaskboardStore.getState().add(77)
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('Remove from Taskboard')).toBeInTheDocument()
+      })
+
+      await act(async () => {
+        fireEvent.click(screen.getByText('Remove from Taskboard'))
+      })
+
+      await waitFor(() => {
+        expect(useTaskboardStore.getState().has(77)).toBe(false)
+      })
+      expect(screen.getByText('Add to Taskboard')).toBeInTheDocument()
+      expect(screen.queryByText('Remove from Taskboard')).not.toBeInTheDocument()
     })
   })
 })
