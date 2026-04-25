@@ -86,26 +86,19 @@
   color: var(--color-text-muted);
 }
 
-/* Anchored option list — same visual register as the TopBar dropdown panel
- * (`useRightEdgeFlip` flips the alignment when the panel would overflow the
- * right edge of the surrounding inset / lens). */
+/* Portaled to document.body — positioned via inline `left`/`top` from the
+ * picker's input-row rect. `position: fixed` keeps it pinned during window
+ * scroll/resize (the picker recomputes on those events). */
 .panel {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
+  position: fixed;
   min-width: 180px;
   max-width: 320px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-float);
-  z-index: var(--z-overlay);
+  z-index: var(--z-canvas-draw);
   padding: 4px;
-}
-
-.panel[data-align="end"] {
-  left: auto;
-  right: 0;
 }
 
 .optionList {
