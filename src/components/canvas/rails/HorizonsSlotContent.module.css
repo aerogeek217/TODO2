@@ -19,7 +19,7 @@
 }
 
 .empty {
-  padding: 16px 12px;
+  padding: var(--space-6) var(--space-5);
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
   text-align: center;

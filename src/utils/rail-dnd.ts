@@ -1,20 +1,21 @@
 import type { CalendarOrientation, EmptySideClaim, Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
 import { railOrientationForSide } from '../models/canvas-rails'
 import { computeTabInsertIdx } from './rail-dnd-monitor-helpers'
+import { DEFAULT_FLOAT_HEIGHT, DEFAULT_FLOAT_WIDTH } from '../constants'
 
 export const RAILS_DRAG_TYPE = 'rails-slot' as const
 export const RAILS_DROP_ID_PREFIX = 'rails:' as const
+export const RAILS_DRAG_ID_TAB_PREFIX = 'rails-tab-drag:' as const
+export const RAILS_DRAG_ID_SLOT_PREFIX = 'rails-slot-drag:' as const
 
 /**
- * Minimum hit-target dimension for top/bottom corner sub-zones. When the
- * perpendicular rail (left or right) is absent, `--left-size` / `--right-size`
- * is 0 and `top_start` / `top_end` would otherwise collapse to 0 width — so
- * the "claim NW/NE corner" intent has no target and the drop falls into the
- * adjacent center sub-zone. CSS uses `max(var(--{perp}-size, 0px), 80px)` to
- * keep the corner sub-zone targettable; the harness mirrors the same rule via
- * this constant so tests stay in lock-step with the production geometry.
+ * Re-export so existing rail consumers (harness, tests, monitor helpers) keep
+ * a single rail-dnd import. Source of truth is `src/constants.ts`. CSS uses
+ * `max(var(--{perp}-size, 0px), 80px)` to keep the perpendicular-side corner
+ * sub-zones targettable when their adjacent rail is absent; this constant
+ * mirrors that floor so the harness + production geometry stay in lock-step.
  */
-export const CORNER_HIT_MIN_PX = 80
+export { CORNER_HIT_MIN_PX } from '../constants'
 
 /**
  * Drag payload carried on `active.data.current` for rail drags. Discriminated
@@ -610,15 +611,6 @@ export function resolveFloatDockTarget(
 // ---------------------------------------------------------------------------
 // Tab-drag → canvas pop-out (Phase 5 of float-dock)
 // ---------------------------------------------------------------------------
-
-/**
- * Default float widget dimensions used to centre the new float near the
- * pointer on a tab-drag release over the canvas. Matches the DEFAULT_WIDTH /
- * DEFAULT_HEIGHT constants the four floating stores use on `add`, so the
- * widget's visual centre lands roughly under the cursor.
- */
-const DEFAULT_FLOAT_WIDTH = 320
-const DEFAULT_FLOAT_HEIGHT = 280
 
 export interface FlowViewport {
   x: number

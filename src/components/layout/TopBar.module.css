@@ -2,7 +2,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
+  height: var(--topbar-height);
   padding: 0 12px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
@@ -35,7 +35,7 @@
 }
 
 .searchInput {
-  width: 140px;
+  width: var(--topbar-search-width-collapsed);
   padding: 4px 24px 4px 26px;
   border-radius: var(--radius-chip);
   border: 1px solid var(--color-border);
@@ -53,7 +53,7 @@
 
 .searchInput:focus {
   border-color: var(--color-accent-dim);
-  width: 200px;
+  width: var(--topbar-search-width-expanded);
 }
 
 .searchClear {

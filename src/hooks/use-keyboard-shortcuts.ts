@@ -4,6 +4,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { pasteTasksAt } from '../services/clipboard'
 import { bySortOrder } from '../utils/sort-order'
+import { CHORD_TIMEOUT_MS } from '../constants'
 
 interface KeyboardShortcutOptions {
   openCreatePopup: () => void
@@ -19,7 +20,6 @@ interface KeyboardShortcutOptions {
 
 export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator, enabled = true }: KeyboardShortcutOptions) {
   const pendingChordRef = useRef<{ key: string; timestamp: number } | null>(null)
-  const CHORD_TIMEOUT = 1000
 
   // Store callbacks in refs to avoid stale closures without re-registering the event listener
   const cbRef = useRef({ openCreatePopup, openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator })
@@ -61,7 +61,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
 
       // Chord completion
       const pending = pendingChordRef.current
-      if (pending && Date.now() - pending.timestamp < CHORD_TIMEOUT) {
+      if (pending && Date.now() - pending.timestamp < CHORD_TIMEOUT_MS) {
         pendingChordRef.current = null
         if (pending.key === 'g' && !isInput) {
           if (e.key === 'c') {

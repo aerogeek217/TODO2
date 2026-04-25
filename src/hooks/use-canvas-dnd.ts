@@ -31,6 +31,7 @@ import {
   parseBlockContextId,
   type CrossGroupMutation,
 } from '../utils/cross-group-drag'
+import { DRAG_MEASURE_FREQUENCY_MS, PHANTOM_CLEANUP_MS } from '../constants'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -79,11 +80,11 @@ export function useCanvasDnD({
     })
   )
 
-  // Re-measure droppable rects every 200ms during drag
+  // Re-measure droppable rects every DRAG_MEASURE_FREQUENCY_MS ms during drag
   const measuring = useMemo(() => ({
     droppable: {
       strategy: MeasuringStrategy.WhileDragging,
-      frequency: 200,
+      frequency: DRAG_MEASURE_FREQUENCY_MS,
     }
   }), [])
 
@@ -428,7 +429,7 @@ export function useCanvasDnD({
         phantom.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;transform:none;margin:0;z-index:10000;pointer-events:none;will-change:transform,opacity`
         phantom.setAttribute('data-drop-phantom', '')
         document.body.appendChild(phantom)
-        // Fallback: fade out if FLIP doesn't claim it within 300ms
+        // Fallback: fade out if FLIP doesn't claim it within PHANTOM_CLEANUP_MS
         const tidOuter = setTimeout(() => {
           phantomTimeoutsRef.current.delete(tidOuter)
           if (phantom.isConnected) {
@@ -439,10 +440,10 @@ export function useCanvasDnD({
             const tidInner = setTimeout(() => {
               phantomTimeoutsRef.current.delete(tidInner)
               if (phantom.isConnected) phantom.remove()
-            }, 300)
+            }, PHANTOM_CLEANUP_MS)
             phantomTimeoutsRef.current.add(tidInner)
           }
-        }, 300)
+        }, PHANTOM_CLEANUP_MS)
         phantomTimeoutsRef.current.add(tidOuter)
       }
 

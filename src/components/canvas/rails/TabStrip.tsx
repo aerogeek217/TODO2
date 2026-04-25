@@ -6,6 +6,7 @@ import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { WidgetKindMenu } from '../../shared/WidgetKindMenu'
 import {
   encodeRailsDropId,
+  RAILS_DRAG_ID_TAB_PREFIX,
   RAILS_DRAG_TYPE,
   type RailsDragData,
 } from '../../../utils/rail-dnd'
@@ -84,7 +85,7 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
     fromSide,
   }
   const draggable = useDraggable({
-    id: `rails-tab-drag:${slotId}:${tab.id}`,
+    id: `${RAILS_DRAG_ID_TAB_PREFIX}${slotId}:${tab.id}`,
     data: dragData,
   })
 

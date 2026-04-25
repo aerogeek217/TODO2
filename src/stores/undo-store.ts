@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { UNDO_SNACKBAR_MS } from '../constants'
 
 export interface UndoEntry {
   description: string
@@ -48,7 +49,7 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     if (showSnackbar) {
       const timerId = setTimeout(() => {
         set({ snackbar: null, snackbarTimerId: null })
-      }, 5000)
+      }, UNDO_SNACKBAR_MS)
       set({
         undoStack: [...trimmed, entry],
         redoStack: [],
@@ -141,7 +142,7 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     if (showSnackbar) {
       const timerId = setTimeout(() => {
         set({ snackbar: null, snackbarTimerId: null })
-      }, 5000)
+      }, UNDO_SNACKBAR_MS)
       set({
         undoStack: [...trimmed, compound],
         redoStack: [],

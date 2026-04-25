@@ -118,7 +118,7 @@
   }
 
   .fabGroup {
-    bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 16px);
+    bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + var(--mobile-fab-bottom));
   }
 
   .fab {

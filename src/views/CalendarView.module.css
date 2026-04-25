@@ -240,10 +240,6 @@
   flex-shrink: 0;
 }
 
-.taskItemDragging {
-  opacity: 0.4;
-}
-
 .scheduledMarker {
   display: inline-flex;
   align-items: center;
@@ -300,13 +296,6 @@
   margin-bottom: 1px;
 }
 
-.weekTaskMeta {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 1px;
-}
-
 /* Unscheduled section */
 .unscheduledSection {
   margin-top: 16px;
@@ -324,13 +313,6 @@
 
 .unscheduledToggle:hover {
   color: var(--color-text-secondary);
-}
-
-.unscheduledHeader {
-  font-size: var(--font-size-nav);
-  color: var(--color-text-secondary);
-  margin-bottom: 8px;
-  margin-top: 8px;
 }
 
 .unscheduledList {

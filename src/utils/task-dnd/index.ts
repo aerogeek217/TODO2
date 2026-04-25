@@ -13,6 +13,7 @@ export {
   projectDropId,
   taskboardFloatDropId,
   calendarDayDropId,
+  CALENDAR_VIEW_SCOPE,
   TASKBOARD_SINGLETON_DROP_ID,
   type TaskSurfaceKey,
   type TaskDragIdExtras,

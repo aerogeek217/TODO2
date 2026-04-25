@@ -28,6 +28,7 @@ import { startOfDay, isSameDay } from '../utils/date'
 import { effectiveDate, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import {
+  CALENDAR_VIEW_SCOPE,
   TASK_DROP_KIND,
   buildTaskCollision,
   calendarDayDropId,
@@ -45,7 +46,6 @@ type ViewMode = 'month' | 'week'
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const MAX_MONTH_TASKS = 4
-const CALENDAR_VIEW_SCOPE = 'calview'
 
 function getMonthGrid(year: number, month: number): Date[] {
   const first = new Date(year, month, 1)

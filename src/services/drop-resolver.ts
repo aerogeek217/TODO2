@@ -1,5 +1,6 @@
 import type { PersistedTodoItem } from '../models'
 import type { PlacementTarget } from './task-placement'
+import { SNAP_BACK_RADIUS_PX } from '../constants'
 
 // --- Types ---
 
@@ -43,7 +44,7 @@ export function resolveDropTarget(ctx: DropContext): DropResolution {
   // Dropped on empty canvas
   if (overType === null) {
     const distance = Math.sqrt(delta.x ** 2 + delta.y ** 2)
-    if (distance < 150 && activeTodo.projectId != null) {
+    if (distance < SNAP_BACK_RADIUS_PX && activeTodo.projectId != null) {
       return {
         type: 'place',
         taskId: activeTodo.id,
@@ -107,7 +108,7 @@ function resolveMultiDrop(ctx: DropContext): DropResolution {
     beforeTodoId = overTodo.id
   } else if (overType === null) {
     const distance = Math.sqrt(delta.x ** 2 + delta.y ** 2)
-    if (distance < 150 && activeTodo.projectId != null) {
+    if (distance < SNAP_BACK_RADIUS_PX && activeTodo.projectId != null) {
       targetProjectId = activeTodo.projectId
     } else if (screenToFlow && initialRect && canvasId) {
       const dropX = initialRect.left + delta.x
@@ -149,7 +150,7 @@ export function resolveDropPreview(
   }
 
   const distance = Math.sqrt(delta.x ** 2 + delta.y ** 2)
-  if (distance < 150 && activeTodo.projectId != null) {
+  if (distance < SNAP_BACK_RADIUS_PX && activeTodo.projectId != null) {
     return { insertTodoId: null, insertAtEnd: true, insertProjectId: activeTodo.projectId }
   }
   return { insertTodoId: null, insertAtEnd: false, insertProjectId: null }

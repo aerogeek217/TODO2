@@ -163,3 +163,9 @@ export function taskboardFloatDropId(floatingId: number): string {
 export function calendarDayDropId(scope: string, dateMs: number): string {
   return `calday-${scope}-${dateMs}`
 }
+
+/**
+ * Stable scope for `CalendarView`'s month/week grid day cells. Lives here so
+ * all drag-id construction is colocated rather than per-surface.
+ */
+export const CALENDAR_VIEW_SCOPE = 'calview'
