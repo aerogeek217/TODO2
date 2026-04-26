@@ -1,41 +1,69 @@
 /**
  * QuickAddBar — keyboard-first task capture surface.
  *
- * P1 (current): component shell only — opens, closes, focuses, Esc + click-
- * outside dismiss. The `parse` prop is stubbed; no real chips render. Real
- * parser wires in P2, autocomplete in P3, submit in P4.
+ * P2: real parser + chip wiring. Live subscriptions to person / org / project /
+ * settings stores feed `parseInput` → `resolveInput` on every keystroke; chips
+ * render for every metadata field the resolver produces (person, org, project,
+ * tag, schedule, deadline, recurrence). Tag chips show the parsed slug — the
+ * tag-store resolve-or-create runs at submit (P4).
  *
- * Inline syntax (parsed live, removed from title, surfaced as chips — P2+):
+ * Auto-derived chips are read-only feedback (no removable ×). To clear, edit
+ * the title — same UX as `InsertTrigger`'s autocomplete preview. Autocomplete
+ * popup wires in P3, submit + full-editor handoff in P4, status NLP in P6.
+ *
+ * Inline syntax (parsed live, removed from title, surfaced as chips):
  *   @person   /project   #tag   :status (P6)   natural dates ("tomorrow")
  *
  * Title input + notes textarea carry `data-shortcut-scope="none"` so global
  * keyboard shortcuts (`use-keyboard-shortcuts.ts`) don't fire while typing.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { PersistedPerson, PersistedStatus, Project } from '../../models'
+import type {
+  Org,
+  PersistedOrg,
+  PersistedPerson,
+  PersistedStatus,
+  Person,
+  Project,
+  RecurrenceType,
+} from '../../models'
 import { useClickOutside } from '../../hooks/use-click-outside'
+import { useOrgStore } from '../../stores/org-store'
+import { usePersonStore } from '../../stores/person-store'
+import { useProjectStore } from '../../stores/project-store'
+import { useSettingsStore } from '../../stores/settings-store'
+import { parseInput } from '../../services/natural-language-parser'
+import { resolveInput } from '../../services/nlp-resolver'
+import { resolveScheduled, type WeekStart } from '../../utils/effective-date'
 import styles from './QuickAddBar.module.css'
 
 // ─── Types ────────────────────────────────────────────────────────
 
 /**
- * Parsed-token shape produced by `parse(rawTitle)`. P1 keeps the field set
- * minimal — the handoff's `Status` / `Person` / `Project` aliases are
- * dropped and the matching `models/` types reused with numeric ids.
- *
- * P2 extends with `orgs` + `recurrence`. P6 adds `status`.
+ * Parsed-token shape consumed by the bar's chip renderers. Numeric ids match
+ * the codebase. P6 will populate `status` via the `:status` prefix. Tags stay
+ * as slug strings — the tag-store resolve-or-create runs at submit (P4) so the
+ * registry is the single source of truth for color/id.
  */
 export type ParsedTokens = {
   /** Title with @/foo /bar #baz tokens stripped. */
   title: string
   status?: PersistedStatus
   people: PersistedPerson[]
+  /** Orgs matched via the @-fallthrough path (`@name` that didn't match a person). */
+  orgs: PersistedOrg[]
   project?: Project
+  /** Lowercase tag slugs in first-seen order. */
   tags: string[]
   scheduledAt?: Date
   deadlineAt?: Date
+  recurrence?: RecurrenceType
+  /** Person names from `@` tokens that matched neither a person nor an org. */
+  unmatchedPersons: string[]
+  /** Project names from `/` tokens that didn't match any known project. */
+  unmatchedProjects: string[]
 }
 
 export type QuickAddDraft = ParsedTokens & {
@@ -50,7 +78,11 @@ export interface QuickAddBarProps {
   onOpenFullEditor?: (draft: QuickAddDraft) => void
   /** Project to default to (canvas focus, current view, etc) — P4 threads. */
   defaultProject?: Project
-  /** Replace with the real parser in P2. Stub returns title only. */
+  /**
+   * Optional override for tests. The default pipeline subscribes to the live
+   * person / org / project / settings stores and runs `parseInput` →
+   * `resolveInput` over the raw input.
+   */
   parse?: (input: string) => ParsedTokens
 }
 
@@ -74,6 +106,18 @@ function PersonChip({ person }: { person: PersistedPerson }) {
     <span className={styles.chip}>
       <span className={styles.chipAvatar}>{person.initials}</span>
       <span>@{person.name}</span>
+    </span>
+  )
+}
+
+function OrgChip({ org }: { org: PersistedOrg }) {
+  return (
+    <span className={styles.chip}>
+      <span
+        className={styles.chipDot}
+        style={{ background: org.color ?? 'var(--color-accent)' }}
+      />
+      <span>@{org.name}</span>
     </span>
   )
 }
@@ -107,13 +151,81 @@ function DateChip({ icon, label }: { icon: string; label: string }) {
   )
 }
 
-// ─── Component ────────────────────────────────────────────────────
+const RECURRENCE_LABEL: Record<RecurrenceType, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  biweekly: 'Biweekly',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  yearly: 'Yearly',
+}
 
-const STUB_PARSE = (s: string): ParsedTokens => ({
-  title: s,
+function RecurrenceChip({ recurrence }: { recurrence: RecurrenceType }) {
+  return (
+    <span className={styles.chip}>
+      <span style={{ fontSize: 10 }}>↻</span>
+      <span>{RECURRENCE_LABEL[recurrence]}</span>
+    </span>
+  )
+}
+
+// ─── Pipeline ─────────────────────────────────────────────────────
+
+const EMPTY_PARSED: ParsedTokens = {
+  title: '',
   people: [],
+  orgs: [],
   tags: [],
-})
+  unmatchedPersons: [],
+  unmatchedProjects: [],
+}
+
+/**
+ * Live pipeline: `parseInput` → `resolveInput` → entity lookup against the
+ * person / org / project stores. Pure helper — receives stores as args so the
+ * component-level `useMemo` can deps-cache it cleanly.
+ */
+function runParse(
+  raw: string,
+  people: Person[],
+  orgs: Org[],
+  projects: Project[],
+  weekStartsOn: WeekStart,
+  today: Date,
+): ParsedTokens {
+  if (raw.trim().length === 0) return EMPTY_PARSED
+  const parsedInput = parseInput(raw)
+  const resolved = resolveInput(parsedInput, people, projects, orgs)
+
+  const peopleResolved: PersistedPerson[] = resolved.personIds
+    .map((id) => people.find((p) => p.id === id))
+    .filter((p): p is PersistedPerson => p?.id !== undefined)
+  const orgsResolved: PersistedOrg[] = resolved.orgIds
+    .map((id) => orgs.find((o) => o.id === id))
+    .filter((o): o is PersistedOrg => o?.id !== undefined)
+  const projectResolved =
+    resolved.projectId !== undefined
+      ? projects.find((p) => p.id === resolved.projectId)
+      : undefined
+  const scheduledAt = resolved.scheduledDate
+    ? resolveScheduled(resolved.scheduledDate, today, weekStartsOn) ?? undefined
+    : undefined
+
+  return {
+    title: resolved.title,
+    people: peopleResolved,
+    orgs: orgsResolved,
+    project: projectResolved,
+    tags: resolved.tags,
+    scheduledAt,
+    deadlineAt: resolved.dueDate,
+    recurrence: resolved.recurrence,
+    unmatchedPersons: resolved.unmatchedPersons,
+    unmatchedProjects: resolved.unmatchedProjects,
+  }
+}
+
+// ─── Component ────────────────────────────────────────────────────
 
 export function QuickAddBar({
   open,
@@ -121,7 +233,7 @@ export function QuickAddBar({
   onSubmit,
   onOpenFullEditor,
   defaultProject,
-  parse = STUB_PARSE,
+  parse,
 }: QuickAddBarProps) {
   const [raw, setRaw] = useState('')
   const [expanded, setExpanded] = useState(false)
@@ -129,7 +241,17 @@ export function QuickAddBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
 
-  const parsed = parse(raw)
+  const people = usePersonStore((s) => s.people)
+  const orgs = useOrgStore((s) => s.orgs)
+  const projects = useProjectStore((s) => s.projects)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
+
+  const internalParsed = useMemo<ParsedTokens>(
+    () => runParse(raw, people, orgs, projects, weekStartsOn, new Date()),
+    [raw, people, orgs, projects, weekStartsOn],
+  )
+  const parsed = parse ? parse(raw) : internalParsed
+
   const draft: QuickAddDraft = {
     ...parsed,
     project: parsed.project ?? defaultProject,
@@ -139,10 +261,15 @@ export function QuickAddBar({
   const hasChips =
     !!draft.status ||
     draft.people.length > 0 ||
+    draft.orgs.length > 0 ||
     !!draft.project ||
     draft.tags.length > 0 ||
     !!draft.scheduledAt ||
-    !!draft.deadlineAt
+    !!draft.deadlineAt ||
+    !!draft.recurrence
+
+  const hasUnmatched =
+    parsed.unmatchedPersons.length > 0 || parsed.unmatchedProjects.length > 0
 
   // Focus on open; reset on close.
   useEffect(() => {
@@ -218,18 +345,38 @@ export function QuickAddBar({
           <div className={`${styles.chipsRow} ${expanded ? styles.withDivider : ''}`}>
             {draft.status && <StatusChip status={draft.status} />}
             {draft.people.map((p) => (
-              <PersonChip key={p.id} person={p} />
+              <PersonChip key={`person-${p.id}`} person={p} />
+            ))}
+            {draft.orgs.map((o) => (
+              <OrgChip key={`org-${o.id}`} org={o} />
             ))}
             {draft.project && <ProjectChip project={draft.project} />}
             {draft.tags.map((t) => (
-              <TagChip key={t} tag={t} />
+              <TagChip key={`tag-${t}`} tag={t} />
             ))}
             {draft.scheduledAt && <DateChip icon="📅" label={formatShort(draft.scheduledAt)} />}
             {draft.deadlineAt && <DateChip icon="🚩" label={formatShort(draft.deadlineAt)} />}
+            {draft.recurrence && <RecurrenceChip recurrence={draft.recurrence} />}
             {!expanded && (
               <span className={styles.chipsHint}>
                 <Kbd>⇥</Kbd> for more fields
               </span>
+            )}
+          </div>
+        )}
+
+        {/* Unmatched tokens hint */}
+        {hasUnmatched && (
+          <div className={styles.unmatchedHint}>
+            <span>Unknown:</span>
+            <span className={styles.unmatchedNames}>
+              {[
+                ...parsed.unmatchedPersons.map((n) => `@${n}`),
+                ...parsed.unmatchedProjects.map((n) => `/${n}`),
+              ].join(' ')}
+            </span>
+            {parsed.unmatchedPersons.length > 0 && (
+              <span>— will be created on submit</span>
             )}
           </div>
         )}
@@ -300,7 +447,7 @@ export function QuickAddBar({
         )}
 
         {/* Hint when empty + collapsed */}
-        {!hasChips && !expanded && (
+        {!hasChips && !hasUnmatched && !expanded && (
           <div className={styles.hintRow}>
             <span>Inline shortcuts:</span>
             <span>

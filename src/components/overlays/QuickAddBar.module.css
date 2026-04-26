@@ -156,6 +156,23 @@
   padding-left: 4px;
 }
 
+/* ─── Unmatched hint row ──────────────────────────────────────── */
+
+.unmatchedHint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 var(--space-5) var(--space-4) 36px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.unmatchedNames {
+  color: var(--color-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 /* ─── Expanded fields ─────────────────────────────────────────── */
 
 .expanded {
