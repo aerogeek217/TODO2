@@ -106,8 +106,17 @@ interface UIState {
    * shell while P2-P4 land.
    */
   quickAddOpen: boolean
-  /** Optional initial title text seeded into the bar; null = empty. */
-  quickAddSeed: string | null
+  /**
+   * In-progress draft seed for the QuickAddBar / TaskEditPopup create-mode
+   * handoff. Used in two ways:
+   * 1. `openQuickAdd(seed)` writes `{ rawTitle: seed, notes: '' }` so the
+   *    bar can pre-fill its title field on open.
+   * 2. The bar's "Open full editor →" path stashes the in-progress draft
+   *    here, then opens `TaskEditPopup` create mode which reads it on mount
+   *    and pre-fills title + notes + parser-derived metadata. The popup
+   *    clears the draft via `closeEditPopup` on its close.
+   */
+  quickAddDraft: { rawTitle: string; notes: string } | null
 
   setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
@@ -142,6 +151,7 @@ interface UIState {
   closeListsEditor: () => void
   openQuickAdd: (seed?: string) => void
   closeQuickAdd: () => void
+  setQuickAddDraft: (draft: { rawTitle: string; notes: string } | null) => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -169,7 +179,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   floatDrag: null,
   floatAnnouncement: '',
   quickAddOpen: false,
-  quickAddSeed: null,
+  quickAddDraft: null,
 
   setActiveView(view: AppView) {
     set({ activeView: view })
@@ -246,7 +256,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   closeEditPopup() {
-    set({ selectedTodoId: null, editPopupMode: null })
+    // Also clear the QuickAddBar handoff draft. The bar's "Open full editor →"
+    // path stashes a draft in `quickAddDraft` for the popup to read on mount;
+    // popping the popup discards any unsaved seed so the next create-popup
+    // open starts clean.
+    set({ selectedTodoId: null, editPopupMode: null, quickAddDraft: null })
   },
 
   setListGroupBy(groupBy: ListGroupBy) {
@@ -324,10 +338,17 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openQuickAdd(seed) {
-    set({ quickAddOpen: true, quickAddSeed: seed ?? null })
+    set({
+      quickAddOpen: true,
+      quickAddDraft: seed ? { rawTitle: seed, notes: '' } : null,
+    })
   },
 
   closeQuickAdd() {
-    set({ quickAddOpen: false, quickAddSeed: null })
+    set({ quickAddOpen: false, quickAddDraft: null })
+  },
+
+  setQuickAddDraft(draft) {
+    set({ quickAddDraft: draft })
   },
 }))

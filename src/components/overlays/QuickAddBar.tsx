@@ -36,7 +36,7 @@ import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput } from '../../services/natural-language-parser'
-import { resolveInput } from '../../services/nlp-resolver'
+import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
 import { resolveScheduled, type WeekStart } from '../../utils/effective-date'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './QuickAddBar.module.css'
@@ -73,6 +73,12 @@ export type ParsedTokens = {
 }
 
 export type QuickAddDraft = ParsedTokens & {
+  /** Unparsed input as the user typed it — used by the "Open full editor →"
+   * handoff so `TaskEditPopup` can re-run its own NLP on mount. */
+  rawTitle: string
+  /** Resolver output (`personIds` / `orgIds` / `projectId` / `tags` / dates /
+   * recurrence) — fed straight into `applyNlpMetadata` on submit. */
+  resolved: ResolvedInput
   notes?: string
 }
 
@@ -80,10 +86,16 @@ export interface QuickAddBarProps {
   open: boolean
   onClose: () => void
   onSubmit: (draft: QuickAddDraft) => void
-  /** Open the full task editor with the current draft (P4 wires). */
+  /** Open the full task editor with the current draft. Parent decides what
+   * "open" means (typically: stash draft on `ui-store.quickAddDraft` and
+   * dispatch `openCreatePopup`). The bar does NOT call `onClose` after this
+   * — the parent owns the close-vs-handoff sequencing. */
   onOpenFullEditor?: (draft: QuickAddDraft) => void
   /** Project to default to (canvas focus, current view, etc) — P4 threads. */
   defaultProject?: Project
+  /** Pre-fill `rawTitle` / `notes` on open. Read on the closed→open
+   * transition; subsequent draft changes don't re-seed. */
+  initialDraft?: { rawTitle: string; notes: string }
   /**
    * Optional override for tests. The default pipeline subscribes to the live
    * person / org / project / settings stores and runs `parseInput` →
@@ -186,10 +198,21 @@ const EMPTY_PARSED: ParsedTokens = {
   unmatchedProjects: [],
 }
 
+const EMPTY_RESOLVED: ResolvedInput = {
+  title: '',
+  personIds: [],
+  orgIds: [],
+  unmatchedPersons: [],
+  unmatchedProjects: [],
+  tags: [],
+}
+
 /**
  * Live pipeline: `parseInput` → `resolveInput` → entity lookup against the
  * person / org / project stores. Pure helper — receives stores as args so the
- * component-level `useMemo` can deps-cache it cleanly.
+ * component-level `useMemo` can deps-cache it cleanly. Returns both the chip
+ * shape (display) and the underlying `ResolvedInput` (submit feeds it to
+ * `applyNlpMetadata`).
  */
 function runParse(
   raw: string,
@@ -198,8 +221,8 @@ function runParse(
   projects: Project[],
   weekStartsOn: WeekStart,
   today: Date,
-): ParsedTokens {
-  if (raw.trim().length === 0) return EMPTY_PARSED
+): { parsed: ParsedTokens; resolved: ResolvedInput } {
+  if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED }
   const parsedInput = parseInput(raw)
   const resolved = resolveInput(parsedInput, people, projects, orgs)
 
@@ -218,16 +241,19 @@ function runParse(
     : undefined
 
   return {
-    title: resolved.title,
-    people: peopleResolved,
-    orgs: orgsResolved,
-    project: projectResolved,
-    tags: resolved.tags,
-    scheduledAt,
-    deadlineAt: resolved.dueDate,
-    recurrence: resolved.recurrence,
-    unmatchedPersons: resolved.unmatchedPersons,
-    unmatchedProjects: resolved.unmatchedProjects,
+    parsed: {
+      title: resolved.title,
+      people: peopleResolved,
+      orgs: orgsResolved,
+      project: projectResolved,
+      tags: resolved.tags,
+      scheduledAt,
+      deadlineAt: resolved.dueDate,
+      recurrence: resolved.recurrence,
+      unmatchedPersons: resolved.unmatchedPersons,
+      unmatchedProjects: resolved.unmatchedProjects,
+    },
+    resolved,
   }
 }
 
@@ -239,6 +265,7 @@ export function QuickAddBar({
   onSubmit,
   onOpenFullEditor,
   defaultProject,
+  initialDraft,
   parse,
 }: QuickAddBarProps) {
   const [raw, setRaw] = useState('')
@@ -254,11 +281,14 @@ export function QuickAddBar({
   const tags = useTagStore((s) => s.tags)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
 
-  const internalParsed = useMemo<ParsedTokens>(
+  const internalRun = useMemo(
     () => runParse(raw, people, orgs, projects, weekStartsOn, new Date()),
     [raw, people, orgs, projects, weekStartsOn],
   )
-  const parsed = parse ? parse(raw) : internalParsed
+  const parsed = parse ? parse(raw) : internalRun.parsed
+  // Test override (`parse`) only produces `ParsedTokens`; default to the live
+  // resolver output otherwise so submit always has a valid `ResolvedInput`.
+  const resolved = internalRun.resolved
 
   // Autocomplete candidates — mirror InsertTrigger so the popup ranks people
   // (with org-derived color), orgs, projects, and tags identically across the
@@ -300,6 +330,8 @@ export function QuickAddBar({
   const draft: QuickAddDraft = {
     ...parsed,
     project: parsed.project ?? defaultProject,
+    rawTitle: raw,
+    resolved,
     notes,
   }
 
@@ -319,9 +351,19 @@ export function QuickAddBar({
   // Focus on open; reset (and dismiss any open popup) on close. Destructure
   // `dismiss` so the effect's deps are stable — the hook returns a fresh
   // `ac` object literal every render, but `ac.dismiss` is the same useCallback.
+  // `initialDraft` is read on the closed→open transition only; later changes
+  // don't re-seed (e.g. when the parent stashes a handoff draft to ui-store
+  // while the bar is closed, that draft feeds the popup, not the bar).
   const { dismiss: dismissAutocomplete } = ac
+  const initialDraftRef = useRef(initialDraft)
+  initialDraftRef.current = initialDraft
   useEffect(() => {
     if (open) {
+      const seed = initialDraftRef.current
+      if (seed) {
+        setRaw(seed.rawTitle)
+        setNotes(seed.notes)
+      }
       // Wait a paint so the portal node exists.
       requestAnimationFrame(() => inputRef.current?.focus())
     } else {
@@ -611,8 +653,10 @@ export function QuickAddBar({
                 <a
                   className={styles.openFull}
                   onClick={() => {
+                    // Parent owns close-vs-handoff sequencing — typically:
+                    // stash draft on ui-store, flip quickAddOpen=false,
+                    // dispatch openCreatePopup. We don't call onClose here.
                     onOpenFullEditor(draft)
-                    onClose()
                   }}
                 >
                   Open full editor →

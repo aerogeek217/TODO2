@@ -14,7 +14,7 @@ import { FileSyncBanner } from './components/layout/FileSyncBanner'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
 import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
-import { QuickAddBar } from './components/overlays/QuickAddBar'
+import { QuickAddBar, type QuickAddDraft } from './components/overlays/QuickAddBar'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
@@ -25,6 +25,7 @@ import { formatShortcut } from './utils/platform'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
+import { applyNlpMetadata } from './services/nlp-task-creator'
 import { checkMigrationNeeded } from './services/migration-check'
 import type { MigrationInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
@@ -77,15 +78,78 @@ function AppBulkConfirmDialog() {
 }
 
 /**
- * P1 wrapper for the QuickAddBar shell. Subscribes to `useUIStore.quickAddOpen`
- * and renders the bar when set; submit is a no-op closer until P4 wires real
- * persistence. The bar is opened via the temporary "QuickAdd Bar (debug)"
- * command in the palette while P2-P4 land.
+ * QuickAddBar wrapper — wires the bar to ui-store visibility, the live data
+ * stores, and the full-editor handoff path.
+ *
+ * Submit (P4): mirrors `CanvasPage.handleAddTask` — `addTodo` for the row,
+ * then `applyNlpMetadata` for parsed people/orgs/scheduled/deadline/
+ * recurrence/tags. Default project follows the same setting
+ * (`useSettingsStore().defaultProjectId`) the create-popup consults today,
+ * so `Ctrl+Space` lands tasks in the same place across both surfaces.
+ *
+ * Open full editor →: stashes `{ rawTitle, notes }` in `ui-store.quickAddDraft`,
+ * closes the bar (preserving the draft), and opens the create popup. The
+ * popup reads the draft on mount and clears it via `closeEditPopup` on
+ * close.
  */
 function AppQuickAddBar() {
   const open = useUIStore((s) => s.quickAddOpen)
   const close = useUIStore((s) => s.closeQuickAdd)
-  return <QuickAddBar open={open} onClose={close} onSubmit={close} />
+  const draft = useUIStore((s) => s.quickAddDraft)
+  const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
+  const projects = useProjectStore((s) => s.projects)
+  const defaultProject = useMemo(
+    () => (defaultProjectId != null ? projects.find((p) => p.id === defaultProjectId) : undefined),
+    [defaultProjectId, projects],
+  )
+
+  const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
+    const { resolved, notes } = submitted
+    const projectId = submitted.project?.id ?? defaultProjectId ?? undefined
+    // Mirror CanvasPage.handleAddTask: parse-cleaned title fed to addTodo,
+    // then applyNlpMetadata for everything the resolver pulled out. Tags ride
+    // through applyNlpMetadata's resolve-or-create path (`nlp-task-creator.ts`)
+    // so we don't need to call `resolveTags` / `assignTag` ourselves.
+    const id = await useTodoStore.getState().add(resolved.title || submitted.title, undefined, projectId)
+    if (notes) {
+      const todo = useTodoStore.getState().todos.find((t) => t.id === id)
+      if (todo) {
+        await useTodoStore.getState().update({ ...todo, notes })
+      }
+    }
+    await applyNlpMetadata(
+      id,
+      resolved,
+      (tid) => useTodoStore.getState().todos.find((t) => t.id === tid),
+      useTodoStore.getState().update,
+      usePersonStore.getState().assignPerson,
+      useOrgStore.getState().assignOrg,
+    )
+    close()
+  }, [close, defaultProjectId])
+
+  const handleOpenFullEditor = useCallback((submitted: QuickAddDraft) => {
+    // Preserve-draft handoff: set the seed, flip the bar closed without
+    // clearing the draft, then open the popup. `closeQuickAdd` clears the
+    // draft (we don't call it); `closeEditPopup` clears the draft when the
+    // popup closes.
+    useUIStore.setState({
+      quickAddOpen: false,
+      quickAddDraft: { rawTitle: submitted.rawTitle, notes: submitted.notes ?? '' },
+    })
+    useUIStore.getState().openCreatePopup()
+  }, [])
+
+  return (
+    <QuickAddBar
+      open={open}
+      initialDraft={draft ?? undefined}
+      defaultProject={defaultProject}
+      onClose={close}
+      onSubmit={handleSubmit}
+      onOpenFullEditor={handleOpenFullEditor}
+    />
+  )
 }
 
 function AppShell() {

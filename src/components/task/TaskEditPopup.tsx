@@ -13,6 +13,7 @@ import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { makeRecurrenceRule } from '../../services/recurrence'
+import { parseTaskInput } from '../../services/nlp-task-creator'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
@@ -85,25 +86,67 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return getFilterDefaults(useFilterStore.getState().filters)
   }, [mode])
 
-  const [title, setTitle] = useState(todo?.title ?? '')
-  const [notes, setNotes] = useState(todo?.notes ?? '')
-  const notesRef = useRef<string>(todo?.notes ?? '')
+  // QuickAddBar handoff: when the create popup mounts and `ui-store.quickAddDraft`
+  // is set (the bar's "Open full editor →" path stashed an in-progress draft),
+  // pre-parse the raw title once on mount and seed every metadata field below.
+  // One-shot via `useState` lazy initializer — subsequent draft/store changes
+  // mustn't clobber user edits, and `closeEditPopup` clears the draft on close
+  // so a re-mount starts clean unless re-seeded.
+  const [quickAddSeed] = useState(() => {
+    if (mode !== 'create') return null
+    const draft = useUIStore.getState().quickAddDraft
+    if (!draft) return null
+    const { resolved } = parseTaskInput(
+      draft.rawTitle,
+      allPeople,
+      useProjectStore.getState().projects,
+      allOrgs,
+    )
+    // Sync tag lookup against the registry — pre-fills chips for tags that
+    // already exist. Novel `#foo` slugs aren't created here; the create-time
+    // re-parse in `useTaskEditCallbacks.onCreate` runs `resolveTags`, which
+    // resolves-or-creates against the same registry.
+    const tagIds: number[] = []
+    for (const slug of resolved.tags) {
+      const lower = slug.toLowerCase()
+      const match = allTags.find((t) => t.name.toLowerCase() === lower && t.id !== undefined)
+      if (match?.id !== undefined) tagIds.push(match.id)
+    }
+    return { rawTitle: draft.rawTitle, notes: draft.notes, resolved, tagIds }
+  })
+
+  const [title, setTitle] = useState(todo?.title ?? quickAddSeed?.rawTitle ?? '')
+  const [notes, setNotes] = useState(todo?.notes ?? quickAddSeed?.notes ?? '')
+  const notesRef = useRef<string>(todo?.notes ?? quickAddSeed?.notes ?? '')
   const [progress, setProgress] = useState(todo?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(
     todo?.statusId ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
   )
-  const [scheduledDate, setScheduledDate] = useState<ScheduledValue | null>(todo?.scheduledDate ?? null)
-  const [deadline, setDeadline] = useState<Date | null>(todo?.dueDate ?? null)
+  const [scheduledDate, setScheduledDate] = useState<ScheduledValue | null>(
+    todo?.scheduledDate ?? quickAddSeed?.resolved.scheduledDate ?? null,
+  )
+  const [deadline, setDeadline] = useState<Date | null>(
+    todo?.dueDate ?? quickAddSeed?.resolved.dueDate ?? null,
+  )
   const [projectId, setProjectId] = useState<number | undefined>(
-    todo?.projectId ?? (mode === 'create' ? (defaultProjectId ?? undefined) : undefined)
+    todo?.projectId
+    ?? quickAddSeed?.resolved.projectId
+    ?? (mode === 'create' ? (defaultProjectId ?? undefined) : undefined),
   )
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
-    todo?.recurrenceRule?.type ?? ''
+    todo?.recurrenceRule?.type ?? quickAddSeed?.resolved.recurrence ?? '',
   )
-  // Local state for create mode assignments (no todoId exists yet)
-  const [pendingPersonIds, setPendingPersonIds] = useState<Set<number>>(() => new Set(filterDefaults?.personIds ?? []))
-  const [pendingOrgIds, setPendingOrgIds] = useState<Set<number>>(() => new Set(filterDefaults?.orgIds ?? []))
-  const [pendingTagIds, setPendingTagIds] = useState<Set<number>>(() => new Set())
+  // Local state for create mode assignments (no todoId exists yet). QuickAdd
+  // seed merges with filter defaults — both contribute pre-checked entities.
+  const [pendingPersonIds, setPendingPersonIds] = useState<Set<number>>(
+    () => new Set([...(filterDefaults?.personIds ?? []), ...(quickAddSeed?.resolved.personIds ?? [])]),
+  )
+  const [pendingOrgIds, setPendingOrgIds] = useState<Set<number>>(
+    () => new Set([...(filterDefaults?.orgIds ?? []), ...(quickAddSeed?.resolved.orgIds ?? [])]),
+  )
+  const [pendingTagIds, setPendingTagIds] = useState<Set<number>>(
+    () => new Set(quickAddSeed?.tagIds ?? []),
+  )
 
   const effectiveAssignedPeople = mode === 'create'
     ? allPeople.filter(p => pendingPersonIds.has(p.id!))
