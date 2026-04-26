@@ -205,11 +205,22 @@ export function useFloatDragLifecycle(
       }
       // Phase 4 cancel-safety: if React Flow ever swallows the release event
       // (e.g., the dragged node unmounts, window blurs, pointer cancel), our
-      // drag-end branch never runs. A microtask-deferred cleanup riding on
-      // global pointerup/cancel/blur gives React Flow the first chance to emit
+      // drag-end branch never runs. A deferred cleanup riding on global
+      // pointerup/cancel/blur gives React Flow the first chance to emit
       // dragging:false normally; if it did, `pointerCleanupRef.current` is
-      // already null by the time the microtask fires and the forced cleanup
-      // is a no-op.
+      // already null by the time the deferred cleanup fires and the forced
+      // cleanup is a no-op.
+      //
+      // Why rAF and not microtask: clearing `floatDrag` synchronously here
+      // unmounts `DockOverlay` (gated on `floatDragActive` in `RailsFrame`)
+      // before the release branch's hit-test sees `dragging:false`. With the
+      // empty-side strips gone from the DOM, `elementsFromPoint` misses them
+      // and float drops onto an empty rail side silently position-persist.
+      // rAF fires after React commits the next render, so processBatch runs
+      // its hit-test (and trailing-edge cleanup, which nulls
+      // `pointerCleanupRef`) first; the rAF callback then early-returns. The
+      // ~16 ms ceiling is a hard cap on how long a swallowed release can
+      // leave `floatDrag` stuck.
       let cleaned = false
       const detach = () => {
         if (cleaned) return
@@ -219,7 +230,7 @@ export function useFloatDragLifecycle(
         window.removeEventListener('pointercancel', onUpOrCancel)
         window.removeEventListener('blur', onUpOrCancel)
         // Don't null pointerRef here: detach can ride the onUpOrCancel
-        // microtask, which can drain ahead of RF's `dragging:false` change.
+        // deferred path, which can run ahead of RF's `dragging:false` change.
         // If we nulled, the release branch's hit-test gate (`:146-152`) would
         // see null and skip `resolveFloatDockTarget`, so float drops onto a
         // rail would silently position-persist instead of docking. Stale
@@ -228,7 +239,7 @@ export function useFloatDragLifecycle(
         // a release that could hit-test.
       }
       const onUpOrCancel = () => {
-        queueMicrotask(() => {
+        requestAnimationFrame(() => {
           if (pointerCleanupRef.current !== detach) return
           detach()
           pointerCleanupRef.current = null

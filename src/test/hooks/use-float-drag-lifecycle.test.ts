@@ -130,50 +130,70 @@ describe('useFloatDragLifecycle', () => {
   })
 
   // Regression — float-dock-bugs-2026-04-25 P1 (B1). The window-level
-  // pointerup handler queues a microtask that detaches the listeners. If RF's
-  // `dragging:false` change races behind the microtask, the release branch
-  // must still see the last captured pointer to dispatch the dock — otherwise
-  // float-onto-rail drops silently position-persist instead of docking.
-  it('dispatches onFloatDock on release even when the cleanup microtask drained first', async () => {
+  // pointerup handler defers cleanup via `requestAnimationFrame` so RF's
+  // `dragging:false` change reaches `processBatch` first; the release branch
+  // must hit-test against the pointer captured before pointerup. Two
+  // contracts pinned here:
+  //   - Cleanup must NOT run synchronously with pointerup (older microtask
+  //     impl raced ahead of `processBatch` and unmounted DockOverlay before
+  //     the hit-test, so float drops onto an empty rail side missed).
+  //   - After processBatch dispatches the dock, the pending rAF callback
+  //     must short-circuit (no double cleanup, no wedged `floatDrag`).
+  it('defers cleanup until after processBatch sees the release', async () => {
     vi.mocked(resolveFloatDockTarget).mockReturnValue({ kind: 'empty-side', side: 'left' })
-    const callbacks = makeCallbacks()
-    const { result } = renderHook(() => useFloatDragLifecycle(callbacks))
-
-    // Drag start — leading edge attaches the window pointermove + pointerup
-    // listeners.
-    act(() => {
-      result.current.processBatch([positionChange('note-1', true)])
+    const rafCallbacks: FrameRequestCallback[] = []
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCallbacks.push(cb)
+      return rafCallbacks.length
     })
+    try {
+      const callbacks = makeCallbacks()
+      const { result } = renderHook(() => useFloatDragLifecycle(callbacks))
 
-    // Pointer moves — listener stashes coords into pointerRef.
-    act(() => {
-      const ev = new Event('pointermove')
-      Object.assign(ev, { clientX: 100, clientY: 200 })
-      window.dispatchEvent(ev)
-    })
+      // Drag start — leading edge attaches the window pointermove + pointerup
+      // listeners.
+      act(() => {
+        result.current.processBatch([positionChange('note-1', true)])
+      })
 
-    // Pointer release — onUpOrCancel queues the cleanup microtask. Drain it
-    // before the drag-end change arrives, simulating the race that bug B1
-    // surfaced in real Chromium.
-    act(() => {
-      window.dispatchEvent(new Event('pointerup'))
-    })
-    await Promise.resolve()
+      // Pointer moves — listener stashes coords into pointerRef.
+      act(() => {
+        const ev = new Event('pointermove')
+        Object.assign(ev, { clientX: 100, clientY: 200 })
+        window.dispatchEvent(ev)
+      })
 
-    // Drag-end frame from RF — release branch must hit-test against the
-    // pointer captured before pointerup, not a nulled-out ref.
-    act(() => {
-      result.current.processBatch([positionChange('note-1', false, { x: 0, y: 0 })])
-    })
+      // Pointer release — onUpOrCancel schedules a rAF cleanup but does NOT
+      // run it. Microtask drain is a no-op — the cleanup is deferred to the
+      // next animation frame.
+      act(() => {
+        window.dispatchEvent(new Event('pointerup'))
+      })
+      await Promise.resolve()
+      expect(rafSpy).toHaveBeenCalledTimes(1)
 
-    expect(vi.mocked(resolveFloatDockTarget)).toHaveBeenCalledWith(
-      { x: 100, y: 200 },
-      expect.any(Object),
-    )
-    expect(callbacks.onFloatDock).toHaveBeenCalledWith(
-      { kind: 'note', floatId: 1 },
-      { kind: 'empty-side', side: 'left' },
-    )
-    expect(callbacks.onNoteDragStop).not.toHaveBeenCalled()
+      // Drag-end frame from RF — release branch hit-tests against the
+      // captured pointer and dispatches the dock. processBatch's trailing-
+      // edge cleanup nulls `pointerCleanupRef`.
+      act(() => {
+        result.current.processBatch([positionChange('note-1', false, { x: 0, y: 0 })])
+      })
+      expect(callbacks.onFloatDock).toHaveBeenCalledWith(
+        { kind: 'note', floatId: 1 },
+        { kind: 'empty-side', side: 'left' },
+      )
+      expect(callbacks.onNoteDragStop).not.toHaveBeenCalled()
+
+      // Now drain the deferred rAF — it should detect that processBatch
+      // already cleaned up (`pointerCleanupRef.current !== detach`) and
+      // early-return without touching ui-store again.
+      const announcementBefore = useUIStore.getState().floatAnnouncement
+      act(() => {
+        for (const cb of rafCallbacks.splice(0)) cb(performance.now())
+      })
+      expect(useUIStore.getState().floatAnnouncement).toBe(announcementBefore)
+    } finally {
+      rafSpy.mockRestore()
+    }
   })
 })

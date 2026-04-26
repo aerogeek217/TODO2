@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import type { Rail, RailSide, Slot, SlotKind } from '../../../models/canvas-rails'
 import { RAIL_SIZE_MAX, RAIL_SIZE_MIN, clampRailSize } from '../../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../../stores/canvas-rails-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { KIND_ICON } from '../../../utils/slot-kind'
 import { getActiveTab } from '../../../models/canvas-rails'
 import { encodeRailsDropId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
@@ -276,10 +277,39 @@ function CollapsedSlotStub({ slot }: CollapsedSlotStubProps) {
   // `elementsFromPoint` for the `data-rails-drop-id` attribute.
   const dropId = encodeRailsDropId({ kind: 'slot', slotId: slot.id })
   const droppable = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId: slot.id } })
+  // React-Flow-driven float drags bypass dnd-kit, so `droppable.isOver` never
+  // fires while a floating widget is being dragged over the stub. Mirror the
+  // `DraggableSlot` workaround: subscribe to `floatDrag` and run a global
+  // pointer listener gated on the stub's rect so the stub still surfaces
+  // hover feedback during float drags. Without this the user has no visible
+  // dock target on a collapsed rail and tends to release off the small stub.
+  const floatDragActive = useUIStore((s) => s.floatDrag !== null)
+  const stubRef = useRef<HTMLDivElement | null>(null)
+  const [pointerInside, setPointerInside] = useState(false)
+  useEffect(() => {
+    if (!floatDragActive || droppable.isOver) {
+      setPointerInside(false)
+      return
+    }
+    const onMove = (e: PointerEvent) => {
+      const el = stubRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                     e.clientY >= rect.top && e.clientY <= rect.bottom
+      setPointerInside(inside)
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [floatDragActive, droppable.isOver])
+  const hoverActive = droppable.isOver || pointerInside
   return (
     <div
-      ref={droppable.setNodeRef}
-      className={`${styles.iconStub} ${droppable.isOver ? styles.iconStubOver : ''}`}
+      ref={(el) => {
+        droppable.setNodeRef(el)
+        stubRef.current = el
+      }}
+      className={`${styles.iconStub} ${hoverActive ? styles.iconStubOver : ''}`}
       title={label}
       data-rails-drop-id={dropId}
       data-slot-id={slot.id}
