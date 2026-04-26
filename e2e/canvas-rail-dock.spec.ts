@@ -1,10 +1,8 @@
 import { expect, test } from '@playwright/test'
 import {
   dragWidgetTo,
-  emptySideCenter,
   floatingNoteByIndex,
   railBySide,
-  railSlotDropTargets,
   seedCanvas,
 } from './fixtures/seed'
 
