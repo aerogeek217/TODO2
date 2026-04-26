@@ -201,19 +201,22 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
-  // `dashboardUserLists` + `notesPinnedToDashboard` are dormant Dashboard-era
-  // keys: validation accepts them so older backups still import, but restore
-  // strips both keys (see code-review-2026-04-25 P8). Length-bounded only.
-  it('accepts dormant dashboardUserLists / notesPinnedToDashboard payloads as legacy', () => {
+  // `dashboardUserLists`, `notesPinnedToDashboard`, `dashboardTopOrder` are
+  // dormant Dashboard-era keys: validation accepts them so older backups
+  // still import, but restore strips them (see code-review-2026-04-25 P8).
+  // Length-bounded only.
+  it('accepts dormant Dashboard-era keys as legacy payloads', () => {
     const cases = [
       { key: 'dashboardUserLists', value: JSON.stringify([1, 2, 3]) },
       { key: 'dashboardUserLists', value: '' },
       { key: 'notesPinnedToDashboard', value: 'true' },
       { key: 'notesPinnedToDashboard', value: 'whatever' },
+      { key: 'dashboardTopOrder', value: JSON.stringify(['horizon', 'taskboard']) },
+      { key: 'dashboardTopOrder', value: '[]' },
     ]
     for (const setting of cases) {
       const result = validateImportData(validData({ settings: [setting] }))
-      expect(result.ok).toBe(true)
+      expect(result.ok, `key=${setting.key} value=${setting.value}`).toBe(true)
     }
   })
 

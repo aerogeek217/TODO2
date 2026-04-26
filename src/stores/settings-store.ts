@@ -335,12 +335,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
       // Strip dormant Dashboard-era keys (`dashboardUserLists`,
-      // `notesPinnedToDashboard`) and the older `notesDock` / `notesVisible`
-      // legacy rows so they don't accumulate forever in IndexedDB. The store
-      // surface for these was retired in code-review-2026-04-25 P8.
+      // `notesPinnedToDashboard`, `dashboardTopOrder`) and the older
+      // `notesDock` / `notesVisible` legacy rows so they don't accumulate
+      // forever in IndexedDB. The store surface for these was retired in
+      // code-review-2026-04-25 P8.
       await settingsRepository.bulkDelete([
         'dashboardUserLists',
         'notesPinnedToDashboard',
+        'dashboardTopOrder',
         'notesDock',
         'notesVisible',
       ])

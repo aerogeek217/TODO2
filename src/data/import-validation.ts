@@ -577,11 +577,12 @@ function checkSavedView(v: unknown): CheckResult {
 
 // `defaultTaskboardId` is a pre-v33 legacy key accepted here so backups still
 // validate; restore / the v33 migration drops it from settings.
-// `notesPinnedToDashboard` / `dashboardUserLists` are post-Dashboard dormant
-// keys: store + setter surface retired in code-review-2026-04-25 P8, but the
-// import-validation entry stays one release so older backups still validate.
-// Restore strips both keys; schedule deletion of the entry one release later.
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy', 'canvasMaxExtent']
+// `notesPinnedToDashboard` / `dashboardUserLists` / `dashboardTopOrder` are
+// post-Dashboard dormant keys: store + setter surface retired in
+// code-review-2026-04-25 P8, but the import-validation entries stay one
+// release so older backups still validate. Restore strips them; schedule
+// deletion of the entries one release later.
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'dashboardTopOrder', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy', 'canvasMaxExtent']
 
 const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
 
@@ -757,9 +758,9 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : 'value (canvasMaxExtent must be a finite number in [1000, 100000])'
   }
-  // `notesPinnedToDashboard` / `dashboardUserLists` are accepted as legacy
-  // keys (see VALID_SETTING_KEYS comment); restore strips them so the format
-  // is irrelevant. Length bounded by SETTING_VALUE_MAX_LEN_BY_KEY above.
+  // `notesPinnedToDashboard` / `dashboardUserLists` / `dashboardTopOrder` are
+  // accepted as legacy keys (see VALID_SETTING_KEYS comment); restore strips
+  // them so the format is irrelevant. Length bounded by SETTING_VALUE_MAX_LEN_BY_KEY.
   return true
 }
 

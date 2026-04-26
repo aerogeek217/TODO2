@@ -397,6 +397,7 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     await db.settings.bulkDelete([
       'dashboardUserLists',
       'notesPinnedToDashboard',
+      'dashboardTopOrder',
       'notesDock',
       'notesVisible',
     ])
