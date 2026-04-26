@@ -5,6 +5,7 @@ import {
   Background,
   applyNodeChanges,
   useViewport,
+  type CoordinateExtent,
   type Node,
   type NodeChange,
   type NodeTypes,
@@ -235,6 +236,16 @@ export function CanvasView({
   // changes the extent in SettingsPage.
   const canvasMaxExtent = useSettingsStore((s) => s.canvasMaxExtent)
   const minZoom = useMemo(() => deriveCanvasMinZoom(canvasMaxExtent), [canvasMaxExtent])
+  // Constrain node drag to the same band the persist layer clamps to. Without
+  // this, a drag visually leaves the band; the persist clamp re-snaps on
+  // commit but only after the 2-second drop-cache TTL expires (the cache
+  // holds the un-clamped pointer position to suppress mid-drag prop-sync
+  // jitter). Setting `nodeExtent` lets React Flow constrain the gesture
+  // itself, so visual + persisted positions stay in sync.
+  const nodeExtent = useMemo<CoordinateExtent>(
+    () => [[-canvasMaxExtent, -canvasMaxExtent], [canvasMaxExtent, canvasMaxExtent]],
+    [canvasMaxExtent],
+  )
   const [canvasDotColor, setCanvasDotColor] = useState(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--color-canvas-dot').trim() || '#3a3a3a'
   )
@@ -697,6 +708,7 @@ export function CanvasView({
         onViewportChange={handleViewportChange}
         minZoom={minZoom}
         maxZoom={2}
+        nodeExtent={nodeExtent}
 
         panOnDrag={[1]}
         panOnScroll
