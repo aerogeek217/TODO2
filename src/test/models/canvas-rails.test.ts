@@ -385,9 +385,22 @@ describe('canvas-rails model', () => {
         expect(resolveCorner(rails, 'ne')).toBe('v')
       })
 
-      it('falls back to horizontal when stored "v" owner is absent but "h" exists', () => {
+      it('keeps stored "v" even when the vertical rail is absent (corner stays empty canvas)', () => {
+        // Pre-fix this returned 'h' so a fresh top rail extended across the
+        // full viewport width on a center-zone drop. See triage-2026-04-26 T1.
         const rails: RailsState = { ...allRails, left: null, corners: { nw: 'v' } }
-        expect(resolveCorner(rails, 'nw')).toBe('h')
+        expect(resolveCorner(rails, 'nw')).toBe('v')
+      })
+
+      it('default "v" with no vertical rail keeps the corner empty (center-zone drop on empty top side)', () => {
+        // Reproduces triage-2026-04-26 T1: a top rail materialised by a center-
+        // zone drop carries no claim, so corners are unset → default 'v'. The
+        // resolver must not promote that to 'h' just because a horizontal rail
+        // now exists; otherwise computeRailGridArea places top at colStart=1.
+        const rails: RailsState = { ...EMPTY_RAILS, top: makeRail('horizontal') }
+        expect(resolveCorner(rails, 'nw')).toBe('v')
+        expect(resolveCorner(rails, 'ne')).toBe('v')
+        expect(computeRailGridArea(rails, 'top')).toEqual({ rowStart: 1, rowEnd: 2, colStart: 2, colEnd: 3 })
       })
 
       it('stays "v" when both adjacent rails are absent', () => {

@@ -10,9 +10,9 @@
 /*
  * Phase 5 float-dock (reverse): catch-all drop zone covering the React Flow
  * viewport. `pointer-events: none` keeps React Flow's pointer capture
- * untouched — dnd-kit reads the rect, not pointer events. No visual of its
- * own; the parent wrapper's [data-canvas-drop-active] dashed border is the
- * affordance while a rail tab-pill drag is currently over this zone.
+ * untouched — dnd-kit reads the rect, not pointer events. The visual
+ * affordance lives on `.popOutIndicator` below — a smaller projected
+ * landing-rect overlay that follows the pointer (T2 of triage-2026-04-26).
  */
 .canvasDropZone {
   position: absolute;
@@ -20,14 +20,27 @@
   pointer-events: none;
 }
 
-.canvasWrapper[data-canvas-drop-active='true']::after {
-  content: '';
+/*
+ * Projected landing-rect indicator for a tab-pill canvas pop-out drag.
+ * Positioned via inline `transform: translate(...)` from `CanvasView`. Sized
+ * to match `DEFAULT_FLOAT_WIDTH × DEFAULT_FLOAT_HEIGHT` so the user sees
+ * roughly where the popped-out widget will land. Replaces the prior
+ * full-viewport `[data-canvas-drop-active]::after` border (T2).
+ */
+.popOutIndicator {
   position: absolute;
-  inset: 6px;
-  border: 2px dashed color-mix(in oklab, var(--color-accent) 45%, transparent);
+  top: 0;
+  left: 0;
+  border: 2px dashed color-mix(in oklab, var(--color-accent) 65%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 8%, transparent);
   border-radius: var(--radius-card);
   pointer-events: none;
   z-index: var(--z-canvas-draw);
+  /*
+   * `transform` is the only mutated style during the drag; tell the browser
+   * so it can promote the layer instead of repainting on every pointermove.
+   */
+  will-change: transform;
 }
 
 .drawOverlay {

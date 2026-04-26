@@ -1,4 +1,4 @@
-import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type MouseEvent as ReactMouseEvent } from 'react'
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ReactFlow,
@@ -25,6 +25,7 @@ import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalend
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { encodeRailsDropId, RAILS_DRAG_TYPE, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
+import { DEFAULT_FLOAT_HEIGHT, DEFAULT_FLOAT_WIDTH } from '../../constants'
 import { REACT_FLOW_NODE_CLASS } from '../../utils/react-flow-dom'
 import { useFloatDragLifecycle } from '../../hooks/use-float-drag-lifecycle'
 import { useCascadeShifts } from '../../hooks/use-cascade-shifts'
@@ -274,15 +275,45 @@ export function CanvasView({
   const canvasDropId = encodeRailsDropId({ kind: 'canvas' })
   const canvasDroppable = useDroppable({ id: canvasDropId, data: { type: RAILS_DRAG_TYPE } })
   const [tabDragActive, setTabDragActive] = useState(false)
+  // Pointer position during a tab-pill drag, used to render the projected
+  // landing-rect overlay (T2). Tracked via a window-level listener gated on
+  // `tabDragActive` because dnd-kit doesn't surface a stream of pointer coords
+  // mid-drag; the listener attaches at drag-start and detaches at drag-end.
+  const [tabDragPointer, setTabDragPointer] = useState<{ x: number; y: number } | null>(null)
   useDndMonitor({
     onDragStart: ({ active }) => {
       const data = active.data.current as RailsDragData | undefined
       setTabDragActive(data?.type === RAILS_DRAG_TYPE && data.kind === 'tab')
     },
-    onDragEnd: () => setTabDragActive(false),
-    onDragCancel: () => setTabDragActive(false),
+    onDragEnd: () => { setTabDragActive(false); setTabDragPointer(null) },
+    onDragCancel: () => { setTabDragActive(false); setTabDragPointer(null) },
   })
+  useEffect(() => {
+    if (!tabDragActive) return
+    const onMove = (e: PointerEvent) => {
+      setTabDragPointer({ x: e.clientX, y: e.clientY })
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [tabDragActive])
   const canvasDropActive = tabDragActive && canvasDroppable.isOver
+  // Project landing rect: `pointerToFlowPosition` centres the widget on the
+  // pointer in flow coords. In screen coords (where the overlay lives) that
+  // collapses to `pointer - DEFAULT_FLOAT_*/2` regardless of viewport zoom —
+  // the overlay's job is to communicate the landing position, not to preview
+  // the post-drop visual size at the current zoom.
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  let popOutOverlayStyle: CSSProperties | null = null
+  if (canvasDropActive && tabDragPointer && wrapperRef.current) {
+    const rect = wrapperRef.current.getBoundingClientRect()
+    const x = tabDragPointer.x - rect.left - DEFAULT_FLOAT_WIDTH / 2
+    const y = tabDragPointer.y - rect.top - DEFAULT_FLOAT_HEIGHT / 2
+    popOutOverlayStyle = {
+      transform: `translate(${x}px, ${y}px)`,
+      width: DEFAULT_FLOAT_WIDTH,
+      height: DEFAULT_FLOAT_HEIGHT,
+    }
+  }
 
   /** Get absolute rect for a node. Uses React Flow's positionAbsolute for non-dragging
    *  nodes (ground truth); falls back to manual parent offset for dragging nodes whose
@@ -630,6 +661,7 @@ export function CanvasView({
 
   return (
     <div
+      ref={wrapperRef}
       className={styles.canvasWrapper}
       onContextMenu={handleContextMenu}
       data-canvas-drop-active={canvasDropActive ? 'true' : undefined}
@@ -640,6 +672,13 @@ export function CanvasView({
         data-rails-drop-id={canvasDropId}
         aria-hidden="true"
       />
+      {popOutOverlayStyle && (
+        <div
+          className={styles.popOutIndicator}
+          style={popOutOverlayStyle}
+          aria-hidden="true"
+        />
+      )}
       <ReactFlow
         nodes={nodes}
         edges={[]}

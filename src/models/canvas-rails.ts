@@ -287,18 +287,18 @@ function parseCollapsed(raw: unknown): Partial<Record<RailSide, boolean>> | unde
 
 /**
  * Resolve which rail actually owns a corner, given the current rails state.
- * Falls back to the orthogonal side when the stored owner's rail is absent,
- * so the layout is always well-defined.
+ * `'h'` falls back to `'v'` when the horizontal rail is absent (legacy
+ * behavior). `'v'` — whether stored explicitly or inherited from the default —
+ * stays `'v'` regardless of horizontal presence, so corners produced by a
+ * center-zone drop on an empty top/bottom side render as empty canvas instead
+ * of letting the new horizontal rail extend across the full width.
  */
 export function resolveCorner(rails: RailsState, corner: Corner): CornerOwner {
   const stored = rails.corners?.[corner]
   const horizontalSide: RailSide = corner === 'nw' || corner === 'ne' ? 'top' : 'bottom'
-  const verticalSide: RailSide = corner === 'nw' || corner === 'sw' ? 'left' : 'right'
   const hasHorizontal = rails[horizontalSide] != null
-  const hasVertical = rails[verticalSide] != null
   const want: CornerOwner = stored ?? 'v'
   if (want === 'h' && !hasHorizontal) return 'v'
-  if (want === 'v' && !hasVertical) return hasHorizontal ? 'h' : 'v'
   return want
 }
 

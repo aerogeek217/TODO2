@@ -68,6 +68,17 @@ describe('rail-dnd id encoding', () => {
     expect(decodeRailsDropId(id)).toEqual(z)
   })
 
+  it('round-trips collapsed-side zones for every side (triage-2026-04-26 T3)', () => {
+    for (const side of ['left', 'right', 'top', 'bottom'] as const) {
+      const z = { kind: 'collapsed-side' as const, side }
+      expect(decodeRailsDropId(encodeRailsDropId(z))).toEqual(z)
+    }
+  })
+
+  it('rejects collapsed-side ids with an unknown side', () => {
+    expect(decodeRailsDropId('rails:collapsed-side:middle')).toBeNull()
+  })
+
   it('rejects non-rails ids', () => {
     expect(isRailsDropId('project-12')).toBe(false)
     expect(decodeRailsDropId('project-12')).toBeNull()

@@ -391,4 +391,125 @@ describe('resolveFloatDockTarget', () => {
       expect(target).toEqual({ kind: 'empty-side', side: 'top', claim: 'start' })
     })
   })
+
+  // triage-2026-04-26 T3: when the pointer lands on a collapsed rail's `<aside>`
+  // but misses every individual stub (e.g. release on the margin between two
+  // stubs, above the first, or below the last), the resolver routes the dock
+  // to the stub nearest the pointer along the rail axis.
+  describe('collapsed-side fallback', () => {
+    /** Build a fake collapsed rail aside with N stubs at fixed rects. */
+    function makeCollapsedAside(side: 'left' | 'right' | 'top' | 'bottom', stubs: Array<{ slotId: string; rect: { left: number; top: number; width: number; height: number } }>): HTMLElement {
+      const asideId = encodeRailsDropId({ kind: 'collapsed-side', side })
+      const aside = makeDropEl(asideId, { left: 0, top: 0, width: 28, height: 600 })
+      for (const stub of stubs) {
+        const stubEl = document.createElement('div')
+        stubEl.dataset.slotId = stub.slotId
+        // Stubs in production also carry `data-rails-drop-id` of kind `slot`,
+        // but the bisection helper uses `data-slot-id` so we omit it here to
+        // keep the test focused on the fallback path.
+        stubEl.getBoundingClientRect = (() => ({
+          left: stub.rect.left,
+          top: stub.rect.top,
+          right: stub.rect.left + stub.rect.width,
+          bottom: stub.rect.top + stub.rect.height,
+          width: stub.rect.width,
+          height: stub.rect.height,
+          x: stub.rect.left,
+          y: stub.rect.top,
+          toJSON() { return this },
+        })) as unknown as () => DOMRect
+        aside.appendChild(stubEl)
+      }
+      return aside
+    }
+
+    it('vertical rail: picks the stub whose Y midpoint is closest to the pointer', () => {
+      // Stubs stacked vertically at y=20-60, y=80-120, y=140-180.
+      // Pointer at y=70 (between first and second stub) is closer to first (mid=40, dist=30)
+      // than to second (mid=100, dist=30) — tie broken in favor of the first hit.
+      const aside = makeCollapsedAside('left', [
+        { slotId: 'a', rect: { left: 0, top: 20, width: 28, height: 40 } },
+        { slotId: 'b', rect: { left: 0, top: 80, width: 28, height: 40 } },
+        { slotId: 'c', rect: { left: 0, top: 140, width: 28, height: 40 } },
+      ])
+      const target = resolveFloatDockTarget(
+        { x: 14, y: 90 },
+        {
+          elementsFromPoint: () => [aside],
+          getSlotOrientation: () => 'vertical',
+        },
+      )
+      expect(target).toEqual({ kind: 'slot', slotId: 'b', zone: 'center' })
+    })
+
+    it('vertical rail: pointer above all stubs picks the first stub', () => {
+      const aside = makeCollapsedAside('right', [
+        { slotId: 'a', rect: { left: 0, top: 100, width: 28, height: 40 } },
+        { slotId: 'b', rect: { left: 0, top: 200, width: 28, height: 40 } },
+      ])
+      const target = resolveFloatDockTarget(
+        { x: 14, y: 10 },
+        {
+          elementsFromPoint: () => [aside],
+          getSlotOrientation: () => 'vertical',
+        },
+      )
+      expect(target).toEqual({ kind: 'slot', slotId: 'a', zone: 'center' })
+    })
+
+    it('horizontal rail: picks the stub whose X midpoint is closest to the pointer', () => {
+      // Stubs stacked horizontally at x=20-60, x=80-120, x=140-180.
+      const aside = makeCollapsedAside('top', [
+        { slotId: 'a', rect: { left: 20, top: 0, width: 40, height: 28 } },
+        { slotId: 'b', rect: { left: 80, top: 0, width: 40, height: 28 } },
+        { slotId: 'c', rect: { left: 140, top: 0, width: 40, height: 28 } },
+      ])
+      const target = resolveFloatDockTarget(
+        { x: 150, y: 14 },
+        {
+          elementsFromPoint: () => [aside],
+          getSlotOrientation: () => 'horizontal',
+        },
+      )
+      expect(target).toEqual({ kind: 'slot', slotId: 'c', zone: 'center' })
+    })
+
+    it('returns null when the aside has no stubs (rail collapsed but empty — should not happen, but guard anyway)', () => {
+      const aside = makeCollapsedAside('bottom', [])
+      const target = resolveFloatDockTarget(
+        { x: 100, y: 14 },
+        {
+          elementsFromPoint: () => [aside],
+          getSlotOrientation: () => null,
+        },
+      )
+      expect(target).toBeNull()
+    })
+
+    it('an individual stub hit (slot kind) wins over the aside catch-all', () => {
+      // When the pointer lands directly on a stub, we get both the slot drop-id
+      // (on the stub itself) and the collapsed-side drop-id (on the aside) in
+      // the elementsFromPoint stack. Slot wins — same priority order that
+      // already handles the corner-overlap case.
+      const slotElId = encodeRailsDropId({ kind: 'slot', slotId: 'b' })
+      const stubEl = makeDropEl(slotElId, { left: 0, top: 80, width: 28, height: 40 })
+      const aside = makeCollapsedAside('left', [
+        { slotId: 'a', rect: { left: 0, top: 20, width: 28, height: 40 } },
+        { slotId: 'b', rect: { left: 0, top: 80, width: 28, height: 40 } },
+      ])
+      const target = resolveFloatDockTarget(
+        { x: 14, y: 100 },
+        {
+          elementsFromPoint: () => [stubEl, aside],
+          getSlotOrientation: () => 'vertical',
+        },
+      )
+      // Slot zone, not collapsed-side — center because the pointer is in the
+      // middle band of the stub's rect.
+      expect(target?.kind).toBe('slot')
+      if (target?.kind === 'slot') {
+        expect(target.slotId).toBe('b')
+      }
+    })
+  })
 })

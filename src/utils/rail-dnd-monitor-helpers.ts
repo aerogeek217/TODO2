@@ -78,6 +78,7 @@ export function describeDropZone(
   if (!zone) return 'unknown target'
   if (zone.kind === 'empty-side') return `${zone.side} rail`
   if (zone.kind === 'canvas') return 'canvas'
+  if (zone.kind === 'collapsed-side') return `${zone.side} rail`
   if (zone.kind === 'tab-strip') {
     const targetKind = findSlotKind(rails, zone.slotId) ?? 'slot'
     return `${targetKind} tab strip`

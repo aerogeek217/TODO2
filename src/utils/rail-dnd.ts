@@ -45,6 +45,16 @@ export type RailsDropZone =
   | { kind: 'slot'; slotId: string }
   | { kind: 'tab-strip'; slotId: string }
   /**
+   * Whole `<aside>` of a collapsed rail. The expanded-state `rails:slot:<id>`
+   * drop zones are also registered on each stub; this catch-all fires only
+   * when the release lands inside the rail aside (margin, gap between stubs,
+   * top/bottom of the icon strip) but misses every individual stub. The
+   * resolver bisects the aside's stub list by axis distance to pick the
+   * nearest target, then resolves as a center-merge into that slot. See
+   * triage-2026-04-26 T3.
+   */
+  | { kind: 'collapsed-side'; side: RailSide }
+  /**
    * Full-canvas drop target for Phase 5 of float-dock: a tab-pill drag released
    * over the React Flow viewport (and missing every rail hotspot) materialises
    * the tab as a floating widget at pointer position. Exactly one of these is
@@ -66,6 +76,8 @@ export function encodeRailsDropId(z: RailsDropZone): string {
       return `${RAILS_DROP_ID_PREFIX}slot:${z.slotId}`
     case 'tab-strip':
       return `${RAILS_DROP_ID_PREFIX}tab-strip:${z.slotId}`
+    case 'collapsed-side':
+      return `${RAILS_DROP_ID_PREFIX}collapsed-side:${z.side}`
     case 'canvas':
       return `${RAILS_DROP_ID_PREFIX}canvas`
   }
@@ -91,6 +103,9 @@ export function decodeRailsDropId(id: string): RailsDropZone | null {
   if (parts[0] === 'tab-strip' && parts.length >= 2) {
     const slotId = parts.slice(1).join(':')
     if (slotId.length > 0) return { kind: 'tab-strip', slotId }
+  }
+  if (parts[0] === 'collapsed-side' && parts.length === 2 && parts[1] != null && isSide(parts[1])) {
+    return { kind: 'collapsed-side', side: parts[1] }
   }
   return null
 }
@@ -605,6 +620,7 @@ export function resolveFloatDockTarget(
   let slotHit: Hit | null = null
   let tabStripHit: Hit | null = null
   let emptySideHit: Hit | null = null
+  let collapsedSideHit: Hit | null = null
   let canvasHit: Hit | null = null
   for (const el of els) {
     if (!(el instanceof HTMLElement)) continue
@@ -615,9 +631,10 @@ export function resolveFloatDockTarget(
     if (decoded.kind === 'slot' && !slotHit) slotHit = { el, zone: decoded }
     else if (decoded.kind === 'tab-strip' && !tabStripHit) tabStripHit = { el, zone: decoded }
     else if (decoded.kind === 'empty-side' && !emptySideHit) emptySideHit = { el, zone: decoded }
+    else if (decoded.kind === 'collapsed-side' && !collapsedSideHit) collapsedSideHit = { el, zone: decoded }
     else if (decoded.kind === 'canvas' && !canvasHit) canvasHit = { el, zone: decoded }
   }
-  const winner = slotHit ?? tabStripHit ?? emptySideHit ?? canvasHit
+  const winner = slotHit ?? tabStripHit ?? emptySideHit ?? collapsedSideHit ?? canvasHit
   if (!winner) return null
   const hit = winner.el
   const zone = winner.zone
@@ -632,6 +649,14 @@ export function resolveFloatDockTarget(
     // helper but passes the dragged tab's id.
     const insertIdx = computeTabInsertIdx(hit, pointer.x)
     return { kind: 'tab-strip', slotId: zone.slotId, insertIdx }
+  }
+  if (zone.kind === 'collapsed-side') {
+    // Pointer landed on a collapsed rail's `<aside>` but missed every stub
+    // (margin / between stubs / top/bottom padding). Pick the nearest stub by
+    // axis distance and resolve as a center-merge into that slot.
+    const nearestSlotId = nearestStubSlotId(hit, pointer, zone.side)
+    if (!nearestSlotId) return null
+    return { kind: 'slot', slotId: nearestSlotId, zone: 'center' }
   }
   if (zone.kind === 'canvas') {
     // Float-drag releases over the canvas aren't a rail-dock target — the
@@ -649,6 +674,38 @@ export function resolveFloatDockTarget(
     orientation,
   )
   return { kind: 'slot', slotId: zone.slotId, zone: splitZone }
+}
+
+/**
+ * Pick the slot id of the stub nearest the pointer along the rail axis. Used
+ * by the `collapsed-side` resolver: the user released over a collapsed rail's
+ * aside but missed every stub's individual rect, so we route the dock to
+ * whichever stub is closest. Vertical rails (left/right) stack stubs along Y;
+ * horizontal rails (top/bottom) along X.
+ */
+function nearestStubSlotId(
+  aside: HTMLElement,
+  pointer: { x: number; y: number },
+  side: RailSide,
+): string | null {
+  const stubs = aside.querySelectorAll<HTMLElement>('[data-slot-id]')
+  if (stubs.length === 0) return null
+  const axis: 'x' | 'y' = side === 'left' || side === 'right' ? 'y' : 'x'
+  let bestId: string | null = null
+  let bestDist = Infinity
+  for (const stub of stubs) {
+    const slotId = stub.dataset.slotId
+    if (!slotId) continue
+    const r = stub.getBoundingClientRect()
+    const mid = axis === 'y' ? r.top + r.height / 2 : r.left + r.width / 2
+    const p = axis === 'y' ? pointer.y : pointer.x
+    const dist = Math.abs(p - mid)
+    if (dist < bestDist) {
+      bestDist = dist
+      bestId = slotId
+    }
+  }
+  return bestId
 }
 
 // ---------------------------------------------------------------------------

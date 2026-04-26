@@ -201,6 +201,38 @@ describe('CollapsedSlotStub drop zone', () => {
     expect(container.querySelector('[data-slot-id="slot-a"]')).toBeNull()
   })
 
+  it('marks the collapsed aside as a "collapsed-side" drop zone (triage-2026-04-26 T3)', () => {
+    const multiSlotRail: Rail = {
+      orientation: 'vertical',
+      slots: [
+        { id: 'slot-a', tabs: [{ id: 'a-t0', type: 'lens' }], activeTabId: 'a-t0' },
+      ],
+    }
+    const { container } = render(
+      <DndContext>
+        <RailContainer side="right" rail={multiSlotRail} size={28} collapsed onResize={() => {}}>
+          <div />
+        </RailContainer>
+      </DndContext>,
+    )
+    const rail = container.querySelector('[data-rail-side="right"]') as HTMLElement
+    // Whole aside is the catch-all drop target; per-stub `rails:slot:<id>`
+    // zones still take priority on direct hits via resolver ordering.
+    expect(rail.dataset.railsDropId).toBe('rails:collapsed-side:right')
+  })
+
+  it('does NOT mark the aside as a drop zone when expanded', () => {
+    const { container } = render(
+      <DndContext>
+        <RailContainer side="right" rail={lensRail} size={340} onResize={() => {}}>
+          <div />
+        </RailContainer>
+      </DndContext>,
+    )
+    const rail = container.querySelector('[data-rail-side="right"]') as HTMLElement
+    expect(rail.dataset.railsDropId).toBeUndefined()
+  })
+
   it('resolves a float drag onto a collapsed stub via resolveFloatDockTarget', async () => {
     const { resolveFloatDockTarget } = await import('../../../../utils/rail-dnd')
     const multiSlotRail: Rail = {

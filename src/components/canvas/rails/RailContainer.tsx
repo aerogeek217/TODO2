@@ -327,12 +327,21 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
   const mergedStyle: CSSProperties = style ? { ...sizeStyle, ...style } : sizeStyle
   const collapsedClass = collapsed ? styles.collapsed : ''
 
+  // T3 (triage-2026-04-26): when collapsed, expose the entire `<aside>` as a
+  // catch-all drop zone. The per-stub `rails:slot:<id>` zones still take
+  // priority via `resolveFloatDockTarget`'s ordering — this fires only when
+  // the release lands on the rail aside but misses every stub (margin / gap
+  // between stubs / top/bottom padding). The resolver bisects the contained
+  // stubs by axis distance and routes the dock to the nearest one.
+  const collapsedSideDropId = collapsed ? encodeRailsDropId({ kind: 'collapsed-side', side }) : undefined
+
   return (
     <aside
       className={`${styles.rail} ${orientClass} ${styles[side]} ${collapsedClass}`}
       style={mergedStyle}
       data-rail-side={side}
       data-rail-collapsed={collapsed ? 'true' : 'false'}
+      data-rails-drop-id={collapsedSideDropId}
       aria-label={`Canvas ${side} rail`}
     >
       {collapsed ? (
