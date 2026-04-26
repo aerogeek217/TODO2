@@ -14,8 +14,8 @@
  * Inline syntax (parsed live, removed from title, surfaced as chips):
  *   @person   /project   #tag   :status (P6)   natural dates ("tomorrow")
  *
- * Title input + notes textarea carry `data-shortcut-scope="none"` so global
- * keyboard shortcuts (`use-keyboard-shortcuts.ts`) don't fire while typing.
+ * Title input carries `data-shortcut-scope="none"` so global keyboard
+ * shortcuts (`use-keyboard-shortcuts.ts`) don't fire while typing.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -282,8 +282,6 @@ export function QuickAddBar({
   parse,
 }: QuickAddBarProps) {
   const [raw, setRaw] = useState('')
-  const [expanded, setExpanded] = useState(false)
-  const [notes, setNotes] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
 
@@ -352,7 +350,6 @@ export function QuickAddBar({
     project: parsed.project ?? defaultProject,
     rawTitle: raw,
     resolved,
-    notes,
   }
 
   const hasChips =
@@ -384,14 +381,11 @@ export function QuickAddBar({
       const seed = initialDraftRef.current
       if (seed) {
         setRaw(seed.rawTitle)
-        setNotes(seed.notes)
       }
       // Wait a paint so the portal node exists.
       requestAnimationFrame(() => inputRef.current?.focus())
     } else {
       setRaw('')
-      setExpanded(false)
-      setNotes('')
       dismissAutocomplete()
     }
   }, [open, dismissAutocomplete])
@@ -512,7 +506,7 @@ export function QuickAddBar({
     }
     if (e.key === 'Tab') {
       e.preventDefault()
-      setExpanded((v) => !v)
+      if (onOpenFullEditor) onOpenFullEditor(draft)
       return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -588,7 +582,7 @@ export function QuickAddBar({
 
         {/* Chips row */}
         {hasChips && (
-          <div className={`${styles.chipsRow} ${expanded ? styles.withDivider : ''}`}>
+          <div className={styles.chipsRow}>
             {draft.status && <StatusChip status={draft.status} />}
             {draft.people.map((p) => (
               <PersonChip key={`person-${p.id}`} person={p} />
@@ -603,11 +597,6 @@ export function QuickAddBar({
             {draft.scheduledAt && <DateChip icon="📅" label={formatShort(draft.scheduledAt)} />}
             {draft.deadlineAt && <DateChip icon="🚩" label={formatShort(draft.deadlineAt)} />}
             {draft.recurrence && <RecurrenceChip recurrence={draft.recurrence} />}
-            {!expanded && (
-              <span className={styles.chipsHint}>
-                <Kbd>⇥</Kbd> for more fields
-              </span>
-            )}
           </div>
         )}
 
@@ -628,75 +617,8 @@ export function QuickAddBar({
           </div>
         )}
 
-        {/* Expanded fields */}
-        {expanded && (
-          <>
-            <div className={styles.expanded}>
-              <div className={styles.fieldGrid}>
-                <div className={styles.fieldLabel}>Schedule</div>
-                <div>
-                  <button
-                    className={`${styles.fieldButton} ${!draft.scheduledAt ? styles.empty : ''}`}
-                  >
-                    {draft.scheduledAt ? `📅 ${formatShort(draft.scheduledAt)}` : '＋ Set schedule'}
-                  </button>
-                </div>
-                <div className={styles.fieldLabel}>Deadline</div>
-                <div>
-                  <button
-                    className={`${styles.fieldButton} ${!draft.deadlineAt ? styles.empty : ''}`}
-                  >
-                    {draft.deadlineAt ? `🚩 ${formatShort(draft.deadlineAt)}` : '＋ Set deadline'}
-                  </button>
-                </div>
-                <div className={styles.fieldLabel}>Tags</div>
-                <div>
-                  <button
-                    className={`${styles.fieldButton} ${draft.tags.length === 0 ? styles.empty : ''}`}
-                  >
-                    {draft.tags.length > 0
-                      ? draft.tags.map((t) => `#${t}`).join(' ')
-                      : '＋ Add tag'}
-                  </button>
-                </div>
-                <div className={`${styles.fieldLabel} ${styles.alignTop}`}>Notes</div>
-                <textarea
-                  className={styles.notesInput}
-                  placeholder="Notes (optional)…"
-                  rows={3}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  data-shortcut-scope="none"
-                />
-              </div>
-            </div>
-            <div className={styles.footer}>
-              <span>
-                <Kbd>⇥</Kbd> collapse
-              </span>
-              <span>
-                <Kbd>↵</Kbd> create
-              </span>
-              <span className={styles.spacer} />
-              {onOpenFullEditor && (
-                <a
-                  className={styles.openFull}
-                  onClick={() => {
-                    // Parent owns close-vs-handoff sequencing — typically:
-                    // stash draft on ui-store, flip quickAddOpen=false,
-                    // dispatch openCreatePopup. We don't call onClose here.
-                    onOpenFullEditor(draft)
-                  }}
-                >
-                  Open full editor →
-                </a>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* Hint when empty + collapsed */}
-        {!hasChips && !hasUnmatched && !expanded && (
+        {/* Hint when empty */}
+        {!hasChips && !hasUnmatched && (
           <div className={styles.hintRow}>
             <span>Inline shortcuts:</span>
             <span>

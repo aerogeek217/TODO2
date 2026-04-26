@@ -100,11 +100,6 @@
   padding: 0 var(--space-5) var(--space-4);
 }
 
-.chipsRow.withDivider {
-  border-bottom: 1px solid var(--color-border-muted);
-  padding-bottom: var(--space-4);
-}
-
 .chip {
   display: inline-flex;
   align-items: center;
@@ -149,12 +144,6 @@
   color: var(--color-text-primary);
 }
 
-.chipsHint {
-  color: var(--color-text-muted);
-  font-size: 11px;
-  padding-left: 4px;
-}
-
 /* ─── Unmatched hint row ──────────────────────────────────────── */
 
 .unmatchedHint {
@@ -170,97 +159,6 @@
 .unmatchedNames {
   color: var(--color-text-secondary);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-/* ─── Expanded fields ─────────────────────────────────────────── */
-
-.expanded {
-  padding: var(--space-4) var(--space-5);
-}
-
-.fieldGrid {
-  display: grid;
-  grid-template-columns: 70px 1fr;
-  row-gap: var(--space-3);
-  column-gap: var(--space-5);
-  align-items: center;
-}
-
-.fieldLabel {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.fieldLabel.alignTop {
-  align-self: start;
-  padding-top: 6px;
-}
-
-.fieldButton {
-  padding: 4px 10px;
-  font-size: 12px;
-  font-family: inherit;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.fieldButton.empty {
-  border-style: dashed;
-  color: var(--color-text-muted);
-}
-
-.fieldButton:hover {
-  border-color: var(--color-border-strong);
-  color: var(--color-text-primary);
-}
-
-.notesInput {
-  width: 100%;
-  resize: vertical;
-  padding: 6px 10px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
-  font-size: 12.5px;
-  font-family: inherit;
-  outline: none;
-}
-
-.notesInput:focus {
-  border-color: var(--color-border-strong);
-}
-
-/* ─── Footer ──────────────────────────────────────────────────── */
-
-.footer {
-  padding: 8px var(--space-5);
-  border-top: 1px solid var(--color-border-muted);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--color-text-muted);
-}
-
-.footer .spacer {
-  flex: 1;
-}
-
-.footer .openFull {
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.footer .openFull:hover {
-  color: var(--color-text-primary);
 }
 
 /* ─── Hint row (below empty bar) ──────────────────────────────── */
