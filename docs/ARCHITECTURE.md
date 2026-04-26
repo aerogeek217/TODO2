@@ -48,6 +48,17 @@ main.tsx (entry point)
 5. **Person assignment**: Many-to-many via `todoPeople` join; `usePersonStore` maintains an `assignedPeopleMap` cache.
 6. **Person-org membership**: Many-to-many via `personOrgs` join; a person can belong to multiple orgs.
 
+## Testing
+
+Two layers, picked by what's being verified:
+
+- **vitest (`npm test`)** — unit + JSDOM component tests under `src/test/**`. Authoritative for pure logic, models, repositories, store reducers, services, utility functions, and component rendering / event-handler dispatch that doesn't depend on real layout, focus, or async DOM timing. Coverage via `vitest run --coverage` (v8). `e2e/**` is excluded from the vitest sweep so Playwright specs don't get pulled in.
+- **Playwright (`npm run test:e2e`)** — Chromium-only real-browser flows under `e2e/**`, configured by `playwright.config.ts` (fixed port 5173 via `--strictPort`, `reuseExistingServer`, `trace: 'retain-on-failure'`, desktop 1280×800). Runs against `npm run dev`. Specs today: `smoke`, `canvas-enter-chain`, `focus-trace` (diagnostic), `canvas-rail-dock`, `canvas-widget-kind-menu`. Test fixtures + CDP-trusted gestures live under `e2e/fixtures/seed.ts` (`seedCanvas`, `dragWidgetTo`, rail / WKM locators). CI is out of scope; tests are local-only.
+
+**JSDOM is not authoritative** for: focus handoffs (the Enter-chain bug took three attempts because JSDOM tests passed while the real-browser bug persisted — see `docs/plans/features/real-browser-testing/`), `ResizeObserver`-driven layout, drag-and-drop hit-testing on rails / floats / taskboard / `data-rails-drop-id` / `data-tbp-entry` geometry, popover anchor placement / viewport flips, async-store-driven re-render timing, and canvas positional behavior (project drag + cascade shift, calendar reschedule, rail dock). Behaviors in those categories require a Playwright spec — JSDOM passing is not enough signal.
+
+**Diagnosis vs. regression.** A Chrome DevTools MCP server (`mcp__chrome-devtools__*`) is wired up as a *spike* tool — drive an interaction live in real Chromium, capture `document.activeElement` / console / network / DOM, then codify the regression in Playwright once the assertions are known. CLAUDE.md "Tools — Chrome DevTools MCP" has the workflow and the don't-substitute-for-unit-tests guardrails.
+
 ## Detail References
 
 Load the relevant file when you need per-abstraction detail. Each is a table of `Abstraction | Location | Purpose` rows.
