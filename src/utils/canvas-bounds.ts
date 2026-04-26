@@ -43,3 +43,33 @@ export function clampCanvasPosition(x: number, y: number, max?: number): { x: nu
     y: Math.max(-limit, Math.min(limit, y)),
   }
 }
+
+/**
+ * Floor for `<ReactFlow minZoom>`. Hard clamp in case the formula produces
+ * something absurd; at zoom < 0.005 a ProjectNode renders at < 2 px so manual
+ * zoom-out beyond this is meaningless even on huge canvases.
+ */
+export const ABSOLUTE_MIN_ZOOM = 0.02
+
+/**
+ * Default ceiling — matches React Flow's prior hardcoded `minZoom={0.2}`.
+ * Small canvases (extent < ~2700) keep this so widgets stay legible at the
+ * bottom of the zoom range.
+ */
+export const DEFAULT_MIN_ZOOM = 0.2
+
+/**
+ * Derive React Flow's `minZoom` from the configured canvas extent so a
+ * `fitView` against a fully-saturated band (widgets at ±maxExtent) is
+ * always reachable, AND manual zoom-out can match.
+ *
+ * Math: viewport width / (2 × maxExtent × padding), where the constants
+ * assume a ~1280 px desktop viewport and `fitView({ padding: 0.15 })`
+ * (configured in `CanvasPage`). Smaller viewports clamp earlier — fitView
+ * still recenters on the bounds center so content stays on screen.
+ */
+export function deriveCanvasMinZoom(maxExtent: number, viewportWidth = 1280): number {
+  const FIT_PADDING_FACTOR = 1.15
+  const required = viewportWidth / (2 * maxExtent * FIT_PADDING_FACTOR)
+  return Math.max(ABSOLUTE_MIN_ZOOM, Math.min(DEFAULT_MIN_ZOOM, required))
+}

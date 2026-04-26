@@ -25,6 +25,7 @@ import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalend
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { encodeRailsDropId, RAILS_DRAG_TYPE, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
+import { deriveCanvasMinZoom } from '../../utils/canvas-bounds'
 import { DEFAULT_FLOAT_HEIGHT, DEFAULT_FLOAT_WIDTH } from '../../constants'
 import { REACT_FLOW_NODE_CLASS } from '../../utils/react-flow-dom'
 import { useFloatDragLifecycle } from '../../hooks/use-float-drag-lifecycle'
@@ -229,6 +230,11 @@ export function CanvasView({
   // dwell. Project-node drags keep auto-pan (this stays true when no float is
   // in flight).
   const isFloatDragging = useUIStore((s) => s.floatDrag !== null)
+  // Derive React Flow's minZoom from the configured canvas extent so fitView
+  // can always cover a fully-saturated band. Recomputes whenever the user
+  // changes the extent in SettingsPage.
+  const canvasMaxExtent = useSettingsStore((s) => s.canvasMaxExtent)
+  const minZoom = useMemo(() => deriveCanvasMinZoom(canvasMaxExtent), [canvasMaxExtent])
   const [canvasDotColor, setCanvasDotColor] = useState(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--color-canvas-dot').trim() || '#3a3a3a'
   )
@@ -689,7 +695,7 @@ export function CanvasView({
         fitView={false}
         defaultViewport={savedViewport ?? { x: 50, y: 50, zoom: 1 }}
         onViewportChange={handleViewportChange}
-        minZoom={0.2}
+        minZoom={minZoom}
         maxZoom={2}
 
         panOnDrag={[1]}

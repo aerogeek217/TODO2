@@ -438,7 +438,7 @@ export function SettingsPage() {
           <div className={styles.sectionTitle}>Canvas</div>
           <div
             className={styles.settingRow}
-            title={`Hard limit on widget coordinates: positions are clamped to ±N on both axes when persisted. Range ${MIN_CANVAS_MAX_EXTENT.toLocaleString()}–${MAX_CANVAS_MAX_EXTENT.toLocaleString()}.`}
+            title={`Hard limit on widget coordinates (positions are clamped to ±N on both axes) and the floor for the canvas's minimum zoom (so "Fit all to view" can always cover the full band). Range ${MIN_CANVAS_MAX_EXTENT.toLocaleString()}–${MAX_CANVAS_MAX_EXTENT.toLocaleString()}.`}
           >
             <span className={styles.settingLabel}>Canvas extent (±px)</span>
             <input
