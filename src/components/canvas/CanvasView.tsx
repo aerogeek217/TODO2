@@ -30,6 +30,7 @@ import { REACT_FLOW_NODE_CLASS } from '../../utils/react-flow-dom'
 import { useFloatDragLifecycle } from '../../hooks/use-float-drag-lifecycle'
 import { useCascadeShifts } from '../../hooks/use-cascade-shifts'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
+import { CanvasToolbar } from './CanvasToolbar'
 import styles from './CanvasView.module.css'
 import './drag-preview.css'
 
@@ -719,6 +720,7 @@ export function CanvasView({
         document.body,
       )}
 
+      <CanvasToolbar />
     </div>
   )
 }

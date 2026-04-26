@@ -1,11 +1,7 @@
 import { useNavigate, useLocation } from 'react-router'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useResolvedTheme } from '../../hooks/use-resolved-theme'
-import type { RailSide } from '../../models/canvas-rails'
 import styles from './Sidebar.module.css'
-
-const RAIL_SIDES: readonly RailSide[] = ['left', 'right', 'top', 'bottom']
 
 const views = [
   {
@@ -55,12 +51,6 @@ export function Sidebar() {
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const resolvedTheme = useResolvedTheme()
 
-  const rails = useCanvasRailsStore((s) => s.rails)
-  const setAllRailsCollapsed = useCanvasRailsStore((s) => s.setAllRailsCollapsed)
-  const presentSides = RAIL_SIDES.filter((side) => rails[side] != null)
-  const hasAnyRail = presentSides.length > 0
-  const allCollapsed = hasAnyRail && presentSides.every((side) => rails.collapsed?.[side] === true)
-
   return (
     <nav className={styles.sidebar}>
       <div className={styles.viewIcons}>
@@ -76,38 +66,6 @@ export function Sidebar() {
         ))}
       </div>
       <div className={styles.bottomIcons}>
-        {hasAnyRail && (
-          <button
-            className={styles.iconButton}
-            onClick={() => setAllRailsCollapsed(!allCollapsed)}
-            title={allCollapsed ? 'Expand all rails' : 'Collapse all rails'}
-            aria-label={allCollapsed ? 'Expand all rails' : 'Collapse all rails'}
-          >
-            {allCollapsed ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="10" y1="10" x2="3" y2="3" />
-                <polyline points="3 7 3 3 7 3" />
-                <line x1="14" y1="10" x2="21" y2="3" />
-                <polyline points="21 7 21 3 17 3" />
-                <line x1="10" y1="14" x2="3" y2="21" />
-                <polyline points="3 17 3 21 7 21" />
-                <line x1="14" y1="14" x2="21" y2="21" />
-                <polyline points="21 17 21 21 17 21" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="3" x2="10" y2="10" />
-                <polyline points="10 6 10 10 6 10" />
-                <line x1="21" y1="3" x2="14" y2="10" />
-                <polyline points="14 6 14 10 18 10" />
-                <line x1="3" y1="21" x2="10" y2="14" />
-                <polyline points="10 18 10 14 6 14" />
-                <line x1="21" y1="21" x2="14" y2="14" />
-                <polyline points="14 18 14 14 18 14" />
-              </svg>
-            )}
-          </button>
-        )}
         <button
           className={styles.iconButton}
           onClick={() => setThemeMode(resolvedTheme === 'dark' ? 'light' : 'dark')}
