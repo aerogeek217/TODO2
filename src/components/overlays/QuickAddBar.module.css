@@ -35,17 +35,17 @@
   border-color: var(--color-accent);
 }
 
-/* ─── Title row ───────────────────────────────────────────────── */
+/* ─── Title row (input only) ──────────────────────────────────── */
 
 .titleRow {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
 }
 
 .titleInput {
   flex: 1;
+  width: 100%;
   background: transparent;
   border: none;
   color: var(--color-text-primary);
@@ -55,38 +55,6 @@
 }
 
 .titleInput::placeholder {
-  color: var(--color-text-muted);
-}
-
-.detailsBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: transparent;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.detailsBtn:hover {
-  border-color: var(--color-border-strong);
-  color: var(--color-text-primary);
-}
-
-.detailsBtn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.hintCluster {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
   color: var(--color-text-muted);
 }
 
@@ -161,14 +129,63 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* ─── Hint row (below empty bar) ──────────────────────────────── */
+/* ─── Footer row (always visible) ─────────────────────────────── */
 
-.hintRow {
+.footerRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px var(--space-5) var(--space-4);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.nlpHints {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 6px 14px var(--space-4);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.actionCluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.detailsBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.detailsBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.detailsBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hintCluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 11px;
   color: var(--color-text-muted);
 }

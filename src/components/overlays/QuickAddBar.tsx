@@ -543,7 +543,7 @@ export function QuickAddBar({
         role="dialog"
         aria-label="Quick add task"
       >
-        {/* Title row */}
+        {/* Title row — input only; all hints + Details live in the footer */}
         <div className={styles.titleRow}>
           <input
             ref={inputRef}
@@ -561,22 +561,6 @@ export function QuickAddBar({
             onKeyDown={onInputKeyDown}
             data-shortcut-scope="none"
           />
-          <button
-            className={styles.detailsBtn}
-            onClick={() => onOpenFullEditor?.(draft)}
-            disabled={!onOpenFullEditor}
-          >
-            Details <span className={styles.kbd}>⇥</span>
-          </button>
-          <span className={styles.hintCluster}>
-            <span>
-              <Kbd>↵</Kbd> create
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              <Kbd>esc</Kbd> close
-            </span>
-          </span>
         </div>
 
         {/* Chips row */}
@@ -616,9 +600,9 @@ export function QuickAddBar({
           </div>
         )}
 
-        {/* Hint when empty */}
-        {!hasChips && !hasUnmatched && (
-          <div className={styles.hintRow}>
+        {/* Footer row — NLP hints (always) + Details + keyboard hints */}
+        <div className={styles.footerRow}>
+          <div className={styles.nlpHints}>
             <span>
               <Kbd>@</Kbd> person
             </span>
@@ -640,14 +624,28 @@ export function QuickAddBar({
             </span>
             <span aria-hidden="true">·</span>
             <span>
-              natural dates: <i>tomorrow, fri 3pm</i>
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              <i>every week</i>
+              natural dates: <i>tomorrow, fri 3pm</i>, <i>every week</i>
             </span>
           </div>
-        )}
+          <div className={styles.actionCluster}>
+            <button
+              className={styles.detailsBtn}
+              onClick={() => onOpenFullEditor?.(draft)}
+              disabled={!onOpenFullEditor}
+            >
+              Details <span className={styles.kbd}>⇥</span>
+            </button>
+            <span className={styles.hintCluster}>
+              <span>
+                <Kbd>↵</Kbd> create
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                <Kbd>esc</Kbd> close
+              </span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>,
     document.body,
