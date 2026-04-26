@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import type { HorizonKey } from '../services/horizons'
@@ -37,6 +37,7 @@ export class Todo2Database extends Dexie {
   floatingSnoozeGraveyard!: Table<FloatingSnoozeGraveyard, number>
   tags!: Table<Tag, number>
   todoTags!: Table<TodoTag, number>
+  todoEvents!: Table<TodoEvent, number>
 
   constructor() {
     super('todo2')
@@ -297,11 +298,19 @@ export class Todo2Database extends Dexie {
         await runV41Migration(tx)
       })
 
-    // v42: reserved for the `todoEvents` history-log table (Phase 3 of
-    // stats-widgets-2026-04-25). Phase 1 doesn't add it; the empty bump
-    // keeps version numbering aligned with the plan's D9 cadence (one
-    // table per version).
-    this.version(42).stores({})
+    // v42: add `todoEvents` history-log table (Phase 3 of
+    // stats-widgets-2026-04-25). Append-only `{ todoId, type, fromValue,
+    // toValue, timestamp }`. Backfills `created` events for every existing
+    // todo at `createdAt`, and `completed` events at `completedAt` for any
+    // currently-completed rows. No `scheduled` / `deadline` / `status` /
+    // `reopened` history is synthesised — we don't have it.
+    this.version(42)
+      .stores({
+        todoEvents: '++id, todoId, type, timestamp',
+      })
+      .upgrade(async (tx) => {
+        await runV42Migration(tx)
+      })
 
     // v43: add `floatingStatus` table — placement-only backing store for the
     // status stat widget (Phase 1 of stats-widgets-2026-04-25). Mirrors v38
@@ -853,7 +862,7 @@ export async function persistHorizonSlots(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.tags, db.todoTags] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.tags, db.todoTags, db.todoEvents] as const
 
 /**
  * Append `" #tagname"` for every assigned tag to each todo's title. Mutates
@@ -1619,4 +1628,57 @@ export async function runV41Migration(tx: Transaction): Promise<void> {
   if (liftedInsets > 0) {
     console.info(`v41 migration: lifted runtimeFilterValue scalar→array on ${liftedInsets} list inset(s)`)
   }
+}
+
+/**
+ * v42 upgrade: backfill `created` + `completed` events for every existing
+ * todo. The `todoEvents` table is empty before this migration runs (we just
+ * added it), so emitting once per row is safe and idempotent at upgrade
+ * time. No `scheduled` / `deadline` / `status` / `reopened` history is
+ * synthesised — that data was never tracked.
+ *
+ * `created` timestamp uses the row's `createdAt`. `completed` timestamp falls
+ * back to `modifiedAt` for any currently-completed row (the codebase has no
+ * `completedAt` field), which is a reasonable proxy: the most recent edit on
+ * a finished task is overwhelmingly the completion itself.
+ */
+export async function runV42Migration(tx: Transaction): Promise<void> {
+  const todosTable = tx.table('todos')
+  const eventsTable = tx.table<TodoEvent>('todoEvents')
+
+  const rows = await todosTable.toArray() as Array<Record<string, unknown>>
+  const events: Omit<TodoEvent, 'id'>[] = []
+  for (const row of rows) {
+    const id = row.id as number | undefined
+    if (id == null) continue
+    const createdAt = row.createdAt
+    const createdIso = toIsoString(createdAt) ?? new Date(0).toISOString()
+    events.push({
+      todoId: id,
+      type: 'created',
+      fromValue: null,
+      toValue: null,
+      timestamp: createdIso,
+    })
+    if (row.isCompleted === true) {
+      const completedIso = toIsoString(row.modifiedAt) ?? createdIso
+      events.push({
+        todoId: id,
+        type: 'completed',
+        fromValue: null,
+        toValue: null,
+        timestamp: completedIso,
+      })
+    }
+  }
+  if (events.length > 0) {
+    await eventsTable.bulkAdd(events as TodoEvent[])
+    console.info(`v42 migration: backfilled ${events.length} todo event(s) for ${rows.length} todo(s)`)
+  }
+}
+
+function toIsoString(v: unknown): string | null {
+  if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString()
+  if (typeof v === 'string' && !isNaN(Date.parse(v))) return new Date(v).toISOString()
+  return null
 }

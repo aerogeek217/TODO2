@@ -22,7 +22,7 @@ export async function auditData(): Promise<AuditReport> {
     todos, projects, canvases, people, orgs, statuses, tags,
     todoPeople, todoOrgs, todoTags, personOrgs, taskboards,
     listInsets, floatingNotes, floatingCalendars, floatingTaskboards, floatingHorizons,
-    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard,
+    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard, todoEvents,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
@@ -44,6 +44,7 @@ export async function auditData(): Promise<AuditReport> {
     db.floatingStatus.toArray(),
     db.floatingScoreboard.toArray(),
     db.floatingSnoozeGraveyard.toArray(),
+    db.todoEvents.toArray(),
   ])
 
   const todoIds = new Set(todos.map((t) => t.id!))
@@ -106,6 +107,17 @@ export async function auditData(): Promise<AuditReport> {
       description: 'Tag assignments referencing deleted todos or tags',
       count: orphanedTodoTags.length,
       ids: orphanedTodoTags.map((r) => r.id!),
+      fix: 'delete',
+    })
+  }
+
+  const orphanedTodoEvents = todoEvents.filter((r) => !todoIds.has(r.todoId))
+  if (orphanedTodoEvents.length > 0) {
+    issues.push({
+      table: 'todoEvents',
+      description: 'Event-log entries referencing deleted todos',
+      count: orphanedTodoEvents.length,
+      ids: orphanedTodoEvents.map((r) => r.id!),
       fix: 'delete',
     })
   }
@@ -319,7 +331,7 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   let cleaned = 0
   await db.transaction(
     'rw',
-    [db.todos, db.projects, db.todoPeople, db.todoOrgs, db.todoTags,
+    [db.todos, db.projects, db.todoPeople, db.todoOrgs, db.todoTags, db.todoEvents,
      db.personOrgs, db.taskboards, db.floatingTaskboards, db.listInsets, db.notes,
      db.floatingNotes, db.floatingCalendars, db.floatingHorizons,
      db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.statuses],

@@ -31,6 +31,7 @@ export { type FloatingHorizons } from './floating-horizons'
 export { type FloatingStatus } from './floating-status'
 export { type FloatingScoreboard } from './floating-scoreboard'
 export { type FloatingSnoozeGraveyard } from './floating-snooze-graveyard'
+export { type TodoEvent, type PersistedTodoEvent, type TodoEventType } from './todo-event'
 export { type Status, type PersistedStatus } from './status'
 export { type ScheduledValue, type FuzzyToken, FUZZY_TOKENS, isScheduledValue } from './scheduled-value'
 export {

@@ -104,6 +104,7 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
   bulkAddPair('floatingStatus', db.floatingStatus),
   bulkAddPair('floatingScoreboard', db.floatingScoreboard),
   bulkAddPair('floatingSnoozeGraveyard', db.floatingSnoozeGraveyard),
+  bulkAddPair('todoEvents', db.todoEvents),
 ]
 
 /**

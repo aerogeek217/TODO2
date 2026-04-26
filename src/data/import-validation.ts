@@ -1,4 +1,4 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, TodoEvent, TodoEventType } from '../models'
 import type { LegacySavedView, LegacySavedViewFilters } from './saved-view-legacy'
 
 /**
@@ -556,6 +556,25 @@ function checkFloatingSnoozeGraveyard(v: unknown): CheckResult {
     ['width', isFiniteNum(v.width)],
     ['height', isFiniteNum(v.height)],
     ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
+  ])
+}
+
+const VALID_TODO_EVENT_TYPES: readonly TodoEventType[] = [
+  'created', 'scheduled', 'deadline', 'status', 'completed', 'reopened',
+]
+
+function isOptScalarValue(v: unknown): boolean {
+  return v === undefined || v === null || typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v))
+}
+
+function checkTodoEvent(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['todoId', isFiniteNum(v.todoId)],
+    ['type', typeof v.type === 'string' && (VALID_TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
+    ['fromValue', isOptScalarValue(v.fromValue)],
+    ['toValue', isOptScalarValue(v.toValue)],
+    ['timestamp', typeof v.timestamp === 'string' && !isNaN(Date.parse(v.timestamp))],
   ])
 }
 
@@ -1167,6 +1186,17 @@ function pickFloatingSnoozeGraveyard(v: Record<string, unknown>): FloatingSnooze
   }
 }
 
+function pickTodoEvent(v: Record<string, unknown>): TodoEvent {
+  return {
+    id: v.id as number | undefined,
+    todoId: v.todoId as number,
+    type: v.type as TodoEventType,
+    fromValue: (v.fromValue ?? null) as string | number | null,
+    toValue: (v.toValue ?? null) as string | number | null,
+    timestamp: v.timestamp as string,
+  }
+}
+
 function pickListDefinition(v: Record<string, unknown>): ListDefinition {
   return {
     id: v.id as number | undefined,
@@ -1220,6 +1250,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'floatingStatus', check: checkFloatingStatus },
   { key: 'floatingScoreboard', check: checkFloatingScoreboard },
   { key: 'floatingSnoozeGraveyard', check: checkFloatingSnoozeGraveyard },
+  { key: 'todoEvents', check: checkTodoEvent },
 ]
 
 export interface ImportData {
@@ -1263,6 +1294,12 @@ export interface ImportData {
   floatingStatus: FloatingStatus[]
   floatingScoreboard: FloatingScoreboard[]
   floatingSnoozeGraveyard: FloatingSnoozeGraveyard[]
+  /**
+   * Append-only history log (Dexie v42). Backfilled on in-place upgrade and
+   * accumulates per-mutation events thereafter; restored verbatim on import.
+   * Older backups omit the field — restore treats it as empty.
+   */
+  todoEvents: TodoEvent[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -1357,6 +1394,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       floatingStatus: ((raw.floatingStatus ?? []) as Record<string, unknown>[]).map(pickFloatingStatus),
       floatingScoreboard: ((raw.floatingScoreboard ?? []) as Record<string, unknown>[]).map(pickFloatingScoreboard),
       floatingSnoozeGraveyard: ((raw.floatingSnoozeGraveyard ?? []) as Record<string, unknown>[]).map(pickFloatingSnoozeGraveyard),
+      todoEvents: ((raw.todoEvents ?? []) as Record<string, unknown>[]).map(pickTodoEvent),
     },
   }
 }
