@@ -38,8 +38,11 @@ export function useDefaultRails(): RailsState {
     if (hydrated) return
     if (hasPersistedRails(persistedRails)) return
     if (!listDefinitionsLoaded) return
-    const thisweekId = horizonSlots?.thisweek
-    const slot = createLensSlot(thisweekId)
+    // First seeded horizon (post-P6: index 0 of the `horizonSlots` ordered
+    // array; pre-P6: the `thisweek` map entry — flattened to index 0 by the
+    // legacy iteration order).
+    const firstHorizonId = horizonSlots[0]
+    const slot = createLensSlot(firstHorizonId)
     hydrate({
       left: null,
       right: { orientation: 'vertical', slots: [slot] },

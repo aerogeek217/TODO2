@@ -1,9 +1,8 @@
 import { create } from 'zustand'
 import { settingsRepository } from '../data'
 import { isValidCssColor } from '../utils/css'
-import { parseHorizonSlots } from '../utils/horizon-slots'
+import { parseHorizonSlots, resolveLegacySelectedHorizon } from '../utils/horizon-slots'
 import type { WeekStart } from '../utils/effective-date'
-import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
 import type { CanvasViewport } from './ui-store'
 import type { RailsState } from '../models/canvas-rails'
 import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
@@ -55,12 +54,11 @@ interface SettingsState {
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
   canvasViewport: CanvasViewport | null
-  /** HorizonKey → `ListDefinition.id` the ribbon cell renders. */
-  horizonSlots: Partial<Record<HorizonKey, number>>
-  /** Which horizon cell is currently selected (drives the hero card). */
-  selectedHorizon: HorizonKey
-  /** Per-horizon collapse toggle (Phase 5 wires the UI). */
-  horizonCollapsed: Partial<Record<HorizonKey, boolean>>
+  /** Ordered list of `ListDefinition.id`s the horizons widget renders as rows.
+   * Position in the array is the row's order; the defId is the row's identity. */
+  horizonSlots: number[]
+  /** Which horizon row is currently selected (drives the task list below the bars). */
+  selectedHorizonDefId: number | null
   /** Persisted canvas rails layout (null = no persisted state). */
   canvasRails: RailsState | null
   /** Ceiling for tag registry size. `tag-store.add` throws when `tags.length`
@@ -84,9 +82,14 @@ interface SettingsState {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setCanvasViewport: (vp: CanvasViewport) => void
-  setHorizonSlot: (key: HorizonKey, listDefinitionId: number | null) => Promise<void>
-  setSelectedHorizon: (key: HorizonKey) => Promise<void>
-  setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
+  /** Append a list-def id (or insert at `atIndex` when provided). */
+  addHorizon: (defId: number, atIndex?: number) => Promise<void>
+  /** Remove the row at `atIndex`. Selected def falls back to the new first entry (or null when empty). */
+  removeHorizon: (atIndex: number) => Promise<void>
+  reorderHorizons: (fromIndex: number, toIndex: number) => Promise<void>
+  /** Replace the def at `atIndex`. No-op when out of range. */
+  setHorizonAt: (atIndex: number, defId: number) => Promise<void>
+  setSelectedHorizonDefId: (defId: number | null) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
   setDefaultProjectGroupBy: (groupBy: ProjectGroupBy | null) => Promise<void>
   setCanvasMaxExtent: (n: number) => Promise<void>
@@ -193,26 +196,6 @@ function isValidWeekStart(n: unknown): n is WeekStart {
   return n === 0 || n === 1
 }
 
-function isValidHorizonKey(v: unknown): v is HorizonKey {
-  return typeof v === 'string' && (HORIZON_KEYS as readonly string[]).includes(v)
-}
-
-function parseHorizonCollapsed(value: string | undefined | null): Partial<Record<HorizonKey, boolean>> {
-  if (!value) return {}
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!parsed || typeof parsed !== 'object') return {}
-    const out: Partial<Record<HorizonKey, boolean>> = {}
-    for (const key of HORIZON_KEYS) {
-      const v = (parsed as Record<string, unknown>)[key]
-      if (typeof v === 'boolean') out[key] = v
-    }
-    return out
-  } catch {
-    return {}
-  }
-}
-
 /** Track which color keys have user-customized values in IndexedDB */
 let customizedColorKeys = new Set<string>()
 
@@ -252,9 +235,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
   canvasViewport: null,
-  horizonSlots: {},
-  selectedHorizon: 'thisweek' as HorizonKey,
-  horizonCollapsed: {},
+  horizonSlots: [] as number[],
+  selectedHorizonDefId: null as number | null,
   canvasRails: null,
   maxTags: DEFAULT_MAX_TAGS,
   defaultProjectGroupBy: 'tag' as ProjectGroupBy,
@@ -274,9 +256,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
       let canvasViewport: CanvasViewport | null = null
-      let horizonSlots: Partial<Record<HorizonKey, number>> = {}
-      let selectedHorizon: HorizonKey = 'thisweek'
-      let horizonCollapsed: Partial<Record<HorizonKey, boolean>> = {}
+      let horizonSlots: number[] = []
+      let selectedHorizonDefId: number | null = null
+      let legacySelectedHorizon: string | null = null
+      let legacyHorizonSlotsValue: string | null = null
       let canvasRails: RailsState | null = null
       let maxTags: number = DEFAULT_MAX_TAGS
       let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
@@ -315,10 +298,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           } catch { /* ignore invalid JSON */ }
         } else if (row.key === 'horizonSlots') {
           horizonSlots = parseHorizonSlots(row.value)
+          legacyHorizonSlotsValue = row.value
+        } else if (row.key === 'selectedHorizonDefId') {
+          if (row.value === '' || row.value == null) selectedHorizonDefId = null
+          else {
+            const n = Number(row.value)
+            if (Number.isFinite(n)) selectedHorizonDefId = n
+          }
         } else if (row.key === 'selectedHorizon') {
-          if (isValidHorizonKey(row.value)) selectedHorizon = row.value
-        } else if (row.key === 'horizonCollapsed') {
-          horizonCollapsed = parseHorizonCollapsed(row.value)
+          // Legacy key — resolved against legacy `horizonSlots` map below.
+          legacySelectedHorizon = row.value
         } else if (row.key === 'canvasRails') {
           canvasRails = parseRailsState(row.value)
         } else if (row.key === 'maxTags') {
@@ -334,19 +323,38 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
+      // Resolve legacy `selectedHorizon` (HorizonKey string) → defId via the
+      // legacy map row. Only consulted when the new `selectedHorizonDefId`
+      // setting is unset; the new key wins as soon as the user makes any
+      // selection. Falls back to the first horizonSlots entry when neither
+      // is set.
+      if (selectedHorizonDefId == null) {
+        const legacyResolved = resolveLegacySelectedHorizon(legacySelectedHorizon, legacyHorizonSlotsValue)
+        if (legacyResolved != null && horizonSlots.includes(legacyResolved)) {
+          selectedHorizonDefId = legacyResolved
+        } else if (horizonSlots.length > 0) {
+          selectedHorizonDefId = horizonSlots[0] ?? null
+        }
+      }
       // Strip dormant Dashboard-era keys (`dashboardUserLists`,
       // `notesPinnedToDashboard`, `dashboardTopOrder`) and the older
       // `notesDock` / `notesVisible` legacy rows so they don't accumulate
       // forever in IndexedDB. The store surface for these was retired in
-      // code-review-2026-04-25 P8.
+      // code-review-2026-04-25 P8. `horizonCollapsed` is dropped here too
+      // (P6 retired the per-key collapse state — flexible-slot model has
+      // no analogue). Legacy `selectedHorizon` is retained until the user
+      // makes a selection (then `setSelectedHorizonDefId` writes the new
+      // key); stripping eagerly would lose the resolved selection on the
+      // following load if no other horizon mutation has happened.
       await settingsRepository.bulkDelete([
         'dashboardUserLists',
         'notesPinnedToDashboard',
         'dashboardTopOrder',
         'notesDock',
         'notesVisible',
+        'horizonCollapsed',
       ])
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizonDefId, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -423,26 +431,67 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ completedRetentionDays: days })
   },
 
-  async setHorizonSlot(key: HorizonKey, listDefinitionId: number | null) {
-    const next = { ...get().horizonSlots }
-    if (listDefinitionId == null) delete next[key]
-    else next[key] = listDefinitionId
+  async addHorizon(defId: number, atIndex?: number) {
+    if (!Number.isFinite(defId)) return
+    const current = get().horizonSlots
+    const insertAt = atIndex == null ? current.length : Math.max(0, Math.min(atIndex, current.length))
+    const next = [...current.slice(0, insertAt), defId, ...current.slice(insertAt)]
+    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    let nextSelected = get().selectedHorizonDefId
+    if (nextSelected == null) {
+      nextSelected = next[0] ?? null
+      await settingsRepository.put('selectedHorizonDefId', nextSelected == null ? '' : String(nextSelected))
+    }
+    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
+  },
+
+  async removeHorizon(atIndex: number) {
+    const current = get().horizonSlots
+    if (atIndex < 0 || atIndex >= current.length) return
+    const removed = current[atIndex]
+    const next = [...current.slice(0, atIndex), ...current.slice(atIndex + 1)]
+    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    let nextSelected = get().selectedHorizonDefId
+    if (removed != null && nextSelected === removed) {
+      nextSelected = next[0] ?? null
+      await settingsRepository.put('selectedHorizonDefId', nextSelected == null ? '' : String(nextSelected))
+    }
+    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
+  },
+
+  async reorderHorizons(fromIndex: number, toIndex: number) {
+    const current = get().horizonSlots
+    if (fromIndex < 0 || fromIndex >= current.length) return
+    if (toIndex < 0 || toIndex >= current.length) return
+    if (fromIndex === toIndex) return
+    const next = [...current]
+    const [moved] = next.splice(fromIndex, 1)
+    if (moved == null) return
+    next.splice(toIndex, 0, moved)
     await settingsRepository.put('horizonSlots', JSON.stringify(next))
     set({ horizonSlots: next })
   },
 
-  async setSelectedHorizon(key: HorizonKey) {
-    if (!isValidHorizonKey(key)) return
-    await settingsRepository.put('selectedHorizon', key)
-    set({ selectedHorizon: key })
+  async setHorizonAt(atIndex: number, defId: number) {
+    const current = get().horizonSlots
+    if (atIndex < 0 || atIndex >= current.length) return
+    if (!Number.isFinite(defId)) return
+    const prev = current[atIndex]
+    const next = [...current]
+    next[atIndex] = defId
+    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    let nextSelected = get().selectedHorizonDefId
+    if (prev != null && nextSelected === prev) {
+      nextSelected = defId
+      await settingsRepository.put('selectedHorizonDefId', String(nextSelected))
+    }
+    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
   },
 
-  async setHorizonCollapsed(key: HorizonKey, collapsed: boolean) {
-    const next = { ...get().horizonCollapsed }
-    if (collapsed) next[key] = true
-    else delete next[key]
-    await settingsRepository.put('horizonCollapsed', JSON.stringify(next))
-    set({ horizonCollapsed: next })
+  async setSelectedHorizonDefId(defId: number | null) {
+    if (defId != null && !Number.isFinite(defId)) return
+    await settingsRepository.put('selectedHorizonDefId', defId == null ? '' : String(defId))
+    set({ selectedHorizonDefId: defId })
   },
 
   async setDefaultProjectGroupBy(groupBy: ProjectGroupBy | null) {

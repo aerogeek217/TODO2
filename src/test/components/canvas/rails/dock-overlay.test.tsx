@@ -46,7 +46,7 @@ function frameStyleVar(name: string): string | undefined {
 
 beforeEach(() => {
   useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
-  useSettingsStore.setState({ canvasRails: null, horizonSlots: {} })
+  useSettingsStore.setState({ canvasRails: null, horizonSlots: [] })
   useListDefinitionStore.setState({ listDefinitions: [] })
   useUIStore.setState({ floatDrag: null, floatAnnouncement: '' })
 })

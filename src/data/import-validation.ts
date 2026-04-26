@@ -22,7 +22,7 @@ import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../models/status'
 import { SLOT_KINDS } from '../models/canvas-rails'
-import { HORIZON_KEYS } from '../services/horizons'
+import { LEGACY_HORIZON_KEYS } from '../utils/horizon-slots'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -637,7 +637,7 @@ function checkSavedView(v: unknown): CheckResult {
 // code-review-2026-04-25 P8, but the import-validation entries stay one
 // release so older backups still validate. Restore strips them; schedule
 // deletion of the entries one release later.
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'dashboardTopOrder', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy', 'canvasMaxExtent']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'selectedHorizonDefId', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'dashboardTopOrder', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy', 'canvasMaxExtent']
 
 const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
 
@@ -651,7 +651,7 @@ const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
 }
 
 const MAX_HORIZON_ENTRIES = 16
-const HORIZON_KEYS_SET = new Set<string>(HORIZON_KEYS as readonly string[])
+const LEGACY_HORIZON_KEYS_SET = new Set<string>(LEGACY_HORIZON_KEYS as readonly string[])
 const SLOT_KINDS_SET = new Set<string>(SLOT_KINDS as readonly string[])
 const MAX_SLOTS_PER_RAIL = 16
 const RAIL_SIDES = ['left', 'right', 'top', 'bottom'] as const
@@ -766,23 +766,36 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === 'horizonSlots') {
     try {
       const parsed = JSON.parse(v.value as string) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return 'value (horizonSlots must be an object)'
-      }
-      const entries = Object.entries(parsed as Record<string, unknown>)
-      if (entries.length > MAX_HORIZON_ENTRIES) return 'value (horizonSlots has too many entries)'
-      for (const [k, val] of entries) {
-        if (!HORIZON_KEYS_SET.has(k)) return `value (horizonSlots: unknown key "${k}")`
-        if (typeof val !== 'number' || !Number.isInteger(val)) {
-          return `value (horizonSlots.${k} must be an integer id)`
+      // Post-P6 shape: number[]. Legacy shape: Partial<Record<HorizonKey, number>>.
+      // Both accepted so older backups still validate.
+      if (Array.isArray(parsed)) {
+        if (parsed.length > MAX_HORIZON_ENTRIES) return 'value (horizonSlots has too many entries)'
+        for (const val of parsed) {
+          if (typeof val !== 'number' || !Number.isInteger(val)) {
+            return 'value (horizonSlots entries must be integer ids)'
+          }
         }
+        return true
       }
-      return true
+      if (parsed && typeof parsed === 'object') {
+        const entries = Object.entries(parsed as Record<string, unknown>)
+        if (entries.length > MAX_HORIZON_ENTRIES) return 'value (horizonSlots has too many entries)'
+        for (const [k, val] of entries) {
+          if (!LEGACY_HORIZON_KEYS_SET.has(k)) return `value (horizonSlots: unknown key "${k}")`
+          if (typeof val !== 'number' || !Number.isInteger(val)) {
+            return `value (horizonSlots.${k} must be an integer id)`
+          }
+        }
+        return true
+      }
+      return 'value (horizonSlots must be an array or object)'
     } catch {
       return 'value (horizonSlots must be valid JSON)'
     }
   }
   if (v.key === 'horizonCollapsed') {
+    // Retired in P6 — accept legacy boolean-map payloads from older backups
+    // so they validate; restore strips the row from IndexedDB regardless.
     try {
       const parsed = JSON.parse(v.value as string) as unknown
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -791,7 +804,7 @@ function checkSetting(v: unknown): CheckResult {
       const entries = Object.entries(parsed as Record<string, unknown>)
       if (entries.length > MAX_HORIZON_ENTRIES) return 'value (horizonCollapsed has too many entries)'
       for (const [k, val] of entries) {
-        if (!HORIZON_KEYS_SET.has(k)) return `value (horizonCollapsed: unknown key "${k}")`
+        if (!LEGACY_HORIZON_KEYS_SET.has(k)) return `value (horizonCollapsed: unknown key "${k}")`
         if (typeof val !== 'boolean') return `value (horizonCollapsed.${k} must be boolean)`
       }
       return true
@@ -800,7 +813,16 @@ function checkSetting(v: unknown): CheckResult {
     }
   }
   if (v.key === 'selectedHorizon') {
-    return HORIZON_KEYS_SET.has(v.value as string) ? true : `value (selectedHorizon must be one of: ${(HORIZON_KEYS as readonly string[]).join(', ')})`
+    // Legacy key (HorizonKey string). Settings load resolves it to
+    // `selectedHorizonDefId` via the legacy map; accepted here for backup compat.
+    return LEGACY_HORIZON_KEYS_SET.has(v.value as string)
+      ? true
+      : `value (selectedHorizon must be one of: ${(LEGACY_HORIZON_KEYS as readonly string[]).join(', ')})`
+  }
+  if (v.key === 'selectedHorizonDefId') {
+    if (v.value === '' || v.value == null) return true
+    const n = Number(v.value)
+    return Number.isFinite(n) ? true : 'value (selectedHorizonDefId must be numeric or empty)'
   }
   if (v.key === 'defaultProjectGroupBy') {
     return (VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).includes(v.value as string)

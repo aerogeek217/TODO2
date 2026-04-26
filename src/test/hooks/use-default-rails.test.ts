@@ -47,7 +47,7 @@ const persistedSeed: RailsState = {
 
 beforeEach(() => {
   useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: false, pendingFocusSlotId: null })
-  useSettingsStore.setState({ canvasRails: null, horizonSlots: {} })
+  useSettingsStore.setState({ canvasRails: null, horizonSlots: [] })
   useListDefinitionStore.setState({ listDefinitions: [] })
 })
 
@@ -65,7 +65,7 @@ describe('useDefaultRails', () => {
 
   it('seeds the default right-side lens once list-defs load and there is no persisted layout', () => {
     const lenseDef = makeDef({ id: 42, name: 'This week' })
-    useSettingsStore.setState({ canvasRails: null, horizonSlots: { thisweek: 42 } })
+    useSettingsStore.setState({ canvasRails: null, horizonSlots: [42] })
     useListDefinitionStore.setState({ listDefinitions: [lenseDef] })
 
     renderHook(() => useDefaultRails())
@@ -89,7 +89,7 @@ describe('useDefaultRails', () => {
   it('treats a persisted layout with all sides null as not-persisted (falls through to default seed)', () => {
     const emptyPersisted: RailsState = { left: null, right: null, top: null, bottom: null }
     const lenseDef = makeDef({ id: 7, name: 'This week' })
-    useSettingsStore.setState({ canvasRails: emptyPersisted, horizonSlots: { thisweek: 7 } })
+    useSettingsStore.setState({ canvasRails: emptyPersisted, horizonSlots: [7] })
     useListDefinitionStore.setState({ listDefinitions: [lenseDef] })
 
     renderHook(() => useDefaultRails())

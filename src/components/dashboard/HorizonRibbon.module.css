@@ -1,19 +1,144 @@
 .container {
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.ribbon {
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.row {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: 16px minmax(80px, 28%) 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: background var(--transition-fast);
+  min-height: 28px;
+}
+
+.row:hover {
+  background: var(--color-surface-high);
+}
+
+.rowSelected {
+  background: var(--color-surface-high);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.rowDragging {
+  opacity: 0.6;
+}
+
+.dragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: grab;
+  padding: 2px;
+}
+
+.dragHandle:active { cursor: grabbing; }
+
+.labelBtn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.labelBtn:hover {
+  color: var(--color-accent);
+}
+
+.barWrap {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  width: 100%;
+}
+
+.barTrack {
+  display: flex;
+  align-items: stretch;
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--color-text-muted) 18%, transparent);
+  overflow: hidden;
+}
+
+.barScheduled {
+  background: var(--color-accent);
+  transition: width 0.18s ease;
+  min-width: 0;
+}
+
+.barDue {
+  background: var(--color-text-muted);
+  transition: width 0.18s ease;
+  min-width: 0;
+  opacity: 0.7;
+}
+
+.count {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
+.removeBtn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.removeBtn:hover {
+  color: var(--color-danger);
+  background: var(--color-surface-high);
+}
+
+.empty {
+  padding: var(--space-4) var(--space-3);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  text-align: center;
 }
 
 .ribbonFooter {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 4px;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
+.addBtn,
 .editBtn {
   background: transparent;
   border: 1px solid var(--color-border);
@@ -26,56 +151,8 @@
   transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 
+.addBtn:hover,
 .editBtn:hover {
   color: var(--color-accent);
   border-color: var(--color-accent);
-}
-
-.cellSlot {
-  display: flex;
-  min-height: 74px;
-}
-
-.cellSlot > * {
-  flex: 1;
-}
-
-/* Unmapped-slot placeholder */
-
-.placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-card);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
-  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
-}
-
-.placeholder:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  background: var(--color-surface-hover);
-}
-
-.placeholderLabel {
-  font-size: var(--font-size-nav);
-  font-weight: var(--font-weight-semibold);
-}
-
-.placeholderHint {
-  font-size: var(--font-size-meta);
-}
-
-@media (max-width: 640px) {
-  .ribbon {
-    grid-template-columns: repeat(3, 1fr);
-    grid-auto-rows: auto;
-  }
 }

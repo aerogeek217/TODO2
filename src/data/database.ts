@@ -2,7 +2,6 @@ import Dexie, { type Table, type Transaction } from 'dexie'
 import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
-import type { HorizonKey } from '../services/horizons'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import type { LegacySavedView } from './saved-view-legacy'
 import { savedViewToListDefinition } from './saved-view-legacy'
@@ -526,18 +525,18 @@ function relAnchor(token: Extract<DateAnchor, { kind: 'relative' }>['token']): D
 }
 
 /**
- * Seed configuration for the 5 horizon list-definitions. Rendered on the
- * dashboard ribbon; each maps to a slot in `settings.horizonSlots`.
+ * Seed configuration for the 5 horizon list-definitions. Rendered as the
+ * default rows of the horizons widget; each becomes one entry in the
+ * `settings.horizonSlots` ordered array. P6 retired the per-row
+ * `HorizonKey` identity — order is now the only seed-vs-seed identity.
  */
 interface HorizonSeed {
-  horizonKey: HorizonKey
   def: Omit<ListDefinition, 'id'>
 }
 
 function horizonSeeds(): HorizonSeed[] {
   return [
     {
-      horizonKey: 'thisweek',
       def: {
         name: 'This week',
         sortOrder: 0,
@@ -557,7 +556,6 @@ function horizonSeeds(): HorizonSeed[] {
       },
     },
     {
-      horizonKey: 'nextweek',
       def: {
         name: 'Next week',
         sortOrder: 1,
@@ -577,7 +575,6 @@ function horizonSeeds(): HorizonSeed[] {
       },
     },
     {
-      horizonKey: 'thismonth',
       def: {
         name: 'Rest of month',
         sortOrder: 2,
@@ -597,7 +594,6 @@ function horizonSeeds(): HorizonSeed[] {
       },
     },
     {
-      horizonKey: 'later',
       def: {
         name: 'Later',
         sortOrder: 3,
@@ -617,7 +613,6 @@ function horizonSeeds(): HorizonSeed[] {
       },
     },
     {
-      horizonKey: 'someday',
       def: {
         name: 'Someday',
         sortOrder: 4,
@@ -640,9 +635,10 @@ function horizonSeeds(): HorizonSeed[] {
 
 /**
  * Seeds the 5 horizon list definitions iff the `listDefinitions` table is
- * empty. Returns a `HorizonKey → new id` map when seeding happens; returns
- * an empty object when the table is non-empty (caller should load existing
- * `horizonSlots` from settings).
+ * empty. Returns the new ids in seed order (matching `horizonSeeds()`'s
+ * iteration order — This week / Next week / Rest of month / Later /
+ * Someday) when seeding happens; returns an empty array when the table is
+ * non-empty (caller should load existing `horizonSlots` from settings).
  *
  * Post-v24, the seeds are just normal rows — if the user deletes them they
  * stay deleted; if the user renames them the rename persists.
@@ -653,16 +649,16 @@ function horizonSeeds(): HorizonSeed[] {
  */
 export async function ensureSeededListDefinitions(
   table: Table<ListDefinition, number>,
-): Promise<Partial<Record<HorizonKey, number>>> {
+): Promise<number[]> {
   const count = await table.count()
-  if (count > 0) return {}
+  if (count > 0) return []
 
-  const slots: Partial<Record<HorizonKey, number>> = {}
-  for (const { horizonKey, def } of horizonSeeds()) {
+  const ids: number[] = []
+  for (const { def } of horizonSeeds()) {
     const id = (await table.add(def as ListDefinition)) as number
-    slots[horizonKey] = id
+    ids.push(id)
   }
-  return slots
+  return ids
 }
 
 /**
@@ -837,8 +833,10 @@ export async function runV23Migration(tx: Transaction): Promise<void> {
 /**
  * v24 upgrade: retire the 4 legacy horizon kinds; clear `listDefinitions` and
  * reseed with 5 horizon custom-predicate defs; persist the resulting
- * `HorizonKey → id` mapping in the `horizonSlots` setting. Safe because the
- * feature branch has no production users.
+ * resulting ordered `number[]` in the `horizonSlots` setting (post-P6 shape;
+ * older backups using the legacy map shape still parse via
+ * `parseHorizonSlots`). Safe because the feature branch has no production
+ * users.
  */
 export async function runV24Migration(tx: Transaction): Promise<void> {
   const listDefsTable = tx.table<ListDefinition>('listDefinitions')
@@ -850,13 +848,14 @@ export async function runV24Migration(tx: Transaction): Promise<void> {
 }
 
 /**
- * Writes `settings.horizonSlots` as JSON (one row). `null` values allowed so
- * the caller can explicitly un-map a slot to surface the "Configure horizon…"
- * placeholder in the ribbon.
+ * Writes `settings.horizonSlots` as JSON (one row). Post-P6 this is a plain
+ * `number[]` of `ListDefinition.id`s (the order users see on the horizons
+ * widget); `parseHorizonSlots` still accepts the legacy
+ * `Partial<Record<HorizonKey, number>>` shape for older backups.
  */
 export async function persistHorizonSlots(
   settingsTable: Table<SettingRow, string>,
-  slots: Partial<Record<HorizonKey, number | null>>,
+  slots: number[],
 ): Promise<void> {
   await settingsTable.put({ key: 'horizonSlots', value: JSON.stringify(slots) })
 }

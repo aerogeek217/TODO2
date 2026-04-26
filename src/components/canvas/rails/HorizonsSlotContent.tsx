@@ -14,20 +14,24 @@ import {
   computeFilterPersonOrgIds,
 } from '../../../stores/filter-store'
 import { buildDashboardLists, type DashboardList } from '../../../services/dashboard-lists'
-import { HORIZON_KEYS, type HorizonKey } from '../../../services/horizons'
+import { classifyByDateSource } from '../../../services/horizons'
 import { startOfToday } from '../../../utils/date'
-import { HorizonRibbon } from '../../dashboard/HorizonRibbon'
+import { HorizonRibbon, type HorizonRow } from '../../dashboard/HorizonRibbon'
 import { DraggableTaskRow } from '../shared/DraggableTaskRow'
 import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPopup'
 import styles from './HorizonsSlotContent.module.css'
 
+type PickerMode =
+  | { kind: 'add'; x: number; y: number }
+  | { kind: 'swap'; index: number; x: number; y: number }
+
 /**
- * Rail/float widget body for the retired Dashboard view's horizon ribbon.
- * Renders the 5-slot ribbon up top and the currently-selected horizon's
- * task list below. All state (`horizonSlots` / `selectedHorizon`) lives
- * in settings — identical across every surface rendering the widget, same
- * pattern as calendar/notes/taskboard.
+ * Rail/float widget body for the horizons widget. Renders the labeled-bars
+ * ribbon (one row per horizon list-def in `settings.horizonSlots`) above
+ * the currently-selected row's task list. State (horizonSlots / selected
+ * defId) lives in settings — identical across every surface rendering the
+ * widget, same pattern as calendar/notes/taskboard.
  */
 export function HorizonsSlotContent() {
   const todos = useTodoStore((s) => s.todos)
@@ -40,13 +44,16 @@ export function HorizonsSlotContent() {
   const statuses = useStatusStore((s) => s.statuses)
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
-  const selectedHorizon = useSettingsStore((s) => s.selectedHorizon)
-  const setSelectedHorizon = useSettingsStore((s) => s.setSelectedHorizon)
-  const setHorizonSlot = useSettingsStore((s) => s.setHorizonSlot)
+  const selectedHorizonDefId = useSettingsStore((s) => s.selectedHorizonDefId)
+  const setSelectedHorizonDefId = useSettingsStore((s) => s.setSelectedHorizonDefId)
+  const addHorizon = useSettingsStore((s) => s.addHorizon)
+  const removeHorizon = useSettingsStore((s) => s.removeHorizon)
+  const reorderHorizons = useSettingsStore((s) => s.reorderHorizons)
+  const setHorizonAt = useSettingsStore((s) => s.setHorizonAt)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
-  const [slotPickerAt, setSlotPickerAt] = useState<{ key: HorizonKey; x: number; y: number } | null>(null)
+  const [picker, setPicker] = useState<PickerMode | null>(null)
   const [showHorizonEditor, setShowHorizonEditor] = useState(false)
 
   // Date-sensitive predicates roll at midnight; re-key `today` on day change.
@@ -65,11 +72,9 @@ export function HorizonsSlotContent() {
   }, [dayKey])
   const today = useMemo(() => startOfToday(), [dayKey])
 
-  // Reload tag assignments only when the id-set changes — a field-edit-only
-  // render (same ids, new `todos` reference) would otherwise refire the join
-  // load and bump `assignedTagsMap` identity, invalidating the `lists` memo
-  // below for no membership change. Gating on `${length}:${todosVersion}`
-  // keeps both ends stable across field edits.
+  // Reload tag assignments only when the id-set changes — see horizons P5
+  // commit: gating on `${length}:${todosVersion}` keeps both ends stable
+  // across field edits.
   const todoIdsKey = `${todos.length}:${todosVersion}`
   useEffect(() => {
     if (todos.length === 0) return
@@ -91,19 +96,16 @@ export function HorizonsSlotContent() {
     [assignedPeopleMap, assignedOrgsMap, personOrgMap, assignedTagsMap, statuses, today],
   )
 
-  const horizonDefIds = useMemo(() => {
-    const ids: number[] = []
-    for (const key of HORIZON_KEYS) {
-      const id = horizonSlots[key]
-      if (id != null) ids.push(id)
-    }
-    return ids
-  }, [horizonSlots])
-
+  // Resolve every slot's def in array order (filters out deleted defs).
   const horizonDefs = useMemo(() => {
-    const setIds = new Set(horizonDefIds)
-    return listDefinitions.filter((d) => d.id != null && setIds.has(d.id))
-  }, [listDefinitions, horizonDefIds])
+    const byId = new Map(listDefinitions.filter((d) => d.id != null).map((d) => [d.id!, d]))
+    const out = []
+    for (const id of horizonSlots) {
+      const def = byId.get(id)
+      if (def) out.push(def)
+    }
+    return out
+  }, [listDefinitions, horizonSlots])
 
   const lists = useMemo<DashboardList[]>(() => {
     return buildDashboardLists(horizonDefs, todos, {
@@ -114,87 +116,98 @@ export function HorizonsSlotContent() {
     })
   }, [horizonDefs, todos, today, weekStartsOn, evalPredicate, assignedTagsMap])
 
-  const listsById = useMemo(() => {
-    const map = new Map<number, DashboardList>()
-    for (const l of lists) map.set(l.id, l)
-    return map
-  }, [lists])
-
-  const horizonLists = useMemo(() => {
-    const out: Partial<Record<HorizonKey, DashboardList>> = {}
-    for (const key of HORIZON_KEYS) {
-      const defId = horizonSlots[key]
-      if (defId == null) continue
-      const list = listsById.get(defId)
-      if (list) out[key] = list
+  // Bucket each list's todos into scheduled-derived vs. due-derived rows for
+  // the stacked bar render. A todo lands in exactly one row (the def's
+  // membership predicate decided that); the split only describes which date
+  // drove it.
+  const rows = useMemo<HorizonRow[]>(() => {
+    const listsById = new Map(lists.map((l) => [l.id, l]))
+    const out: HorizonRow[] = []
+    for (const def of horizonDefs) {
+      const list = listsById.get(def.id)
+      if (!list) continue
+      const scheduled: PersistedTodoItem[] = []
+      const due: PersistedTodoItem[] = []
+      for (const todo of list.todos) {
+        if (classifyByDateSource(todo, today, weekStartsOn) === 'scheduled') scheduled.push(todo)
+        else due.push(todo)
+      }
+      out.push({
+        defId: def.id,
+        label: list.label,
+        scheduled,
+        due,
+        total: list.todos.length,
+      })
     }
     return out
-  }, [horizonSlots, listsById])
+  }, [lists, horizonDefs, today, weekStartsOn])
 
-  const tasksByHorizon = useMemo(() => {
-    const out = {} as Record<HorizonKey, PersistedTodoItem[]>
-    for (const key of HORIZON_KEYS) {
-      out[key] = horizonLists[key]?.todos ?? []
-    }
-    return out
-  }, [horizonLists])
+  const selectedRow = useMemo(() => {
+    if (selectedHorizonDefId == null) return null
+    return rows.find((r) => r.defId === selectedHorizonDefId) ?? null
+  }, [rows, selectedHorizonDefId])
 
-  const labelsByHorizon = useMemo(() => {
-    const out = {} as Record<HorizonKey, string>
-    for (const key of HORIZON_KEYS) {
-      out[key] = horizonLists[key]?.label ?? ''
-    }
-    return out
-  }, [horizonLists])
+  const handleSelect = useCallback((defId: number) => {
+    void setSelectedHorizonDefId(defId)
+  }, [setSelectedHorizonDefId])
 
-  const unmappedSlots = useMemo(() => {
-    const s = new Set<HorizonKey>()
-    for (const key of HORIZON_KEYS) {
-      if (!horizonLists[key]) s.add(key)
-    }
-    return s
-  }, [horizonLists])
+  const handleSwap = useCallback((defId: number, anchor: { x: number; y: number }) => {
+    const idx = horizonSlots.indexOf(defId)
+    if (idx === -1) return
+    setPicker({ kind: 'swap', index: idx, x: anchor.x, y: anchor.y })
+  }, [horizonSlots])
 
-  const openSlotPicker = useCallback((key: HorizonKey) => {
-    const el = document.querySelector(`[data-horizon="${key}"]`) as HTMLElement | null
-    const rect = el?.getBoundingClientRect()
-    setSlotPickerAt({
-      key,
-      x: rect?.left ?? 40,
-      y: (rect?.bottom ?? 80) + 4,
-    })
+  const handleRemove = useCallback((defId: number) => {
+    const idx = horizonSlots.indexOf(defId)
+    if (idx === -1) return
+    void removeHorizon(idx)
+  }, [horizonSlots, removeHorizon])
+
+  const handleAdd = useCallback((anchor: { x: number; y: number }) => {
+    setPicker({ kind: 'add', x: anchor.x, y: anchor.y })
   }, [])
 
-  const handleSlotPick = useCallback(async (listDefinitionId: number) => {
-    if (slotPickerAt) {
-      await setHorizonSlot(slotPickerAt.key, listDefinitionId)
-      setSlotPickerAt(null)
-    }
-  }, [slotPickerAt, setHorizonSlot])
+  const handleReorder = useCallback((from: number, to: number) => {
+    void reorderHorizons(from, to)
+  }, [reorderHorizons])
 
-  const heroList = horizonLists[selectedHorizon]
+  const handlePick = useCallback(async (defId: number) => {
+    if (!picker) return
+    if (picker.kind === 'add') {
+      await addHorizon(defId)
+    } else {
+      await setHorizonAt(picker.index, defId)
+    }
+    setPicker(null)
+  }, [picker, addHorizon, setHorizonAt])
+
   const assignedPeopleMapCast = assignedPeopleMap as Map<number, Person[]>
+  const selectedTodos = useMemo(() => {
+    if (!selectedRow) return [] as PersistedTodoItem[]
+    // scheduled + due are disjoint partitions of the def's todos already.
+    return [...selectedRow.scheduled, ...selectedRow.due]
+  }, [selectedRow])
 
   return (
     <div className={styles.wrap}>
       <HorizonRibbon
-        tasksByHorizon={tasksByHorizon}
-        labelsByHorizon={labelsByHorizon}
-        selectedHorizon={selectedHorizon}
-        today={today}
-        weekStartsOn={weekStartsOn}
-        onSelect={(k) => { void setSelectedHorizon(k) }}
-        onConfigureSlot={openSlotPicker}
-        unmappedSlots={unmappedSlots}
-        onEditHorizons={horizonDefIds.length > 0 ? () => setShowHorizonEditor(true) : undefined}
+        rows={rows}
+        selectedDefId={selectedHorizonDefId}
+        onSelect={handleSelect}
+        onSwap={handleSwap}
+        onRemove={handleRemove}
+        onAdd={handleAdd}
+        onReorder={handleReorder}
+        onEditHorizons={horizonSlots.length > 0 ? () => setShowHorizonEditor(true) : undefined}
       />
       <div className={styles.body}>
-        {heroList ? (
-          heroList.todos.length === 0 ? (
+        {selectedRow ? (
+          selectedTodos.length === 0 ? (
             <div className={styles.empty}>No tasks</div>
           ) : (
             <div className={styles.list}>
-              {heroList.todos.map((todo) => (
+              {selectedTodos.map((todo) => (
                 <DraggableTaskRow
                   key={todo.id}
                   todo={todo}
@@ -208,23 +221,24 @@ export function HorizonsSlotContent() {
           )
         ) : (
           <div className={styles.empty}>
-            {unmappedSlots.has(selectedHorizon) ? 'Configure this horizon to see tasks.' : 'No tasks'}
+            {horizonSlots.length === 0 ? 'Add a horizon to start.' : 'Select a horizon to see tasks.'}
           </div>
         )}
       </div>
-      {slotPickerAt && (
+      {picker && (
         <ListDefinitionPickerPopup
-          x={slotPickerAt.x}
-          y={slotPickerAt.y}
-          onSelect={(id) => { void handleSlotPick(id) }}
-          onCreateNew={() => { setShowHorizonEditor(true); setSlotPickerAt(null) }}
-          onClose={() => setSlotPickerAt(null)}
+          x={picker.x}
+          y={picker.y}
+          excludeIds={picker.kind === 'add' ? horizonSlots : undefined}
+          onSelect={(id) => { void handlePick(id) }}
+          onCreateNew={() => { setShowHorizonEditor(true); setPicker(null) }}
+          onClose={() => setPicker(null)}
         />
       )}
       {showHorizonEditor && (
         <DashboardListsEditor
           onClose={() => setShowHorizonEditor(false)}
-          filterIds={horizonDefIds}
+          filterIds={horizonSlots}
           title="Edit horizons"
         />
       )}

@@ -19,7 +19,7 @@ beforeEach(async () => {
   useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
   useStatusStore.setState({ statuses: [], loading: false, error: null })
   useListDefinitionStore.setState({ listDefinitions: [] })
-  useSettingsStore.setState({ horizonSlots: {}, selectedHorizon: 'thisweek' })
+  useSettingsStore.setState({ horizonSlots: [], selectedHorizonDefId: null })
 })
 
 afterEach(() => {

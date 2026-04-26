@@ -288,20 +288,28 @@ describe('validateImportData', () => {
     }
   })
 
-  // horizonSlots
-  it('accepts horizonSlots with known keys and integer ids', () => {
+  // horizonSlots — post-P6 array shape AND legacy map shape both validate
+  it('accepts horizonSlots in the new ordered-array shape', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'horizonSlots', value: JSON.stringify([1, 2, 3, 4, 5]) }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('accepts horizonSlots in the legacy map shape (pre-P6 backups)', () => {
     const result = validateImportData(validData({
       settings: [{ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1, someday: 5 }) }],
     }))
     expect(result.ok).toBe(true)
   })
 
-  it('rejects horizonSlots with unknown key or non-integer value', () => {
+  it('rejects horizonSlots with unknown key, non-integer value, or non-JSON', () => {
     const bad = [
       JSON.stringify({ bogus: 1 }),
       JSON.stringify({ thisweek: 'not-a-number' }),
       JSON.stringify({ thisweek: 1.5 }),
-      JSON.stringify([1, 2, 3]),
+      JSON.stringify([1, 'two', 3]),
+      JSON.stringify([1, 2.5, 3]),
       'not-json',
     ]
     for (const value of bad) {
@@ -337,17 +345,39 @@ describe('validateImportData', () => {
     }
   })
 
-  // selectedHorizon
-  it('accepts selectedHorizon when its value is a valid HorizonKey', () => {
+  // selectedHorizon (legacy) — accepted for backup compat
+  it('accepts legacy selectedHorizon when its value is a valid HorizonKey', () => {
     const result = validateImportData(validData({
       settings: [{ key: 'selectedHorizon', value: 'thisweek' }],
     }))
     expect(result.ok).toBe(true)
   })
 
-  it('rejects selectedHorizon when the value is not a known HorizonKey', () => {
+  it('rejects legacy selectedHorizon when the value is not a known HorizonKey', () => {
     const result = validateImportData(validData({
       settings: [{ key: 'selectedHorizon', value: 'never' }],
+    }))
+    expect(result.ok).toBe(false)
+  })
+
+  // selectedHorizonDefId — post-P6 numeric / null id
+  it('accepts selectedHorizonDefId with a numeric id', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'selectedHorizonDefId', value: '42' }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('accepts selectedHorizonDefId with empty string (null sentinel)', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'selectedHorizonDefId', value: '' }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects selectedHorizonDefId when the value is not numeric', () => {
+    const result = validateImportData(validData({
+      settings: [{ key: 'selectedHorizonDefId', value: 'thisweek' }],
     }))
     expect(result.ok).toBe(false)
   })

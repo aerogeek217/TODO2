@@ -417,7 +417,7 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     // the v19→v20 todo walk below (statusId lookup). Order vs.
     // ensureSeededListDefinitions is a don't-care; we seed list defs first.
     const seededSlots = await ensureSeededListDefinitions(db.listDefinitions)
-    if (Object.keys(seededSlots).length > 0) {
+    if (seededSlots.length > 0) {
       await persistHorizonSlots(db.settings, seededSlots)
     }
     const { assignedId, followupId } = await ensureSeededStatuses(db.statuses, db.settings)
