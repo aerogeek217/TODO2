@@ -1,5 +1,6 @@
 import type { PersistedTodoItem, Project, Status } from '../models'
 import { startOfToday } from '../utils/date'
+import { formatShortcut } from '../utils/platform'
 
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks' | 'projects'
 
@@ -47,6 +48,13 @@ export interface CommandContext {
 }
 
 export function createCommands(ctx: CommandContext): Command[] {
+  const cmdF = formatShortcut('Mod-F')
+  const cmdZero = formatShortcut('Mod-0')
+  const cmdSpace = formatShortcut('Mod-Space')
+  const cmdZ = formatShortcut('Mod-Z')
+  const cmdShiftZ = formatShortcut('Mod-Shift-Z')
+  const cmdA = formatShortcut('Mod-A')
+  const cmdX = formatShortcut('Mod-X')
   const commands: Command[] = [
     // Navigation
     { id: 'nav-canvas', name: 'Go to Canvas', shortcut: 'G then C', category: 'navigation', action: () => ctx.navigateTo('/') },
@@ -58,26 +66,26 @@ export function createCommands(ctx: CommandContext): Command[] {
       const firstBtn = filterRow?.querySelector('button') as HTMLElement | null
       firstBtn?.focus()
     }},
-    { id: 'focus-search', name: 'Focus Search', shortcut: 'Ctrl+F', category: 'navigation', action: () => {
+    { id: 'focus-search', name: 'Focus Search', shortcut: cmdF, category: 'navigation', action: () => {
       const searchInput = document.querySelector('[data-search-input]') as HTMLInputElement | null
       if (searchInput) { searchInput.focus(); searchInput.select() }
     }},
-    ...(ctx.fitView ? [{ id: 'fit-view', name: 'Fit All to View', shortcut: 'Ctrl+0', category: 'navigation' as CommandCategory, action: ctx.fitView }] : []),
+    ...(ctx.fitView ? [{ id: 'fit-view', name: 'Fit All to View', shortcut: cmdZero, category: 'navigation' as CommandCategory, action: ctx.fitView }] : []),
     ...(ctx.toggleProjectNavigator ? [{ id: 'toggle-project-nav', name: 'Toggle Project Navigator', shortcut: 'P', category: 'navigation' as CommandCategory, action: ctx.toggleProjectNavigator }] : []),
     ...(ctx.openShortcutsModal ? [{ id: 'keyboard-shortcuts', name: 'Keyboard Shortcuts', shortcut: '?', category: 'navigation' as CommandCategory, action: ctx.openShortcutsModal }] : []),
 
     // Task actions
-    { id: 'new-task', name: 'New Task', shortcut: 'Ctrl+Space', category: 'task', action: ctx.openQuickAdd },
+    { id: 'new-task', name: 'New Task', shortcut: cmdSpace, category: 'task', action: ctx.openQuickAdd },
     ...(ctx.createFloatingNote ? [{ id: 'new-floating-note', name: 'New Note', shortcut: 'N', category: 'task' as CommandCategory, action: ctx.createFloatingNote }] : []),
-    { id: 'undo', name: 'Undo', shortcut: 'Ctrl+Z', category: 'task', action: async () => {
+    { id: 'undo', name: 'Undo', shortcut: cmdZ, category: 'task', action: async () => {
       const { useUndoStore } = await import('../stores/undo-store')
       useUndoStore.getState().undo()
     }},
-    { id: 'redo', name: 'Redo', shortcut: 'Ctrl+Shift+Z', category: 'task', action: async () => {
+    { id: 'redo', name: 'Redo', shortcut: cmdShiftZ, category: 'task', action: async () => {
       const { useUndoStore } = await import('../stores/undo-store')
       useUndoStore.getState().redo()
     }},
-    { id: 'select-all', name: 'Select All Tasks', shortcut: 'Ctrl+A', category: 'task', action: async () => {
+    { id: 'select-all', name: 'Select All Tasks', shortcut: cmdA, category: 'task', action: async () => {
       const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
       if (rows.length > 0) {
         const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
@@ -136,7 +144,7 @@ export function createCommands(ctx: CommandContext): Command[] {
     }
     commands.push(
       { id: 'bulk-delete', name: `Delete ${label}`, category: 'bulk', action: () => ctx.bulkRemove(ctx.getSelectedIds()) },
-      { id: 'bulk-cut', name: `Cut ${label}`, shortcut: 'Ctrl+X', category: 'bulk', action: async () => {
+      { id: 'bulk-cut', name: `Cut ${label}`, shortcut: cmdX, category: 'bulk', action: async () => {
         const ids = ctx.getSelectedIds()
         if (ids.length > 0) {
           const { useTodoStore } = await import('../stores/todo-store')
