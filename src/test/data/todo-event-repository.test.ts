@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import Dexie from 'dexie'
-import { db, runV42Migration } from '../../data/database'
+import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
 import {
   todoEventRepository,
@@ -195,92 +194,4 @@ describe('encode helpers', () => {
   })
 })
 
-/**
- * v42 backfill: every existing todo gets a `created` event at `createdAt`,
- * and currently-completed rows get a `completed` event at `modifiedAt`.
- * Test against a fresh Dexie at v41 then upgrade to v42 to exercise the
- * upgrade hook path.
- */
-describe('runV42Migration — backfill', () => {
-  const DB_NAME = 'todo2-v42-test'
-
-  beforeEach(async () => {
-    await Dexie.delete(DB_NAME)
-  })
-
-  it('emits one created event per existing todo at createdAt', async () => {
-    const dbV41 = new Dexie(DB_NAME)
-    dbV41.version(1).stores({ todos: '++id' })
-    await dbV41.open()
-    const t1 = new Date('2026-04-01T08:00:00Z')
-    const t2 = new Date('2026-04-15T08:00:00Z')
-    await dbV41.table('todos').bulkAdd([
-      { title: 'first', isCompleted: false, createdAt: t1, modifiedAt: t1, sortOrder: 0 },
-      { title: 'second', isCompleted: false, createdAt: t2, modifiedAt: t2, sortOrder: 1 },
-    ])
-    dbV41.close()
-
-    const dbV42 = new Dexie(DB_NAME)
-    dbV42.version(1).stores({ todos: '++id' })
-    dbV42.version(2)
-      .stores({ todoEvents: '++id, todoId, type, timestamp' })
-      .upgrade(async (tx) => {
-        await runV42Migration(tx)
-      })
-    await dbV42.open()
-
-    const events = await dbV42.table('todoEvents').toArray()
-    const createdEvents = events.filter((e) => e.type === 'created')
-    expect(createdEvents).toHaveLength(2)
-    const timestamps = createdEvents.map((e) => e.timestamp).sort()
-    expect(timestamps).toEqual([t1.toISOString(), t2.toISOString()])
-    dbV42.close()
-  })
-
-  it('emits a completed event for currently-completed rows at modifiedAt', async () => {
-    const dbV41 = new Dexie(DB_NAME)
-    dbV41.version(1).stores({ todos: '++id' })
-    await dbV41.open()
-    const created = new Date('2026-04-01T08:00:00Z')
-    const completed = new Date('2026-04-20T15:00:00Z')
-    await dbV41.table('todos').bulkAdd([
-      { title: 'open', isCompleted: false, createdAt: created, modifiedAt: created, sortOrder: 0 },
-      { title: 'done', isCompleted: true, createdAt: created, modifiedAt: completed, sortOrder: 1 },
-    ])
-    dbV41.close()
-
-    const dbV42 = new Dexie(DB_NAME)
-    dbV42.version(1).stores({ todos: '++id' })
-    dbV42.version(2)
-      .stores({ todoEvents: '++id, todoId, type, timestamp' })
-      .upgrade(async (tx) => {
-        await runV42Migration(tx)
-      })
-    await dbV42.open()
-
-    const events = await dbV42.table('todoEvents').toArray()
-    const completedEvents = events.filter((e) => e.type === 'completed')
-    expect(completedEvents).toHaveLength(1)
-    expect(completedEvents[0]!.timestamp).toBe(completed.toISOString())
-    dbV42.close()
-  })
-
-  it('produces no events when there are no todos', async () => {
-    const dbV41 = new Dexie(DB_NAME)
-    dbV41.version(1).stores({ todos: '++id' })
-    await dbV41.open()
-    dbV41.close()
-
-    const dbV42 = new Dexie(DB_NAME)
-    dbV42.version(1).stores({ todos: '++id' })
-    dbV42.version(2)
-      .stores({ todoEvents: '++id, todoId, type, timestamp' })
-      .upgrade(async (tx) => {
-        await runV42Migration(tx)
-      })
-    await dbV42.open()
-
-    expect(await dbV42.table('todoEvents').count()).toBe(0)
-    dbV42.close()
-  })
-})
+// `runV42Migration` backfill is covered in `v42-migration.test.ts`.

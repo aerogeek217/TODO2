@@ -158,6 +158,146 @@ describe('WidgetKindMenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  describe('Stats ▸ flyout (stats-widgets-2026-04-25)', () => {
+    it('renders a "Stats" row regardless of mode (always visible)', () => {
+      const { rerender } = render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="notes"
+          onChangeKind={() => {}}
+          onClose={() => {}}
+        />,
+      )
+      expect(screen.getByRole('menuitem', { name: /^Stats/ })).toBeInTheDocument()
+      // Add mode (no currentKind) — Stats row still shown.
+      rerender(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          onChangeKind={() => {}}
+          onClose={() => {}}
+          heading="Add widget"
+        />,
+      )
+      expect(screen.getByRole('menuitem', { name: /^Stats/ })).toBeInTheDocument()
+    })
+
+    it('marks the Stats row active when the current kind is one of the stats kinds', () => {
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="snoozeGraveyard"
+          onChangeKind={() => {}}
+          onClose={() => {}}
+        />,
+      )
+      const statsRow = screen.getByRole('menuitem', { name: /^Stats/ })
+      expect(statsRow.className).toMatch(/active/)
+    })
+
+    it('hovering the Stats row reveals horizons / status / scoreboard / snoozeGraveyard items', () => {
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="notes"
+          onChangeKind={() => {}}
+          onClose={() => {}}
+        />,
+      )
+      const statsRow = screen.getByRole('menuitem', { name: /^Stats/ })
+      fireEvent.pointerEnter(statsRow)
+      expect(screen.getByRole('menu', { name: /Stats widgets/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Horizons/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Open by status/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Discipline/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Snooze graveyard/ })).toBeInTheDocument()
+    })
+
+    it('ArrowRight on the Stats row opens its flyout', () => {
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="notes"
+          onChangeKind={() => {}}
+          onClose={() => {}}
+        />,
+      )
+      const statsRow = screen.getByRole('menuitem', { name: /^Stats/ })
+      statsRow.focus()
+      fireEvent.keyDown(screen.getByRole('menu', { name: /Change widget/ }), { key: 'ArrowRight' })
+      expect(screen.getByRole('menu', { name: /Stats widgets/ })).toBeInTheDocument()
+    })
+
+    it('ArrowLeft from inside the flyout closes it and returns focus to the Stats row', () => {
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="notes"
+          onChangeKind={() => {}}
+          onClose={() => {}}
+        />,
+      )
+      const statsRow = screen.getByRole('menuitem', { name: /^Stats/ })
+      fireEvent.pointerEnter(statsRow)
+      fireEvent.keyDown(screen.getByRole('menu', { name: /Change widget/ }), { key: 'ArrowLeft' })
+      expect(screen.queryByRole('menu', { name: /Stats widgets/ })).toBeNull()
+    })
+
+    it('Esc with flyout open closes only the flyout (one Escape, one level)', () => {
+      const onClose = vi.fn()
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="notes"
+          onChangeKind={() => {}}
+          onClose={onClose}
+        />,
+      )
+      const statsRow = screen.getByRole('menuitem', { name: /^Stats/ })
+      fireEvent.pointerEnter(statsRow)
+      fireEvent.keyDown(screen.getByRole('menu', { name: /Change widget/ }), { key: 'Escape' })
+      expect(screen.queryByRole('menu', { name: /Stats widgets/ })).toBeNull()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    it('picking a stats kind from the flyout fires onChangeKind + closes the menu', () => {
+      const onChangeKind = vi.fn()
+      const onClose = vi.fn()
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="notes"
+          onChangeKind={onChangeKind}
+          onClose={onClose}
+        />,
+      )
+      fireEvent.pointerEnter(screen.getByRole('menuitem', { name: /^Stats/ }))
+      fireEvent.click(screen.getByRole('menuitem', { name: /Snooze graveyard/ }))
+      expect(onChangeKind).toHaveBeenCalledWith('snoozeGraveyard')
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it('opening Stats closes any open Change list flyout (only one flyout at a time — D8)', () => {
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="lens"
+          onChangeKind={() => {}}
+          pickListForLens={() => {}}
+          onClose={() => {}}
+        />,
+      )
+      const listRow = screen.getByRole('menuitem', { name: /Change list/ })
+      fireEvent.pointerEnter(listRow)
+      expect(screen.getByRole('menu', { name: /Change list/i })).toBeInTheDocument()
+
+      const statsRow = screen.getByRole('menuitem', { name: /^Stats/ })
+      fireEvent.pointerEnter(statsRow)
+      // The Change list flyout closes; only the Stats flyout remains.
+      expect(screen.queryByRole('menu', { name: 'Change list' })).toBeNull()
+      expect(screen.getByRole('menu', { name: /Stats widgets/ })).toBeInTheDocument()
+    })
+  })
+
   describe('Edit list opens the direct dialog (triage-2026-04-26 P5)', () => {
     beforeEach(() => {
       useUIStore.setState({
