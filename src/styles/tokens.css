@@ -32,6 +32,7 @@
   --z-overlay: 300;
   --z-canvas-draw: 1000;
   --z-dialog: 1001;
+  --z-dialog-overlay: 1002;
 
   /* Layout */
   --sidebar-width: 44px;
@@ -79,7 +80,12 @@
   --color-surface-glass: rgba(26, 25, 24, 0.85);
   --color-surface-hover: rgba(255, 255, 255, 0.05);
   --color-border: #302e2b;
+  /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
+  --color-border-strong: var(--color-border);
   --color-border-muted: rgba(255, 255, 255, 0.06);
+
+  /* Favorite/star marker — single value across themes for v1. */
+  --color-favorite: #e6c34d;
 
   /* Accent */
   --color-accent: #7ec4bc;
@@ -193,7 +199,12 @@
   --color-surface-glass: rgba(255, 255, 255, 0.88);
   --color-surface-hover: rgba(0, 0, 0, 0.05);
   --color-border: #d9d5d0;
+  /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
+  --color-border-strong: var(--color-border);
   --color-border-muted: rgba(0, 0, 0, 0.06);
+
+  /* Favorite/star marker — single value across themes for v1. */
+  --color-favorite: #e6c34d;
 
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;
