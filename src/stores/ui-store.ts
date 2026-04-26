@@ -101,9 +101,9 @@ interface UIState {
   /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
-   * prop-drilling. P5 will repoint `openCreatePopup`'s callers to this; for
-   * now P1 mounts the bar behind a debug toggle so the team can review the
-   * shell while P2-P4 land.
+   * prop-drilling. `openCreatePopup` remains the entry point for the
+   * deliberate "I want all the fields" path (right-click → New Task on the
+   * canvas) and for the bar's "Open full editor →" handoff.
    */
   quickAddOpen: boolean
   /**

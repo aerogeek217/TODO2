@@ -158,7 +158,6 @@ function AppShell() {
   const { ensureLoaded: loadOrgs } = useOrgStore()
   const { load: loadSettings } = useSettingsStore()
   const { initialize: initFileStorage } = useFileStorageStore()
-  const { openCreatePopup } = useUIStore()
   const isMobile = useIsMobile()
   const [initialized, setInitialized] = useState(false)
   const [initError, setInitError] = useState<string | null>(null)
@@ -236,7 +235,6 @@ function AppShell() {
 
   // Global keyboard shortcuts
   useKeyboardShortcuts({
-    openCreatePopup: () => openCreatePopup(),
     openPalette: () => setShowPalette(true),
     closePalette: () => setShowPalette(false),
     navigate,
@@ -256,7 +254,7 @@ function AppShell() {
   const commandCtx = useMemo(
     () => ({
       navigateTo: (path: string) => navigate(path),
-      openQuickAdd: () => openCreatePopup(),
+      openQuickAdd: () => useUIStore.getState().openQuickAdd(),
       selectionCount,
       bulkSetCompleted: useTodoStore.getState().bulkSetCompleted,
       bulkSetStatus: useTodoStore.getState().bulkSetStatus,
@@ -343,7 +341,7 @@ function AppShell() {
       </div>
       {showFab && (
         <div className={styles.fabGroup}>
-          <button className={styles.fab} onClick={openCreatePopup} title={`New Task (${formatShortcut('Mod-Space')})`}>
+          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} title={`New task (${formatShortcut('Mod-Space')})`}>
             <svg width="16" height="16" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
               <line x1="14" y1="6" x2="14" y2="22" />
               <line x1="6" y1="14" x2="22" y2="14" />

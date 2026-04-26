@@ -14,7 +14,6 @@ describe('useKeyboardShortcuts — focus gating', () => {
   beforeEach(() => {
     createFloatingNote = vi.fn<() => void>()
     options = {
-      openCreatePopup: noop,
       openPalette: noop,
       closePalette: noop,
       navigate: noop,

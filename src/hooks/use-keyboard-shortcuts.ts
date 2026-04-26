@@ -7,7 +7,6 @@ import { bySortOrder } from '../utils/sort-order'
 import { CHORD_TIMEOUT_MS } from '../constants'
 
 interface KeyboardShortcutOptions {
-  openCreatePopup: () => void
   openPalette: () => void
   closePalette: () => void
   navigate: (path: string) => void
@@ -18,17 +17,17 @@ interface KeyboardShortcutOptions {
   enabled?: boolean
 }
 
-export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator, enabled = true }: KeyboardShortcutOptions) {
+export function useKeyboardShortcuts({ openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator, enabled = true }: KeyboardShortcutOptions) {
   const pendingChordRef = useRef<{ key: string; timestamp: number } | null>(null)
 
   // Store callbacks in refs to avoid stale closures without re-registering the event listener
-  const cbRef = useRef({ openCreatePopup, openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator })
-  cbRef.current = { openCreatePopup, openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator }
+  const cbRef = useRef({ openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator })
+  cbRef.current = { openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator }
 
   useEffect(() => {
     if (!enabled) return
     const handleKeyDown = async (e: KeyboardEvent) => {
-      const { openCreatePopup, openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator } = cbRef.current
+      const { openPalette, closePalette, navigate, createFloatingNote, openShortcutsModal, fitView, toggleProjectNavigator } = cbRef.current
       const target = e.target as HTMLElement | null
       const active = document.activeElement as HTMLElement | null
       const isTextField = (el: HTMLElement | null): boolean => {
@@ -90,7 +89,7 @@ export function useKeyboardShortcuts({ openCreatePopup, openPalette, closePalett
       // Global shortcuts (work regardless of input focus)
       if (e.ctrlKey && e.code === 'Space') {
         e.preventDefault()
-        openCreatePopup()
+        useUIStore.getState().openQuickAdd()
         return
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
