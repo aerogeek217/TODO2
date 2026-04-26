@@ -35,6 +35,9 @@ dist/
 
 # Testing
 coverage/
+/test-results
+/playwright-report
+/e2e/.auth
 
 # Local docs (planning, not published)
 docs/plans/
