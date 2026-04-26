@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, fireEvent, screen, cleanup } from '@testing-library/react'
 import { WidgetKindMenu } from '../../../components/shared/WidgetKindMenu'
+import { useUIStore } from '../../../stores/ui-store'
 
 afterEach(cleanup)
 
@@ -155,5 +156,36 @@ describe('WidgetKindMenu', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /Edit list/ }))
     expect(onEditList).toHaveBeenCalledWith(DEF_ID)
     expect(onClose).toHaveBeenCalled()
+  })
+
+  describe('Edit list opens the direct dialog (triage-2026-04-26 P5)', () => {
+    beforeEach(() => {
+      useUIStore.setState({
+        listEditorDialogId: null,
+        listsEditorOpen: false,
+        listsEditorInitialId: null,
+      })
+    })
+
+    it('clicking Edit list when bound to openListEditorDialog opens only the dialog (no Lists manager)', () => {
+      const DEF_ID = 42
+      // Mirrors the SlotRenderer / ListInsetNode call-site binding —
+      // post-P5 the "Edit list" entry from a tab pill / float menu calls
+      // `openListEditorDialog`, not `openListsEditor` (manager modal).
+      render(
+        <WidgetKindMenu
+          anchor={ANCHOR}
+          currentKind="lens"
+          onChangeKind={() => {}}
+          onEditList={() => useUIStore.getState().openListEditorDialog(DEF_ID)}
+          onClose={() => {}}
+        />,
+      )
+      fireEvent.click(screen.getByRole('menuitem', { name: /Edit list/ }))
+      expect(useUIStore.getState().listEditorDialogId).toBe(DEF_ID)
+      // Lists manager modal must NOT open — that's the deliberate split.
+      expect(useUIStore.getState().listsEditorOpen).toBe(false)
+      expect(useUIStore.getState().listsEditorInitialId).toBeNull()
+    })
   })
 })

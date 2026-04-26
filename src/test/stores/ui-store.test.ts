@@ -18,6 +18,9 @@ beforeEach(() => {
     clipboardTodoIds: [],
     clipboardSourceProjectId: null,
     filteredListPopup: null,
+    listsEditorOpen: false,
+    listsEditorInitialId: null,
+    listEditorDialogId: null,
   })
 })
 
@@ -166,5 +169,31 @@ describe('useUIStore', () => {
     useUIStore.getState().openListsEditor()
     expect(useUIStore.getState().listsEditorOpen).toBe(true)
     expect(useUIStore.getState().listsEditorInitialId).toBeNull()
+  })
+
+  it('openListEditorDialog stores the def id; closeListEditorDialog resets it', () => {
+    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+
+    useUIStore.getState().openListEditorDialog(7)
+    expect(useUIStore.getState().listEditorDialogId).toBe(7)
+
+    useUIStore.getState().closeListEditorDialog()
+    expect(useUIStore.getState().listEditorDialogId).toBeNull()
+  })
+
+  it('openListEditorDialog does NOT open the Lists manager modal', () => {
+    // Direct dialog and Lists manager are deliberately separate flows
+    // (triage-2026-04-26 P5 / Q7=A): a tab pill's Edit list opens only the
+    // dialog, not the manager underneath.
+    useUIStore.getState().openListEditorDialog(7)
+    expect(useUIStore.getState().listEditorDialogId).toBe(7)
+    expect(useUIStore.getState().listsEditorOpen).toBe(false)
+    expect(useUIStore.getState().listsEditorInitialId).toBeNull()
+  })
+
+  it('openListsEditor does NOT open the direct list-editor dialog', () => {
+    useUIStore.getState().openListsEditor(7)
+    expect(useUIStore.getState().listsEditorOpen).toBe(true)
+    expect(useUIStore.getState().listEditorDialogId).toBeNull()
   })
 })

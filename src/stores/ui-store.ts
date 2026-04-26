@@ -88,6 +88,16 @@ interface UIState {
   listsEditorOpen: boolean
   /** Optional def id to preselect + auto-expand the ConfigPanel for. */
   listsEditorInitialId: number | null
+  /**
+   * Direct list-editor dialog id — when non-null, `<StandaloneListEditor>`
+   * mounts the per-list editor dialog *without* the surrounding Lists
+   * manager modal. Drives the "Edit list" entry from a tab pill / float's
+   * widget-kind menu (triage-2026-04-26 P5 / Q7=A). The Lists manager's
+   * own row-click → P2 dialog-on-modal flow keeps using the
+   * `listsEditorOpen` + `listsEditorInitialId` pair above; the two paths
+   * are deliberately distinct so the surfaces don't stack.
+   */
+  listEditorDialogId: number | null
   /** Descriptor of the floating canvas widget currently being dragged, or null. */
   floatDrag: FloatDragState | null
   /**
@@ -149,6 +159,8 @@ interface UIState {
   setFloatAnnouncement: (text: string) => void
   openListsEditor: (initialId?: number | null) => void
   closeListsEditor: () => void
+  openListEditorDialog: (id: number) => void
+  closeListEditorDialog: () => void
   openQuickAdd: (seed?: string) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: { rawTitle: string } | null) => void
@@ -176,6 +188,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
   listsEditorOpen: false,
   listsEditorInitialId: null,
+  listEditorDialogId: null,
   floatDrag: null,
   floatAnnouncement: '',
   quickAddOpen: false,
@@ -335,6 +348,14 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeListsEditor() {
     set({ listsEditorOpen: false, listsEditorInitialId: null })
+  },
+
+  openListEditorDialog(id) {
+    set({ listEditorDialogId: id })
+  },
+
+  closeListEditorDialog() {
+    set({ listEditorDialogId: null })
   },
 
   openQuickAdd(seed) {

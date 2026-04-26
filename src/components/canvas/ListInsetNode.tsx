@@ -307,7 +307,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           currentKind="lens"
           onChangeKind={(k) => { void handleChangeKind(k) }}
           pickListForLens={handleSelectList}
-          onEditList={() => useUIStore.getState().openListsEditor(inset.listDefinitionId)}
+          onEditList={() => useUIStore.getState().openListEditorDialog(inset.listDefinitionId)}
           onClose={() => setKindAnchor(null)}
           secondaryLabel={definition ? `Change list (${definition.name})…` : undefined}
         />

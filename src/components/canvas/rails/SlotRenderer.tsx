@@ -307,7 +307,7 @@ export function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
           pickListForLens={kindMenuTab.type === 'lens' ? handlePickListForLens : undefined}
           onEditList={
             kindMenuTab.type === 'lens' && kindMenuTab.listDefinitionId != null
-              ? () => useUIStore.getState().openListsEditor(kindMenuTab.listDefinitionId!)
+              ? () => useUIStore.getState().openListEditorDialog(kindMenuTab.listDefinitionId!)
               : undefined
           }
           onClose={() => setKindMenuTarget(null)}

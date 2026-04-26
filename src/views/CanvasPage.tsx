@@ -35,6 +35,7 @@ import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
+import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
 import { WidgetKindMenu } from '../components/shared/WidgetKindMenu'
 import type { SlotKind } from '../models/canvas-rails'
 import { useListDefinitionStore } from '../stores/list-definition-store'
@@ -765,6 +766,7 @@ export function CanvasPage() {
           initialSelectedId={listEditorInitialId ?? undefined}
         />
       )}
+      <StandaloneListEditor />
     </DndContext>
   )
 }
