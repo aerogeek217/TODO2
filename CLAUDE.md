@@ -40,6 +40,12 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 - Minimal dependencies — prefer built-in browser APIs
 - Dark theme as primary (design tokens in tokens.css)
 
+## Tools — Chrome DevTools MCP
+- A Chrome DevTools MCP server is wired up — tools appear as `mcp__chrome-devtools__*` (deferred; load schemas via `ToolSearch select:<name>` before first call). It drives a real Chromium instance: page nav, click/fill/drag, `take_snapshot`, `take_screenshot`, `evaluate_script`, `list_console_messages`, `list_network_requests`, performance + lighthouse + memory.
+- **Reach for it when JSDOM is not authoritative**: focus handoffs, drag-and-drop hit-testing on rails / floats / taskboard, popover anchor placement and viewport flips, ResizeObserver-driven layout, `data-rails-drop-id` / `data-tbp-entry` geometry, async-store-driven re-render timing, and any visual check vs. a design handoff.
+- **Workflow**: prototype the interaction in MCP against `npm run dev` (port 5173) to see what actually happens, then codify the regression in vitest (logic) or Playwright (real-browser flows — see `docs/plans/features/real-browser-testing/`). MCP is a diagnosis + spike tool, not the regression layer.
+- **Don't use it for**: pure logic / model / store / Dexie work — read the source. Don't substitute MCP for unit tests.
+
 ## Git Workflow
 - Default branch: `main` — commits land directly on main; no PR flow, no feature branches
 - Commit messages: imperative mood, under 72 chars
