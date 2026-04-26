@@ -163,6 +163,9 @@
 
   /* Canvas dot */
   --color-canvas-dot: #3a3a3a;
+  /* Out-of-bounds dim + edge line for the canvas extent overlay (CanvasView) */
+  --color-canvas-bounds-out: rgba(0, 0, 0, 0.32);
+  --color-canvas-bounds-edge: rgba(255, 255, 255, 0.16);
 
   /* Shadows */
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -285,6 +288,9 @@
 
   /* Canvas dot */
   --color-canvas-dot: #d4d2cf;
+  /* Out-of-bounds dim + edge line for the canvas extent overlay (CanvasView) */
+  --color-canvas-bounds-out: rgba(0, 0, 0, 0.06);
+  --color-canvas-bounds-edge: rgba(0, 0, 0, 0.20);
 
   /* Shadows — lighter, subtler */
   --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.04);

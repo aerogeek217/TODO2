@@ -63,6 +63,52 @@ const AlignmentGuides = memo(function AlignmentGuides({ lines }: { lines: Alignm
   )
 })
 
+/**
+ * Visualizes the canvas extent (`settings.canvasMaxExtent`): the in-bounds
+ * area is left at default canvas styling, the out-of-bounds area is dimmed,
+ * and the band edge is outlined. Single SVG child of `<ReactFlow>` reading
+ * the live viewport via `useViewport()` so pan / zoom keeps the overlay
+ * aligned with the flow coordinate system.
+ *
+ * The dim is drawn as a single `path` whose subpath-1 covers an arbitrarily
+ * huge rect and subpath-2 traces the in-bounds rect; `fill-rule="evenodd"`
+ * fills only the symmetric difference (i.e. only the area outside the band).
+ * Outer dimensions are bounded by the SVG viewport, so the literal magnitude
+ * doesn't matter as long as it's larger than any conceivable wrapper size.
+ */
+const BoundsOverlay = memo(function BoundsOverlay({ maxExtent }: { maxExtent: number }) {
+  const { x, y, zoom } = useViewport()
+  const left = -maxExtent * zoom + x
+  const top = -maxExtent * zoom + y
+  const right = maxExtent * zoom + x
+  const bottom = maxExtent * zoom + y
+  const w = right - left
+  const h = bottom - top
+  const HUGE = 1e6
+  return (
+    <svg
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible', zIndex: 0 } as React.CSSProperties}
+      aria-hidden="true"
+    >
+      <path
+        d={`M${-HUGE} ${-HUGE} L${HUGE} ${-HUGE} L${HUGE} ${HUGE} L${-HUGE} ${HUGE} Z M${left} ${top} L${right} ${top} L${right} ${bottom} L${left} ${bottom} Z`}
+        fill="var(--color-canvas-bounds-out)"
+        fillRule="evenodd"
+      />
+      <rect
+        x={left}
+        y={top}
+        width={w}
+        height={h}
+        fill="none"
+        stroke="var(--color-canvas-bounds-edge)"
+        strokeWidth={1}
+        strokeDasharray="6 4"
+      />
+    </svg>
+  )
+})
+
 // React Flow node id prefixes for the five floating widget kinds live in
 // `utils/float-kind-registry.ts`. Adding a sixth widget kind: append an entry
 // there + define the matching floating-* store + dispatch handler.
@@ -725,6 +771,7 @@ export function CanvasView({
           size={1.5}
           color={canvasDotColor}
         />
+        <BoundsOverlay maxExtent={canvasMaxExtent} />
         <AlignmentGuides lines={alignmentLines} />
       </ReactFlow>
 
