@@ -109,14 +109,14 @@ interface UIState {
   /**
    * In-progress draft seed for the QuickAddBar / TaskEditPopup create-mode
    * handoff. Used in two ways:
-   * 1. `openQuickAdd(seed)` writes `{ rawTitle: seed, notes: '' }` so the
-   *    bar can pre-fill its title field on open.
-   * 2. The bar's "Open full editor →" path stashes the in-progress draft
-   *    here, then opens `TaskEditPopup` create mode which reads it on mount
-   *    and pre-fills title + notes + parser-derived metadata. The popup
-   *    clears the draft via `closeEditPopup` on its close.
+   * 1. `openQuickAdd(seed)` writes `{ rawTitle: seed }` so the bar can
+   *    pre-fill its title field on open.
+   * 2. The bar's Details / Tab handoff stashes the in-progress draft here,
+   *    then opens `TaskEditPopup` create mode which reads it on mount and
+   *    pre-fills title + parser-derived metadata. The popup clears the
+   *    draft via `closeEditPopup` on its close.
    */
-  quickAddDraft: { rawTitle: string; notes: string } | null
+  quickAddDraft: { rawTitle: string } | null
 
   setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
@@ -151,7 +151,7 @@ interface UIState {
   closeListsEditor: () => void
   openQuickAdd: (seed?: string) => void
   closeQuickAdd: () => void
-  setQuickAddDraft: (draft: { rawTitle: string; notes: string } | null) => void
+  setQuickAddDraft: (draft: { rawTitle: string } | null) => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -340,7 +340,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   openQuickAdd(seed) {
     set({
       quickAddOpen: true,
-      quickAddDraft: seed ? { rawTitle: seed, notes: '' } : null,
+      quickAddDraft: seed ? { rawTitle: seed } : null,
     })
   },
 

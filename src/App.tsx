@@ -87,7 +87,7 @@ function AppBulkConfirmDialog() {
  * (`useSettingsStore().defaultProjectId`) the create-popup consults today,
  * so `Ctrl+Space` lands tasks in the same place across both surfaces.
  *
- * Open full editor →: stashes `{ rawTitle, notes }` in `ui-store.quickAddDraft`,
+ * Details / Tab handoff: stashes `{ rawTitle }` in `ui-store.quickAddDraft`,
  * closes the bar (preserving the draft), and opens the create popup. The
  * popup reads the draft on mount and clears it via `closeEditPopup` on
  * close.
@@ -104,19 +104,13 @@ function AppQuickAddBar() {
   )
 
   const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
-    const { resolved, notes } = submitted
+    const { resolved } = submitted
     const projectId = submitted.project?.id ?? defaultProjectId ?? undefined
     // Mirror CanvasPage.handleAddTask: parse-cleaned title fed to addTodo,
     // then applyNlpMetadata for everything the resolver pulled out. Tags ride
     // through applyNlpMetadata's resolve-or-create path (`nlp-task-creator.ts`)
     // so we don't need to call `resolveTags` / `assignTag` ourselves.
     const id = await useTodoStore.getState().add(resolved.title || submitted.title, undefined, projectId)
-    if (notes) {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === id)
-      if (todo) {
-        await useTodoStore.getState().update({ ...todo, notes })
-      }
-    }
     await applyNlpMetadata(
       id,
       resolved,
@@ -135,7 +129,7 @@ function AppQuickAddBar() {
     // popup closes.
     useUIStore.setState({
       quickAddOpen: false,
-      quickAddDraft: { rawTitle: submitted.rawTitle, notes: submitted.notes ?? '' },
+      quickAddDraft: { rawTitle: submitted.rawTitle },
     })
     useUIStore.getState().openCreatePopup()
   }, [])

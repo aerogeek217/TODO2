@@ -94,16 +94,30 @@ describe('QuickAddBar', () => {
     expect(surface.textContent ?? '').toContain('📅')
   })
 
-  it('Tab toggles the expanded panel; Tab again collapses it', () => {
-    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    expect(screen.queryByText('Notes')).not.toBeInTheDocument()
+  it('Tab calls onOpenFullEditor with the live draft', () => {
+    const onOpenFullEditor = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <QuickAddBar
+        open
+        onClose={onClose}
+        onSubmit={noop}
+        onOpenFullEditor={onOpenFullEditor}
+      />,
+    )
 
+    // Trailing space dismisses the autocomplete popup so Tab routes through
+    // the bar's outer onKey handler instead of being consumed by the popup.
+    changeInput('Need full fields @anna ')
     fireEvent.keyDown(getInput(), { key: 'Tab' })
-    // Expanded panel renders the Notes textarea label/placeholder.
-    expect(screen.getByPlaceholderText('Notes (optional)…')).toBeInTheDocument()
 
-    fireEvent.keyDown(getInput(), { key: 'Tab' })
-    expect(screen.queryByPlaceholderText('Notes (optional)…')).not.toBeInTheDocument()
+    expect(onOpenFullEditor).toHaveBeenCalledTimes(1)
+    const draft = onOpenFullEditor.mock.calls[0]![0] as QuickAddDraft
+    expect(draft.rawTitle).toBe('Need full fields @anna ')
+    expect(draft.people.map((p) => p.id)).toEqual([1])
+    // Parent owns the close-vs-handoff sequencing — the bar deliberately
+    // does NOT call onClose here.
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('submit (Enter) calls onSubmit with parsed metadata then unmounts on close', () => {
@@ -129,23 +143,19 @@ describe('QuickAddBar', () => {
     expect(draft.project?.id).toBe(10)
     expect(draft.resolved.personIds).toEqual([1])
     expect(draft.resolved.projectId).toBe(10)
-    expect(draft.notes).toBe('')
   })
 
-  it('blank submit is a no-op (button disabled, Enter ignored)', () => {
+  it('blank submit is a no-op (Enter on empty input does not fire onSubmit/onClose)', () => {
     const onSubmit = vi.fn()
     const onClose = vi.fn()
     render(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
-
-    const createBtn = screen.getByRole('button', { name: /create/i })
-    expect(createBtn).toBeDisabled()
 
     fireEvent.keyDown(getInput(), { key: 'Enter' })
     expect(onSubmit).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('"Open full editor →" calls onOpenFullEditor with the live draft', () => {
+  it('Details button calls onOpenFullEditor with the live draft', () => {
     const onOpenFullEditor = vi.fn()
     const onClose = vi.fn()
     render(
@@ -157,31 +167,24 @@ describe('QuickAddBar', () => {
       />,
     )
 
-    // Trailing space dismisses the autocomplete popup so Tab toggles the
-    // expanded panel instead of being consumed by the popup.
     changeInput('Need full fields @anna ')
-
-    // The link only renders inside the expanded footer.
-    fireEvent.keyDown(getInput(), { key: 'Tab' })
-    fireEvent.click(screen.getByText(/Open full editor/))
+    fireEvent.click(screen.getByRole('button', { name: /details/i }))
 
     expect(onOpenFullEditor).toHaveBeenCalledTimes(1)
     const draft = onOpenFullEditor.mock.calls[0]![0] as QuickAddDraft
     expect(draft.rawTitle).toBe('Need full fields @anna ')
     expect(draft.people.map((p) => p.id)).toEqual([1])
-    // The bar deliberately does NOT close itself — the parent owns the
-    // close-vs-handoff sequencing (App.tsx stashes the draft on ui-store
-    // before flipping quickAddOpen=false).
+    // Parent owns close-vs-handoff sequencing — bar does not call onClose.
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('seeds rawTitle + notes from initialDraft on the closed→open transition', () => {
+  it('seeds rawTitle from initialDraft on the closed→open transition', () => {
     const { rerender } = render(
       <QuickAddBar
         open={false}
         onClose={noop}
         onSubmit={noop}
-        initialDraft={{ rawTitle: 'Pre-seeded', notes: 'note body' }}
+        initialDraft={{ rawTitle: 'Pre-seeded' }}
       />,
     )
     expect(screen.queryByPlaceholderText('New task…')).not.toBeInTheDocument()
@@ -191,25 +194,15 @@ describe('QuickAddBar', () => {
         open
         onClose={noop}
         onSubmit={noop}
-        initialDraft={{ rawTitle: 'Pre-seeded', notes: 'note body' }}
+        initialDraft={{ rawTitle: 'Pre-seeded' }}
       />,
     )
     expect(getInput().value).toBe('Pre-seeded')
-
-    // Notes seed only surfaces in the expanded panel.
-    fireEvent.keyDown(getInput(), { key: 'Tab' })
-    expect(
-      (screen.getByPlaceholderText('Notes (optional)…') as HTMLTextAreaElement).value,
-    ).toBe('note body')
   })
 
-  it('input + notes textarea carry data-shortcut-scope="none"', () => {
+  it('input carries data-shortcut-scope="none"', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     expect(getInput()).toHaveAttribute('data-shortcut-scope', 'none')
-
-    fireEvent.keyDown(getInput(), { key: 'Tab' })
-    const textarea = screen.getByPlaceholderText('Notes (optional)…')
-    expect(textarea).toHaveAttribute('data-shortcut-scope', 'none')
   })
 
   it('global keyboard shortcuts are skipped when focus is inside the bar', () => {
@@ -256,6 +249,21 @@ describe('QuickAddBar', () => {
     changeInput('check it @ghost /nope')
     expect(screen.getByText(/Unknown:/)).toBeInTheDocument()
     expect(screen.getByText('@ghost /nope')).toBeInTheDocument()
+  })
+
+  it('empty hint row covers all NLP prefixes', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    const surface = screen.getByRole('dialog')
+    const text = surface.textContent ?? ''
+    // Prefix tokens.
+    expect(text).toContain('@')
+    expect(text).toContain('/')
+    expect(text).toContain('#')
+    expect(text).toContain(':')
+    expect(text).toContain('!')
+    // Natural-date and recurrence examples.
+    expect(text.toLowerCase()).toContain('tomorrow')
+    expect(text.toLowerCase()).toContain('every')
   })
 })
 

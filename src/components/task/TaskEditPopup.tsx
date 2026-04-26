@@ -113,12 +113,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       const match = allTags.find((t) => t.name.toLowerCase() === lower && t.id !== undefined)
       if (match?.id !== undefined) tagIds.push(match.id)
     }
-    return { rawTitle: draft.rawTitle, notes: draft.notes, resolved, tagIds }
+    return { rawTitle: draft.rawTitle, resolved, tagIds }
   })
 
   const [title, setTitle] = useState(todo?.title ?? quickAddSeed?.rawTitle ?? '')
-  const [notes, setNotes] = useState(todo?.notes ?? quickAddSeed?.notes ?? '')
-  const notesRef = useRef<string>(todo?.notes ?? quickAddSeed?.notes ?? '')
+  const [notes, setNotes] = useState(todo?.notes ?? '')
+  const notesRef = useRef<string>(todo?.notes ?? '')
   const [progress, setProgress] = useState(todo?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(
     todo?.statusId

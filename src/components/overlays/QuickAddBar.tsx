@@ -77,13 +77,12 @@ export type ParsedTokens = {
 }
 
 export type QuickAddDraft = ParsedTokens & {
-  /** Unparsed input as the user typed it — used by the "Open full editor →"
-   * handoff so `TaskEditPopup` can re-run its own NLP on mount. */
+  /** Unparsed input as the user typed it — used by the Details / Tab handoff
+   * so `TaskEditPopup` can re-run its own NLP on mount. */
   rawTitle: string
   /** Resolver output (`personIds` / `orgIds` / `projectId` / `tags` / dates /
    * recurrence) — fed straight into `applyNlpMetadata` on submit. */
   resolved: ResolvedInput
-  notes?: string
 }
 
 export interface QuickAddBarProps {
@@ -97,9 +96,9 @@ export interface QuickAddBarProps {
   onOpenFullEditor?: (draft: QuickAddDraft) => void
   /** Project to default to (canvas focus, current view, etc) — P4 threads. */
   defaultProject?: Project
-  /** Pre-fill `rawTitle` / `notes` on open. Read on the closed→open
-   * transition; subsequent draft changes don't re-seed. */
-  initialDraft?: { rawTitle: string; notes: string }
+  /** Pre-fill `rawTitle` on open. Read on the closed→open transition;
+   * subsequent draft changes don't re-seed. */
+  initialDraft?: { rawTitle: string }
   /**
    * Optional override for tests. The default pipeline subscribes to the live
    * person / org / project / settings stores and runs `parseInput` →
