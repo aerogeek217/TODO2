@@ -8,6 +8,7 @@ import type { CanvasViewport } from './ui-store'
 import type { RailsState } from '../models/canvas-rails'
 import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
 import type { ProjectGroupBy } from '../models'
+import { DEFAULT_CANVAS_MAX_EXTENT, isValidCanvasMaxExtent } from '../utils/canvas-bounds'
 
 const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
 
@@ -68,6 +69,10 @@ interface SettingsState {
   maxTags: number
   /** Default groupBy seeded on every new project. `null` = no grouping. */
   defaultProjectGroupBy: ProjectGroupBy | null
+  /** Half-side of the persisted-position bounding box. Every drag / cascade /
+   * spawn site clamps to ±N before writing to a repository so widgets cannot
+   * drift off-canvas. Configurable via SettingsPage. */
+  canvasMaxExtent: number
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -84,6 +89,7 @@ interface SettingsState {
   setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
   setDefaultProjectGroupBy: (groupBy: ProjectGroupBy | null) => Promise<void>
+  setCanvasMaxExtent: (n: number) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -252,6 +258,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   canvasRails: null,
   maxTags: DEFAULT_MAX_TAGS,
   defaultProjectGroupBy: 'tag' as ProjectGroupBy,
+  canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT,
 
   async load() {
     try {
@@ -273,6 +280,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let canvasRails: RailsState | null = null
       let maxTags: number = DEFAULT_MAX_TAGS
       let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
+      let canvasMaxExtent: number = DEFAULT_CANVAS_MAX_EXTENT
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -319,6 +327,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === 'defaultProjectGroupBy') {
           if (row.value === '') defaultProjectGroupBy = null
           else if (isValidProjectGroupBy(row.value)) defaultProjectGroupBy = row.value
+        } else if (row.key === 'canvasMaxExtent') {
+          const parsed = Number(row.value)
+          if (isValidCanvasMaxExtent(parsed)) canvasMaxExtent = parsed
         }
       }
       customizedColorKeys = customKeys
@@ -333,7 +344,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         'notesDock',
         'notesVisible',
       ])
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, canvasRails, maxTags, defaultProjectGroupBy })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -436,6 +447,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (groupBy != null && !isValidProjectGroupBy(groupBy)) return
     await settingsRepository.put('defaultProjectGroupBy', groupBy ?? '')
     set({ defaultProjectGroupBy: groupBy })
+  },
+
+  async setCanvasMaxExtent(n: number) {
+    if (!isValidCanvasMaxExtent(n)) return
+    await settingsRepository.put('canvasMaxExtent', String(n))
+    set({ canvasMaxExtent: n })
   },
 
   setCanvasRails: createDebouncedPersist<RailsState>({

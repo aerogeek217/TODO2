@@ -581,7 +581,7 @@ function checkSavedView(v: unknown): CheckResult {
 // keys: store + setter surface retired in code-review-2026-04-25 P8, but the
 // import-validation entry stays one release so older backups still validate.
 // Restore strips both keys; schedule deletion of the entry one release later.
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy', 'canvasMaxExtent']
 
 const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
 
@@ -750,6 +750,12 @@ function checkSetting(v: unknown): CheckResult {
     return (VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).includes(v.value as string)
       ? true
       : `value (defaultProjectGroupBy must be one of: ${(VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).filter(Boolean).join(', ')} or empty)`
+  }
+  if (v.key === 'canvasMaxExtent') {
+    const n = Number(v.value)
+    return Number.isFinite(n) && n >= 1000 && n <= 100000
+      ? true
+      : 'value (canvasMaxExtent must be a finite number in [1000, 100000])'
   }
   // `notesPinnedToDashboard` / `dashboardUserLists` are accepted as legacy
   // keys (see VALID_SETTING_KEYS comment); restore strips them so the format

@@ -3,6 +3,7 @@ import type { ListInset } from '../models'
 import { listInsetRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { mutate, optimistic, updateItemInList } from './store-helpers'
+import { clampCanvasPosition } from '../utils/canvas-bounds'
 
 interface ListInsetState {
   insets: ListInset[]
@@ -36,11 +37,12 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
 
   async add(listDefinitionId: number, canvasId: number, x: number, y: number) {
     return mutate(set, async () => {
+      const clamped = clampCanvasPosition(x, y)
       const id = await listInsetRepository.insert({
         listDefinitionId,
         canvasId,
-        x,
-        y,
+        x: clamped.x,
+        y: clamped.y,
         width: 320,
         height: 300,
         isCollapsed: false,
@@ -68,10 +70,11 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
   async updatePosition(id: number, x: number, y: number) {
     const prev = get().insets.find((i) => i.id === id)
     if (!prev) return
+    const { x: cx, y: cy } = clampCanvasPosition(x, y)
     return optimistic(
       set,
-      () => set({ insets: updateItemInList(get().insets, id, { x, y }) }),
-      () => listInsetRepository.updatePosition(id, x, y),
+      () => set({ insets: updateItemInList(get().insets, id, { x: cx, y: cy }) }),
+      () => listInsetRepository.updatePosition(id, cx, cy),
       () => set({ insets: updateItemInList(get().insets, id, { x: prev.x, y: prev.y }) }),
       'Failed to update list inset position',
     )

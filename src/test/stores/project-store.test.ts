@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useProjectStore } from '../../stores/project-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { projectRepository } from '../../data/project-repository'
+import { DEFAULT_CANVAS_MAX_EXTENT } from '../../utils/canvas-bounds'
 
 let canvasId: number
 
@@ -12,6 +14,7 @@ beforeEach(async () => {
   canvasId = (await db.canvases.add({ name: 'Canvas', sortOrder: 1, createdAt: new Date() })) as number
   useProjectStore.setState({ projects: [], loading: false, error: null })
   useTodoStore.setState({ todos: [], loading: false })
+  useSettingsStore.setState({ canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT })
 })
 
 describe('useProjectStore', () => {
@@ -79,6 +82,47 @@ describe('useProjectStore', () => {
     const id = await useProjectStore.getState().add('P1', canvasId)
     await useProjectStore.getState().remove(id)
     expect(useProjectStore.getState().projects.find(p => p.id === id)).toBeUndefined()
+  })
+
+  describe('canvas-bounds clamp', () => {
+    it('add clamps positions outside the band to the band edge', async () => {
+      const id = await useProjectStore.getState().add('Stray', canvasId, 32723, -3278)
+      const project = useProjectStore.getState().projects.find((p) => p.id === id)!
+      expect(project.positionX).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(project.positionY).toBe(-3278)
+      const persisted = await db.projects.get(id)
+      expect(persisted!.positionX).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(persisted!.positionY).toBe(-3278)
+    })
+
+    it('updatePosition clamps both axes', async () => {
+      const id = await useProjectStore.getState().add('P', canvasId, 0, 0)
+      await useProjectStore.getState().updatePosition(id, 999999, -999999)
+      const project = useProjectStore.getState().projects.find((p) => p.id === id)!
+      expect(project.positionX).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(project.positionY).toBe(-DEFAULT_CANVAS_MAX_EXTENT)
+    })
+
+    it('bulkUpdatePositions clamps every entry', async () => {
+      const a = await useProjectStore.getState().add('A', canvasId, 0, 0)
+      const b = await useProjectStore.getState().add('B', canvasId, 0, 0)
+      await useProjectStore.getState().bulkUpdatePositions([
+        { id: a, x: 50000, y: 0 },
+        { id: b, x: -50000, y: 50 },
+      ])
+      const projects = useProjectStore.getState().projects
+      expect(projects.find((p) => p.id === a)!.positionX).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(projects.find((p) => p.id === b)!.positionX).toBe(-DEFAULT_CANVAS_MAX_EXTENT)
+      expect(projects.find((p) => p.id === b)!.positionY).toBe(50)
+    })
+
+    it('clamp respects the configured canvasMaxExtent', async () => {
+      useSettingsStore.setState({ canvasMaxExtent: 2000 })
+      const id = await useProjectStore.getState().add('P', canvasId, 5000, -5000)
+      const project = useProjectStore.getState().projects.find((p) => p.id === id)!
+      expect(project.positionX).toBe(2000)
+      expect(project.positionY).toBe(-2000)
+    })
   })
 
   describe('optimistic rollback', () => {

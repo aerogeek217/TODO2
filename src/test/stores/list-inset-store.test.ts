@@ -2,11 +2,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { listInsetRepository } from '../../data/list-inset-repository'
+import { useSettingsStore } from '../../stores/settings-store'
+import { DEFAULT_CANVAS_MAX_EXTENT } from '../../utils/canvas-bounds'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useListInsetStore.setState({ insets: [], loading: false, error: null })
+  useSettingsStore.setState({ canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT })
 })
 
 describe('useListInsetStore', () => {
@@ -159,6 +162,23 @@ describe('useListInsetStore', () => {
       const { insets } = useListInsetStore.getState()
       expect(insets).toHaveLength(1)
       expect(insets[0]!.id).toBe(id1)
+    })
+  })
+
+  describe('canvas-bounds clamp', () => {
+    it('add clamps positions outside the band', async () => {
+      const id = await useListInsetStore.getState().add(1, 1, 99999, -99999)
+      const inset = useListInsetStore.getState().insets.find((i) => i.id === id)!
+      expect(inset.x).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(inset.y).toBe(-DEFAULT_CANVAS_MAX_EXTENT)
+    })
+
+    it('updatePosition clamps to the band edge', async () => {
+      const id = await useListInsetStore.getState().add(1, 1, 100, 200)
+      await useListInsetStore.getState().updatePosition(id, 999999, 0)
+      const inset = useListInsetStore.getState().insets.find((i) => i.id === id)!
+      expect(inset.x).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(inset.y).toBe(0)
     })
   })
 

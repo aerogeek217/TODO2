@@ -295,3 +295,43 @@ describe('useSettingsStore.setCanvasRails persistence', () => {
     expect(parsed.right.slots[0].id).toBe('x')
   })
 })
+
+describe('useSettingsStore.canvasMaxExtent', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ canvasMaxExtent: 10000 })
+  })
+
+  it('defaults to 10000 on a fresh load', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
+  })
+
+  it('round-trips via setCanvasMaxExtent', async () => {
+    await useSettingsStore.getState().setCanvasMaxExtent(5000)
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(5000)
+    const row = await db.settings.get('canvasMaxExtent')
+    expect(row?.value).toBe('5000')
+  })
+
+  it('rejects values outside [1000, 100000] (state stays unchanged)', async () => {
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
+    await useSettingsStore.getState().setCanvasMaxExtent(99999999)
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
+    await useSettingsStore.getState().setCanvasMaxExtent(0)
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
+    await useSettingsStore.getState().setCanvasMaxExtent(NaN)
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
+  })
+
+  it('load restores a persisted value', async () => {
+    await db.settings.put({ key: 'canvasMaxExtent', value: '7500' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(7500)
+  })
+
+  it('load falls back to default when the persisted value is invalid', async () => {
+    await db.settings.put({ key: 'canvasMaxExtent', value: '999999999' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().canvasMaxExtent).toBe(10000)
+  })
+})

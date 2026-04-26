@@ -1,0 +1,82 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import {
+  DEFAULT_CANVAS_MAX_EXTENT,
+  MIN_CANVAS_MAX_EXTENT,
+  MAX_CANVAS_MAX_EXTENT,
+  clampCanvasPosition,
+  getCanvasMaxExtent,
+  isValidCanvasMaxExtent,
+} from '../../utils/canvas-bounds'
+import { useSettingsStore } from '../../stores/settings-store'
+
+beforeEach(() => {
+  useSettingsStore.setState({ canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT })
+})
+
+describe('isValidCanvasMaxExtent', () => {
+  it('accepts integers within [MIN, MAX]', () => {
+    expect(isValidCanvasMaxExtent(MIN_CANVAS_MAX_EXTENT)).toBe(true)
+    expect(isValidCanvasMaxExtent(DEFAULT_CANVAS_MAX_EXTENT)).toBe(true)
+    expect(isValidCanvasMaxExtent(MAX_CANVAS_MAX_EXTENT)).toBe(true)
+    expect(isValidCanvasMaxExtent(5000)).toBe(true)
+  })
+
+  it('rejects out-of-range, NaN, and non-numbers', () => {
+    expect(isValidCanvasMaxExtent(MIN_CANVAS_MAX_EXTENT - 1)).toBe(false)
+    expect(isValidCanvasMaxExtent(MAX_CANVAS_MAX_EXTENT + 1)).toBe(false)
+    expect(isValidCanvasMaxExtent(0)).toBe(false)
+    expect(isValidCanvasMaxExtent(-100)).toBe(false)
+    expect(isValidCanvasMaxExtent(NaN)).toBe(false)
+    expect(isValidCanvasMaxExtent(Infinity)).toBe(false)
+    expect(isValidCanvasMaxExtent('5000')).toBe(false)
+    expect(isValidCanvasMaxExtent(null)).toBe(false)
+    expect(isValidCanvasMaxExtent(undefined)).toBe(false)
+  })
+})
+
+describe('getCanvasMaxExtent', () => {
+  it('reads from the settings store when valid', () => {
+    useSettingsStore.setState({ canvasMaxExtent: 7500 })
+    expect(getCanvasMaxExtent()).toBe(7500)
+  })
+
+  it('falls back to DEFAULT when the store value is outside [MIN, MAX]', () => {
+    useSettingsStore.setState({ canvasMaxExtent: 99999999 as unknown as number })
+    expect(getCanvasMaxExtent()).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+  })
+})
+
+describe('clampCanvasPosition', () => {
+  it('passes coordinates inside the band through unchanged', () => {
+    expect(clampCanvasPosition(0, 0)).toEqual({ x: 0, y: 0 })
+    expect(clampCanvasPosition(100, -100)).toEqual({ x: 100, y: -100 })
+    expect(clampCanvasPosition(DEFAULT_CANVAS_MAX_EXTENT, -DEFAULT_CANVAS_MAX_EXTENT)).toEqual({
+      x: DEFAULT_CANVAS_MAX_EXTENT,
+      y: -DEFAULT_CANVAS_MAX_EXTENT,
+    })
+  })
+
+  it('clamps coordinates beyond the band to the band edge', () => {
+    expect(clampCanvasPosition(99999, 99999)).toEqual({
+      x: DEFAULT_CANVAS_MAX_EXTENT,
+      y: DEFAULT_CANVAS_MAX_EXTENT,
+    })
+    expect(clampCanvasPosition(-99999, -99999)).toEqual({
+      x: -DEFAULT_CANVAS_MAX_EXTENT,
+      y: -DEFAULT_CANVAS_MAX_EXTENT,
+    })
+  })
+
+  it('reproduces the bug: stray (32723, -3278) gets pulled inside the default ±10000 band', () => {
+    expect(clampCanvasPosition(32723, -3278)).toEqual({ x: 10000, y: -3278 })
+  })
+
+  it('respects an explicit max override', () => {
+    expect(clampCanvasPosition(20000, -20000, 5000)).toEqual({ x: 5000, y: -5000 })
+  })
+
+  it('uses the live settings store when no max is passed', () => {
+    useSettingsStore.setState({ canvasMaxExtent: 2000 })
+    expect(clampCanvasPosition(5000, -5000)).toEqual({ x: 2000, y: -2000 })
+  })
+})

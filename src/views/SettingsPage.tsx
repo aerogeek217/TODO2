@@ -28,6 +28,7 @@ import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useUIStore } from '../stores/ui-store'
 import { GROUP_OPTIONS } from '../utils/task-grouping'
 import type { ProjectGroupBy } from '../models'
+import { MIN_CANVAS_MAX_EXTENT, MAX_CANVAS_MAX_EXTENT } from '../utils/canvas-bounds'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -48,7 +49,17 @@ async function getStartIn(): Promise<FileSystemHandle | 'documents'> {
 }
 
 export function SettingsPage() {
-  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn, defaultProjectGroupBy, setDefaultProjectGroupBy } = useSettingsStore()
+  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn, defaultProjectGroupBy, setDefaultProjectGroupBy, canvasMaxExtent, setCanvasMaxExtent } = useSettingsStore()
+  const [canvasMaxExtentDraft, setCanvasMaxExtentDraft] = useState<string>(String(canvasMaxExtent))
+  useEffect(() => { setCanvasMaxExtentDraft(String(canvasMaxExtent)) }, [canvasMaxExtent])
+  const commitCanvasMaxExtent = useCallback(() => {
+    const n = Number(canvasMaxExtentDraft)
+    if (!Number.isFinite(n) || n < MIN_CANVAS_MAX_EXTENT || n > MAX_CANVAS_MAX_EXTENT) {
+      setCanvasMaxExtentDraft(String(canvasMaxExtent))
+      return
+    }
+    if (n !== canvasMaxExtent) setCanvasMaxExtent(n)
+  }, [canvasMaxExtentDraft, canvasMaxExtent, setCanvasMaxExtent])
   const fileStorage = useFileStorageStore()
   const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
@@ -417,6 +428,32 @@ export function SettingsPage() {
                 <option key={value ?? 'none'} value={value ?? ''}>{label}</option>
               ))}
             </select>
+          </div>
+        </div>
+        )}
+
+        {/* Canvas — desktop only */}
+        {!isMobile && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>Canvas</div>
+          <div
+            className={styles.settingRow}
+            title={`Hard limit on widget coordinates: positions are clamped to ±N on both axes when persisted. Range ${MIN_CANVAS_MAX_EXTENT.toLocaleString()}–${MAX_CANVAS_MAX_EXTENT.toLocaleString()}.`}
+          >
+            <span className={styles.settingLabel}>Canvas extent (±px)</span>
+            <input
+              type="number"
+              className={styles.settingSelect}
+              value={canvasMaxExtentDraft}
+              min={MIN_CANVAS_MAX_EXTENT}
+              max={MAX_CANVAS_MAX_EXTENT}
+              step={1000}
+              onChange={(e) => setCanvasMaxExtentDraft(e.target.value)}
+              onBlur={commitCanvasMaxExtent}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+              aria-label="Canvas extent in pixels"
+              style={{ width: 90, textAlign: 'right' }}
+            />
           </div>
         </div>
         )}

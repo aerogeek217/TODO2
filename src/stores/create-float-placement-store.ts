@@ -1,5 +1,6 @@
 import { mutate, optimistic, updateItemInList, type SetFn } from './store-helpers'
 import { undoable } from '../services/undoable'
+import { clampCanvasPosition } from '../utils/canvas-bounds'
 
 /**
  * Shared shape for the four floating placement-only widgets (note, calendar,
@@ -84,10 +85,11 @@ export function createFloatPlacementMethods<T extends FloatPlacement>(
 
     async add(canvasId, x, y, extra) {
       return mutate(set, async () => {
+        const clamped = clampCanvasPosition(x, y)
         const seedRow = {
           canvasId,
-          x,
-          y,
+          x: clamped.x,
+          y: clamped.y,
           width: defaults.width,
           height: defaults.height,
           ...(extra ?? {}),
@@ -102,10 +104,11 @@ export function createFloatPlacementMethods<T extends FloatPlacement>(
     async updatePosition(id, x, y) {
       const prev = list().find((r) => r.id === id)
       if (!prev) return
+      const { x: cx, y: cy } = clampCanvasPosition(x, y)
       return optimistic(
         set,
-        () => setList(updateItemInList(list(), id, { x, y } as Partial<T>)),
-        () => repo.updatePosition(id, x, y),
+        () => setList(updateItemInList(list(), id, { x: cx, y: cy } as Partial<T>)),
+        () => repo.updatePosition(id, cx, cy),
         () => setList(updateItemInList(list(), id, { x: prev.x, y: prev.y } as Partial<T>)),
         `Failed to update ${label} position`,
       )

@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { useFloatingNoteStore } from '../../stores/floating-note-store'
+import { useSettingsStore } from '../../stores/settings-store'
+import { DEFAULT_CANVAS_MAX_EXTENT } from '../../utils/canvas-bounds'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
+  useSettingsStore.setState({ canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT })
 })
 
 describe('useFloatingNoteStore', () => {
@@ -45,5 +48,22 @@ describe('useFloatingNoteStore', () => {
     await useFloatingNoteStore.getState().remove(id)
     expect(useFloatingNoteStore.getState().notes).toHaveLength(0)
     expect(await db.floatingNotes.count()).toBe(0)
+  })
+
+  describe('canvas-bounds clamp (placement factory)', () => {
+    it('add clamps positions outside the band', async () => {
+      const id = await useFloatingNoteStore.getState().add(1, 99999, -99999)
+      const row = useFloatingNoteStore.getState().notes.find((n) => n.id === id)!
+      expect(row.x).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(row.y).toBe(-DEFAULT_CANVAS_MAX_EXTENT)
+    })
+
+    it('updatePosition clamps to the band edge', async () => {
+      const id = await useFloatingNoteStore.getState().add(1, 0, 0)
+      await useFloatingNoteStore.getState().updatePosition(id, 999999, 100)
+      const row = useFloatingNoteStore.getState().notes.find((n) => n.id === id)!
+      expect(row.x).toBe(DEFAULT_CANVAS_MAX_EXTENT)
+      expect(row.y).toBe(100)
+    })
   })
 })

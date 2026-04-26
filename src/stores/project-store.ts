@@ -5,6 +5,7 @@ import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from './todo-store'
 import { loadWithState, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
+import { clampCanvasPosition, getCanvasMaxExtent } from '../utils/canvas-bounds'
 
 interface ProjectState {
   projects: Project[]
@@ -48,11 +49,12 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     return mutate(set, async () => {
       const { projects } = get()
       const maxSort = projects.reduce((max, p) => Math.max(max, p.sortOrder), 0)
+      const clamped = clampCanvasPosition(x, y)
       const id = await projectRepository.insert({
         name,
         canvasId,
-        positionX: x,
-        positionY: y,
+        positionX: clamped.x,
+        positionY: clamped.y,
         isCollapsed: false,
         sortOrder: maxSort + 1,
         createdAt: new Date(),
@@ -85,14 +87,15 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     if (!prev) return
     const prevX = prev.positionX
     const prevY = prev.positionY
+    const { x: cx, y: cy } = clampCanvasPosition(x, y)
     return optimistic(
       set,
       () => set({
         projects: get().projects.map((p) =>
-          p.id === id ? { ...p, positionX: x, positionY: y } : p
+          p.id === id ? { ...p, positionX: cx, positionY: cy } : p
         ),
       }),
-      () => projectRepository.updatePosition(id, x, y),
+      () => projectRepository.updatePosition(id, cx, cy),
       () => set({
         projects: get().projects.map((p) =>
           p.id === id ? { ...p, positionX: prevX, positionY: prevY } : p
@@ -134,7 +137,9 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         .filter((p) => updates.some((u) => u.id === p.id))
         .map((p) => [p.id!, { x: p.positionX, y: p.positionY }]),
     )
-    const updateMap = new Map(updates.map((u) => [u.id, u]))
+    const limit = getCanvasMaxExtent()
+    const clampedUpdates = updates.map(({ id, x, y }) => ({ id, ...clampCanvasPosition(x, y, limit) }))
+    const updateMap = new Map(clampedUpdates.map((u) => [u.id, u]))
     return optimistic(
       set,
       () =>
@@ -144,7 +149,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
             return u ? { ...p, positionX: u.x, positionY: u.y } : p
           }),
         }),
-      () => projectRepository.bulkUpdatePositions(updates),
+      () => projectRepository.bulkUpdatePositions(clampedUpdates),
       () =>
         set({
           projects: get().projects.map((p) => {
