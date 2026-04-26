@@ -28,13 +28,9 @@ import type { DateAnchor } from '../../models/filter-predicate'
 import { ListFilterEditor } from './ListFilterEditor'
 import { DragHandle } from '../shared/DragHandle'
 import { ConfirmDialog } from '../shared/Dialog'
+import { ListEditorDialog } from '../shared/ListEditorDialog'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
-
-interface EditState {
-  id: number
-  name: string
-}
 
 interface Props {
   onClose: () => void
@@ -46,7 +42,7 @@ interface Props {
   filterIds?: number[]
   /** Override modal title (default "Lists"). */
   title?: string
-  /** When provided, mount with this definition's ConfigPanel already expanded. */
+  /** When provided, mount with this definition's editor dialog already open. */
   initialSelectedId?: number
 }
 
@@ -171,7 +167,9 @@ function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
 }
 
 function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
-  // Ignore `sortOrder` (reorder is saved independently) and `name` (rename is inline/live).
+  // Ignore `sortOrder` (reorder is saved independently) and `favorited`
+  // (toggled immediately from the dialog header — never part of the draft).
+  if (a.name !== b.name) return false
   if (a.pinnedToDashboard !== b.pinnedToDashboard) return false
   if (JSON.stringify(a.sort) !== JSON.stringify(b.sort)) return false
   if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) return false
@@ -183,43 +181,14 @@ function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): bool
   return true
 }
 
-function ConfigPanel({
-  def,
-  onSave,
-  onCollapse,
-  onDirtyChange,
+function ListEditorBody({
+  draft,
+  onChange,
 }: {
-  def: PersistedListDefinition
-  onSave: (next: PersistedListDefinition) => Promise<void> | void
-  onCollapse: () => void
-  onDirtyChange: (dirty: boolean) => void
+  draft: PersistedListDefinition
+  onChange: (next: PersistedListDefinition) => void
 }) {
-  const [draft, setDraft] = useState<PersistedListDefinition>(def)
-
-  // Re-sync the draft when the upstream def changes (post-Save rehydration,
-  // rename via the inline path, pin toggle from the row). When the draft is
-  // clean (no pending edits), sync every field. When dirty, preserve the
-  // user's in-flight edits and only forward externally-managed fields
-  // (name / pin / sortOrder) so a rename or pin toggle upstream doesn't get
-  // clobbered.
-  useEffect(() => {
-    setDraft((prev) => {
-      const dirty = !defsEqual(prev, def)
-      if (!dirty) return def
-      return {
-        ...prev,
-        name: def.name,
-        pinnedToDashboard: def.pinnedToDashboard,
-        sortOrder: def.sortOrder,
-      }
-    })
-  }, [def])
-
-  const dirty = useMemo(() => !defsEqual(draft, def), [draft, def])
-
-  useEffect(() => {
-    onDirtyChange(dirty)
-  }, [dirty, onDirtyChange])
+  const setName = (name: string) => onChange({ ...draft, name })
 
   const setSort = (value: SortSelectValue) => {
     const next = decodeSortValue(value)
@@ -228,45 +197,43 @@ function ConfigPanel({
     const grouping: ListGrouping = draft.grouping.kind === 'by-sortBy' && next.kind !== 'sortBy'
       ? { kind: 'none' }
       : draft.grouping
-    setDraft({ ...draft, sort: next, grouping })
+    onChange({ ...draft, sort: next, grouping })
   }
 
   const setGrouping = (value: GroupingSelectValue) => {
-    setDraft({ ...draft, grouping: decodeGroupingValue(value) })
+    onChange({ ...draft, grouping: decodeGroupingValue(value) })
   }
 
   const setRuntimeFilter = (value: RuntimeFilterField | 'none') => {
     if (value === 'none') {
       if (!draft.runtimeFilter) return
       const { runtimeFilter: _drop, ...rest } = draft
-      setDraft(rest as PersistedListDefinition)
+      onChange(rest as PersistedListDefinition)
       return
     }
     if (draft.runtimeFilter?.field === value) return
-    setDraft({ ...draft, runtimeFilter: { field: value } })
+    onChange({ ...draft, runtimeFilter: { field: value } })
   }
 
   const handlePredicateChange = (predicate: TodoPredicate) => {
-    setDraft({ ...draft, membership: { kind: 'custom', predicate } })
-  }
-
-  const handleSave = async () => {
-    if (!dirty) return
-    await onSave(draft)
-  }
-
-  const handleDiscard = () => {
-    setDraft(def)
+    onChange({ ...draft, membership: { kind: 'custom', predicate } })
   }
 
   const currentPredicate = draft.membership.kind === 'custom'
     ? draft.membership.predicate
-    : def.membership.kind === 'custom' ? def.membership.predicate : undefined
+    : undefined
 
   return (
-    <div className={local.configPanel}>
-      <div className={local.configHeader}>
-        <span className={local.configHeaderTitle}>Edit list</span>
+    <div className={local.bodyForm}>
+      <div className={local.configRow}>
+        <span className={local.configLabel}>Name</span>
+        <input
+          type="text"
+          className={local.configInput}
+          value={draft.name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="List name"
+        />
       </div>
 
       {currentPredicate && (
@@ -330,47 +297,19 @@ function ConfigPanel({
           ))}
         </select>
       </div>
-
-      <div className={local.configFooter}>
-        {dirty && (
-          <button
-            type="button"
-            className={local.configDiscardBtn}
-            onClick={handleDiscard}
-          >
-            Discard
-          </button>
-        )}
-        <button type="button" className={local.configDoneBtn} onClick={onCollapse}>
-          Close
-        </button>
-        <button
-          type="button"
-          className={local.configSaveBtn}
-          onClick={handleSave}
-          disabled={!dirty}
-          title={dirty ? 'Save changes' : 'No changes to save'}
-        >
-          Save
-        </button>
-      </div>
     </div>
   )
 }
 
 function SortableRow({
   def,
-  expanded,
   onEdit,
-  onConfigure,
   onToggleFavorite,
   onDelete,
   hideDelete,
 }: {
   def: PersistedListDefinition
-  expanded: boolean
-  onEdit: (d: PersistedListDefinition) => void
-  onConfigure: (id: number) => void
+  onEdit: (id: number) => void
   onToggleFavorite: (id: number, next: boolean) => void
   onDelete: (id: number) => void
   hideDelete?: boolean
@@ -380,12 +319,12 @@ function SortableRow({
   return (
     <div ref={setNodeRef} style={style} className={`${styles.row} ${isDragging ? styles.rowDragging : ''}`}>
       <DragHandle className={styles.dragHandle} attributes={attributes} listeners={listeners} ariaHidden={false} />
-      <span className={styles.nameEditable} onClick={() => onEdit(def)}>{def.name}</span>
+      <span className={styles.nameEditable} onClick={() => onEdit(def.id)}>{def.name}</span>
       <button
         type="button"
-        className={`${local.configToggle} ${expanded ? local.configToggleActive : ''}`}
-        onClick={() => onConfigure(def.id)}
-        title={expanded ? 'Hide settings' : 'Configure'}
+        className={local.configToggle}
+        onClick={() => onEdit(def.id)}
+        title="Edit list"
       >
         ⚙
       </button>
@@ -414,29 +353,14 @@ function SortableRow({
 }
 
 export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
-  const { listDefinitions, load, add, update, rename, setFavorited, remove, reorder } = useListDefinitionStore()
+  const { listDefinitions, load, add, update, setFavorited, remove, reorder } = useListDefinitionStore()
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
-  const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [error, setError] = useState('')
-  const [configuringId, setConfiguringId] = useState<number | null>(initialSelectedId ?? null)
-  const [configDirty, setConfigDirty] = useState(false)
-
-  // Guard any action that dismisses the open ConfigPanel when there are
-  // unsaved edits. Runs `perform` immediately when clean; routes through
-  // the shared confirm dialog otherwise so the prompt matches other
-  // destructive confirmations (task delete, list overwrite, etc.).
-  const guardDirty = useCallback((perform: () => void) => {
-    if (!configDirty) { perform(); return }
-    showBulkConfirmation('custom', [], {
-      title: 'Discard changes?',
-      message: 'Unsaved changes to this list will be lost.',
-      confirmLabel: 'Discard',
-      onConfirm: perform,
-    })
-  }, [configDirty, showBulkConfirmation])
+  const [editingListId, setEditingListId] = useState<number | null>(initialSelectedId ?? null)
+  const [draft, setDraft] = useState<PersistedListDefinition | null>(null)
 
   useEffect(() => { load() }, [load])
 
@@ -447,6 +371,53 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     return all.filter((d) => set.has(d.id))
   }, [listDefinitions, filterIds])
   const sortedIds = useMemo(() => sorted.map(d => d.id), [sorted])
+
+  const editingList = useMemo(() => {
+    if (editingListId == null) return null
+    return sorted.find(d => d.id === editingListId) ?? null
+  }, [editingListId, sorted])
+
+  // Sync the draft when the editor opens or the upstream def changes. When
+  // the draft is clean (no pending edits), adopt the new def. When dirty,
+  // preserve the user's in-flight edits but forward externally-managed
+  // fields (favorited toggle from the dialog header, pin, sortOrder) so a
+  // header-fired favorite or a reorder doesn't get reverted on Save.
+  useEffect(() => {
+    if (!editingList) {
+      setDraft(null)
+      return
+    }
+    setDraft(prev => {
+      if (!prev || prev.id !== editingList.id) return editingList
+      const dirty = !defsEqual(prev, editingList)
+      if (!dirty) return editingList
+      return {
+        ...prev,
+        favorited: editingList.favorited,
+        pinnedToDashboard: editingList.pinnedToDashboard,
+        sortOrder: editingList.sortOrder,
+      }
+    })
+  }, [editingList])
+
+  const dirty = useMemo(() => {
+    if (!draft || !editingList) return false
+    return !defsEqual(draft, editingList)
+  }, [draft, editingList])
+
+  // Guard any action that dismisses the open editor when there are unsaved
+  // edits. Runs `perform` immediately when clean; routes through the shared
+  // confirm dialog otherwise so the prompt matches other destructive
+  // confirmations (task delete, list overwrite, etc.).
+  const guardDirty = useCallback((perform: () => void) => {
+    if (!dirty) { perform(); return }
+    showBulkConfirmation('custom', [], {
+      title: 'Discard changes?',
+      message: 'Unsaved changes to this list will be lost.',
+      confirmLabel: 'Discard',
+      onConfirm: perform,
+    })
+  }, [dirty, showBulkConfirmation])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -461,34 +432,46 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     if (from !== -1 && to !== -1) reorder(from, to)
   }, [sorted, reorder])
 
-  const startEdit = (d: PersistedListDefinition) => {
+  const handleEdit = useCallback((id: number) => {
+    if (editingListId === id) return
     guardDirty(() => {
-      setEditing({ id: d.id, name: d.name })
+      setEditingListId(id)
       setAdding(false)
       setDeleteId(null)
-      setConfiguringId(null)
-      setConfigDirty(false)
       setError('')
     })
-  }
-  const saveEdit = async () => {
-    if (!editing) return
-    try {
-      await rename(editing.id, editing.name)
-      setEditing(null)
-      setError('')
-    } catch (e) {
-      setError((e as Error).message)
+  }, [editingListId, guardDirty])
+
+  const handleEditorClose = useCallback(() => {
+    guardDirty(() => {
+      setEditingListId(null)
+    })
+  }, [guardDirty])
+
+  const handleEditorSave = useCallback(() => {
+    if (!draft) {
+      setEditingListId(null)
+      return
     }
-  }
-  const handleEditKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') saveEdit()
-    if (e.key === 'Escape') { setEditing(null); setError('') }
-  }
+    const trimmedName = draft.name.trim()
+    if (!trimmedName) {
+      // Match `rename()`'s validation — refuse to save an empty name.
+      // Editor stays open so the user can fix it.
+      return
+    }
+    if (dirty) {
+      void update({ ...draft, name: trimmedName })
+    }
+    setEditingListId(null)
+  }, [draft, dirty, update])
+
+  const handleToggleEditorFavorite = useCallback(() => {
+    if (!editingList) return
+    void setFavorited(editingList.id, !editingList.favorited)
+  }, [editingList, setFavorited])
 
   const startAdd = () => {
     setAdding(true)
-    setEditing(null)
     setDeleteId(null)
     setNewName('')
     setError('')
@@ -513,36 +496,8 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     if (deleteId == null) return
     await remove(deleteId)
     setDeleteId(null)
-    if (configuringId === deleteId) { setConfiguringId(null); setConfigDirty(false) }
+    if (editingListId === deleteId) setEditingListId(null)
   }
-
-  const handleConfigure = (id: number) => {
-    if (configuringId === id) {
-      guardDirty(() => {
-        setConfiguringId(null)
-        setConfigDirty(false)
-      })
-      return
-    }
-    guardDirty(() => {
-      setConfiguringId(id)
-      setConfigDirty(false)
-      setEditing(null)
-      setDeleteId(null)
-    })
-  }
-
-  const handleCollapseConfig = () => {
-    guardDirty(() => {
-      setConfiguringId(null)
-      setConfigDirty(false)
-    })
-  }
-
-  const handleSaveConfig = useCallback(async (next: PersistedListDefinition) => {
-    await update(next)
-    setConfigDirty(false)
-  }, [update])
 
   const handleModalClose = () => {
     guardDirty(() => { onClose() })
@@ -563,52 +518,16 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
           )}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
-              {sorted.map((d) => {
-                if (editing && editing.id === d.id) {
-                  const ed = editing
-                  return (
-                    <div key={d.id}>
-                      <div className={styles.editRow} onKeyDown={handleEditKeyDown}>
-                        <input
-                          className={styles.editInput}
-                          value={ed.name}
-                          onChange={(e) => { setEditing({ ...ed, name: e.target.value }); setError('') }}
-                          placeholder="List name"
-                          autoFocus
-                        />
-                        <div className={styles.editActions}>
-                          <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
-                          <button className={styles.cancelBtn} onClick={() => { setEditing(null); setError('') }}>Cancel</button>
-                        </div>
-                      </div>
-                      {error && <div className={styles.errorHint}>{error}</div>}
-                    </div>
-                  )
-                }
-
-                return (
-                  <div key={d.id}>
-                    <SortableRow
-                      def={d}
-                      expanded={configuringId === d.id}
-                      onEdit={startEdit}
-                      onConfigure={handleConfigure}
-                      onToggleFavorite={(id, next) => { void setFavorited(id, next) }}
-                      onDelete={(id) => { setDeleteId(id); setEditing(null); setAdding(false) }}
-                      hideDelete={!!filterIds}
-                    />
-                    {configuringId === d.id && (
-                      <ConfigPanel
-                        key={d.id}
-                        def={d}
-                        onSave={handleSaveConfig}
-                        onCollapse={handleCollapseConfig}
-                        onDirtyChange={setConfigDirty}
-                      />
-                    )}
-                  </div>
-                )
-              })}
+              {sorted.map((d) => (
+                <SortableRow
+                  key={d.id}
+                  def={d}
+                  onEdit={handleEdit}
+                  onToggleFavorite={(id, next) => { void setFavorited(id, next) }}
+                  onDelete={(id) => { setDeleteId(id); setAdding(false) }}
+                  hideDelete={!!filterIds}
+                />
+              ))}
             </SortableContext>
           </DndContext>
         </div>
@@ -652,6 +571,15 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
           />
         )
       })()}
+      <ListEditorDialog
+        open={!!editingList && !!draft}
+        list={editingList ? { id: editingList.id, name: editingList.name, favorited: editingList.favorited } : null}
+        onClose={handleEditorClose}
+        onSave={handleEditorSave}
+        onToggleFavorite={handleToggleEditorFavorite}
+      >
+        {draft && <ListEditorBody draft={draft} onChange={setDraft} />}
+      </ListEditorDialog>
     </>
   )
 }

@@ -9,9 +9,9 @@
 }
 
 /* Override of EntityEditor's `.modal { width: 520px }` for the lists
- * editor: the ListFilterEditor chip row + expanded date panel need more
- * horizontal room before they start clipping. 90vw cap (inherited) keeps
- * narrow viewports behaving. */
+ * editor: rows still need horizontal room even after the inline editor
+ * retired (the row's name + ⚙ + favorite + delete cluster). 90vw cap
+ * (inherited) keeps narrow viewports behaving. */
 .modalWide {
   width: 760px;
 }
@@ -61,77 +61,13 @@
   border-color: var(--color-text-muted);
 }
 
-.configToggleActive {
-  background: var(--color-accent-bg-light);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.configPanel {
-  margin: 4px 0 8px 28px;
-  padding: 10px 12px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+/* Wraps the form rows inside the editor dialog body; supplies the
+ * vertical rhythm the retired `.configPanel` used to provide. */
+.bodyForm {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  font-size: var(--font-size-meta);
-}
-
-.configHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: 8px;
-}
-
-.configHeaderTitle {
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.configSaveBtn {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  border: none;
-  border-radius: var(--radius-chip);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  padding: 4px 12px;
-  cursor: pointer;
-  font-weight: var(--font-weight-semibold);
-}
-
-.configSaveBtn:hover {
-  opacity: 0.85;
-}
-
-.configSaveBtn:disabled {
-  background: var(--color-surface-high);
-  color: var(--color-text-muted);
-  cursor: default;
-  opacity: 1;
-}
-
-.configDiscardBtn {
-  background: none;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-chip);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  padding: 3px 10px;
-  cursor: pointer;
-}
-
-.configDiscardBtn:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-text-muted);
+  gap: 12px;
+  padding: 8px 0;
 }
 
 .configRow {
@@ -200,6 +136,23 @@
 }
 
 .configSelect:focus {
+  border-color: var(--color-accent);
+}
+
+.configInput {
+  flex: 1;
+  min-width: 120px;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  padding: 4px 8px;
+  outline: none;
+}
+
+.configInput:focus {
   border-color: var(--color-accent);
 }
 
@@ -272,29 +225,4 @@
 .editInListBtn:hover {
   color: var(--color-accent);
   border-color: var(--color-accent);
-}
-
-.configFooter {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 6px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 8px;
-}
-
-.configDoneBtn {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  border: none;
-  border-radius: var(--radius-chip);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  padding: 3px 12px;
-  cursor: pointer;
-  font-weight: var(--font-weight-semibold);
-}
-
-.configDoneBtn:hover {
-  opacity: 0.85;
 }
