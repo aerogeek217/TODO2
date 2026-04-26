@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, TodoPredicate, Person } from '../../../models'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -20,11 +21,20 @@ import { HorizonRibbon, type HorizonRow } from '../../dashboard/HorizonRibbon'
 import { DraggableTaskRow } from '../shared/DraggableTaskRow'
 import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPopup'
+import { CanvasContextMenu, type ContextMenuItem } from '../../overlays/CanvasContextMenu'
 import styles from './HorizonsSlotContent.module.css'
 
 type PickerMode =
   | { kind: 'add'; x: number; y: number }
+  | { kind: 'add-at'; index: number; x: number; y: number }
   | { kind: 'swap'; index: number; x: number; y: number }
+
+interface RowContextMenu {
+  defId: number
+  index: number
+  x: number
+  y: number
+}
 
 /**
  * Rail/float widget body for the horizons widget. Renders the labeled-bars
@@ -52,9 +62,11 @@ export function HorizonsSlotContent() {
   const setHorizonAt = useSettingsStore((s) => s.setHorizonAt)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
+  const openListEditorDialog = useUIStore((s) => s.openListEditorDialog)
 
   const [picker, setPicker] = useState<PickerMode | null>(null)
   const [showHorizonEditor, setShowHorizonEditor] = useState(false)
+  const [rowContextMenu, setRowContextMenu] = useState<RowContextMenu | null>(null)
 
   // Date-sensitive predicates roll at midnight; re-key `today` on day change.
   const [dayKey, setDayKey] = useState(() => {
@@ -158,11 +170,11 @@ export function HorizonsSlotContent() {
     setPicker({ kind: 'swap', index: idx, x: anchor.x, y: anchor.y })
   }, [horizonSlots])
 
-  const handleRemove = useCallback((defId: number) => {
+  const handleRowContext = useCallback((defId: number, anchor: { x: number; y: number }) => {
     const idx = horizonSlots.indexOf(defId)
     if (idx === -1) return
-    void removeHorizon(idx)
-  }, [horizonSlots, removeHorizon])
+    setRowContextMenu({ defId, index: idx, x: anchor.x, y: anchor.y })
+  }, [horizonSlots])
 
   const handleAdd = useCallback((anchor: { x: number; y: number }) => {
     setPicker({ kind: 'add', x: anchor.x, y: anchor.y })
@@ -176,11 +188,33 @@ export function HorizonsSlotContent() {
     if (!picker) return
     if (picker.kind === 'add') {
       await addHorizon(defId)
+    } else if (picker.kind === 'add-at') {
+      await addHorizon(defId, picker.index)
     } else {
       await setHorizonAt(picker.index, defId)
     }
     setPicker(null)
   }, [picker, addHorizon, setHorizonAt])
+
+  const rowContextMenuItems = useMemo<ContextMenuItem[]>(() => {
+    if (!rowContextMenu) return []
+    const { defId, index, x, y } = rowContextMenu
+    return [
+      {
+        label: 'Edit list',
+        action: () => openListEditorDialog(defId),
+      },
+      {
+        label: 'Insert below',
+        action: () => setPicker({ kind: 'add-at', index: index + 1, x, y }),
+      },
+      {
+        label: 'Remove',
+        danger: true,
+        action: () => { void removeHorizon(index) },
+      },
+    ]
+  }, [rowContextMenu, openListEditorDialog, removeHorizon])
 
   const assignedPeopleMapCast = assignedPeopleMap as Map<number, Person[]>
   const selectedTodos = useMemo(() => {
@@ -196,7 +230,7 @@ export function HorizonsSlotContent() {
         selectedDefId={selectedHorizonDefId}
         onSelect={handleSelect}
         onSwap={handleSwap}
-        onRemove={handleRemove}
+        onRowContext={handleRowContext}
         onAdd={handleAdd}
         onReorder={handleReorder}
       />
@@ -228,7 +262,7 @@ export function HorizonsSlotContent() {
         <ListDefinitionPickerPopup
           x={picker.x}
           y={picker.y}
-          excludeIds={picker.kind === 'add' ? horizonSlots : undefined}
+          excludeIds={picker.kind === 'add' || picker.kind === 'add-at' ? horizonSlots : undefined}
           onSelect={(id) => { void handlePick(id) }}
           onCreateNew={() => { setShowHorizonEditor(true); setPicker(null) }}
           onClose={() => setPicker(null)}
@@ -240,6 +274,15 @@ export function HorizonsSlotContent() {
           filterIds={horizonSlots}
           title="Edit horizons"
         />
+      )}
+      {rowContextMenu && createPortal(
+        <CanvasContextMenu
+          x={rowContextMenu.x}
+          y={rowContextMenu.y}
+          items={rowContextMenuItems}
+          onClose={() => setRowContextMenu(null)}
+        />,
+        document.body,
       )}
     </div>
   )

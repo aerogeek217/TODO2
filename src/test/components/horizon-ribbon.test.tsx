@@ -27,7 +27,7 @@ describe('HorizonRibbon', () => {
     const handlers = {
       onSelect: vi.fn(),
       onSwap: vi.fn(),
-      onRemove: vi.fn(),
+      onRowContext: vi.fn(),
       onAdd: vi.fn(),
       onReorder: vi.fn(),
     }
@@ -47,7 +47,7 @@ describe('HorizonRibbon', () => {
     expect(getByText(/Add a horizon to start/i)).toBeTruthy()
   })
 
-  it('renders one row per horizon with a remove button + label button + bar button', () => {
+  it('renders one row per horizon with a label button + bar button (no inline × button)', () => {
     const rows = [
       makeRow({ defId: 1, label: 'This week', total: 3 }),
       makeRow({ defId: 2, label: 'Later', total: 1 }),
@@ -57,6 +57,8 @@ describe('HorizonRibbon', () => {
     expect(rowEls.length).toBe(2)
     expect(rowEls[0]?.getAttribute('data-horizon-defid')).toBe('1')
     expect(rowEls[1]?.getAttribute('data-horizon-defid')).toBe('2')
+    // Remove button is gone — removal flows through the row right-click menu now.
+    expect(container.querySelector('button[title="Remove from horizons"]')).toBeNull()
   })
 
   it('clicking a row\'s bar invokes onSelect with that row\'s defId', () => {
@@ -77,19 +79,25 @@ describe('HorizonRibbon', () => {
     expect(onSwap).toHaveBeenCalledWith(7, expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
   })
 
-  it('clicking a row\'s × invokes onRemove with that row\'s defId', () => {
+  it('right-clicking a row invokes onRowContext with that row\'s defId + click coords', () => {
     const rows = [makeRow({ defId: 7, label: 'This week', total: 3 })]
-    const { container, onRemove } = renderRibbon({ rows })
-    const removeBtn = container.querySelector<HTMLButtonElement>('button[title="Remove from horizons"]')
-    expect(removeBtn).not.toBeNull()
-    fireEvent.click(removeBtn!)
-    expect(onRemove).toHaveBeenCalledWith(7)
+    const { container, onRowContext } = renderRibbon({ rows })
+    const rowEl = container.querySelector<HTMLDivElement>('[data-horizon-defid="7"]')
+    expect(rowEl).not.toBeNull()
+    fireEvent.contextMenu(rowEl!, { clientX: 123, clientY: 456 })
+    expect(onRowContext).toHaveBeenCalledWith(7, { x: 123, y: 456 })
   })
 
-  it('+ Add list footer button invokes onAdd with an anchor', () => {
+  it('+ Add list footer button invokes onAdd with an anchor when rows are empty', () => {
     const { getByText, onAdd } = renderRibbon({ rows: [] })
     fireEvent.click(getByText('+ Add list'))
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
+  })
+
+  it('+ Add list footer is hidden when at least one row exists (right-click drives Insert below)', () => {
+    const rows = [makeRow({ defId: 1, label: 'This week', total: 1 })]
+    const { queryByText } = renderRibbon({ rows })
+    expect(queryByText('+ Add list')).toBeNull()
   })
 
   it('selected row carries the rowSelected class so callers can style it', () => {

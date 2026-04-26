@@ -32,7 +32,7 @@ interface Props {
   selectedDefId: number | null
   onSelect: (defId: number) => void
   onSwap: (defId: number, anchor: { x: number; y: number }) => void
-  onRemove: (defId: number) => void
+  onRowContext: (defId: number, anchor: { x: number; y: number }) => void
   onAdd: (anchor: { x: number; y: number }) => void
   onReorder: (fromIndex: number, toIndex: number) => void
 }
@@ -43,10 +43,10 @@ interface RowProps {
   maxTotal: number
   onSelect: (defId: number) => void
   onSwap: (defId: number, anchor: { x: number; y: number }) => void
-  onRemove: (defId: number) => void
+  onRowContext: (defId: number, anchor: { x: number; y: number }) => void
 }
 
-function SortableRow({ row, selected, maxTotal, onSelect, onSwap, onRemove }: RowProps) {
+function SortableRow({ row, selected, maxTotal, onSelect, onSwap, onRowContext }: RowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.defId })
   const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition }
   const fillPct = maxTotal > 0 ? Math.round((row.total / maxTotal) * 100) : 0
@@ -60,12 +60,18 @@ function SortableRow({ row, selected, maxTotal, onSelect, onSwap, onRemove }: Ro
     onSwap(row.defId, { x: rect.left, y: rect.bottom + 4 })
   }, [onSwap, row.defId])
 
+  const handleContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    onRowContext(row.defId, { x: e.clientX, y: e.clientY })
+  }, [onRowContext, row.defId])
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={`${styles.row} ${selected ? styles.rowSelected : ''} ${isDragging ? styles.rowDragging : ''}`}
       data-horizon-defid={row.defId}
+      onContextMenu={handleContextMenu}
     >
       <DragHandle className={styles.dragHandle} attributes={attributes} listeners={listeners} ariaHidden={false} />
       <button
@@ -97,15 +103,6 @@ function SortableRow({ row, selected, maxTotal, onSelect, onSwap, onRemove }: Ro
         </div>
       </button>
       <span className={styles.count}>{row.total}</span>
-      <button
-        type="button"
-        className={styles.removeBtn}
-        onClick={() => onRemove(row.defId)}
-        title="Remove from horizons"
-        aria-label={`Remove ${row.label}`}
-      >
-        ×
-      </button>
     </div>
   )
 }
@@ -115,7 +112,7 @@ export function HorizonRibbon({
   selectedDefId,
   onSelect,
   onSwap,
-  onRemove,
+  onRowContext,
   onAdd,
   onReorder,
 }: Props) {
@@ -155,18 +152,20 @@ export function HorizonRibbon({
                   maxTotal={maxTotal}
                   onSelect={onSelect}
                   onSwap={onSwap}
-                  onRemove={onRemove}
+                  onRowContext={onRowContext}
                 />
               ))}
             </div>
           </SortableContext>
         </DndContext>
       )}
-      <div className={styles.ribbonFooter}>
-        <button type="button" className={styles.addBtn} onClick={handleAdd}>
-          + Add list
-        </button>
-      </div>
+      {rows.length === 0 && (
+        <div className={styles.ribbonFooter}>
+          <button type="button" className={styles.addBtn} onClick={handleAdd}>
+            + Add list
+          </button>
+        </div>
+      )}
     </div>
   )
 }
