@@ -18,7 +18,7 @@
  * keyboard shortcuts (`use-keyboard-shortcuts.ts`) don't fire while typing.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   Org,
@@ -29,15 +29,21 @@ import type {
   Project,
   RecurrenceType,
 } from '../../models'
-import { useClickOutside } from '../../hooks/use-click-outside'
+import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useOrgStore } from '../../stores/org-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useTagStore } from '../../stores/tag-store'
 import { parseInput } from '../../services/natural-language-parser'
 import { resolveInput } from '../../services/nlp-resolver'
 import { resolveScheduled, type WeekStart } from '../../utils/effective-date'
+import { resolvePersonColor } from '../../utils/person-color'
 import styles from './QuickAddBar.module.css'
+
+const POPUP_GAP_PX = 4
+const POPUP_VIEWPORT_MARGIN_PX = 8
+const POPUP_WIDTH_PX = 280
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -243,7 +249,9 @@ export function QuickAddBar({
 
   const people = usePersonStore((s) => s.people)
   const orgs = useOrgStore((s) => s.orgs)
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const projects = useProjectStore((s) => s.projects)
+  const tags = useTagStore((s) => s.tags)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
 
   const internalParsed = useMemo<ParsedTokens>(
@@ -251,6 +259,43 @@ export function QuickAddBar({
     [raw, people, orgs, projects, weekStartsOn],
   )
   const parsed = parse ? parse(raw) : internalParsed
+
+  // Autocomplete candidates — mirror InsertTrigger so the popup ranks people
+  // (with org-derived color), orgs, projects, and tags identically across the
+  // two surfaces. Tags sort alphabetically; the others keep store order.
+  const acPeople = useMemo<AutocompleteItem[]>(
+    () =>
+      people.map((p) => ({
+        id: p.id!,
+        name: p.name,
+        color: resolvePersonColor(p.id, personOrgMap, orgs),
+        kind: 'person' as const,
+      })),
+    [people, personOrgMap, orgs],
+  )
+  const acOrgs = useMemo<AutocompleteItem[]>(
+    () =>
+      orgs.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })),
+    [orgs],
+  )
+  const acProjects = useMemo<AutocompleteItem[]>(
+    () =>
+      projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })),
+    [projects],
+  )
+  const acTags = useMemo<AutocompleteItem[]>(
+    () =>
+      [...tags]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })),
+    [tags],
+  )
+  const ac = useNlpAutocomplete({
+    people: acPeople,
+    orgs: acOrgs,
+    projects: acProjects,
+    tags: acTags,
+  })
 
   const draft: QuickAddDraft = {
     ...parsed,
@@ -271,7 +316,10 @@ export function QuickAddBar({
   const hasUnmatched =
     parsed.unmatchedPersons.length > 0 || parsed.unmatchedProjects.length > 0
 
-  // Focus on open; reset on close.
+  // Focus on open; reset (and dismiss any open popup) on close. Destructure
+  // `dismiss` so the effect's deps are stable — the hook returns a fresh
+  // `ac` object literal every render, but `ac.dismiss` is the same useCallback.
+  const { dismiss: dismissAutocomplete } = ac
   useEffect(() => {
     if (open) {
       // Wait a paint so the portal node exists.
@@ -280,10 +328,117 @@ export function QuickAddBar({
       setRaw('')
       setExpanded(false)
       setNotes('')
+      dismissAutocomplete()
     }
-  }, [open])
+  }, [open, dismissAutocomplete])
 
-  useClickOutside(surfaceRef, onClose, open)
+  // Popup placement state — anchored to the input rect + caret offset,
+  // portal'd to body. Mirrors RuntimeFilterPicker's flip-above-when-clipping +
+  // clamp-on-right-edge math; tracks scroll (capture) + resize while visible.
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number; width: number }>({
+    top: 0,
+    left: 0,
+    width: POPUP_WIDTH_PX,
+  })
+  const popupRef = useRef<HTMLDivElement>(null)
+
+  // Click-outside that also excludes the portal'd autocomplete popup. The
+  // standard `useClickOutside` only checks one ref; mousedown listeners run in
+  // capture phase, so a popup-side stopPropagation can't help — we have to
+  // include `popupRef` in the contain check directly.
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (surfaceRef.current?.contains(target)) return
+      if (popupRef.current?.contains(target)) return
+      onClose()
+    }
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [open, onClose])
+
+  const computePopupPosition = useCallback(() => {
+    const input = inputRef.current
+    if (!input) return
+    const inputRect = input.getBoundingClientRect()
+    const popupRect = popupRef.current?.getBoundingClientRect()
+    const popupHeight = popupRect?.height ?? 0
+    const width = POPUP_WIDTH_PX
+
+    let top = inputRect.bottom + POPUP_GAP_PX
+    if (popupHeight > 0 && top + popupHeight > window.innerHeight - POPUP_VIEWPORT_MARGIN_PX) {
+      const flipped = inputRect.top - popupHeight - POPUP_GAP_PX
+      if (flipped >= POPUP_VIEWPORT_MARGIN_PX) top = flipped
+    }
+
+    let left = inputRect.left + ac.state.caretLeft
+    if (left + width > window.innerWidth - POPUP_VIEWPORT_MARGIN_PX) {
+      left = Math.max(POPUP_VIEWPORT_MARGIN_PX, window.innerWidth - POPUP_VIEWPORT_MARGIN_PX - width)
+    }
+    if (left < POPUP_VIEWPORT_MARGIN_PX) left = POPUP_VIEWPORT_MARGIN_PX
+
+    setPopupPos({ top, left, width })
+  }, [ac.state.caretLeft])
+
+  useLayoutEffect(() => {
+    if (!ac.state.visible) return
+    computePopupPosition()
+  }, [ac.state.visible, ac.state.items.length, computePopupPosition])
+
+  useEffect(() => {
+    if (!ac.state.visible) return
+    const handler = () => computePopupPosition()
+    window.addEventListener('scroll', handler, true)
+    window.addEventListener('resize', handler)
+    return () => {
+      window.removeEventListener('scroll', handler, true)
+      window.removeEventListener('resize', handler)
+    }
+  }, [ac.state.visible, computePopupPosition])
+
+  const handleSelectItem = (item?: AutocompleteItem) => {
+    const input = inputRef.current
+    if (!input) return
+    const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length, item)
+    if (result) {
+      setRaw(result.value)
+      // Restore caret after React commits the new value.
+      requestAnimationFrame(() => {
+        if (!inputRef.current) return
+        inputRef.current.setSelectionRange(result.cursor, result.cursor)
+        inputRef.current.focus()
+      })
+    }
+  }
+
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Autocomplete-aware path — when the popup is visible the bar's outer
+    // Esc/Tab/Enter handlers must not fire, so we stopPropagation on every
+    // consumed key.
+    if (ac.state.visible) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        e.stopPropagation()
+        ac.handleKeyDown(e)
+        return
+      }
+      const isTagCreateNew =
+        ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
+      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || isTagCreateNew))) {
+        e.preventDefault()
+        e.stopPropagation()
+        handleSelectItem()
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        ac.dismiss()
+        return
+      }
+    }
+  }
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -306,7 +461,20 @@ export function QuickAddBar({
 
   if (!open) return null
 
-  return createPortal(
+  const popupHeader =
+    ac.state.trigger === '#'
+      ? 'Tags'
+      : ac.state.trigger === '/'
+        ? 'Projects'
+        : ac.state.items.some((it) => it.kind === 'org')
+          ? 'People & Orgs'
+          : 'People'
+  const isTagCreateNewVisible =
+    ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
+
+  return (
+    <>
+      {createPortal(
     <div className={`${styles.overlay} ${styles.open}`} onClick={onClose}>
       <div
         ref={surfaceRef}
@@ -324,7 +492,15 @@ export function QuickAddBar({
             className={styles.titleInput}
             placeholder="New task…"
             value={raw}
-            onChange={(e) => setRaw(e.target.value)}
+            onChange={(e) => {
+              setRaw(e.target.value)
+              ac.handleInputChange(
+                e.target.value,
+                e.target.selectionStart ?? e.target.value.length,
+                e.target,
+              )
+            }}
+            onKeyDown={onInputKeyDown}
             data-shortcut-scope="none"
           />
           <button
@@ -467,6 +643,63 @@ export function QuickAddBar({
       </div>
     </div>,
     document.body,
+      )}
+      {ac.state.visible &&
+        createPortal(
+          <div
+            ref={popupRef}
+            className={styles.popup}
+            style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width }}
+            role="listbox"
+            aria-label={popupHeader}
+          >
+            <div className={styles.popupHeader}>{popupHeader}</div>
+            {ac.state.items.map((item, i) => (
+              <button
+                key={`${item.kind}-${item.id}`}
+                type="button"
+                className={`${styles.popupItem} ${i === ac.state.selectedIndex ? styles.selected : ''}`}
+                role="option"
+                aria-selected={i === ac.state.selectedIndex}
+                onMouseDown={(e) => {
+                  // Prevent the input from blurring (which would dismiss the popup
+                  // before the click commits the selection).
+                  e.preventDefault()
+                  handleSelectItem(item)
+                }}
+              >
+                {item.color && (
+                  <span className={styles.chipDot} style={{ background: item.color }} />
+                )}
+                <span className={styles.popupBody}>
+                  <span className={styles.popupName}>
+                    {ac.state.trigger}
+                    {item.name}
+                  </span>
+                  {item.kind === 'org' && <span className={styles.popupMeta}> (org)</span>}
+                </span>
+              </button>
+            ))}
+            {isTagCreateNewVisible && (
+              <button
+                type="button"
+                className={`${styles.popupItem} ${styles.popupCreateNew}`}
+                role="option"
+                aria-selected={false}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  handleSelectItem()
+                }}
+              >
+                <span className={styles.popupName}>
+                  Press Enter to create #{ac.state.query}
+                </span>
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
+    </>
   )
 }
 

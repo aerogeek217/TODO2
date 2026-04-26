@@ -290,18 +290,20 @@
   line-height: 1.4;
 }
 
-/* ─── Autocomplete popup (P3 wires; markup absent in P1) ──────── */
+/* ─── Autocomplete popup (P3 — portal-anchored to document.body) ──────── */
 
+/* Positioned via inline `top`/`left`/`width` from the bar's input rect +
+ * caret offset. `position: fixed` keeps it pinned during scroll/resize; the
+ * bar recomputes on those events. Z-index sits above the bar's overlay
+ * (`--z-dialog`) so the popup paints over it. */
 .popup {
-  position: absolute;
-  margin-top: 4px;
-  width: 280px;
+  position: fixed;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-popup);
   overflow: hidden;
-  z-index: 1;
+  z-index: var(--z-dialog-overlay);
 }
 
 .popupHeader {
@@ -319,15 +321,27 @@
   align-items: center;
   gap: 10px;
   padding: 7px 12px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
+.popupItem:hover,
 .popupItem.selected {
   background: var(--color-accent-bg);
 }
 
 .popupItem.selected .popupName {
   color: var(--color-accent);
+}
+
+.popupCreateNew .popupName {
+  font-style: italic;
+  color: var(--color-text-muted);
 }
 
 .popupAvatar {
