@@ -34,9 +34,9 @@ test.describe('canvas WidgetKindMenu hover flyout (P6)', () => {
     const inset = listInsetByIndex(page)
     await expect(inset).toBeVisible()
     // The lens widget's header title is rendered as a title-caret button when
-    // `onTitleClick` is wired. WidgetHeader's button uses `aria-label="Change list"`
-    // (KIND_LABEL.lens === 'list'), title contains the def name.
-    const titleButton = inset.locator('button[aria-haspopup="menu"][aria-label="Change list"]').first()
+    // `onTitleClick` is wired. WidgetHeader's button uses `aria-label="Change List"`
+    // (KIND_LABEL.lens === 'List'), title contains the def name.
+    const titleButton = inset.locator('button[aria-haspopup="menu"][aria-label="Change List"]').first()
     await expect(titleButton).toContainText('Source list')
 
     await titleButton.click()
@@ -73,7 +73,7 @@ test.describe('canvas WidgetKindMenu hover flyout (P6)', () => {
 
     const inset = listInsetByIndex(page)
     await expect(inset).toBeVisible()
-    const titleButton = inset.locator('button[aria-haspopup="menu"][aria-label="Change list"]').first()
+    const titleButton = inset.locator('button[aria-haspopup="menu"][aria-label="Change List"]').first()
     await titleButton.click()
     const menu = widgetKindMenu(page)
     await expect(menu).toBeVisible()

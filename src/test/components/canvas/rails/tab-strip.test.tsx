@@ -129,11 +129,68 @@ describe('TabStrip', () => {
     expect(onAdd).toHaveBeenCalledWith('calendar', expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
   })
 
-  it('renders a caret on every pill when onOpenChangeType is wired', () => {
-    // code-review-2026-04-25 P5 widened the caret from active-only to per-pill
-    // so a non-active tab's kind can be changed without first activating it.
-    // The caret routes through `changeTabType` for non-active pills (see
-    // `SlotRenderer.handleChangeKind`).
+  it('right-click on a non-active pill fires onOpenChangeType with that pill\'s tabId at click coords', () => {
+    // triage-2026-04-27 P1 / Item 4: caret button removed; right-click is now
+    // the entry point for the per-tab kind-change menu.
+    const onOpenChangeType = vi.fn()
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={() => {}}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+        onOpenChangeType={onOpenChangeType}
+      />,
+    )
+    // Active is 'slot-a-t0' (lens/Weekly) — right-click the inactive Notes pill.
+    const inactivePill = screen.getAllByRole('tab')[1]!
+    fireEvent.contextMenu(inactivePill, { clientX: 123, clientY: 45 })
+    expect(onOpenChangeType).toHaveBeenCalledTimes(1)
+    const [tabId, anchor] = onOpenChangeType.mock.calls[0]
+    expect(tabId).toBe('slot-a-t1')
+    expect(anchor).toEqual({ x: 123, y: 45 })
+  })
+
+  it('right-click on the active pill fires onOpenChangeType with its tabId + click coords', () => {
+    const onOpenChangeType = vi.fn()
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={() => {}}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+        onOpenChangeType={onOpenChangeType}
+      />,
+    )
+    const activePill = screen.getAllByRole('tab')[0]!
+    fireEvent.contextMenu(activePill, { clientX: 200, clientY: 80 })
+    expect(onOpenChangeType).toHaveBeenCalledTimes(1)
+    const [tabId, anchor] = onOpenChangeType.mock.calls[0]
+    expect(tabId).toBe('slot-a-t0')
+    expect(anchor).toEqual({ x: 200, y: 80 })
+  })
+
+  it('left-click on a pill still activates it (regression — context menu does not steal click)', () => {
+    const onActivate = vi.fn()
+    render(
+      <TabStrip
+        slot={makeSlot()}
+        fromSide="right"
+        onActivateTab={onActivate}
+        onCloseTab={() => {}}
+        onAddTab={() => {}}
+        onOpenChangeType={() => {}}
+      />,
+    )
+    const inactivePill = screen.getAllByRole('tab')[1]!
+    const button = inactivePill.querySelector('button')!
+    fireEvent.click(button)
+    expect(onActivate).toHaveBeenCalledWith('slot-a-t1')
+  })
+
+  it('renders no caret button (caret chrome retired in triage-2026-04-27 P1)', () => {
     render(
       <TabStrip
         slot={makeSlot()}
@@ -144,50 +201,38 @@ describe('TabStrip', () => {
         onOpenChangeType={() => {}}
       />,
     )
-    const caretBtns = screen.queryAllByLabelText(/tab options$/i)
-    expect(caretBtns.length).toBe(2)
+    expect(screen.queryByLabelText(/tab options$/i)).toBeNull()
+    expect(screen.queryByText('▾')).toBeNull()
   })
 
-  it('caret on a non-active pill fires onOpenChangeType with that pill\'s tabId', () => {
-    const onOpenChangeType = vi.fn()
+  it('renders title-cased labels for every SlotKind (no Calendar fallthrough on stats kinds)', () => {
+    // Item 5: KIND_LABEL extended to Status / Discipline / Snooze graveyard /
+    // Horizons / Taskboard / Notes / Calendar / List; tabLabel reads from it.
+    const slot: Slot = {
+      id: 's',
+      activeTabId: 's-t0',
+      tabs: [
+        { id: 's-t0', type: 'status' },
+        { id: 's-t1', type: 'scoreboard' },
+        { id: 's-t2', type: 'snoozeGraveyard' },
+        { id: 's-t3', type: 'horizons' },
+        { id: 's-t4', type: 'taskboard' },
+      ],
+    }
     render(
       <TabStrip
-        slot={makeSlot()}
+        slot={slot}
         fromSide="right"
         onActivateTab={() => {}}
         onCloseTab={() => {}}
         onAddTab={() => {}}
-        onOpenChangeType={onOpenChangeType}
       />,
     )
-    // Active is 'slot-a-t0' (lens/Weekly) — click the inactive Notes pill's caret.
-    fireEvent.click(screen.getByLabelText(/Notes tab options/i))
-    expect(onOpenChangeType).toHaveBeenCalledTimes(1)
-    const [tabId, anchor] = onOpenChangeType.mock.calls[0]
-    expect(tabId).toBe('slot-a-t1')
-    expect(typeof anchor.x).toBe('number')
-    expect(typeof anchor.y).toBe('number')
-  })
-
-  it('active-pill caret fires onOpenChangeType with its tabId + anchor', () => {
-    const onOpenChangeType = vi.fn()
-    render(
-      <TabStrip
-        slot={makeSlot()}
-        fromSide="right"
-        onActivateTab={() => {}}
-        onCloseTab={() => {}}
-        onAddTab={() => {}}
-        onOpenChangeType={onOpenChangeType}
-      />,
-    )
-    const activeCaret = screen.getAllByLabelText(/tab options$/i)[0]!
-    fireEvent.click(activeCaret)
-    expect(onOpenChangeType).toHaveBeenCalledTimes(1)
-    const [tabId, anchor] = onOpenChangeType.mock.calls[0]
-    expect(tabId).toBe('slot-a-t0')
-    expect(typeof anchor.x).toBe('number')
-    expect(typeof anchor.y).toBe('number')
+    expect(screen.getByText('Status')).toBeInTheDocument()
+    expect(screen.getByText('Discipline')).toBeInTheDocument()
+    expect(screen.getByText('Snooze graveyard')).toBeInTheDocument()
+    expect(screen.getByText('Horizons')).toBeInTheDocument()
+    expect(screen.getByText('Taskboard')).toBeInTheDocument()
   })
 
   it('sets role=tab + id on each pill so aria-labelledby can link a tabpanel', () => {
@@ -304,7 +349,7 @@ describe('TabStrip', () => {
     expect(inactiveBtn.tabIndex).toBe(-1)
   })
 
-  it('caret is only rendered when onOpenChangeType is provided', () => {
+  it('right-click is a no-op when onOpenChangeType is not provided (browser default not suppressed)', () => {
     render(
       <TabStrip
         slot={makeSlot()}
@@ -314,6 +359,9 @@ describe('TabStrip', () => {
         onAddTab={() => {}}
       />,
     )
-    expect(screen.queryByLabelText(/tab options$/i)).toBeNull()
+    const pill = screen.getAllByRole('tab')[0]!
+    const evt = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    pill.dispatchEvent(evt)
+    expect(evt.defaultPrevented).toBe(false)
   })
 })

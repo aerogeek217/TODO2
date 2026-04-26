@@ -123,28 +123,6 @@
   background: var(--color-tint-6);
 }
 
-.caretBtn {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  line-height: 1;
-  padding: 1px 4px;
-  margin-left: 2px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.active .caretBtn {
-  color: var(--color-text-primary);
-}
-
-.caretBtn:hover {
-  color: var(--color-text-primary);
-  background: var(--color-tint-6);
-}
-
 .addBtn {
   align-self: center;
   background: transparent;

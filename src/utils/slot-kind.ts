@@ -12,12 +12,12 @@ export const KIND_ICON: Record<SlotKind, string> = {
 }
 
 export const KIND_LABEL: Record<SlotKind, string> = {
-  lens: 'list',
-  notes: 'notes',
-  calendar: 'calendar',
-  taskboard: 'taskboard',
-  horizons: 'horizons',
-  status: 'status',
-  scoreboard: 'scoreboard',
-  snoozeGraveyard: 'snooze graveyard',
+  lens: 'List',
+  notes: 'Notes',
+  calendar: 'Calendar',
+  taskboard: 'Taskboard',
+  horizons: 'Horizons',
+  status: 'Status',
+  scoreboard: 'Discipline',
+  snoozeGraveyard: 'Snooze graveyard',
 }

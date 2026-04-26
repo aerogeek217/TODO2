@@ -63,7 +63,7 @@ describe('SlotMenu keyboard nav', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getByRole('menu', { name: 'calendar slot options' })).toBeInTheDocument()
+    expect(screen.getByRole('menu', { name: 'Calendar slot options' })).toBeInTheDocument()
   })
 
   it('shows only above/below splits in vertical rails', () => {

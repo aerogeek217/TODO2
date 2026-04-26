@@ -22,13 +22,11 @@ export interface TabStripProps {
   onMore?: (anchor: { x: number; y: number }) => void
   onPopOut?: () => void
   /**
-   * Called when the user clicks any tab pill's drop-down caret (every pill
-   * carries one). The parent opens its `WidgetKindMenu` at the anchor; the
-   * `tabId` arg picks which tab the menu's kind change applies to (routed
-   * through `changeTabType` for non-active pills, `setSlotKind` for the
-   * active pill so slot-level fields are preserved as a unit). Wired up by
-   * code-review-2026-04-25 P5 — the prior single-arg signature only fired on
-   * the active pill.
+   * Called when the user right-clicks a tab pill. The parent opens its
+   * `WidgetKindMenu` at the click coordinates; the `tabId` arg picks which
+   * tab the menu's kind change applies to (routed through `changeTabType`
+   * for non-active pills, `setSlotKind` for the active pill so slot-level
+   * fields are preserved as a unit).
    */
   onOpenChangeType?: (tabId: string, anchor: { x: number; y: number }) => void
   onClose?: () => void
@@ -36,12 +34,12 @@ export interface TabStripProps {
   meta?: ReactNode
   /** Slot-level `⋯` options menu open state (for aria-expanded). */
   menuOpen?: boolean
-  /** Caret drop-down menu open state (for aria-expanded). */
+  /** Per-pill kind-change menu open state (for aria-expanded). */
   changeTypeMenuOpen?: boolean
   /**
-   * When the per-pill caret menu is open, the tab id it targets — used to set
-   * `aria-expanded` on that specific pill's caret instead of every active
-   * pill's caret. `undefined` collapses to "no caret active".
+   * When the per-pill kind-change menu is open, the tab id it targets — used
+   * to set `aria-expanded` on that specific pill instead of every pill.
+   * `undefined` collapses to "no per-pill menu active".
    */
   changeTypeMenuTabId?: string
   moreButtonRef?: Ref<HTMLButtonElement>
@@ -49,11 +47,8 @@ export interface TabStripProps {
 }
 
 function tabLabel(tab: Tab, listName: string | undefined): string {
-  if (tab.type === 'lens') return listName ?? 'List'
-  if (tab.type === 'taskboard') return 'Taskboard'
-  if (tab.type === 'notes') return 'Notes'
-  if (tab.type === 'horizons') return 'Horizons'
-  return 'Calendar'
+  if (tab.type === 'lens') return listName ?? KIND_LABEL.lens
+  return KIND_LABEL[tab.type]
 }
 
 interface TabPillProps {
@@ -63,12 +58,12 @@ interface TabPillProps {
   fromSide: RailSide
   onActivate: () => void
   onClose: () => void
-  /** When provided, renders a ▾ caret on every pill (active or not) that opens the kind-change menu for the specific tab. */
+  /** When provided, right-clicking the pill opens the kind-change menu for that tab at the click coords. */
   onOpenChangeType?: (tabId: string, anchor: { x: number; y: number }) => void
-  caretMenuOpen?: boolean
+  pillMenuOpen?: boolean
 }
 
-function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenChangeType, caretMenuOpen, buttonRef }: TabPillProps & { buttonRef?: Ref<HTMLButtonElement> }) {
+function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenChangeType, pillMenuOpen, buttonRef }: TabPillProps & { buttonRef?: Ref<HTMLButtonElement> }) {
   const listName = useListDefinitionStore((s) =>
     tab.type === 'lens' && tab.listDefinitionId != null
       ? s.listDefinitions.find((d) => d.id === tab.listDefinitionId)?.name
@@ -89,8 +84,6 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
     data: dragData,
   })
 
-  const showCaret = Boolean(onOpenChangeType)
-
   return (
     <div
       ref={draggable.setNodeRef}
@@ -101,6 +94,11 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
       id={tab.id}
       aria-selected={active}
       data-tab-id={tab.id}
+      onContextMenu={(e) => {
+        if (!onOpenChangeType) return
+        e.preventDefault()
+        onOpenChangeType(tab.id, { x: e.clientX, y: e.clientY })
+      }}
     >
       <button
         ref={buttonRef}
@@ -110,28 +108,12 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
         aria-label={ariaLabel}
         title={label}
         tabIndex={active ? 0 : -1}
+        aria-haspopup={onOpenChangeType ? 'menu' : undefined}
+        aria-expanded={onOpenChangeType ? (pillMenuOpen ? true : false) : undefined}
       >
         <span className={styles.kindIcon} aria-hidden="true">{KIND_ICON[tab.type]}</span>
         <span className={styles.label}>{label}</span>
       </button>
-      {showCaret && (
-        <button
-          type="button"
-          className={styles.caretBtn}
-          onClick={(e) => {
-            e.stopPropagation()
-            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
-            onOpenChangeType!(tab.id, { x: rect.left, y: rect.bottom + 4 })
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          aria-label={`${label} tab options`}
-          aria-haspopup="menu"
-          aria-expanded={caretMenuOpen ? true : false}
-          title="Tab options"
-        >
-          ▾
-        </button>
-      )}
       <button
         type="button"
         className={styles.closeBtn}
@@ -276,7 +258,7 @@ export function TabStrip({
                 onActivate={() => onActivateTab(tab.id)}
                 onClose={() => onCloseTab(tab.id)}
                 onOpenChangeType={onOpenChangeType}
-                caretMenuOpen={changeTypeMenuOpen && changeTypeMenuTabId === tab.id}
+                pillMenuOpen={changeTypeMenuOpen && changeTypeMenuTabId === tab.id}
                 buttonRef={(el) => {
                   if (el) pillButtonRefs.current.set(tab.id, el)
                   else pillButtonRefs.current.delete(tab.id)
