@@ -620,21 +620,32 @@ export function QuickAddBar({
         {/* Hint when empty */}
         {!hasChips && !hasUnmatched && (
           <div className={styles.hintRow}>
-            <span>Inline shortcuts:</span>
             <span>
               <Kbd>@</Kbd> person
             </span>
+            <span aria-hidden="true">·</span>
             <span>
               <Kbd>/</Kbd> project
             </span>
+            <span aria-hidden="true">·</span>
             <span>
               <Kbd>#</Kbd> tag
             </span>
+            <span aria-hidden="true">·</span>
             <span>
               <Kbd>:</Kbd> status
             </span>
-            <span style={{ opacity: 0.7 }}>
-              or natural dates: <i>tomorrow, fri 3pm</i>
+            <span aria-hidden="true">·</span>
+            <span>
+              <Kbd>!</Kbd> deadline (mon, fri…)
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              natural dates: <i>tomorrow, fri 3pm</i>
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              <i>every week</i>
             </span>
           </div>
         )}
