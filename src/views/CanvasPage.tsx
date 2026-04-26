@@ -310,14 +310,17 @@ export function CanvasPage() {
   const handleInsertTask = useCallback(
     async (rawTitle: string, projectId: number, beforeTodoId: number | null): Promise<number> => {
       if (!selectedCanvasId) return -1
-      // Read projects at call time to avoid re-creating this callback on position-only changes
+      // Read projects + todos at call time to avoid re-creating this callback on todo mutations.
+      // The previous `todosByProject` dep churned this callback on every insert, defeating
+      // ProjectNode.memo precisely during the Enter-chain focus window.
       const currentProjects = useProjectStore.getState().projects
       const { title, resolved } = parseTaskInput(rawTitle, people, currentProjects, orgs, statuses)
       const fd = getFilterDefaults(useFilterStore.getState().filters)
       supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
-      const projectTodos = todosByProject.get(pid) ?? []
-      const siblings = [...projectTodos].sort(bySortOrder)
+      const siblings = useTodoStore.getState().todos
+        .filter(t => t.projectId === pid)
+        .sort(bySortOrder)
       const { computeInsertionSort } = await import('../services/task-placement')
       const sortOrder = computeInsertionSort(siblings, beforeTodoId)
       const id = await addTodoAt(title || rawTitle, pid, selectedCanvasId, sortOrder)
@@ -328,7 +331,7 @@ export function CanvasPage() {
       )
       return id
     },
-    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignOrg, people, orgs, statuses]
+    [selectedCanvasId, addTodoAt, updateTodo, assignPerson, assignOrg, people, orgs, statuses]
   )
 
   const handleDeleteProject = useCallback(
