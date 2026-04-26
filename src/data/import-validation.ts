@@ -102,7 +102,7 @@ function isOptColor(v: unknown): boolean {
   return v === undefined || v === null || isValidCssColor(v)
 }
 
-const VALID_PROJECT_GROUP_BY = ['status', 'people', 'org', 'scheduled', 'deadline', 'date'] as const
+const VALID_PROJECT_GROUP_BY = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
 
 function isOptProjectGroupBy(v: unknown): boolean {
   if (v === undefined || v === null) return true

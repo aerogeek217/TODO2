@@ -217,6 +217,29 @@ describe('validateImportData', () => {
     }
   })
 
+  // Project.groupBy field validator (per-record). Must stay in sync with the
+  // settings-store `PROJECT_GROUP_BY_VALUES` source of truth.
+  it('accepts every ProjectGroupBy value on a project record', () => {
+    const valid = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
+    for (const groupBy of valid) {
+      const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
+      expect(result.ok, `groupBy=${groupBy}`).toBe(true)
+    }
+  })
+
+  it('accepts a project record with groupBy omitted or null', () => {
+    expect(validateImportData(validData({ projects: [makeProject()] })).ok).toBe(true)
+    expect(validateImportData(validData({ projects: [makeProject({ groupBy: null })] })).ok).toBe(true)
+  })
+
+  it('rejects a project record with an unknown groupBy', () => {
+    const bad = ['priority', 'TAG', 'random', 42]
+    for (const groupBy of bad) {
+      const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
+      expect(result.ok, `groupBy=${groupBy}`).toBe(false)
+    }
+  })
+
   // defaultProjectGroupBy
   it('accepts defaultProjectGroupBy with every valid ProjectGroupBy value plus empty', () => {
     const valid = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
