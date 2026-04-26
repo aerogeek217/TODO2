@@ -22,6 +22,7 @@ export async function auditData(): Promise<AuditReport> {
     todos, projects, canvases, people, orgs, statuses, tags,
     todoPeople, todoOrgs, todoTags, personOrgs, taskboards,
     listInsets, floatingNotes, floatingCalendars, floatingTaskboards, floatingHorizons,
+    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
@@ -40,6 +41,9 @@ export async function auditData(): Promise<AuditReport> {
     db.floatingCalendars.toArray(),
     db.floatingTaskboards.toArray(),
     db.floatingHorizons.toArray(),
+    db.floatingStatus.toArray(),
+    db.floatingScoreboard.toArray(),
+    db.floatingSnoozeGraveyard.toArray(),
   ])
 
   const todoIds = new Set(todos.map((t) => t.id!))
@@ -248,6 +252,45 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
+  const floatingStatusWithBadCanvas = floatingStatus.filter(
+    (h) => !canvasIds.has(h.canvasId),
+  )
+  if (floatingStatusWithBadCanvas.length > 0) {
+    issues.push({
+      table: 'floatingStatus',
+      description: 'Floating status widgets referencing deleted canvases',
+      count: floatingStatusWithBadCanvas.length,
+      ids: floatingStatusWithBadCanvas.map((h) => h.id!),
+      fix: 'delete',
+    })
+  }
+
+  const floatingScoreboardWithBadCanvas = floatingScoreboard.filter(
+    (h) => !canvasIds.has(h.canvasId),
+  )
+  if (floatingScoreboardWithBadCanvas.length > 0) {
+    issues.push({
+      table: 'floatingScoreboard',
+      description: 'Floating scoreboard widgets referencing deleted canvases',
+      count: floatingScoreboardWithBadCanvas.length,
+      ids: floatingScoreboardWithBadCanvas.map((h) => h.id!),
+      fix: 'delete',
+    })
+  }
+
+  const floatingSnoozeGraveyardWithBadCanvas = floatingSnoozeGraveyard.filter(
+    (h) => !canvasIds.has(h.canvasId),
+  )
+  if (floatingSnoozeGraveyardWithBadCanvas.length > 0) {
+    issues.push({
+      table: 'floatingSnoozeGraveyard',
+      description: 'Floating snooze graveyard widgets referencing deleted canvases',
+      count: floatingSnoozeGraveyardWithBadCanvas.length,
+      ids: floatingSnoozeGraveyardWithBadCanvas.map((h) => h.id!),
+      fix: 'delete',
+    })
+  }
+
   // --- Unplaced tasks: on a canvas but not in any project (invisible in canvas view) ---
 
   const unplacedTasks = todos.filter(
@@ -278,7 +321,8 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
     'rw',
     [db.todos, db.projects, db.todoPeople, db.todoOrgs, db.todoTags,
      db.personOrgs, db.taskboards, db.floatingTaskboards, db.listInsets, db.notes,
-     db.floatingNotes, db.floatingCalendars, db.floatingHorizons, db.statuses],
+     db.floatingNotes, db.floatingCalendars, db.floatingHorizons,
+     db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.statuses],
     async () => {
       // Taskboards need a special per-row entry filter rather than a blind field-clear.
       const todoIds = new Set((await db.todos.toArray()).map((t) => t.id!))

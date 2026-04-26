@@ -24,6 +24,9 @@ import { useFloatingCalendarStore } from './floating-calendar-store'
 import { useFloatingHorizonsStore } from './floating-horizons-store'
 import { useFloatingNoteStore } from './floating-note-store'
 import { useFloatingTaskboardStore } from './floating-taskboard-store'
+import { useFloatingStatusStore } from './floating-status-store'
+import { useFloatingScoreboardStore } from './floating-scoreboard-store'
+import { useFloatingSnoozeGraveyardStore } from './floating-snooze-graveyard-store'
 import { useListInsetStore } from './list-inset-store'
 
 function genSlotId(): string {
@@ -42,11 +45,14 @@ function genTabId(slotId: string): string {
  */
 async function removeFloatRow(descriptor: FloatDescriptor): Promise<void> {
   switch (descriptor.kind) {
-    case 'note':      await useFloatingNoteStore.getState().remove(descriptor.id); return
-    case 'calendar':  await useFloatingCalendarStore.getState().remove(descriptor.id); return
-    case 'taskboard': await useFloatingTaskboardStore.getState().remove(descriptor.id); return
-    case 'lens':      await useListInsetStore.getState().remove(descriptor.id); return
-    case 'horizons':  await useFloatingHorizonsStore.getState().remove(descriptor.id); return
+    case 'note':            await useFloatingNoteStore.getState().remove(descriptor.id); return
+    case 'calendar':        await useFloatingCalendarStore.getState().remove(descriptor.id); return
+    case 'taskboard':       await useFloatingTaskboardStore.getState().remove(descriptor.id); return
+    case 'lens':            await useListInsetStore.getState().remove(descriptor.id); return
+    case 'horizons':        await useFloatingHorizonsStore.getState().remove(descriptor.id); return
+    case 'status':          await useFloatingStatusStore.getState().remove(descriptor.id); return
+    case 'scoreboard':      await useFloatingScoreboardStore.getState().remove(descriptor.id); return
+    case 'snoozeGraveyard': await useFloatingSnoozeGraveyardStore.getState().remove(descriptor.id); return
   }
 }
 

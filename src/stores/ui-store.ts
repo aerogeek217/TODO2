@@ -45,7 +45,7 @@ export interface CanvasViewport {
  * distinguish the floating list row's drag id from a rail-docked list row's
  * — those are distinct surfaces and live in `utils/task-dnd/ids.ts`.
  */
-export type FloatDragKind = 'note' | 'calendar' | 'lens' | 'taskboard' | 'horizons'
+export type FloatDragKind = 'note' | 'calendar' | 'lens' | 'taskboard' | 'horizons' | 'status' | 'scoreboard' | 'snoozeGraveyard'
 
 export interface FloatDragState {
   kind: FloatDragKind

@@ -6,6 +6,9 @@ export const KIND_ICON: Record<SlotKind, string> = {
   calendar: '⊞',      // ⊞
   taskboard: '☰',     // ☰
   horizons: '⧻',      // ⧻
+  status: '▥',        // ▥ — stacked status bar
+  scoreboard: '◑',    // ◑ — scoreboard / metrics
+  snoozeGraveyard: '◊', // ◊ — deferred / snoozed
 }
 
 export const KIND_LABEL: Record<SlotKind, string> = {
@@ -14,4 +17,7 @@ export const KIND_LABEL: Record<SlotKind, string> = {
   calendar: 'calendar',
   taskboard: 'taskboard',
   horizons: 'horizons',
+  status: 'status',
+  scoreboard: 'scoreboard',
+  snoozeGraveyard: 'snooze graveyard',
 }

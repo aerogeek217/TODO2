@@ -20,9 +20,12 @@ import { FloatingNoteNode, type FloatingNoteNodeData } from './FloatingNoteNode'
 import { FloatingCalendarNode, type FloatingCalendarNodeData } from './FloatingCalendarNode'
 import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { FloatingHorizonsNode, type FloatingHorizonsNodeData } from './FloatingHorizonsNode'
+import { FloatingStatusNode, type FloatingStatusNodeData } from './FloatingStatusNode'
+import { FloatingScoreboardNode, type FloatingScoreboardNodeData } from './FloatingScoreboardNode'
+import { FloatingSnoozeGraveyardNode, type FloatingSnoozeGraveyardNodeData } from './FloatingSnoozeGraveyardNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
-import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, Taskboard } from '../../models'
+import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Taskboard } from '../../models'
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { encodeRailsDropId, RAILS_DRAG_TYPE, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
@@ -109,14 +112,17 @@ const BoundsOverlay = memo(function BoundsOverlay({ maxExtent }: { maxExtent: nu
   )
 })
 
-// React Flow node id prefixes for the five floating widget kinds live in
-// `utils/float-kind-registry.ts`. Adding a sixth widget kind: append an entry
+// React Flow node id prefixes for the floating widget kinds live in
+// `utils/float-kind-registry.ts`. Adding a new widget kind: append an entry
 // there + define the matching floating-* store + dispatch handler.
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
 const CALENDAR_PREFIX = 'calendar-'
 const TASKBOARD_PREFIX = 'taskboard-'
 const HORIZONS_PREFIX = 'horizons-'
+const STATUS_PREFIX = 'status-'
+const SCOREBOARD_PREFIX = 'scoreboard-'
+const SNOOZE_GRAVEYARD_PREFIX = 'snooze-graveyard-'
 
 /** Stable no-op used as a fallback for optional callback props so that omitted
  *  handlers don't produce a fresh function reference each render. */
@@ -146,6 +152,9 @@ const nodeTypes: NodeTypes = {
   floatingCalendar: FloatingCalendarNode as unknown as NodeTypes[string],
   taskboard: TaskboardNode as unknown as NodeTypes[string],
   floatingHorizons: FloatingHorizonsNode as unknown as NodeTypes[string],
+  floatingStatus: FloatingStatusNode as unknown as NodeTypes[string],
+  floatingScoreboard: FloatingScoreboardNode as unknown as NodeTypes[string],
+  floatingSnoozeGraveyard: FloatingSnoozeGraveyardNode as unknown as NodeTypes[string],
 }
 
 export interface ProjectHandlers {
@@ -210,6 +219,18 @@ interface CanvasViewProps {
   onHorizonsDragStop?: (id: number, x: number, y: number) => void
   onCloseHorizons?: (id: number) => void
   onResizeHorizons?: (id: number, width: number, height: number) => void
+  floatingStatus?: FloatingStatus[]
+  onStatusDragStop?: (id: number, x: number, y: number) => void
+  onCloseStatus?: (id: number) => void
+  onResizeStatus?: (id: number, width: number, height: number) => void
+  floatingScoreboard?: FloatingScoreboard[]
+  onScoreboardDragStop?: (id: number, x: number, y: number) => void
+  onCloseScoreboard?: (id: number) => void
+  onResizeScoreboard?: (id: number, width: number, height: number) => void
+  floatingSnoozeGraveyard?: FloatingSnoozeGraveyard[]
+  onSnoozeGraveyardDragStop?: (id: number, x: number, y: number) => void
+  onCloseSnoozeGraveyard?: (id: number) => void
+  onResizeSnoozeGraveyard?: (id: number, width: number, height: number) => void
   onCascadeShift?: (shifts: Array<{ projectId: number; x: number; y: number }>) => void
   showCompleted?: boolean
   showHiddenStatuses?: boolean
@@ -258,6 +279,18 @@ export function CanvasView({
   onHorizonsDragStop,
   onCloseHorizons,
   onResizeHorizons,
+  floatingStatus,
+  onStatusDragStop,
+  onCloseStatus,
+  onResizeStatus,
+  floatingScoreboard,
+  onScoreboardDragStop,
+  onCloseScoreboard,
+  onResizeScoreboard,
+  floatingSnoozeGraveyard,
+  onSnoozeGraveyardDragStop,
+  onCloseSnoozeGraveyard,
+  onResizeSnoozeGraveyard,
   onCascadeShift,
   showCompleted,
   showHiddenStatuses,
@@ -317,6 +350,9 @@ export function CanvasView({
     onNoteDragStop,
     onCalendarDragStop,
     onHorizonsDragStop,
+    onStatusDragStop,
+    onScoreboardDragStop,
+    onSnoozeGraveyardDragStop,
     onNodeDragStop,
   })
   const { detectAndCacheDimChanges, processSetNodesUpdate, persistCascadeShifts } = useCascadeShifts()
@@ -562,8 +598,56 @@ export function CanvasView({
       }
     })
 
+    const statusNodes: Node[] = (floatingStatus ?? []).map((fs) => {
+      const id = `${STATUS_PREFIX}${fs.id}`
+      const data: FloatingStatusNodeData = {
+        status: fs,
+        onDelete: onCloseStatus ?? NOOP,
+        onResize: onResizeStatus,
+      }
+      return {
+        id,
+        type: 'floatingStatus',
+        position: { x: fs.x, y: fs.y },
+        zIndex: 10,
+        data: stabilize(id, data as unknown as Record<string, unknown>),
+      }
+    })
+
+    const scoreboardNodes: Node[] = (floatingScoreboard ?? []).map((sb) => {
+      const id = `${SCOREBOARD_PREFIX}${sb.id}`
+      const data: FloatingScoreboardNodeData = {
+        scoreboard: sb,
+        onDelete: onCloseScoreboard ?? NOOP,
+        onResize: onResizeScoreboard,
+      }
+      return {
+        id,
+        type: 'floatingScoreboard',
+        position: { x: sb.x, y: sb.y },
+        zIndex: 10,
+        data: stabilize(id, data as unknown as Record<string, unknown>),
+      }
+    })
+
+    const graveyardNodes: Node[] = (floatingSnoozeGraveyard ?? []).map((sg) => {
+      const id = `${SNOOZE_GRAVEYARD_PREFIX}${sg.id}`
+      const data: FloatingSnoozeGraveyardNodeData = {
+        graveyard: sg,
+        onDelete: onCloseSnoozeGraveyard ?? NOOP,
+        onResize: onResizeSnoozeGraveyard,
+      }
+      return {
+        id,
+        type: 'floatingSnoozeGraveyard',
+        position: { x: sg.x, y: sg.y },
+        zIndex: 10,
+        data: stabilize(id, data as unknown as Record<string, unknown>),
+      }
+    })
+
     nodeDataCacheRef.current = nextCache
-    return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...tbNodes, ...horizonsNodes]
+    return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...tbNodes, ...horizonsNodes, ...statusNodes, ...scoreboardNodes, ...graveyardNodes]
   }, [
     projects, todosByProject, assignedPeopleMap, assignedOrgsMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
@@ -574,6 +658,9 @@ export function CanvasView({
     allPeople, allOrgs,
     floatingTaskboards, taskboard, onToggleTaskboardCollapse, onCloseTaskboard, onResizeTaskboard,
     floatingHorizons, onCloseHorizons, onResizeHorizons,
+    floatingStatus, onCloseStatus, onResizeStatus,
+    floatingScoreboard, onCloseScoreboard, onResizeScoreboard,
+    floatingSnoozeGraveyard, onCloseSnoozeGraveyard, onResizeSnoozeGraveyard,
     showCompleted, showHiddenStatuses,
   ])
 

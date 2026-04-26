@@ -249,6 +249,9 @@ const KIND_DISPLAY: Record<SlotKind, string> = {
   calendar: 'Calendar',
   taskboard: 'Taskboard',
   horizons: 'Horizons',
+  status: 'Status',
+  scoreboard: 'Discipline',
+  snoozeGraveyard: 'Snooze graveyard',
 }
 
 function useSlotStubLabel(slot: Slot): string {

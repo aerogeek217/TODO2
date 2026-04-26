@@ -1,4 +1,4 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard } from '../models'
 import type { LegacySavedView, LegacySavedViewFilters } from './saved-view-legacy'
 
 /**
@@ -512,6 +512,42 @@ function checkFloatingCalendar(v: unknown): CheckResult {
 }
 
 function checkFloatingHorizons(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['canvasId', isFiniteNum(v.canvasId)],
+    ['x', isFiniteNum(v.x)],
+    ['y', isFiniteNum(v.y)],
+    ['width', isFiniteNum(v.width)],
+    ['height', isFiniteNum(v.height)],
+    ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
+  ])
+}
+
+function checkFloatingStatus(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['canvasId', isFiniteNum(v.canvasId)],
+    ['x', isFiniteNum(v.x)],
+    ['y', isFiniteNum(v.y)],
+    ['width', isFiniteNum(v.width)],
+    ['height', isFiniteNum(v.height)],
+    ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
+  ])
+}
+
+function checkFloatingScoreboard(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['canvasId', isFiniteNum(v.canvasId)],
+    ['x', isFiniteNum(v.x)],
+    ['y', isFiniteNum(v.y)],
+    ['width', isFiniteNum(v.width)],
+    ['height', isFiniteNum(v.height)],
+    ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
+  ])
+}
+
+function checkFloatingSnoozeGraveyard(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
     ['canvasId', isFiniteNum(v.canvasId)],
@@ -1095,6 +1131,42 @@ function pickFloatingHorizons(v: Record<string, unknown>): FloatingHorizons {
   }
 }
 
+function pickFloatingStatus(v: Record<string, unknown>): FloatingStatus {
+  return {
+    id: v.id as number | undefined,
+    canvasId: v.canvasId as number,
+    x: v.x as number,
+    y: v.y as number,
+    width: v.width as number,
+    height: v.height as number,
+    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
+  }
+}
+
+function pickFloatingScoreboard(v: Record<string, unknown>): FloatingScoreboard {
+  return {
+    id: v.id as number | undefined,
+    canvasId: v.canvasId as number,
+    x: v.x as number,
+    y: v.y as number,
+    width: v.width as number,
+    height: v.height as number,
+    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
+  }
+}
+
+function pickFloatingSnoozeGraveyard(v: Record<string, unknown>): FloatingSnoozeGraveyard {
+  return {
+    id: v.id as number | undefined,
+    canvasId: v.canvasId as number,
+    x: v.x as number,
+    y: v.y as number,
+    width: v.width as number,
+    height: v.height as number,
+    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
+  }
+}
+
 function pickListDefinition(v: Record<string, unknown>): ListDefinition {
   return {
     id: v.id as number | undefined,
@@ -1145,6 +1217,9 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'floatingCalendars', check: checkFloatingCalendar },
   { key: 'floatingNotes', check: checkFloatingNote },
   { key: 'floatingHorizons', check: checkFloatingHorizons },
+  { key: 'floatingStatus', check: checkFloatingStatus },
+  { key: 'floatingScoreboard', check: checkFloatingScoreboard },
+  { key: 'floatingSnoozeGraveyard', check: checkFloatingSnoozeGraveyard },
 ]
 
 export interface ImportData {
@@ -1185,6 +1260,9 @@ export interface ImportData {
   floatingCalendars: FloatingCalendar[]
   floatingNotes: FloatingNote[]
   floatingHorizons: FloatingHorizons[]
+  floatingStatus: FloatingStatus[]
+  floatingScoreboard: FloatingScoreboard[]
+  floatingSnoozeGraveyard: FloatingSnoozeGraveyard[]
 }
 
 export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
@@ -1276,6 +1354,9 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       floatingCalendars: ((raw.floatingCalendars ?? []) as Record<string, unknown>[]).map(pickFloatingCalendar),
       floatingNotes: ((raw.floatingNotes ?? []) as Record<string, unknown>[]).map(pickFloatingNote),
       floatingHorizons: ((raw.floatingHorizons ?? []) as Record<string, unknown>[]).map(pickFloatingHorizons),
+      floatingStatus: ((raw.floatingStatus ?? []) as Record<string, unknown>[]).map(pickFloatingStatus),
+      floatingScoreboard: ((raw.floatingScoreboard ?? []) as Record<string, unknown>[]).map(pickFloatingScoreboard),
+      floatingSnoozeGraveyard: ((raw.floatingSnoozeGraveyard ?? []) as Record<string, unknown>[]).map(pickFloatingSnoozeGraveyard),
     },
   }
 }

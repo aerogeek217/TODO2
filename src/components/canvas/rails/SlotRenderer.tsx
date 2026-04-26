@@ -17,6 +17,9 @@ import { CalendarOrientationToggle } from './calendar/CalendarOrientationToggle'
 import { NotesSlotContent } from './NotesSlotContent'
 import { TaskboardSlotContent } from './TaskboardSlotContent'
 import { HorizonsSlotContent } from './HorizonsSlotContent'
+import { StatusSlotContent } from './StatusSlotContent'
+import { ScoreboardSlotContent } from './ScoreboardSlotContent'
+import { SnoozeGraveyardSlotContent } from './SnoozeGraveyardSlotContent'
 import { SlotMenu } from './SlotMenu'
 import { WidgetKindMenu } from '../../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPopup'
@@ -199,6 +202,12 @@ export function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     body = <TaskboardSlotContent />
   } else if (activeTab.type === 'horizons') {
     body = <HorizonsSlotContent />
+  } else if (activeTab.type === 'status') {
+    body = <StatusSlotContent />
+  } else if (activeTab.type === 'scoreboard') {
+    body = <ScoreboardSlotContent />
+  } else if (activeTab.type === 'snoozeGraveyard') {
+    body = <SnoozeGraveyardSlotContent />
   } else {
     body = (
       <div style={{ padding: 12, color: 'var(--color-text-muted)', fontSize: 'var(--font-size-meta)' }}>

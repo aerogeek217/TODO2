@@ -1,6 +1,6 @@
 export type RailSide = 'left' | 'right' | 'top' | 'bottom'
 export type RailOrientation = 'vertical' | 'horizontal'
-export type SlotKind = 'lens' | 'notes' | 'calendar' | 'taskboard' | 'horizons'
+export type SlotKind = 'lens' | 'notes' | 'calendar' | 'taskboard' | 'horizons' | 'status' | 'scoreboard' | 'snoozeGraveyard'
 /** Alias used by per-tab content type (Phase 1 of rail-tabs). */
 export type TabType = SlotKind
 export type CalendarOrientation = 'vertical' | 'horizontal'
@@ -151,7 +151,7 @@ export function railOrientationForSide(side: RailSide): RailOrientation {
   return side === 'left' || side === 'right' ? 'vertical' : 'horizontal'
 }
 
-export const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard', 'horizons']
+export const SLOT_KINDS: readonly SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard', 'horizons', 'status', 'scoreboard', 'snoozeGraveyard']
 
 /**
  * Resolve the active tab of a slot. Falls back to `tabs[0]` when `activeTabId`

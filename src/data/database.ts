@@ -1,5 +1,5 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, Tag, TodoTag } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import type { HorizonKey } from '../services/horizons'
@@ -32,6 +32,9 @@ export class Todo2Database extends Dexie {
   floatingNotes!: Table<FloatingNote, number>
   floatingTaskboards!: Table<FloatingTaskboard, number>
   floatingHorizons!: Table<FloatingHorizons, number>
+  floatingStatus!: Table<FloatingStatus, number>
+  floatingScoreboard!: Table<FloatingScoreboard, number>
+  floatingSnoozeGraveyard!: Table<FloatingSnoozeGraveyard, number>
   tags!: Table<Tag, number>
   todoTags!: Table<TodoTag, number>
 
@@ -293,6 +296,32 @@ export class Todo2Database extends Dexie {
       .upgrade(async (tx) => {
         await runV41Migration(tx)
       })
+
+    // v42: reserved for the `todoEvents` history-log table (Phase 3 of
+    // stats-widgets-2026-04-25). Phase 1 doesn't add it; the empty bump
+    // keeps version numbering aligned with the plan's D9 cadence (one
+    // table per version).
+    this.version(42).stores({})
+
+    // v43: add `floatingStatus` table — placement-only backing store for the
+    // status stat widget (Phase 1 of stats-widgets-2026-04-25). Mirrors v38
+    // floatingHorizons / v27 floatingCalendars; widget content is derived
+    // from todo + status state.
+    this.version(43).stores({
+      floatingStatus: '++id, canvasId',
+    })
+
+    // v44: add `floatingScoreboard` table — placement-only backing store for
+    // the discipline scoreboard stat widget. Same shape as v43.
+    this.version(44).stores({
+      floatingScoreboard: '++id, canvasId',
+    })
+
+    // v45: add `floatingSnoozeGraveyard` table — placement-only backing store
+    // for the snooze-graveyard stat widget. Same shape as v43.
+    this.version(45).stores({
+      floatingSnoozeGraveyard: '++id, canvasId',
+    })
   }
 }
 
@@ -824,7 +853,7 @@ export async function persistHorizonSlots(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.tags, db.todoTags] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.tags, db.todoTags] as const
 
 /**
  * Append `" #tagname"` for every assigned tag to each todo's title. Mutates
