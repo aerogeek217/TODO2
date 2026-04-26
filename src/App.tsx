@@ -14,6 +14,7 @@ import { FileSyncBanner } from './components/layout/FileSyncBanner'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
 import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
+import { QuickAddBar } from './components/overlays/QuickAddBar'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
@@ -73,6 +74,18 @@ function AppBulkConfirmDialog() {
       }}
     />
   )
+}
+
+/**
+ * P1 wrapper for the QuickAddBar shell. Subscribes to `useUIStore.quickAddOpen`
+ * and renders the bar when set; submit is a no-op closer until P4 wires real
+ * persistence. The bar is opened via the temporary "QuickAdd Bar (debug)"
+ * command in the palette while P2-P4 land.
+ */
+function AppQuickAddBar() {
+  const open = useUIStore((s) => s.quickAddOpen)
+  const close = useUIStore((s) => s.closeQuickAdd)
+  return <QuickAddBar open={open} onClose={close} onSubmit={close} />
 }
 
 function AppShell() {
@@ -278,6 +291,7 @@ function AppShell() {
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
 
       <AppBulkConfirmDialog />
+      <AppQuickAddBar />
       <UndoSnackbar />
       {isMobile && <FilterSheet />}
       {isMobile && <BottomTabBar />}

@@ -98,6 +98,16 @@ interface UIState {
    * when the drag ends without a dock or is cancelled.
    */
   floatAnnouncement: string
+  /**
+   * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
+   * + the FAB + any future caller can dispatch open/close without
+   * prop-drilling. P5 will repoint `openCreatePopup`'s callers to this; for
+   * now P1 mounts the bar behind a debug toggle so the team can review the
+   * shell while P2-P4 land.
+   */
+  quickAddOpen: boolean
+  /** Optional initial title text seeded into the bar; null = empty. */
+  quickAddSeed: string | null
 
   setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
@@ -130,6 +140,8 @@ interface UIState {
   setFloatAnnouncement: (text: string) => void
   openListsEditor: (initialId?: number | null) => void
   closeListsEditor: () => void
+  openQuickAdd: (seed?: string) => void
+  closeQuickAdd: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -156,6 +168,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   listsEditorInitialId: null,
   floatDrag: null,
   floatAnnouncement: '',
+  quickAddOpen: false,
+  quickAddSeed: null,
 
   setActiveView(view: AppView) {
     set({ activeView: view })
@@ -307,5 +321,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeListsEditor() {
     set({ listsEditorOpen: false, listsEditorInitialId: null })
+  },
+
+  openQuickAdd(seed) {
+    set({ quickAddOpen: true, quickAddSeed: seed ?? null })
+  },
+
+  closeQuickAdd() {
+    set({ quickAddOpen: false, quickAddSeed: null })
   },
 }))

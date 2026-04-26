@@ -79,6 +79,8 @@
   --color-surface-bright: #2d2b29;
   --color-surface-glass: rgba(26, 25, 24, 0.85);
   --color-surface-hover: rgba(255, 255, 255, 0.05);
+  /* Alias for elevated surfaces (modals, popovers, the QuickAddBar). */
+  --color-bg-elevated: var(--color-surface-high);
   --color-border: #302e2b;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
@@ -124,6 +126,7 @@
   --color-accent-bg-subtle: rgba(126, 196, 188, 0.05);
   --color-accent-bg-light: rgba(126, 196, 188, 0.08);
   --color-accent-bg-medium: rgba(126, 196, 188, 0.12);
+  --color-accent-bg: rgba(126, 196, 188, 0.18);
   --color-accent-alpha: var(--color-accent-bg-medium);
   --color-accent-glow: rgba(126, 196, 188, 0.3);
   --color-accent-focus: rgba(126, 196, 188, 0.4);
@@ -198,6 +201,8 @@
   --color-surface-bright: #e5e3e0;
   --color-surface-glass: rgba(255, 255, 255, 0.88);
   --color-surface-hover: rgba(0, 0, 0, 0.05);
+  /* Alias for elevated surfaces (modals, popovers, the QuickAddBar). */
+  --color-bg-elevated: var(--color-surface-high);
   --color-border: #d9d5d0;
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
@@ -243,6 +248,7 @@
   --color-accent-bg-subtle: rgba(58, 158, 147, 0.04);
   --color-accent-bg-light: rgba(58, 158, 147, 0.06);
   --color-accent-bg-medium: rgba(58, 158, 147, 0.10);
+  --color-accent-bg: rgba(58, 158, 147, 0.18);
   --color-accent-alpha: var(--color-accent-bg-medium);
   --color-accent-glow: rgba(58, 158, 147, 0.2);
   --color-accent-focus: rgba(58, 158, 147, 0.3);

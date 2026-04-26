@@ -76,6 +76,12 @@ export function createCommands(ctx: CommandContext): Command[] {
 
     // Task actions
     { id: 'new-task', name: 'New Task', shortcut: cmdSpace, category: 'task', action: ctx.openQuickAdd },
+    // Debug entry — manual access to the QuickAddBar shell while P2-P4 land.
+    // Removed in P5 once `openQuickAdd` itself routes to the bar.
+    { id: 'debug-quickadd-bar', name: 'QuickAdd Bar (debug)', category: 'task', action: async () => {
+      const { useUIStore } = await import('../stores/ui-store')
+      useUIStore.getState().openQuickAdd()
+    }},
     ...(ctx.createFloatingNote ? [{ id: 'new-floating-note', name: 'New Note', shortcut: 'N', category: 'task' as CommandCategory, action: ctx.createFloatingNote }] : []),
     { id: 'undo', name: 'Undo', shortcut: cmdZ, category: 'task', action: async () => {
       const { useUndoStore } = await import('../stores/undo-store')
