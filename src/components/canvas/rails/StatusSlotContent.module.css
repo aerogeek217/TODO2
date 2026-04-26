@@ -4,7 +4,73 @@
   height: 100%;
   min-height: 0;
   padding: var(--space-3);
+  gap: var(--space-5);
   box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.heroBar {
+  display: flex;
+  flex: 0 0 auto;
+  height: 12px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-surface-high);
+}
+
+.heroSegment {
+  height: 100%;
+  min-width: 2px;
+}
+
+.heroSegment + .heroSegment {
+  border-left: 1px solid var(--color-surface);
+}
+
+.legendRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 24px;
+}
+
+.legendIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.legendLabel {
+  flex: 1 1 auto;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legendCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.legendPct {
+  width: 32px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .empty {
