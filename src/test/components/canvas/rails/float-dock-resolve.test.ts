@@ -313,4 +313,82 @@ describe('resolveFloatDockTarget', () => {
     )
     expect(target).toEqual({ kind: 'empty-side', side: 'bottom' })
   })
+
+  // Phase 6.5.2 (real-browser-testing): slot drops outrank empty-side drops
+  // when both share the pointer. The DockOverlay corner sub-zones extend along
+  // the perpendicular rail's width and stack above the rail's slot stub /
+  // expanded slot body — without this preference, dropping on a collapsed-rail
+  // stub at the top of a perp rail resolves to corner-claim, not slot-merge.
+  describe('priority ordering (slot > tab-strip > empty-side)', () => {
+    it('prefers a slot hit over an empty-side hit at the same pointer (collapsed-rail stub case)', () => {
+      const slotId = 'collapsed-stub'
+      const slotElId = encodeRailsDropId({ kind: 'slot', slotId })
+      const cornerId = encodeRailsDropId({ kind: 'empty-side', side: 'top', claim: 'start' })
+      // Corner sub-zone paints on top (z-index 1000) and is returned first by
+      // `elementsFromPoint`. Slot stub is below in z-order.
+      const cornerEl = makeDropEl(cornerId, { left: 0, top: 0, width: 28, height: 80 })
+      const slotEl = makeDropEl(slotElId, { left: 0, top: 0, width: 28, height: 200 })
+      const target = resolveFloatDockTarget(
+        { x: 14, y: 40 },
+        {
+          elementsFromPoint: () => [cornerEl, slotEl],
+          getSlotOrientation: () => 'vertical',
+        },
+      )
+      // Without the preference the resolver would have returned the corner
+      // (first in stack); 6.5.2 picks the slot instead.
+      expect(target?.kind).toBe('slot')
+      if (target?.kind === 'slot') {
+        expect(target.slotId).toBe(slotId)
+      }
+    })
+
+    it('prefers a tab-strip hit over an empty-side hit at the same pointer', () => {
+      const slotId = 'slot-with-pills'
+      const tabStripElId = encodeRailsDropId({ kind: 'tab-strip', slotId })
+      const cornerId = encodeRailsDropId({ kind: 'empty-side', side: 'top', claim: 'start' })
+      const cornerEl = makeDropEl(cornerId, { left: 0, top: 0, width: 80, height: 80 })
+      const stripEl = makeDropEl(tabStripElId, { left: 0, top: 0, width: 200, height: 32 })
+      addPill(stripEl, 'a', { left: 0, top: 0, width: 100, height: 32 })
+      addPill(stripEl, 'b', { left: 100, top: 0, width: 100, height: 32 })
+      const target = resolveFloatDockTarget(
+        { x: 50, y: 16 },
+        {
+          elementsFromPoint: () => [cornerEl, stripEl],
+          getSlotOrientation: () => null,
+        },
+      )
+      expect(target?.kind).toBe('tab-strip')
+    })
+
+    it('prefers a slot hit over a tab-strip hit at the same pointer (slot is most specific)', () => {
+      const slotId = 'slot-z'
+      const slotElId = encodeRailsDropId({ kind: 'slot', slotId })
+      const tabStripElId = encodeRailsDropId({ kind: 'tab-strip', slotId })
+      const stripEl = makeDropEl(tabStripElId, { left: 0, top: 0, width: 200, height: 32 })
+      addPill(stripEl, 'a', { left: 0, top: 0, width: 100, height: 32 })
+      const slotEl = makeDropEl(slotElId, { left: 0, top: 0, width: 200, height: 200 })
+      const target = resolveFloatDockTarget(
+        { x: 50, y: 100 },
+        {
+          elementsFromPoint: () => [stripEl, slotEl],
+          getSlotOrientation: () => 'vertical',
+        },
+      )
+      expect(target?.kind).toBe('slot')
+    })
+
+    it('falls back to empty-side when no slot or tab-strip is in the stack', () => {
+      const cornerId = encodeRailsDropId({ kind: 'empty-side', side: 'top', claim: 'start' })
+      const cornerEl = makeDropEl(cornerId, { left: 0, top: 0, width: 80, height: 80 })
+      const target = resolveFloatDockTarget(
+        { x: 40, y: 40 },
+        {
+          elementsFromPoint: () => [cornerEl],
+          getSlotOrientation: () => null,
+        },
+      )
+      expect(target).toEqual({ kind: 'empty-side', side: 'top', claim: 'start' })
+    })
+  })
 })

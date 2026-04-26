@@ -4,12 +4,22 @@ import { useListDefinitionStore } from '../stores/list-definition-store'
 import { createLensSlot, useCanvasRailsStore } from '../stores/canvas-rails-store'
 import type { RailsState } from '../models/canvas-rails'
 
+function hasPersistedRails(rails: RailsState | null | undefined): rails is RailsState {
+  return !!rails && !!(rails.left || rails.right || rails.top || rails.bottom)
+}
+
 /**
  * Hydrate the rails store on first mount and persist updates back through
- * `settings.canvasRails`. When no persisted layout exists, seeds a default
- * right-side lens slot pointing at the `thisweek` horizon list. List
- * definitions must be loaded before seeding so the seed lens has a real
- * `listDefinitionId` (the seed picks the canonical thisweek def).
+ * `settings.canvasRails`. Two independent paths land into `hydrate()`:
+ *
+ * 1. **Persisted hydration** (first effect) runs as soon as `canvasRails`
+ *    settings carry at least one non-empty rail. It does NOT depend on the
+ *    list-definition store — saved slots already carry their `listDefinitionId`
+ *    references, so a slow IDB read on `listDefinitions` cannot block the
+ *    user's saved layout from rendering.
+ * 2. **Default seed** (second effect) only fires when there's no persisted
+ *    layout. It needs `listDefinitionsLoaded` because the seed lens picks the
+ *    canonical thisweek horizon def, and that lookup wants a real id.
  */
 export function useDefaultRails(): RailsState {
   const horizonSlots = useSettingsStore((s) => s.horizonSlots)
@@ -20,12 +30,14 @@ export function useDefaultRails(): RailsState {
 
   useEffect(() => {
     if (hydrated) return
+    if (!hasPersistedRails(persistedRails)) return
+    hydrate(persistedRails)
+  }, [hydrated, hydrate, persistedRails])
+
+  useEffect(() => {
+    if (hydrated) return
+    if (hasPersistedRails(persistedRails)) return
     if (!listDefinitionsLoaded) return
-    const hasPersisted = persistedRails && (persistedRails.left || persistedRails.right || persistedRails.top || persistedRails.bottom)
-    if (hasPersisted) {
-      hydrate(persistedRails)
-      return
-    }
     const thisweekId = horizonSlots?.thisweek
     const slot = createLensSlot(thisweekId)
     hydrate({

@@ -575,13 +575,21 @@ function defaultElementsFromPoint(x: number, y: number): Element[] {
 }
 
 /**
- * Walk `elementsFromPoint(x, y)` bottom-up and return the first element
- * carrying a `data-rails-drop-id`. Decodes the id via `decodeRailsDropId`;
- * for slot hits, disambiguates center-merge vs split via `pointerToSplitZone`
- * against the element's bounding rect. For tab-strip hits, computes the
- * insertion index from pill midpoints. Returns null when the pointer misses
- * every rail hotspot (caller falls through to the float's position-persist
- * path).
+ * Walk `elementsFromPoint(x, y)` and return the first hit, with one twist:
+ * slot drops outrank empty-side drops when both share the pointer. The
+ * `DockOverlay` empty-side strip's corner sub-zones extend along the
+ * perpendicular rail's width and stack at `z-index: 1000`, so a drop on a
+ * collapsed-rail slot stub (or any slot whose footprint sits inside an empty
+ * side strip's corner band) would otherwise resolve to the corner-claim
+ * gesture instead of the user-intended slot-merge. Phase 6.5.2 of
+ * real-browser-testing prefers slot > tab-strip > empty-side ordering so the
+ * resolver picks the most-specific gesture regardless of paint order.
+ *
+ * Decodes the id via `decodeRailsDropId`; for slot hits, disambiguates
+ * center-merge vs split via `pointerToSplitZone` against the element's
+ * bounding rect. For tab-strip hits, computes the insertion index from pill
+ * midpoints. Returns null when the pointer misses every rail hotspot
+ * (caller falls through to the float's position-persist path).
  */
 export function resolveFloatDockTarget(
   pointer: { x: number; y: number },
@@ -589,16 +597,30 @@ export function resolveFloatDockTarget(
 ): FloatDockTarget | null {
   const getEls = opts.elementsFromPoint ?? defaultElementsFromPoint
   const els = getEls(pointer.x, pointer.y)
-  let hit: HTMLElement | null = null
-  let rawId: string | null = null
+  // Collect every drop-id hit in stack order (topmost first), then pick the
+  // most specific kind: slot > tab-strip > empty-side > canvas. Within a kind
+  // we keep the first (topmost) hit — sibling slots / tab strips don't
+  // overlap, so the first match is unambiguous.
+  type Hit = { el: HTMLElement; zone: NonNullable<ReturnType<typeof decodeRailsDropId>> }
+  let slotHit: Hit | null = null
+  let tabStripHit: Hit | null = null
+  let emptySideHit: Hit | null = null
+  let canvasHit: Hit | null = null
   for (const el of els) {
     if (!(el instanceof HTMLElement)) continue
     const id = el.dataset.railsDropId
-    if (id) { hit = el; rawId = id; break }
+    if (!id) continue
+    const decoded = decodeRailsDropId(id)
+    if (!decoded) continue
+    if (decoded.kind === 'slot' && !slotHit) slotHit = { el, zone: decoded }
+    else if (decoded.kind === 'tab-strip' && !tabStripHit) tabStripHit = { el, zone: decoded }
+    else if (decoded.kind === 'empty-side' && !emptySideHit) emptySideHit = { el, zone: decoded }
+    else if (decoded.kind === 'canvas' && !canvasHit) canvasHit = { el, zone: decoded }
   }
-  if (!hit || !rawId) return null
-  const zone = decodeRailsDropId(rawId)
-  if (!zone) return null
+  const winner = slotHit ?? tabStripHit ?? emptySideHit ?? canvasHit
+  if (!winner) return null
+  const hit = winner.el
+  const zone = winner.zone
   if (zone.kind === 'empty-side') {
     return zone.claim
       ? { kind: 'empty-side', side: zone.side, claim: zone.claim }

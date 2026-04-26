@@ -46,17 +46,18 @@
 }
 
 /*
- * Every corner sub-zone gets a `max(var(--{perp}-size, 0px), 80px)` floor on
- * its perpendicular dimension. When the adjacent rail is absent the raw
- * `--{perp}-size` is 0 and the corner sub-zone would collapse — leaving the
- * user's corner-claim intent with no target, so the adjacent center sub-zone
- * intercepts the drop. The 80 px floor keeps the corner sub-zone hit-friendly
- * and the matching `max(...)` on the center sub-zone's start/end edges keeps
- * the two from overlapping. The literal 80 mirrors `CORNER_HIT_MIN_PX` in
- * `src/utils/rail-dnd.ts` (consumed by the test harness). The same floor
- * applies symmetrically to top + bottom (perp = left/right) and left + right
- * (perp = top/bottom) — code-review-2026-04-25 P3 closed the half-applied
- * variant where left/right corner sub-zones used the raw var.
+ * Corner sub-zones size on their perpendicular dimension via
+ * `var(--{perp}-size, 80px)`. The CSS var is set in `RailsFrame.tsx` ONLY
+ * when the perpendicular rail exists, so the `80px` fallback fires only when
+ * the rail is absent — preserving the original corner-claim affordance for
+ * the no-perp-rail case (code-review-2026-04-25 P3) while letting the
+ * sub-zone shrink to the rail's actual size when the rail is present
+ * (expanded OR collapsed at `COLLAPSED_RAIL_PX`). The pre-fix
+ * `max(var(--…-size, 0px), 80px)` floor overshot collapsed rails at 80 px
+ * and occluded the rail's own slot stubs from `document.elementsFromPoint`,
+ * routing collapsed-stub float drops to corner-claim instead of slot-merge
+ * (Phase 6.5.2 of real-browser-testing plan). The literal 80 mirrors
+ * `CORNER_HIT_MIN_PX` in `src/utils/rail-dnd.ts` (consumed by the harness).
  */
 
 /* Top strip sub-zones */
@@ -68,9 +69,9 @@
   min-height: 60px;
   max-height: 120px;
 }
-.top_start { left: 0; width: max(var(--left-size, 0px), 80px); }
-.top_center { left: max(var(--left-size, 0px), 80px); right: max(var(--right-size, 0px), 80px); }
-.top_end { right: 0; width: max(var(--right-size, 0px), 80px); }
+.top_start { left: 0; width: var(--left-size, 80px); }
+.top_center { left: var(--left-size, 80px); right: var(--right-size, 80px); }
+.top_end { right: 0; width: var(--right-size, 80px); }
 
 /* Bottom strip sub-zones */
 .bottom_start,
@@ -81,9 +82,9 @@
   min-height: 60px;
   max-height: 120px;
 }
-.bottom_start { left: 0; width: max(var(--left-size, 0px), 80px); }
-.bottom_center { left: max(var(--left-size, 0px), 80px); right: max(var(--right-size, 0px), 80px); }
-.bottom_end { right: 0; width: max(var(--right-size, 0px), 80px); }
+.bottom_start { left: 0; width: var(--left-size, 80px); }
+.bottom_center { left: var(--left-size, 80px); right: var(--right-size, 80px); }
+.bottom_end { right: 0; width: var(--right-size, 80px); }
 
 /* Left strip sub-zones */
 .left_start,
@@ -94,9 +95,9 @@
   min-width: 80px;
   max-width: 160px;
 }
-.left_start { top: 0; height: max(var(--top-size, 0px), 80px); min-height: 80px; }
-.left_center { top: max(var(--top-size, 0px), 80px); bottom: max(var(--bottom-size, 0px), 80px); }
-.left_end { bottom: 0; height: max(var(--bottom-size, 0px), 80px); min-height: 80px; }
+.left_start { top: 0; height: var(--top-size, 80px); }
+.left_center { top: var(--top-size, 80px); bottom: var(--bottom-size, 80px); }
+.left_end { bottom: 0; height: var(--bottom-size, 80px); }
 
 /* Right strip sub-zones */
 .right_start,
@@ -107,9 +108,9 @@
   min-width: 80px;
   max-width: 160px;
 }
-.right_start { top: 0; height: max(var(--top-size, 0px), 80px); min-height: 80px; }
-.right_center { top: max(var(--top-size, 0px), 80px); bottom: max(var(--bottom-size, 0px), 80px); }
-.right_end { bottom: 0; height: max(var(--bottom-size, 0px), 80px); min-height: 80px; }
+.right_start { top: 0; height: var(--top-size, 80px); }
+.right_center { top: var(--top-size, 80px); bottom: var(--bottom-size, 80px); }
+.right_end { bottom: 0; height: var(--bottom-size, 80px); }
 
 .over {
   border-style: solid;

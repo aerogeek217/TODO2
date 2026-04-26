@@ -68,11 +68,20 @@ export function RailsFrame({ children }: RailsFrameProps) {
     )
   }
 
+  // Only emit a `--{side}-size` var when the rail exists. Consumers fall back
+  // via `var(--{side}-size, 0px)` for grid sizing (rail cell collapses to 0)
+  // and `var(--{side}-size, 80px)` for `DockOverlay`'s corner sub-zones — the
+  // 80 px fallback only applies when the perpendicular rail is absent (no rail
+  // to size against), so corner-claim drops still have a hit-targettable
+  // surface. With the rail present (collapsed at 28 px or expanded at any
+  // size) the corner sub-zone shrinks to exactly that, leaving the rail's own
+  // slot stubs / slot bodies clear of overlay occlusion (Phase 6.5.2 of
+  // real-browser-testing plan).
   const frameStyle: CSSProperties = {
-    '--left-size': rails.left ? `${railSize(rails, 'left')}px` : '0px',
-    '--right-size': rails.right ? `${railSize(rails, 'right')}px` : '0px',
-    '--top-size': rails.top ? `${railSize(rails, 'top')}px` : '0px',
-    '--bottom-size': rails.bottom ? `${railSize(rails, 'bottom')}px` : '0px',
+    ...(rails.left && { '--left-size': `${railSize(rails, 'left')}px` }),
+    ...(rails.right && { '--right-size': `${railSize(rails, 'right')}px` }),
+    ...(rails.top && { '--top-size': `${railSize(rails, 'top')}px` }),
+    ...(rails.bottom && { '--bottom-size': `${railSize(rails, 'bottom')}px` }),
   } as CSSProperties
 
   return (

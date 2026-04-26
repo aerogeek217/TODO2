@@ -296,14 +296,20 @@ function rectForEmptySideSubzone(
   const topSize = rails.top ? layout.top.height : 0
   const bottomSize = rails.bottom ? layout.bottom.height : 0
 
-  // Mirror DockOverlay.module.css: every corner sub-zone gets a
-  // CORNER_HIT_MIN_PX hit-target floor on its perpendicular dimension when
-  // the adjacent rail is absent, and the matching center sub-zone's far
-  // edges shift to the same floor so corner + center never overlap.
+  // Mirror DockOverlay.module.css: corner sub-zones size on
+  // `var(--{perp}-size, CORNER_HIT_MIN_PX)`. The `--{perp}-size` var is set
+  // by `RailsFrame.tsx` only when the perpendicular rail exists, so the
+  // hit-target floor fires only when the rail is absent. When the rail is
+  // present (any size, including the COLLAPSED_RAIL_PX collapsed state) the
+  // corner sub-zone matches the rail's size exactly — preventing the
+  // pre-6.5.2 overshoot that occluded collapsed-rail slot stubs. The matching
+  // center sub-zone's start/end edges follow the same `var(...)` so corner +
+  // center never overlap.
+  const cornerSize = (railSize: number) => railSize > 0 ? railSize : CORNER_HIT_MIN_PX
   if (side === 'top' || side === 'bottom') {
     const y = side === 'top' ? 0 : frameHeight - STRIP_THICKNESS
-    const startW = Math.max(leftSize, CORNER_HIT_MIN_PX)
-    const endW = Math.max(rightSize, CORNER_HIT_MIN_PX)
+    const startW = cornerSize(leftSize)
+    const endW = cornerSize(rightSize)
     if (claim === 'start') {
       return { left: 0, top: y, width: startW, height: STRIP_THICKNESS }
     }
@@ -313,8 +319,8 @@ function rectForEmptySideSubzone(
     return { left: startW, top: y, width: frameWidth - startW - endW, height: STRIP_THICKNESS }
   }
   const x = side === 'left' ? 0 : frameWidth - STRIP_THICKNESS
-  const startH = Math.max(topSize, CORNER_HIT_MIN_PX)
-  const endH = Math.max(bottomSize, CORNER_HIT_MIN_PX)
+  const startH = cornerSize(topSize)
+  const endH = cornerSize(bottomSize)
   if (claim === 'start') {
     return { left: x, top: 0, width: STRIP_THICKNESS, height: startH }
   }
