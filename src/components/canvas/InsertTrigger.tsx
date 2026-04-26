@@ -194,11 +194,20 @@ export const InsertTrigger = forwardRef<InsertTriggerHandle, InsertTriggerProps>
     else onCancel()
   }, editing)
 
-  // Edit-state housekeeping. Initial focus is handled by the input's
-  // `autoFocus` (click-activate path) and by SortableTaskList's `t50`
-  // imperative call (Enter-chain path). Phase 2 showed the in-component
-  // reclaim chain (rAF / t0 / t50 / t150 / t300 / focusout-reclaim) was
-  // 0/40 effective in real Chromium — removed accordingly.
+  // Edit-state housekeeping. Initial focus is split by path:
+  //   - Click-activate / Insert-key (no row insertion): the input's
+  //     `autoFocus` lands focus at mount. Phase 5 MCP trace 2026-04-26
+  //     confirmed 10/10 cycles, with the parent's t50 call exiting early
+  //     via `already-on-input`. autoFocus is load-bearing here because
+  //     no React Flow ResizeObserver fires (no row is being inserted).
+  //   - Enter-chain (row insertion): `autoFocus` is contested by RF's
+  //     ResizeObserver firing as the project node grows for the new row,
+  //     and is 0/40 effective (Phase 2 trace). SortableTaskList's t50
+  //     `setTimeout(focusInput, 50)` is the load-bearing path; this
+  //     trigger's `focusInput` handle does the actual focus call.
+  // Phase 2 also showed the in-component reclaim chain (rAF / t0 / t50 /
+  // t150 / t300 / focusout-reclaim) was 0/40 effective on Enter-chain —
+  // removed accordingly when Phase 3 landed.
   useLayoutEffect(() => {
     if (!editing) {
       ac.dismiss()

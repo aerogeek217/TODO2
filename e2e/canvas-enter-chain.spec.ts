@@ -100,18 +100,24 @@ test.describe('canvas Enter-chain (P1 baseline)', () => {
       .locator('input[placeholder^="New task..."]'))
       .toBeVisible()
 
-    // HEAD quirk: cross-project commit doesn't reset the SOURCE project's
-    // local `activeInsertAfterId`, so P1's input stays mounted alongside
-    // Otherproj's. Both inputs match the placeholder selector — that's why
-    // we can't reuse `activeInsertInput` here. The non-regression we DO
-    // care about is that *some* input has focus, so further keystrokes
-    // can't leak to body and fire the global `n` floating-note hotkey.
-    // (See SortableTaskList.tsx:152-156: cross-project route is
-    // `triggerInlineCreate(newId)`, leaving the source's local state
-    // untouched. Whether Otherproj's input should receive focus over P1's
-    // is a separate question Phase 5 may revisit.)
-    await expect(page.locator('input[placeholder^="New task..."]:focus'))
-      .toHaveCount(1)
+    // Phase 5 (real-browser-testing): the imperative t50 handoff in
+    // SortableTaskList lands focus on Otherproj's after-row input. Verified
+    // by MCP trace 2026-04-26 — `mount` → `focusout` → `focusin` →
+    // `t50[LANDED]` on the target. The Phase 3 imperative path makes the
+    // target-focus assertion deterministic; HEAD's defense-in-depth used
+    // to leave focus on the source's still-mounted input (the Phase 1
+    // baseline relaxed to "*some* input is focused" because of that quirk).
+    //
+    // Source P1's InsertTrigger stays mounted with editing=true — that's
+    // a separate UX quirk (`SortableTaskList.openTriggerAfterInsert`
+    // doesn't reset the source's `activeInsertAfterId` on cross-project
+    // commit). Out of scope for Phase 5 since closing it is a behavior
+    // change, not defense-stripping. The body-key-leak signal is still
+    // covered: focus is on Otherproj's input, so subsequent keystrokes
+    // can't fire the global `n` floating-note hotkey.
+    await expect(projectNode(page, 'Otherproj')
+      .locator('input[placeholder^="New task..."]'))
+      .toBeFocused()
     await expect(floatingNoteNodes(page)).toHaveCount(0)
   })
 

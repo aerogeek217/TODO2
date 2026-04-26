@@ -93,11 +93,17 @@ describe('InsertTrigger imperative focus', () => {
   })
 
   it('focuses on click-activate via autoFocus (no row insertion path)', async () => {
-    // Click-activate doesn't go through openTriggerAfterInsert — no row was
-    // inserted, so SortableTaskList does NOT schedule a t50 imperative call.
-    // autoFocus is the sole focus mechanism for this path. The trigger was
-    // initially rendered with editing=false (visible "+" button); when
-    // activeId becomes its id, editing flips true and the input mounts.
+    // Click-activate does NOT insert a row — no React Flow ResizeObserver
+    // is dispatched, so the focus contention seen on the Enter-chain path
+    // is absent. Phase 5 MCP trace (2026-04-26): 10/10 cycles landed focus
+    // via `mount.autoFocusOnNode === true`, and the t50 imperative call
+    // exited early via `skipped: 'already-on-input'`. autoFocus is the
+    // load-bearing mechanism for this path; t50 is a harmless no-op.
+    //
+    // SortableTaskList still schedules t50 via `useLayoutEffect` even on
+    // click-activate (any `activeInsertAfterId` change schedules), so the
+    // harness fires `focusInput` synchronously to mirror that. autoFocus
+    // wins the race in JSDOM the same way it wins in real Chromium.
     const { rerender } = render(<Harness activeId={null} items={[1]} />)
     expect(screen.queryByPlaceholderText(/New task/)).toBeNull()
 
