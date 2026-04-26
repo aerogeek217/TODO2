@@ -44,18 +44,12 @@
   padding: var(--space-4) var(--space-5);
 }
 
-.plus {
-  color: var(--color-accent);
-  font-size: 14px;
-  line-height: 1;
-}
-
 .titleInput {
   flex: 1;
   background: transparent;
   border: none;
   color: var(--color-text-primary);
-  font-size: 14px;
+  font-size: 18px;
   font-family: inherit;
   outline: none;
 }
@@ -64,31 +58,36 @@
   color: var(--color-text-muted);
 }
 
-.submitBtn {
+.detailsBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
-  background: var(--color-accent);
-  border: none;
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  color: var(--color-text-on-accent);
+  color: var(--color-text-secondary);
   font-size: 12px;
-  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
 }
 
-.submitBtn:hover {
-  filter: brightness(1.08);
+.detailsBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
 }
 
-.submitBtn:disabled {
+.detailsBtn:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.submitBtn .kbd {
-  opacity: 0.7;
-  font-weight: 400;
-  margin-left: 4px;
+.hintCluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-text-muted);
 }
 
 /* ─── Chips row ───────────────────────────────────────────────── */
@@ -98,7 +97,7 @@
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  padding: 0 var(--space-5) var(--space-4) 36px;
+  padding: 0 var(--space-5) var(--space-4);
 }
 
 .chipsRow.withDivider {
@@ -163,7 +162,7 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
-  padding: 0 var(--space-5) var(--space-4) 36px;
+  padding: 0 var(--space-5) var(--space-4);
   font-size: 11px;
   color: var(--color-text-muted);
 }

@@ -552,7 +552,6 @@ export function QuickAddBar({
       >
         {/* Title row */}
         <div className={styles.titleRow}>
-          <span className={styles.plus}>+</span>
           <input
             ref={inputRef}
             className={styles.titleInput}
@@ -570,16 +569,21 @@ export function QuickAddBar({
             data-shortcut-scope="none"
           />
           <button
-            className={styles.submitBtn}
-            onClick={() => {
-              if (draft.title.trim().length === 0) return
-              onSubmit(draft)
-              onClose()
-            }}
-            disabled={draft.title.trim().length === 0}
+            className={styles.detailsBtn}
+            onClick={() => onOpenFullEditor?.(draft)}
+            disabled={!onOpenFullEditor}
           >
-            Create<span className={styles.kbd}>↵</span>
+            Details <span className={styles.kbd}>⇥</span>
           </button>
+          <span className={styles.hintCluster}>
+            <span>
+              <Kbd>↵</Kbd> create
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              <Kbd>esc</Kbd> close
+            </span>
+          </span>
         </div>
 
         {/* Chips row */}
