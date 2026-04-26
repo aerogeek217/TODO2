@@ -10,6 +10,11 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
   const convertShortcut = formatShortcut('Alt-t')
   const boldShortcut = formatShortcut('Mod-b')
   const italicShortcut = formatShortcut('Mod-i')
+  const quickAdd = formatShortcut('Mod-Space')
+  const palette = formatShortcut('Mod-K')
+  const undo = formatShortcut('Mod-Z')
+  const redo = formatShortcut('Mod-Y')
+  const selectAll = formatShortcut('Mod-A')
   return (
     <>
       <div className={styles.backdrop} onClick={onClose} />
@@ -22,19 +27,19 @@ export function KeyboardShortcutsModal({ onClose }: KeyboardShortcutsModalProps)
         <div className={styles.list}>
           <div className={settingsStyles.shortcutCategory}>General</div>
           <div className={settingsStyles.shortcutGrid}>
-            <span className={settingsStyles.shortcutKey}>Ctrl+Space</span>
+            <span className={settingsStyles.shortcutKey}>{quickAdd}</span>
             <span className={settingsStyles.shortcutDesc}>Quick Add task</span>
-            <span className={settingsStyles.shortcutKey}>Ctrl+K</span>
+            <span className={settingsStyles.shortcutKey}>{palette}</span>
             <span className={settingsStyles.shortcutDesc}>Command Palette</span>
-            <span className={settingsStyles.shortcutKey}>Ctrl+Z</span>
+            <span className={settingsStyles.shortcutKey}>{undo}</span>
             <span className={settingsStyles.shortcutDesc}>Undo</span>
-            <span className={settingsStyles.shortcutKey}>Ctrl+Y</span>
+            <span className={settingsStyles.shortcutKey}>{redo}</span>
             <span className={settingsStyles.shortcutDesc}>Redo</span>
             <span className={settingsStyles.shortcutKey}>Esc</span>
             <span className={settingsStyles.shortcutDesc}>Close overlay / Clear selection</span>
             <span className={settingsStyles.shortcutKey}>?</span>
             <span className={settingsStyles.shortcutDesc}>Show this help</span>
-            <span className={settingsStyles.shortcutKey}>Ctrl+A</span>
+            <span className={settingsStyles.shortcutKey}>{selectAll}</span>
             <span className={settingsStyles.shortcutDesc}>Select all visible tasks</span>
           </div>
 

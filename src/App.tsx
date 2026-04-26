@@ -20,6 +20,7 @@ import { useIsMobile } from './hooks/use-is-mobile'
 import { useFloatingNoteStore } from './stores/floating-note-store'
 import { useStatusStore } from './stores/status-store'
 import { useTagStore } from './stores/tag-store'
+import { formatShortcut } from './utils/platform'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
@@ -265,7 +266,7 @@ function AppShell() {
       </div>
       {showFab && (
         <div className={styles.fabGroup}>
-          <button className={styles.fab} onClick={openCreatePopup} title="New Task (Ctrl+Space)">
+          <button className={styles.fab} onClick={openCreatePopup} title={`New Task (${formatShortcut('Mod-Space')})`}>
             <svg width="16" height="16" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
               <line x1="14" y1="6" x2="14" y2="22" />
               <line x1="6" y1="14" x2="22" y2="14" />
