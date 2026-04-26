@@ -28,12 +28,14 @@ import type {
   Person,
   Project,
   RecurrenceType,
+  Status,
 } from '../../models'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useOrgStore } from '../../stores/org-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput } from '../../services/natural-language-parser'
 import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
@@ -70,6 +72,8 @@ export type ParsedTokens = {
   unmatchedPersons: string[]
   /** Project names from `/` tokens that didn't match any known project. */
   unmatchedProjects: string[]
+  /** Status names from `:` tokens that didn't match any known status. */
+  unmatchedStatuses: string[]
 }
 
 export type QuickAddDraft = ParsedTokens & {
@@ -196,6 +200,7 @@ const EMPTY_PARSED: ParsedTokens = {
   tags: [],
   unmatchedPersons: [],
   unmatchedProjects: [],
+  unmatchedStatuses: [],
 }
 
 const EMPTY_RESOLVED: ResolvedInput = {
@@ -205,6 +210,7 @@ const EMPTY_RESOLVED: ResolvedInput = {
   unmatchedPersons: [],
   unmatchedProjects: [],
   tags: [],
+  unmatchedStatuses: [],
 }
 
 /**
@@ -219,12 +225,13 @@ function runParse(
   people: Person[],
   orgs: Org[],
   projects: Project[],
+  statuses: Status[],
   weekStartsOn: WeekStart,
   today: Date,
 ): { parsed: ParsedTokens; resolved: ResolvedInput } {
   if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED }
   const parsedInput = parseInput(raw)
-  const resolved = resolveInput(parsedInput, people, projects, orgs)
+  const resolved = resolveInput(parsedInput, people, projects, orgs, statuses)
 
   const peopleResolved: PersistedPerson[] = resolved.personIds
     .map((id) => people.find((p) => p.id === id))
@@ -236,6 +243,10 @@ function runParse(
     resolved.projectId !== undefined
       ? projects.find((p) => p.id === resolved.projectId)
       : undefined
+  const statusResolved =
+    resolved.statusId !== undefined
+      ? statuses.find((s): s is PersistedStatus => s.id === resolved.statusId)
+      : undefined
   const scheduledAt = resolved.scheduledDate
     ? resolveScheduled(resolved.scheduledDate, today, weekStartsOn) ?? undefined
     : undefined
@@ -243,6 +254,7 @@ function runParse(
   return {
     parsed: {
       title: resolved.title,
+      status: statusResolved,
       people: peopleResolved,
       orgs: orgsResolved,
       project: projectResolved,
@@ -252,6 +264,7 @@ function runParse(
       recurrence: resolved.recurrence,
       unmatchedPersons: resolved.unmatchedPersons,
       unmatchedProjects: resolved.unmatchedProjects,
+      unmatchedStatuses: resolved.unmatchedStatuses,
     },
     resolved,
   }
@@ -279,11 +292,12 @@ export function QuickAddBar({
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const projects = useProjectStore((s) => s.projects)
   const tags = useTagStore((s) => s.tags)
+  const statuses = useStatusStore((s) => s.statuses)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
 
   const internalRun = useMemo(
-    () => runParse(raw, people, orgs, projects, weekStartsOn, new Date()),
-    [raw, people, orgs, projects, weekStartsOn],
+    () => runParse(raw, people, orgs, projects, statuses, weekStartsOn, new Date()),
+    [raw, people, orgs, projects, statuses, weekStartsOn],
   )
   const parsed = parse ? parse(raw) : internalRun.parsed
   // Test override (`parse`) only produces `ParsedTokens`; default to the live
@@ -320,11 +334,17 @@ export function QuickAddBar({
         .map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })),
     [tags],
   )
+  const acStatuses = useMemo<AutocompleteItem[]>(
+    () =>
+      statuses.map((s) => ({ id: s.id!, name: s.name, color: s.color, kind: 'status' as const })),
+    [statuses],
+  )
   const ac = useNlpAutocomplete({
     people: acPeople,
     orgs: acOrgs,
     projects: acProjects,
     tags: acTags,
+    statuses: acStatuses,
   })
 
   const draft: QuickAddDraft = {
@@ -346,7 +366,9 @@ export function QuickAddBar({
     !!draft.recurrence
 
   const hasUnmatched =
-    parsed.unmatchedPersons.length > 0 || parsed.unmatchedProjects.length > 0
+    parsed.unmatchedPersons.length > 0 ||
+    parsed.unmatchedProjects.length > 0 ||
+    parsed.unmatchedStatuses.length > 0
 
   // Focus on open; reset (and dismiss any open popup) on close. Destructure
   // `dismiss` so the effect's deps are stable — the hook returns a fresh
@@ -506,11 +528,13 @@ export function QuickAddBar({
   const popupHeader =
     ac.state.trigger === '#'
       ? 'Tags'
-      : ac.state.trigger === '/'
-        ? 'Projects'
-        : ac.state.items.some((it) => it.kind === 'org')
-          ? 'People & Orgs'
-          : 'People'
+      : ac.state.trigger === ':'
+        ? 'Statuses'
+        : ac.state.trigger === '/'
+          ? 'Projects'
+          : ac.state.items.some((it) => it.kind === 'org')
+            ? 'People & Orgs'
+            : 'People'
   const isTagCreateNewVisible =
     ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
 
@@ -591,6 +615,7 @@ export function QuickAddBar({
               {[
                 ...parsed.unmatchedPersons.map((n) => `@${n}`),
                 ...parsed.unmatchedProjects.map((n) => `/${n}`),
+                ...parsed.unmatchedStatuses.map((n) => `:${n}`),
               ].join(' ')}
             </span>
             {parsed.unmatchedPersons.length > 0 && (
@@ -678,6 +703,9 @@ export function QuickAddBar({
             </span>
             <span>
               <Kbd>#</Kbd> tag
+            </span>
+            <span>
+              <Kbd>:</Kbd> status
             </span>
             <span style={{ opacity: 0.7 }}>
               or natural dates: <i>tomorrow, fri 3pm</i>

@@ -8,6 +8,7 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useOrgStore } from '../../../stores/org-store'
+import { useStatusStore } from '../../../stores/status-store'
 import { useProjectStore } from '../../../stores/project-store'
 import { AppView, type PersistedTodoItem } from '../../../models'
 import { formatShortcut } from '../../../utils/platform'
@@ -113,7 +114,8 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     const people = usePersonStore.getState().people
     const orgs = useOrgStore.getState().orgs
     const projects = useProjectStore.getState().projects
-    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, projects, orgs)
+    const statuses = useStatusStore.getState().statuses
+    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, projects, orgs, statuses)
     const activeView = useUIStore.getState().activeView
     const applyFilters = activeView !== AppView.Dashboard && activeView !== AppView.Settings
     const fd = applyFilters ? getFilterDefaults(useFilterStore.getState().filters) : null

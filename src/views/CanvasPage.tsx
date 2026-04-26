@@ -293,7 +293,7 @@ export function CanvasPage() {
       if (!selectedCanvasId) return
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
-      const { title, resolved } = parseTaskInput(rawTitle, people, currentProjects, orgs)
+      const { title, resolved } = parseTaskInput(rawTitle, people, currentProjects, orgs, statuses)
       const fd = getFilterDefaults(useFilterStore.getState().filters)
       supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
@@ -304,7 +304,7 @@ export function CanvasPage() {
         updateTodo, assignPerson, assignOrg,
       )
     },
-    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, people, orgs]
+    [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, people, orgs, statuses]
   )
 
   const handleInsertTask = useCallback(
@@ -312,7 +312,7 @@ export function CanvasPage() {
       if (!selectedCanvasId) return -1
       // Read projects at call time to avoid re-creating this callback on position-only changes
       const currentProjects = useProjectStore.getState().projects
-      const { title, resolved } = parseTaskInput(rawTitle, people, currentProjects, orgs)
+      const { title, resolved } = parseTaskInput(rawTitle, people, currentProjects, orgs, statuses)
       const fd = getFilterDefaults(useFilterStore.getState().filters)
       supplementWithFilterDefaults(resolved, fd)
       const pid = resolved.projectId ?? projectId
@@ -328,7 +328,7 @@ export function CanvasPage() {
       )
       return id
     },
-    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignOrg, people, orgs]
+    [selectedCanvasId, todosByProject, addTodoAt, updateTodo, assignPerson, assignOrg, people, orgs, statuses]
   )
 
   const handleDeleteProject = useCallback(

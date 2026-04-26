@@ -5,6 +5,7 @@ import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './InsertTrigger.module.css'
@@ -29,6 +30,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const orgsFromStore = useOrgStore((s) => s.orgs)
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const tagsFromStore = useTagStore((s) => s.tags)
+  const statusesFromStore = useStatusStore((s) => s.statuses)
 
   const acPeople = useMemo(
     () => people.map((p) => ({
@@ -50,8 +52,17 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     })),
     [tagsFromStore],
   )
+  const acStatuses = useMemo(
+    () => statusesFromStore.map((s) => ({
+      id: s.id!,
+      name: s.name,
+      color: s.color,
+      kind: 'status' as const,
+    })),
+    [statusesFromStore],
+  )
 
-  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs, tags: acTags })
+  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs, tags: acTags, statuses: acStatuses })
 
   useClickOutside(wrapperRef, () => {
     ac.dismiss()

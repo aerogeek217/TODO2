@@ -101,6 +101,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       allPeople,
       useProjectStore.getState().projects,
       allOrgs,
+      useStatusStore.getState().statuses,
     )
     // Sync tag lookup against the registry — pre-fills chips for tags that
     // already exist. Novel `#foo` slugs aren't created here; the create-time
@@ -120,7 +121,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const notesRef = useRef<string>(todo?.notes ?? quickAddSeed?.notes ?? '')
   const [progress, setProgress] = useState(todo?.progress ?? '')
   const [statusId, setStatusId] = useState<number | undefined>(
-    todo?.statusId ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
+    todo?.statusId
+    ?? quickAddSeed?.resolved.statusId
+    ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
   )
   const [scheduledDate, setScheduledDate] = useState<ScheduledValue | null>(
     todo?.scheduledDate ?? quickAddSeed?.resolved.scheduledDate ?? null,

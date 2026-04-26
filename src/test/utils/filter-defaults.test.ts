@@ -113,6 +113,7 @@ function makeResolved(overrides: Partial<ResolvedInput> = {}): ResolvedInput {
     unmatchedPersons: [],
     unmatchedProjects: [],
     tags: [],
+    unmatchedStatuses: [],
     ...overrides,
   }
 }

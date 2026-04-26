@@ -1,4 +1,4 @@
-import type { Person, Project, Org, RecurrenceType, Tag } from '../models'
+import type { Person, Project, Org, RecurrenceType, Status, Tag } from '../models'
 import type { ScheduledValue } from '../models/scheduled-value'
 import type { ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
@@ -19,6 +19,10 @@ export interface ResolvedInput {
   unmatchedProjects: string[]
   /** Normalized tag slugs from `#foo` tokens (pass-through from `ParsedInput`). */
   tags: string[]
+  /** Resolved status ID (first match wins) from `:foo` tokens */
+  statusId?: number
+  /** Status names from `:foo` tokens that didn't match any existing status */
+  unmatchedStatuses: string[]
 }
 
 /**
@@ -131,14 +135,23 @@ export async function resolveTags(
 }
 
 /**
- * Resolve parsed NLP input against known people, projects, and orgs.
+ * Resolve parsed NLP input against known people, projects, orgs, and statuses.
  * Person-first: @tokens match people first, unmatched names fall through to org matching.
+ * Statuses: `:foo` tokens match against the status registry by case-insensitive
+ * exact-then-prefix; first match wins, unmatched names land in `unmatchedStatuses`.
  */
-export function resolveInput(parsed: ParsedInput, people: Person[], projects: Project[] = [], orgs: Org[] = []): ResolvedInput {
+export function resolveInput(
+  parsed: ParsedInput,
+  people: Person[],
+  projects: Project[] = [],
+  orgs: Org[] = [],
+  statuses: Status[] = [],
+): ResolvedInput {
   const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
   // Try unmatched person names against orgs (person-first precedence)
   const orgResult = resolveNames(persons.unmatched, (name) => matchOrg(name, orgs))
   const projectResult = resolveNames(parsed.projects, (name) => matchByName(name, projects, (p) => p.name))
+  const statusResult = resolveNames(parsed.statuses, (name) => matchByName(name, statuses, (s) => s.name))
 
   return {
     title: parsed.title,
@@ -151,5 +164,7 @@ export function resolveInput(parsed: ParsedInput, people: Person[], projects: Pr
     projectId: projectResult.ids[0],
     unmatchedProjects: projectResult.unmatched,
     tags: parsed.tags,
+    statusId: statusResult.ids[0],
+    unmatchedStatuses: statusResult.unmatched,
   }
 }

@@ -10,6 +10,7 @@ interface NlpAutocompleteProps {
 
 function headerLabel(state: AutocompleteState): string {
   if (state.trigger === '#') return 'Tags'
+  if (state.trigger === ':') return 'Statuses'
   if (state.trigger === '/') return 'Projects'
   const hasOrgs = state.items.some((item) => item.kind === 'org')
   return hasOrgs ? 'People & Orgs' : 'People'

@@ -12,7 +12,7 @@ export interface ParsedToken {
    * 'deadline' covers explicit deadline syntax: `by <date>` / `!<date>` — resolves
    * to a concrete `dueDate`, never fuzzy.
    */
-  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'project' | 'recurrence' | 'tag'
+  type: 'date' | 'fuzzy-schedule' | 'deadline' | 'person' | 'project' | 'recurrence' | 'tag' | 'status'
   value: string
   raw: string
   start: number
@@ -29,6 +29,9 @@ export interface ParsedInput {
   projects: string[]
   /** Lowercase tag slugs in first-seen order, post-`normalizeTag`. */
   tags: string[]
+  /** Raw status names from `:foo` tokens in first-seen order. Resolved against
+   * the status registry by `resolveInput`; the parser stays store-free. */
+  statuses: string[]
 }
 
 const PERSON_PATTERN = /@"([^"]+)"|@(\w+)/g
@@ -37,6 +40,12 @@ const PROJECT_PATTERN = /\/([A-Za-z0-9_-]+)/g
 // of input) and group 2 is the slug. Separator stays in the remaining title
 // after token removal.
 const TAG_PATTERN = /(^|\s)#([A-Za-z0-9_-]+)/g
+
+// Whitespace-anchored :status. First char must be a letter (so a stray `:` in
+// `12:30` / `notes: thing` doesn't trip — the leading-whitespace anchor would
+// already reject the latter; the letter-start anchors the former). Resolved
+// against the status registry by the resolver — the parser only extracts.
+const STATUS_PATTERN = /(^|\s):([A-Za-z][A-Za-z0-9_-]*)\b/g
 
 // Multi-word fuzzy schedule windows. Pushed before single-word DATE_KEYWORDS so
 // "this week" wins overlap-dedup against any embedded day name.
@@ -204,6 +213,27 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
+  // Extract statuses (:name) — whitespace-preceded or at start of input.
+  // Pushed before deadlines / dates so `:tomorrow` (status) wins overlap-dedup
+  // against any same-text date keyword. `!<weekday>` deadline syntax uses `!`
+  // not `:` and stays unaffected.
+  STATUS_PATTERN.lastIndex = 0
+  while ((match = STATUS_PATTERN.exec(text)) !== null) {
+    const sep = match[1]
+    const name = match[2]
+    if (sep == null || name == null) continue
+    const sepLen = sep.length
+    const statusStart = match.index + sepLen
+    const statusEnd = statusStart + 1 + name.length
+    tokens.push({
+      type: 'status',
+      value: name,
+      raw: text.slice(statusStart, statusEnd),
+      start: statusStart,
+      end: statusEnd,
+    })
+  }
+
   // Extract explicit deadline tokens BEFORE fuzzy-schedule / date keywords so
   // the enclosing "by <date>" / "!<date>" phrase wins overlap-dedup against
   // the inner date text.
@@ -298,6 +328,7 @@ export function parseInput(text: string): ParsedInput {
   const persons: string[] = []
   const projects: string[] = []
   const tags: string[] = []
+  const statuses: string[] = []
   const seenTags = new Set<string>()
   const now = new Date()
 
@@ -330,7 +361,8 @@ export function parseInput(text: string): ParsedInput {
         tags.push(slug)
       }
     }
+    if (token.type === 'status') statuses.push(token.value)
   }
 
-  return { title, tokens, scheduledDate, dueDate, recurrence, persons, projects, tags }
+  return { title, tokens, scheduledDate, dueDate, recurrence, persons, projects, tags, statuses }
 }

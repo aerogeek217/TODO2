@@ -4,12 +4,12 @@ export interface AutocompleteItem {
   id: number
   name: string
   color?: string
-  kind: 'person' | 'org' | 'project' | 'tag'
+  kind: 'person' | 'org' | 'project' | 'tag' | 'status'
 }
 
 export interface AutocompleteState {
   visible: boolean
-  trigger: '@' | '/' | '#' | null
+  trigger: '@' | '/' | '#' | ':' | null
   query: string
   items: AutocompleteItem[]
   selectedIndex: number
@@ -31,6 +31,7 @@ interface UseNlpAutocompleteOptions {
   projects?: AutocompleteItem[]
   orgs?: AutocompleteItem[]
   tags?: AutocompleteItem[]
+  statuses?: AutocompleteItem[]
 }
 
 /**
@@ -40,7 +41,7 @@ interface UseNlpAutocompleteOptions {
 // Shared canvas for text measurement — avoids creating one per keystroke
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = [] }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = [], statuses = [] }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   const triggerPosRef = useRef<number>(-1)
 
@@ -56,15 +57,15 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
   ) => {
     // Find the trigger character before cursor
     const beforeCursor = value.slice(0, cursorPos)
-    // Look backwards for @, /, or # that isn't preceded by a word character
+    // Look backwards for @, /, #, or : that isn't preceded by a word character
     let triggerIdx = -1
-    let triggerChar: '@' | '/' | '#' | null = null
+    let triggerChar: '@' | '/' | '#' | ':' | null = null
     for (let i = beforeCursor.length - 1; i >= 0; i--) {
       const ch = beforeCursor[i]
       if (ch === ' ' || ch === '\t' || ch === '\n') break // whitespace before finding trigger = no trigger
-      if ((ch === '@' || ch === '/' || ch === '#') && (i === 0 || /\s/.test(beforeCursor[i - 1] ?? ''))) {
+      if ((ch === '@' || ch === '/' || ch === '#' || ch === ':') && (i === 0 || /\s/.test(beforeCursor[i - 1] ?? ''))) {
         triggerIdx = i
-        triggerChar = ch as '@' | '/' | '#'
+        triggerChar = ch as '@' | '/' | '#' | ':'
         break
       }
     }
@@ -77,13 +78,17 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
     const query = beforeCursor.slice(triggerIdx + 1).toLowerCase()
     triggerPosRef.current = triggerIdx
 
-    // `#tag` uses case-insensitive prefix match (matches the plan's v2 spec);
+    // `#tag` and `:status` use case-insensitive prefix match;
     // `@person`/`/project` stay on substring match (existing behavior).
     let filtered: AutocompleteItem[]
     if (triggerChar === '#') {
       filtered = query
         ? tags.filter((item) => item.name.toLowerCase().startsWith(query))
         : tags
+    } else if (triggerChar === ':') {
+      filtered = query
+        ? statuses.filter((item) => item.name.toLowerCase().startsWith(query))
+        : statuses
     } else {
       const sourceItems = triggerChar === '@' ? [...people, ...orgs] : projects
       filtered = query
@@ -119,7 +124,7 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
       selectedIndex: 0,
       caretLeft,
     })
-  }, [people, projects, orgs, tags, state.visible, dismiss])
+  }, [people, projects, orgs, tags, statuses, state.visible, dismiss])
 
   /**
    * Handle keyboard events for autocomplete navigation.
@@ -176,12 +181,13 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
       return null
     }
 
-    // Tags stay bare — `#` syntax can't wrap quoted names; people/projects
-    // quote when the name contains spaces.
+    // Tags / statuses stay bare — `#` and `:` patterns are single-word only;
+    // people/projects quote when the name contains spaces.
     const before = currentValue.slice(0, triggerIdx)
     const after = currentValue.slice(cursorPos)
     const trigger = state.trigger
-    const token = state.trigger === '#' ? name : (name.includes(' ') ? `"${name}"` : name)
+    const isBareTrigger = state.trigger === '#' || state.trigger === ':'
+    const token = isBareTrigger ? name : (name.includes(' ') ? `"${name}"` : name)
     const newValue = `${before}${trigger}${token} ${after}`
     const newCursor = before.length + 1 + token.length + 1 // trigger + name + space
 

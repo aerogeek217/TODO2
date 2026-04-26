@@ -4,6 +4,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTagStore } from '../stores/tag-store'
+import { useStatusStore } from '../stores/status-store'
 import { useCanvasStore } from '../stores/canvas-store'
 import { useUIStore } from '../stores/ui-store'
 import type { TodoItem, PersistedTodoItem } from '../models'
@@ -29,6 +30,7 @@ export function useTaskEditCallbacks() {
   const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
   const { orgs, assignedOrgsMap, assignOrg, unassignOrg } = useOrgStore()
   const { tags, assignedTagsMap, assignTag, unassignTag } = useTagStore()
+  const { statuses } = useStatusStore()
   const { projects, add: addProject } = useProjectStore()
   const { selectedCanvasId } = useCanvasStore()
   const { selectedTodoId, editPopupMode, openEditPopup, closeEditPopup } = useUIStore()
@@ -39,7 +41,7 @@ export function useTaskEditCallbacks() {
   )
 
   const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; orgIds: number[]; tagIds?: number[] }) => {
-    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, projects, orgs)
+    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, projects, orgs, statuses)
     let pid = resolved.projectId ?? partial.projectId
     if (!pid && selectedCanvasId) {
       pid = await addProject('New Project', selectedCanvasId)
@@ -51,6 +53,7 @@ export function useTaskEditCallbacks() {
         partial.scheduledDate !== undefined || partial.dueDate !== undefined ||
         partial.notes || partial.statusId !== undefined ||
         resolved.scheduledDate !== undefined || resolved.recurrence ||
+        resolved.statusId !== undefined ||
         partial.recurrenceRule
       if (hasMeta) {
         const nextDeadline = partial.dueDate ?? todo.dueDate
@@ -58,7 +61,7 @@ export function useTaskEditCallbacks() {
           ...todo,
           scheduledDate: resolved.scheduledDate ?? partial.scheduledDate ?? todo.scheduledDate,
           dueDate: nextDeadline,
-          statusId: partial.statusId ?? todo.statusId,
+          statusId: resolved.statusId ?? partial.statusId ?? todo.statusId,
           notes: partial.notes ?? todo.notes,
           recurrenceRule: partial.recurrenceRule
             ?? (nextDeadline && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, nextDeadline) : undefined),
@@ -77,7 +80,7 @@ export function useTaskEditCallbacks() {
     const allTagIds = new Set<number>([...nlpTagIds, ...(assignments?.tagIds ?? [])])
     for (const tagId of allTagIds) await useTagStore.getState().assignTag(id, tagId)
     return id
-  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, addProject, people, projects, orgs])
+  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, addProject, people, projects, orgs, statuses])
 
   /** Wrap onUpdate to propagate bulk-applicable field changes to other selected tasks. */
   const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {

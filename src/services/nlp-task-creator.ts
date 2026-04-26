@@ -2,7 +2,7 @@ import { parseInput } from './natural-language-parser'
 import { resolveInput, resolveTags, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
 import { runNlpMetadataTransaction } from '../data'
-import type { Person, Project, Org, PersistedTodoItem } from '../models'
+import type { Person, Project, Org, Status, PersistedTodoItem } from '../models'
 
 export interface NlpCreateResult {
   title: string
@@ -10,12 +10,18 @@ export interface NlpCreateResult {
 }
 
 /**
- * Parse raw input text and resolve against known people / orgs / projects.
- * Returns the cleaned title and resolved metadata.
+ * Parse raw input text and resolve against known people / orgs / projects /
+ * statuses. Returns the cleaned title and resolved metadata.
  */
-export function parseTaskInput(rawTitle: string, people: Person[], projects: Project[] = [], orgs: Org[] = []): NlpCreateResult {
+export function parseTaskInput(
+  rawTitle: string,
+  people: Person[],
+  projects: Project[] = [],
+  orgs: Org[] = [],
+  statuses: Status[] = [],
+): NlpCreateResult {
   const parsed = parseInput(rawTitle)
-  const resolved = resolveInput(parsed, people, projects, orgs)
+  const resolved = resolveInput(parsed, people, projects, orgs, statuses)
   return { title: resolved.title, resolved }
 }
 
@@ -36,7 +42,11 @@ export async function applyNlpMetadata(
   assignPerson: (todoId: number, personId: number) => Promise<void>,
   assignOrg?: (todoId: number, orgId: number) => Promise<void>,
 ): Promise<void> {
-  const hasUpdates = resolved.scheduledDate !== undefined || resolved.dueDate !== undefined || resolved.recurrence !== undefined
+  const hasUpdates =
+    resolved.scheduledDate !== undefined ||
+    resolved.dueDate !== undefined ||
+    resolved.recurrence !== undefined ||
+    resolved.statusId !== undefined
   const hasAssignments = resolved.personIds.length > 0 || resolved.orgIds.length > 0
   const hasTags = resolved.tags.length > 0
   if (!hasUpdates && !hasAssignments && !hasTags) return
@@ -49,6 +59,7 @@ export async function applyNlpMetadata(
         if (todo) {
           const nextScheduled = resolved.scheduledDate ?? todo.scheduledDate
           const nextDue = resolved.dueDate ?? todo.dueDate
+          const nextStatusId = resolved.statusId ?? todo.statusId
           let nextRule = todo.recurrenceRule
           if (resolved.recurrence) {
             if (nextDue) {
@@ -64,6 +75,7 @@ export async function applyNlpMetadata(
             scheduledDate: nextScheduled,
             dueDate: nextDue,
             recurrenceRule: nextRule,
+            statusId: nextStatusId,
           })
         }
       }
