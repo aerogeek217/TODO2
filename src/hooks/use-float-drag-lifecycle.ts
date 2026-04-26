@@ -218,7 +218,14 @@ export function useFloatDragLifecycle(
         window.removeEventListener('pointerup', onUpOrCancel)
         window.removeEventListener('pointercancel', onUpOrCancel)
         window.removeEventListener('blur', onUpOrCancel)
-        pointerRef.current = null
+        // Don't null pointerRef here: detach can ride the onUpOrCancel
+        // microtask, which can drain ahead of RF's `dragging:false` change.
+        // If we nulled, the release branch's hit-test gate (`:146-152`) would
+        // see null and skip `resolveFloatDockTarget`, so float drops onto a
+        // rail would silently position-persist instead of docking. Stale
+        // coords between sessions are harmless — the next drag's leading-edge
+        // attach re-binds onMove and the user must move at least once before
+        // a release that could hit-test.
       }
       const onUpOrCancel = () => {
         queueMicrotask(() => {
