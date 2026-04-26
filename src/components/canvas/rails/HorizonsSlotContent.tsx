@@ -199,7 +199,6 @@ export function HorizonsSlotContent() {
         onRemove={handleRemove}
         onAdd={handleAdd}
         onReorder={handleReorder}
-        onEditHorizons={horizonSlots.length > 0 ? () => setShowHorizonEditor(true) : undefined}
       />
       <div className={styles.body}>
         {selectedRow ? (

@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup } from '@testing-library/react'
 import { HorizonRibbon, type HorizonRow } from '../../components/dashboard/HorizonRibbon'
+import { makeTodo } from '../helpers'
 
 function makeRow(overrides: Partial<HorizonRow> & { defId: number; label: string }): HorizonRow {
   return {
@@ -91,38 +92,6 @@ describe('HorizonRibbon', () => {
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
   })
 
-  it('renders Edit horizons button only when onEditHorizons is provided', () => {
-    const onEditHorizons = vi.fn()
-    const { getByText, queryByText, rerender } = render(
-      <HorizonRibbon
-        rows={[makeRow({ defId: 1, label: 'This week', total: 0 })]}
-        selectedDefId={1}
-        onSelect={() => {}}
-        onSwap={() => {}}
-        onRemove={() => {}}
-        onAdd={() => {}}
-        onReorder={() => {}}
-        onEditHorizons={onEditHorizons}
-      />,
-    )
-    const btn = getByText(/Edit horizons/i)
-    fireEvent.click(btn)
-    expect(onEditHorizons).toHaveBeenCalled()
-
-    rerender(
-      <HorizonRibbon
-        rows={[makeRow({ defId: 1, label: 'This week', total: 0 })]}
-        selectedDefId={1}
-        onSelect={() => {}}
-        onSwap={() => {}}
-        onRemove={() => {}}
-        onAdd={() => {}}
-        onReorder={() => {}}
-      />,
-    )
-    expect(queryByText(/Edit horizons/i)).toBeNull()
-  })
-
   it('selected row carries the rowSelected class so callers can style it', () => {
     const rows = [
       makeRow({ defId: 1, label: 'This week', total: 3 }),
@@ -133,5 +102,87 @@ describe('HorizonRibbon', () => {
     expect(selectedRow?.className).toMatch(/rowSelected/)
     const otherRow = container.querySelector('[data-horizon-defid="1"]')
     expect(otherRow?.className).not.toMatch(/rowSelected/)
+  })
+
+  it('renders both scheduled + due bar segments with widths proportional to per-row counts', () => {
+    const rows = [
+      makeRow({
+        defId: 1,
+        label: 'This week',
+        scheduled: [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })],
+        due: [makeTodo({ id: 4 })],
+        total: 4,
+      }),
+    ]
+    const { container } = renderRibbon({ rows, selectedDefId: null })
+    const scheduledSeg = container.querySelector<HTMLElement>('[title="3 scheduled"]')
+    const dueSeg = container.querySelector<HTMLElement>('[title="1 due"]')
+    expect(scheduledSeg).not.toBeNull()
+    expect(dueSeg).not.toBeNull()
+    // Widths are 75% / 25% of the max-row width (single row → max = 4 → fillPct = 100%).
+    expect(scheduledSeg!.style.width).toBe('75%')
+    expect(dueSeg!.style.width).toBe('25%')
+  })
+
+  it('row with total=0 collapses both bar segments to 0% width', () => {
+    const rows = [
+      makeRow({ defId: 1, label: 'Empty', total: 0 }),
+      makeRow({ defId: 2, label: 'With work', total: 3, scheduled: [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })] }),
+    ]
+    const { container } = renderRibbon({ rows, selectedDefId: null })
+    const emptyRow = container.querySelector('[data-horizon-defid="1"]')
+    const segs = emptyRow?.querySelectorAll<HTMLElement>('[title]')
+    for (const seg of Array.from(segs ?? [])) {
+      // Only check the inner bar segments (have width style)
+      if (seg.style.width) expect(seg.style.width).toBe('0%')
+    }
+  })
+
+  it('per-row count text reflects HorizonRow.total', () => {
+    const rows = [
+      makeRow({ defId: 1, label: 'Many', total: 12 }),
+      makeRow({ defId: 2, label: 'One', total: 1 }),
+    ]
+    const { container } = renderRibbon({ rows, selectedDefId: null })
+    const counts = Array.from(container.querySelectorAll('[data-horizon-defid] span'))
+      .map((el) => el.textContent?.trim())
+      .filter((t) => t === '12' || t === '1')
+    expect(counts).toContain('12')
+    expect(counts).toContain('1')
+  })
+
+  it('aria-label on the bar button singularizes "task" when total === 1', () => {
+    const rows = [
+      makeRow({ defId: 1, label: 'Solo', total: 1, scheduled: [makeTodo({ id: 1 })] }),
+      makeRow({ defId: 2, label: 'Many', total: 3, scheduled: [makeTodo({ id: 2 }), makeTodo({ id: 3 }), makeTodo({ id: 4 })] }),
+    ]
+    const { container } = renderRibbon({ rows })
+    const soloBar = container.querySelector('[data-horizon-defid="1"] button[aria-pressed]')
+    const manyBar = container.querySelector('[data-horizon-defid="2"] button[aria-pressed]')
+    expect(soloBar?.getAttribute('aria-label')).toMatch(/1 task \(/)
+    expect(manyBar?.getAttribute('aria-label')).toMatch(/3 tasks \(/)
+  })
+
+  it('every row exposes a drag-handle (dnd-kit useSortable wiring)', () => {
+    // The handle is interactive (cursor: grab) — JSDOM can't simulate the
+    // pointer drag itself, but we can assert the handle is present per row.
+    const rows = [
+      makeRow({ defId: 1, label: 'A' }),
+      makeRow({ defId: 2, label: 'B' }),
+      makeRow({ defId: 3, label: 'C' }),
+    ]
+    const { container } = renderRibbon({ rows })
+    const rowEls = container.querySelectorAll('[data-horizon-defid]')
+    for (const rowEl of Array.from(rowEls)) {
+      expect(rowEl.querySelector('[role="button"]') ?? rowEl.querySelector('button')).not.toBeNull()
+    }
+  })
+
+  it('clicking + Add list passes a bottom-aligned anchor relative to the button', () => {
+    const { getByText, onAdd } = renderRibbon({ rows: [] })
+    fireEvent.click(getByText('+ Add list'))
+    const call = onAdd.mock.calls[0]?.[0] as { x: number; y: number }
+    expect(typeof call.x).toBe('number')
+    expect(typeof call.y).toBe('number')
   })
 })

@@ -35,8 +35,6 @@ interface Props {
   onRemove: (defId: number) => void
   onAdd: (anchor: { x: number; y: number }) => void
   onReorder: (fromIndex: number, toIndex: number) => void
-  /** Open the horizon-list editor modal (Edit horizons…). */
-  onEditHorizons?: () => void
 }
 
 interface RowProps {
@@ -120,7 +118,6 @@ export function HorizonRibbon({
   onRemove,
   onAdd,
   onReorder,
-  onEditHorizons,
 }: Props) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -169,11 +166,6 @@ export function HorizonRibbon({
         <button type="button" className={styles.addBtn} onClick={handleAdd}>
           + Add list
         </button>
-        {onEditHorizons && (
-          <button type="button" className={styles.editBtn} onClick={onEditHorizons}>
-            Edit horizons…
-          </button>
-        )}
       </div>
     </div>
   )
