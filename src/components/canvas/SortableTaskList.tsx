@@ -17,7 +17,7 @@ import { DragInsertContext, DragPreviewContext } from './DragInsertContext'
 import { InsertTrigger, type InsertTriggerHandle } from './InsertTrigger'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { pasteTasksAt } from '../../services/clipboard'
-import { partitionByGroup } from '../../utils/task-grouping'
+import { partitionByGroup, getGroupColor } from '../../utils/task-grouping'
 import { UNGROUPED_GROUP_KEY, blockContextId } from '../../utils/cross-group-drag'
 import { startOfToday } from '../../utils/date'
 import { TaskGroup } from './shared/TaskGroup'
@@ -92,6 +92,9 @@ interface RenderBlock {
   key: string
   /** Group label, or null for the ungrouped block (no TaskGroup wrapper). */
   label: string | null
+  /** Optional swatch color for entity groups (status / people / org / tag).
+   *  Date-bucket and ungrouped blocks leave this undefined. */
+  color?: string
   todos: PersistedTodoItem[]
   /** First todo id of the next block (or null if this is the last block).
    * Used as `beforeId` for the trigger after this block's last row, so
@@ -119,6 +122,8 @@ export function SortableTaskList({
   // full ctx through. assignedPeopleMap stays as a prop because callers
   // already pass a per-canvas filtered/stable reference.
   const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
+  const orgs = useOrgStore((s) => s.orgs)
+  const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
@@ -203,20 +208,29 @@ export function SortableTaskList({
   // Null when groupBy is unset → flat render path.
   const blocks = useMemo<RenderBlock[] | null>(() => {
     if (!groupBy) return null
-    const partition = partitionByGroup(displayItems, groupBy, {
+    const ctx = {
       assignedPeopleMap: assignedPeopleMap ?? new Map(),
       assignedOrgsMap,
       assignedTagsMap,
       statuses,
+      orgs,
+      personOrgMap,
       today,
       weekStartsOn,
-    })
+    }
+    const partition = partitionByGroup(displayItems, groupBy, ctx)
     const out: RenderBlock[] = []
     if (partition.ungrouped.length > 0) {
       out.push({ key: UNGROUPED_GROUP_KEY, label: null, todos: partition.ungrouped, nextBlockFirstId: null })
     }
     for (const g of partition.groups) {
-      out.push({ key: g.key, label: g.label, todos: g.todos, nextBlockFirstId: null })
+      out.push({
+        key: g.key,
+        label: g.label,
+        color: getGroupColor(g.key, groupBy, ctx),
+        todos: g.todos,
+        nextBlockFirstId: null,
+      })
     }
     for (let i = 0; i < out.length - 1; i++) {
       const current = out[i]
@@ -226,7 +240,7 @@ export function SortableTaskList({
       }
     }
     return out
-  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, today, weekStartsOn])
+  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, orgs, personOrgMap, today, weekStartsOn])
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])
@@ -512,7 +526,7 @@ export function SortableTaskList({
           items={items}
         >
           {block.label != null ? (
-            <TaskGroup label={block.label} count={block.todos.length}>
+            <TaskGroup label={block.label} count={block.todos.length} color={block.color}>
               {rows}
             </TaskGroup>
           ) : (

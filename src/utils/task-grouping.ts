@@ -1,12 +1,19 @@
 import type { PersistedTodoItem, Person, Org, Status, Tag, ProjectGroupBy } from '../models'
 import { effectiveDate, resolveScheduled, type WeekStart } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
+import { resolvePersonColor } from './person-color'
+import { UNAFFILIATED_PERSON_COLOR } from '../constants'
 
 export interface GroupingContext {
   assignedPeopleMap: Map<number, Person[]>
   assignedOrgsMap: Map<number, Org[]>
   assignedTagsMap: Map<number, Tag[]>
   statuses: readonly Status[]
+  /** Org registry — used by `getGroupColor` to resolve person colors via
+   *  their first assigned org. Empty list is fine when not grouping by people. */
+  orgs: readonly Org[]
+  /** personId → orgId[] — used by `getGroupColor` to resolve person colors. */
+  personOrgMap: Map<number, number[]>
   today: Date
   weekStartsOn: WeekStart
 }
@@ -153,6 +160,57 @@ export function getGroupLabel(
     case 'scheduled':
     case 'deadline':
       return DATE_BUCKET_LABELS[key] ?? ''
+  }
+}
+
+/**
+ * Resolve the swatch color for a group header. Returns `undefined` when the
+ * key has no associated color (date buckets, unknown keys, status with no
+ * defined color). People without an org membership fall back to
+ * `UNAFFILIATED_PERSON_COLOR`, mirroring `AvatarStack`'s fill-variant behavior.
+ *
+ * Date-bucket dimensions (`date` / `scheduled` / `deadline`) are derived
+ * buckets, not entities — they intentionally have no color.
+ */
+export function getGroupColor(
+  key: string,
+  groupBy: ProjectGroupBy,
+  ctx: GroupingContext,
+): string | undefined {
+  switch (groupBy) {
+    case 'status': {
+      const id = parseId('status-', key)
+      if (id == null) return undefined
+      const s = ctx.statuses.find((x) => x.id === id)
+      return s?.color
+    }
+    case 'people': {
+      const id = parseId('person-', key)
+      if (id == null) return undefined
+      return resolvePersonColor(id, ctx.personOrgMap, [...ctx.orgs]) ?? UNAFFILIATED_PERSON_COLOR
+    }
+    case 'org': {
+      const id = parseId('org-', key)
+      if (id == null) return undefined
+      for (const arr of ctx.assignedOrgsMap.values()) {
+        const hit = arr.find((o) => o.id === id)
+        if (hit?.color) return hit.color
+      }
+      return undefined
+    }
+    case 'tag': {
+      const id = parseId('tag-', key)
+      if (id == null) return undefined
+      for (const arr of ctx.assignedTagsMap.values()) {
+        const hit = arr.find((t) => t.id === id)
+        if (hit?.color) return hit.color
+      }
+      return undefined
+    }
+    case 'date':
+    case 'scheduled':
+    case 'deadline':
+      return undefined
   }
 }
 

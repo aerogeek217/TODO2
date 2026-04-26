@@ -108,4 +108,35 @@ describe('TaskGroup', () => {
     const rule = container.querySelector('[aria-hidden="true"]')
     expect(rule).toBeTruthy()
   })
+
+  it('renders no swatch when color is omitted', () => {
+    const { getByRole } = render(
+      <TaskGroup label="Roadmap" count={3}>
+        <div>row</div>
+      </TaskGroup>,
+    )
+    const section = getByRole('region', { name: 'Roadmap' })
+    const header = section.querySelector('header')!
+    // Header has the rule (aria-hidden="true") but no preceding swatch span
+    // before the label. Concretely: the only aria-hidden element is the rule.
+    expect(header.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1)
+  })
+
+  it('renders an 8 px circle swatch before the label when color is set', () => {
+    const { getByRole } = render(
+      <TaskGroup label="Hiring" count={2} color="#abc">
+        <div>row</div>
+      </TaskGroup>,
+    )
+    const section = getByRole('region', { name: 'Hiring' })
+    const header = section.querySelector('header')!
+    // Two aria-hidden children now: the leading swatch + the trailing rule.
+    const decorative = header.querySelectorAll<HTMLElement>('[aria-hidden="true"]')
+    expect(decorative).toHaveLength(2)
+    const swatch = decorative[0]!
+    expect(swatch.style.background).toBe('rgb(170, 187, 204)')
+    // Swatch precedes the label in the document order.
+    const label = within(section).getByText('Hiring')
+    expect(swatch.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })

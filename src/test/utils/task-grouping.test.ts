@@ -3,9 +3,11 @@ import type { Person, Org, Status, Tag } from '../../models'
 import {
   getGroupKey,
   getGroupLabel,
+  getGroupColor,
   partitionByGroup,
   type GroupingContext,
 } from '../../utils/task-grouping'
+import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
 import { makeTodo } from '../helpers'
 
 function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
@@ -14,6 +16,8 @@ function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
     assignedOrgsMap: new Map(),
     assignedTagsMap: new Map(),
     statuses: [],
+    orgs: [],
+    personOrgMap: new Map(),
     today: new Date(2026, 0, 15),
     weekStartsOn: 1,
     ...over,
@@ -186,6 +190,52 @@ describe('getGroupLabel', () => {
     const ctx = makeCtx({ statuses: STATUSES })
     expect(getGroupLabel('status-999', 'status', ctx)).toBe('')
     expect(getGroupLabel('garbage', 'status', ctx)).toBe('')
+  })
+})
+
+describe('getGroupColor', () => {
+  it('returns the status color from ctx.statuses', () => {
+    const ctx = makeCtx({ statuses: STATUSES })
+    expect(getGroupColor('status-2', 'status', ctx)).toBe('#a00')
+  })
+
+  it('returns the org color from the assigned map', () => {
+    const acme: Org = { id: 1, name: 'Acme', color: '#abc' }
+    const ctx = makeCtx({ assignedOrgsMap: new Map([[10, [acme]]]) })
+    expect(getGroupColor('org-1', 'org', ctx)).toBe('#abc')
+  })
+
+  it('returns the tag color from the assigned map', () => {
+    const urgent: Tag = { id: 1, name: 'urgent', color: '#f00' }
+    const ctx = makeCtx({ assignedTagsMap: new Map([[10, [urgent]]]) })
+    expect(getGroupColor('tag-1', 'tag', ctx)).toBe('#f00')
+  })
+
+  it('resolves the person color through their first assigned org', () => {
+    const acme: Org = { id: 1, name: 'Acme', color: '#abc' }
+    const ctx = makeCtx({
+      orgs: [acme],
+      personOrgMap: new Map([[7, [1]]]),
+    })
+    expect(getGroupColor('person-7', 'people', ctx)).toBe('#abc')
+  })
+
+  it('falls back to UNAFFILIATED_PERSON_COLOR for a person with no org', () => {
+    const ctx = makeCtx({ orgs: [], personOrgMap: new Map() })
+    expect(getGroupColor('person-7', 'people', ctx)).toBe(UNAFFILIATED_PERSON_COLOR)
+  })
+
+  it('returns undefined for date-bucket dimensions', () => {
+    const ctx = makeCtx()
+    expect(getGroupColor('overdue', 'date', ctx)).toBeUndefined()
+    expect(getGroupColor('today', 'scheduled', ctx)).toBeUndefined()
+    expect(getGroupColor('week', 'deadline', ctx)).toBeUndefined()
+  })
+
+  it('returns undefined for unknown / malformed keys', () => {
+    const ctx = makeCtx({ statuses: STATUSES })
+    expect(getGroupColor('status-999', 'status', ctx)).toBeUndefined()
+    expect(getGroupColor('garbage', 'status', ctx)).toBeUndefined()
   })
 })
 
