@@ -14,7 +14,7 @@ import { bySortOrder } from '../../utils/sort-order'
 import { taskDragId } from '../../utils/task-dnd'
 import { DropIndicator } from '../shared/DropIndicator'
 import { DragInsertContext, DragPreviewContext } from './DragInsertContext'
-import { InsertTrigger } from './InsertTrigger'
+import { InsertTrigger, type InsertTriggerHandle } from './InsertTrigger'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { pasteTasksAt } from '../../services/clipboard'
 import { partitionByGroup } from '../../utils/task-grouping'
@@ -128,6 +128,39 @@ export function SortableTaskList({
   const [activeInsertAfterId, setActiveInsertAfterId] = useState<number | null>(null)
   const closeInsert = useCallback(() => { setActiveInsertAfterId(null); clearInlineCreate() }, [clearInlineCreate])
 
+  // Imperative focus handoff (Phase 3 of real-browser-testing). Phase 2's
+  // post-Phase-4 trace showed every focus mechanism earlier than t50
+  // (autoFocus, useLayoutEffect, rAF, t0) is 0/40 effective during the
+  // Enter-chain re-render race; only setTimeout(_, 50) lands focus
+  // reliably. Each <InsertTrigger> registers its handle in `triggerRefs`
+  // via a stable callback ref. The useLayoutEffect below fires after the
+  // commit that mounts the new trigger and schedules a single t50 timer
+  // — long enough for whatever holds focus ineligible (most likely React
+  // Flow's ResizeObserver firing as the project node grows for the new
+  // row) to release. Scheduling from useLayoutEffect (post-commit) rather
+  // than from `openTriggerAfterInsert` (pre-commit) is critical: with 20+
+  // rows the commit itself can take longer than 50 ms, pushing a
+  // pre-commit timer to fire *during* contention.
+  const triggerRefs = useRef<Map<number, InsertTriggerHandle | null>>(new Map())
+  const triggerRefCbs = useRef<Map<number, (h: InsertTriggerHandle | null) => void>>(new Map())
+  const getTriggerRefCb = useCallback((id: number) => {
+    let cb = triggerRefCbs.current.get(id)
+    if (!cb) {
+      cb = (handle: InsertTriggerHandle | null): void => {
+        if (handle) triggerRefs.current.set(id, handle)
+        else triggerRefs.current.delete(id)
+      }
+      triggerRefCbs.current.set(id, cb)
+    }
+    return cb
+  }, [])
+  useLayoutEffect(() => {
+    if (activeInsertAfterId == null) return
+    const id = activeInsertAfterId
+    const t = setTimeout(() => triggerRefs.current.get(id)?.focusInput(), 50)
+    return () => clearTimeout(t)
+  }, [activeInsertAfterId])
+
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
   const closeContextMenu = useCallback(() => setContextMenu(null), [])
@@ -140,15 +173,14 @@ export function SortableTaskList({
     }
   }, [inlineCreateAfterId, todos, clearInlineCreate])
 
-  // After Enter-chain insert: open the trigger on the new task.
-  // Same-project path sets local state directly so the todos update AND the
-  // activeInsertAfterId update land in the SAME render — the new InsertTrigger
-  // mounts with editing=true on its first render, autoFocus fires on the
-  // input's first DOM insertion (no unmount/mount interleave from a
-  // two-render ui-store round-trip, which is harder on real browser focus
-  // bookkeeping). Cross-project (NLP /proj redirected the task) falls back
-  // to the ui-store path since the target project's useEffect is the only
-  // path that can land it there.
+  // After Enter-chain insert: open the trigger on the new task and
+  // imperatively land focus 50 ms later (see `triggerRefs` doc above for
+  // mechanism). Same-project path sets local state directly so the todos
+  // update AND the activeInsertAfterId update land in the SAME render —
+  // the new InsertTrigger mounts with editing=true on its first render
+  // and the t50 timer focuses it. Cross-project (NLP /proj redirected the
+  // task) falls back to the ui-store path since the target project's
+  // useEffect is the only path that can land activeInsertAfterId there.
   const openTriggerAfterInsert = useCallback((newId: number) => {
     const newTask = useTodoStore.getState().todos.find((t) => t.id === newId)
     if (newTask?.projectId === projectId) setActiveInsertAfterId(newId)
@@ -424,6 +456,7 @@ export function SortableTaskList({
         )}
         {!isDragActive && onInsertTask && isFirstOfList && (
           <InsertTrigger
+            ref={getTriggerRefCb(BEFORE_FIRST)}
             editing={activeInsertAfterId === BEFORE_FIRST}
             onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
             onCommit={async (title) => {
@@ -447,6 +480,7 @@ export function SortableTaskList({
         />
         {!isDragActive && onInsertTask && (
           <InsertTrigger
+            ref={getTriggerRefCb(todo.id)}
             editing={activeInsertAfterId === todo.id}
             onActivate={() => setActiveInsertAfterId(todo.id)}
             onCommit={async (title) => {
@@ -501,6 +535,7 @@ export function SortableTaskList({
         {body}
         {displayItems.length === 0 && !isDragActive && onInsertTask && (
           <InsertTrigger
+            ref={getTriggerRefCb(BEFORE_FIRST)}
             editing={activeInsertAfterId === BEFORE_FIRST}
             onActivate={() => setActiveInsertAfterId(BEFORE_FIRST)}
             onCommit={async (title) => {

@@ -1,4 +1,11 @@
-import { useRef, useLayoutEffect, useMemo, useCallback } from 'react'
+import {
+  useRef,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+  useImperativeHandle,
+  forwardRef,
+} from 'react'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
@@ -10,10 +17,9 @@ import { useTagStore } from '../../stores/tag-store'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './InsertTrigger.module.css'
 
-// Phase 2 (real-browser-testing): debug-only focus trace gated on
-// `?debug-focus=1`. Logs every focus() call site + document-wide
-// focusin/focusout. Removed in Phase 5 once the trace pinpoints which
-// reclaim is load-bearing.
+// Debug-only focus trace gated on `?debug-focus=1`. Logs every focus() call
+// site + document-wide focusin/focusout. Used by `e2e/focus-trace.spec.ts`
+// to verify the imperative focus path lands focus consistently.
 const DEBUG_FOCUS =
   typeof window !== 'undefined' && window.location.search.includes('debug-focus')
 
@@ -72,6 +78,14 @@ function ensureDocumentListeners(): void {
   )
 }
 
+/** Imperative handle exposed to `SortableTaskList` so the parent owns *when*
+ * to focus the input (after the activeInsertAfterId render commits + the
+ * t50 macrotask gap). The trigger owns *how*: a single `inputRef.focus()`
+ * call. Phase 3 of `docs/plans/features/real-browser-testing/`. */
+export interface InsertTriggerHandle {
+  focusInput: () => void
+}
+
 interface InsertTriggerProps {
   editing: boolean
   onActivate: () => void
@@ -81,7 +95,10 @@ interface InsertTriggerProps {
   onPasteFromClipboard?: () => void
 }
 
-export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onContextMenu, onPasteFromClipboard }: InsertTriggerProps) {
+export const InsertTrigger = forwardRef<InsertTriggerHandle, InsertTriggerProps>(function InsertTrigger(
+  { editing, onActivate, onCommit, onCancel, onContextMenu, onPasteFromClipboard },
+  ref,
+) {
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef('')
@@ -89,17 +106,46 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
 
   if (DEBUG_FOCUS) ensureDocumentListeners()
 
-  // Phase 2 instrumentation: callback ref logs the mount-time autoFocus
-  // window. React's autoFocus prop is a literal `.focus()` call into the
-  // DOM during commit, but it has no JS hook — the ref callback fires
-  // immediately after the autoFocus call in the same commit phase, so
-  // logging here pins down whether the autoFocus actually landed.
-  // Stable identity via useCallback so React only invokes on real
-  // mount/unmount, not on every parent re-render.
+  // Stable callback ref: only fires on real input mount/unmount.
   const setInputRef = useCallback((el: HTMLInputElement | null): void => {
     inputRef.current = el
     if (DEBUG_FOCUS && el) dbg('mount', { node: fmtEl(el), autoFocusOnNode: el === document.activeElement })
   }, [])
+
+  // Imperative focus handoff (Phase 3). Phase 2's post-Phase-4 trace showed
+  // every focus mechanism earlier than t50 is 0/40 effective during the
+  // Enter-chain re-render race — autoFocus, useLayoutEffect, rAF, t0 all
+  // fail because something (most likely React Flow's ResizeObserver firing
+  // when the project node grows for the new row) holds focus ineligible
+  // for the full ~50ms window after mount. SortableTaskList drives this
+  // method from a `setTimeout(_, 50)` after `setActiveInsertAfterId`, so
+  // by the time we run the contention window has cleared.
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusInput: () => {
+        const input = inputRef.current
+        if (!input || committedRef.current) {
+          dbg('focusInput', { skipped: 'no-input-or-committed' })
+          return
+        }
+        const before = document.activeElement
+        if (before === input) {
+          dbg('focusInput', { skipped: 'already-on-input' })
+          return
+        }
+        input.focus()
+        dbg('t50', {
+          calledFocus: true,
+          before: fmtEl(before),
+          after: fmtEl(document.activeElement),
+          changed: before !== document.activeElement,
+          landedOnInput: document.activeElement === input,
+        })
+      },
+    }),
+    [],
+  )
 
   const people = usePersonStore((s) => s.people)
   const projects = useProjectStore((s) => s.projects)
@@ -148,24 +194,11 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     else onCancel()
   }, editing)
 
-  // Enter-chain focus: when this trigger becomes `editing` right after a
-  // sibling's input unmounted (user pressed Enter in the previous trigger),
-  // we need to land focus on OUR input and hold it there. Prior attempts tried
-  // useLayoutEffect + rAF — that covers the same-frame race but misses two
-  // real-browser failure modes seen in Edge/Chrome:
-  //   1. React Flow's ResizeObserver fires after the ProjectNode grows for the
-  //      new task row. Its callback dispatches a store update → CanvasView
-  //      re-renders and walks back through ProjectNode. Depending on browser
-  //      scheduling, that can run AFTER our rAF reclaim, briefly snapping focus
-  //      back to document.body between the paint and the next user input.
-  //   2. The OLD input's blur event handler (set up by its own onBlur before
-  //      unmount) fires on a 150ms timer. It early-returns via committedRef
-  //      but the browser still flushes the blur through the focus queue, and
-  //      in rare cases the focus-reclaim hasn't been honored yet when the user
-  //      starts typing.
-  // Robust fix: aggressive, low-cost retries at escalating deadlines AND a
-  // short-window focusout reclaim. We only reclaim if focus went to body/null
-  // (i.e. "nothing took it") — never fight a real focus target.
+  // Edit-state housekeeping. Initial focus is handled by the input's
+  // `autoFocus` (click-activate path) and by SortableTaskList's `t50`
+  // imperative call (Enter-chain path). Phase 2 showed the in-component
+  // reclaim chain (rAF / t0 / t50 / t150 / t300 / focusout-reclaim) was
+  // 0/40 effective in real Chromium — removed accordingly.
   useLayoutEffect(() => {
     if (!editing) {
       ac.dismiss()
@@ -173,80 +206,6 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     }
     titleRef.current = ''
     committedRef.current = false
-    const input = inputRef.current
-    if (!input) return
-    let cancelled = false
-
-    const reclaim = (label: string) => {
-      // Don't fight dismissal. `committedRef` flips true when the user
-      // commits (Enter) or click-outside fires — either way the trigger is
-      // on its way out and we must not force focus back.
-      if (cancelled || committedRef.current || !inputRef.current) {
-        dbg(label, { skipped: 'cancelled-or-committed' })
-        return
-      }
-      const before = document.activeElement
-      if (before === inputRef.current) {
-        dbg(label, { skipped: 'already-on-input' })
-        return
-      }
-      // Only reclaim when focus has nowhere else to go. If a user clicked
-      // another real control (button, menu, another input), leave it alone.
-      if (before === null || before === document.body) {
-        inputRef.current.focus()
-        const after = document.activeElement
-        dbg(label, {
-          calledFocus: true,
-          before: fmtEl(before),
-          after: fmtEl(after),
-          changed: before !== after,
-          landedOnInput: after === inputRef.current,
-        })
-      } else {
-        dbg(label, { skipped: 'other-element-focused', before: fmtEl(before) })
-      }
-    }
-
-    dbg('useLayoutEffect', { aboutToCallFocus: true, before: fmtEl(document.activeElement) })
-    input.focus()
-    dbg('useLayoutEffect', {
-      after: fmtEl(document.activeElement),
-      landedOnInput: document.activeElement === input,
-    })
-    // Retry schedule spans sync post-commit (rAF) through the settle window
-    // (~300ms) where async store publishes and ResizeObserver work typically
-    // finish. Each retry is a no-op if focus already landed — the cost is a
-    // handful of document.activeElement reads.
-    const raf = requestAnimationFrame(() => reclaim('rAF'))
-    const t0 = setTimeout(() => reclaim('t0'), 0)
-    const t1 = setTimeout(() => reclaim('t50'), 50)
-    const t2 = setTimeout(() => reclaim('t150'), 150)
-    const t3 = setTimeout(() => reclaim('t300'), 300)
-
-    // Additionally reclaim on focusout for the first 400ms. This catches the
-    // exact moment a stray blur fires after our retries finish but before the
-    // user types. Scoped to the input via capture listener on the element.
-    const onFocusOut = (e: FocusEvent) => {
-      // relatedTarget === null means focus moved to nowhere (body). If it
-      // moved to another focusable element, honor that.
-      if (e.relatedTarget === null || e.relatedTarget === document.body) {
-        // Defer one tick so we don't race with whatever event caused the blur.
-        queueMicrotask(() => reclaim('focusout-reclaim'))
-      }
-    }
-    input.addEventListener('focusout', onFocusOut)
-    const offFocusOut = setTimeout(() => input.removeEventListener('focusout', onFocusOut), 400)
-
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(raf)
-      clearTimeout(t0)
-      clearTimeout(t1)
-      clearTimeout(t2)
-      clearTimeout(t3)
-      clearTimeout(offFocusOut)
-      input.removeEventListener('focusout', onFocusOut)
-    }
   }, [editing])
 
   const handleCommit = () => {
@@ -256,8 +215,8 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
       // Reset input + ref synchronously so keystrokes arriving during the
       // async insert accumulate in a clean input (not appended to the
       // just-committed title). The parent then moves `activeInsertAfterId`
-      // to the new task id when the insert resolves — the new InsertTrigger
-      // mounts with `autoFocus` and picks up focus.
+      // to the new task id when the insert resolves and schedules the
+      // imperative `focusInput()` call to land focus on the new trigger.
       if (inputRef.current) inputRef.current.value = ''
       titleRef.current = ''
       // Mark as committed so the deferred onBlur handler doesn't re-fire
@@ -368,4 +327,4 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
       <div className={styles.circle}>+</div>
     </div>
   )
-}
+})
