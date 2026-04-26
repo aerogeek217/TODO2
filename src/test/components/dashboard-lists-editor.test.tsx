@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent } from '@testing-library/react'
+import { render, cleanup, fireEvent, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { DashboardListsEditor } from '../../components/settings/DashboardListsEditor'
 import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
+import { useUIStore } from '../../stores/ui-store'
 import type { PersistedListDefinition } from '../../models'
 
 vi.mock('../../data/list-definition-repository', () => ({
@@ -98,28 +99,28 @@ describe('DashboardListsEditor — Match sort field grouping option', () => {
   afterEach(() => { cleanup() })
 
   it('disables Match-sort-field grouping when sort kind is not sortBy', () => {
-    const { getAllByText, getByText } = render(
+    render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
     )
-    // Open the first def's config panel.
-    const configBtns = getAllByText('⚙')
+    // Open the first def's editor dialog (portaled to document.body).
+    const configBtns = screen.getAllByText('⚙')
     fireEvent.click(configBtns[0]!)
-    const matchBtn = getByText('Match sort field') as HTMLButtonElement
-    expect(matchBtn.disabled).toBe(true)
+    const matchOpt = screen.getByText('Match sort field') as HTMLOptionElement
+    expect(matchOpt.disabled).toBe(true)
   })
 
   it('enables Match-sort-field grouping when sort kind is sortBy', () => {
-    const { getAllByText, getByText } = render(
+    render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
     )
-    const configBtns = getAllByText('⚙')
+    const configBtns = screen.getAllByText('⚙')
     fireEvent.click(configBtns[1]!)
-    const matchBtn = getByText('Match sort field') as HTMLButtonElement
-    expect(matchBtn.disabled).toBe(false)
+    const matchOpt = screen.getByText('Match sort field') as HTMLOptionElement
+    expect(matchOpt.disabled).toBe(false)
   })
 })
 
@@ -143,33 +144,39 @@ describe('DashboardListsEditor — runtime filter control', () => {
       },
     } as Partial<ReturnType<typeof useListDefinitionStore.getState>> as never)
 
-    const { getAllByText, getByText, container } = render(
+    render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
     )
-    const configBtns = getAllByText('⚙')
-    fireEvent.click(configBtns[0]!)
+    fireEvent.click(screen.getAllByText('⚙')[0]!)
 
-    // The runtime-filter select is the one whose options include "Person".
-    const selects = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
+    // The runtime-filter select lives inside the dialog body (portaled to
+    // document.body). Find it via the option that includes "Person".
+    const selects = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
     const runtimeSelect = selects.find((el) =>
       Array.from(el.options).some((o) => o.value === 'person'),
     )
     expect(runtimeSelect).toBeTruthy()
 
     // Dirty-tracked save: changing the select only touches the draft; the
-    // store call happens when the user clicks Save.
+    // store call happens when the user clicks Save (now in the dialog footer).
     fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
     expect(updates.length).toBe(0)
-    fireEvent.click(getByText('Save'))
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
     // Flush the microtask queue so the async update() resolves.
     await Promise.resolve()
     expect(updates.at(-1)?.runtimeFilter).toEqual({ field: 'person' })
 
-    // Picking None again clears it — still gated by a Save click.
-    fireEvent.change(runtimeSelect!, { target: { value: 'none' } })
-    fireEvent.click(getByText('Save'))
+    // Save closes the dialog; re-open to flip the pick back to None.
+    fireEvent.click(screen.getAllByText('⚙')[0]!)
+    const selects2 = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
+    const runtimeSelect2 = selects2.find((el) =>
+      Array.from(el.options).some((o) => o.value === 'person'),
+    )
+    expect(runtimeSelect2).toBeTruthy()
+    fireEvent.change(runtimeSelect2!, { target: { value: 'none' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
     await Promise.resolve()
     expect(updates.at(-1)?.runtimeFilter).toBeUndefined()
   })
@@ -187,15 +194,19 @@ describe('DashboardListsEditor — initialSelectedId', () => {
   })
   afterEach(() => { cleanup() })
 
-  it('mounts with the given def\'s ConfigPanel already open', () => {
-    const { container } = render(
+  it("mounts with the given def's editor dialog already open", () => {
+    render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} initialSelectedId={3} />
       </MemoryRouter>,
     )
-    // Only one config panel should be visible, and it belongs to Gamma (id 3).
-    const panels = container.querySelectorAll('[class*="configPanel"]')
-    expect(panels.length).toBe(1)
+    // Exactly one editor dialog exists, portaled to document.body, labelled
+    // for Gamma (id 3).
+    const dialogs = document.body.querySelectorAll('[role="dialog"]')
+    expect(dialogs.length).toBe(1)
+    const aria = dialogs[0]!.getAttribute('aria-label') ?? ''
+    expect(aria.startsWith('Edit list')).toBe(true)
+    expect(aria).toContain('Gamma')
   })
 })
 
@@ -209,18 +220,17 @@ describe('DashboardListsEditor — draft dirty-gating (L5)', () => {
 
   it('preserves mid-edit runtime-filter pick when the upstream name changes', async () => {
     // User edits the runtime-filter select (makes draft dirty), then an
-    // external write renames the def in the store. The panel's re-sync
+    // external write renames the def in the store. The dialog's re-sync
     // effect must forward name/pin/sortOrder but leave the user's
     // runtime-filter pick intact until Save.
-    const { getAllByText, container } = render(
+    render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} />
       </MemoryRouter>,
     )
-    const configBtns = getAllByText('⚙')
-    fireEvent.click(configBtns[0]!)
+    fireEvent.click(screen.getAllByText('⚙')[0]!)
 
-    const selects = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
+    const selects = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
     const runtimeSelect = selects.find((el) =>
       Array.from(el.options).some((o) => o.value === 'person'),
     )
@@ -239,10 +249,113 @@ describe('DashboardListsEditor — draft dirty-gating (L5)', () => {
 
     // The user's edit (`person`) is still selected — the external rename did
     // not clobber the draft's runtime filter.
-    const selects2 = Array.from(container.querySelectorAll('select')) as HTMLSelectElement[]
+    const selects2 = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
     const runtimeSelect2 = selects2.find((el) =>
       Array.from(el.options).some((o) => o.value === 'person'),
     )
     expect(runtimeSelect2!.value).toBe('person')
+  })
+})
+
+describe('DashboardListsEditor — modal-on-modal contract', () => {
+  let originalShowBulk: ReturnType<typeof useUIStore.getState>['showBulkConfirmation']
+  let originalSetFavorited: ReturnType<typeof useListDefinitionStore.getState>['setFavorited']
+
+  beforeEach(() => {
+    useListDefinitionStore.setState({
+      listDefinitions: [makeDef({ id: 1, name: 'Alpha' })],
+    })
+    originalShowBulk = useUIStore.getState().showBulkConfirmation
+    originalSetFavorited = useListDefinitionStore.getState().setFavorited
+  })
+  afterEach(() => {
+    useUIStore.setState({ showBulkConfirmation: originalShowBulk } as never)
+    useListDefinitionStore.setState({ setFavorited: originalSetFavorited } as never)
+    cleanup()
+  })
+
+  it('opens the editor dialog on ⚙ click and closes it via ×', () => {
+    render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    fireEvent.click(screen.getByText('⚙'))
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+
+    // Dialog × is the only element labelled "Close" (Lists modal's × has no aria-label).
+    fireEvent.click(screen.getByLabelText('Close'))
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('Esc closes the editor only — Lists modal stays mounted', () => {
+    const onClose = vi.fn()
+    const { container } = render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={onClose} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByText('⚙'))
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    // Outer Lists modal still rendered in the test container.
+    expect(container.querySelector('[class*="backdrop"]')).not.toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('clicking the scrim closes the editor', () => {
+    render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByText('⚙'))
+    const scrim = document.body.querySelector('[class*="scrim"]') as HTMLElement | null
+    expect(scrim).not.toBeNull()
+    fireEvent.click(scrim!)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('routes a dirty close through showBulkConfirmation', () => {
+    const showSpy = vi.fn()
+    useUIStore.setState({ showBulkConfirmation: showSpy } as never)
+
+    render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByText('⚙'))
+
+    // Dirty the draft via the runtime-filter select.
+    const selects = Array.from(document.body.querySelectorAll('select')) as HTMLSelectElement[]
+    const runtimeSelect = selects.find((el) =>
+      Array.from(el.options).some((o) => o.value === 'person'),
+    )
+    expect(runtimeSelect).toBeTruthy()
+    fireEvent.change(runtimeSelect!, { target: { value: 'person' } })
+
+    // Cancel button is in the dialog footer.
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(showSpy).toHaveBeenCalled()
+    // Editor still mounted — confirm flow is gating the close.
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+  })
+
+  it('header favorite toggle fires setFavorited immediately, no Save needed', () => {
+    const setFavoritedSpy = vi.fn(async () => {})
+    useListDefinitionStore.setState({ setFavorited: setFavoritedSpy } as never)
+
+    render(
+      <MemoryRouter>
+        <DashboardListsEditor onClose={() => {}} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByText('⚙'))
+    fireEvent.click(screen.getByText('Add to favorites'))
+    expect(setFavoritedSpy).toHaveBeenCalledWith(1, true)
   })
 })
