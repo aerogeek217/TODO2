@@ -220,6 +220,13 @@ export function CanvasView({
   const { activeDragTodoId } = useContext(DragInsertContext)
   void activeDragTodoId
   const themeMode = useSettingsStore((s) => s.themeMode)
+  // Suppress RF auto-pan while a float widget is being dragged. The float-dock
+  // gesture pulls the widget toward a rail (out of the canvas), so RF's
+  // `autoPanOnNodeDrag` panning the viewport behind the cursor is anti-pattern
+  // here — it accumulates large drifts over the ~700 ms of post-rail-edge
+  // dwell. Project-node drags keep auto-pan (this stays true when no float is
+  // in flight).
+  const isFloatDragging = useUIStore((s) => s.floatDrag !== null)
   const [canvasDotColor, setCanvasDotColor] = useState(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--color-canvas-dot').trim() || '#3a3a3a'
   )
@@ -652,6 +659,7 @@ export function CanvasView({
         zoomOnDoubleClick={false}
         onPaneClick={() => useUIStore.getState().clearSelection()}
         proOptions={{ hideAttribution: true }}
+        autoPanOnNodeDrag={!isFloatDragging}
       >
         <Background
           variant={BackgroundVariant.Dots}
