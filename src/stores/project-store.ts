@@ -14,7 +14,7 @@ interface ProjectState {
   loadAll: () => Promise<void>
   ensureAllLoaded: () => Promise<void>
   loadByCanvas: (canvasId: number) => Promise<void>
-  add: (name: string, canvasId: number, x?: number, y?: number) => Promise<number>
+  add: (name: string, canvasId: number, x?: number, y?: number, groupBy?: Project['groupBy']) => Promise<number>
   update: (project: Project) => Promise<void>
   updatePosition: (id: number, x: number, y: number) => Promise<void>
   bulkUpdatePositions: (updates: Array<{ id: number; x: number; y: number }>) => Promise<void>
@@ -44,7 +44,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     if (projects) set({ projects })
   },
 
-  async add(name: string, canvasId: number, x = 0, y = 0) {
+  async add(name: string, canvasId: number, x = 0, y = 0, groupBy?: Project['groupBy']) {
     return mutate(set, async () => {
       const { projects } = get()
       const maxSort = projects.reduce((max, p) => Math.max(max, p.sortOrder), 0)
@@ -56,6 +56,7 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         isCollapsed: false,
         sortOrder: maxSort + 1,
         createdAt: new Date(),
+        ...(groupBy !== undefined ? { groupBy } : {}),
       })
       await get().loadByCanvas(canvasId)
       return id

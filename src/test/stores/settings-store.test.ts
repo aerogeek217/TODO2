@@ -18,6 +18,7 @@ beforeEach(async () => {
     },
     defaultProjectId: null,
     completedRetentionDays: null,
+    defaultProjectGroupBy: 'tag',
   })
 })
 
@@ -84,6 +85,38 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'defaultProjectId', value: '10' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().defaultProjectId).toBe(10)
+  })
+
+  it('defaultProjectGroupBy defaults to tag', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('tag')
+  })
+
+  it('setDefaultProjectGroupBy persists and clears', async () => {
+    await useSettingsStore.getState().setDefaultProjectGroupBy('people')
+    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('people')
+    expect((await db.settings.get('defaultProjectGroupBy'))!.value).toBe('people')
+
+    await useSettingsStore.getState().setDefaultProjectGroupBy(null)
+    expect(useSettingsStore.getState().defaultProjectGroupBy).toBeNull()
+    expect((await db.settings.get('defaultProjectGroupBy'))!.value).toBe('')
+  })
+
+  it('load reads persisted defaultProjectGroupBy and treats empty string as null', async () => {
+    await db.settings.put({ key: 'defaultProjectGroupBy', value: 'status' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('status')
+
+    await db.settings.put({ key: 'defaultProjectGroupBy', value: '' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().defaultProjectGroupBy).toBeNull()
+  })
+
+  it('setDefaultProjectGroupBy ignores invalid values', async () => {
+    await useSettingsStore.getState().setDefaultProjectGroupBy('tag')
+    // Cast through unknown to bypass the type guard for the rejection test.
+    await useSettingsStore.getState().setDefaultProjectGroupBy('not-a-group-by' as unknown as 'tag')
+    expect(useSettingsStore.getState().defaultProjectGroupBy).toBe('tag')
   })
 })
 

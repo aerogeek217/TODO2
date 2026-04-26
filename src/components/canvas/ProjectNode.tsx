@@ -15,20 +15,12 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
 import { copyTasksRich } from '../../services/task-copy'
 import { TASK_DROP_KIND, projectDropId } from '../../utils/task-dnd'
+import { GROUP_OPTIONS } from '../../utils/task-grouping'
 import styles from './ProjectNode.module.css'
 
-type SortBy = 'name' | 'date' | 'created'
+export { GROUP_OPTIONS }
 
-export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
-  { value: null, label: 'None' },
-  { value: 'date', label: 'Effective Date' },
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'deadline', label: 'Deadline' },
-  { value: 'status', label: 'Status' },
-  { value: 'people', label: 'People' },
-  { value: 'org', label: 'Org' },
-  { value: 'tag', label: 'Tag' },
-]
+type SortBy = 'name' | 'date' | 'created'
 
 export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean, weekStartsOn: WeekStart): PersistedTodoItem[] {
   const today = startOfToday()

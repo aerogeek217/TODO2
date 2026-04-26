@@ -4,6 +4,17 @@ import { startOfDay, MS_PER_DAY } from './date'
 import { resolvePersonColor } from './person-color'
 import { UNAFFILIATED_PERSON_COLOR } from '../constants'
 
+export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
+  { value: null, label: 'None' },
+  { value: 'date', label: 'Effective Date' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'deadline', label: 'Deadline' },
+  { value: 'status', label: 'Status' },
+  { value: 'people', label: 'People' },
+  { value: 'org', label: 'Org' },
+  { value: 'tag', label: 'Tag' },
+]
+
 export interface GroupingContext {
   assignedPeopleMap: Map<number, Person[]>
   assignedOrgsMap: Map<number, Org[]>

@@ -7,6 +7,13 @@ import { HORIZON_KEYS, type HorizonKey } from '../services/horizons'
 import type { CanvasViewport } from './ui-store'
 import type { RailsState } from '../models/canvas-rails'
 import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
+import type { ProjectGroupBy } from '../models'
+
+const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
+
+export function isValidProjectGroupBy(v: unknown): v is ProjectGroupBy {
+  return typeof v === 'string' && (PROJECT_GROUP_BY_VALUES as readonly string[]).includes(v)
+}
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -59,6 +66,8 @@ interface SettingsState {
    * reaches this value. Guards against runaway `#tag` creation from NLP input.
    */
   maxTags: number
+  /** Default groupBy seeded on every new project. `null` = no grouping. */
+  defaultProjectGroupBy: ProjectGroupBy | null
 
   load: () => Promise<void>
   setColor: (key: keyof ThemeColors, value: string) => Promise<void>
@@ -74,6 +83,7 @@ interface SettingsState {
   setSelectedHorizon: (key: HorizonKey) => Promise<void>
   setHorizonCollapsed: (key: HorizonKey, collapsed: boolean) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
+  setDefaultProjectGroupBy: (groupBy: ProjectGroupBy | null) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -241,6 +251,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   horizonCollapsed: {},
   canvasRails: null,
   maxTags: DEFAULT_MAX_TAGS,
+  defaultProjectGroupBy: 'tag' as ProjectGroupBy,
 
   async load() {
     try {
@@ -261,6 +272,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let horizonCollapsed: Partial<Record<HorizonKey, boolean>> = {}
       let canvasRails: RailsState | null = null
       let maxTags: number = DEFAULT_MAX_TAGS
+      let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const colorKey = row.key.replace('color.', '') as keyof ThemeColors
@@ -304,6 +316,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === 'maxTags') {
           const parsed = Number(row.value)
           if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
+        } else if (row.key === 'defaultProjectGroupBy') {
+          if (row.value === '') defaultProjectGroupBy = null
+          else if (isValidProjectGroupBy(row.value)) defaultProjectGroupBy = row.value
         }
       }
       customizedColorKeys = customKeys
@@ -318,7 +333,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         'notesDock',
         'notesVisible',
       ])
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, canvasRails, maxTags })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizon, horizonCollapsed, canvasRails, maxTags, defaultProjectGroupBy })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors)
@@ -415,6 +430,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     else delete next[key]
     await settingsRepository.put('horizonCollapsed', JSON.stringify(next))
     set({ horizonCollapsed: next })
+  },
+
+  async setDefaultProjectGroupBy(groupBy: ProjectGroupBy | null) {
+    if (groupBy != null && !isValidProjectGroupBy(groupBy)) return
+    await settingsRepository.put('defaultProjectGroupBy', groupBy ?? '')
+    set({ defaultProjectGroupBy: groupBy })
   },
 
   setCanvasRails: createDebouncedPersist<RailsState>({

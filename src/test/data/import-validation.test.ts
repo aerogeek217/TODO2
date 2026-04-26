@@ -217,6 +217,27 @@ describe('validateImportData', () => {
     }
   })
 
+  // defaultProjectGroupBy
+  it('accepts defaultProjectGroupBy with every valid ProjectGroupBy value plus empty', () => {
+    const valid = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
+    for (const value of valid) {
+      const result = validateImportData(validData({
+        settings: [{ key: 'defaultProjectGroupBy', value }],
+      }))
+      expect(result.ok).toBe(true)
+    }
+  })
+
+  it('rejects defaultProjectGroupBy with unknown values', () => {
+    const bad = ['none', 'priority', 'NaN', 'TAG', 'random-string']
+    for (const value of bad) {
+      const result = validateImportData(validData({
+        settings: [{ key: 'defaultProjectGroupBy', value }],
+      }))
+      expect(result.ok).toBe(false)
+    }
+  })
+
   // canvasViewport
   it('accepts canvasViewport with finite x/y/zoom', () => {
     const result = validateImportData(validData({

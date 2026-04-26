@@ -25,6 +25,7 @@ import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { CanvasView } from '../components/canvas/CanvasView'
@@ -481,7 +482,9 @@ export function CanvasPage() {
   }, [])
 
   const handleAddProject = useCallback(async (x: number, y: number) => {
-    if (selectedCanvasId) await addProject('New Project', selectedCanvasId, x, y)
+    if (!selectedCanvasId) return
+    const { defaultProjectGroupBy } = useSettingsStore.getState()
+    await addProject('New Project', selectedCanvasId, x, y, defaultProjectGroupBy)
   }, [selectedCanvasId, addProject])
 
   const handleResizeFloatingNote = useCallback(

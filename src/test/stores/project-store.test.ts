@@ -33,6 +33,20 @@ describe('useProjectStore', () => {
     expect(p2!.sortOrder).toBeGreaterThan(projects.find(p => p.id === id1)!.sortOrder)
   })
 
+  it('add persists optional groupBy seed', async () => {
+    const id = await useProjectStore.getState().add('P-tag', canvasId, 0, 0, 'tag')
+    const project = useProjectStore.getState().projects.find(p => p.id === id)
+    expect(project!.groupBy).toBe('tag')
+    const persisted = await db.projects.get(id)
+    expect(persisted!.groupBy).toBe('tag')
+  })
+
+  it('add omits groupBy when none is supplied', async () => {
+    const id = await useProjectStore.getState().add('P-plain', canvasId)
+    const persisted = await db.projects.get(id)
+    expect(persisted!.groupBy).toBeUndefined()
+  })
+
   it('update modifies in store', async () => {
     const id = await useProjectStore.getState().add('P1', canvasId)
     const project = useProjectStore.getState().projects.find(p => p.id === id)!

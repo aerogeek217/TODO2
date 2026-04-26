@@ -26,6 +26,8 @@ import { DashboardListsEditor } from '../components/settings/DashboardListsEdito
 import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useUIStore } from '../stores/ui-store'
+import { GROUP_OPTIONS } from '../utils/task-grouping'
+import type { ProjectGroupBy } from '../models'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -46,7 +48,7 @@ async function getStartIn(): Promise<FileSystemHandle | 'documents'> {
 }
 
 export function SettingsPage() {
-  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn } = useSettingsStore()
+  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn, defaultProjectGroupBy, setDefaultProjectGroupBy } = useSettingsStore()
   const fileStorage = useFileStorageStore()
   const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
@@ -402,6 +404,18 @@ export function SettingsPage() {
             >
               <option value={1}>Monday</option>
               <option value={0}>Sunday</option>
+            </select>
+          </div>
+          <div className={styles.settingRow}>
+            <span className={styles.settingLabel}>Default grouping for new projects</span>
+            <select
+              className={styles.settingSelect}
+              value={defaultProjectGroupBy ?? ''}
+              onChange={(e) => setDefaultProjectGroupBy(e.target.value === '' ? null : (e.target.value as ProjectGroupBy))}
+            >
+              {GROUP_OPTIONS.map(({ value, label }) => (
+                <option key={value ?? 'none'} value={value ?? ''}>{label}</option>
+              ))}
             </select>
           </div>
         </div>

@@ -581,7 +581,9 @@ function checkSavedView(v: unknown): CheckResult {
 // keys: store + setter surface retired in code-review-2026-04-25 P8, but the
 // import-validation entry stays one release so older backups still validate.
 // Restore strips both keys; schedule deletion of the entry one release later.
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId', 'maxTags']
+const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy']
+
+const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -743,6 +745,11 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === 'selectedHorizon') {
     return HORIZON_KEYS_SET.has(v.value as string) ? true : `value (selectedHorizon must be one of: ${(HORIZON_KEYS as readonly string[]).join(', ')})`
+  }
+  if (v.key === 'defaultProjectGroupBy') {
+    return (VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).includes(v.value as string)
+      ? true
+      : `value (defaultProjectGroupBy must be one of: ${(VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).filter(Boolean).join(', ')} or empty)`
   }
   // `notesPinnedToDashboard` / `dashboardUserLists` are accepted as legacy
   // keys (see VALID_SETTING_KEYS comment); restore strips them so the format
