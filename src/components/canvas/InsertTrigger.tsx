@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect, useMemo } from 'react'
+import { useRef, useLayoutEffect, useMemo, useCallback } from 'react'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
@@ -9,6 +9,68 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './InsertTrigger.module.css'
+
+// Phase 2 (real-browser-testing): debug-only focus trace gated on
+// `?debug-focus=1`. Logs every focus() call site + document-wide
+// focusin/focusout. Removed in Phase 5 once the trace pinpoints which
+// reclaim is load-bearing.
+const DEBUG_FOCUS =
+  typeof window !== 'undefined' && window.location.search.includes('debug-focus')
+
+function fmtEl(el: Element | null): string {
+  if (!el) return 'null'
+  if (typeof document !== 'undefined' && el === document.body) return 'BODY'
+  const tag = el.tagName
+  const id = (el as HTMLElement).id ? `#${(el as HTMLElement).id}` : ''
+  const cls =
+    typeof (el as HTMLElement).className === 'string' && (el as HTMLElement).className
+      ? `.${((el as HTMLElement).className as string).trim().split(/\s+/).slice(0, 2).join('.')}`
+      : ''
+  const ph = (el as HTMLInputElement).placeholder
+    ? `[ph="${(el as HTMLInputElement).placeholder.slice(0, 18)}"]`
+    : ''
+  return `${tag}${id}${cls}${ph}`
+}
+
+function dbg(label: string, extra: Record<string, unknown> = {}): void {
+  if (!DEBUG_FOCUS) return
+  // eslint-disable-next-line no-console
+  console.log('[focus-trace]', label, {
+    t: Math.round(performance.now()),
+    active: fmtEl(typeof document !== 'undefined' ? document.activeElement : null),
+    ...extra,
+  })
+}
+
+let documentListenersAttached = false
+function ensureDocumentListeners(): void {
+  if (!DEBUG_FOCUS || documentListenersAttached || typeof document === 'undefined') return
+  documentListenersAttached = true
+  document.addEventListener(
+    'focusin',
+    (e: FocusEvent) => {
+      // eslint-disable-next-line no-console
+      console.log('[focus-trace]', 'focusin', {
+        t: Math.round(performance.now()),
+        target: fmtEl(e.target as Element | null),
+        relatedTarget: fmtEl(e.relatedTarget as Element | null),
+      })
+    },
+    true,
+  )
+  document.addEventListener(
+    'focusout',
+    (e: FocusEvent) => {
+      // eslint-disable-next-line no-console
+      console.log('[focus-trace]', 'focusout', {
+        t: Math.round(performance.now()),
+        target: fmtEl(e.target as Element | null),
+        relatedTarget: fmtEl(e.relatedTarget as Element | null),
+      })
+    },
+    true,
+  )
+}
 
 interface InsertTriggerProps {
   editing: boolean
@@ -24,6 +86,20 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
   const wrapperRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef('')
   const committedRef = useRef(false)
+
+  if (DEBUG_FOCUS) ensureDocumentListeners()
+
+  // Phase 2 instrumentation: callback ref logs the mount-time autoFocus
+  // window. React's autoFocus prop is a literal `.focus()` call into the
+  // DOM during commit, but it has no JS hook — the ref callback fires
+  // immediately after the autoFocus call in the same commit phase, so
+  // logging here pins down whether the autoFocus actually landed.
+  // Stable identity via useCallback so React only invokes on real
+  // mount/unmount, not on every parent re-render.
+  const setInputRef = useCallback((el: HTMLInputElement | null): void => {
+    inputRef.current = el
+    if (DEBUG_FOCUS && el) dbg('mount', { node: fmtEl(el), autoFocusOnNode: el === document.activeElement })
+  }, [])
 
   const people = usePersonStore((s) => s.people)
   const projects = useProjectStore((s) => s.projects)
@@ -101,30 +177,51 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     if (!input) return
     let cancelled = false
 
-    const reclaim = () => {
+    const reclaim = (label: string) => {
       // Don't fight dismissal. `committedRef` flips true when the user
       // commits (Enter) or click-outside fires — either way the trigger is
       // on its way out and we must not force focus back.
-      if (cancelled || committedRef.current || !inputRef.current) return
-      const active = document.activeElement
-      if (active === inputRef.current) return
+      if (cancelled || committedRef.current || !inputRef.current) {
+        dbg(label, { skipped: 'cancelled-or-committed' })
+        return
+      }
+      const before = document.activeElement
+      if (before === inputRef.current) {
+        dbg(label, { skipped: 'already-on-input' })
+        return
+      }
       // Only reclaim when focus has nowhere else to go. If a user clicked
       // another real control (button, menu, another input), leave it alone.
-      if (active === null || active === document.body) {
+      if (before === null || before === document.body) {
         inputRef.current.focus()
+        const after = document.activeElement
+        dbg(label, {
+          calledFocus: true,
+          before: fmtEl(before),
+          after: fmtEl(after),
+          changed: before !== after,
+          landedOnInput: after === inputRef.current,
+        })
+      } else {
+        dbg(label, { skipped: 'other-element-focused', before: fmtEl(before) })
       }
     }
 
+    dbg('useLayoutEffect', { aboutToCallFocus: true, before: fmtEl(document.activeElement) })
     input.focus()
+    dbg('useLayoutEffect', {
+      after: fmtEl(document.activeElement),
+      landedOnInput: document.activeElement === input,
+    })
     // Retry schedule spans sync post-commit (rAF) through the settle window
     // (~300ms) where async store publishes and ResizeObserver work typically
     // finish. Each retry is a no-op if focus already landed — the cost is a
     // handful of document.activeElement reads.
-    const raf = requestAnimationFrame(reclaim)
-    const t0 = setTimeout(reclaim, 0)
-    const t1 = setTimeout(reclaim, 50)
-    const t2 = setTimeout(reclaim, 150)
-    const t3 = setTimeout(reclaim, 300)
+    const raf = requestAnimationFrame(() => reclaim('rAF'))
+    const t0 = setTimeout(() => reclaim('t0'), 0)
+    const t1 = setTimeout(() => reclaim('t50'), 50)
+    const t2 = setTimeout(() => reclaim('t150'), 150)
+    const t3 = setTimeout(() => reclaim('t300'), 300)
 
     // Additionally reclaim on focusout for the first 400ms. This catches the
     // exact moment a stray blur fires after our retries finish but before the
@@ -134,7 +231,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
       // moved to another focusable element, honor that.
       if (e.relatedTarget === null || e.relatedTarget === document.body) {
         // Defer one tick so we don't race with whatever event caused the blur.
-        queueMicrotask(reclaim)
+        queueMicrotask(() => reclaim('focusout-reclaim'))
       }
     }
     input.addEventListener('focusout', onFocusOut)
@@ -201,7 +298,7 @@ export function InsertTrigger({ editing, onActivate, onCommit, onCancel, onConte
     return (
       <div ref={wrapperRef} className={styles.inputRow} style={{ position: 'relative' }} onContextMenu={onContextMenu}>
         <input
-          ref={inputRef}
+          ref={setInputRef}
           autoFocus
           className={styles.input}
           defaultValue=""
