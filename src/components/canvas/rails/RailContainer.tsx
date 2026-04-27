@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import type { Rail, RailSide, Slot, SlotKind } from '../../../models/canvas-rails'
-import { RAIL_SIZE_MAX, RAIL_SIZE_MIN, clampRailSize } from '../../../models/canvas-rails'
+import { clampRailSize } from '../../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../../stores/canvas-rails-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -21,18 +21,12 @@ interface RailContainerProps {
   style?: CSSProperties
 }
 
-interface RailEdgeHandleProps {
+interface RailEdgeStripProps {
   side: RailSide
   size: number
   collapsed: boolean
   onResize: (px: number) => void
-  onToggleCollapse: () => void
-}
-
-interface RailEdgeStripProps {
-  side: RailSide
-  size: number
-  onResize: (px: number) => void
+  onExpand: () => void
 }
 
 /** Pointer-travel threshold to distinguish a click (<threshold) from a drag. */
@@ -74,13 +68,20 @@ function useThrottledResize(onResize: (px: number) => void) {
 }
 
 /**
- * Invisible drag strip along the full canvas-facing edge. Drag-only — no
- * click-to-toggle, unlike `RailEdgeHandle`. Provides a forgiving target for
- * users who don't aim for the centered button.
+ * Visible 1px divider on the canvas-facing edge with a wider invisible hit
+ * zone. When the rail is expanded, drag resizes (click is a no-op). When the
+ * rail is collapsed, click expands the rail (drag is suppressed since there's
+ * no width to resize). Keyboard collapse/expand lives on the chevron in the
+ * first slot's TabStrip chrome.
  */
-function RailEdgeStrip({ side, size, onResize }: RailEdgeStripProps) {
+function RailEdgeStrip({ side, size, collapsed, onResize, onExpand }: RailEdgeStripProps) {
   const axis = side === 'left' || side === 'right' ? 'x' : 'y'
-  const dragRef = useRef<{ startCoord: number; startSize: number; pointerId: number } | null>(null)
+  const dragRef = useRef<{
+    startCoord: number
+    startSize: number
+    pointerId: number
+    moved: boolean
+  } | null>(null)
   const { schedule, flush, pendingRef } = useThrottledResize(onResize)
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -91,6 +92,7 @@ function RailEdgeStrip({ side, size, onResize }: RailEdgeStripProps) {
       startCoord: axis === 'x' ? e.clientX : e.clientY,
       startSize: size,
       pointerId: e.pointerId,
+      moved: false,
     }
   }
 
@@ -98,6 +100,10 @@ function RailEdgeStrip({ side, size, onResize }: RailEdgeStripProps) {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== e.pointerId) return
     const delta = (axis === 'x' ? e.clientX : e.clientY) - drag.startCoord
+    if (!drag.moved && Math.abs(delta) >= DRAG_THRESHOLD_PX) {
+      drag.moved = true
+    }
+    if (!drag.moved || collapsed) return
     const sign = side === 'left' || side === 'top' ? 1 : -1
     schedule(clampRailSize(drag.startSize + sign * delta))
   }
@@ -109,13 +115,22 @@ function RailEdgeStrip({ side, size, onResize }: RailEdgeStripProps) {
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId)
     }
+    if (collapsed && !drag.moved) {
+      onExpand()
+      return
+    }
     if (pendingRef.current != null) flush()
   }
 
+  const className = `${styles.edgeStrip} ${styles[`edgeStrip_${side}`]} ${collapsed ? styles.edgeStrip_collapsed : ''}`
+  const ariaLabel = collapsed ? `Expand ${side} rail` : `Resize ${side} rail`
   return (
     <div
-      className={`${styles.edgeStrip} ${styles[`edgeStrip_${side}`]}`}
-      aria-hidden="true"
+      className={className}
+      role={collapsed ? 'button' : 'separator'}
+      aria-label={ariaLabel}
+      aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
+      title={ariaLabel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -124,122 +139,12 @@ function RailEdgeStrip({ side, size, onResize }: RailEdgeStripProps) {
   )
 }
 
-/**
- * Small button centered on the canvas-facing edge. Click toggles collapse;
- * drag resizes past `DRAG_THRESHOLD_PX` of movement. No auto-collapse from
- * drag — use the button or keyboard to collapse.
- */
-function RailEdgeHandle({ side, size, collapsed, onResize, onToggleCollapse }: RailEdgeHandleProps) {
-  const axis = side === 'left' || side === 'right' ? 'x' : 'y'
-  const dragRef = useRef<{
-    startCoord: number
-    startSize: number
-    pointerId: number
-    moved: boolean
-  } | null>(null)
-  const { schedule, flush, pendingRef } = useThrottledResize(onResize)
-
-  const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    if (e.button !== 0) return
-    e.preventDefault()
-    // jsdom lacks pointer capture; guard so tests don't blow up.
-    e.currentTarget.setPointerCapture?.(e.pointerId)
-    dragRef.current = {
-      startCoord: axis === 'x' ? e.clientX : e.clientY,
-      startSize: size,
-      pointerId: e.pointerId,
-      moved: false,
-    }
-  }
-
-  const onPointerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== e.pointerId) return
-    const delta = (axis === 'x' ? e.clientX : e.clientY) - drag.startCoord
-    if (!drag.moved && Math.abs(delta) >= DRAG_THRESHOLD_PX) {
-      drag.moved = true
-    }
-    if (!drag.moved || collapsed) return
-    // Canvas-facing edge direction: left/top rails grow with +delta; right/bottom rails grow with −delta.
-    const sign = side === 'left' || side === 'top' ? 1 : -1
-    schedule(clampRailSize(drag.startSize + sign * delta))
-  }
-
-  const onPointerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== e.pointerId) return
-    dragRef.current = null
-    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-    if (!drag.moved) {
-      // Click: toggle collapse.
-      onToggleCollapse()
-      return
-    }
-    if (pendingRef.current != null) flush()
-  }
-
-  // Keyboard: Enter/Space toggle collapse; arrow-key resize in 20 px steps.
-  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      onToggleCollapse()
-      return
-    }
-    if (collapsed) return
-    const STEP = 20
-    let delta = 0
-    if (axis === 'x') {
-      if (e.key === 'ArrowLeft') delta = side === 'left' ? -STEP : STEP
-      else if (e.key === 'ArrowRight') delta = side === 'left' ? STEP : -STEP
-    } else {
-      if (e.key === 'ArrowUp') delta = side === 'top' ? -STEP : STEP
-      else if (e.key === 'ArrowDown') delta = side === 'top' ? STEP : -STEP
-    }
-    if (delta === 0) return
-    e.preventDefault()
-    onResize(clampRailSize(size + delta))
-  }
-
-  const label = `${collapsed ? 'Expand' : 'Collapse'} ${side} rail (click) or drag to resize`
-  const glyph = collapseGlyph(side, collapsed)
-
-  return (
-    <button
-      type="button"
-      className={`${styles.edgeHandle} ${styles[`edgeHandle_${side}`]}`}
-      role="separator"
-      aria-orientation={axis === 'x' ? 'vertical' : 'horizontal'}
-      aria-label={label}
-      aria-pressed={collapsed}
-      aria-valuemin={RAIL_SIZE_MIN}
-      aria-valuemax={RAIL_SIZE_MAX}
-      aria-valuenow={size}
-      title={label}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onKeyDown={onKeyDown}
-    >
-      <span aria-hidden="true">{glyph}</span>
-    </button>
-  )
-}
-
-/**
- * Small black triangle pointing in the direction the rail's canvas-facing edge
- * will move when the button is clicked. Expanded rail → click collapses → edge
- * moves toward the viewport edge; collapsed rail → click expands → edge moves
- * toward the canvas center. Uses U+25B4/B8/BE/C2 (▴ ▸ ▾ ◂) rather than the
- * U+2303/04 arrowheads, whose visible marks sit off-center within the em box.
- */
-function collapseGlyph(side: RailSide, collapsed: boolean): string {
-  if (side === 'left') return collapsed ? '▸' : '◂'
-  if (side === 'right') return collapsed ? '◂' : '▸'
-  if (side === 'top') return collapsed ? '▾' : '▴'
-  return collapsed ? '▴' : '▾'
+/** Direction the rail's canvas-facing edge moves on expand (toward canvas). */
+function expandGlyph(side: RailSide): string {
+  if (side === 'left') return '▸'
+  if (side === 'right') return '◂'
+  if (side === 'top') return '▾'
+  return '▴'
 }
 
 /** Title-cased label shown in the collapsed strip next to each slot's kind icon. */
@@ -349,6 +254,15 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
     >
       {collapsed ? (
         <div className={styles.iconStrip}>
+          <button
+            type="button"
+            className={`${styles.expandChevron} ${styles[`expandChevron_${side}`]}`}
+            onClick={() => toggleRailCollapsed(side)}
+            aria-label={`Expand ${side} rail`}
+            title={`Expand ${side} rail`}
+          >
+            <span aria-hidden="true">{expandGlyph(side)}</span>
+          </button>
           {rail.slots.map((slot) => (
             <CollapsedSlotStub key={slot.id} slot={slot} />
           ))}
@@ -356,13 +270,12 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
       ) : (
         children
       )}
-      {!collapsed && <RailEdgeStrip side={side} size={size} onResize={onResize} />}
-      <RailEdgeHandle
+      <RailEdgeStrip
         side={side}
         size={size}
         collapsed={collapsed}
         onResize={onResize}
-        onToggleCollapse={() => toggleRailCollapsed(side)}
+        onExpand={() => toggleRailCollapsed(side)}
       />
     </aside>
   )

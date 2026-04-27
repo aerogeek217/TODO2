@@ -30,6 +30,14 @@ export interface TabStripProps {
    */
   onOpenChangeType?: (tabId: string, anchor: { x: number; y: number }) => void
   onClose?: () => void
+  /**
+   * Provided only on the first slot of each rail. When set, the chrome row
+   * renders a chevron button that toggles the rail's collapsed state. The
+   * glyph points in the direction the canvas-facing edge will move on click
+   * (toward the viewport edge, since collapsing pulls the rail away from the
+   * canvas).
+   */
+  onCollapseRail?: () => void
   /** Optional meta slot rendered in the chrome area (e.g. calendar orientation toggle, lens count). */
   meta?: ReactNode
   /** Slot-level `⋯` options menu open state (for aria-expanded). */
@@ -49,6 +57,14 @@ export interface TabStripProps {
 function tabLabel(tab: Tab, listName: string | undefined): string {
   if (tab.type === 'lens') return listName ?? KIND_LABEL.lens
   return KIND_LABEL[tab.type]
+}
+
+/** Direction the rail's canvas-facing edge moves on collapse (toward viewport edge). */
+function collapseGlyph(side: RailSide): string {
+  if (side === 'left') return '◂'
+  if (side === 'right') return '▸'
+  if (side === 'top') return '▴'
+  return '▾'
 }
 
 interface TabPillProps {
@@ -138,6 +154,7 @@ export function TabStrip({
   onPopOut,
   onOpenChangeType,
   onClose,
+  onCollapseRail,
   meta,
   menuOpen,
   changeTypeMenuOpen,
@@ -285,6 +302,17 @@ export function TabStrip({
       </div>
       <div className={styles.chrome}>
         {meta && <span className={styles.meta}>{meta}</span>}
+        {onCollapseRail && (
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={onCollapseRail}
+            aria-label={`Collapse ${fromSide} rail`}
+            title={`Collapse ${fromSide} rail`}
+          >
+            {collapseGlyph(fromSide)}
+          </button>
+        )}
         {onPopOut && (
           <button
             type="button"

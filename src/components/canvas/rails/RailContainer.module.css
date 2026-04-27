@@ -36,100 +36,97 @@
   box-shadow: var(--shadow-rail);
 }
 
-/* Invisible drag strip along the full canvas-facing edge. Drag-only — the
-   centered `.edgeHandle` button on top adds click=toggle-collapse. Thick
-   enough to be a forgiving target without hijacking pane clicks. */
+/* Visible 1px divider along the full canvas-facing edge with a wider invisible
+   hit zone. Always shows a subtle seam at rest; brightens to the accent on
+   hover/active. When the rail is expanded, drag resizes. When collapsed, click
+   expands (the strip's only role). */
 .edgeStrip {
   position: absolute;
   z-index: 3;
-  background: transparent;
-  transition: background 0.15s ease;
+  background: var(--color-border);
+  transition: background 0.12s ease;
   touch-action: none;
 }
 
 .edgeStrip:hover,
 .edgeStrip:active {
-  background: color-mix(in oklab, var(--color-accent) 40%, transparent);
+  background: var(--color-accent);
 }
 
+/* Vertical rails: 1px line on the canvas-facing edge with a 7px hit zone
+   straddling it. The `::before` pseudo paints the visible 1px line; the host
+   element provides the wider invisible hit target. */
 .edgeStrip_left,
 .edgeStrip_right {
   top: 0;
   bottom: 0;
-  width: 6px;
+  width: 7px;
+  background: transparent;
   cursor: col-resize;
 }
 
 .edgeStrip_left { right: -3px; }
 .edgeStrip_right { left: -3px; }
 
+.edgeStrip_left::before,
+.edgeStrip_right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-border);
+  transition: background 0.12s ease;
+}
+
+.edgeStrip_left::before { right: 3px; }
+.edgeStrip_right::before { left: 3px; }
+
+.edgeStrip_left:hover::before,
+.edgeStrip_left:active::before,
+.edgeStrip_right:hover::before,
+.edgeStrip_right:active::before {
+  background: var(--color-accent);
+}
+
+/* Horizontal rails: 1px line on the canvas-facing edge with a 7px hit zone. */
 .edgeStrip_top,
 .edgeStrip_bottom {
   left: 0;
   right: 0;
-  height: 6px;
+  height: 7px;
+  background: transparent;
   cursor: row-resize;
 }
 
 .edgeStrip_top { bottom: -3px; }
 .edgeStrip_bottom { top: -3px; }
 
-/* Small neutral handle centered on the canvas-facing edge. Click toggles
-   collapse; drag resizes. Stays quiet at rest, brightens on hover. */
-.edgeHandle {
+.edgeStrip_top::before,
+.edgeStrip_bottom::before {
+  content: '';
   position: absolute;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  font-size: 12px;
-  line-height: 1;
-  touch-action: none;
-  user-select: none;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-border);
+  transition: background 0.12s ease;
 }
 
-.edgeHandle:hover,
-.edgeHandle:focus-visible {
-  background: var(--color-surface-high);
-  color: var(--color-text-primary);
-  border-color: var(--color-text-muted);
-  outline: none;
+.edgeStrip_top::before { bottom: 3px; }
+.edgeStrip_bottom::before { top: 3px; }
+
+.edgeStrip_top:hover::before,
+.edgeStrip_top:active::before,
+.edgeStrip_bottom:hover::before,
+.edgeStrip_bottom:active::before {
+  background: var(--color-accent);
 }
 
-/* Vertical rails: 14×36 chip tucked half-outside the canvas-facing edge. */
-.edgeHandle_left,
-.edgeHandle_right {
-  width: 14px;
-  height: 36px;
-  top: 50%;
-  transform: translateY(-50%);
-  cursor: pointer;
-}
+/* When the rail is collapsed, the strip's only role is click-to-expand —
+   override the resize cursor so the affordance reads correctly. */
+.edgeStrip_collapsed { cursor: pointer; }
 
-.edgeHandle_left { right: -7px; }
-.edgeHandle_right { left: -7px; }
-
-/* Horizontal rails: 36×14 chip. */
-.edgeHandle_top,
-.edgeHandle_bottom {
-  width: 36px;
-  height: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  cursor: pointer;
-}
-
-.edgeHandle_top { bottom: -7px; }
-.edgeHandle_bottom { top: -7px; }
-
-/* Collapsed state — overflow stays visible so the half-outside edge handle
-   isn't clipped. The iconStrip below owns its own overflow. */
 .collapsed {
   overflow: visible;
 }
@@ -153,6 +150,44 @@
 
 .rail.horizontal .iconStrip {
   flex-direction: row;
+}
+
+/* Expand chevron at the start of the collapsed icon strip. Click toggles the
+   rail back open. Glyph points toward the canvas (the direction the rail's
+   canvas-facing edge will move on expand). */
+.expandChevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.expandChevron:hover,
+.expandChevron:focus-visible {
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.expandChevron_left,
+.expandChevron_right {
+  width: 100%;
+  height: 20px;
+}
+
+.expandChevron_top,
+.expandChevron_bottom {
+  width: 20px;
+  height: 100%;
 }
 
 /* Each stub: kind icon + rotated/horizontal text label. */

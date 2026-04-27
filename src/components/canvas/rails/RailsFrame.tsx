@@ -53,7 +53,7 @@ export function RailsFrame({ children }: RailsFrameProps) {
           const nextSlot = rail.slots[idx + 1]
           return (
             <Fragment key={slot.id}>
-              <SlotRenderer slot={slot} fromSide={side} />
+              <SlotRenderer slot={slot} fromSide={side} isFirstSlot={idx === 0} />
               {nextSlot && (
                 <SlotDivider
                   side={side}

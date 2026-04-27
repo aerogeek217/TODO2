@@ -28,9 +28,16 @@ import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 interface SlotRendererProps {
   slot: Slot
   fromSide: RailSide
+  /**
+   * True only for the first slot of each rail. The first slot's TabStrip
+   * chrome carries the rail-level collapse chevron — placed there because
+   * the old centered edge-handle pill was retired in favour of a thin edge
+   * divider that has no room for a click target.
+   */
+  isFirstSlot?: boolean
 }
 
-export function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
+export function SlotRenderer({ slot, fromSide, isFirstSlot = false }: SlotRendererProps) {
   const {
     closeSlot,
     updateSlot,
@@ -44,6 +51,7 @@ export function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     changeTabType,
     setTabRuntimeFilterValue,
     clearPendingFocus,
+    toggleRailCollapsed,
   } = useCanvasRailsStore(useShallow((s) => ({
     closeSlot: s.closeSlot,
     updateSlot: s.updateSlot,
@@ -57,6 +65,7 @@ export function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
     changeTabType: s.changeTabType,
     setTabRuntimeFilterValue: s.setTabRuntimeFilterValue,
     clearPendingFocus: s.clearPendingFocus,
+    toggleRailCollapsed: s.toggleRailCollapsed,
   })))
   const { rails, pendingFocusSlotId } = useCanvasRailsStore(useShallow((s) => ({
     rails: s.rails,
@@ -255,6 +264,7 @@ export function SlotRenderer({ slot, fromSide }: SlotRendererProps) {
       onMore={(anchor) => setMenuAnchor(anchor)}
       onPopOut={handlePopOut}
       onClose={closeThisSlot}
+      onCollapseRail={isFirstSlot ? () => toggleRailCollapsed(fromSide) : undefined}
       onOpenChangeType={(tabId, anchor) => setKindMenuTarget({ tabId, x: anchor.x, y: anchor.y })}
       meta={metaContent}
       menuOpen={menuOpen}
