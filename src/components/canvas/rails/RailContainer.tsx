@@ -7,7 +7,7 @@ import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { KIND_ICON } from '../../../utils/slot-kind'
 import { getActiveTab } from '../../../models/canvas-rails'
-import { encodeRailsDropId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
+import { encodeRailsDropId, nearestStubSlotId, RAILS_DRAG_TYPE } from '../../../utils/rail-dnd'
 import styles from './RailContainer.module.css'
 
 interface RailContainerProps {
@@ -172,9 +172,17 @@ function useSlotStubLabel(slot: Slot): string {
 
 interface CollapsedSlotStubProps {
   slot: Slot
+  /**
+   * True when this stub is the aside-level nearest-stub during a float drag
+   * (triage-2026-04-27 P5). Drives `.iconStubOver` independently of
+   * `droppable.isOver` so the user sees a visible target even when the
+   * pointer is on the rail aside's margin / between stubs / outside any
+   * stub's individual rect.
+   */
+  highlightFromAside: boolean
 }
 
-function CollapsedSlotStub({ slot }: CollapsedSlotStubProps) {
+function CollapsedSlotStub({ slot, highlightFromAside }: CollapsedSlotStubProps) {
   const active = getActiveTab(slot)
   const label = useSlotStubLabel(slot)
   // P5 fix: collapsed rails render stubs in place of `DraggableSlot`, so the
@@ -186,37 +194,17 @@ function CollapsedSlotStub({ slot }: CollapsedSlotStubProps) {
   const dropId = encodeRailsDropId({ kind: 'slot', slotId: slot.id })
   const droppable = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId: slot.id } })
   // React-Flow-driven float drags bypass dnd-kit, so `droppable.isOver` never
-  // fires while a floating widget is being dragged over the stub. Mirror the
-  // `DraggableSlot` workaround: subscribe to `floatDrag` and run a global
-  // pointer listener gated on the stub's rect so the stub still surfaces
-  // hover feedback during float drags. Without this the user has no visible
-  // dock target on a collapsed rail and tends to release off the small stub.
-  const floatDragActive = useUIStore((s) => s.floatDrag !== null)
-  const stubRef = useRef<HTMLDivElement | null>(null)
-  const [pointerInside, setPointerInside] = useState(false)
-  useEffect(() => {
-    if (!floatDragActive || droppable.isOver) {
-      setPointerInside(false)
-      return
-    }
-    const onMove = (e: PointerEvent) => {
-      const el = stubRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
-                     e.clientY >= rect.top && e.clientY <= rect.bottom
-      setPointerInside(inside)
-    }
-    window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
-  }, [floatDragActive, droppable.isOver])
-  const hoverActive = droppable.isOver || pointerInside
+  // fires while a floating widget is being dragged over the stub. The
+  // aside-level pointer listener in `RailContainer` computes the nearest
+  // stub during a float drag and threads `highlightFromAside` down — that
+  // path covers the inside-stub case (nearest = the one you're inside) plus
+  // margin / between-stub / aside-padding gaps, replacing the per-stub
+  // pointer-inside shortcut. `droppable.isOver` still drives the dnd-kit
+  // slot/tab drag highlight.
+  const hoverActive = droppable.isOver || highlightFromAside
   return (
     <div
-      ref={(el) => {
-        droppable.setNodeRef(el)
-        stubRef.current = el
-      }}
+      ref={droppable.setNodeRef}
       className={`${styles.iconStub} ${hoverActive ? styles.iconStubOver : ''}`}
       title={label}
       data-rails-drop-id={dropId}
@@ -243,8 +231,41 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
   // stubs by axis distance and routes the dock to the nearest one.
   const collapsedSideDropId = collapsed ? encodeRailsDropId({ kind: 'collapsed-side', side }) : undefined
 
+  // P5 (triage-2026-04-27): aside-level "nearest stub" highlight for float
+  // drags. React-Flow-driven float drags bypass dnd-kit, so individual stubs
+  // never see `droppable.isOver` mid-drag. Lifting the pointer listener up to
+  // the aside lets us highlight the nearest stub for *any* pointer position
+  // inside the aside — including margin / between stubs / padding — so the
+  // user always sees a visible dock target. Mirrors `nearestStubSlotId`'s
+  // resolver-side bisection so the visible target and the actual dock target
+  // can never diverge.
+  const floatDragActive = useUIStore((s) => s.floatDrag !== null)
+  const asideRef = useRef<HTMLElement | null>(null)
+  const [nearestStubId, setNearestStubId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!collapsed || !floatDragActive) {
+      setNearestStubId(null)
+      return
+    }
+    const onMove = (e: PointerEvent) => {
+      const aside = asideRef.current
+      if (!aside) return
+      const rect = aside.getBoundingClientRect()
+      const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                     e.clientY >= rect.top && e.clientY <= rect.bottom
+      if (!inside) {
+        setNearestStubId(null)
+        return
+      }
+      setNearestStubId(nearestStubSlotId(aside, { x: e.clientX, y: e.clientY }, side))
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [collapsed, floatDragActive, side])
+
   return (
     <aside
+      ref={asideRef}
       className={`${styles.rail} ${orientClass} ${styles[side]} ${collapsedClass}`}
       style={mergedStyle}
       data-rail-side={side}
@@ -264,7 +285,11 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
             <span aria-hidden="true">{expandGlyph(side)}</span>
           </button>
           {rail.slots.map((slot) => (
-            <CollapsedSlotStub key={slot.id} slot={slot} />
+            <CollapsedSlotStub
+              key={slot.id}
+              slot={slot}
+              highlightFromAside={floatDragActive && nearestStubId === slot.id}
+            />
           ))}
         </div>
       ) : (

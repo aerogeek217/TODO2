@@ -682,8 +682,12 @@ export function resolveFloatDockTarget(
  * aside but missed every stub's individual rect, so we route the dock to
  * whichever stub is closest. Vertical rails (left/right) stack stubs along Y;
  * horizontal rails (top/bottom) along X.
+ *
+ * Exported so `RailContainer` can call the same helper for the aside-level
+ * "nearest-stub" hover highlight during float drags (triage-2026-04-27 P5),
+ * keeping the visual cue and the resolver in lock-step.
  */
-function nearestStubSlotId(
+export function nearestStubSlotId(
   aside: HTMLElement,
   pointer: { x: number; y: number },
   side: RailSide,
