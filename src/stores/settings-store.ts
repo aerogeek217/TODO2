@@ -32,19 +32,42 @@ export interface ThemeColors {
   deadline: string
 }
 
-const defaultColors: ThemeColors = {
-  accent: '#a2cfcb',
-  canvasBg: '#0e0e0e',
-  surface: '#191a1a',
-  danger: '#ee7d77',
-  warning: '#f5a623',
-  star: '#f5c842',
-  scheduled: '#7ec4bc',
-  deadline: '#e86bf0',
+export interface ThemedColors {
+  dark: ThemeColors
+  light: ThemeColors
+}
+
+export type ThemeName = 'dark' | 'light'
+
+const defaultThemedColors: ThemedColors = {
+  dark: {
+    accent: '#a2cfcb',
+    canvasBg: '#0e0e0e',
+    surface: '#191a1a',
+    danger: '#ee7d77',
+    warning: '#f5a623',
+    star: '#f5c842',
+    scheduled: '#7ec4bc',
+    deadline: '#e86bf0',
+  },
+  // Light seeds mirror tokens.css's [data-theme="light"] block — these are the
+  // values applied by the theme stylesheet when the user has no overrides;
+  // surfacing them in the editor lets a user re-tune light mode without
+  // pulling dark-tuned values into it.
+  light: {
+    accent: '#3a9e93',
+    canvasBg: '#f5f4f2',
+    surface: '#ffffff',
+    danger: '#d94a43',
+    warning: '#d08a12',
+    star: '#c09a15',
+    scheduled: '#3a9e93',
+    deadline: '#b838c0',
+  },
 }
 
 interface SettingsState {
-  colors: ThemeColors
+  colors: ThemedColors
   themeMode: ThemeMode
   defaultProjectId: number | null
   defaultStatusId: number | null
@@ -73,8 +96,9 @@ interface SettingsState {
   canvasMaxExtent: number
 
   load: () => Promise<void>
-  setColor: (key: keyof ThemeColors, value: string) => Promise<void>
-  resetColors: () => Promise<void>
+  setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
+  /** When `theme` is omitted, both bags reset; otherwise only the specified bag. */
+  resetColors: (theme?: ThemeName) => Promise<void>
   setThemeMode: (mode: ThemeMode) => Promise<void>
   setDefaultProjectId: (id: number | null) => Promise<void>
   setDefaultStatusId: (id: number | null) => Promise<void>
@@ -129,32 +153,38 @@ const colorVarMap: Record<keyof ThemeColors, string> = {
   deadline: '--color-deadline',
 }
 
+interface CustomizedColorKeys {
+  dark: Set<string>
+  light: Set<string>
+}
+
 /**
- * Apply only user-customized color overrides as inline styles.
- * Non-customized colors fall through to the CSS theme (dark/light).
+ * Apply only user-customized color overrides for the resolved theme as inline
+ * styles. Non-customized colors fall through to the CSS theme (dark/light).
+ * The `light` and `dark` overrides are stored separately and only the bag for
+ * the resolved theme is written to the document — switching themes flips
+ * which bag wins (see setThemeMode + setupMediaQueryListener).
  */
-function applyThemeOverrides(customizedKeys: Set<string>, colors: ThemeColors) {
+function applyThemeOverrides(
+  customizedKeys: CustomizedColorKeys,
+  themed: ThemedColors,
+  resolvedTheme: ThemeName,
+) {
   const root = document.documentElement
+  const colors = themed[resolvedTheme]
+  const bag = customizedKeys[resolvedTheme]
   for (const [key, varName] of Object.entries(colorVarMap)) {
-    if (customizedKeys.has(key)) {
+    if (bag.has(key)) {
       root.style.setProperty(varName, colors[key as keyof ThemeColors])
     } else {
       root.style.removeProperty(varName)
     }
   }
-  if (customizedKeys.has('accent')) {
+  if (bag.has('accent')) {
     root.style.setProperty('--color-accent-dim', dimColor(colors.accent))
   } else {
     root.style.removeProperty('--color-accent-dim')
   }
-}
-
-function clearAllThemeOverrides() {
-  const root = document.documentElement
-  for (const varName of Object.values(colorVarMap)) {
-    root.style.removeProperty(varName)
-  }
-  root.style.removeProperty('--color-accent-dim')
 }
 
 export function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
@@ -178,7 +208,12 @@ function setupMediaQueryListener(mode: ThemeMode) {
   }
   if (mode === 'system') {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => applyThemeMode('system')
+    const handler = () => {
+      applyThemeMode('system')
+      // OS theme flipped under mode='system' — flip the override bag too.
+      const state = useSettingsStore.getState()
+      applyThemeOverrides(customizedColorKeys, state.colors, resolveTheme(state.themeMode))
+    }
     mq.addEventListener('change', handler)
     mediaQueryCleanup = () => mq.removeEventListener('change', handler)
   }
@@ -196,8 +231,11 @@ function isValidWeekStart(n: unknown): n is WeekStart {
   return n === 0 || n === 1
 }
 
-/** Track which color keys have user-customized values in IndexedDB */
-let customizedColorKeys = new Set<string>()
+/** Track which color keys have user-customized values in IndexedDB. Keyed by
+ * theme so a "set in dark" override does not leak into light (and vice
+ * versa); the bag for the resolved theme drives which inline styles are
+ * written. */
+let customizedColorKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
 
 /**
  * Build a twin-debounced setter for high-frequency settings writes (viewport,
@@ -225,7 +263,10 @@ function createDebouncedPersist<T>(opts: {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  colors: { ...defaultColors },
+  colors: {
+    dark: { ...defaultThemedColors.dark },
+    light: { ...defaultThemedColors.light },
+  },
   themeMode: 'dark' as ThemeMode,
   defaultProjectId: null,
   defaultStatusId: null,
@@ -245,8 +286,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async load() {
     try {
       const rows = await settingsRepository.getAll()
-      const colors = { ...defaultColors }
-      const customKeys = new Set<string>()
+      const colors: ThemedColors = {
+        dark: { ...defaultThemedColors.dark },
+        light: { ...defaultThemedColors.light },
+      }
+      const customKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
+      // Legacy rows under `color.<key>` predate the per-theme split; their
+      // values are dark-tuned (the only theme the editor exposed before).
+      // We capture them here, then migrate to `color.dark.<key>` after
+      // the loop so the new key wins on the next load and the legacy row
+      // never lingers in IndexedDB.
+      const legacyColorRows: Array<{ key: keyof ThemeColors; value: string }> = []
       let defaultProjectId: number | null = null
       let defaultStatusId: number | null = null
       let quickStatusId: number | null = null
@@ -266,10 +316,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let canvasMaxExtent: number = DEFAULT_CANVAS_MAX_EXTENT
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
-          const colorKey = row.key.replace('color.', '') as keyof ThemeColors
-          if (colorKey in colors && isValidCssColor(row.value)) {
-            colors[colorKey] = row.value
-            customKeys.add(colorKey)
+          const rest = row.key.slice('color.'.length)
+          if (rest.startsWith('dark.') || rest.startsWith('light.')) {
+            const theme: ThemeName = rest.startsWith('dark.') ? 'dark' : 'light'
+            const colorKey = rest.slice(theme.length + 1) as keyof ThemeColors
+            if (colorKey in colors[theme] && isValidCssColor(row.value)) {
+              colors[theme][colorKey] = row.value
+              customKeys[theme].add(colorKey)
+            }
+          } else {
+            // Legacy `color.<key>` row (pre-per-theme). Capture for migration.
+            const colorKey = rest as keyof ThemeColors
+            if (colorKey in colors.dark && isValidCssColor(row.value)) {
+              legacyColorRows.push({ key: colorKey, value: row.value })
+            }
           }
         } else if (row.key === 'defaultProjectId') {
           defaultProjectId = row.value ? Number(row.value) : null
@@ -321,6 +381,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isValidCanvasMaxExtent(parsed)) canvasMaxExtent = parsed
         }
       }
+      // Apply legacy `color.<key>` rows: seed `colors.dark` (dark-tuned) and
+      // mark them as customized, but only when the new key isn't already set —
+      // a user who has already saved under the new schema wins. Then rewrite
+      // each legacy row to `color.dark.<key>` and drop the original so the
+      // store persists in the new shape going forward.
+      for (const { key, value } of legacyColorRows) {
+        if (!customKeys.dark.has(key)) {
+          colors.dark[key] = value
+          customKeys.dark.add(key)
+          await settingsRepository.put(`color.dark.${key}`, value)
+        }
+        await settingsRepository.delete(`color.${key}`)
+      }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
       // Resolve legacy `selectedHorizon` (HorizonKey string) → defId via the
@@ -357,27 +430,39 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizonDefId, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
-      applyThemeOverrides(customizedColorKeys, colors)
+      applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
     } catch (e) {
       console.error('Failed to load settings:', e)
     }
   },
 
-  async setColor(key: keyof ThemeColors, value: string) {
+  async setColor(theme: ThemeName, key: keyof ThemeColors, value: string) {
     if (!isValidCssColor(value)) return
-    await settingsRepository.put(`color.${key}`, value)
-    customizedColorKeys.add(key)
-    const colors = { ...get().colors, [key]: value }
+    await settingsRepository.put(`color.${theme}.${key}`, value)
+    customizedColorKeys[theme].add(key)
+    const current = get().colors
+    const colors: ThemedColors = {
+      ...current,
+      [theme]: { ...current[theme], [key]: value },
+    }
     set({ colors })
-    applyThemeOverrides(customizedColorKeys, colors)
+    if (theme === resolveTheme(get().themeMode)) {
+      applyThemeOverrides(customizedColorKeys, colors, theme)
+    }
   },
 
-  async resetColors() {
-    const keys = Object.keys(defaultColors).map((k) => `color.${k}`)
-    await settingsRepository.bulkDelete(keys)
-    customizedColorKeys = new Set()
-    set({ colors: { ...defaultColors } })
-    clearAllThemeOverrides()
+  async resetColors(theme?: ThemeName) {
+    const targets: ReadonlyArray<ThemeName> = theme == null ? ['dark', 'light'] : [theme]
+    for (const t of targets) {
+      const keys = Object.keys(defaultThemedColors[t]).map((k) => `color.${t}.${k}`)
+      await settingsRepository.bulkDelete(keys)
+      customizedColorKeys[t] = new Set()
+    }
+    const current = get().colors
+    const colors: ThemedColors = { ...current }
+    for (const t of targets) colors[t] = { ...defaultThemedColors[t] }
+    set({ colors })
+    applyThemeOverrides(customizedColorKeys, colors, resolveTheme(get().themeMode))
   },
 
   async setThemeMode(mode: ThemeMode) {
@@ -385,6 +470,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ themeMode: mode })
     applyThemeMode(mode)
     setupMediaQueryListener(mode)
+    // Switching mode flips which `colors[theme]` bag drives the inline
+    // overrides — re-apply against the newly-resolved theme.
+    applyThemeOverrides(customizedColorKeys, get().colors, resolveTheme(mode))
   },
 
   async setDefaultProjectId(id: number | null) {

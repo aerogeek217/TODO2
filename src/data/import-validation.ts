@@ -711,6 +711,10 @@ function validateRailsShape(parsed: unknown): true | string {
 }
 
 function isValidSettingKey(key: string): boolean {
+  // Theme color rows can be either legacy `color.<key>` (pre-per-theme,
+  // mapped to dark on load) or per-theme `color.dark.<key>` /
+  // `color.light.<key>` (triage-2026-04-27 P4) — the prefix match accepts
+  // all three.
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
 }
 

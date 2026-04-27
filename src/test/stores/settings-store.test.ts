@@ -2,20 +2,34 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { useSettingsStore } from '../../stores/settings-store'
 
+const DARK_DEFAULTS = {
+  accent: '#a2cfcb',
+  canvasBg: '#0e0e0e',
+  surface: '#191a1a',
+  danger: '#ee7d77',
+  warning: '#f5a623',
+  star: '#f5c842',
+  scheduled: '#7ec4bc',
+  deadline: '#e86bf0',
+} as const
+
+const LIGHT_DEFAULTS = {
+  accent: '#3a9e93',
+  canvasBg: '#f5f4f2',
+  surface: '#ffffff',
+  danger: '#d94a43',
+  warning: '#d08a12',
+  star: '#c09a15',
+  scheduled: '#3a9e93',
+  deadline: '#b838c0',
+} as const
+
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useSettingsStore.setState({
-    colors: {
-      accent: '#a2cfcb',
-      canvasBg: '#0e0e0e',
-      surface: '#191a1a',
-      danger: '#ee7d77',
-      warning: '#f5a623',
-      star: '#f5c842',
-      scheduled: '#7ec4bc',
-      deadline: '#e86bf0',
-    },
+    colors: { dark: { ...DARK_DEFAULTS }, light: { ...LIGHT_DEFAULTS } },
+    themeMode: 'dark',
     defaultProjectId: null,
     completedRetentionDays: null,
     defaultProjectGroupBy: 'tag',
@@ -23,37 +37,89 @@ beforeEach(async () => {
 })
 
 describe('useSettingsStore', () => {
-  it('load loads colors from DB and falls back to defaults', async () => {
+  it('load migrates legacy color.<key> rows to color.dark.<key>', async () => {
     await db.settings.put({ key: 'color.accent', value: '#ff0000' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().colors.accent).toBe('#ff0000')
-    // Other colors should be defaults
-    expect(useSettingsStore.getState().colors.canvasBg).toBe('#0e0e0e')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#ff0000')
+    // Other dark keys fall through to defaults
+    expect(useSettingsStore.getState().colors.dark.canvasBg).toBe('#0e0e0e')
+    // Legacy row migrated and dropped
+    expect(await db.settings.get('color.accent')).toBeUndefined()
+    expect((await db.settings.get('color.dark.accent'))!.value).toBe('#ff0000')
   })
 
-  it('load ignores invalid colors', async () => {
-    await db.settings.put({ key: 'color.accent', value: 'not-a-color' })
+  it('load reads new-shape color.dark.<key> and color.light.<key> rows', async () => {
+    await db.settings.put({ key: 'color.dark.accent', value: '#112233' })
+    await db.settings.put({ key: 'color.light.canvasBg', value: '#fafafa' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().colors.accent).toBe('#a2cfcb') // default
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#112233')
+    expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#fafafa')
   })
 
-  it('setColor persists valid color', async () => {
-    await useSettingsStore.getState().setColor('accent', '#00ff00')
-    expect(useSettingsStore.getState().colors.accent).toBe('#00ff00')
-    // Persisted to DB
-    const rows = await db.settings.get('color.accent')
-    expect(rows!.value).toBe('#00ff00')
+  it('load ignores invalid colors (legacy + per-theme)', async () => {
+    await db.settings.put({ key: 'color.accent', value: 'not-a-color' })
+    await db.settings.put({ key: 'color.light.danger', value: 'still-not' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb') // default
+    expect(useSettingsStore.getState().colors.light.danger).toBe('#d94a43') // default
+  })
+
+  it('load: new key wins over legacy when both exist', async () => {
+    await db.settings.put({ key: 'color.accent', value: '#aa0000' })
+    await db.settings.put({ key: 'color.dark.accent', value: '#0000aa' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#0000aa')
+    // Legacy still gets cleaned up regardless
+    expect(await db.settings.get('color.accent')).toBeUndefined()
+  })
+
+  it('setColor persists per-theme keys', async () => {
+    await useSettingsStore.getState().setColor('dark', 'accent', '#00ff00')
+    await useSettingsStore.getState().setColor('light', 'accent', '#338800')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#00ff00')
+    expect(useSettingsStore.getState().colors.light.accent).toBe('#338800')
+    expect((await db.settings.get('color.dark.accent'))!.value).toBe('#00ff00')
+    expect((await db.settings.get('color.light.accent'))!.value).toBe('#338800')
+  })
+
+  it('setColor: dark write does not leak into light bag', async () => {
+    await useSettingsStore.getState().setColor('dark', 'canvasBg', '#222222')
+    expect(useSettingsStore.getState().colors.dark.canvasBg).toBe('#222222')
+    expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#f5f4f2')
   })
 
   it('setColor rejects invalid', async () => {
-    await useSettingsStore.getState().setColor('accent', 'not-valid')
-    expect(useSettingsStore.getState().colors.accent).toBe('#a2cfcb') // unchanged
+    await useSettingsStore.getState().setColor('dark', 'accent', 'not-valid')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb') // unchanged
   })
 
-  it('resetColors restores defaults', async () => {
-    await useSettingsStore.getState().setColor('accent', '#ff0000')
+  it('resetColors(theme) restores one bag', async () => {
+    await useSettingsStore.getState().setColor('dark', 'accent', '#ff0000')
+    await useSettingsStore.getState().setColor('light', 'accent', '#0000ff')
+    await useSettingsStore.getState().resetColors('dark')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb')
+    expect(useSettingsStore.getState().colors.light.accent).toBe('#0000ff') // untouched
+    expect(await db.settings.get('color.dark.accent')).toBeUndefined()
+    expect((await db.settings.get('color.light.accent'))!.value).toBe('#0000ff')
+  })
+
+  it('resetColors() with no arg restores both bags', async () => {
+    await useSettingsStore.getState().setColor('dark', 'accent', '#ff0000')
+    await useSettingsStore.getState().setColor('light', 'accent', '#0000ff')
     await useSettingsStore.getState().resetColors()
-    expect(useSettingsStore.getState().colors.accent).toBe('#a2cfcb')
+    expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb')
+    expect(useSettingsStore.getState().colors.light.accent).toBe('#3a9e93')
+  })
+
+  it('setThemeMode flips which override bag drives inline styles', async () => {
+    // Customize both bags to distinct values, then verify the inline canvas-bg
+    // override flips with the resolved theme.
+    await useSettingsStore.getState().setColor('dark', 'canvasBg', '#aabbcc')
+    await useSettingsStore.getState().setColor('light', 'canvasBg', '#ddeeff')
+    await useSettingsStore.getState().setThemeMode('dark')
+    expect(document.documentElement.style.getPropertyValue('--color-canvas-bg')).toBe('#aabbcc')
+    await useSettingsStore.getState().setThemeMode('light')
+    expect(document.documentElement.style.getPropertyValue('--color-canvas-bg')).toBe('#ddeeff')
   })
 
   it('setDefaultProjectId persists and clears', async () => {
