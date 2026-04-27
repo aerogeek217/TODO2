@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { SlotKind } from '../../models/canvas-rails'
 import { KIND_ICON } from '../../utils/slot-kind'
 import { ListDefinitionPickerBody } from '../overlays/ListDefinitionPickerBody'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './WidgetKindMenu.module.css'
 
 const PRIMARY_KINDS: { kind: SlotKind; label: string }[] = [
@@ -46,6 +47,7 @@ export interface WidgetKindMenuProps {
 const FLYOUT_LEAVE_DELAY_MS = 120
 const FLYOUT_WIDTH_PX = 240
 const FLYOUT_MAX_HEIGHT_PX = 320
+const VIEWPORT_MARGIN_PX = 8
 
 /** Which secondary row currently has its flyout open (D8: only one at a time). */
 type FlyoutKind = 'list' | 'stats'
@@ -60,16 +62,36 @@ export function WidgetKindMenu({
   secondaryLabel,
   heading = 'Change widget',
 }: WidgetKindMenuProps) {
-  const ref = useRef<HTMLDivElement | null>(null)
   const flyoutRef = useRef<HTMLDivElement | null>(null)
   const listRowRef = useRef<HTMLButtonElement | null>(null)
   const statsRowRef = useRef<HTMLButtonElement | null>(null)
   const leaveTimerRef = useRef<number | null>(null)
   const [flyout, setFlyout] = useState<{ kind: FlyoutKind; x: number; y: number } | null>(null)
 
+  // Parent menu — point-anchored at the click coords; the panelRef returned
+  // here is the menu div. The flyout is special-cased (right-of-row anchor
+  // isn't expressible by the hook's bottom/top placements) so it's tracked
+  // via `extraInsideRefs` for outside-click. Escape is handled in onKeyDown
+  // because it has nuance (close flyout first, then menu).
+  const { panelRef: menuPanelRef, style: menuStyle } = usePopoverAnchor({
+    anchor: { kind: 'point', x: anchor.x, y: anchor.y },
+    open: true,
+    closeOnScroll: false,
+    closeOnResize: false,
+    closeOnEscape: false,
+    onClose,
+    extraInsideRefs: [flyoutRef],
+  })
+
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const setMenuRef = useCallback((el: HTMLDivElement | null) => {
+    menuRef.current = el
+    menuPanelRef(el)
+  }, [menuPanelRef])
+
   const getItems = useCallback((): HTMLButtonElement[] => {
-    if (!ref.current) return []
-    const nodes = ref.current.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')
+    if (!menuRef.current) return []
+    const nodes = menuRef.current.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')
     return Array.from(nodes)
   }, [])
 
@@ -91,49 +113,23 @@ export function WidgetKindMenu({
     items[0]?.focus()
   }, [getItems])
 
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      const target = e.target as Node
-      if (ref.current && ref.current.contains(target)) return
-      if (flyoutRef.current && flyoutRef.current.contains(target)) return
-      onClose()
-    }
-    document.addEventListener('mousedown', handleOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-    }
-  }, [onClose])
-
-  // Clamp menu within viewport.
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const margin = 8
-    if (rect.right > window.innerWidth - margin) {
-      el.style.left = `${Math.max(margin, window.innerWidth - rect.width - margin)}px`
-    }
-    if (rect.bottom > window.innerHeight - margin) {
-      el.style.top = `${Math.max(margin, window.innerHeight - rect.height - margin)}px`
-    }
-  }, [anchor.x, anchor.y])
-
-  // Clamp flyout within viewport.
+  // Clamp flyout within viewport. The parent menu is now hook-clamped; the
+  // flyout still needs its own pass because right-of-row anchoring isn't
+  // expressible by the hook's bottom/top placements.
   useEffect(() => {
     if (!flyout) return
     const el = flyoutRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    const margin = 8
-    if (rect.right > window.innerWidth - margin) {
+    if (rect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
       // Flip to the left side of the row.
       const rowRef = flyout.kind === 'list' ? listRowRef : statsRowRef
       const row = rowRef.current?.getBoundingClientRect()
-      const flipLeft = row ? Math.max(margin, row.left - rect.width - 2) : margin
+      const flipLeft = row ? Math.max(VIEWPORT_MARGIN_PX, row.left - rect.width - 2) : VIEWPORT_MARGIN_PX
       el.style.left = `${flipLeft}px`
     }
-    if (rect.bottom > window.innerHeight - margin) {
-      el.style.top = `${Math.max(margin, window.innerHeight - rect.height - margin)}px`
+    if (rect.bottom > window.innerHeight - VIEWPORT_MARGIN_PX) {
+      el.style.top = `${Math.max(VIEWPORT_MARGIN_PX, window.innerHeight - rect.height - VIEWPORT_MARGIN_PX)}px`
     }
   }, [flyout])
 
@@ -209,9 +205,9 @@ export function WidgetKindMenu({
 
   return createPortal(
     <div
-      ref={ref}
+      ref={setMenuRef}
       className={styles.menu}
-      style={{ left: anchor.x, top: anchor.y }}
+      style={menuStyle}
       role="menu"
       aria-label={heading}
       onKeyDown={onKeyDown}

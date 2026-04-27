@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, TodoPredicate, Person } from '../../../models'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -275,14 +274,13 @@ export function HorizonsSlotContent() {
           title="Edit horizons"
         />
       )}
-      {rowContextMenu && createPortal(
+      {rowContextMenu && (
         <CanvasContextMenu
           x={rowContextMenu.x}
           y={rowContextMenu.y}
           items={rowContextMenuItems}
           onClose={() => setRowContextMenu(null)}
-        />,
-        document.body,
+        />
       )}
     </div>
   )

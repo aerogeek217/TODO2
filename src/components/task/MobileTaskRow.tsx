@@ -359,7 +359,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
         document.body,
       )}
 
-      {contextMenu && createPortal(
+      {contextMenu && (
         <CanvasContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
@@ -372,11 +372,10 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             onDelete: handleDelete,
           })}
           onClose={() => setContextMenu(null)}
-        />,
-        document.body,
+        />
       )}
 
-      {projectPicker && createPortal(
+      {projectPicker && (
         <ProjectPickerPopup
           x={projectPicker.x}
           y={projectPicker.y}
@@ -384,8 +383,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           projects={projects}
           onSelect={(id) => bulk.setProject(todo.id, id)}
           onClose={() => setProjectPicker(null)}
-        />,
-        document.body,
+        />
       )}
     </div>
   )

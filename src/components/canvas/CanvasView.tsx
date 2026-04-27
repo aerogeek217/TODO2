@@ -1,5 +1,4 @@
 import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
-import { createPortal } from 'react-dom'
 import {
   ReactFlow,
   Background,
@@ -862,14 +861,13 @@ export function CanvasView({
         <AlignmentGuides lines={alignmentLines} />
       </ReactFlow>
 
-      {contextMenu && createPortal(
+      {contextMenu && (
         <CanvasContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           items={contextMenu.items}
           onClose={() => setContextMenu(null)}
-        />,
-        document.body,
+        />
       )}
 
       <CanvasToolbar />

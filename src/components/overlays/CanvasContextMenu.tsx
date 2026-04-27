@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './CanvasContextMenu.module.css'
 
 export interface ContextMenuItem {
@@ -15,24 +17,25 @@ interface CanvasContextMenuProps {
   onClose: () => void
 }
 
+/**
+ * Right-click / context-menu popover. Portals internally so all call sites
+ * (canvas right-click, project-node right-click, task-row right-click,
+ * TopBar search row right-click, HorizonsSlotContent row right-click) get
+ * consistent positioning, dismissal, and viewport clamping without each
+ * caller repeating a `createPortal` wrapper.
+ */
 export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
 
+  // Arrow-key focus nav stays as a document-level keydown listener (rather
+  // than onKeyDown on the panel) because focus can escape the panel when
+  // the user clicks an item that opens a child popover (e.g. the search
+  // context menu's "Move to project…" → ProjectPickerPopup).
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
     const focusables = (): HTMLButtonElement[] =>
       itemRefs.current.filter((el): el is HTMLButtonElement => !!el)
     const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-        return
-      }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         const buttons = focusables()
         if (buttons.length === 0) return
@@ -45,13 +48,9 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
         buttons[nextIdx]?.focus()
       }
     }
-    document.addEventListener('mousedown', handler, true)
     document.addEventListener('keydown', keyHandler, true)
-    return () => {
-      document.removeEventListener('mousedown', handler, true)
-      document.removeEventListener('keydown', keyHandler, true)
-    }
-  }, [onClose])
+    return () => document.removeEventListener('keydown', keyHandler, true)
+  }, [])
 
   // autoFocus the first menu item on mount.
   useEffect(() => {
@@ -59,25 +58,24 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
     first?.focus()
   }, [])
 
-  // Clamp position so menu doesn't overflow viewport
-  useEffect(() => {
-    if (!menuRef.current) return
-    const rect = menuRef.current.getBoundingClientRect()
-    if (rect.right > window.innerWidth) {
-      menuRef.current.style.left = `${window.innerWidth - rect.width - 4}px`
-    }
-    if (rect.bottom > window.innerHeight) {
-      menuRef.current.style.top = `${window.innerHeight - rect.height - 4}px`
-    }
-  }, [x, y])
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'point', x, y },
+    open: true,
+    onClose,
+  })
 
-  return (
+  const setRef = useCallback((el: HTMLDivElement | null) => {
+    menuRef.current = el
+    panelRef(el)
+  }, [panelRef])
+
+  return createPortal(
     <div
-      ref={menuRef}
+      ref={setRef}
       role="menu"
       aria-orientation="vertical"
       className={styles.menu}
-      style={{ left: x, top: y }}
+      style={style}
     >
       {items.map((item, i) => (
         item.separator ? (
@@ -94,6 +92,7 @@ export function CanvasContextMenu({ x, y, items, onClose }: CanvasContextMenuPro
           </button>
         )
       ))}
-    </div>
+    </div>,
+    document.body,
   )
 }

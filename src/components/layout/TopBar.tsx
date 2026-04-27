@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
-import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router'
 import {
   DndContext,
@@ -590,7 +589,7 @@ export function TopBar() {
         <span className={styles.storageStatus}>Local only</span>
       )}
 
-      {searchContextMenu && menuTodo && createPortal(
+      {searchContextMenu && menuTodo && (
         <CanvasContextMenu
           x={searchContextMenu.x}
           y={searchContextMenu.y}
@@ -611,11 +610,10 @@ export function TopBar() {
             // the search dropdown so the user is back to the unfocused state.
             setSearchFocused(false)
           }}
-        />,
-        document.body,
+        />
       )}
 
-      {searchProjectPicker && projectPickerTodo && createPortal(
+      {searchProjectPicker && projectPickerTodo && (
         <ProjectPickerPopup
           x={searchProjectPicker.x}
           y={searchProjectPicker.y}
@@ -626,8 +624,7 @@ export function TopBar() {
             if (fresh) useTodoStore.getState().update({ ...fresh, projectId: id })
           }}
           onClose={() => setSearchProjectPicker(null)}
-        />,
-        document.body,
+        />
       )}
     </header>
   )

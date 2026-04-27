@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useContext, useMemo, memo } from 'react'
-import { createPortal } from 'react-dom'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDroppable } from '@dnd-kit/core'
 import type { Project, PersistedTodoItem, Person, ProjectGroupBy, Status } from '../../models'
@@ -414,14 +413,13 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
         }}
       />
 
-      {ctxMenu && createPortal(
+      {ctxMenu && (
         <CanvasContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
           items={ctxMenu.items}
           onClose={() => setCtxMenu(null)}
-        />,
-        document.body,
+        />
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { RuntimeFilterSpec } from '../../models/list-definition'
 import { usePersonStore } from '../../stores/person-store'
@@ -6,10 +6,8 @@ import { useOrgStore } from '../../stores/org-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './RuntimeFilterPicker.module.css'
-
-const VIEWPORT_MARGIN_PX = 8
-const PANEL_GAP_PX = 4
 
 interface Option {
   id: number
@@ -103,11 +101,9 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
 
   const [searchText, setSearchText] = useState('')
   const [open, setOpen] = useState(false)
-  const [panelPos, setPanelPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
   const wrapperRef = useRef<HTMLDivElement>(null)
   const fieldRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
 
   const label = defaultLabel(spec)
   const lowerLabel = label.toLowerCase()
@@ -117,66 +113,25 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
     return q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options
   }, [options, searchText])
 
-  // Position the portaled panel below the field, flipping above when the
-  // panel would clip below the viewport, and clamping horizontally so a
-  // right-edge field doesn't push the panel off-screen.
-  const computePanelPosition = useCallback(() => {
-    const field = fieldRef.current
-    if (!field) return
-    const fieldRect = field.getBoundingClientRect()
-    const panel = panelRef.current
-    const panelRect = panel?.getBoundingClientRect()
-    const panelHeight = panelRect?.height ?? 0
-    const panelWidth = panelRect?.width ?? fieldRect.width
+  const handleClose = () => {
+    setOpen(false)
+    setSearchText('')
+  }
 
-    let top = fieldRect.bottom + PANEL_GAP_PX
-    if (panelHeight > 0 && top + panelHeight > window.innerHeight - VIEWPORT_MARGIN_PX) {
-      const flipped = fieldRect.top - panelHeight - PANEL_GAP_PX
-      if (flipped >= VIEWPORT_MARGIN_PX) top = flipped
-    }
-
-    let left = fieldRect.left
-    if (left + panelWidth > window.innerWidth - VIEWPORT_MARGIN_PX) {
-      left = Math.max(VIEWPORT_MARGIN_PX, fieldRect.right - panelWidth)
-    }
-
-    setPanelPos({ top, left })
-  }, [])
-
-  // Initial placement runs in useLayoutEffect so the flip lands before paint;
-  // re-runs when option count / chip count changes the panel height.
-  useLayoutEffect(() => {
-    if (!open) return
-    computePanelPosition()
-  }, [open, computePanelPosition, filtered.length, selected.length])
-
-  // Track scroll/resize while the panel is open. Capture-phase scroll catches
-  // ancestors (e.g. inset body). React Flow pan does not fire scroll events,
-  // so a canvas pan won't reposition the panel — acceptable since the panel
-  // closes on outside-click anyway.
-  useEffect(() => {
-    if (!open) return
-    const handler = () => computePanelPosition()
-    window.addEventListener('scroll', handler, true)
-    window.addEventListener('resize', handler)
-    return () => {
-      window.removeEventListener('scroll', handler, true)
-      window.removeEventListener('resize', handler)
-    }
-  }, [open, computePanelPosition])
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (wrapperRef.current?.contains(target)) return
-      if (panelRef.current?.contains(target)) return
-      setOpen(false)
-      setSearchText('')
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
+  // Element-anchored: the panel tracks the field rect on scroll/resize
+  // (closeOnScroll/closeOnResize=false → reposition mode). The wrapper row
+  // (label + chips + input) counts as "inside" so clicking a chip's × or
+  // the label doesn't dismiss the panel mid-edit. Escape is owned by the
+  // input's onKeyDown (also blurs the input), so closeOnEscape=false.
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: fieldRef },
+    open,
+    closeOnScroll: false,
+    closeOnResize: false,
+    closeOnEscape: false,
+    onClose: handleClose,
+    extraInsideRefs: [wrapperRef],
+  })
 
   const toggleOption = (id: number) => {
     if (idSet.has(id)) onChange(ids.filter((x) => x !== id))
@@ -242,7 +197,7 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
         <div
           ref={panelRef}
           className={`${styles.panel} nopan nodrag`}
-          style={{ left: panelPos.left, top: panelPos.top }}
+          style={style}
         >
           {filtered.length === 0 ? (
             <div className={styles.empty}>{searchText ? 'No matches' : `No ${lowerLabel}s yet`}</div>

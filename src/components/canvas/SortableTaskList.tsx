@@ -1,5 +1,4 @@
 import { useMemo, useContext, useState, useCallback, useEffect, useRef, useLayoutEffect, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { SortableContext } from '@dnd-kit/sortable'
 import type { PersistedTodoItem, Person, ProjectGroupBy } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
@@ -567,14 +566,13 @@ export function SortableTaskList({
             : <DropIndicator kind="line" />
         )}
       </div>
-      {contextMenu && createPortal(
+      {contextMenu && (
         <CanvasContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           items={contextMenu.items}
           onClose={closeContextMenu}
-        />,
-        document.body,
+        />
       )}
     </>
   )

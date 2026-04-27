@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { ProjectPicker } from '../shared/ProjectPicker'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './ProjectPickerPopup.module.css'
 
 interface ProjectItem {
@@ -17,52 +18,27 @@ interface ProjectPickerPopupProps {
   onClose: () => void
 }
 
-const WIDTH_PX = 240
-const EST_HEIGHT_PX = 300
-const MARGIN_PX = 8
-
+/**
+ * Project assignment picker shown by right-click context menus and TopBar's
+ * search-result "Move to project…" path. Portals internally so callers
+ * don't need their own `createPortal` wrapper.
+ */
 export function ProjectPickerPopup({ x, y, projectId, projects, onSelect, onClose }: ProjectPickerPopupProps) {
-  const popupRef = useRef<HTMLDivElement>(null)
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'point', x, y },
+    open: true,
+    onClose,
+  })
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('mousedown', handler, true)
-    document.addEventListener('keydown', keyHandler, true)
-    return () => {
-      document.removeEventListener('mousedown', handler, true)
-      document.removeEventListener('keydown', keyHandler, true)
-    }
-  }, [onClose])
-
-  useEffect(() => {
-    if (!popupRef.current) return
-    const rect = popupRef.current.getBoundingClientRect()
-    if (rect.right > window.innerWidth) {
-      popupRef.current.style.left = `${window.innerWidth - rect.width - MARGIN_PX / 2}px`
-    }
-    if (rect.bottom > window.innerHeight) {
-      popupRef.current.style.top = `${window.innerHeight - rect.height - MARGIN_PX / 2}px`
-    }
-  }, [x, y])
-
-  const clampedX = Math.min(x, window.innerWidth - WIDTH_PX - MARGIN_PX)
-  const clampedY = Math.min(y, window.innerHeight - EST_HEIGHT_PX - MARGIN_PX)
-
-  return (
-    <div ref={popupRef} className={styles.popup} style={{ left: Math.max(MARGIN_PX, clampedX), top: Math.max(MARGIN_PX, clampedY) }}>
+  return createPortal(
+    <div ref={panelRef} className={styles.popup} style={style}>
       <ProjectPicker
         projectId={projectId}
         projects={projects}
         onSelect={(id) => { onSelect(id); onClose() }}
         autoFocus
       />
-    </div>
+    </div>,
+    document.body,
   )
 }

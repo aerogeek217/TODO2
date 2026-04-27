@@ -12,6 +12,7 @@ import { useCanvasStore } from '../../stores/canvas-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { TaskRow } from '../task/TaskRow'
 import { bySortOrder } from '../../utils/sort-order'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './FilteredListPopup.module.css'
 
 function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.ReactNode } {
@@ -37,30 +38,6 @@ function filterToPredicate(filter: AttributeFilter): TodoPredicate {
     case 'org': p.orgIds = [filter.orgId]; break
   }
   return p
-}
-
-/** Compute clamped position so the popup fits in the viewport. */
-function computePosition(clickX: number, clickY: number) {
-  const margin = 16
-  const width = 380
-  const maxH = window.innerHeight - margin * 2
-  // Prefer placing below-right of click; flip if no room
-  let x = clickX
-  let y = clickY
-  if (x + width > window.innerWidth - margin) {
-    x = window.innerWidth - width - margin
-  }
-  if (x < margin) x = margin
-  if (y < margin) y = margin
-  const availableDown = window.innerHeight - y - margin
-  const availableUp = y - margin
-  // If more room above, flip
-  if (availableDown < 200 && availableUp > availableDown) {
-    // Place above the click, growing upward
-    const maxHeight = Math.min(maxH, availableUp)
-    return { x, y: y - maxHeight, maxHeight }
-  }
-  return { x, y, maxHeight: Math.min(maxH, availableDown) }
 }
 
 const DRAG_THRESHOLD = 8
@@ -105,15 +82,21 @@ export function FilteredListPopup() {
     }).sort(bySortOrder)
   }, [popup, todos, assignedPeopleMap, assignedOrgsMap])
 
-  const pos = useMemo(() => {
-    if (!popup) return { x: 0, y: 0, maxHeight: 600 }
-    return computePosition(popup.x, popup.y)
-  }, [popup])
+  // Point-anchored popover. Substitutional with the previous behavior:
+  // scroll/resize don't close (matches pre-migration), Escape closes,
+  // outside-click closes (replaces the prior backdrop onClick).
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'point', x: popup?.x ?? 0, y: popup?.y ?? 0 },
+    open: popup != null,
+    closeOnScroll: false,
+    closeOnResize: false,
+    onClose: hideFilteredList,
+  })
 
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return
     e.preventDefault()
-    dragStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, popupX: pos.x, popupY: pos.y }
+    dragStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, popupX: style.left, popupY: style.top }
     isDraggingRef.current = false
 
     const onMouseMove = (ev: MouseEvent) => {
@@ -169,17 +152,7 @@ export function FilteredListPopup() {
     dragCleanupRef.current = cleanup
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', onMouseUp)
-  }, [pos, activeView, selectedCanvasId, popup, addListDef, addInset, hideFilteredList])
-
-  // Close on Escape
-  useEffect(() => {
-    if (!popup) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') hideFilteredList()
-    }
-    document.addEventListener('keydown', handler, true)
-    return () => document.removeEventListener('keydown', handler, true)
-  }, [popup, hideFilteredList])
+  }, [style.left, style.top, activeView, selectedCanvasId, popup, addListDef, addInset, hideFilteredList])
 
   // Reset drag state when popup changes
   useEffect(() => {
@@ -194,25 +167,27 @@ export function FilteredListPopup() {
   const { label, icon } = getHeaderInfo(filter)
   const isOnCanvas = activeView === AppView.Canvas
 
-  const displayX = dragOffset ? pos.x + dragOffset.dx : pos.x
-  const displayY = dragOffset ? pos.y + dragOffset.dy : pos.y
+  // While dragging, the popup follows the cursor — drop the maxHeight cap
+  // so the user-controlled position isn't visually clipped mid-drag.
+  const finalStyle: React.CSSProperties = dragOffset
+    ? {
+        ...style,
+        left: style.left + dragOffset.dx,
+        top: style.top + dragOffset.dy,
+        maxHeight: undefined,
+      }
+    : style
 
   return createPortal(
     <>
       <div
         className={styles.backdrop}
-        onClick={hideFilteredList}
         style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
       />
       <div
+        ref={panelRef}
         className={`${styles.popup} ${dragOffset ? styles.dragging : ''}`}
-        style={{
-          position: 'fixed',
-          left: displayX,
-          top: displayY,
-          maxHeight: dragOffset ? undefined : pos.maxHeight,
-          zIndex: 9999,
-        }}
+        style={{ ...finalStyle, zIndex: 9999 }}
       >
         <div
           className={`${styles.header} ${isOnCanvas ? styles.headerDraggable : ''}`}

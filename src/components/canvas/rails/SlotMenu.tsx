@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { SlotKind } from '../../../models/canvas-rails'
 import { KIND_LABEL } from '../../../utils/slot-kind'
+import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import styles from './SlotMenu.module.css'
 
 interface SlotMenuProps {
@@ -24,11 +26,27 @@ const HORIZONTAL_SPLITS: SplitItem[] = [
 
 export function SlotMenu({ anchor, currentKind, orientation, onSplit, onAddTab, onClose }: SlotMenuProps) {
   const splits = orientation === 'horizontal' ? HORIZONTAL_SPLITS : VERTICAL_SPLITS
-  const ref = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  // Point-anchored. Gain portal + scroll/resize close as a side effect of
+  // migration (per ui-consistency P1 — inline popovers gain consistency
+  // with the portalized ones). Escape is handled in onKeyDown so the
+  // menu's arrow-nav closure stays self-contained.
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'point', x: anchor.x, y: anchor.y },
+    open: true,
+    closeOnEscape: false,
+    onClose,
+  })
+
+  const setRef = useCallback((el: HTMLDivElement | null) => {
+    menuRef.current = el
+    panelRef(el)
+  }, [panelRef])
 
   const getItems = useCallback((): HTMLButtonElement[] => {
-    if (!ref.current) return []
-    const nodes = ref.current.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')
+    if (!menuRef.current) return []
+    const nodes = menuRef.current.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')
     return Array.from(nodes)
   }, [])
 
@@ -45,35 +63,11 @@ export function SlotMenu({ anchor, currentKind, orientation, onSplit, onAddTab, 
     items[next]?.focus()
   }, [getItems])
 
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    document.addEventListener('mousedown', handleOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-    }
-  }, [onClose])
-
   // Focus the first enabled menu item on open.
   useEffect(() => {
     const items = getItems()
     items[0]?.focus()
   }, [getItems])
-
-  // Clamp within viewport so right-rail menus don't spill off-screen.
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const margin = 8
-    if (rect.right > window.innerWidth - margin) {
-      el.style.left = `${Math.max(margin, window.innerWidth - rect.width - margin)}px`
-    }
-    if (rect.bottom > window.innerHeight - margin) {
-      el.style.top = `${Math.max(margin, window.innerHeight - rect.height - margin)}px`
-    }
-  }, [anchor.x, anchor.y])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
@@ -100,11 +94,11 @@ export function SlotMenu({ anchor, currentKind, orientation, onSplit, onAddTab, 
     }
   }
 
-  return (
+  return createPortal(
     <div
-      ref={ref}
+      ref={setRef}
       className={styles.menu}
-      style={{ left: anchor.x, top: anchor.y }}
+      style={style}
       role="menu"
       aria-label={`${KIND_LABEL[currentKind]} slot options`}
       onKeyDown={onKeyDown}
@@ -134,6 +128,7 @@ export function SlotMenu({ anchor, currentKind, orientation, onSplit, onAddTab, 
           </button>
         </>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }
