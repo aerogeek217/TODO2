@@ -1,0 +1,284 @@
+/*
+ * Shared task-pill bar — used by TaskRow, MobileTaskRow, SearchResultRow,
+ * EventRow. The five surfaces converged in ui-consistency-2026-04-25 P2 onto
+ * one set of chip styles, with mode flags driving icon-only / read-only /
+ * stacked-date variants.
+ *
+ * Display rule: tags never appear in the pill bar — search / filter / grouping
+ * only.
+ */
+
+/* ═══ People / org chip group ═══ */
+
+.peopleGroup {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* ═══ Date stack — TaskRow's vertical column ═══ */
+
+/*
+ * Fixed-width date-column slot. Always the same width whether a chip,
+ * chip-stack, or empty-state add-date button is rendered inside —
+ * so trailing slots (status) and preceding slots (people / orgs)
+ * line up vertically across rows.
+ */
+.dateStack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 1px;
+  flex-shrink: 0;
+  width: var(--date-slot-w, 80px);
+  line-height: 1;
+  position: relative;
+}
+
+/* Inline (default): scheduled and deadline sit side-by-side, no fixed width. */
+.dateInline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/*
+ * Secondary chip in a two-chip stack: deadline when both scheduled + deadline
+ * are present.
+ */
+.dateStackSecondary {
+  font-size: 9.5px;
+  padding: 0 4px;
+  line-height: 10px;
+  letter-spacing: 0.1px;
+}
+
+/* × clear button inside the tight secondary chip would overflow its
+ * line-height, so hide it there — users clear the primary by clicking it. */
+.dateStackSecondary .chipClear {
+  display: none;
+}
+
+/* ═══ Scheduled chip ═══ */
+
+.scheduledChip {
+  --date-intensity: 1;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: var(--font-size-meta);
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
+  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
+  padding: 1px 6px;
+  line-height: 14px;
+  border-radius: var(--radius-chip);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  font-family: inherit;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stacked-mode chip is full-width inside its column. */
+.dateStack > .scheduledChip,
+.dateStack > .deadlineChip {
+  width: 100%;
+}
+
+.scheduledChip:hover {
+  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
+}
+
+.scheduledChipPast {
+  color: var(--color-scheduled);
+  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
+  border: 1px dashed var(--color-scheduled);
+  font-weight: 600;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-scheduled) 30%, transparent);
+}
+
+.scheduledChipPast:hover {
+  background: color-mix(in srgb, var(--color-scheduled) 34%, transparent);
+}
+
+/* ═══ Deadline chip ═══ */
+
+.deadlineChip {
+  --date-intensity: 1;
+  --fade: calc((1 - var(--date-intensity)) * 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-size: var(--font-size-meta);
+  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
+  padding: 1px 6px;
+  line-height: 14px;
+  border-radius: var(--radius-chip);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  font-family: inherit;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+
+.deadlineChip:hover {
+  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+}
+
+.deadlineChipPast {
+  color: var(--color-surface);
+  background: var(--color-deadline);
+  border: 1px solid var(--color-deadline);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-deadline) 45%, transparent),
+    0 0 12px color-mix(in srgb, var(--color-deadline) 50%, transparent),
+    0 0 24px color-mix(in srgb, var(--color-deadline) 22%, transparent);
+}
+
+.deadlineChipPast:hover {
+  background: color-mix(in srgb, var(--color-deadline) 92%, var(--color-text-primary));
+}
+
+.deadlineChipPast .recurrenceIndicator {
+  color: currentColor;
+  opacity: 0.75;
+}
+
+/* × clear button inside a chip — hidden until the chip is hovered */
+.chipClear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease;
+  cursor: pointer;
+}
+
+.deadlineChip:hover .chipClear,
+.scheduledChip:hover .chipClear {
+  opacity: 0.7;
+}
+
+.chipClear:hover {
+  opacity: 1 !important;
+  background: var(--color-tint-12);
+}
+
+.recurrenceIndicator {
+  color: var(--color-text-muted);
+  margin-right: 2px;
+}
+
+/* ═══ Compact (icon-only) date markers — used by EventRow ═══ */
+
+.markerScheduled,
+.markerDeadline,
+.markerRecurrence {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.markerScheduled {
+  color: var(--color-scheduled);
+}
+
+.markerDeadline {
+  color: var(--color-deadline);
+}
+
+/* ═══ Status indicator ═══ */
+
+.statusWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: var(--status-slot-w, 24px);
+}
+
+.statusButton {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  padding: 0 4px;
+  cursor: pointer;
+  line-height: 1;
+  color: var(--color-border-muted);
+  transition: color 0.15s;
+  display: flex;
+  align-items: center;
+}
+
+.statusButton:hover {
+  color: var(--color-text-secondary);
+}
+
+.statusDotEmpty {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-text-muted);
+  display: inline-block;
+}
+
+/* Read-only status (used inside SearchResultRow / EventRow): no button, no
+ * hover, smaller status icon to match the existing tighter look. */
+.statusReadOnly {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.statusReadOnlyEmpty {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--color-text-muted);
+  opacity: 0.6;
+}
+
+/* ═══ Read-only mode ═══ */
+
+/*
+ * Read-only mode (interactive=false): chips render as `<span>` and the bar
+ * itself is `pointer-events: none` so a parent button absorbs clicks. The
+ * wrapper provides its own inline-flex layout so the pills align as a
+ * group inside surfaces that don't already supply one (search dropdown,
+ * calendar EventRow when used compositionally).
+ */
+.barReadOnly {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  pointer-events: none;
+}

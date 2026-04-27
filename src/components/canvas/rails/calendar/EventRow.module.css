@@ -37,37 +37,6 @@
   opacity: 0.85;
 }
 
-.status {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  color: var(--color-text-muted);
-}
-
-.statusEmpty {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1px solid var(--color-text-muted);
-  opacity: 0.6;
-}
-
-.marker {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  color: var(--color-text-muted);
-}
-
-.markerScheduled {
-  color: var(--color-scheduled);
-}
-
-.markerDeadline {
-  color: var(--color-deadline);
-}
-
 .title {
   flex: 1 1 auto;
   min-width: 0;

@@ -21,12 +21,9 @@ import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { startOfToday, formatDateShort } from '../../utils/date'
-import { scheduledLabel, isScheduledPast, isDeadlinePast } from '../../utils/effective-date'
+import { startOfToday } from '../../utils/date'
 import { matchTodoText, type TextMatchField } from '../../utils/filter'
-import { resolvePersonColor } from '../../utils/person-color'
-import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
-import { StatusIcon } from '../shared/StatusIcon'
+import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
@@ -70,7 +67,9 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
 /**
  * Per-row pill context resolved once on TopBar and threaded down to every
  * `SearchResultRow`. Keeping it in one place avoids re-subscribing each row
- * to the assigned-people / assigned-orgs / status stores.
+ * to the assigned-people / assigned-orgs / status stores; passing
+ * `personOrgMap` + `orgs` as `personColorContext` to `<TaskPillBar>` also
+ * lets `AvatarStack` skip its own `useOrgStore` subscription.
  */
 interface SearchResultPillContext {
   peopleByTodoId: Map<number, Person[]>
@@ -80,98 +79,29 @@ interface SearchResultPillContext {
   orgs: Org[]
 }
 
-/**
- * Read-only avatar mirroring `AvatarStack`'s visual but rendered as plain
- * spans (no nested `<button>`) so the pill bar can sit inside the
- * SearchResultRow `<button>` without breaking HTML or click-through. The
- * outer container is `pointer-events: none` so chips never intercept the
- * row click or the dnd-kit drag listener.
- */
 function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: SearchResultPillContext }) {
   const today = startOfToday()
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const people = ctx.peopleByTodoId.get(todo.id) ?? []
   const orgs = ctx.orgsByTodoId.get(todo.id) ?? []
   const status = todo.statusId != null ? ctx.statusesById.get(todo.statusId) : undefined
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
-  const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
 
   if (people.length === 0 && orgs.length === 0 && !status && !todo.scheduledDate && !todo.dueDate) {
     return null
   }
 
-  const visiblePeople = people.slice(0, 3)
-  const peopleOverflow = people.length - visiblePeople.length
-  const visibleOrgs = orgs.slice(0, 3)
-  const orgsOverflow = orgs.length - visibleOrgs.length
-
   return (
-    <span className={styles.miniListPills} aria-hidden="true">
-      {visiblePeople.length > 0 && (
-        <span className={styles.miniListAvatars}>
-          {visiblePeople.map((p) => {
-            const fill = resolvePersonColor(p.id, ctx.personOrgMap, ctx.orgs) ?? UNAFFILIATED_PERSON_COLOR
-            return (
-              <span
-                key={p.id}
-                className={styles.miniListAvatar}
-                style={{ background: fill, color: 'var(--color-text-on-accent)' }}
-                title={p.name}
-              >
-                {p.initials || p.name.slice(0, 2).toUpperCase()}
-              </span>
-            )
-          })}
-          {peopleOverflow > 0 && (
-            <span className={`${styles.miniListAvatar} ${styles.miniListAvatarOverflow}`}>+{peopleOverflow}</span>
-          )}
-        </span>
-      )}
-      {visibleOrgs.length > 0 && (
-        <span className={styles.miniListAvatars}>
-          {visibleOrgs.map((o) => (
-            <span
-              key={o.id}
-              className={`${styles.miniListAvatar} ${styles.miniListAvatarHollow}`}
-              style={o.color ? { borderColor: o.color, color: o.color } : undefined}
-              title={o.name}
-            >
-              {o.initials || o.name.slice(0, 2).toUpperCase()}
-            </span>
-          ))}
-          {orgsOverflow > 0 && (
-            <span className={`${styles.miniListAvatar} ${styles.miniListAvatarOverflow}`}>+{orgsOverflow}</span>
-          )}
-        </span>
-      )}
-      {todo.scheduledDate && (
-        <span
-          className={`${styles.miniListChip} ${styles.miniListScheduled} ${scheduledPast ? styles.miniListScheduledPast : ''}`}
-          title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
-        >
-          <StatusIcon icon="calendar" />
-          <span>{scheduledLabel(todo.scheduledDate, today)}</span>
-        </span>
-      )}
-      {todo.dueDate && (
-        <span
-          className={`${styles.miniListChip} ${styles.miniListDeadline} ${deadlinePast ? styles.miniListDeadlinePast : ''}`}
-          title={deadlinePast ? 'Deadline passed' : 'Deadline'}
-        >
-          <StatusIcon icon="clock" />
-          <span>{formatDateShort(todo.dueDate)}</span>
-        </span>
-      )}
-      {status && (
-        <span
-          className={styles.miniListStatus}
-          style={{ color: status.color }}
-          title={status.name}
-        >
-          <StatusIcon icon={status.icon || 'circle'} filled />
-        </span>
-      )}
-    </span>
+    <TaskPillBar
+      todo={todo}
+      people={people}
+      orgs={orgs}
+      status={status}
+      today={today}
+      weekStartsOn={weekStartsOn}
+      interactive={false}
+      ariaHidden
+      personColorContext={{ personOrgMap: ctx.personOrgMap, orgs: ctx.orgs }}
+    />
   )
 }
 

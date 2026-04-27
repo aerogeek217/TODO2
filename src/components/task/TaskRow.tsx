@@ -12,12 +12,12 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
-import { startOfToday, formatDateShort, toDateInputValue } from '../../utils/date'
-import { scheduledLabel, isScheduledPast, isDeadlinePast, resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
+import { startOfToday, toDateInputValue } from '../../utils/date'
+import { resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
-import { AvatarStack } from '../shared/AvatarStack'
+import { TaskPillBar } from '../shared/TaskPillBar'
 import { DragHandle } from '../shared/DragHandle'
 import { PortalDropdown } from '../shared/PortalDropdown'
 
@@ -90,8 +90,6 @@ export const TaskRow = memo(function TaskRow({
 
   const today = startOfToday()
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
-  const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
   const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today, weekStartsOn), today))
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
@@ -257,118 +255,70 @@ export const TaskRow = memo(function TaskRow({
         </span>
       )}
 
-      {/* People chip group — avatar stack + org avatars share one picker */}
+      {/* Pill bar — people/orgs (when populated), date stack (when populated),
+          status. Empty-state triggers (`@` button, calendar button) are
+          rendered separately below so the row hover-reveal styling stays in
+          this surface's CSS. */}
       {!ghost && (
-        <div className={`${styles.chipGroup} ${hasPeople ? '' : styles.chipGroupEmpty}`} ref={peopleRef}>
-          {hasPeople ? (
-            <>
-              {(assignedPeople ?? []).length > 0 && (
-                <AvatarStack
-                  people={assignedPeople ?? []}
-                  max={3}
-                  onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
-                  onPersonContextMenu={(e, person) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'person', personId: person.id!, personName: person.name })
-                  }}
-                />
-              )}
-              {assignedOrgs.length > 0 && (
-                <AvatarStack
-                  people={assignedOrgs}
-                  max={3}
-                  variant="hollow"
-                  onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
-                  onPersonContextMenu={(e, org) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'org', orgId: org.id!, orgName: org.name, orgColor: org.color })
-                  }}
-                />
-              )}
-            </>
-          ) : (
-            <button className={styles.chipTrigger}
-              onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}>
-              @
-            </button>
-          )}
-          {openDropdown === 'people' && createPortal(
-            <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
-              <div className={styles.chipDropdown}>
-                <ChipSelector
-                  items={[
-                    ...allPeople.map(p => ({ id: p.id!, name: p.name })),
-                    ...allOrgs.map(o => ({ id: -o.id!, name: o.name, color: o.color })),
-                  ]}
-                  selectedIds={(() => {
-                    const ids = new Set(assignedPeopleIds)
-                    for (const oid of assignedOrgIds) ids.add(-oid)
-                    return ids
-                  })()}
-                  onToggle={(id) => id < 0 ? toggleOrg(-id) : togglePerson(id)}
-                  onCreate={handleCreatePerson}
-                  placeholder="Search people & orgs..."
-                />
-              </div>
-            </PortalDropdown>,
-            document.body,
-          )}
+        <TaskPillBar
+          todo={todo}
+          people={assignedPeople ?? []}
+          orgs={assignedOrgs}
+          status={status}
+          today={today}
+          weekStartsOn={weekStartsOn}
+          dateLayout="stack"
+          scheduledIntensity={scheduledIntensity}
+          deadlineIntensity={deadlineIntensity}
+          peopleAnchorRef={peopleRef}
+          scheduledAnchorRef={scheduledAnchorRef}
+          statusAnchorRef={statusRef}
+          onPeopleClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
+          onPersonContextMenu={(e, person) => {
+            e.preventDefault()
+            e.stopPropagation()
+            useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'person', personId: person.id!, personName: person.name })
+          }}
+          onOrgContextMenu={(e, org) => {
+            e.preventDefault()
+            e.stopPropagation()
+            useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'org', orgId: org.id!, orgName: org.name, orgColor: org.color })
+          }}
+          onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
+          onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+          onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
+          onStatusClick={(e) => { e.stopPropagation(); setShowStatusMenu(v => !v) }}
+        />
+      )}
+
+      {/* Empty-state @ trigger when no people/orgs — surface-owned because the
+          row-hover reveal lives in TaskRow.module.css. */}
+      {!ghost && !hasPeople && (
+        <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
+          <button
+            className={styles.chipTrigger}
+            onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
+          >
+            @
+          </button>
         </div>
       )}
 
-      {/* Date chips stack — scheduled on top, deadline beneath when both present */}
+      {/* Hidden date input for the inline deadline picker. Anchored next to
+          the deadline chip when populated, or under the empty-state calendar
+          button when neither date is set. */}
       {!ghost && (todo.scheduledDate || todo.dueDate) && (
-        <div className={styles.dateStack}>
-          <input
-            ref={deadlineInputRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
-            onChange={handleDeadlineInputChange}
-          />
-          {todo.scheduledDate && (
-            <button
-              ref={scheduledAnchorRef}
-              type="button"
-              className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
-              style={{ '--date-intensity': scheduledIntensity } as React.CSSProperties}
-              onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-              title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
-            >
-              <StatusIcon icon="calendar" />
-              <span className={styles.chipLabel}>{scheduledLabel(todo.scheduledDate, today)}</span>
-            </button>
-          )}
-
-          {todo.dueDate && (
-            <button
-              type="button"
-              className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''} ${todo.scheduledDate ? styles.dateStackSecondary : ''}`}
-              style={{ '--date-intensity': deadlineIntensity } as React.CSSProperties}
-              onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-              title={deadlinePast ? 'Deadline passed — click to change' : 'Deadline — click to change'}
-            >
-              <StatusIcon icon="clock" />
-              <span className={styles.chipLabel}>{formatDateShort(todo.dueDate)}</span>
-              {todo.recurrenceRule && <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>&#x21bb;</span>}
-              <span
-                className={styles.chipClear}
-                role="button"
-                tabIndex={-1}
-                aria-label="Clear deadline"
-                title="Clear deadline"
-                onClick={(e) => { e.stopPropagation(); bulk.setDeadline(todo.id, null) }}
-                onMouseDown={(e) => e.stopPropagation()}
-              >&times;</span>
-            </button>
-          )}
-        </div>
+        <input
+          ref={deadlineInputRef}
+          type="date"
+          className={styles.hiddenDateInput}
+          value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
+          onChange={handleDeadlineInputChange}
+        />
       )}
 
-      {/* Empty state: reserved date slot holding the inline scheduled picker
-         trigger so people/org avatars stay aligned across rows. */}
+      {/* Empty-state date slot — same width as the populated date stack so
+          people/org avatars + status stay vertically aligned across rows. */}
       {!todo.scheduledDate && !todo.dueDate && !ghost && (
         <div className={styles.dateStackEmpty}>
           <input
@@ -390,7 +340,30 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
-      {/* Inline scheduled-value menu, portalized + anchored to chip/empty button */}
+      {/* Portaled people/org chip selector — anchored to peopleRef. */}
+      {!ghost && openDropdown === 'people' && createPortal(
+        <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
+          <div className={styles.chipDropdown}>
+            <ChipSelector
+              items={[
+                ...allPeople.map(p => ({ id: p.id!, name: p.name })),
+                ...allOrgs.map(o => ({ id: -o.id!, name: o.name, color: o.color })),
+              ]}
+              selectedIds={(() => {
+                const ids = new Set(assignedPeopleIds)
+                for (const oid of assignedOrgIds) ids.add(-oid)
+                return ids
+              })()}
+              onToggle={(id) => id < 0 ? toggleOrg(-id) : togglePerson(id)}
+              onCreate={handleCreatePerson}
+              placeholder="Search people & orgs..."
+            />
+          </div>
+        </PortalDropdown>,
+        document.body,
+      )}
+
+      {/* Portaled scheduled-value menu — anchored to scheduledAnchorRef. */}
       {showScheduledMenu && !ghost && createPortal(
         <PortalDropdown anchorRef={scheduledAnchorRef} onClickOutside={closeScheduledMenu}>
           <ScheduledValueMenu
@@ -403,48 +376,30 @@ export const TaskRow = memo(function TaskRow({
         document.body,
       )}
 
-      {!ghost && (
-        <div ref={statusRef} className={styles.statusWrapper}>
-          <button
-            className={styles.statusButton}
-            style={status ? { color: status.color } : undefined}
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowStatusMenu(v => !v)
-            }}
-            aria-label={status ? `Status: ${status.name}` : 'Set status'}
-          >
-            {status ? (
-              <StatusIcon icon={status.icon || 'circle'} filled />
-            ) : (
-              <span className={styles.statusDotEmpty} />
-            )}
-          </button>
-          {showStatusMenu && createPortal(
-            <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
-              <div className={styles.statusMenu}>
-                <button
-                  className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
-                  onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, undefined); setShowStatusMenu(false) }}
-                >
-                  <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
-                  No Status
-                </button>
-                {statuses.map(s => (
-                  <button
-                    key={s.id}
-                    className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
-                    onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, s.id); setShowStatusMenu(false) }}
-                  >
-                    <span style={{ color: s.color }}><StatusIcon icon={s.icon || 'circle'} filled /></span>
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            </PortalDropdown>,
-            document.body,
-          )}
-        </div>
+      {/* Portaled status menu — anchored to statusRef (TaskPillBar's status wrapper). */}
+      {!ghost && showStatusMenu && createPortal(
+        <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
+          <div className={styles.statusMenu}>
+            <button
+              className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
+              onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, undefined); setShowStatusMenu(false) }}
+            >
+              <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
+              No Status
+            </button>
+            {statuses.map(s => (
+              <button
+                key={s.id}
+                className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
+                onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, s.id); setShowStatusMenu(false) }}
+              >
+                <span style={{ color: s.color }}><StatusIcon icon={s.icon || 'circle'} filled /></span>
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </PortalDropdown>,
+        document.body,
       )}
 
       {contextMenu && (

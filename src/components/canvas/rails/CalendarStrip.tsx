@@ -204,6 +204,8 @@ export function CalendarStrip({
                           <EventRow
                             key={entry.key}
                             entry={entry}
+                            today={today}
+                            weekStartsOn={weekStartsOn}
                             compact
                             onClick={() => onOpenTodo?.(entry.todo.id)}
                           />
@@ -217,6 +219,8 @@ export function CalendarStrip({
                             {({ setNodeRef, attributes, listeners }) => (
                               <EventRow
                                 entry={entry}
+                                today={today}
+                                weekStartsOn={weekStartsOn}
                                 compact
                                 draggable
                                 onClick={() => onOpenTodo?.(entry.todo.id)}
@@ -286,6 +290,8 @@ export function CalendarStrip({
                         <EventRow
                           key={entry.key}
                           entry={entry}
+                          today={today}
+                          weekStartsOn={weekStartsOn}
                           onClick={() => onOpenTodo?.(entry.todo.id)}
                         />
                       ) : (
@@ -298,6 +304,8 @@ export function CalendarStrip({
                           {({ setNodeRef, attributes, listeners }) => (
                             <EventRow
                               entry={entry}
+                              today={today}
+                              weekStartsOn={weekStartsOn}
                               draggable
                               onClick={() => onOpenTodo?.(entry.todo.id)}
                               dragRef={setNodeRef}

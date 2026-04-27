@@ -136,14 +136,6 @@
   line-height: 1;
 }
 
-.statusWrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  min-width: var(--status-slot-w, 24px);
-}
-
 .statusMenu {
   composes: menu from '../shared/dropdown.module.css';
   min-width: 150px;
@@ -281,189 +273,15 @@
   transition: width 0.3s ease;
 }
 
-/*
- * Fixed-width date-column slot. Always the same width whether a chip,
- * chip-stack, or empty-state add-date button is rendered inside —
- * so trailing slots (status) and preceding slots (people / orgs)
- * line up vertically across rows.
- */
-.dateStack {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 1px;
-  flex-shrink: 0;
-  width: var(--date-slot-w, 80px);
-  line-height: 1;
-  position: relative;
-}
-
-/*
- * Secondary chip in a two-chip stack: deadline when both scheduled + deadline
- * are present. Sized per the canvas-rails design handoff: ~10px text on a
- * tight line-height so the full stack (~23px) clears the row min-height.
- */
-.dateStackSecondary {
-  font-size: 9.5px;
-  padding: 0 4px;
-  line-height: 10px;
-  letter-spacing: 0.1px;
-}
-
-/* Clear (×) button inside the tight secondary chip would overflow its
- * line-height, so hide it there — users clear the primary by clicking it. */
-.dateStackSecondary .chipClear {
-  display: none;
-}
-
-/*
- * Date chips fade toward greyscale the further out the date is.
- * --date-intensity (0.15..1): 1 at/past the date, ~0.15 far in the future.
- * --fade is the percentage of greyscale mixed in — higher = more muted.
- */
-.scheduledChip {
-  --date-intensity: 1;
-  --fade: calc((1 - var(--date-intensity)) * 100%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  font-size: var(--font-size-meta);
-  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
-  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
-  padding: 1px 6px;
-  line-height: 14px;
-  border-radius: var(--radius-chip);
-  border: 1px solid transparent;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  font-family: inherit;
-  width: 100%;
-  box-sizing: border-box;
-  font-variant-numeric: tabular-nums;
-}
-
-.scheduledChip:hover {
-  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
-}
-
-/*
- * Past states (Option A, prominent):
- *   scheduled past → bold dashed border + bumped bg + weight 600 + soft glow
- *   deadline past  → stamped solid fill with contrast text, weight 700, strong glow
- */
-.scheduledChipPast {
-  color: var(--color-scheduled);
-  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
-  border: 1px dashed var(--color-scheduled);
-  font-weight: 600;
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-scheduled) 30%, transparent);
-}
-
-.scheduledChipPast:hover {
-  background: color-mix(in srgb, var(--color-scheduled) 34%, transparent);
-}
-
-.deadlineChip {
-  --date-intensity: 1;
-  --fade: calc((1 - var(--date-intensity)) * 100%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  font-size: var(--font-size-meta);
-  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
-  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
-  padding: 1px 6px;
-  line-height: 14px;
-  border-radius: var(--radius-chip);
-  border: 1px solid transparent;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  font-family: inherit;
-  width: 100%;
-  box-sizing: border-box;
-  font-variant-numeric: tabular-nums;
-}
-
-.deadlineChip:hover {
-  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
-}
-
-.deadlineChipPast {
-  color: var(--color-surface);
-  background: var(--color-deadline);
-  border: 1px solid var(--color-deadline);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--color-deadline) 45%, transparent),
-    0 0 12px color-mix(in srgb, var(--color-deadline) 50%, transparent),
-    0 0 24px color-mix(in srgb, var(--color-deadline) 22%, transparent);
-}
-
-.deadlineChipPast:hover {
-  background: color-mix(in srgb, var(--color-deadline) 92%, var(--color-text-primary));
-}
-
-/* Muted recurrence arrow inside a stamped deadline chip needs to track the chip text color */
-.deadlineChipPast .recurrenceIndicator {
-  color: currentColor;
-  opacity: 0.75;
-}
-
-/* × clear button inside a chip — hidden until the chip is hovered */
-.chipClear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: 2px;
-  border-radius: var(--radius-pill);
-  font-size: 13px;
-  line-height: 1;
-  color: currentColor;
-  opacity: 0;
-  transition: opacity 120ms ease, background 120ms ease;
-  cursor: pointer;
-}
-
-.deadlineChip:hover .chipClear,
-.scheduledChip:hover .chipClear {
-  opacity: 0.7;
-}
-
-.chipClear:hover {
-  opacity: 1 !important;
-  background: var(--color-tint-12);
-}
-
 /* Hidden native date input used by inline deadline editing (showPicker trigger).
- * Anchored to the top-left of its date-slot container so the native picker
- * pops up adjacent to the deadline chip. */
+ * The populated case anchors next to the TaskPillBar deadline chip; the
+ * empty-state case anchors under the dateStackEmpty calendar button. */
 .hiddenDateInput {
   position: absolute;
-  top: 0;
-  left: 0;
   width: 1px;
   height: 1px;
   opacity: 0;
   pointer-events: none;
-}
-
-.chipLabel {
-  white-space: nowrap;
-}
-
-.recurrenceIndicator {
-  color: var(--color-text-muted);
-  margin-right: 2px;
 }
 
 /* Chip groups (people, tags) */
@@ -667,33 +485,17 @@
   opacity: 1;
 }
 
-.statusButton {
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  padding: 0 4px;
-  cursor: pointer;
-  line-height: 1;
-  color: var(--color-border-muted);
-  transition: color 0.15s;
-  display: flex;
-  align-items: center;
-}
-
-.statusButton:hover {
-  color: var(--color-text-secondary);
-}
-
-.statusDotEmpty {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-text-muted);
-  display: inline-block;
+/*
+ * Cross-module hover-reveal: TaskPillBar's status-empty dot sits inside
+ * `.row` but its class lives in TaskPillBar.module.css under a different
+ * hash, so the substring matcher is the simplest cross-module hook. Only
+ * applies when the row is hovered.
+ */
+.row [class*="statusDotEmpty"] {
   opacity: 0;
   transition: opacity 0.15s;
 }
 
-.row:hover .statusDotEmpty {
+.row:hover [class*="statusDotEmpty"] {
   opacity: 1;
 }

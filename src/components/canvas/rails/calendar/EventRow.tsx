@@ -4,8 +4,7 @@ import type {
   DraggableSyntheticListeners,
 } from '@dnd-kit/core'
 import type { PersistedTodoItem, Person, Org, Status } from '../../../../models'
-import { StatusIcon } from '../../../shared/StatusIcon'
-import { AvatarStack } from '../../../shared/AvatarStack'
+import { TaskPillDates, TaskPillPeople, TaskPillStatus } from '../../../shared/TaskPillBar'
 import styles from './EventRow.module.css'
 
 export interface EventRowEntry {
@@ -18,6 +17,8 @@ export interface EventRowEntry {
 
 interface EventRowProps {
   entry: EventRowEntry
+  today: Date
+  weekStartsOn: 0 | 1
   /** Compact variant: tighter padding, hides org chip, limits people to 2. Used by the horizontal calendar column where space is narrow. */
   compact?: boolean
   onClick?: () => void
@@ -33,6 +34,8 @@ interface EventRowProps {
 
 export const EventRow = memo(function EventRow({
   entry,
+  today,
+  weekStartsOn,
   compact = false,
   onClick,
   dragRef,
@@ -58,31 +61,22 @@ export const EventRow = memo(function EventRow({
       {...(dragListeners ?? {})}
       title={isVirtual ? `Recurring instance of "${todo.title}"` : todo.title}
     >
-      {todo.dueDate && (
-        <span className={`${styles.marker} ${styles.markerDeadline}`} aria-label="Deadline">
-          <StatusIcon icon="clock" />
-        </span>
-      )}
-      {todo.scheduledDate && (
-        <span className={`${styles.marker} ${styles.markerScheduled}`} aria-label="Scheduled">
-          <StatusIcon icon="calendar" />
-        </span>
-      )}
-      {todo.recurrenceRule && (
-        <span className={styles.marker} title={`Repeats ${todo.recurrenceRule.type}`} aria-label="Recurring">&#x21bb;</span>
-      )}
+      <TaskPillDates
+        todo={todo}
+        today={today}
+        weekStartsOn={weekStartsOn}
+        interactive={false}
+        compact
+      />
       <span className={styles.title}>{todo.title}</span>
-      {people.length > 0 && (
-        <AvatarStack people={people} max={compact ? 2 : 3} size="sm" />
-      )}
-      {!compact && orgs.length > 0 && (
-        <AvatarStack people={orgs} max={2} size="sm" variant="hollow" />
-      )}
-      <span className={styles.status} style={status ? { color: status.color } : undefined} aria-label={status ? `Status: ${status.name}` : 'No status'}>
-        {status
-          ? <StatusIcon icon={status.icon || 'circle'} filled />
-          : <span className={styles.statusEmpty} aria-hidden="true" />}
-      </span>
+      <TaskPillPeople
+        people={people}
+        orgs={orgs}
+        interactive={false}
+        compact={compact}
+        density="small"
+      />
+      <TaskPillStatus status={status} interactive={false} />
     </div>
   )
 })

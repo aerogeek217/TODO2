@@ -129,16 +129,18 @@ describe('TopBar search-result pill bar — Phase 5', () => {
     expect(useUIStore.getState().selectedTodoId).toBe(42)
     expect(useUIStore.getState().editPopupMode).toBe('edit')
 
-    // The pill container is `aria-hidden` (decorative) and has the
-    // `miniListPills` class, which CSS sets to `pointer-events: none`. The
-    // CSS-driven hit-testing isn't observable in JSDOM, so we can't assert
-    // "click on chip routes to button" via fireEvent (which dispatches on
-    // the element regardless of CSS). Verify the structural guarantee
-    // instead: the pill bar is marked decorative and clicking the chip's
-    // ancestor chain ends at the row's <button>.
+    // The pill container is `aria-hidden` (decorative) and the shared
+    // `<TaskPillBar>` read-only wrapper carries `pointer-events: none` via
+    // its `barReadOnly` class (post ui-consistency-2026-04-25 P2 the inline
+    // `miniListPills` span was retired in favor of the shared primitive).
+    // The CSS-driven hit-testing isn't observable in JSDOM, so we can't
+    // assert "click on chip routes to button" via fireEvent (which
+    // dispatches on the element regardless of CSS). Verify the structural
+    // guarantee instead: the pill bar is marked decorative and clicking
+    // the chip's ancestor chain ends at the row's <button>.
     const pillBar = statusPill.closest(`[aria-hidden="true"]`)
     expect(pillBar).not.toBeNull()
-    expect((pillBar as HTMLElement).className).toContain('miniListPills')
+    expect((pillBar as HTMLElement).className).toMatch(/barReadOnly/)
     expect(statusPill.closest('button')).toBe(option)
   })
 

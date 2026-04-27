@@ -8,7 +8,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useProjectStore } from '../../stores/project-store'
 import { StatusIcon } from '../shared/StatusIcon'
-import { AvatarStack } from '../shared/AvatarStack'
+import { TaskPillBar } from '../shared/TaskPillBar'
 import { ChipSelector } from '../shared/ChipSelector'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
 import { PortalDropdown } from '../shared/PortalDropdown'
@@ -18,8 +18,8 @@ import { TaskNotePopover } from './TaskNotePopover'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { generateInitials } from '../../utils/person'
-import { startOfToday, formatDateShort, toDateInputValue } from '../../utils/date'
-import { scheduledLabel, isScheduledPast, isDeadlinePast, resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
+import { startOfToday, toDateInputValue } from '../../utils/date'
+import { resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import styles from './MobileTaskRow.module.css'
 
@@ -56,8 +56,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const today = startOfToday()
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
-  const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
   const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today, weekStartsOn), today))
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
@@ -204,53 +202,24 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             onChange={handleDeadlineInputChange}
           />
 
-          {todo.scheduledDate && (
-            <button
-              ref={scheduledAnchorRef}
-              type="button"
-              className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
-              style={{ '--date-intensity': scheduledIntensity } as React.CSSProperties}
-              onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-              aria-label="Edit scheduled"
-            >
-              {scheduledLabel(todo.scheduledDate, today)}
-            </button>
-          )}
-
-          {todo.dueDate && (
-            <button
-              type="button"
-              className={`${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`}
-              style={{ '--date-intensity': deadlineIntensity } as React.CSSProperties}
-              onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-              aria-label="Edit deadline"
-            >
-              {todo.recurrenceRule && <span className={styles.recurrenceIndicator}>&#x21bb;</span>}
-              {formatDateShort(todo.dueDate)}
-            </button>
-          )}
-
-          {hasPeople && (
-            <div className={styles.peopleGroup} ref={peopleRef}>
-              {people.length > 0 && (
-                <AvatarStack
-                  people={people}
-                  max={3}
-                  size="sm"
-                  onClick={ghost ? undefined : () => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
-                />
-              )}
-              {assignedOrgs.length > 0 && (
-                <AvatarStack
-                  people={assignedOrgs}
-                  max={3}
-                  size="sm"
-                  variant="hollow"
-                  onClick={ghost ? undefined : () => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
-                />
-              )}
-            </div>
-          )}
+          {/* Shared pill bar — scheduled / deadline / people / orgs. Status
+              lives on line 1 (primaryRow), so showStatus={false}. */}
+          <TaskPillBar
+            todo={todo}
+            people={people}
+            orgs={assignedOrgs}
+            today={today}
+            weekStartsOn={weekStartsOn}
+            density="small"
+            scheduledIntensity={scheduledIntensity}
+            deadlineIntensity={deadlineIntensity}
+            peopleAnchorRef={peopleRef}
+            scheduledAnchorRef={scheduledAnchorRef}
+            showStatus={false}
+            onPeopleClick={ghost ? undefined : () => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
+            onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
+            onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+          />
 
           {todo.progress && (
             <span className={styles.progressChip}>
