@@ -96,6 +96,20 @@ Every floating panel anchored to a click-coord or a trigger element routes posit
 - Do not write per-component `useEffect` for `getBoundingClientRect()` math, scroll listeners, resize listeners, or document-level `mousedown` / `keydown` outside-click handlers. Every one of those is folded into the hook.
 - Do not portalize a popover from the *call site* (`createPortal(<MyPopover/>, body)` at the consumer). All the popovers above portal *internally* — adding a wrapping portal at the call site double-portals harmlessly but obscures intent and leaves stale parallel `createPortal` patterns the audit explicitly retired (`CanvasContextMenu` / `ProjectPickerPopup` previously had split call-site portal patterns; ui-consistency P1 collapsed them).
 
+## DnD diagnostic flag (`?debug-dnd=1`)
+
+Append `?debug-dnd=1` to the URL to instrument every guard branch and resolution path across the rails / float / taskboard / calendar drag-drop subsystem. Built ui-consistency P5 in response to triage P5's forensic diagnosis effort: the next time a drag silently misses (no console error, no visible feedback, the gesture just appears to do nothing), the user or reviewer flips the flag, redoes the drag, and the console emits the full ladder — source slot/tab → collision rule chosen → resolved `over.id` → guard outcomes → final dispatch.
+
+The flag is read once at module load via `utils/debug-flags.ts` (mirrors `DEBUG_FOCUS` / `?debug-focus=1` from `InsertTrigger.tsx`); each call site uses the gated `dndLog(label, payload?)` helper so production console stays quiet when the flag is absent.
+
+**Wrap sites:**
+- `utils/task-dnd/dispatch.ts` — every `return false` / `return true` branch (no-active-todo, calendar reschedule, taskboard reorder / move-to-end / remove-on-drop-off, taskboard add, unhandled).
+- `utils/task-dnd/collision.ts` — `buildTaskCollision` rule selection (no-active fallback, rule matched with index + algorithm + droppable counts, no-rule-matched fallback).
+- `utils/rail-dnd.ts` — `resolveFloatDockTarget` resolution (miss / empty-side / tab-strip / collapsed-side center-merge / collapsed-side no-stub / canvas-fallthrough / slot.no-orientation / slot).
+- `hooks/use-rails-drag-monitor.ts` — `useRailsDragMonitor` `onDragStart` + `onDragEnd` (non-rails-drag bail, no-over, unknown-drop-id, resolved zone, all five canvas-branch silent aborts — no-pointer / no-canvas-el / no-src-slot / no-src-tab / no-canvas-id — and the slot-drag fallback).
+
+**Not wrapped:** stats widgets (`FloatingStatusNode` / `FloatingScoreboardNode` / `FloatingSnoozeGraveyardNode`) consume the shared `useFloatingWidget` hook and dock via the dock-button click path, NOT dnd-kit drag events. They participate in the rails-monitor float-dock flow when the user drags them, but don't initiate any new DnD entry-points — no new wrap points needed for them.
+
 ## Settings Editors
 
 | Abstraction | Location | Purpose |

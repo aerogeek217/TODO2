@@ -1,5 +1,6 @@
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem, Taskboard, TaskboardEntry } from '../../models'
+import { dndLog } from '../debug-flags'
 import { parseTaskboardEntryId } from './ids'
 import { TASK_DRAG_KIND, TASK_DROP_KIND } from './kinds'
 
@@ -86,7 +87,10 @@ export async function dispatchTaskDrop(
 ): Promise<boolean> {
   const { active, over } = event
   const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
-  if (!activeTodo) return false
+  if (!activeTodo) {
+    dndLog('dispatch.no-active-todo', { activeId: active.id, overId: over?.id ?? null })
+    return false
+  }
 
   const activeType = active.data.current?.type
   const overData = over?.data.current
@@ -100,6 +104,7 @@ export async function dispatchTaskDrop(
   if (overData?.type === TASK_DROP_KIND.calendarDay && deps.calendar) {
     const date = overData.date as Date | undefined
     if (date instanceof Date) {
+      dndLog('dispatch.calendar-day-reschedule', { todoId: activeTodo.id, date: date.toISOString() })
       await deps.calendar.reschedule(activeTodo.id, date)
       return true
     }
@@ -114,13 +119,17 @@ export async function dispatchTaskDrop(
       // id (e.g. `tbp-NaN`) means this isn't a real taskboard drop — bail out
       // so the caller can fall through to its route-specific handler.
       const parsed = parseTaskboardEntryId(String(over.id))
-      if (parsed == null) return false
+      if (parsed == null) {
+        dndLog('dispatch.taskboard-reorder.malformed-over-id', { overId: over.id })
+        return false
+      }
       const entries = tb.getEntries()
       const fromIndex = entries.findIndex((e) => e.todoId === activeTodo.id)
       const toIndex = entries.findIndex((e) => e.todoId === parsed.todoId)
       if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
         await tb.reorder(fromIndex, toIndex)
       }
+      dndLog('dispatch.taskboard-reorder', { todoId: activeTodo.id, fromIndex, toIndex })
       return true
     }
     if (overData?.type === TASK_DROP_KIND.taskboard) {
@@ -129,10 +138,12 @@ export async function dispatchTaskDrop(
       if (fromIndex !== -1 && fromIndex !== entries.length - 1) {
         await tb.reorder(fromIndex, entries.length - 1)
       }
+      dndLog('dispatch.taskboard-move-to-end', { todoId: activeTodo.id, fromIndex, length: entries.length })
       return true
     }
     // Dropped anywhere else → remove from the singleton board.
     if (tb.has(activeTodo.id)) await tb.removeEntry(activeTodo.id)
+    dndLog('dispatch.taskboard-remove-on-drop-off', { todoId: activeTodo.id, overType: overData?.type ?? null })
     return true
   }
 
@@ -149,8 +160,20 @@ export async function dispatchTaskDrop(
     } else {
       await tb.addAt(activeTodo.id, targetIndex)
     }
+    dndLog('dispatch.taskboard-add', {
+      todoId: activeTodo.id,
+      targetIndex,
+      overType: overData?.type,
+      multi: ids?.size ?? 0,
+    })
     return true
   }
 
+  dndLog('dispatch.unhandled', {
+    todoId: activeTodo.id,
+    activeType: activeType ?? null,
+    overType: overData?.type ?? null,
+    overId: over?.id ?? null,
+  })
   return false
 }

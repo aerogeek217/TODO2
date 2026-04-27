@@ -5,6 +5,7 @@ import {
   type CollisionDetection,
   type UniqueIdentifier,
 } from '@dnd-kit/core'
+import { dndLog } from '../debug-flags'
 
 /**
  * dnd-kit collision algorithms exposed by {@link buildTaskCollision}. The
@@ -76,15 +77,34 @@ export function buildTaskCollision(
 ): CollisionDetection {
   return (args) => {
     const active = args.active as unknown as CollisionActive | null
-    if (!active) return ALGORITHMS[fallback](args)
+    if (!active) {
+      dndLog('collision.no-active.fallback', { algorithm: fallback })
+      return ALGORITHMS[fallback](args)
+    }
 
-    for (const rule of rules) {
-      if (!rule.when(active)) continue
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i]
+      if (!rule || !rule.when(active)) continue
+      const filtered = args.droppableContainers.filter((c) => rule.accept(c.id))
+      dndLog('collision.rule-matched', {
+        ruleIndex: i,
+        algorithm: rule.algorithm,
+        activeId: active.id,
+        activeType: active.data.current?.type ?? null,
+        droppablesIn: args.droppableContainers.length,
+        droppablesAccepted: filtered.length,
+      })
       return ALGORITHMS[rule.algorithm]({
         ...args,
-        droppableContainers: args.droppableContainers.filter((c) => rule.accept(c.id)),
+        droppableContainers: filtered,
       })
     }
+    dndLog('collision.no-rule-matched.fallback', {
+      algorithm: fallback,
+      activeId: active.id,
+      activeType: active.data.current?.type ?? null,
+      droppablesIn: args.droppableContainers.length,
+    })
     return ALGORITHMS[fallback](args)
   }
 }

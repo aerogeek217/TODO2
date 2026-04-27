@@ -15,6 +15,7 @@ import {
 } from '../utils/rail-dnd'
 import { computeTabInsertIdx, describeDropZone, findSlotKind, findTabLabel } from '../utils/rail-dnd-monitor-helpers'
 import { applyEmptySideCorners } from '../utils/rail-corner-claim'
+import { dndLog } from '../utils/debug-flags'
 import type { RailSide, Slot } from '../models/canvas-rails'
 
 export interface RailsDragMonitorResult {
@@ -56,13 +57,18 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
   useDndMonitor({
     onDragStart: ({ active }) => {
       const data = active.data.current as RailsDragData | undefined
-      if (data?.type !== RAILS_DRAG_TYPE) return
+      if (data?.type !== RAILS_DRAG_TYPE) {
+        dndLog('rails-monitor.onDragStart.non-rails-drag', { activeId: active.id, dragType: data?.type ?? null })
+        return
+      }
       setDraggingSlot(data)
       if (data.kind === 'tab') {
         const label = findTabLabel(rails, data.slotId, data.tabId) ?? 'tab'
+        dndLog('rails-monitor.onDragStart.tab', { slotId: data.slotId, tabId: data.tabId, fromSide: data.fromSide, label })
         setAnnouncement(`Dragging tab ${label}`)
       } else {
         const kind = findSlotKind(rails, data.slotId)
+        dndLog('rails-monitor.onDragStart.slot', { slotId: data.slotId, fromSide: data.fromSide, kind: kind ?? null })
         setAnnouncement(`Dragging ${kind ?? 'slot'}`)
       }
       const onMove = (e: PointerEvent) => {
@@ -77,11 +83,26 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
     onDragEnd: ({ active, over }) => {
       const data = active.data.current as RailsDragData | undefined
       cleanupRef.current?.()
-      if (data?.type !== RAILS_DRAG_TYPE) { setDraggingSlot(null); return }
+      if (data?.type !== RAILS_DRAG_TYPE) {
+        dndLog('rails-monitor.onDragEnd.non-rails-drag', { activeId: active.id, overId: over?.id ?? null })
+        setDraggingSlot(null); return
+      }
       setDraggingSlot(null)
-      if (!over) { setAnnouncement('Drop cancelled'); return }
+      if (!over) {
+        dndLog('rails-monitor.onDragEnd.no-over', { kind: data.kind, slotId: data.slotId })
+        setAnnouncement('Drop cancelled'); return
+      }
       const zone = decodeRailsDropId(String(over.id))
-      if (!zone) { setAnnouncement('Drop cancelled'); return }
+      if (!zone) {
+        dndLog('rails-monitor.onDragEnd.unknown-drop-id', { overId: over.id })
+        setAnnouncement('Drop cancelled'); return
+      }
+      dndLog('rails-monitor.onDragEnd.resolved', {
+        kind: data.kind,
+        slotId: data.slotId,
+        tabId: data.kind === 'tab' ? data.tabId : null,
+        zoneKind: zone.kind,
+      })
       setAnnouncement(`Dropped in ${describeDropZone(zone, rails)}`)
 
       if (data.kind === 'tab') {
@@ -92,11 +113,17 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
           // `pointerToFlowPosition` instead of `computePopOutFlowPosition` so
           // the widget lands under the cursor.
           const pointer = pointerRef.current
-          if (!pointer) return
+          if (!pointer) {
+            dndLog('rails-monitor.canvas.abort.no-pointer', { slotId: data.slotId, tabId: data.tabId })
+            return
+          }
           const canvasEl = document.querySelector<HTMLElement>(
             `[data-rails-drop-id="${encodeRailsDropId({ kind: 'canvas' })}"]`,
           )
-          if (!canvasEl) return
+          if (!canvasEl) {
+            dndLog('rails-monitor.canvas.abort.no-canvas-el', { slotId: data.slotId, tabId: data.tabId })
+            return
+          }
           // P5 fix: `canvasViewport` is null until the user pans/zooms (it's
           // populated by React Flow's `onViewportChange`, which doesn't fire
           // on initial render). Without a fallback, the pop-out path silently
@@ -107,17 +134,29 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
           const srcSlot = ALL_SIDES
             .map((s) => rails[s]?.slots.find((sl) => sl.id === data.slotId))
             .find((s): s is Slot => Boolean(s))
-          if (!srcSlot) return
+          if (!srcSlot) {
+            dndLog('rails-monitor.canvas.abort.no-src-slot', { slotId: data.slotId })
+            return
+          }
           const srcTab = srcSlot.tabs.find((t) => t.id === data.tabId)
-          if (!srcTab) return
+          if (!srcTab) {
+            dndLog('rails-monitor.canvas.abort.no-src-tab', { slotId: data.slotId, tabId: data.tabId })
+            return
+          }
           const canvasId = useCanvasStore.getState().selectedCanvasId
-          if (canvasId == null) return
+          if (canvasId == null) {
+            dndLog('rails-monitor.canvas.abort.no-canvas-id', { slotId: data.slotId, tabId: data.tabId })
+            return
+          }
           const canvasRect = canvasEl.getBoundingClientRect()
           const pos = pointerToFlowPosition(
             pointer,
             { left: canvasRect.left, top: canvasRect.top },
             { x: vp.x, y: vp.y, zoom: vp.zoom },
           )
+          dndLog('rails-monitor.canvas.popout', {
+            slotId: data.slotId, tabId: data.tabId, tabType: srcTab.type, pos,
+          })
           void popTabAtPosition(srcTab, canvasId, pos.x, pos.y, {
             orientation: srcSlot.orientation,
             weekOffset: srcSlot.weekOffset,
@@ -193,12 +232,18 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
 
       // Slot drag (existing behavior, unchanged).
       if (zone.kind === 'empty-side') {
+        dndLog('rails-monitor.slot.empty-side', { slotId: data.slotId, side: zone.side, claim: zone.claim ?? null })
         dropSlotToSide(data.slotId, zone.side)
         applyEmptySideCorners(zone.side, zone.claim, { setCornerOwner, clearCornerOwner })
       } else if (zone.kind === 'slot') {
         const pointer = pointerRef.current
         const rect = over.rect
-        if (!pointer || !rect) return
+        if (!pointer || !rect) {
+          dndLog('rails-monitor.slot.abort.no-pointer-or-rect', {
+            slotId: data.slotId, targetSlotId: zone.slotId, hasPointer: pointer != null, hasRect: rect != null,
+          })
+          return
+        }
         let orientation: 'vertical' | 'horizontal' = 'vertical'
         for (const side of ALL_SIDES) {
           const rail = rails[side]
@@ -214,6 +259,9 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
           width: rect.width,
           height: rect.height,
         }, orientation)
+        dndLog('rails-monitor.slot.split-drop', {
+          slotId: data.slotId, targetSlotId: zone.slotId, splitZone, orientation,
+        })
         splitDropSlot(data.slotId, zone.slotId, splitZone)
       }
       // Slot drag onto a tab-strip drop zone is intentionally ignored — slots

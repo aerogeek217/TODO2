@@ -1,6 +1,7 @@
 import type { CalendarOrientation, EmptySideClaim, Rail, RailSide, RailsState, Slot, SlotKind, Tab } from '../models/canvas-rails'
 import { railOrientationForSide } from '../models/canvas-rails'
 import { computeTabInsertIdx } from './rail-dnd-monitor-helpers'
+import { dndLog } from './debug-flags'
 import { DEFAULT_FLOAT_HEIGHT, DEFAULT_FLOAT_WIDTH } from '../constants'
 
 export const RAILS_DRAG_TYPE = 'rails-slot' as const
@@ -635,19 +636,25 @@ export function resolveFloatDockTarget(
     else if (decoded.kind === 'canvas' && !canvasHit) canvasHit = { el, zone: decoded }
   }
   const winner = slotHit ?? tabStripHit ?? emptySideHit ?? collapsedSideHit ?? canvasHit
-  if (!winner) return null
+  if (!winner) {
+    dndLog('rail-dnd.resolveFloatDockTarget.miss', { pointer })
+    return null
+  }
   const hit = winner.el
   const zone = winner.zone
   if (zone.kind === 'empty-side') {
-    return zone.claim
-      ? { kind: 'empty-side', side: zone.side, claim: zone.claim }
-      : { kind: 'empty-side', side: zone.side }
+    const target = zone.claim
+      ? { kind: 'empty-side' as const, side: zone.side, claim: zone.claim }
+      : { kind: 'empty-side' as const, side: zone.side }
+    dndLog('rail-dnd.resolveFloatDockTarget.empty-side', { side: zone.side, claim: zone.claim ?? null })
+    return target
   }
   if (zone.kind === 'tab-strip') {
     // Float dock onto a tab strip — every existing pill counts as a survivor
     // (no source pill to exclude). Intra-strip tab reorder uses the same
     // helper but passes the dragged tab's id.
     const insertIdx = computeTabInsertIdx(hit, pointer.x)
+    dndLog('rail-dnd.resolveFloatDockTarget.tab-strip', { slotId: zone.slotId, insertIdx })
     return { kind: 'tab-strip', slotId: zone.slotId, insertIdx }
   }
   if (zone.kind === 'collapsed-side') {
@@ -655,7 +662,14 @@ export function resolveFloatDockTarget(
     // (margin / between stubs / top/bottom padding). Pick the nearest stub by
     // axis distance and resolve as a center-merge into that slot.
     const nearestSlotId = nearestStubSlotId(hit, pointer, zone.side)
-    if (!nearestSlotId) return null
+    if (!nearestSlotId) {
+      dndLog('rail-dnd.resolveFloatDockTarget.collapsed-side.no-stub', { side: zone.side })
+      return null
+    }
+    dndLog('rail-dnd.resolveFloatDockTarget.collapsed-side.center-merge', {
+      side: zone.side,
+      slotId: nearestSlotId,
+    })
     return { kind: 'slot', slotId: nearestSlotId, zone: 'center' }
   }
   if (zone.kind === 'canvas') {
@@ -663,16 +677,21 @@ export function resolveFloatDockTarget(
     // caller falls through to the existing position-persist path.
     // `zone.kind === 'canvas'` is handled separately in `useRailsDragMonitor`
     // for the reverse gesture (rail tab-pill drag → canvas pop-out).
+    dndLog('rail-dnd.resolveFloatDockTarget.canvas-fallthrough', {})
     return null
   }
   const orientation = opts.getSlotOrientation(zone.slotId)
-  if (!orientation) return null
+  if (!orientation) {
+    dndLog('rail-dnd.resolveFloatDockTarget.slot.no-orientation', { slotId: zone.slotId })
+    return null
+  }
   const rect = hit.getBoundingClientRect()
   const splitZone = pointerToSplitZone(
     pointer,
     { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
     orientation,
   )
+  dndLog('rail-dnd.resolveFloatDockTarget.slot', { slotId: zone.slotId, zone: splitZone, orientation })
   return { kind: 'slot', slotId: zone.slotId, zone: splitZone }
 }
 
