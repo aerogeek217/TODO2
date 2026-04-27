@@ -26,15 +26,46 @@ export interface FloatingNoteSeed {
   height: number
 }
 
+export interface FloatingCalendarSeed {
+  x: number
+  y: number
+  width: number
+  height: number
+  orientation?: 'vertical' | 'horizontal'
+  weekOffset?: number
+}
+
+export interface FloatingTaskboardSeed {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface FloatingHorizonsSeed {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface ListDefinitionSeed {
   name: string
   /** Membership shape passed straight to Dexie; the most common is
    *  `{ kind: 'all' }` which surfaces every todo. */
   membership?: { kind: string } & Record<string, unknown>
-  sort?: { kind: string } & Record<string, unknown>
-  grouping?: { kind: string } & Record<string, unknown>
+  sort?: { kind: string } & Record<string, unknown> | string
+  grouping?: { kind: string } & Record<string, unknown> | string
   pinnedToDashboard?: boolean
   favorited?: boolean
+  /** When set, the list def renders a `RuntimeFilterPicker` that narrows on
+   *  the chosen field at render time (Phase 6 picker tests). */
+  runtimeFilter?: { field: 'person' | 'org' | 'project' | 'status' | 'tag'; label?: string }
+}
+
+export interface PersonSeed {
+  name: string
+  initials?: string
 }
 
 export interface ListInsetSeed {
@@ -49,8 +80,12 @@ export interface ListInsetSeed {
 
 export interface CanvasSeedOptions {
   floatingNotes?: FloatingNoteSeed[]
+  floatingCalendars?: FloatingCalendarSeed[]
+  floatingTaskboards?: FloatingTaskboardSeed[]
+  floatingHorizons?: FloatingHorizonsSeed[]
   listDefinitions?: ListDefinitionSeed[]
   listInsets?: ListInsetSeed[]
+  people?: PersonSeed[]
   /** Serialized `RailsState` JSON value persisted under `settings.canvasRails`. */
   canvasRails?: unknown
 }
@@ -238,8 +273,12 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
   const payload = {
     canvasId,
     floatingNotes: opts.floatingNotes ?? [],
+    floatingCalendars: opts.floatingCalendars ?? [],
+    floatingTaskboards: opts.floatingTaskboards ?? [],
+    floatingHorizons: opts.floatingHorizons ?? [],
     listDefinitions: opts.listDefinitions ?? [],
     listInsets: opts.listInsets ?? [],
+    people: opts.people ?? [],
     canvasRails: opts.canvasRails ?? null,
   }
 
@@ -248,11 +287,29 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
       const req = indexedDB.open(db)
       req.onsuccess = () => {
         const idb = req.result
-        const tables = ['floatingNotes', 'listDefinitions', 'listInsets', 'settings']
+        const tables = [
+          'floatingNotes', 'floatingCalendars', 'floatingTaskboards', 'floatingHorizons',
+          'listDefinitions', 'listInsets', 'people', 'settings',
+        ]
         const tx = idb.transaction(tables, 'readwrite')
 
         for (const note of seed.floatingNotes) {
           tx.objectStore('floatingNotes').add({ ...note, canvasId: seed.canvasId })
+        }
+        for (const cal of seed.floatingCalendars) {
+          tx.objectStore('floatingCalendars').add({ ...cal, canvasId: seed.canvasId })
+        }
+        for (const tb of seed.floatingTaskboards) {
+          tx.objectStore('floatingTaskboards').add({ ...tb, canvasId: seed.canvasId })
+        }
+        for (const hz of seed.floatingHorizons) {
+          tx.objectStore('floatingHorizons').add({ ...hz, canvasId: seed.canvasId })
+        }
+        for (const person of seed.people) {
+          tx.objectStore('people').add({
+            name: person.name,
+            initials: person.initials ?? person.name.slice(0, 2).toUpperCase(),
+          })
         }
 
         const defIds: number[] = new Array(seed.listDefinitions.length)
@@ -260,7 +317,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
         const addNextDef = () => {
           if (nextDef >= seed.listDefinitions.length) { addInsets(); return }
           const def = seed.listDefinitions[nextDef]!
-          const row = {
+          const row: Record<string, unknown> = {
             name: def.name,
             sortOrder: nextDef + 1,
             membership: def.membership ?? { kind: 'all' },
@@ -269,6 +326,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
             pinnedToDashboard: def.pinnedToDashboard ?? false,
             favorited: def.favorited ?? false,
           }
+          if (def.runtimeFilter) row.runtimeFilter = def.runtimeFilter
           const r = tx.objectStore('listDefinitions').add(row)
           r.onsuccess = () => {
             defIds[nextDef] = r.result as number
@@ -295,9 +353,34 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
             })
           }
           if (seed.canvasRails != null) {
+            // Walk the canvasRails tree once def ids are resolved and rewrite
+            // any `tab.listDefIdx: number` references into the resolved
+            // `tab.listDefinitionId: number` so lens tabs reference real defs.
+            // Without this rewrite, `popTabAtPosition` short-circuits (no
+            // listDefinitionId → returns false → tab not removed).
+            const rails = JSON.parse(JSON.stringify(seed.canvasRails)) as
+              Record<string, { slots?: Array<{ tabs?: Array<Record<string, unknown>> }> } | null>
+            for (const side of ['left', 'right', 'top', 'bottom']) {
+              const rail = rails[side]
+              if (!rail) continue
+              for (const slot of rail.slots ?? []) {
+                for (const tab of slot.tabs ?? []) {
+                  const idx = tab.listDefIdx
+                  if (typeof idx === 'number') {
+                    const resolved = defIds[idx]
+                    if (resolved == null) {
+                      reject(new Error(`seed: rails tab references missing listDefIdx ${idx}`))
+                      return
+                    }
+                    tab.listDefinitionId = resolved
+                    delete tab.listDefIdx
+                  }
+                }
+              }
+            }
             tx.objectStore('settings').put({
               key: 'canvasRails',
-              value: JSON.stringify(seed.canvasRails),
+              value: JSON.stringify(rails),
             })
           }
         }
@@ -316,8 +399,29 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
   if (opts.floatingNotes && opts.floatingNotes.length > 0) {
     await page.locator('.react-flow__node-floatingNote').first().waitFor({ state: 'visible' })
   }
+  if (opts.floatingCalendars && opts.floatingCalendars.length > 0) {
+    await page.locator('.react-flow__node-floatingCalendar').first().waitFor({ state: 'visible' })
+  }
+  if (opts.floatingTaskboards && opts.floatingTaskboards.length > 0) {
+    await page.locator('.react-flow__node-taskboard').first().waitFor({ state: 'visible' })
+  }
+  if (opts.floatingHorizons && opts.floatingHorizons.length > 0) {
+    await page.locator('.react-flow__node-floatingHorizons').first().waitFor({ state: 'visible' })
+  }
   if (opts.listInsets && opts.listInsets.length > 0) {
     await page.locator('.react-flow__node-listInset').first().waitFor({ state: 'visible' })
+  }
+  // Wait for the first persisted rail side (if any) so the test does not race
+  // the canvas-rails-store hydration. `useDefaultRails`'s gate keeps the rails
+  // store empty for a beat after mount; without the wait, drag tests can fire
+  // their gesture before the tab pill exists in the DOM.
+  if (opts.canvasRails != null && typeof opts.canvasRails === 'object') {
+    const railsObj = opts.canvasRails as Record<string, unknown>
+    const firstSide = (['left', 'right', 'top', 'bottom'] as const)
+      .find((side) => railsObj[side] != null)
+    if (firstSide) {
+      await page.locator(`[data-rail-side="${firstSide}"]`).waitFor({ state: 'visible' })
+    }
   }
 }
 
@@ -387,4 +491,52 @@ export function widgetKindMenu(page: Page): Locator {
 /** Locator for the WKM "Change list" hover flyout panel. */
 export function widgetKindMenuFlyout(page: Page): Locator {
   return page.locator('[role="menu"][aria-label="Change list"]')
+}
+
+/** Locator for a floating calendar widget on the canvas. */
+export function floatingCalendarByIndex(page: Page, idx = 0): Locator {
+  return page.locator('.react-flow__node-floatingCalendar').nth(idx)
+}
+
+/** Locator for a floating taskboard widget on the canvas (RF nodeType key is `taskboard`). */
+export function floatingTaskboardByIndex(page: Page, idx = 0): Locator {
+  return page.locator('.react-flow__node-taskboard').nth(idx)
+}
+
+/** Locator for a floating horizons widget on the canvas. */
+export function floatingHorizonsByIndex(page: Page, idx = 0): Locator {
+  return page.locator('.react-flow__node-floatingHorizons').nth(idx)
+}
+
+/** Locator for a tab pill within a slot (TabStrip pill carries `data-tab-id`). */
+export function tabPillByDataId(page: Page, tabId: string): Locator {
+  return page.locator(`[role="tab"][data-tab-id="${tabId}"]`)
+}
+
+/**
+ * Drag a Tab pill from a rail to a target point. Uses the same trusted CDP
+ * gesture as `dragWidgetTo` but with the pill as the source — the dnd-kit
+ * `PointerSensor` activation distance is 5 px, so the initial nudge crosses
+ * the threshold and a multi-step move drags the pill across the viewport.
+ */
+export async function dragTabTo(
+  page: Page,
+  pill: Locator,
+  target: { x: number; y: number },
+  opts: { steps?: number } = {},
+): Promise<void> {
+  const steps = opts.steps ?? 24
+  const box = await pill.boundingBox()
+  if (!box) throw new Error('dragTabTo: pill has no bounding box')
+  const startX = box.x + box.width / 2
+  const startY = box.y + box.height / 2
+  await page.mouse.move(startX, startY)
+  await page.mouse.down()
+  // Cross dnd-kit's 5 px PointerSensor activation distance.
+  await page.mouse.move(startX + 6, startY + 6, { steps: 2 })
+  await page.mouse.move(target.x, target.y, { steps })
+  await page.mouse.up()
+  // Brief settle so the rails-monitor `onDragEnd → popTabAtPosition` chain
+  // resolves and the React Flow node mounts before assertions.
+  await page.waitForTimeout(150)
 }

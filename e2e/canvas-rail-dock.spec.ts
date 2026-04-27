@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test'
 import {
   dragWidgetTo,
+  floatingCalendarByIndex,
+  floatingHorizonsByIndex,
   floatingNoteByIndex,
+  floatingTaskboardByIndex,
+  listInsetByIndex,
   railBySide,
   seedCanvas,
 } from './fixtures/seed'
@@ -203,5 +207,95 @@ test.describe('canvas float → rail dock (P6)', () => {
     expect(railsState?.left?.slots?.[0]?.tabs?.length).toBe(2)
     expect(railsState?.left?.slots?.[0]?.tabs?.map((t: { type: string }) => t.type).sort()).toEqual(['calendar', 'notes'])
     expect(railsState?.top).toBeNull()
+  })
+})
+
+/**
+ * Phase 6 per-kind dock coverage: the existing tests above exercise the
+ * forward path (float → empty rail) for the `note` kind only. These extend
+ * coverage to the other floating kinds — dragging a floating calendar /
+ * taskboard / horizons / list-inset onto the empty left-side strip should
+ * dock as a new slot containing one tab of the matching type. Each test
+ * mirrors the "drops a floating note onto an empty-side strip" structure;
+ * we deliberately only re-cover the empty-side path because slot-body and
+ * collapsed-stub variants share the same `applyDockFloatIntoSlot` reducer
+ * — kind-agnostic — and re-asserting them per kind would just add CI time
+ * without catching new failure modes.
+ */
+test.describe('canvas float → rail empty-side dock per kind (P6)', () => {
+  test('floating calendar docks as a new calendar slot', async ({ page }) => {
+    await seedCanvas(page, {
+      floatingCalendars: [{ x: 320, y: 280, width: 280, height: 240 }],
+    })
+    await expect(floatingCalendarByIndex(page)).toBeVisible()
+    await expect(railBySide(page, 'left')).toHaveCount(0)
+
+    await dragWidgetTo(page, floatingCalendarByIndex(page), { x: 100, y: 400 })
+
+    // Dock outcome — float deleted, left rail with one slot containing the
+    // matching kind. Using DOM assertions (not IDB) because `useDefaultRails`'s
+    // hydration gate stays closed when the test seeds no list definitions
+    // (the second effect waits on `listDefinitionsLoaded`); without a
+    // hydrated store, `setCanvasRails` never fires through the persist
+    // subscriber. The in-memory rails store still reflects the dock, and
+    // that's what renders the rail in the DOM.
+    await expect(floatingCalendarByIndex(page)).toHaveCount(0)
+    const leftRail = railBySide(page, 'left')
+    await expect(leftRail).toBeVisible()
+    await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)
+    // Calendar-specific signal: the docked slot renders calendar-strip chrome.
+    await expect(leftRail.getByRole('button', { name: 'Previous week' })).toBeVisible()
+  })
+
+  test('floating taskboard docks as a new taskboard slot', async ({ page }) => {
+    await seedCanvas(page, {
+      floatingTaskboards: [{ x: 320, y: 280, width: 280, height: 240 }],
+    })
+    await expect(floatingTaskboardByIndex(page)).toBeVisible()
+    await expect(railBySide(page, 'left')).toHaveCount(0)
+
+    await dragWidgetTo(page, floatingTaskboardByIndex(page), { x: 100, y: 400 })
+
+    await expect(floatingTaskboardByIndex(page)).toHaveCount(0)
+    const leftRail = railBySide(page, 'left')
+    await expect(leftRail).toBeVisible()
+    await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)
+  })
+
+  test('floating horizons docks as a new horizons slot', async ({ page }) => {
+    await seedCanvas(page, {
+      floatingHorizons: [{ x: 320, y: 280, width: 280, height: 240 }],
+    })
+    await expect(floatingHorizonsByIndex(page)).toBeVisible()
+    await expect(railBySide(page, 'left')).toHaveCount(0)
+
+    await dragWidgetTo(page, floatingHorizonsByIndex(page), { x: 100, y: 400 })
+
+    await expect(floatingHorizonsByIndex(page)).toHaveCount(0)
+    const leftRail = railBySide(page, 'left')
+    await expect(leftRail).toBeVisible()
+    await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)
+  })
+
+  test('floating list-inset docks as a new lens slot with the def threaded', async ({ page }) => {
+    await seedCanvas(page, {
+      listDefinitions: [{ name: 'Inset list' }],
+      listInsets: [{ listDefIdx: 0, x: 320, y: 280, width: 280, height: 240 }],
+    })
+    await expect(listInsetByIndex(page)).toBeVisible()
+    await expect(railBySide(page, 'left')).toHaveCount(0)
+
+    await dragWidgetTo(page, listInsetByIndex(page), { x: 100, y: 400 })
+
+    await expect(listInsetByIndex(page)).toHaveCount(0)
+    const leftRail = railBySide(page, 'left')
+    await expect(leftRail).toBeVisible()
+    await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)
+    // Lens-specific signal: the docked slot's title renders the source def's
+    // name. This asserts the `slotFromFloat` reducer threaded the lens
+    // `listDefinitionId` onto the new tab — without it the title would
+    // fall through to the bare 'List' label. Title text is reachable via
+    // a substring match against the rail-scoped DOM.
+    await expect(leftRail).toContainText('Inset list')
   })
 })
