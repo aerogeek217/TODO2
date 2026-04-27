@@ -205,10 +205,29 @@
 }
 
 /* P5: drag-over highlight when a float / slot / tab drag is over a collapsed
-   stub. Matches the expanded slot's `.over` accent intensity in DraggableSlot. */
+   stub. Strong outline + brighter background — collapsed stubs are only ~23
+   px wide so a subtle background tint is imperceptible at a glance. Matches
+   the expanded slot's `.over` 2 px accent outline (DraggableSlot.module.css)
+   for visual consistency between expanded and collapsed targets. */
 .iconStubOver {
-  background: color-mix(in oklab, var(--color-accent) 18%, transparent);
+  background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
+
+/* When a float is being dragged and a collapsed rail is on-screen, give the
+   aside itself an accent edge so the user sees that the entire rail — not
+   just the small stubs — is a viable drop zone. Pairs with `.iconStubOver`
+   on the nearest stub to convey both "this rail is a target" and "this is
+   the slot it'll dock into". */
+.collapsed.floatDropTarget {
+  background: color-mix(in oklab, var(--color-accent) 6%, var(--color-surface));
+}
+
+.collapsed.floatDropTarget.left { border-right-color: var(--color-accent); }
+.collapsed.floatDropTarget.right { border-left-color: var(--color-accent); }
+.collapsed.floatDropTarget.top { border-bottom-color: var(--color-accent); }
+.collapsed.floatDropTarget.bottom { border-top-color: var(--color-accent); }
 
 .rail.vertical .iconStub {
   flex-direction: column;

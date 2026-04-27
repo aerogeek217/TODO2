@@ -263,10 +263,16 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
     return () => window.removeEventListener('pointermove', onMove)
   }, [collapsed, floatDragActive, side])
 
+  // When a float is in flight and the rail is collapsed, surface the aside
+  // itself as a visible drop zone (subtle accent tint + accent border on the
+  // canvas-facing edge). The nearest-stub `.iconStubOver` then picks out the
+  // exact slot that'll receive the drop.
+  const floatTargetClass = collapsed && floatDragActive ? styles.floatDropTarget : ''
+
   return (
     <aside
       ref={asideRef}
-      className={`${styles.rail} ${orientClass} ${styles[side]} ${collapsedClass}`}
+      className={`${styles.rail} ${orientClass} ${styles[side]} ${collapsedClass} ${floatTargetClass}`}
       style={mergedStyle}
       data-rail-side={side}
       data-rail-collapsed={collapsed ? 'true' : 'false'}
