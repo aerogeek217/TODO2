@@ -243,9 +243,12 @@ describe('validateImportData', () => {
     }
   })
 
-  // defaultProjectGroupBy
-  it('accepts defaultProjectGroupBy with every valid ProjectGroupBy value plus empty', () => {
-    const valid = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
+  // defaultProjectGroupBy — post ui-consistency-2026-04-25 P4 the unified
+  // `TodoGroupBy` set is accepted (`'none'` joins the existing literals).
+  // The empty string remains the canonical "no grouping" sentinel for the
+  // settings row.
+  it('accepts defaultProjectGroupBy with every valid TodoGroupBy value plus empty', () => {
+    const valid = ['', 'none', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
     for (const value of valid) {
       const result = validateImportData(validData({
         settings: [{ key: 'defaultProjectGroupBy', value }],
@@ -255,7 +258,7 @@ describe('validateImportData', () => {
   })
 
   it('rejects defaultProjectGroupBy with unknown values', () => {
-    const bad = ['none', 'priority', 'NaN', 'TAG', 'random-string']
+    const bad = ['priority', 'NaN', 'TAG', 'random-string']
     for (const value of bad) {
       const result = validateImportData(validData({
         settings: [{ key: 'defaultProjectGroupBy', value }],

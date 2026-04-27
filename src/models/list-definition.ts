@@ -1,5 +1,5 @@
-import type { ListSortBy } from './app-view'
 import type { TodoPredicate } from './filter-predicate'
+import type { TodoSortBy, TodoGroupBy } from './todo-sort-group'
 
 /**
  * Serializable predicate DSL for list membership. Post-v24, the only kind is
@@ -11,25 +11,22 @@ import type { TodoPredicate } from './filter-predicate'
 export type ListMembership =
   | { kind: 'custom'; predicate: TodoPredicate }
 
-export type ListSort =
-  | { kind: 'effective-date-asc' }
-  | { kind: 'scheduled-asc' }
-  | { kind: 'deadline-asc' }
-  | { kind: 'sort-order' }
-  | { kind: 'sortBy'; by: ListSortBy }
+/**
+ * Persisted sort field. Post ui-consistency-2026-04-25 P4 this is a flat
+ * `TodoSortBy` literal — the former discriminated union (`{kind:'sort-order'}`
+ * / `{kind:'sortBy', by}` / etc.) was flattened in the v46 Dexie migration.
+ */
+export type ListSort = TodoSortBy
 
-export type ListGrouping =
-  | { kind: 'none' }
-  | { kind: 'relative-effective' }
-  | { kind: 'relative-deadline' }
-  | { kind: 'by-sortBy' }
-  /** Group by a specific field, independent of sort. Chronological fields bucket
-   *  by relative windows; categorical fields fall back to flat in the interpreter
-   *  (ListView handles categorical bucketing locally). */
-  | { kind: 'by-field'; by: ListSortBy }
-  /** Group by tag — explodes N-tag todos into N buckets (mirrors the people/org
-   *  many-to-many pattern). Separate kind because tags aren't a `ListSortBy`. */
-  | { kind: 'by-tag' }
+/**
+ * Persisted grouping field. Post ui-consistency-2026-04-25 P4 this is a flat
+ * `TodoGroupBy` literal — the former discriminated union (`{kind:'none'}` /
+ * `{kind:'by-field', by}` / `{kind:'by-tag'}` / etc.) was flattened in the
+ * v46 Dexie migration. The former `{kind:'by-sortBy'}` "match the sort"
+ * semantic is gone; surfaces that want sort+group coupled set them to the
+ * same value explicitly.
+ */
+export type ListGrouping = TodoGroupBy
 
 /** Which entity a saved list's runtime-filter picker narrows on. */
 export type RuntimeFilterField = 'person' | 'org' | 'project' | 'status' | 'tag'

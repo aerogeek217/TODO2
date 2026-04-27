@@ -51,7 +51,7 @@ function dueThisWeekDef(): PersistedListDefinition {
     pinnedToDashboard: false,
     favorited: false,
     membership: { kind: 'custom', predicate },
-    sort: { kind: 'effective-date-asc' },
+    sort: 'date',
     grouping: { kind: 'none' },
   }
 }

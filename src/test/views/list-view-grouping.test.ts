@@ -283,34 +283,38 @@ describe('itemSortComparator', () => {
 })
 
 describe('encodeGroupSort', () => {
-  it('ungrouped + manual → grouping=none, sort=sort-order', () => {
+  // Post ui-consistency-2026-04-25 P4 the encoder is the identity over flat
+  // `TodoSortBy` / `TodoGroupBy` literals — `sort = itemSortBy`,
+  // `grouping = groupBy`. The former discriminated-union shape was flattened
+  // in the v46 Dexie migration.
+  it('ungrouped + manual → grouping=none, sort=manual', () => {
     const { sort, grouping } = encodeGroupSort('none', 'manual')
-    expect(grouping).toEqual({ kind: 'none' })
-    expect(sort).toEqual({ kind: 'sort-order' })
+    expect(grouping).toBe('none')
+    expect(sort).toBe('manual')
   })
 
-  it('coupled groupBy === itemSortBy → grouping=by-sortBy', () => {
+  it('coupled groupBy === itemSortBy → both = same field', () => {
     const { sort, grouping } = encodeGroupSort('date', 'date')
-    expect(grouping).toEqual({ kind: 'by-sortBy' })
-    expect(sort).toEqual({ kind: 'sortBy', by: 'date' })
+    expect(grouping).toBe('date')
+    expect(sort).toBe('date')
   })
 
-  it('decoupled groupBy / itemSortBy → grouping=by-field', () => {
+  it('decoupled groupBy / itemSortBy → flat literals retained independently', () => {
     const { sort, grouping } = encodeGroupSort('project', 'deadline')
-    expect(grouping).toEqual({ kind: 'by-field', by: 'project' })
-    expect(sort).toEqual({ kind: 'sortBy', by: 'deadline' })
+    expect(grouping).toBe('project')
+    expect(sort).toBe('deadline')
   })
 
-  it('grouped by categorical + manual sort → grouping=by-field, sort=sort-order', () => {
+  it('grouped by categorical + manual sort → grouping=project, sort=manual', () => {
     const { sort, grouping } = encodeGroupSort('project', 'manual')
-    expect(grouping).toEqual({ kind: 'by-field', by: 'project' })
-    expect(sort).toEqual({ kind: 'sort-order' })
+    expect(grouping).toBe('project')
+    expect(sort).toBe('manual')
   })
 
-  it("grouped by tag serializes as its own `by-tag` kind, not `by-field`", () => {
+  it("grouped by tag → grouping='tag'", () => {
     const { sort, grouping } = encodeGroupSort('tag', 'date')
-    expect(grouping).toEqual({ kind: 'by-tag' })
-    expect(sort).toEqual({ kind: 'sortBy', by: 'date' })
+    expect(grouping).toBe('tag')
+    expect(sort).toBe('date')
   })
 })
 

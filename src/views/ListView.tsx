@@ -31,6 +31,7 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy } from '../models'
+import { LIST_GROUP_VALUES, LIST_SORT_VALUES } from '../models'
 import type { RuntimeFilterSpec, RuntimeFilterField } from '../models/list-definition'
 import { applyRuntimeFilter } from '../services/dashboard-lists'
 import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
@@ -723,17 +724,16 @@ export function ListView() {
   const applyDefinition = useCallback((def: PersistedListDefinition) => {
     if (def.membership.kind !== 'custom') return
     setAllFilters(predicateToCriteria(def.membership.predicate))
-    // 'name' is sort-only — never a group; coerce to 'none' on load.
-    if (def.grouping.kind === 'by-field') setListGroupBy(def.grouping.by === 'name' ? 'none' : def.grouping.by)
-    else if (def.grouping.kind === 'by-tag') setListGroupBy('tag')
-    else if (def.grouping.kind === 'by-sortBy' && def.sort.kind === 'sortBy') setListGroupBy(def.sort.by === 'name' ? 'none' : def.sort.by)
-    else setListGroupBy('none')
-    // ListItemSortBy is a subset of ListSortBy — coerce unsupported values to manual.
-    const ITEM_SORTS: ListItemSortBy[] = ['manual', 'name', 'date', 'scheduled', 'deadline']
-    const itemSort: ListItemSortBy = def.sort.kind === 'sortBy' && (ITEM_SORTS as string[]).includes(def.sort.by)
-      ? def.sort.by as ListItemSortBy
-      : 'manual'
-    setListSortBy(itemSort)
+    // Post-flatten `def.grouping` is a flat `TodoGroupBy` literal that maps
+    // 1:1 onto ListView's `ListGroupBy`. ListView doesn't render alphabetical
+    // group buckets, so the non-grouping sort fields (`'name'`, `'manual'`,
+    // `'created'`) coerce to 'none' if they appear (defensive — neither
+    // valid grouping nor in the LIST_GROUP_VALUES subset, but a future widen
+    // could surface them).
+    setListGroupBy(LIST_GROUP_VALUES.includes(def.grouping as ListGroupBy) ? (def.grouping as ListGroupBy) : 'none')
+    // ListView's within-group sort is a smaller subset (`LIST_SORT_VALUES`).
+    // Anything outside that subset coerces to 'manual'.
+    setListSortBy(LIST_SORT_VALUES.includes(def.sort as ListItemSortBy) ? (def.sort as ListItemSortBy) : 'manual')
     setMaxTasks(def.maxTasks ?? null)
     setMaxTasksInput(def.maxTasks != null ? String(def.maxTasks) : '')
     setLimitMode(def.limitMode ?? 'hard')

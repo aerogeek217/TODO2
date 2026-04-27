@@ -17,8 +17,8 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     pinnedToDashboard: true,
     favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
-    sort: { kind: 'sort-order' },
-    grouping: { kind: 'none' },
+    sort: 'manual',
+    grouping: 'none',
     ...overrides,
   }
 }
@@ -87,42 +87,9 @@ describe('DashboardListsEditor — filterIds mode', () => {
   })
 })
 
-describe('DashboardListsEditor — Match sort field grouping option', () => {
-  beforeEach(() => {
-    useListDefinitionStore.setState({
-      listDefinitions: [
-        makeDef({ id: 1, name: 'SortOrder def', sort: { kind: 'sort-order' } }),
-        makeDef({ id: 2, name: 'SortBy def', sort: { kind: 'sortBy', by: 'project' } }),
-      ],
-    })
-  })
-  afterEach(() => { cleanup() })
-
-  it('disables Match-sort-field grouping when sort kind is not sortBy', () => {
-    render(
-      <MemoryRouter>
-        <DashboardListsEditor onClose={() => {}} />
-      </MemoryRouter>,
-    )
-    // Open the first def's editor dialog (portaled to document.body).
-    const configBtns = screen.getAllByText('⚙')
-    fireEvent.click(configBtns[0]!)
-    const matchOpt = screen.getByText('Match sort field') as HTMLOptionElement
-    expect(matchOpt.disabled).toBe(true)
-  })
-
-  it('enables Match-sort-field grouping when sort kind is sortBy', () => {
-    render(
-      <MemoryRouter>
-        <DashboardListsEditor onClose={() => {}} />
-      </MemoryRouter>,
-    )
-    const configBtns = screen.getAllByText('⚙')
-    fireEvent.click(configBtns[1]!)
-    const matchOpt = screen.getByText('Match sort field') as HTMLOptionElement
-    expect(matchOpt.disabled).toBe(false)
-  })
-})
+// "Match sort field" grouping option retired in ui-consistency-2026-04-25 P4.
+// The on-disk shape is flat literals, so coupling sort↔group is now an
+// explicit "set both to the same value" UX, not a special grouping kind.
 
 describe('DashboardListsEditor — runtime filter control', () => {
   beforeEach(() => {

@@ -1,7 +1,6 @@
 import type {
   PersistedTodoItem,
   TodoPredicate,
-  ListSortBy,
   Tag,
   Person,
   Org,
@@ -189,21 +188,21 @@ export function interpretSort(
   b: PersistedTodoItem,
   ctx: DashboardListsContext,
 ): number {
-  switch (s.kind) {
-    case 'effective-date-asc':
+  switch (s) {
+    case 'date':
       return compareEffectiveDateAsc(a, b, ctx)
-
-    case 'scheduled-asc':
+    case 'scheduled':
       return compareScheduledAsc(a, b, ctx)
-
-    case 'deadline-asc':
+    case 'deadline':
       return compareDeadlineAsc(a, b)
-
-    case 'sort-order':
+    case 'manual':
+    case 'name':
+    case 'created':
+    case 'people':
+    case 'project':
+    case 'org':
+    case 'status':
       return compareSortOrder(a, b)
-
-    case 'sortBy':
-      return compareBySortBy(s.by, a, b, ctx)
   }
 }
 
@@ -254,65 +253,15 @@ function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: Da
   return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
 }
 
-/**
- * Chronological `sortBy` values (date/scheduled/deadline) get proper
- * comparators. Categorical values (people/project/org/status) fall back to
- * sortOrder — the grouping node (`by-sortBy`) is where the categorical split
- * happens; a total order inside a single list for a categorical field is
- * ambiguous (multi-assignment).
- */
-function compareBySortBy(
-  by: ListSortBy,
-  a: PersistedTodoItem,
-  b: PersistedTodoItem,
-  ctx: DashboardListsContext,
-): number {
-  switch (by) {
-    case 'date':
-      return compareEffectiveDateAsc(a, b, ctx)
-    case 'scheduled':
-      return compareScheduledAsc(a, b, ctx)
-    case 'deadline':
-      return compareDeadlineAsc(a, b)
-    case 'name':
-    case 'people':
-    case 'project':
-    case 'org':
-    case 'status':
-      return compareSortOrder(a, b)
-  }
-}
-
 export function interpretGrouping(
   g: ListGrouping,
-  sort: ListSort,
+  _sort: ListSort,
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
 ): DashboardListGroup[] | undefined {
-  switch (g.kind) {
+  switch (g) {
     case 'none':
       return undefined
-    case 'relative-effective':
-      return bucketByEffective(todos, ctx)
-    case 'relative-deadline':
-      return bucketByDeadline(todos, ctx)
-    case 'by-sortBy': {
-      if (sort.kind !== 'sortBy') return undefined
-      return bucketByField(sort.by, todos, ctx)
-    }
-    case 'by-field':
-      return bucketByField(g.by, todos, ctx)
-    case 'by-tag':
-      return bucketByTag(todos, ctx)
-  }
-}
-
-function bucketByField(
-  by: ListSortBy,
-  todos: PersistedTodoItem[],
-  ctx: DashboardListsContext,
-): DashboardListGroup[] | undefined {
-  switch (by) {
     case 'date':
       return bucketByEffective(todos, ctx)
     case 'scheduled':
@@ -327,8 +276,11 @@ function bucketByField(
       return bucketByPeople(todos, ctx)
     case 'org':
       return bucketByOrg(todos, ctx)
+    case 'tag':
+      return bucketByTag(todos, ctx)
   }
 }
+
 
 const DASHBOARD_BUCKET_KEYS: Record<DateBucketKey, string> = {
   overdue: 'overdue',

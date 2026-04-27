@@ -3,6 +3,7 @@ import type {
   ListItemSortBy,
   ListSortBy,
 } from '../models'
+import { isTodoSortBy, isTodoGroupBy } from '../models'
 import type { ListGrouping, ListSort } from '../models/list-definition'
 
 /**
@@ -12,6 +13,11 @@ import type { ListGrouping, ListSort } from '../models/list-definition'
  * Lives in `utils/` rather than `data/` so the layering rule holds: views import
  * from `utils/`, never from `data/`. The legacy SavedView types still live in
  * `data/saved-view-legacy.ts` and are imported only by migration + restore.
+ *
+ * Post ui-consistency-2026-04-25 P4 the `sort` / `grouping` fields are flat
+ * `TodoSortBy` / `TodoGroupBy` literals (the discriminated unions were
+ * collapsed in v46). The encoder is now near-trivial — kept as a function
+ * carrier so callers don't reach into the model directly.
  */
 
 /**
@@ -21,11 +27,7 @@ import type { ListGrouping, ListSort } from '../models/list-definition'
  */
 export function translateSortBy(sortBy: string): ListSortBy {
   if (sortBy === 'priority' || sortBy === 'due' || sortBy === 'tag') return 'date'
-  if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline'
-      || sortBy === 'people'
-      || sortBy === 'project' || sortBy === 'org' || sortBy === 'status') {
-    return sortBy
-  }
+  if (isTodoSortBy(sortBy)) return sortBy
   return 'date'
 }
 
@@ -43,8 +45,9 @@ export function resolveSavedViewGrouping(v: { sortBy: string; groupBy?: ListGrou
     groupBy = v.groupBy
   } else {
     const translated = translateSortBy(v.sortBy)
-    // 'name' is sort-only — never a group; fall back to 'date'.
-    groupBy = translated === 'name' ? 'date' : translated
+    // Sort-only fields ('name', 'manual', 'created') aren't valid groupings —
+    // fall back to 'date'.
+    groupBy = isTodoGroupBy(translated) ? translated : 'date'
   }
   const itemSortBy: ListItemSortBy = v.itemSortBy ?? 'manual'
   return { groupBy, itemSortBy }
@@ -52,25 +55,13 @@ export function resolveSavedViewGrouping(v: { sortBy: string; groupBy?: ListGrou
 
 /**
  * Encode runtime group/sort choice into a list-definition's `sort` + `grouping`.
- * One encoder shared between the ListView save path and the v39 migration.
+ * Post-flatten the encoder is the identity: `sort = itemSortBy`,
+ * `grouping = groupBy`. Kept as a one-line carrier so call sites don't reach
+ * into the model directly.
  */
 export function encodeGroupSort(
   groupBy: ListGroupBy,
   itemSortBy: ListItemSortBy,
 ): { sort: ListSort; grouping: ListGrouping } {
-  const sort: ListSort = itemSortBy === 'manual'
-    ? { kind: 'sort-order' }
-    : { kind: 'sortBy', by: itemSortBy }
-
-  let grouping: ListGrouping
-  if (groupBy === 'none') {
-    grouping = { kind: 'none' }
-  } else if (groupBy === 'tag') {
-    grouping = { kind: 'by-tag' }
-  } else if (itemSortBy !== 'manual' && groupBy === itemSortBy) {
-    grouping = { kind: 'by-sortBy' }
-  } else {
-    grouping = { kind: 'by-field', by: groupBy }
-  }
-  return { sort, grouping }
+  return { sort: itemSortBy, grouping: groupBy }
 }

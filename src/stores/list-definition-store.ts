@@ -89,8 +89,8 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       pinnedToDashboard,
       favorited,
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
-      sort: sort ?? { kind: 'sort-order' },
-      grouping: grouping ?? { kind: 'none' },
+      sort: sort ?? 'manual',
+      grouping: grouping ?? 'none',
       ...(maxTasks != null ? { maxTasks } : {}),
       ...(limitMode != null ? { limitMode } : {}),
     }

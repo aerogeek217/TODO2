@@ -77,6 +77,12 @@ function parseId(prefix: string, key: string): number | null {
  * Bucket keys for `date` / `scheduled` / `deadline` (`overdue` / `today` /
  * `week` / `later`) match `ListView.buildBucketSections` so users see the
  * same grouping across views.
+ *
+ * Post ui-consistency-2026-04-25 P4 `ProjectGroupBy = TodoGroupBy` widens
+ * the union to include `'none'` and `'project'`. Both are no-ops at the
+ * task-grouping layer — `'none'` means "ungrouped" and shouldn't reach this
+ * function (callers gate on it); `'project'` is meaningless inside a single
+ * project's grouped task list.
  */
 export function getGroupKey(
   todo: PersistedTodoItem,
@@ -119,6 +125,9 @@ export function getGroupKey(
         todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null,
         ctx.today,
       )
+    case 'none':
+    case 'project':
+      return null
   }
 }
 
@@ -171,6 +180,9 @@ export function getGroupLabel(
     case 'scheduled':
     case 'deadline':
       return DATE_BUCKET_LABELS[key] ?? ''
+    case 'none':
+    case 'project':
+      return ''
   }
 }
 
@@ -221,6 +233,8 @@ export function getGroupColor(
     case 'date':
     case 'scheduled':
     case 'deadline':
+    case 'none':
+    case 'project':
       return undefined
   }
 }
@@ -260,6 +274,9 @@ function orderGroupKeys(
       return keys.slice().sort((a, b) =>
         getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
       )
+    case 'none':
+    case 'project':
+      return keys.slice()
   }
 }
 

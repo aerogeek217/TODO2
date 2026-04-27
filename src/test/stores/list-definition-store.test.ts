@@ -29,16 +29,16 @@ describe('useListDefinitionStore load', () => {
       pinnedToDashboard: true,
       favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: { kind: 'effective-date-asc' },
-      grouping: { kind: 'relative-effective' },
+      sort: 'date',
+      grouping: 'date',
     })
     await listDefinitionRepository.insert({
       name: 'A', sortOrder: 1,
       pinnedToDashboard: true,
       favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: { kind: 'effective-date-asc' },
-      grouping: { kind: 'none' },
+      sort: 'date',
+      grouping: 'none',
     })
 
     await useListDefinitionStore.getState().load()
@@ -66,8 +66,8 @@ describe('useListDefinitionStore mutations', () => {
       sortOrder: 0,
       pinnedToDashboard: true,
       membership: { kind: 'custom' },
-      sort: { kind: 'sort-order' },
-      grouping: { kind: 'none' },
+      sort: 'manual',
+      grouping: 'none',
     })
 
     // Survives reload
@@ -166,8 +166,8 @@ describe('Save-as-preset round-trip', () => {
     const id = await useListDefinitionStore.getState().add({
       name: "Alice's tasks",
       membership: { kind: 'custom', predicate },
-      sort: { kind: 'sortBy', by: 'date' },
-      grouping: { kind: 'by-sortBy' },
+      sort: 'date',
+      grouping: 'date',
       pinnedToDashboard: true,
     })
 
@@ -180,8 +180,8 @@ describe('Save-as-preset round-trip', () => {
     if (reloaded!.membership.kind === 'custom') {
       expect(reloaded!.membership.predicate.personIds).toEqual([7])
     }
-    expect(reloaded!.sort).toEqual({ kind: 'sortBy', by: 'date' })
-    expect(reloaded!.grouping).toEqual({ kind: 'by-sortBy' })
+    expect(reloaded!.sort).toBe('date')
+    expect(reloaded!.grouping).toBe('date')
 
     // Round-trip predicate evaluation: matchesFilter via the dashboard interpreter.
     const todos: PersistedTodoItem[] = [
@@ -215,8 +215,8 @@ describe('Save-as-preset round-trip', () => {
     const id = await useListDefinitionStore.getState().add({
       name: 'My preset',
       membership: { kind: 'custom', predicate: initialPredicate },
-      sort: { kind: 'sortBy', by: 'date' },
-      grouping: { kind: 'by-sortBy' },
+      sort: 'date',
+      grouping: 'date',
     })
 
     // Simulate a user editing in ListView and saving back: build a new predicate

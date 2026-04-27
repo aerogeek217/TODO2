@@ -89,9 +89,10 @@ describe('runV39Migration', () => {
     expect(d.membership.kind).toBe('custom')
     expect(d.membership.predicate.personIds).toEqual([1, 2])
     expect(d.membership.predicate.showCompleted).toBe(true)
-    // groupBy='project' + itemSortBy='deadline' → {sort: sortBy deadline, grouping: by-field project}
-    expect(d.sort).toEqual({ kind: 'sortBy', by: 'deadline' })
-    expect(d.grouping).toEqual({ kind: 'by-field', by: 'project' })
+    // Post ui-consistency-2026-04-25 P4 the encoder writes flat literals.
+    // groupBy='project' + itemSortBy='deadline' → sort='deadline', grouping='project'
+    expect(d.sort).toBe('deadline')
+    expect(d.grouping).toBe('project')
     post.close()
   })
 

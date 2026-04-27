@@ -1,5 +1,6 @@
 import Dexie, { type Table, type Transaction } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent, TodoSortBy, TodoGroupBy } from '../models'
+import { isTodoSortBy, isTodoGroupBy } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
@@ -330,6 +331,19 @@ export class Todo2Database extends Dexie {
     this.version(45).stores({
       floatingSnoozeGraveyard: '++id, canvasId',
     })
+
+    // v46: flatten `ListDefinition.sort` / `.grouping` from discriminated
+    // unions to flat `TodoSortBy` / `TodoGroupBy` literals
+    // (ui-consistency-2026-04-25 P4). The former `{kind:'sortBy', by:X}` /
+    // `{kind:'sort-order'}` / `{kind:'effective-date-asc'}` etc. collapse to
+    // single strings; the former `{kind:'by-sortBy'}` "match the sort"
+    // semantic is converted to whichever flat literal the sort field now
+    // carries (or `'none'` when the sort is not a valid grouping field).
+    // Idempotent — rows already in the flat shape pass through unchanged.
+    this.version(46).stores({})
+      .upgrade(async (tx) => {
+        await runV46Migration(tx)
+      })
   }
 }
 
@@ -551,8 +565,8 @@ function horizonSeeds(): HorizonSeed[] {
             dateRangeEnd: relAnchor('end-of-week'),
           },
         },
-        sort: { kind: 'effective-date-asc' },
-        grouping: { kind: 'none' },
+        sort: 'date',
+        grouping: 'none',
       },
     },
     {
@@ -570,8 +584,8 @@ function horizonSeeds(): HorizonSeed[] {
             dateRangeEnd: relAnchor('end-of-next-week'),
           },
         },
-        sort: { kind: 'effective-date-asc' },
-        grouping: { kind: 'none' },
+        sort: 'date',
+        grouping: 'none',
       },
     },
     {
@@ -589,8 +603,8 @@ function horizonSeeds(): HorizonSeed[] {
             dateRangeEnd: relAnchor('end-of-month'),
           },
         },
-        sort: { kind: 'effective-date-asc' },
-        grouping: { kind: 'none' },
+        sort: 'date',
+        grouping: 'none',
       },
     },
     {
@@ -608,8 +622,8 @@ function horizonSeeds(): HorizonSeed[] {
             dateRangeEnd: relAnchor('end-of-month-plus-3'),
           },
         },
-        sort: { kind: 'effective-date-asc' },
-        grouping: { kind: 'relative-effective' },
+        sort: 'date',
+        grouping: 'date',
       },
     },
     {
@@ -626,8 +640,8 @@ function horizonSeeds(): HorizonSeed[] {
             hasDeadline: false,
           },
         },
-        sort: { kind: 'sort-order' },
-        grouping: { kind: 'none' },
+        sort: 'manual',
+        grouping: 'none',
       },
     },
   ]
@@ -728,8 +742,8 @@ export function buildListDefFromLegacyInset(
         kind: 'custom',
         predicate: predicate as unknown as import('../models').TodoPredicate,
       },
-      sort: { kind: 'effective-date-asc' },
-      grouping: { kind: 'none' },
+      sort: 'date',
+      grouping: 'none',
     }
   }
 
@@ -772,8 +786,8 @@ export function buildListDefFromLegacyInset(
         kind: 'custom',
         predicate: predicate as unknown as import('../models').TodoPredicate,
       },
-      sort: { kind: 'sort-order' },
-      grouping: { kind: 'none' },
+      sort: 'manual',
+      grouping: 'none',
     }
   }
 
@@ -1680,4 +1694,110 @@ function toIsoString(v: unknown): string | null {
   if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString()
   if (typeof v === 'string' && !isNaN(Date.parse(v))) return new Date(v).toISOString()
   return null
+}
+
+/**
+ * Translate a legacy `ListSort` discriminated-union value into the flat
+ * `TodoSortBy` literal. Idempotent — already-flat strings are returned
+ * unchanged when valid; unknown shapes fall back to `'manual'`.
+ *
+ * Mapping:
+ *   `{kind:'sort-order'}`         → `'manual'`
+ *   `{kind:'effective-date-asc'}` → `'date'`
+ *   `{kind:'scheduled-asc'}`      → `'scheduled'`
+ *   `{kind:'deadline-asc'}`       → `'deadline'`
+ *   `{kind:'sortBy', by:X}`       → `X` (when X is a valid TodoSortBy)
+ *
+ * Shared between the v46 in-place migration and `restore.ts`'s legacy-row
+ * converter so backups in either shape converge on the flat literal.
+ */
+export function flattenListSortValue(raw: unknown): TodoSortBy {
+  if (typeof raw === 'string') {
+    return isTodoSortBy(raw) ? raw : 'manual'
+  }
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>
+    switch (obj.kind) {
+      case 'sort-order': return 'manual'
+      case 'effective-date-asc': return 'date'
+      case 'scheduled-asc': return 'scheduled'
+      case 'deadline-asc': return 'deadline'
+      case 'sortBy': {
+        const by = obj.by
+        if (typeof by === 'string' && isTodoSortBy(by)) return by
+        return 'manual'
+      }
+    }
+  }
+  return 'manual'
+}
+
+/**
+ * Translate a legacy `ListGrouping` discriminated-union value into the flat
+ * `TodoGroupBy` literal. Idempotent on flat strings; unknown shapes fall back
+ * to `'none'`. The former `{kind:'by-sortBy'}` "match the sort" semantic is
+ * resolved against the supplied `flatSort` — if the sort is a valid grouping
+ * field, that field becomes the grouping; otherwise `'none'`.
+ *
+ * Mapping:
+ *   `{kind:'none'}`               → `'none'`
+ *   `{kind:'relative-effective'}` → `'date'`
+ *   `{kind:'relative-deadline'}`  → `'deadline'`
+ *   `{kind:'by-tag'}`             → `'tag'`
+ *   `{kind:'by-field', by:X}`     → `X` (when X is a valid TodoGroupBy)
+ *   `{kind:'by-sortBy'}`          → `flatSort` (when valid TodoGroupBy) | `'none'`
+ *
+ * Shared between the v46 in-place migration and `restore.ts`.
+ */
+export function flattenListGroupingValue(raw: unknown, flatSort: TodoSortBy): TodoGroupBy {
+  if (typeof raw === 'string') {
+    return isTodoGroupBy(raw) ? raw : 'none'
+  }
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>
+    switch (obj.kind) {
+      case 'none': return 'none'
+      case 'relative-effective': return 'date'
+      case 'relative-deadline': return 'deadline'
+      case 'by-tag': return 'tag'
+      case 'by-sortBy':
+        return isTodoGroupBy(flatSort) ? flatSort : 'none'
+      case 'by-field': {
+        const by = obj.by
+        if (typeof by === 'string' && isTodoGroupBy(by)) return by
+        return 'none'
+      }
+    }
+  }
+  return 'none'
+}
+
+/**
+ * Apply `flattenListSortValue` + `flattenListGroupingValue` to a raw row in
+ * place. Returns true when either field was rewritten. Shared between the v46
+ * migration and the restore-time legacy converter.
+ */
+export function flattenListDefinitionInPlace(def: Record<string, unknown>): boolean {
+  let touched = false
+  const flatSort = flattenListSortValue(def.sort)
+  if (def.sort !== flatSort) { def.sort = flatSort; touched = true }
+  const flatGrouping = flattenListGroupingValue(def.grouping, flatSort)
+  if (def.grouping !== flatGrouping) { def.grouping = flatGrouping; touched = true }
+  return touched
+}
+
+/**
+ * v46 upgrade: flatten `ListDefinition.sort` / `.grouping` from the legacy
+ * discriminated-union shape to flat `TodoSortBy` / `TodoGroupBy` literals
+ * (ui-consistency-2026-04-25 P4). Idempotent — rows already in the flat shape
+ * are skipped.
+ */
+export async function runV46Migration(tx: Transaction): Promise<void> {
+  let touched = 0
+  await tx.table('listDefinitions').toCollection().modify((def) => {
+    if (flattenListDefinitionInPlace(def as Record<string, unknown>)) touched++
+  })
+  if (touched > 0) {
+    console.info(`v46 migration: flattened sort/grouping shape on ${touched} list-definition row(s)`)
+  }
 }

@@ -37,8 +37,8 @@ function customDef(overrides: Partial<PersistedListDefinition> = {}): PersistedL
     pinnedToDashboard: true,
     favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
-    sort: { kind: 'effective-date-asc' },
-    grouping: { kind: 'none' },
+    sort: 'date',
+    grouping: 'none',
     ...overrides,
   }
 }
@@ -46,13 +46,13 @@ function customDef(overrides: Partial<PersistedListDefinition> = {}): PersistedL
 const DATE_GROUPED_DEF = customDef({
   id: 2,
   name: 'Date grouped',
-  grouping: { kind: 'relative-effective' },
+  grouping: 'date',
 })
 const DEADLINE_GROUPED_DEF = customDef({
   id: 3,
   name: 'Deadline grouped',
-  sort: { kind: 'deadline-asc' },
-  grouping: { kind: 'relative-deadline' },
+  sort: 'deadline',
+  grouping: 'deadline',
 })
 
 describe('buildDashboardLists', () => {
@@ -318,7 +318,7 @@ describe('buildDashboardLists — sort', () => {
       id: 3,
       dueDate: new Date(today.getTime() + 1 * MS_PER_DAY),
     })
-    const def = customDef({ sort: { kind: 'scheduled-asc' } })
+    const def = customDef({ sort: 'scheduled' })
     const lists = buildDashboardLists([def], [noScheduled, later, earlier], makeCtx())
     expect(lists[0]!.todos.map((t) => t.id)).toEqual([1, 2, 3])
   })
@@ -518,7 +518,7 @@ describe('interpretSort — sortBy', () => {
       scheduledDate: { kind: 'date', value: new Date(today.getTime() + 5 * MS_PER_DAY) },
     })
     const def = customDef({
-      sort: { kind: 'sortBy', by: 'date' },
+      sort: 'date',
     })
     const lists = buildDashboardLists(
       [def],
@@ -532,7 +532,7 @@ describe('interpretSort — sortBy', () => {
     const a = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 5 * MS_PER_DAY) })
     const b = makeTodo({ id: 2, dueDate: new Date(today.getTime() + 1 * MS_PER_DAY) })
     const def = customDef({
-      sort: { kind: 'sortBy', by: 'deadline' },
+      sort: 'deadline',
     })
     const lists = buildDashboardLists([def], [a, b], makeCtx())
     expect(lists[0]!.todos.map((t) => t.id)).toEqual([2, 1])
@@ -542,39 +542,43 @@ describe('interpretSort — sortBy', () => {
     const a = makeTodo({ id: 1, sortOrder: 200 })
     const b = makeTodo({ id: 2, sortOrder: 100 })
     const def = customDef({
-      sort: { kind: 'sortBy', by: 'people' },
+      sort: 'people',
     })
     const lists = buildDashboardLists([def], [a, b], makeCtx())
     expect(lists[0]!.todos.map((t) => t.id)).toEqual([2, 1])
   })
 })
 
-describe('interpretGrouping — by-sortBy', () => {
-  it('by-sortBy with sortBy=date reuses relative-effective buckets', () => {
+// Post ui-consistency-2026-04-25 P4 the legacy `{kind:'by-sortBy'}` "match
+// the sort" semantic is gone — the on-disk shape is flat literals. Surfaces
+// that want sort+group coupled set them to the same value explicitly. These
+// tests exercise the equivalent post-flatten coupling.
+describe('interpretGrouping — sort-coupled (post-flatten)', () => {
+  it('grouping=date with sort=date reuses relative-effective buckets', () => {
     const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
     const tomorrow = makeTodo({
       id: 1,
       scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 1 * MS_PER_DAY) },
     })
     const def = customDef({
-      sort: { kind: 'sortBy', by: 'date' },
-      grouping: { kind: 'by-sortBy' },
+      sort: 'date',
+      grouping: 'date',
     })
     const lists = buildDashboardLists([def], [tomorrow], makeCtx({ today: anchor }))
     expect(lists[0]!.groups?.[0]!.key).toBe('tomorrow')
   })
 
-  it('by-sortBy with sortBy=deadline reuses relative-deadline buckets', () => {
+  it('grouping=deadline with sort=deadline reuses relative-deadline buckets', () => {
     const overdue = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 5 * MS_PER_DAY) })
     const def = customDef({
-      sort: { kind: 'sortBy', by: 'deadline' },
-      grouping: { kind: 'by-sortBy' },
+      sort: 'deadline',
+      grouping: 'deadline',
     })
     const lists = buildDashboardLists([def], [overdue], makeCtx())
     expect(lists[0]!.groups?.[0]!.key).toBe('overdue')
   })
 
-  it('by-sortBy with categorical sortBy buckets via registry + assigned map', () => {
+  it('grouping=people with sort=people buckets via registry + assigned map', () => {
     const ALICE: import('../../models').Person = { id: 1, name: 'Alice', initials: 'A' }
     const BOB: import('../../models').Person = { id: 2, name: 'Bob', initials: 'B' }
     const t1 = makeTodo({ id: 101 })
@@ -586,8 +590,8 @@ describe('interpretGrouping — by-sortBy', () => {
       // 103 unassigned → "Unassigned"
     ])
     const def = customDef({
-      sort: { kind: 'sortBy', by: 'people' },
-      grouping: { kind: 'by-sortBy' },
+      sort: 'people',
+      grouping: 'people',
     })
     const lists = buildDashboardLists([def], [t1, t2, t3], makeCtx({
       people: [ALICE, BOB],
@@ -600,11 +604,11 @@ describe('interpretGrouping — by-sortBy', () => {
     expect(groups[2]!.todos.map((t) => t.id)).toEqual([103])
   })
 
-  it('by-sortBy without a sortBy sort kind returns undefined', () => {
+  it("grouping='none' returns undefined regardless of sort", () => {
     const t = makeTodo({ id: 1 })
     const def = customDef({
-      sort: { kind: 'sort-order' },
-      grouping: { kind: 'by-sortBy' },
+      sort: 'manual',
+      grouping: 'none',
     })
     const lists = buildDashboardLists([def], [t], makeCtx())
     expect(lists[0]!.groups).toBeUndefined()
@@ -625,7 +629,7 @@ describe('interpretGrouping — by-tag', () => {
       [1, [URGENT, WORK]],
       [2, [URGENT]],
     ])
-    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [a, b], makeCtx({ assignedTagsMap }))
     const groups = lists[0]!.groups!
     expect(groups.map((g) => g.key)).toEqual(['tag-10', 'tag-20'])
@@ -641,7 +645,7 @@ describe('interpretGrouping — by-tag', () => {
       [1, [URGENT]],
       // 2 has no entry
     ])
-    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [tagged, untagged], makeCtx({ assignedTagsMap }))
     const groups = lists[0]!.groups!
     expect(groups.map((g) => g.key)).toEqual(['tag-10', 'no-tag'])
@@ -656,21 +660,21 @@ describe('interpretGrouping — by-tag', () => {
       [2, [ALPHA]],
       [3, [MU]],
     ])
-    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], todos, makeCtx({ assignedTagsMap }))
     expect(lists[0]!.groups!.map((g) => g.key)).toEqual(['tag-30', 'tag-40', 'tag-50'])
     expect(lists[0]!.groups!.map((g) => g.label)).toEqual(['#alpha', '#mu', '#zeta'])
   })
 
   it('returns an empty list (not undefined) when no todos match', () => {
-    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [], makeCtx())
     expect(lists[0]!.groups).toEqual([])
   })
 
   it('without an assignedTagsMap, every todo lands in the "No tag" bucket', () => {
     const a = makeTodo({ id: 1 })
-    const def = customDef({ grouping: { kind: 'by-tag' } })
+    const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [a], makeCtx())
     expect(lists[0]!.groups).toEqual([
       { key: 'no-tag', label: 'No tag', todos: [a] },

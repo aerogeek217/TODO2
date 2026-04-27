@@ -109,7 +109,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     pinnedToDashboard: false,
     favorited: true,
     membership: { kind: 'custom', predicate: emptyPredicate() },
-    sort: { kind: 'sort-order' },
+    sort: 'manual',
     grouping: { kind: 'none' },
     ...overrides,
   }

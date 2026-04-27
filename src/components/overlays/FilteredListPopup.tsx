@@ -135,8 +135,8 @@ export function FilteredListPopup() {
               name,
               pinnedToDashboard: false,
               membership: { kind: 'custom', predicate },
-              sort: { kind: 'sort-order' },
-              grouping: { kind: 'none' },
+              sort: 'manual',
+              grouping: 'none',
             })
             await addInset(defId, selectedCanvasId, flowX, flowY)
             hideFilteredList()

@@ -106,7 +106,11 @@ function NameIcon() {
   )
 }
 
-export const groupByIcons: Record<ListGroupBy, React.ReactNode> = {
+// Post ui-consistency-2026-04-25 P4 the keys widen to the full unified union.
+// Surfaces consume only the icons they need (via their per-surface subset
+// constants) — the maps stay `Partial<…>` so the dictionary lookup gracefully
+// returns `undefined` for sort/group dimensions a surface doesn't expose.
+export const groupByIcons: Partial<Record<ListGroupBy, React.ReactNode>> = {
   none: <FlatIcon />,
   date: <DateIcon />,
   scheduled: <ScheduledIcon />,
@@ -118,7 +122,7 @@ export const groupByIcons: Record<ListGroupBy, React.ReactNode> = {
   tag: <TagIcon />,
 }
 
-export const itemSortByIcons: Record<ListItemSortBy, React.ReactNode> = {
+export const itemSortByIcons: Partial<Record<ListItemSortBy, React.ReactNode>> = {
   manual: <ManualIcon />,
   name: <NameIcon />,
   date: <DateIcon />,

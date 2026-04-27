@@ -1,3 +1,5 @@
+import type { TodoSortBy, TodoGroupBy } from './todo-sort-group'
+
 export enum AppView {
   Canvas = 'canvas',
   Dashboard = 'dashboard',
@@ -6,19 +8,13 @@ export enum AppView {
   Settings = 'settings',
 }
 
-export type ListSortBy = 'name' | 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status'
+/** Alias of the unified `TodoSortBy` (post ui-consistency-2026-04-25 P4). */
+export type ListSortBy = TodoSortBy
 
-/** What ListView / list-definition groups tasks by. `'none'` = flat list (no grouping).
- *  `'tag'` is not a `ListSortBy` — a tag-as-sort is meaningless for a many-per-task
- *  field — so list-definitions serialize it via `ListGrouping.kind = 'by-tag'`. */
-export type ListGroupBy = 'none' | 'date' | 'scheduled' | 'deadline' | 'people' | 'project' | 'org' | 'status' | 'tag'
+/** Alias of the unified `TodoGroupBy` (post ui-consistency-2026-04-25 P4). */
+export type ListGroupBy = TodoGroupBy
 
-/** Sort applied within each group (or across the whole list when groupBy='none').
- *  Kept aligned with preset `ListSort` so ListView state round-trips losslessly
- *  into a saved list-definition: 'manual' ↔ sort-order, chronological values ↔
- *  `{kind:'sortBy', by:X}`. `'name'` is /list-only today; dashboard widgets fall
- *  back to sortOrder via `compareBySortBy`'s default branch.
- */
-export type ListItemSortBy = 'manual' | 'name' | 'date' | 'scheduled' | 'deadline'
+/** Alias of the unified `TodoSortBy` (post ui-consistency-2026-04-25 P4). */
+export type ListItemSortBy = TodoSortBy
 
 export type DateField = 'date' | 'scheduled' | 'deadline' | 'created' | 'modified'

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useContext, useMemo, memo } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
 import { useDroppable } from '@dnd-kit/core'
-import type { Project, PersistedTodoItem, Person, ProjectGroupBy, Status } from '../../models'
+import type { Project, PersistedTodoItem, Person, ProjectGroupBy, Status, TodoSortBy } from '../../models'
 import { SortableTaskList } from './SortableTaskList'
 import { DragInsertContext } from './DragInsertContext'
 import { useUIStore } from '../../stores/ui-store'
@@ -20,12 +20,12 @@ import styles from './ProjectNode.module.css'
 
 export { GROUP_OPTIONS }
 
-type SortBy = 'name' | 'date' | 'created'
+type ProjectSortBy = Extract<TodoSortBy, 'name' | 'date' | 'created'>
 
 const PROJECT_NULL_GROUP = 'none' as const
 type ProjectGroupKey = ProjectGroupBy | typeof PROJECT_NULL_GROUP
 
-const PROJECT_SORT_OPTIONS: readonly SortGroupOption<SortBy>[] = [
+const PROJECT_SORT_OPTIONS: readonly SortGroupOption<ProjectSortBy>[] = [
   { value: 'name', label: 'Name' },
   { value: 'date', label: 'Effective Date' },
   { value: 'created', label: 'Created' },
@@ -37,7 +37,7 @@ const PROJECT_GROUP_OPTIONS: readonly SortGroupOption<ProjectGroupKey>[] =
     label: o.label,
   }))
 
-export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean, weekStartsOn: WeekStart): PersistedTodoItem[] {
+export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: ProjectSortBy, asc: boolean, weekStartsOn: WeekStart): PersistedTodoItem[] {
   const today = startOfToday()
   const compareFn = (a: PersistedTodoItem, b: PersistedTodoItem): number => {
     const dir = asc ? 1 : -1
@@ -95,7 +95,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   const renameInputRef = useRef<HTMLInputElement>(null)
   const renameTimerRef = useRef<number | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
-  const [lastSort, setLastSort] = useState<{ by: SortBy; asc: boolean } | null>(null)
+  const [lastSort, setLastSort] = useState<{ by: ProjectSortBy; asc: boolean } | null>(null)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
   // Clean up resize listeners and rename timer on unmount
@@ -104,7 +104,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
     if (renameTimerRef.current) clearTimeout(renameTimerRef.current)
   }, [])
 
-  const handleSort = (sortBy: SortBy) => {
+  const handleSort = (sortBy: ProjectSortBy) => {
     if (!project.id) return
     // Toggle direction if same sort clicked again
     const asc = lastSort && lastSort.by === sortBy ? !lastSort.asc : true
@@ -230,7 +230,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
           <span className={styles.taskCount}>{todos.length}</span>
         )}
 
-        <SortGroupToolbar<SortBy, ProjectGroupKey>
+        <SortGroupToolbar<ProjectSortBy, ProjectGroupKey>
           density="compact"
           className={styles.toolbar}
           showSort={todos.length > 1}

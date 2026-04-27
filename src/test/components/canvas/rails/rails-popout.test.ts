@@ -92,7 +92,7 @@ describe('popSlotToCanvas', () => {
         hasScheduled: null,
         hasDeadline: null,
       } },
-      sort: { kind: 'sort-order' },
+      sort: 'manual',
       grouping: { kind: 'none' },
     })
 
@@ -363,7 +363,7 @@ describe('popTabAtPosition', () => {
         hasScheduled: null,
         hasDeadline: null,
       } },
-      sort: { kind: 'sort-order' },
+      sort: 'manual',
       grouping: { kind: 'none' },
     })
     const tab: Tab = { id: 't-l', type: 'lens', listDefinitionId: defId }

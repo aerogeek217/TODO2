@@ -1,4 +1,6 @@
 import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, TodoEvent, TodoEventType } from '../models'
+import { isTodoSortBy, isTodoGroupBy } from '../models'
+import { flattenListSortValue, flattenListGroupingValue } from './database'
 import type { LegacySavedView, LegacySavedViewFilters } from './saved-view-legacy'
 
 /**
@@ -102,12 +104,14 @@ function isOptColor(v: unknown): boolean {
   return v === undefined || v === null || isValidCssColor(v)
 }
 
-const VALID_PROJECT_GROUP_BY = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
-
+// Post ui-consistency-2026-04-25 P4 `ProjectGroupBy = TodoGroupBy`. The
+// validator accepts every flat `TodoGroupBy` literal (including `'none'`);
+// `Project.groupBy` itself still uses `null` as the canonical "no grouping"
+// sentinel, but rows that round-tripped via a surface that wrote `'none'`
+// must validate too.
 function isOptProjectGroupBy(v: unknown): boolean {
   if (v === undefined || v === null) return true
-  if (typeof v !== 'string') return false
-  return (VALID_PROJECT_GROUP_BY as readonly string[]).includes(v)
+  return isTodoGroupBy(v)
 }
 
 function isOptStringArray(v: unknown, maxLen = 200): boolean {
@@ -226,6 +230,11 @@ function isValidMembership(m: unknown): boolean {
 }
 
 function isValidSort(s: unknown): boolean {
+  // Post ui-consistency-2026-04-25 P4: flat `TodoSortBy` literal is the
+  // canonical shape; pre-v46 backups carry the legacy discriminated-union
+  // shape and are accepted here, then normalised to the flat literal in
+  // `pickListDefinition` via `flattenListSortValue`.
+  if (typeof s === 'string') return isTodoSortBy(s)
   if (!isObj(s) || typeof s.kind !== 'string') return false
   if (!VALID_LIST_SORT_KINDS.includes(s.kind)) return false
   if (s.kind === 'sortBy') {
@@ -235,6 +244,11 @@ function isValidSort(s: unknown): boolean {
 }
 
 function isValidGrouping(g: unknown): boolean {
+  // Post ui-consistency-2026-04-25 P4: flat `TodoGroupBy` literal is the
+  // canonical shape; pre-v46 backups carry the legacy discriminated-union
+  // shape and are accepted here, then normalised in `pickListDefinition` via
+  // `flattenListGroupingValue`.
+  if (typeof g === 'string') return isTodoGroupBy(g)
   if (!isObj(g) || typeof g.kind !== 'string') return false
   if (!VALID_LIST_GROUPING_KINDS.includes(g.kind)) return false
   if (g.kind === 'by-field') {
@@ -639,7 +653,11 @@ function checkSavedView(v: unknown): CheckResult {
 // deletion of the entries one release later.
 const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizon', 'selectedHorizonDefId', 'horizonCollapsed', 'notesPinnedToDashboard', 'canvasRails', 'dashboardUserLists', 'dashboardTopOrder', 'defaultTaskboardId', 'maxTags', 'defaultProjectGroupBy', 'canvasMaxExtent']
 
-const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
+// Post ui-consistency-2026-04-25 P4 the canonical "no grouping" sentinel for
+// projects is `null` (carried as the empty string in the settings row), but
+// `'none'` is also accepted because `defaultProjectGroupBy` shares the unified
+// `TodoGroupBy` literal set.
+const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -1224,13 +1242,18 @@ function pickTodoEvent(v: Record<string, unknown>): TodoEvent {
 }
 
 function pickListDefinition(v: Record<string, unknown>): ListDefinition {
+  // Normalise legacy discriminated-union shapes for `sort` / `grouping` to
+  // the flat literal — pre-v46 backups carry the union; the runtime expects
+  // the flat shape (ui-consistency-2026-04-25 P4).
+  const flatSort = flattenListSortValue(v.sort)
+  const flatGrouping = flattenListGroupingValue(v.grouping, flatSort)
   return {
     id: v.id as number | undefined,
     name: v.name as string,
     sortOrder: v.sortOrder as number,
     membership: v.membership as ListMembership,
-    sort: v.sort as ListSort,
-    grouping: v.grouping as ListGrouping,
+    sort: flatSort as ListSort,
+    grouping: flatGrouping as ListGrouping,
     // v21 exports omit pinnedToDashboard; treat as pinned (matches v22 migration).
     // v21 `seededKey` is silently dropped.
     pinnedToDashboard: typeof v.pinnedToDashboard === 'boolean' ? v.pinnedToDashboard : true,

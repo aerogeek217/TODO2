@@ -1,60 +1,50 @@
 import type {
-  ListGrouping,
-  ListSort,
   PersistedListDefinition,
   RuntimeFilterField,
 } from '../../models/list-definition'
-import type { ListSortBy, TodoPredicate } from '../../models'
+import type {
+  TodoPredicate,
+  TodoSortBy,
+  TodoGroupBy,
+} from '../../models'
+import {
+  LIST_EDITOR_GROUP_VALUES,
+  LIST_EDITOR_SORT_VALUES,
+} from '../../models'
 import { ListFilterEditor } from '../settings/ListFilterEditor'
+import { SortGroupToolbar, type SortGroupOption } from './SortGroupToolbar'
 import local from '../settings/DashboardListsEditor.module.css'
 
-type SortSelectValue =
-  | 'sort-order'
-  | 'effective-date-asc'
-  | 'scheduled-asc'
-  | 'deadline-asc'
-  | `sortBy:${ListSortBy}`
+const SORT_LABELS: Record<TodoSortBy, string> = {
+  manual: 'None (sortOrder)',
+  name: 'Name',
+  date: 'Effective date',
+  scheduled: 'Scheduled',
+  deadline: 'Deadline',
+  created: 'Created',
+  people: 'People',
+  project: 'Project',
+  org: 'Org',
+  status: 'Status',
+}
 
-type GroupingSelectValue =
-  | 'none'
-  | 'relative-effective'
-  | 'relative-deadline'
-  | 'by-sortBy'
-  | `by-field:${ListSortBy}`
-  | 'by-tag'
+const GROUP_LABELS: Record<TodoGroupBy, string> = {
+  none: 'None',
+  date: 'By date (relative)',
+  scheduled: 'By scheduled (relative)',
+  deadline: 'By deadline (relative)',
+  people: 'By people',
+  project: 'By project',
+  org: 'By org',
+  status: 'By status',
+  tag: 'By tag',
+}
 
-const SORT_OPTIONS: { value: SortSelectValue; label: string }[] = [
-  { value: 'sort-order', label: 'None' },
-  { value: 'effective-date-asc', label: 'Effective date' },
-  { value: 'scheduled-asc', label: 'Scheduled date' },
-  { value: 'deadline-asc', label: 'Deadline' },
-  { value: 'sortBy:date', label: 'Date' },
-  { value: 'sortBy:scheduled', label: 'Scheduled' },
-  { value: 'sortBy:deadline', label: 'Deadline (within group)' },
-  { value: 'sortBy:project', label: 'Project' },
-  { value: 'sortBy:status', label: 'Status' },
-  { value: 'sortBy:people', label: 'People' },
-  { value: 'sortBy:org', label: 'Org' },
-]
+const SORT_OPTIONS: readonly SortGroupOption<TodoSortBy>[] =
+  LIST_EDITOR_SORT_VALUES.map((v) => ({ value: v, label: SORT_LABELS[v] }))
 
-const GROUPING_OPTIONS: {
-  value: GroupingSelectValue
-  label: string
-  requiresSortBy?: true
-}[] = [
-  { value: 'none', label: 'None' },
-  { value: 'relative-effective', label: 'Relative (effective)' },
-  { value: 'relative-deadline', label: 'Relative (deadline)' },
-  { value: 'by-sortBy', label: 'Match sort field', requiresSortBy: true },
-  { value: 'by-field:date', label: 'By date' },
-  { value: 'by-field:scheduled', label: 'By scheduled' },
-  { value: 'by-field:deadline', label: 'By deadline' },
-  { value: 'by-field:project', label: 'By project' },
-  { value: 'by-field:status', label: 'By status' },
-  { value: 'by-field:people', label: 'By people' },
-  { value: 'by-field:org', label: 'By org' },
-  { value: 'by-tag', label: 'By tag' },
-]
+const GROUP_OPTIONS: readonly SortGroupOption<TodoGroupBy>[] =
+  LIST_EDITOR_GROUP_VALUES.map((v) => ({ value: v, label: GROUP_LABELS[v] }))
 
 const RUNTIME_FILTER_OPTIONS: { value: RuntimeFilterField | 'none'; label: string }[] = [
   { value: 'none', label: 'None' },
@@ -65,30 +55,6 @@ const RUNTIME_FILTER_OPTIONS: { value: RuntimeFilterField | 'none'; label: strin
   { value: 'tag', label: 'Tag' },
 ]
 
-function encodeSortValue(sort: ListSort): SortSelectValue {
-  if (sort.kind === 'sortBy') return `sortBy:${sort.by}`
-  return sort.kind
-}
-
-function decodeSortValue(value: SortSelectValue): ListSort {
-  if (value.startsWith('sortBy:')) {
-    return { kind: 'sortBy', by: value.slice('sortBy:'.length) as ListSortBy }
-  }
-  return { kind: value as Exclude<ListSort['kind'], 'sortBy'> }
-}
-
-function encodeGroupingValue(grouping: ListGrouping): GroupingSelectValue {
-  if (grouping.kind === 'by-field') return `by-field:${grouping.by}`
-  return grouping.kind
-}
-
-function decodeGroupingValue(value: GroupingSelectValue): ListGrouping {
-  if (value.startsWith('by-field:')) {
-    return { kind: 'by-field', by: value.slice('by-field:'.length) as ListSortBy }
-  }
-  return { kind: value as Exclude<ListGrouping['kind'], 'by-field'> }
-}
-
 export interface ListEditorBodyProps {
   draft: PersistedListDefinition
   onChange: (next: PersistedListDefinition) => void
@@ -97,18 +63,14 @@ export interface ListEditorBodyProps {
 export function ListEditorBody({ draft, onChange }: ListEditorBodyProps) {
   const setName = (name: string) => onChange({ ...draft, name })
 
-  const setSort = (value: SortSelectValue) => {
-    const next = decodeSortValue(value)
-    if (next.kind === draft.sort.kind
-      && (next.kind !== 'sortBy' || (draft.sort.kind === 'sortBy' && next.by === draft.sort.by))) return
-    const grouping: ListGrouping = draft.grouping.kind === 'by-sortBy' && next.kind !== 'sortBy'
-      ? { kind: 'none' }
-      : draft.grouping
-    onChange({ ...draft, sort: next, grouping })
+  const setSort = (next: TodoSortBy) => {
+    if (next === draft.sort) return
+    onChange({ ...draft, sort: next })
   }
 
-  const setGrouping = (value: GroupingSelectValue) => {
-    onChange({ ...draft, grouping: decodeGroupingValue(value) })
+  const setGrouping = (next: TodoGroupBy) => {
+    if (next === draft.grouping) return
+    onChange({ ...draft, grouping: next })
   }
 
   const setRuntimeFilter = (value: RuntimeFilterField | 'none') => {
@@ -156,37 +118,17 @@ export function ListEditorBody({ draft, onChange }: ListEditorBodyProps) {
         </div>
       )}
 
-      <div className={local.configRow}>
-        <span className={local.configLabel}>Sort</span>
-        <select
-          className={local.configSelect}
-          value={encodeSortValue(draft.sort)}
-          onChange={(e) => setSort(e.target.value as SortSelectValue)}
-        >
-          {SORT_OPTIONS.map(({ value, label }) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className={local.configRow}>
-        <span className={local.configLabel}>Grouping</span>
-        <select
-          className={local.configSelect}
-          value={encodeGroupingValue(draft.grouping)}
-          onChange={(e) => setGrouping(e.target.value as GroupingSelectValue)}
-        >
-          {GROUPING_OPTIONS.map(({ value, label, requiresSortBy }) => (
-            <option
-              key={value}
-              value={value}
-              disabled={requiresSortBy && draft.sort.kind !== 'sortBy'}
-            >
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SortGroupToolbar<TodoSortBy, TodoGroupBy>
+        density="comfortable"
+        sortBy={draft.sort}
+        groupBy={draft.grouping}
+        sortOptions={SORT_OPTIONS}
+        groupOptions={GROUP_OPTIONS}
+        onSortChange={setSort}
+        onGroupChange={setGrouping}
+        sortLabel="Sort"
+        groupLabel="Grouping"
+      />
 
       <div className={local.configRow}>
         <span
