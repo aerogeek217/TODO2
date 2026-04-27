@@ -26,6 +26,7 @@ import { formatShortcut } from './utils/platform'
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
 import { applyNlpMetadata } from './services/nlp-task-creator'
+import { ensureDefaultProject } from './services/ensure-default-project'
 import { checkMigrationNeeded } from './services/migration-check'
 import type { MigrationInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
@@ -105,12 +106,19 @@ function AppQuickAddBar() {
 
   const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
     const { resolved } = submitted
-    const projectId = submitted.project?.id ?? defaultProjectId ?? undefined
+    const canvasId = useCanvasStore.getState().selectedCanvasId
+    if (canvasId == null) return
     // Mirror CanvasPage.handleAddTask: parse-cleaned title fed to addTodo,
     // then applyNlpMetadata for everything the resolver pulled out. Tags ride
     // through applyNlpMetadata's resolve-or-create path (`nlp-task-creator.ts`)
     // so we don't need to call `resolveTags` / `assignTag` ourselves.
-    const id = await useTodoStore.getState().add(resolved.title || submitted.title, undefined, projectId)
+    // QuickAddBar already seeds `submitted.project` from the `defaultProject`
+    // prop when no `/project` token was typed, so we only need to fall back
+    // when no default project exists at all — `ensureDefaultProject` returns
+    // the first project on this canvas (handles the "user removed the default"
+    // edge) or auto-creates an Inbox + persists it.
+    const projectId = submitted.project?.id ?? (await ensureDefaultProject(canvasId))
+    const id = await useTodoStore.getState().add(resolved.title || submitted.title, canvasId, projectId)
     await applyNlpMetadata(
       id,
       resolved,
@@ -120,7 +128,7 @@ function AppQuickAddBar() {
       useOrgStore.getState().assignOrg,
     )
     close()
-  }, [close, defaultProjectId])
+  }, [close])
 
   const handleOpenFullEditor = useCallback((submitted: QuickAddDraft) => {
     // Preserve-draft handoff: set the seed, flip the bar closed without
