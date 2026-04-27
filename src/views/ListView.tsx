@@ -40,7 +40,7 @@ import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled, type WeekStart } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
 import { useIsMobile } from '../hooks/use-is-mobile'
-import { IconSelect } from '../components/shared/IconSelect'
+import { SortGroupToolbar, type SortGroupOption } from '../components/shared/SortGroupToolbar'
 import { groupByIcons, itemSortByIcons } from '../components/shared/list-option-icons'
 import styles from './ListView.module.css'
 
@@ -51,7 +51,7 @@ export interface Section {
   todos: PersistedTodoItem[]
 }
 
-const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode }[] = [
+const groupByOptions: readonly SortGroupOption<ListGroupBy>[] = [
   { value: 'none', label: 'None', icon: groupByIcons.none },
   { value: 'date', label: 'Effective Date', icon: groupByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: groupByIcons.scheduled },
@@ -63,7 +63,7 @@ const groupByOptions: { value: ListGroupBy; label: string; icon: React.ReactNode
   { value: 'tag', label: 'Tag', icon: groupByIcons.tag },
 ]
 
-const itemSortByOptions: { value: ListItemSortBy; label: string; icon: React.ReactNode }[] = [
+const itemSortByOptions: readonly SortGroupOption<ListItemSortBy>[] = [
   { value: 'manual', label: 'None', icon: itemSortByIcons.manual },
   { value: 'name', label: 'Name', icon: itemSortByIcons.name },
   { value: 'date', label: 'Effective Date', icon: itemSortByIcons.date },
@@ -944,24 +944,15 @@ export function ListView() {
 
           <div className={styles.toolbar}>
             <div className={styles.toolbarControls}>
-              <div className={styles.toolbarField}>
-                <span className={styles.toolbarLabel}>Group</span>
-                <IconSelect<ListGroupBy>
-                  value={listGroupBy}
-                  options={groupByOptions}
-                  onChange={(v) => { setListGroupBy(v); setActiveLoadedDefId(null) }}
-                  ariaLabel="Group tasks by"
-                />
-              </div>
-              <div className={styles.toolbarField}>
-                <span className={styles.toolbarLabel}>Sort</span>
-                <IconSelect<ListItemSortBy>
-                  value={listSortBy}
-                  options={itemSortByOptions}
-                  onChange={(v) => { setListSortBy(v); setActiveLoadedDefId(null) }}
-                  ariaLabel="Sort tasks by"
-                />
-              </div>
+              <SortGroupToolbar<ListItemSortBy, ListGroupBy>
+                density="comfortable"
+                sortBy={listSortBy}
+                groupBy={listGroupBy}
+                sortOptions={itemSortByOptions}
+                groupOptions={groupByOptions}
+                onSortChange={(v) => { setListSortBy(v); setActiveLoadedDefId(null) }}
+                onGroupChange={(v) => { setListGroupBy(v); setActiveLoadedDefId(null) }}
+              />
               <div className={styles.toolbarField}>
                 <span className={styles.toolbarLabel}>Max</span>
                 <input

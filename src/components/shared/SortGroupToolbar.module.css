@@ -1,0 +1,86 @@
+/* Comfortable density — used by ListView. The consumer wraps each
+ * field in a label so the toolbar itself just renders the two
+ * <IconSelect> triggers in its own row. */
+.comfortable {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Compact density — used by ProjectNode. The buttons render icon-only
+ * inside the project title bar; the consumer applies its own
+ * hover-reveal CSS via className. */
+.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.compactWrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.compactButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.compactButton:hover {
+  color: var(--color-text-secondary);
+}
+
+.compactMenu {
+  composes: menu from './dropdown.module.css';
+  right: 0;
+  z-index: var(--z-dropdown);
+  min-width: 130px;
+}
+
+.compactOption {
+  display: flex;
+  width: 100%;
+  padding: 5px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.compactOption:hover {
+  background: var(--color-surface-high);
+}
+
+.compactOptionActive {
+  color: var(--color-text-primary);
+}
+
+.compactOptionArrow {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-accent);
+}

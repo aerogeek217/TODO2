@@ -86,116 +86,16 @@
   opacity: 1;
 }
 
-.sortWrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.sortButton {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  padding: 2px 4px;
-  cursor: pointer;
+/* Hover-reveal for the shared SortGroupToolbar's compact density.
+ * The toolbar itself owns the buttons + menus; the consumer (this file)
+ * just fades the root in/out on titleBar hover. */
+.toolbar {
   opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
+  transition: opacity 0.15s;
 }
 
-.titleBar:hover .sortButton {
+.titleBar:hover .toolbar {
   opacity: 1;
-}
-
-.sortButton:hover {
-  color: var(--color-text-secondary);
-}
-
-.sortMenu {
-  composes: menu from '../shared/dropdown.module.css';
-  right: 0;
-  z-index: var(--z-dropdown);
-  min-width: 110px;
-}
-
-.sortOption {
-  display: flex;
-  width: 100%;
-  padding: 5px 10px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s;
-}
-
-.sortOption:hover {
-  background: var(--color-surface-high);
-}
-
-.sortOptionActive {
-  color: var(--color-text-primary);
-}
-
-.sortArrow {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--color-accent);
-}
-
-.groupWrapper {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.groupButton {
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 14px;
-  padding: 2px 4px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.titleBar:hover .groupButton {
-  opacity: 1;
-}
-
-.groupButton:hover {
-  color: var(--color-text-secondary);
-}
-
-.groupMenu {
-  composes: menu from '../shared/dropdown.module.css';
-  right: 0;
-  z-index: var(--z-dropdown);
-  min-width: 130px;
-}
-
-.groupOption {
-  display: flex;
-  width: 100%;
-  padding: 5px 10px;
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s;
-}
-
-.groupOption:hover {
-  background: var(--color-surface-high);
-}
-
-.groupOptionActive {
-  color: var(--color-text-primary);
 }
 
 .exportButton {

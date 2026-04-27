@@ -15,11 +15,27 @@ import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasConte
 import { copyTasksRich } from '../../services/task-copy'
 import { TASK_DROP_KIND, projectDropId } from '../../utils/task-dnd'
 import { GROUP_OPTIONS } from '../../utils/task-grouping'
+import { SortGroupToolbar, type SortGroupOption } from '../shared/SortGroupToolbar'
 import styles from './ProjectNode.module.css'
 
 export { GROUP_OPTIONS }
 
 type SortBy = 'name' | 'date' | 'created'
+
+const PROJECT_NULL_GROUP = 'none' as const
+type ProjectGroupKey = ProjectGroupBy | typeof PROJECT_NULL_GROUP
+
+const PROJECT_SORT_OPTIONS: readonly SortGroupOption<SortBy>[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'date', label: 'Effective Date' },
+  { value: 'created', label: 'Created' },
+]
+
+const PROJECT_GROUP_OPTIONS: readonly SortGroupOption<ProjectGroupKey>[] =
+  GROUP_OPTIONS.map((o) => ({
+    value: o.value ?? PROJECT_NULL_GROUP,
+    label: o.label,
+  }))
 
 export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: SortBy, asc: boolean, weekStartsOn: WeekStart): PersistedTodoItem[] {
   const today = startOfToday()
@@ -79,11 +95,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   const renameInputRef = useRef<HTMLInputElement>(null)
   const renameTimerRef = useRef<number | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; items: ContextMenuItem[] } | null>(null)
-  const [showSortMenu, setShowSortMenu] = useState(false)
   const [lastSort, setLastSort] = useState<{ by: SortBy; asc: boolean } | null>(null)
-  const sortMenuRef = useRef<HTMLDivElement>(null)
-  const [showGroupMenu, setShowGroupMenu] = useState(false)
-  const groupMenuRef = useRef<HTMLDivElement>(null)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
 
   // Clean up resize listeners and rename timer on unmount
@@ -93,7 +105,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   }, [])
 
   const handleSort = (sortBy: SortBy) => {
-    setShowSortMenu(false)
     if (!project.id) return
     // Toggle direction if same sort clicked again
     const asc = lastSort && lastSort.by === sortBy ? !lastSort.asc : true
@@ -103,42 +114,11 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
     useTodoStore.getState().applyMutations(mutations)
   }
 
-  // Close sort menu on outside click
-  useEffect(() => {
-    if (!showSortMenu) return
-    const handler = (e: MouseEvent) => {
-      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
-        setShowSortMenu(false)
-      }
-    }
-    document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
-  }, [showSortMenu])
-
-  const handleGroup = (groupBy: ProjectGroupBy | null) => {
-    setShowGroupMenu(false)
+  const handleGroup = (groupBy: ProjectGroupKey) => {
     if (!project.id) return
-    void useProjectStore.getState().updateProjectGrouping(project.id, groupBy)
+    const next = groupBy === PROJECT_NULL_GROUP ? null : groupBy
+    void useProjectStore.getState().updateProjectGrouping(project.id, next)
   }
-
-  // Close group menu on outside click + Esc
-  useEffect(() => {
-    if (!showGroupMenu) return
-    const onMouseDown = (e: MouseEvent) => {
-      if (groupMenuRef.current && !groupMenuRef.current.contains(e.target as Node)) {
-        setShowGroupMenu(false)
-      }
-    }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowGroupMenu(false)
-    }
-    document.addEventListener('mousedown', onMouseDown, true)
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown, true)
-      document.removeEventListener('keydown', onKeyDown, true)
-    }
-  }, [showGroupMenu])
 
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: projectDropId(project.id!),
@@ -250,53 +230,18 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
           <span className={styles.taskCount}>{todos.length}</span>
         )}
 
-        {todos.length > 1 && (
-          <div className={styles.sortWrapper} ref={sortMenuRef}>
-            <button
-              className={`${styles.sortButton} nopan nodrag`}
-              onClick={(e) => { e.stopPropagation(); setShowSortMenu(v => !v) }}
-              title="Sort tasks"
-            >
-              {lastSort ? (lastSort.asc ? '↑' : '↓') : '↕'}
-            </button>
-            {showSortMenu && (
-              <div className={styles.sortMenu}>
-                {([['name', 'Name'], ['date', 'Effective Date'], ['created', 'Created']] as const).map(([key, label]) => (
-                  <button key={key} className={`${styles.sortOption} ${lastSort?.by === key ? styles.sortOptionActive : ''}`} onClick={(e) => { e.stopPropagation(); handleSort(key) }}>
-                    {label}
-                    {lastSort?.by === key && <span className={styles.sortArrow}>{lastSort.asc ? '↑' : '↓'}</span>}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className={styles.groupWrapper} ref={groupMenuRef}>
-          <button
-            className={`${styles.groupButton} nopan nodrag`}
-            onClick={(e) => { e.stopPropagation(); setShowGroupMenu(v => !v) }}
-            title="Group tasks"
-          >
-            ⊟
-          </button>
-          {showGroupMenu && (
-            <div className={styles.groupMenu}>
-              {GROUP_OPTIONS.map(({ value, label }) => {
-                const active = (project.groupBy ?? null) === value
-                return (
-                  <button
-                    key={value ?? 'none'}
-                    className={`${styles.groupOption} ${active ? styles.groupOptionActive : ''}`}
-                    onClick={(e) => { e.stopPropagation(); handleGroup(value) }}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        <SortGroupToolbar<SortBy, ProjectGroupKey>
+          density="compact"
+          className={styles.toolbar}
+          showSort={todos.length > 1}
+          sortBy={lastSort?.by ?? 'name'}
+          sortAsc={lastSort?.asc}
+          groupBy={(project.groupBy ?? PROJECT_NULL_GROUP) as ProjectGroupKey}
+          sortOptions={PROJECT_SORT_OPTIONS}
+          groupOptions={PROJECT_GROUP_OPTIONS}
+          onSortChange={handleSort}
+          onGroupChange={handleGroup}
+        />
 
         <button
           className={`${styles.exportButton} nopan nodrag`}
