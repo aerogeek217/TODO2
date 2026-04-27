@@ -59,7 +59,6 @@ export function buildTaskRowMenuItems({
 
 interface UseTaskRowActionsOpts {
   todo: PersistedTodoItem
-  ghost?: boolean
   /** When true, "Delete" on this surface removes the todo from the Taskboard instead of deleting it. */
   onTaskboard?: boolean
 }
@@ -69,22 +68,26 @@ interface UseTaskRowActionsOpts {
  * vs multi-select through `useBulkActions` (which expands to the current
  * selection when relevant); on a Taskboard surface, delete becomes
  * `removeEntry` instead of a destructive delete confirmation.
+ *
+ * Ghost rows (filtered-out tasks still rendered for context) are NOT gated
+ * here — same right-click menu / same actions as a non-ghost row, per the
+ * triage-2026-04-27-batch2 P1 decision. A ghosted task is still a real task
+ * the user can complete or delete.
  */
-export function useTaskRowActions({ todo, ghost, onTaskboard }: UseTaskRowActionsOpts) {
+export function useTaskRowActions({ todo, onTaskboard }: UseTaskRowActionsOpts) {
   const bulk = useBulkActions()
 
   const handleToggleComplete = useCallback(() => {
-    if (!ghost) bulk.toggleComplete(todo.id)
-  }, [ghost, bulk, todo.id])
+    bulk.toggleComplete(todo.id)
+  }, [bulk, todo.id])
 
   const handleDelete = useCallback(() => {
-    if (ghost) return
     if (onTaskboard) {
       void useTaskboardStore.getState().removeEntry(todo.id)
       return
     }
     bulk.remove(todo.id)
-  }, [ghost, bulk, todo.id, onTaskboard])
+  }, [bulk, todo.id, onTaskboard])
 
   return { bulk, handleToggleComplete, handleDelete }
 }

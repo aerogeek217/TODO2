@@ -45,6 +45,12 @@
   opacity: 0.35;
 }
 
+/* Ghost: filtered out by an active filter on this surface. Chips are removed
+ * by the surface; this rule dims the row so it reads as "still present". */
+.row[data-ghosted] {
+  opacity: 0.45;
+}
+
 /* Line 1: primary row */
 .primaryRow {
   display: flex;

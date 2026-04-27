@@ -222,14 +222,29 @@ describe('MobileTaskRow', () => {
   })
 
   // ── Ghost mode ────────────────────────────────────────────────────
+  //
+  // Ghost rows used to be inert (checkbox / right-click no-op'd). Per the
+  // triage-2026-04-27-batch2 P1 decision, a ghosted task is still a real
+  // task — same checkbox + same context menu as a non-ghost row. Visual
+  // dim is the only signal that the task is filtered out (data-ghosted
+  // attribute drives the CSS rule).
 
   describe('ghost mode', () => {
-    it('does not call toggleComplete', () => {
+    it('marks the row with data-ghosted', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle complete' }))
-      expect(mockToggleComplete).not.toHaveBeenCalled()
+      expect(getRow().getAttribute('data-ghosted')).toBe('')
     })
 
+    it('does not mark a non-ghost row with data-ghosted', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
+      expect(getRow().getAttribute('data-ghosted')).toBeNull()
+    })
+
+    it('checkbox toggles complete (ghost is interactive)', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1 })} ghost />)
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Toggle complete' }))
+      expect(mockToggleComplete).toHaveBeenCalledWith(1)
+    })
   })
 
   // ── Phase 6 parity ────────────────────────────────────────────────
@@ -296,12 +311,15 @@ describe('MobileTaskRow', () => {
       expect(mockRemove).toHaveBeenCalledWith(7)
     })
 
-    it('does not open the context menu in ghost mode', () => {
+    it('opens the same context menu in ghost mode (parity with non-ghost rows)', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} ghost />)
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      expect(screen.queryByRole('menuitem', { name: 'Mark complete' })).toBeNull()
+      expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 
     afterEach(() => {

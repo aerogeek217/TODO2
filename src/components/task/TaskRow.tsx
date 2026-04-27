@@ -80,7 +80,7 @@ export const TaskRow = memo(function TaskRow({
 
 
   // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
-  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo, ghost, onTaskboard })
+  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo, onTaskboard })
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
@@ -135,6 +135,7 @@ export const TaskRow = memo(function TaskRow({
     <div
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${cut ? styles.cut : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
       data-todo-id={todo.id}
+      data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       onMouseEnter={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(todo.id)}
       onMouseLeave={ghost ? undefined : () => useUIStore.getState().setHoveredTodoId(null)}
@@ -145,14 +146,11 @@ export const TaskRow = memo(function TaskRow({
         if (!edit.isEditing) onOpenDetail?.(todo.id)
       }}
       onContextMenu={(e) => {
-        if (ghost) return
         e.preventDefault()
         e.stopPropagation()
-        {
-          const tb = useTaskboardStore.getState()
-          const onBoard = tb.has(todo.id)
-          setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
-        }
+        const tb = useTaskboardStore.getState()
+        const onBoard = tb.has(todo.id)
+        setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
       }}
     >
 
@@ -255,10 +253,26 @@ export const TaskRow = memo(function TaskRow({
         </span>
       )}
 
+      {/* Empty-state `@` trigger when no people/orgs — rendered BEFORE the
+          pill bar so it occupies the people-chip slot and lines up with the
+          avatar group when populated. The row-hover reveal lives in this
+          surface's CSS, hence the surface-owned button rather than a pill-bar
+          variant. */}
+      {!ghost && !hasPeople && (
+        <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
+          <button
+            className={styles.chipTrigger}
+            onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
+          >
+            @
+          </button>
+        </div>
+      )}
+
       {/* Pill bar — people/orgs (when populated), date stack (when populated),
-          status. Empty-state triggers (`@` button, calendar button) are
-          rendered separately below so the row hover-reveal styling stays in
-          this surface's CSS. */}
+          status. Empty-state triggers (`@` button above, calendar button
+          below) live outside the bar so each surface's hover-reveal CSS can
+          target them directly. */}
       {!ghost && (
         <TaskPillBar
           todo={todo}
@@ -289,19 +303,6 @@ export const TaskRow = memo(function TaskRow({
           onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
           onStatusClick={(e) => { e.stopPropagation(); setShowStatusMenu(v => !v) }}
         />
-      )}
-
-      {/* Empty-state @ trigger when no people/orgs — surface-owned because the
-          row-hover reveal lives in TaskRow.module.css. */}
-      {!ghost && !hasPeople && (
-        <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
-          <button
-            className={styles.chipTrigger}
-            onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
-          >
-            @
-          </button>
-        </div>
       )}
 
       {/* Hidden date input for the inline deadline picker. Anchored next to

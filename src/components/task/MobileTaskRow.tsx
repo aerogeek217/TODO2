@@ -60,7 +60,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
 
-  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo, ghost })
+  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo })
 
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   const [showScheduledMenu, setShowScheduledMenu] = useState(false)
@@ -83,12 +83,11 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   }, [onSelect, todo.id])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (ghost) return
     e.preventDefault()
     e.stopPropagation()
     const onBoard = useTaskboardStore.getState().has(todo.id)
     setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
-  }, [ghost, todo.id])
+  }, [todo.id])
 
   const openDeadlinePicker = useCallback(() => {
     setTimeout(() => {
@@ -140,6 +139,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     <div
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${cut ? styles.cut : ''} ${isSelected ? styles.selected : ''}`}
       data-todo-id={todo.id}
+      data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       role="button"
       tabIndex={0}

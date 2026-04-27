@@ -367,6 +367,60 @@ describe('TaskRow (unified scheduling)', () => {
     })
   })
 
+  describe('@ trigger placement (item 8)', () => {
+    // The empty-state @ button must render BEFORE the pill bar so it occupies
+    // the people-chip slot. When people are populated, the avatar group inside
+    // the pill bar takes that slot — same visual position either way.
+    it('renders @ trigger before the pill bar in DOM order when no people are assigned', () => {
+      const { container } = render(
+        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />,
+      )
+      const buttons = Array.from(container.querySelectorAll('button')) as HTMLElement[]
+      const atIdx = buttons.findIndex((b) => b.textContent?.trim() === '@')
+      const deadlineIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Edit deadline')
+      expect(atIdx).toBeGreaterThanOrEqual(0)
+      expect(deadlineIdx).toBeGreaterThanOrEqual(0)
+      expect(atIdx).toBeLessThan(deadlineIdx)
+    })
+  })
+
+  describe('ghost mode (items 7, 9, 10)', () => {
+    // Ghost rows used to be inert: right-click was suppressed entirely and the
+    // dim styling had regressed. Now the row carries data-ghosted (CSS dims it)
+    // and the same right-click menu opens as on non-ghost rows. The hook stops
+    // gating handlers, so menu actions actually run.
+    it('marks the row with data-ghosted', () => {
+      render(<TaskRow todo={makeTodo({ id: 1 })} ghost />)
+      expect(getRow().getAttribute('data-ghosted')).toBe('')
+    })
+
+    it('does not mark a non-ghost row with data-ghosted', () => {
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      expect(getRow().getAttribute('data-ghosted')).toBeNull()
+    })
+
+    it('opens the same context menu on right-click as a non-ghost row', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Foo' })} ghost onOpenDetail={vi.fn()} />)
+      act(() => {
+        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
+      })
+      expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
+    })
+
+    it('Mark complete on a ghost row routes through bulk.toggleComplete', () => {
+      render(<TaskRow todo={makeTodo({ id: 7, title: 'Foo' })} ghost />)
+      act(() => {
+        fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
+      })
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark complete' }))
+      expect(mockBulk.toggleComplete).toHaveBeenCalledWith(7)
+    })
+  })
+
   describe('hover-sync', () => {
     it('toggles data-hovered-synced when another surface sets hoveredTodoId', () => {
       render(<TaskRow todo={makeTodo({ id: 7 })} />)
