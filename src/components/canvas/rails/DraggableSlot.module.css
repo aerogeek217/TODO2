@@ -39,6 +39,36 @@
   user-select: none;
 }
 
+/*
+ * Outcome-keyed treatments. The base `.zoneIndicator` carries the accent
+ * defaults; per-kind classes override colors so the user can predict what
+ * release will do without reading the label:
+ *   .swap     — slot pill drag, center quadrant: two slots trade positions.
+ *   .insert   — slot pill drag, edge quadrant: source slot inserts adjacent.
+ *   .addTab   — float widget drag, center quadrant: widget merges as a new
+ *                tab in the existing slot. Distinct (followup yellow) palette
+ *                so the user doesn't read this as a Swap (triage-2026-04-27
+ *                item 5).
+ *   .newSlot  — float widget drag, edge quadrant: widget materialises as a
+ *                new slot adjacent to the target. Same outcome shape as
+ *                slot-drag insert but kept on a separate accent-dim tint to
+ *                signal "you're creating a new slot, not moving one".
+ */
+.zoneIndicator.swap,
+.zoneIndicator.insert {
+  /* default accent treatment from .zoneIndicator above */
+}
+
+.zoneIndicator.addTab {
+  background: color-mix(in oklab, var(--color-followup) 22%, transparent);
+  color: var(--color-followup);
+}
+
+.zoneIndicator.newSlot {
+  background: color-mix(in oklab, var(--color-accent-dim) 18%, transparent);
+  color: var(--color-accent-dim);
+}
+
 .zoneIndicator.center {
   inset: 22% 0;
 }

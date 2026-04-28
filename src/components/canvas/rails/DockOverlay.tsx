@@ -30,6 +30,13 @@ const CLAIM_LABEL: Record<RailSide, Record<EmptySideClaim, string>> = {
   right: { start: 'northeast', end: 'southeast' },
 }
 
+const CLAIM_GLYPH: Record<RailSide, Record<EmptySideClaim, string>> = {
+  top: { start: '◤', end: '◥' },
+  bottom: { start: '◣', end: '◢' },
+  left: { start: '◤', end: '◣' },
+  right: { start: '◥', end: '◢' },
+}
+
 function stripPart(side: RailSide, claim?: EmptySideClaim): string {
   // Maps an empty-side strip sub-zone to one of 12 CSS classes:
   //   {side}_{start|center|end}
@@ -68,9 +75,18 @@ function SubZone({ side, claim }: { side: RailSide; claim?: EmptySideClaim }) {
   const label = claim
     ? `Dock to ${SIDE_LABEL[side]} rail, claim ${CLAIM_LABEL[side][claim]} corner`
     : `Dock to ${SIDE_LABEL[side]} rail`
-  const classes = [styles.zone, styles[stripPart(side, claim)]]
+  const outcome: 'newSlot' | 'cornerClaim' = claim ? 'cornerClaim' : 'newSlot'
+  const classes = [styles.zone, styles[stripPart(side, claim)], styles[outcome]]
   if (claim) classes.push(styles.corner)
   if (hoverActive) classes.push(styles.over)
+  // Visible labels per outcome — the distinction matters mid-drag because
+  // releasing into a claim-corner sub-zone vs. a new-slot sub-zone produces
+  // different rail geometry. No label was previously shown for corner claims;
+  // adding one closes triage-2026-04-27 item 5's "distinct corner vs new-slot
+  // visual" requirement.
+  const visibleLabel = claim
+    ? `Claim ${CLAIM_LABEL[side][claim]}`
+    : `New slot ${side}`
   return (
     <div
       ref={(el) => {
@@ -81,8 +97,16 @@ function SubZone({ side, claim }: { side: RailSide; claim?: EmptySideClaim }) {
       role="button"
       aria-label={label}
       data-rails-drop-id={id}
+      data-outcome={outcome}
     >
-      {!claim && <span className={styles.label}>Dock {side}</span>}
+      {claim ? (
+        <span className={`${styles.label} ${styles.cornerLabel}`}>
+          <span className={styles.cornerGlyph} aria-hidden="true">{CLAIM_GLYPH[side][claim]}</span>
+          {visibleLabel}
+        </span>
+      ) : (
+        <span className={styles.label}>{visibleLabel}</span>
+      )}
     </div>
   )
 }

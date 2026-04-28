@@ -39,10 +39,29 @@
   box-sizing: border-box;
 }
 
+/*
+ * Outcome-keyed treatments. `.newSlot` is the default (the strip's center
+ * sub-zone — drops here create a new slot in this rail). `.cornerClaim`
+ * applies to the corner sub-zones — distinct palette + dotted border so the
+ * user can tell mid-drag they're about to claim a corner cell instead of
+ * docking into the center band. triage-2026-04-27 item 5: distinct visual
+ * for corner-claim vs new-slot.
+ */
+.zone.newSlot {
+  /* default accent treatment from .zone above */
+}
+
+.zone.cornerClaim {
+  border-style: dotted;
+  border-color: color-mix(in oklab, var(--color-accent-dim) 55%, transparent);
+  background: color-mix(in oklab, var(--color-accent-dim) 5%, transparent);
+  color: color-mix(in oklab, var(--color-accent-dim) 75%, var(--color-text-muted));
+}
+
 /* Corner sub-zones get a slightly dashed accent to cue the "claim this corner" affordance. */
 .corner {
-  border-style: dashed;
-  background: color-mix(in oklab, var(--color-accent) 4%, transparent);
+  border-style: dotted;
+  background: color-mix(in oklab, var(--color-accent-dim) 5%, transparent);
 }
 
 /*
@@ -119,10 +138,41 @@
   color: var(--color-text-primary);
 }
 
+/*
+ * Hover state for corner-claim — keeps the accent-dim palette so the colour
+ * delta vs. a new-slot hover stays legible mid-drag (otherwise both go to
+ * full accent and the corner-claim affordance loses its distinctness).
+ */
+.zone.cornerClaim.over {
+  border-style: solid;
+  border-color: var(--color-accent-dim);
+  background: color-mix(in oklab, var(--color-accent-dim) 22%, transparent);
+  color: var(--color-text-primary);
+}
+
 .label {
   text-transform: capitalize;
   letter-spacing: 0.5px;
   font-weight: var(--font-weight-semibold);
   user-select: none;
   pointer-events: none;
+}
+
+.cornerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-meta);
+  text-transform: none;
+  letter-spacing: 0.3px;
+}
+
+.cornerGlyph {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-accent-dim);
+}
+
+.zone.cornerClaim.over .cornerGlyph {
+  color: var(--color-accent);
 }
