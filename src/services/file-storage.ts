@@ -153,6 +153,11 @@ class FileStorageService {
   private async loadFromFile(): Promise<void> {
     if (!this.handle) return
 
+    // True iff the on-disk file lacked `__schemaVersion` (or carried an older
+    // one) and the user confirmed the import. In that case we re-save below to
+    // stamp the marker, so the next `loadFromFile` (which fires every startup
+    // for connected file-storage) doesn't ask the same question again.
+    let needsRestamp = false
     this.suppressSync = true
     try {
       const file = await this.handle.getFile()
@@ -200,6 +205,7 @@ class FileStorageService {
           await this.disconnect()
           return
         }
+        needsRestamp = true
       }
 
       await backupScheduler.snapshotBeforeDestructive().catch((err) => {
@@ -226,6 +232,13 @@ class FileStorageService {
       this.notify()
     } finally {
       this.suppressSync = false
+    }
+
+    if (needsRestamp && this.handle) {
+      // saveToFile early-returns when suppressSync is true, so this must run
+      // outside the try/finally above (which holds suppressSync). buildExportData
+      // will write `__schemaVersion: CURRENT_DB_VERSION` into the file.
+      await this.saveToFile()
     }
   }
 

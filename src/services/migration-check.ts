@@ -58,11 +58,19 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
     }
   }
 
-  // Heuristic fallback for files that pre-date the `__schemaVersion` marker:
-  // sniff for the field shapes that existed in v20–v22 and got rewritten in
-  // v20→v23. We can't tell apart v23..v(current-1) without the marker; the
-  // restore pipeline transforms those rows in place either way, so this prompt
-  // is only a courtesy when we know we're touching pre-v23 data.
+  // Marker-less file: this build's exports have always carried
+  // `__schemaVersion` since the migration-check rewrite, so a missing marker
+  // means the file was written by an older build. We can't tell which version
+  // — could be anywhere from v16 to v(current-1) — and we can't tell whether
+  // restore.ts will rewrite anything in place. Prompt anyway, on the principle
+  // that the user explicitly asked for confirmation before any cross-version
+  // import, and "an earlier format" is a truthful description.
+  //
+  // The heuristic sweep below enriches `descriptions[]` with specific signals
+  // for pre-v23 shapes (`isStarred`/`isAssigned`/`priority`/`isHardDeadline`/
+  // legacy `preset`s); for marker-less files in the v23..v(current-1) gap,
+  // descriptions ends up empty and the dialog falls back to its generic
+  // "earlier format" wording.
   const todos = Array.isArray(r.todos) ? r.todos : []
   const listInsets = Array.isArray(r.listInsets) ? r.listInsets : []
 
@@ -105,10 +113,6 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
       legacyInsetCount++
     }
   }
-
-  const totalLegacy = starredCount + assignedCount + starredInsetCount
-    + priorityTaskCount + hardDeadlineCount + priorityInsetCount + legacyInsetCount
-  if (totalLegacy === 0) return null
 
   const descriptions: string[] = []
   if (starredCount > 0) descriptions.push(`${starredCount} starred task(s) will be converted to "Follow-up" status`)

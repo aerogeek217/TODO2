@@ -133,11 +133,27 @@ describe('detectLegacyFormat', () => {
     expect(result!.descriptions).toEqual([])
   })
 
-  it('returns null for marker-less files with no recognised legacy fields', () => {
-    expect(detectLegacyFormat({ todos: [{ title: 'Task' }], listInsets: [] })).toBeNull()
+  // Marker-less files always trigger the prompt — we can't tell which version
+  // they came from (anywhere v16..v(current-1)) and won't know whether
+  // restore.ts will rewrite anything in place. Erring on the side of "ask" is
+  // what the user explicitly requested for any cross-version data import.
+  it('flags marker-less files even with no recognised legacy fields', () => {
+    const result = detectLegacyFormat({ todos: [{ title: 'Task' }], listInsets: [] })
+    expect(result).not.toBeNull()
+    expect(result!.sourceVersion).toBeNull()
+    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+    expect(result!.descriptions).toEqual([])
   })
 
-  it('falls back to heuristic detection when __schemaVersion is missing', () => {
+  it('flags marker-less files when legacy booleans are all false', () => {
+    const result = detectLegacyFormat({
+      todos: [{ isStarred: false, isAssigned: false }],
+    })
+    expect(result).not.toBeNull()
+    expect(result!.sourceVersion).toBeNull()
+  })
+
+  it('enriches descriptions[] with heuristic signals when present', () => {
     const result = detectLegacyFormat({
       todos: [
         { title: 'A', isStarred: true },
@@ -175,11 +191,5 @@ describe('detectLegacyFormat', () => {
       listInsets: [{ preset: 'starred' }],
     })
     expect(result!.descriptions).toHaveLength(3)
-  })
-
-  it('returns null when legacy booleans are all false', () => {
-    expect(detectLegacyFormat({
-      todos: [{ isStarred: false, isAssigned: false }],
-    })).toBeNull()
   })
 })
