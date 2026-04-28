@@ -10,19 +10,6 @@ import { useTagStore } from '../../../../stores/tag-store'
 import { emptyPredicate } from '../../../../stores/list-definition-store'
 import { makePerson, makeOrg, makeProject } from '../../../helpers'
 
-const wideRect = (): DOMRect =>
-  ({
-    x: 0,
-    y: 0,
-    top: 0,
-    left: 0,
-    right: 9999,
-    bottom: 0,
-    width: 9999,
-    height: 0,
-    toJSON: () => ({}),
-  }) as DOMRect
-
 function seedStores() {
   usePersonStore.setState({
     people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
@@ -155,28 +142,10 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.getByText('Scheduled')).toBeInTheDocument()
     })
 
-    it('flips the Project panel to data-align="end" when right-edge would overflow', () => {
-      const orig = Element.prototype.getBoundingClientRect
-      Element.prototype.getBoundingClientRect = wideRect
-      try {
-        const { container } = render(
-          <FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />,
-        )
-        fireEvent.click(screen.getByRole('button', { name: /Project/i }))
-        expect(container.querySelector('[data-align="end"]')).not.toBeNull()
-      } finally {
-        Element.prototype.getBoundingClientRect = orig
-      }
-    })
-
-    it('keeps panel left-anchored when right-edge has room (default JSDOM rect)', () => {
-      const { container } = render(
-        <FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />,
-      )
-      fireEvent.click(screen.getByRole('button', { name: /Project/i }))
-      expect(container.querySelector('[data-align="end"]')).toBeNull()
-    })
-
+    // Flip / clamp behavior is owned by `usePopoverAnchor` and verified in
+    // real-browser e2e (see e2e/list-editor-dropdowns.spec.ts) — JSDOM's
+    // synthetic getBoundingClientRect can't drive the hook's measurement
+    // pass meaningfully (per ARCHITECTURE.md / Testing).
     it('renders the Clear button only when the predicate has at least one active filter', () => {
       const { rerender } = render(
         <FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />,

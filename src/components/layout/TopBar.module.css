@@ -267,26 +267,23 @@
   position: relative;
 }
 
+/* Position (`position: fixed`, `left`, `top`) is written inline by
+ * `usePopoverAnchor` after the panel is portaled to `document.body`. The
+ * z-index sits at --z-dialog-nested so the menu lands above any dialog the
+ * chip bar is mounted inside (e.g. ListEditorBody → ListEditorDialog at
+ * --z-dialog-overlay). Routing through `usePopoverAnchor + createPortal`
+ * also gets us the Y-axis flip the prior `useRightEdgeFlip` lacked, so
+ * panels near the dialog's bottom flip up instead of clipping inside the
+ * body's `overflow: auto`. */
 .dropdownPanel {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
   min-width: 180px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-float);
-  z-index: var(--z-overlay);
+  z-index: var(--z-dialog-nested);
   padding: 4px;
   animation: dropIn 0.1s ease-out;
-}
-
-/* Anchor the panel's right edge to the chip wrapper's right edge instead
- * of the left — used when the default left-anchored panel would overflow
- * a bounded scroll container (e.g. the lists editor modal). */
-.dropdownPanel[data-align="end"] {
-  left: auto;
-  right: 0;
 }
 
 @keyframes dropIn {

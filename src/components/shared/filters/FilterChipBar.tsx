@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   DateAnchor,
   OrgFilterMode,
@@ -6,7 +7,7 @@ import type {
   TodoPredicate,
 } from '../../../models'
 import type { DateField } from '../../../models/app-view'
-import { useRightEdgeFlip } from '../../../hooks/use-right-edge-flip'
+import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { fixedAnchor } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useOrgStore } from '../../../stores/org-store'
@@ -27,13 +28,6 @@ interface FilterChipBarProps {
   predicate: TodoPredicate
   onChange: (next: TodoPredicate) => void
   density?: FilterChipDensity
-  /**
-   * Right-edge flip is on by default at desktop density. Pass `false` to keep
-   * dropdowns left-anchored even when the trigger sits near the viewport's
-   * right edge — currently unused but kept for callers that bound the chip bar
-   * inside a container with controlled overflow.
-   */
-  enableRightEdgeFlip?: boolean
   /**
    * If `true` and an active filter is in effect, the Clear-all button is
    * rendered. Default `true`. Mobile callers may set `onClearExtra` to do
@@ -109,7 +103,6 @@ interface FilterDropdownProps {
   onOpen?: () => void
   onClose?: () => void
   searchable?: boolean
-  enableRightEdgeFlip: boolean
   children: React.ReactNode | ((searchText: string) => React.ReactNode)
 }
 
@@ -123,38 +116,40 @@ function FilterDropdown({
   onOpen,
   onClose,
   searchable,
-  enableRightEdgeFlip,
   children,
 }: FilterDropdownProps) {
   const [open, setOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
-  const { panelRef, align } = useRightEdgeFlip<HTMLDivElement>(enableRightEdgeFlip && open)
+
+  const handleClose = useCallback(() => {
+    setOpen(false)
+    setSearchText('')
+    onClose?.()
+  }, [onClose])
+
+  // Portal + flip + clamp: when this chip-row sits inside the list editor
+  // modal (via ListFilterEditor), the dialog body's `overflow: auto` used to
+  // clip the panel and force the user to scroll inside the modal. Routing
+  // through usePopoverAnchor + createPortal mirrors the IconSelect fix
+  // (triage-2026-04-27 batch2 P3 / item 3) for the rest of the editor's
+  // dropdowns. usePopoverAnchor also subsumes the prior `useRightEdgeFlip`
+  // X-axis flip and adds a Y-axis flip when there's no room below.
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: triggerRef },
+    open,
+    onClose: handleClose,
+  })
 
   const handleToggle = useCallback(() => {
     if (open) {
-      setOpen(false)
-      setSearchText('')
-      onClose?.()
+      handleClose()
     } else {
       setOpen(true)
       onOpen?.()
     }
-  }, [open, onOpen, onClose])
-
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-        setSearchText('')
-        onClose?.()
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open, onClose])
+  }, [open, onOpen, handleClose])
 
   useEffect(() => {
     if (open && searchable) requestAnimationFrame(() => searchRef.current?.focus())
@@ -163,8 +158,9 @@ function FilterDropdown({
   const rendered = typeof children === 'function' ? children(searchText) : children
 
   return (
-    <div className={topBar.dropdownWrapper} ref={ref}>
+    <div className={topBar.dropdownWrapper}>
       <button
+        ref={triggerRef}
         type="button"
         className={`${topBar.filterChip} ${active ? topBar.filterChipActive : ''}`}
         onClick={handleToggle}
@@ -173,11 +169,11 @@ function FilterDropdown({
         {label}
         <span className={`${topBar.chevron} ${open ? topBar.chevronOpen : ''}`}>&#9662;</span>
       </button>
-      {open && (
+      {open && createPortal(
         <div
           ref={panelRef}
           className={topBar.dropdownPanel}
-          data-align={align === 'end' ? 'end' : undefined}
+          style={{ position: style.position, left: style.left, top: style.top }}
         >
           <div className={topBar.dropdownActions}>
             <button
@@ -209,18 +205,15 @@ function FilterDropdown({
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     if (searchText) setSearchText('')
-                    else {
-                      setOpen(false)
-                      setSearchText('')
-                      onClose?.()
-                    }
+                    else handleClose()
                   }
                 }}
               />
             </div>
           )}
           <div className={searchable ? topBar.dropdownItemsScrollable : undefined}>{rendered}</div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
@@ -314,7 +307,6 @@ interface DateRangeDropdownProps {
   onChangeIncludeNoDate: (include: boolean) => void
   onChangeHasScheduled: (v: boolean | null) => void
   onChangeHasDeadline: (v: boolean | null) => void
-  enableRightEdgeFlip: boolean
 }
 
 function DateRangeDropdown({
@@ -330,20 +322,17 @@ function DateRangeDropdown({
   onChangeIncludeNoDate,
   onChangeHasScheduled,
   onChangeHasDeadline,
-  enableRightEdgeFlip,
 }: DateRangeDropdownProps) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const { panelRef, align } = useRightEdgeFlip<HTMLDivElement>(enableRightEdgeFlip && open)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
-  useEffect(() => {
-    if (!open) return
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
+  const handleClose = useCallback(() => setOpen(false), [])
+
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: triggerRef },
+    open,
+    onClose: handleClose,
+  })
 
   // Open is non-committal: the dropdown shows blank inputs when no filter is
   // active, so closing without typing leaves the predicate untouched. Earlier
@@ -352,8 +341,9 @@ function DateRangeDropdown({
   const handleOpen = () => setOpen(!open)
 
   return (
-    <div className={topBar.dropdownWrapper} ref={ref}>
+    <div className={topBar.dropdownWrapper}>
       <button
+        ref={triggerRef}
         type="button"
         className={`${topBar.filterChip} ${active ? topBar.filterChipActive : ''}`}
         onClick={handleOpen}
@@ -378,11 +368,11 @@ function DateRangeDropdown({
         {' '}Date
         <span className={`${topBar.chevron} ${open ? topBar.chevronOpen : ''}`}>&#9662;</span>
       </button>
-      {open && (
+      {open && createPortal(
         <div
           ref={panelRef}
           className={topBar.dropdownPanel}
-          data-align={align === 'end' ? 'end' : undefined}
+          style={{ position: style.position, left: style.left, top: style.top }}
         >
           <div className={topBar.dateFieldSelector}>
             {(['date', 'scheduled', 'deadline', 'created', 'modified'] as const).map((field) => (
@@ -452,7 +442,8 @@ function DateRangeDropdown({
               Clear
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
@@ -566,7 +557,6 @@ export function FilterChipBar({
   predicate: rawPredicate,
   onChange,
   density = 'desktop',
-  enableRightEdgeFlip = true,
   showClearAll = true,
   onClearExtra,
   onClearAll,
@@ -1045,7 +1035,6 @@ export function FilterChipBar({
             if (previewEmpty === 'project') setPreviewEmpty(null)
           }}
           searchable
-          enableRightEdgeFlip={enableRightEdgeFlip}
         >
           {(searchText: string) => (
             <EntityDropdownItems
@@ -1083,7 +1072,6 @@ export function FilterChipBar({
             if (previewEmpty === 'people') setPreviewEmpty(null)
           }}
           searchable
-          enableRightEdgeFlip={enableRightEdgeFlip}
         >
           {(searchText: string) => (
             <>
@@ -1142,7 +1130,6 @@ export function FilterChipBar({
             if (previewEmpty === 'org') setPreviewEmpty(null)
           }}
           searchable
-          enableRightEdgeFlip={enableRightEdgeFlip}
         >
           {(searchText: string) => (
             <>
@@ -1199,7 +1186,6 @@ export function FilterChipBar({
             if (previewEmpty === 'tags') setPreviewEmpty(null)
           }}
           searchable
-          enableRightEdgeFlip={enableRightEdgeFlip}
         >
           {(searchText: string) => {
             const q = searchText.toLowerCase()
@@ -1247,7 +1233,6 @@ export function FilterChipBar({
         onChangeIncludeNoDate={(dateRangeIncludeNoDate) => update({ dateRangeIncludeNoDate })}
         onChangeHasScheduled={(hasScheduled) => update({ hasScheduled })}
         onChangeHasDeadline={(hasDeadline) => update({ hasDeadline })}
-        enableRightEdgeFlip={enableRightEdgeFlip}
       />
 
       {statuses.length > 0 && (
@@ -1275,7 +1260,6 @@ export function FilterChipBar({
             if (previewEmpty === 'status') setPreviewEmpty(null)
           }}
           searchable
-          enableRightEdgeFlip={enableRightEdgeFlip}
         >
           {(searchText: string) => (
             <EntityDropdownItems
