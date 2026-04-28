@@ -39,7 +39,7 @@ function FloatingStatusNodeInner({ data }: NodeProps & { data: FloatingStatusNod
         width={width}
         height={height}
         minW={280}
-        minH={160}
+        minH={240}
         className={`${styles.resizeHandle} nopan nodrag`}
         bodySelector={`.${styles.status}`}
         onResize={(w, h) => { if (status.id != null) onResize?.(status.id, w, h) }}
