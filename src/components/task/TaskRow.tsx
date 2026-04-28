@@ -18,7 +18,7 @@ import { resolveScheduled, daysUntil, dateIntensity } from '../../utils/effectiv
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
-import { TaskPillBar } from '../shared/TaskPillBar'
+import { TaskPillPeople, TaskPillDates, TaskPillStatus } from '../shared/TaskPillBar'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { DragHandle } from '../shared/DragHandle'
 import { PortalDropdown } from '../shared/PortalDropdown'
@@ -268,40 +268,30 @@ export const TaskRow = memo(function TaskRow({
         </span>
       )}
 
-      {/* Empty-state `@` trigger when no people/orgs — rendered BEFORE the
-          pill bar so it occupies the people-chip slot and lines up with the
-          avatar group when populated. The row-hover reveal lives in this
-          surface's CSS, hence the surface-owned button rather than a pill-bar
-          variant. */}
-      {!ghost && !hasPeople && (
-        <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
-          <button
-            className={styles.chipTrigger}
-            onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
-          >
-            @
-          </button>
-        </div>
+      {/* Slots are interleaved per-chip (populated vs empty-state) instead of
+          composing the full `<TaskPillBar>`, so each chip stays in a fixed
+          JSX position regardless of which sibling is populated. Order is
+          `# tags → @ people → date → status` for both populated and empty
+          variants. */}
+
+      {/* Slot 1 — tags. Populated chips render; empty `#` trigger is
+          hover-revealed via the `[class*="tagChipEmpty"]` rule. */}
+      {!ghost && (
+        <TagChipSelector
+          assignedTags={assignedTags}
+          allTags={allTags}
+          onToggle={toggleTag}
+          onCreate={handleCreateTag}
+        />
       )}
 
-      {/* Pill bar — people/orgs (when populated), date stack (when populated),
-          status. Empty-state triggers (`@` button above, calendar button
-          below) live outside the bar so each surface's hover-reveal CSS can
-          target them directly. */}
-      {!ghost && (
-        <TaskPillBar
-          todo={todo}
+      {/* Slot 2 — people/orgs. Populated avatars or hover-revealed `@`
+          trigger; either way `peopleRef` anchors the popover. */}
+      {!ghost && (hasPeople ? (
+        <TaskPillPeople
           people={assignedPeople ?? []}
           orgs={assignedOrgs}
-          status={status}
-          today={today}
-          weekStartsOn={weekStartsOn}
-          dateLayout="stack"
-          scheduledIntensity={scheduledIntensity}
-          deadlineIntensity={deadlineIntensity}
-          peopleAnchorRef={peopleRef}
-          scheduledAnchorRef={scheduledAnchorRef}
-          statusAnchorRef={statusRef}
+          anchorRef={peopleRef}
           onPeopleClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
           onPersonContextMenu={(e, person) => {
             e.preventDefault()
@@ -313,40 +303,45 @@ export const TaskRow = memo(function TaskRow({
             e.stopPropagation()
             useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'org', orgId: org.id!, orgName: org.name, orgColor: org.color })
           }}
-          onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-          onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-          onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
-          onStatusClick={(e) => { e.stopPropagation(); setShowStatusMenu(v => !v) }}
         />
-      )}
+      ) : (
+        <div className={`${styles.chipGroup} ${styles.chipGroupEmpty}`} ref={peopleRef}>
+          <button
+            className={styles.chipTrigger}
+            onClick={(e) => { e.stopPropagation(); setOpenDropdown(openDropdown === 'people' ? null : 'people') }}
+          >
+            @
+          </button>
+        </div>
+      ))}
 
-      {/* Inline tag chips — populated chips render always, empty `#` trigger
-          is hover-revealed via the `[class*="tagChipEmpty"]` rule below. */}
-      {!ghost && (
-        <TagChipSelector
-          assignedTags={assignedTags}
-          allTags={allTags}
-          onToggle={toggleTag}
-          onCreate={handleCreateTag}
-        />
-      )}
-
-      {/* Hidden date input for the inline deadline picker. Anchored next to
-          the deadline chip when populated, or under the empty-state calendar
-          button when neither date is set. */}
-      {!ghost && (todo.scheduledDate || todo.dueDate) && (
-        <input
-          ref={deadlineInputRef}
-          type="date"
-          className={styles.hiddenDateInput}
-          value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
-          onChange={handleDeadlineInputChange}
-        />
-      )}
-
-      {/* Empty-state date slot — same width as the populated date stack so
-          people/org avatars + status stay vertically aligned across rows. */}
-      {!todo.scheduledDate && !todo.dueDate && !ghost && (
+      {/* Slot 3 — dates. Populated stack or empty calendar button.
+          `dateStackEmpty` reserves the same width so status doesn't shift
+          horizontally between rows. The hidden native `<input type="date">`
+          lives inside this slot in both cases (single `deadlineInputRef`). */}
+      {!ghost && (todo.scheduledDate || todo.dueDate ? (
+        <>
+          <TaskPillDates
+            todo={todo}
+            today={today}
+            weekStartsOn={weekStartsOn}
+            layout="stack"
+            scheduledIntensity={scheduledIntensity}
+            deadlineIntensity={deadlineIntensity}
+            scheduledAnchorRef={scheduledAnchorRef}
+            onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
+            onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+            onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
+          />
+          <input
+            ref={deadlineInputRef}
+            type="date"
+            className={styles.hiddenDateInput}
+            value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
+            onChange={handleDeadlineInputChange}
+          />
+        </>
+      ) : (
         <div className={styles.dateStackEmpty}>
           <input
             ref={deadlineInputRef}
@@ -365,6 +360,16 @@ export const TaskRow = memo(function TaskRow({
             <StatusIcon icon="calendar" />
           </button>
         </div>
+      ))}
+
+      {/* Slot 4 — status. Always rendered; empty dot is hover-revealed via
+          the `[class*="statusDotEmpty"]` rule. */}
+      {!ghost && (
+        <TaskPillStatus
+          status={status}
+          anchorRef={statusRef}
+          onStatusClick={(e) => { e.stopPropagation(); setShowStatusMenu(v => !v) }}
+        />
       )}
 
       {/* Portaled people/org chip selector — anchored to peopleRef. */}

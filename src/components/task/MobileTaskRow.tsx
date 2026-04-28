@@ -217,6 +217,18 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             onChange={handleDeadlineInputChange}
           />
 
+          {/* Inline tag chips — populated chips render always; empty `#`
+              trigger is always visible on mobile (no hover state). Rendered
+              first so the metaRow reads `# @ date` (status sits on line 1). */}
+          {!ghost && (
+            <TagChipSelector
+              assignedTags={assignedTags}
+              allTags={allTags}
+              onToggle={toggleTag}
+              onCreate={handleCreateTag}
+            />
+          )}
+
           {/* Shared pill bar — scheduled / deadline / people / orgs. Status
               lives on line 1 (primaryRow), so showStatus={false}. */}
           <TaskPillBar
@@ -235,17 +247,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
             onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
           />
-
-          {/* Inline tag chips — populated chips render always; empty `#`
-              trigger is always visible on mobile (no hover state). */}
-          {!ghost && (
-            <TagChipSelector
-              assignedTags={assignedTags}
-              allTags={allTags}
-              onToggle={toggleTag}
-              onCreate={handleCreateTag}
-            />
-          )}
 
           {todo.progress && (
             <span className={styles.progressChip}>
@@ -291,7 +292,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       )}
 
       {/* Empty-state date slot — exposes a tap target so users can schedule
-         or tag a previously-unset todo without opening the detail popup. */}
+         or tag a previously-unset todo without opening the detail popup.
+         Order matches the populated metaRow: `# @ date`. */}
       {!hasMetadata && !ghost && (
         <div className={styles.metaRow}>
           <input
@@ -300,6 +302,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             className={styles.hiddenDateInput}
             value=""
             onChange={handleDeadlineInputChange}
+          />
+          <TagChipSelector
+            assignedTags={assignedTags}
+            allTags={allTags}
+            onToggle={toggleTag}
+            onCreate={handleCreateTag}
           />
           <button
             ref={scheduledAnchorRef}
@@ -310,12 +318,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           >
             <StatusIcon icon="calendar" />
           </button>
-          <TagChipSelector
-            assignedTags={assignedTags}
-            allTags={allTags}
-            onToggle={toggleTag}
-            onCreate={handleCreateTag}
-          />
         </div>
       )}
 
