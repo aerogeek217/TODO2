@@ -9,6 +9,10 @@ function dateInput(container: HTMLElement) {
   return container.querySelector('input[type="date"]') as HTMLInputElement
 }
 
+function offsetInput(container: HTMLElement) {
+  return container.querySelector('input[inputmode="numeric"]') as HTMLInputElement
+}
+
 function tokenSelect(container: HTMLElement) {
   return container.querySelector('select') as HTMLSelectElement
 }
@@ -124,11 +128,11 @@ describe('DateAnchorInput', () => {
     expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: -7 })
   })
 
-  it('swaps the date input for a number input when in offset mode', () => {
+  it('swaps the date input for a numeric text input when in offset mode', () => {
     const v: DateAnchor = { kind: 'offset', days: -3 }
     const { container } = render(<DateAnchorInput value={v} onChange={() => {}} />)
     expect(container.querySelector('input[type="date"]')).toBeNull()
-    const num = container.querySelector('input[type="number"]') as HTMLInputElement
+    const num = offsetInput(container)
     expect(num).not.toBeNull()
     expect(num.value).toBe('-3')
     expect(tokenSelect(container).value).toBe('__offset__')
@@ -138,27 +142,54 @@ describe('DateAnchorInput', () => {
     const onChange = vi.fn()
     const v: DateAnchor = { kind: 'offset', days: 0 }
     const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
-    const num = container.querySelector('input[type="number"]') as HTMLInputElement
-    fireEvent.change(num, { target: { value: '14' } })
+    fireEvent.change(offsetInput(container), { target: { value: '14' } })
     expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 14 })
   })
 
-  it('truncates fractional input to an integer days value', () => {
+  it('rejects non-integer keystrokes (no commit, no display change)', () => {
     const onChange = vi.fn()
     const v: DateAnchor = { kind: 'offset', days: 0 }
     const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
-    const num = container.querySelector('input[type="number"]') as HTMLInputElement
-    fireEvent.change(num, { target: { value: '7.9' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 7 })
+    fireEvent.change(offsetInput(container), { target: { value: '7.9' } })
+    expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('keeps offset mode (days=0) when the days input is cleared', () => {
+  it('holds a lone "-" as a draft without committing or wiping the dash', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: 0 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(offsetInput(container), { target: { value: '-' } })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(offsetInput(container).value).toBe('-')
+  })
+
+  it('commits a negative offset once the user finishes typing "-7"', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: 0 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(offsetInput(container), { target: { value: '-' } })
+    fireEvent.change(offsetInput(container), { target: { value: '-7' } })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: -7 })
+  })
+
+  it('preserves the last committed days when the input is cleared mid-edit', () => {
     const onChange = vi.fn()
     const v: DateAnchor = { kind: 'offset', days: -5 }
     const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
-    const num = container.querySelector('input[type="number"]') as HTMLInputElement
-    fireEvent.change(num, { target: { value: '' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 0 })
+    fireEvent.change(offsetInput(container), { target: { value: '' } })
+    expect(onChange).not.toHaveBeenCalled()
+    // draft string shows empty until blur
+    expect(offsetInput(container).value).toBe('')
+  })
+
+  it('snaps the input back to the committed days on blur', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: -5 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(offsetInput(container), { target: { value: '' } })
+    fireEvent.blur(offsetInput(container))
+    expect(offsetInput(container).value).toBe('-5')
   })
 
   it('clears to null when "None" is picked from offset mode', () => {

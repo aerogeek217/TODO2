@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { DateAnchor, RelativeDateToken } from '../../models'
 import { RELATIVE_DATE_TOKENS } from '../../models'
 import styles from './DateAnchorInput.module.css'
@@ -20,6 +20,7 @@ const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
 
 const NONE_SENTINEL = '__none__'
 const OFFSET_SENTINEL = '__offset__'
+const OFFSET_DRAFT_PATTERN = /^-?\d*$/
 
 export interface DateAnchorInputProps {
   value: DateAnchor | null
@@ -39,7 +40,6 @@ export interface DateAnchorInputProps {
  */
 export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnchorInputProps) {
   const dateStr = value && value.kind === 'fixed' ? value.iso.slice(0, 10) : ''
-  const offsetStr = value && value.kind === 'offset' ? String(value.days) : ''
   const tokenStr = value === null
     ? NONE_SENTINEL
     : value.kind === 'relative'
@@ -47,6 +47,22 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
       : value.kind === 'offset'
         ? OFFSET_SENTINEL
         : ''
+
+  // Local draft so users can transit through partial states the controlled
+  // value can't represent — `''` (cleared input) and `'-'` (about to type a
+  // negative). type="number" reports `e.target.value` as `''` when the
+  // displayed text is just `'-'`, so we route the offset input through
+  // `type="text" inputMode="numeric"` and accept `-?\d*` as draft input. The
+  // committed `value.days` only updates when the draft parses to an integer;
+  // otherwise the draft holds the input's display so the caret stays put.
+  const isOffset = value?.kind === 'offset'
+  const [offsetDraft, setOffsetDraft] = useState<string | null>(null)
+  useEffect(() => {
+    if (!isOffset) setOffsetDraft(null)
+  }, [isOffset])
+  const offsetStr = isOffset
+    ? offsetDraft ?? String(value.days)
+    : ''
 
   const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value
@@ -59,14 +75,17 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
 
   const handleOffsetChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
-    if (raw === '' || raw === '-') {
-      onChange({ kind: 'offset', days: 0 })
-      return
-    }
-    const n = Number(raw)
+    if (!OFFSET_DRAFT_PATTERN.test(raw)) return
+    setOffsetDraft(raw)
+    if (raw === '' || raw === '-') return
+    const n = parseInt(raw, 10)
     if (!Number.isFinite(n)) return
-    onChange({ kind: 'offset', days: Math.trunc(n) })
+    onChange({ kind: 'offset', days: n })
   }, [onChange])
+
+  const handleOffsetBlur = useCallback(() => {
+    setOffsetDraft(null)
+  }, [])
 
   const handleTokenChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value
@@ -84,13 +103,16 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
 
   return (
     <div className={`${styles.wrapper} ${className ?? ''}`}>
-      {value?.kind === 'offset' ? (
+      {isOffset ? (
         <span className={styles.offsetField}>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="-?[0-9]*"
             className={styles.offsetInput}
             value={offsetStr}
             onChange={handleOffsetChange}
+            onBlur={handleOffsetBlur}
             aria-label={aria['aria-label'] ? `${aria['aria-label']} (days offset)` : 'Days from today'}
           />
           <span className={styles.offsetSuffix}>days</span>
