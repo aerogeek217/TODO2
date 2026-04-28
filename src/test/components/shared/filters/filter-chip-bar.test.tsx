@@ -142,6 +142,45 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.getByText('Scheduled')).toBeInTheDocument()
     })
 
+    it('switching dateField commits BOTH field and seeded anchors atomically', () => {
+      // Regression: two in-handler `update` calls (one for `dateField`, one for
+      // anchors) used to close over the same stale `p`, so the second call
+      // dropped the dateField change. The dropdown's input row visibly changed
+      // but the effective filter still ran against `effectiveDate`.
+      const updates: TodoPredicate[] = []
+      render(
+        <FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Date/i }))
+      fireEvent.click(screen.getByText('Scheduled'))
+      const last = updates.at(-1)!
+      expect(last.dateField).toBe('scheduled')
+      expect(last.dateRangeStart).not.toBeNull()
+    })
+
+    it('Clear inside Date dropdown clears anchors and both tri-states atomically', () => {
+      // Same closure-staleness bug as above: chained `update` calls for
+      // anchors + hasScheduled + hasDeadline used to leave the earlier patches
+      // re-overwritten by the later ones.
+      const updates: TodoPredicate[] = []
+      const active: TodoPredicate = {
+        ...emptyPredicate(),
+        dateRangeStart: { kind: 'fixed', iso: new Date().toISOString() },
+        hasScheduled: true,
+        hasDeadline: false,
+      }
+      render(
+        <FilterChipBar predicate={active} onChange={(p) => updates.push(p)} />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: /Date/i }))
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+      const last = updates.at(-1)!
+      expect(last.dateRangeStart).toBeNull()
+      expect(last.dateRangeEnd).toBeNull()
+      expect(last.hasScheduled).toBeNull()
+      expect(last.hasDeadline).toBeNull()
+    })
+
     // Flip / clamp behavior is owned by `usePopoverAnchor` and verified in
     // real-browser e2e (see e2e/list-editor-dropdowns.spec.ts) — JSDOM's
     // synthetic getBoundingClientRect can't drive the hook's measurement

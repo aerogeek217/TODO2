@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   DateAnchor,
@@ -598,11 +598,24 @@ export function FilterChipBar({
     p.hasDeadline !== null
   const active = hasAnyFilter(p)
 
+  // `update` composes patches against the latest predicate we've sent — not
+  // the prop from this render. Without this, two `update` calls in one handler
+  // (e.g. the Date-field button or the Date-dropdown Clear, which patch
+  // dateField + anchors / anchors + tri-states) both close over the same stale
+  // `p` and the second call overwrites the first's change. Syncing a ref via
+  // useLayoutEffect keeps the in-flight value coherent across renders triggered
+  // by external store updates.
+  const inflightRef = useRef<TodoPredicate>(p)
+  useLayoutEffect(() => {
+    inflightRef.current = p
+  }, [p])
   const update = useCallback(
     (patch: Partial<TodoPredicate>) => {
-      onChange({ ...p, ...patch })
+      const next = { ...inflightRef.current, ...patch }
+      inflightRef.current = next
+      onChange(next)
     },
-    [p, onChange],
+    [onChange],
   )
 
   const setPersonIds = useCallback(
