@@ -53,18 +53,26 @@
   margin-left: 2px;
 }
 
+/* Position comes from `usePopoverAnchor` via inline style; z-index is bumped
+ * to --z-dialog-nested so the menu lands above any dialog the parent
+ * ListEditorBody might be hosted in (modal `body { overflow: auto }` also
+ * forced the migration to portal the menu — see IconSelect.tsx).
+ *
+ * `usePopoverAnchor`'s `compute` reads `getBoundingClientRect()` to drive the
+ * flip math; if the inline `maxHeight` from the hook were applied here, the
+ * INITIAL_STYLE pass (maxHeight: 0) would collapse the panel to 0 px and
+ * the next compute would skip flip/clamp. IconSelect spreads only
+ * `position`/`left`/`top` from the hook's style, so the panel's natural
+ * height is always measurable. */
 .menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 100%;
+  min-width: 120px;
   background: var(--color-surface-glass);
   backdrop-filter: blur(16px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: 4px 0;
   box-shadow: var(--shadow-dropdown);
-  z-index: var(--z-dropdown);
+  z-index: var(--z-dialog-nested);
   display: flex;
   flex-direction: column;
 }

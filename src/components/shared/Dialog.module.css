@@ -21,6 +21,19 @@
   max-height: 80vh;
 }
 
+/* Nested tier — used when this dialog appears on top of another dialog
+ * (e.g. discard-changes confirm fired from inside the list editor). Both
+ * backdrop and dialog promote to --z-dialog-nested so the confirm scrim
+ * covers the parent dialog (--z-dialog-overlay = 1002) and the dialog body
+ * sits above its own scrim (later in DOM order wins at equal z-index). */
+.backdropNested {
+  z-index: var(--z-dialog-nested);
+}
+
+.dialogNested {
+  z-index: var(--z-dialog-nested);
+}
+
 .dialog:focus {
   outline: none;
 }

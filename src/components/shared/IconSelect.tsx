@@ -1,5 +1,6 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
-import { useClickOutside } from '../../hooks/use-click-outside'
+import { useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './IconSelect.module.css'
 
 export interface IconSelectOption<T extends string> {
@@ -24,9 +25,19 @@ export function IconSelect<T extends string>({
   minWidth,
 }: IconSelectProps<T>) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
-  useClickOutside(rootRef, () => setOpen(false), open)
+  const handleClose = useCallback(() => setOpen(false), [])
+
+  // Portal + flip + clamp: ListEditorBody dropdowns near the viewport bottom
+  // were spilling off-screen (triage-2026-04-27 batch2 P3 / item 3).
+  // usePopoverAnchor flips bottom→top when there's no room below, and the
+  // panel portals out so the parent modal's `overflow: auto` doesn't clip it.
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: triggerRef },
+    open,
+    onClose: handleClose,
+  })
 
   const selected = options.find((o) => o.value === value) ?? options[0]
 
@@ -38,11 +49,7 @@ export function IconSelect<T extends string>({
       }
       return
     }
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      setOpen(false)
-      return
-    }
+    // Escape is handled by usePopoverAnchor's document-level listener.
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       const dir = e.key === 'ArrowDown' ? 1 : -1
@@ -52,18 +59,12 @@ export function IconSelect<T extends string>({
     }
   }, [open, options, value, onChange])
 
-  useEffect(() => {
-    if (!open) return
-    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    window.addEventListener('keydown', onEsc)
-    return () => window.removeEventListener('keydown', onEsc)
-  }, [open])
-
   if (!selected) return null
 
   return (
-    <div className={styles.root} ref={rootRef} style={minWidth ? { minWidth } : undefined}>
+    <div className={styles.root} style={minWidth ? { minWidth } : undefined}>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.trigger}
         aria-haspopup="listbox"
@@ -76,8 +77,17 @@ export function IconSelect<T extends string>({
         <span className={styles.label}>{selected.label}</span>
         <span className={styles.caret} aria-hidden>▾</span>
       </button>
-      {open && (
-        <div className={styles.menu} role="listbox">
+      {open && createPortal(
+        // Spread only position/left/top from usePopoverAnchor — applying the
+        // hook's `maxHeight` would collapse the panel to 0 on the first render
+        // pass (INITIAL_STYLE), which feeds a wrong panelHeight into the
+        // single compute call and disables flip/clamp.
+        <div
+          ref={panelRef}
+          className={styles.menu}
+          role="listbox"
+          style={{ position: style.position, left: style.left, top: style.top }}
+        >
           {options.map((opt) => (
             <button
               key={opt.value}
@@ -91,7 +101,8 @@ export function IconSelect<T extends string>({
               <span className={styles.label}>{opt.label}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

@@ -19,6 +19,10 @@ export interface DialogProps {
   className?: string
   /** Inline style escape hatch. */
   style?: CSSProperties
+  /** When true, render at --z-dialog-nested so the dialog (+ its backdrop)
+   * sits above another dialog already at --z-dialog-overlay. Used by the
+   * singleton BulkConfirmDialog. */
+  nested?: boolean
 }
 
 const FOCUSABLE =
@@ -34,6 +38,7 @@ export function Dialog({
   initialFocusRef,
   className,
   style,
+  nested = false,
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
@@ -112,10 +117,13 @@ export function Dialog({
 
   const sizeClass = size === 'lg' ? styles.sizeLg : size === 'md' ? styles.sizeMd : styles.sizeSm
 
+  const backdropClass = nested ? `${styles.backdrop} ${styles.backdropNested}` : styles.backdrop
+  const dialogClass = `${styles.dialog} ${sizeClass} ${nested ? styles.dialogNested : ''} ${className ?? ''}`
+
   return (
     <>
       <div
-        className={styles.backdrop}
+        className={backdropClass}
         onClick={blockBackdropClose ? undefined : onClose}
       />
       <div
@@ -124,7 +132,7 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`${styles.dialog} ${sizeClass} ${className ?? ''}`}
+        className={dialogClass}
         style={style}
       >
         <div id={titleId} className={styles.title}>{title}</div>
@@ -152,6 +160,8 @@ export interface ConfirmDialogProps {
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
+  /** Routes through --z-dialog-nested. See `Dialog`'s `nested` prop. */
+  nested?: boolean
 }
 
 export function ConfirmDialog({
@@ -163,10 +173,11 @@ export function ConfirmDialog({
   danger = false,
   onConfirm,
   onCancel,
+  nested = false,
 }: ConfirmDialogProps) {
   const confirmRef = useRef<HTMLButtonElement>(null)
   return (
-    <Dialog open={open} onClose={onCancel} title={title} initialFocusRef={confirmRef}>
+    <Dialog open={open} onClose={onCancel} title={title} initialFocusRef={confirmRef} nested={nested}>
       <DialogBody>{message}</DialogBody>
       <DialogActions>
         <button type="button" className={styles.cancelButton} onClick={onCancel}>

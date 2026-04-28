@@ -44,6 +44,9 @@ export function BulkConfirmDialog({ confirmation, onConfirm, onCancel }: BulkCon
       danger={confirmation.action === 'delete'}
       onConfirm={onConfirm}
       onCancel={onCancel}
+      // Singleton confirm — render at --z-dialog-nested so it always lands
+      // above any other open dialog (list editor, dashboard-lists modal, etc.).
+      nested
     />
   )
 }
