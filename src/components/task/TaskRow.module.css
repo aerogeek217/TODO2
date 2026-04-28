@@ -509,3 +509,18 @@
 .row:hover [class*="statusDotEmpty"] {
   opacity: 1;
 }
+
+/*
+ * Cross-module hover-reveal for `TagChipSelector`'s empty-state `#` trigger.
+ * Mirrors the statusDotEmpty hook above — the class lives in
+ * TagChipSelector.module.css and is referenced via substring match. Populated
+ * tag chips don't carry the `tagChipEmpty` marker class so they remain visible.
+ */
+.row [class*="tagChipEmpty"] {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.row:hover [class*="tagChipEmpty"] {
+  opacity: 1;
+}

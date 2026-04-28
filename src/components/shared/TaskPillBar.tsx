@@ -13,8 +13,11 @@ import styles from './TaskPillBar.module.css'
  * `TaskRow` / `MobileTaskRow` / `TopBar`'s `SearchResultPills` /
  * canvas calendar `EventRow` (ui-consistency-2026-04-25 P2).
  *
- * Tag-display rule: tags are intentionally never rendered here. Tags
- * power search / filter / grouping only — they never become a row chip.
+ * Tags: this primitive does NOT render tag chips. Tag display is the
+ * separate `TagChipSelector` shared component, mounted by `TaskRow` and
+ * `MobileTaskRow` adjacent to (not inside) the pill bar — adding tags here
+ * would force every consumer of `TaskPillBar` (search dropdown, calendar
+ * `EventRow`, etc.) to thread tags they don't render.
  *
  * Perf — the consumer pre-resolves people / orgs / status and threads
  * them through; this primitive does NOT subscribe to assignment stores.

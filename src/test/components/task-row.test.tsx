@@ -19,6 +19,8 @@ const mockBulk = {
   quickUnassignPerson: vi.fn(),
   quickAssignOrg: vi.fn(),
   quickUnassignOrg: vi.fn(),
+  quickAssignTag: vi.fn(),
+  quickUnassignTag: vi.fn(),
 }
 
 vi.mock('../../hooks/use-bulk-actions', () => ({
@@ -336,11 +338,12 @@ describe('TaskRow (unified scheduling)', () => {
     })
   })
 
-  describe('tags display rule', () => {
-    // Display rule: tags power search / filter / grouping only. They must
-    // never surface in the row. Regression-locked against accidental chip
-    // additions that would read from the tag registry + assignedTagsMap.
-    it('renders no text matching any tag name when the registry has assignments for the row', async () => {
+  describe('inline tag chip (P2 — item 1)', () => {
+    // Triage-2026-04-27 batch 2 P2 inverted the previous "tags never render
+    // on the row" rule: now assigned tags render as `#name` chips parallel to
+    // the people/org chip pattern, and a hover-revealed `#` empty trigger
+    // mounts when no tags are assigned. Tag toggle goes through bulk actions.
+    it('renders #name chips for each assigned tag', async () => {
       const { useTagStore } = await import('../../stores/tag-store')
       useTagStore.setState({
         tags: [
@@ -356,14 +359,67 @@ describe('TaskRow (unified scheduling)', () => {
         loading: false,
         error: null,
       })
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />)
+      expect(screen.getByText('#alpha')).toBeInTheDocument()
+      expect(screen.getByText('#beta')).toBeInTheDocument()
+    })
 
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, title: 'Prepare deck' })} />,
-      )
-      expect(container.textContent ?? '').not.toMatch(/alpha/i)
-      expect(container.textContent ?? '').not.toMatch(/beta/i)
-      expect(screen.queryByText(/^#?alpha$/)).toBeNull()
-      expect(screen.queryByText(/^#?beta$/)).toBeNull()
+    it('renders the empty-state # trigger when no tags are assigned', async () => {
+      const { useTagStore } = await import('../../stores/tag-store')
+      useTagStore.setState({
+        tags: [{ id: 1, name: 'alpha', color: '#111' }],
+        assignedTagsMap: new Map(),
+        loading: false,
+        error: null,
+      })
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      expect(screen.getByLabelText('Add tag')).toBeInTheDocument()
+    })
+
+    it('clicking an existing tag chip opens the lookup-or-create dropdown', async () => {
+      const { useTagStore } = await import('../../stores/tag-store')
+      useTagStore.setState({
+        tags: [
+          { id: 1, name: 'alpha', color: '#111' },
+          { id: 2, name: 'beta', color: '#222' },
+        ],
+        assignedTagsMap: new Map([[1, [{ id: 1, name: 'alpha', color: '#111' }]]]),
+        loading: false,
+        error: null,
+      })
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      fireEvent.click(screen.getByText('#alpha'))
+      // The dropdown's input renders with the search placeholder
+      expect(screen.getByPlaceholderText('Search tags...')).toBeInTheDocument()
+    })
+
+    it('toggling an unassigned tag from the dropdown calls quickAssignTag', async () => {
+      const { useTagStore } = await import('../../stores/tag-store')
+      useTagStore.setState({
+        tags: [
+          { id: 1, name: 'alpha', color: '#111' },
+          { id: 2, name: 'beta', color: '#222' },
+        ],
+        assignedTagsMap: new Map([[1, [{ id: 1, name: 'alpha', color: '#111' }]]]),
+        loading: false,
+        error: null,
+      })
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      fireEvent.click(screen.getByText('#alpha'))
+      fireEvent.click(screen.getByText('beta'))
+      expect(mockBulk.quickAssignTag).toHaveBeenCalledWith(1, 2)
+    })
+
+    it('does not render the inline tag chip on a ghost row', async () => {
+      const { useTagStore } = await import('../../stores/tag-store')
+      useTagStore.setState({
+        tags: [],
+        assignedTagsMap: new Map(),
+        loading: false,
+        error: null,
+      })
+      render(<TaskRow todo={makeTodo({ id: 1 })} ghost />)
+      expect(screen.queryByLabelText('Add tag')).not.toBeInTheDocument()
     })
   })
 

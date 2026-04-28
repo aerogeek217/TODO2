@@ -22,6 +22,8 @@ vi.mock('../../../hooks/use-bulk-actions', () => ({
     quickUnassignPerson: vi.fn(),
     quickAssignOrg: vi.fn(),
     quickUnassignOrg: vi.fn(),
+    quickAssignTag: vi.fn(),
+    quickUnassignTag: vi.fn(),
   }),
 }))
 

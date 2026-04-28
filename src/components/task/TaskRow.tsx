@@ -4,6 +4,7 @@ import type { PersistedTodoItem, Person } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -18,6 +19,7 @@ import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
 import { TaskPillBar } from '../shared/TaskPillBar'
+import { TagChipSelector } from '../shared/TagChipSelector'
 import { DragHandle } from '../shared/DragHandle'
 import { PortalDropdown } from '../shared/PortalDropdown'
 
@@ -41,8 +43,6 @@ interface TaskRowProps {
   onTaskboard?: boolean
 }
 
-// Display rule: `todo.tags` is intentionally not rendered here. Tags power
-// search / filter / grouping only — they never become a row chip.
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail, cut, showContext, onTaskboard,
@@ -62,9 +62,12 @@ export const TaskRow = memo(function TaskRow({
   // Read entity lists from stores
   const allPeople = usePersonStore((s) => s.people)
   const allOrgs = useOrgStore((s) => s.orgs)
+  const allTags = useTagStore((s) => s.tags)
   const projects = useProjectStore((s) => s.projects)
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
+  const assignedTagsForTodo = useTagStore((s) => s.assignedTagsMap.get(todo.id))
+  const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
   const statuses = useStatusStore((s) => s.statuses)
   const status = useMemo(() => {
     if (!todo.statusId) return undefined
@@ -128,6 +131,18 @@ export const TaskRow = memo(function TaskRow({
     const id = await usePersonStore.getState().add(name, generateInitials(name))
     bulk.quickAssignPerson(todo.id, id)
   }
+
+  const toggleTag = useCallback((tagId: number) => {
+    if (ghost) return
+    if (assignedTags.some((t) => t.id === tagId)) bulk.quickUnassignTag(todo.id, tagId)
+    else bulk.quickAssignTag(todo.id, tagId)
+  }, [ghost, assignedTags, bulk, todo.id])
+
+  const handleCreateTag = useCallback(async (name: string) => {
+    if (ghost) return
+    const id = await useTagStore.getState().add(name)
+    bulk.quickAssignTag(todo.id, id)
+  }, [ghost, bulk, todo.id])
 
   const assignedPeopleIds = useMemo(() => new Set((assignedPeople ?? []).map(p => p.id!)), [assignedPeople])
 
@@ -302,6 +317,17 @@ export const TaskRow = memo(function TaskRow({
           onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
           onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
           onStatusClick={(e) => { e.stopPropagation(); setShowStatusMenu(v => !v) }}
+        />
+      )}
+
+      {/* Inline tag chips — populated chips render always, empty `#` trigger
+          is hover-revealed via the `[class*="tagChipEmpty"]` rule below. */}
+      {!ghost && (
+        <TagChipSelector
+          assignedTags={assignedTags}
+          allTags={allTags}
+          onToggle={toggleTag}
+          onCreate={handleCreateTag}
         />
       )}
 

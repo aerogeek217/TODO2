@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, Person } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
+import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useProjectStore } from '../../stores/project-store'
 import { StatusIcon } from '../shared/StatusIcon'
 import { TaskPillBar } from '../shared/TaskPillBar'
+import { TagChipSelector } from '../shared/TagChipSelector'
 import { ChipSelector } from '../shared/ChipSelector'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
 import { PortalDropdown } from '../shared/PortalDropdown'
@@ -33,9 +35,6 @@ interface MobileTaskRowProps {
   cut?: boolean
 }
 
-// Display rule: `todo.tags` is intentionally not rendered here. Tags power
-// search / filter / grouping only — they never become a row chip.
-//
 // Mobile feature parity (Phase 6 of code-review-2026-04-25): chip taps now
 // open the same popovers/pickers as `TaskRow`, and a long-press on the row
 // fires `onContextMenu` (browser-emulated on touch) to open the shared task-
@@ -50,9 +49,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 }: MobileTaskRowProps) {
   const allPeople = usePersonStore((s) => s.people)
   const allOrgs = useOrgStore((s) => s.orgs)
+  const allTags = useTagStore((s) => s.tags)
   const projects = useProjectStore((s) => s.projects)
   const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
   const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
+  const assignedTagsForTodo = useTagStore((s) => s.assignedTagsMap.get(todo.id))
+  const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const today = startOfToday()
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
@@ -118,6 +120,18 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     bulk.quickAssignPerson(todo.id, id)
   }
 
+  const toggleTag = useCallback((tagId: number) => {
+    if (ghost) return
+    if (assignedTags.some((t) => t.id === tagId)) bulk.quickUnassignTag(todo.id, tagId)
+    else bulk.quickAssignTag(todo.id, tagId)
+  }, [ghost, assignedTags, bulk, todo.id])
+
+  const handleCreateTag = useCallback(async (name: string) => {
+    if (ghost) return
+    const id = await useTagStore.getState().add(name)
+    bulk.quickAssignTag(todo.id, id)
+  }, [ghost, bulk, todo.id])
+
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
   const closeScheduledMenu = useCallback(() => setShowScheduledMenu(false), [])
 
@@ -133,6 +147,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const hasMetadata =
     !!todo.scheduledDate || !!todo.dueDate ||
     hasPeople ||
+    assignedTags.length > 0 ||
     !!todo.notes || !!todo.progress
 
   return (
@@ -221,6 +236,17 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
           />
 
+          {/* Inline tag chips — populated chips render always; empty `#`
+              trigger is always visible on mobile (no hover state). */}
+          {!ghost && (
+            <TagChipSelector
+              assignedTags={assignedTags}
+              allTags={allTags}
+              onToggle={toggleTag}
+              onCreate={handleCreateTag}
+            />
+          )}
+
           {todo.progress && (
             <span className={styles.progressChip}>
               {todo.progress}
@@ -265,7 +291,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       )}
 
       {/* Empty-state date slot — exposes a tap target so users can schedule
-         a previously-unset todo without opening the detail popup. */}
+         or tag a previously-unset todo without opening the detail popup. */}
       {!hasMetadata && !ghost && (
         <div className={styles.metaRow}>
           <input
@@ -284,6 +310,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           >
             <StatusIcon icon="calendar" />
           </button>
+          <TagChipSelector
+            assignedTags={assignedTags}
+            allTags={allTags}
+            onToggle={toggleTag}
+            onCreate={handleCreateTag}
+          />
         </div>
       )}
 
