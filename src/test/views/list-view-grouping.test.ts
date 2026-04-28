@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import type { Person, Project, Tag } from '../../models'
+import type { Org, Person, Project, Tag } from '../../models'
 import {
   buildDateSections,
   buildFlatSection,
+  buildOrgSections,
   buildPeopleSections,
   buildProjectSections,
   buildTagSections,
@@ -109,6 +110,128 @@ describe('buildPeopleSections', () => {
     expect(sections).toHaveLength(2)
     expect(sections[0]!.todos).toHaveLength(1)
     expect(sections[1]!.todos).toHaveLength(1)
+  })
+
+  // Item 12, P5: filter-aware group ordering. When the active filter narrows
+  // to a specific person AND grouping is by people, that person's section
+  // leads the list — even if another person's name comes earlier in the
+  // input order.
+  it('pulls prioritized person sections to the front in caller order', () => {
+    const people: Person[] = [
+      { id: 1, name: 'Alice', initials: 'A' },
+      { id: 2, name: 'Bob', initials: 'B' },
+      { id: 3, name: 'Carol', initials: 'C' },
+    ]
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
+    ]
+    const assignedPeopleMap = new Map<number, Person[]>([
+      [10, [people[0]!]],
+      [11, [people[1]!]],
+      [12, [people[2]!]],
+    ])
+    const sections = buildPeopleSections(
+      todos,
+      people,
+      assignedPeopleMap,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [3, 1], // Carol then Alice prioritized; Bob falls through unaffected.
+    )
+    expect(sections.map((s) => s.label)).toEqual(['Carol', 'Alice', 'Bob'])
+  })
+
+  it('leaves person section order untouched when prioritize list is null', () => {
+    const people: Person[] = [
+      { id: 1, name: 'Alice', initials: 'A' },
+      { id: 2, name: 'Bob', initials: 'B' },
+    ]
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const assignedPeopleMap = new Map<number, Person[]>([
+      [10, [people[1]!]],
+      [11, [people[0]!]],
+    ])
+    const sections = buildPeopleSections(
+      todos,
+      people,
+      assignedPeopleMap,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      null,
+    )
+    // Order follows visiblePeople, which mirrors `people` input order.
+    expect(sections.map((s) => s.label)).toEqual(['Alice', 'Bob'])
+  })
+})
+
+describe('buildOrgSections — filter-aware ordering (P5)', () => {
+  it('pulls prioritized org sections to the front in caller order', () => {
+    const orgs: Org[] = [
+      { id: 1, name: 'Acme' },
+      { id: 2, name: 'Beta' },
+      { id: 3, name: 'Charlie' },
+    ]
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
+    ]
+    const assignedOrgsMap = new Map([
+      [10, [orgs[0]!]],
+      [11, [orgs[1]!]],
+      [12, [orgs[2]!]],
+    ])
+    const sections = buildOrgSections(
+      todos,
+      orgs,
+      new Map(),
+      assignedOrgsMap,
+      new Map(),
+      null,
+      [3], // Charlie first
+    )
+    expect(sections.map((s) => s.label)).toEqual(['Charlie', 'Acme', 'Beta'])
+  })
+})
+
+describe('buildTagSections — filter-aware ordering (P5)', () => {
+  const ALPHA: Tag = { id: 3, name: 'alpha', color: '#00f' }
+  const MU: Tag = { id: 4, name: 'mu', color: '#ff0' }
+  const ZETA: Tag = { id: 5, name: 'zeta', color: '#0ff' }
+
+  it('pulls prioritized tag sections to the front', () => {
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
+    ]
+    const assigned = new Map<number, Tag[]>([
+      [10, [ALPHA]],
+      [11, [MU]],
+      [12, [ZETA]],
+    ])
+    const sections = buildTagSections(todos, assigned, [5, 3])
+    expect(sections.map((s) => s.label)).toEqual(['#zeta', '#alpha', '#mu'])
+  })
+
+  it('keeps untagged trailing even when other tags are prioritized', () => {
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }), // untagged
+    ]
+    const assigned = new Map<number, Tag[]>([
+      [10, [ALPHA]],
+      [11, [ZETA]],
+    ])
+    const sections = buildTagSections(todos, assigned, [5])
+    expect(sections.map((s) => s.key)).toEqual(['tag-5', 'tag-3', 'no-tag'])
   })
 })
 

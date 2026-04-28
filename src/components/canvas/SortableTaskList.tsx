@@ -7,6 +7,7 @@ import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useFilterStore } from '../../stores/filter-store'
 import { TaskRow } from '../task/TaskRow'
 import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { bySortOrder } from '../../utils/sort-order'
@@ -128,6 +129,14 @@ export function SortableTaskList({
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const today = useMemo(() => startOfToday(), [])
 
+  // Filter-aware group ordering (item 12, P5): when groupBy matches an
+  // active filter dimension, pull those keys to the front. Subscribing
+  // here keeps ProjectNode unaware of the filter store; the cost is one
+  // re-render of the SortableTaskList memo when filters change.
+  const filterPersonIds = useFilterStore((s) => s.filters.personIds)
+  const filterOrgIds = useFilterStore((s) => s.filters.orgIds)
+  const filterTags = useFilterStore((s) => s.filters.tags)
+
   // Which InsertTrigger is currently open (keyed by the todo id it follows, or BEFORE_FIRST)
   const [activeInsertAfterId, setActiveInsertAfterId] = useState<number | null>(null)
   const closeInsert = useCallback(() => { setActiveInsertAfterId(null); clearInlineCreate() }, [clearInlineCreate])
@@ -217,7 +226,15 @@ export function SortableTaskList({
       today,
       weekStartsOn,
     }
-    const partition = partitionByGroup(displayItems, groupBy, ctx)
+    let prioritizeGroupKeys: string[] | undefined
+    if (groupBy === 'people' && filterPersonIds && filterPersonIds.size > 0) {
+      prioritizeGroupKeys = [...filterPersonIds].map((id) => `person-${id}`)
+    } else if (groupBy === 'org' && filterOrgIds && filterOrgIds.size > 0) {
+      prioritizeGroupKeys = [...filterOrgIds].map((id) => `org-${id}`)
+    } else if (groupBy === 'tag' && filterTags && filterTags.size > 0) {
+      prioritizeGroupKeys = [...filterTags].map((id) => `tag-${id}`)
+    }
+    const partition = partitionByGroup(displayItems, groupBy, ctx, prioritizeGroupKeys)
     const out: RenderBlock[] = []
     if (partition.ungrouped.length > 0) {
       out.push({ key: UNGROUPED_GROUP_KEY, label: null, todos: partition.ungrouped, nextBlockFirstId: null })
@@ -239,7 +256,7 @@ export function SortableTaskList({
       }
     }
     return out
-  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, orgs, personOrgMap, today, weekStartsOn])
+  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, orgs, personOrgMap, today, weekStartsOn, filterPersonIds, filterOrgIds, filterTags])
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])

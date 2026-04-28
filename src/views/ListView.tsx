@@ -151,6 +151,13 @@ export function buildPeopleSections(
   assignedOrgsMap?: Map<number, Org[]>,
   personOrgMap?: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
+  /**
+   * Prioritized person ids — when groupBy=people AND the active filter
+   * narrows to specific people, those keys are pulled to the front of the
+   * person-section block (item 12, P5). Org sections (when present) keep
+   * their leading position; only the person block re-orders.
+   */
+  prioritizePersonIds?: ReadonlyArray<number> | null,
 ): Section[] {
   // Visible people: when org filter active, only those belonging to a filtered org.
   const visiblePeople = (filteredOrgIds && personOrgMap)
@@ -216,11 +223,42 @@ export function buildPeopleSections(
       })
     }
   }
+  const orderedPersonSections = prioritizeSectionsByKey(
+    personSections,
+    prioritizePersonIds ? prioritizePersonIds.map((id) => `person-${id}`) : null,
+  )
   return [
     ...orgSections,
-    ...personSections,
+    ...orderedPersonSections,
     ...(unassigned.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: unassigned }] : []),
   ]
+}
+
+/**
+ * Stable filter-aware reorder helper (item 12, P5). Pulls sections whose
+ * `key` matches `prioritizeKeys` to the front, in caller order; the rest
+ * keep their input order. Returns input untouched if `prioritizeKeys` is
+ * null/empty.
+ */
+function prioritizeSectionsByKey(sections: Section[], prioritizeKeys: ReadonlyArray<string> | null): Section[] {
+  if (!prioritizeKeys || prioritizeKeys.length === 0) return sections
+  const priorityMap = new Map<string, Section>()
+  const rest: Section[] = []
+  for (const s of sections) {
+    if (prioritizeKeys.includes(s.key)) priorityMap.set(s.key, s)
+    else rest.push(s)
+  }
+  if (priorityMap.size === 0) return sections
+  const ordered: Section[] = []
+  const seen = new Set<string>()
+  for (const k of prioritizeKeys) {
+    const s = priorityMap.get(k)
+    if (s && !seen.has(k)) {
+      ordered.push(s)
+      seen.add(k)
+    }
+  }
+  return [...ordered, ...rest]
 }
 
 export function buildProjectSections(
@@ -255,6 +293,14 @@ export function buildOrgSections(
   assignedOrgsMap: Map<number, Org[]>,
   personOrgMap: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
+  /**
+   * Prioritized org ids — when groupBy=org AND the active filter narrows
+   * to a multi-org set (filteredOrgIds matches), pull those keys to the
+   * front in caller order (item 12, P5). When `filteredOrgIds` is null
+   * the filter is broader (e.g. by people only) — prioritization can
+   * still surface specific orgs at the top.
+   */
+  prioritizeOrgIds?: ReadonlyArray<number> | null,
 ): Section[] {
   const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
   const buckets = new Map<number, PersistedTodoItem[]>()
@@ -283,13 +329,18 @@ export function buildOrgSections(
     }
   }
 
-  const sections: Section[] = []
+  const orgSections: Section[] = []
   for (const o of visibleOrgs) {
     const ts = buckets.get(o.id!)!
     if (ts.length > 0) {
-      sections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: ts })
+      orgSections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: ts })
     }
   }
+  const orderedOrgSections = prioritizeSectionsByKey(
+    orgSections,
+    prioritizeOrgIds ? prioritizeOrgIds.map((id) => `org-${id}`) : null,
+  )
+  const sections: Section[] = [...orderedOrgSections]
   if (noOrg.length > 0) sections.push({ key: 'no-org', label: 'No Organization', todos: noOrg })
   return sections
 }
@@ -330,14 +381,24 @@ export function buildStatusSections(
 export function buildTagSections(
   todos: PersistedTodoItem[],
   assignedTagsMap: Map<number, Tag[]>,
+  /**
+   * Prioritized tag ids — when groupBy=tag AND the filter narrows tags,
+   * those tag sections lead the list in caller order (item 12, P5).
+   */
+  prioritizeTagIds?: ReadonlyArray<number> | null,
 ): Section[] {
   const { tagged, untagged } = bucketByTag(todos, assignedTagsMap)
-  const sections: Section[] = tagged.map(({ tag, todos: ts }) => ({
+  const tagSections: Section[] = tagged.map(({ tag, todos: ts }) => ({
     key: `tag-${tag.id}`,
     label: `#${tag.name}`,
     accentColor: tag.color,
     todos: ts,
   }))
+  const orderedTagSections = prioritizeSectionsByKey(
+    tagSections,
+    prioritizeTagIds ? prioritizeTagIds.map((id) => `tag-${id}`) : null,
+  )
+  const sections: Section[] = [...orderedTagSections]
   if (untagged.length > 0) {
     sections.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: untagged })
   }
@@ -658,6 +719,25 @@ export function ListView() {
     return applyFilter(effectiveFilters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
   }, [todos, effectiveFilters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
 
+  // Filter-aware group ordering: when groupBy matches an active filter
+  // dimension (people / org / tag), the filtered ids surface to the top.
+  // Memoize the snapshot arrays so reordering doesn't reshuffle on every
+  // re-render. Reading off the predicate directly (not via setRuntimeFilterSpec
+  // / runtime narrowing) since the user's intent — item 12 — is the *user's
+  // active filter*, not the per-list-definition runtime narrowing.
+  const prioritizePersonIds = useMemo(
+    () => (filters.personIds ? Array.from(filters.personIds) : null),
+    [filters.personIds],
+  )
+  const prioritizeOrgIds = useMemo(
+    () => (filters.orgIds ? Array.from(filters.orgIds) : null),
+    [filters.orgIds],
+  )
+  const prioritizeTagIds = useMemo(
+    () => (filters.tags ? Array.from(filters.tags) : null),
+    [filters.tags],
+  )
+
   const sections = useMemo(() => {
     switch (listGroupBy) {
       case 'none':
@@ -669,17 +749,17 @@ export function ListView() {
       case 'deadline':
         return buildDeadlineSections(activeTodos, weekStartsOn)
       case 'people':
-        return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds)
+        return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds, prioritizePersonIds)
       case 'project':
         return buildProjectSections(activeTodos, projects)
       case 'org':
-        return buildOrgSections(activeTodos, orgs, assignedPeopleMap, assignedOrgsMap, personOrgMap, filters.orgIds)
+        return buildOrgSections(activeTodos, orgs, assignedPeopleMap, assignedOrgsMap, personOrgMap, filters.orgIds, prioritizeOrgIds)
       case 'status':
         return buildStatusSections(activeTodos, statuses)
       case 'tag':
-        return buildTagSections(activeTodos, assignedTagsMap)
+        return buildTagSections(activeTodos, assignedTagsMap, prioritizeTagIds)
     }
-  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, assignedTagsMap, weekStartsOn])
+  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, assignedTagsMap, weekStartsOn, prioritizePersonIds, prioritizeOrgIds, prioritizeTagIds])
 
   const withinGroupComparator = useMemo(
     () => itemSortComparator(listSortBy, weekStartsOn),

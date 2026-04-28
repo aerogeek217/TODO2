@@ -455,3 +455,144 @@ describe('partitionByGroup', () => {
     expect(result.ungrouped.map((t) => t.id)).toEqual([1])
   })
 })
+
+describe('partitionByGroup — prioritizeGroupKeys (filter-aware ordering, P5)', () => {
+  it('pulls prioritized people keys to the front in caller order', () => {
+    const zeta: Person = { id: 3, name: 'Zeta', initials: 'Z' }
+    const alpha: Person = { id: 4, name: 'Alpha', initials: 'A' }
+    const mu: Person = { id: 5, name: 'Mu', initials: 'M' }
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
+    ]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [zeta]],
+        [11, [alpha]],
+        [12, [mu]],
+      ]),
+    })
+    // Filter narrows to Zeta + Mu; both should lead, then Alpha by alphabetical fallback.
+    const result = partitionByGroup(todos, 'people', ctx, ['person-3', 'person-5'])
+    expect(result.groups.map((g) => g.label)).toEqual(['Zeta', 'Mu', 'Alpha'])
+  })
+
+  it('respects caller order when prioritizing multiple people keys', () => {
+    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
+    const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
+    const carol: Person = { id: 3, name: 'Carol', initials: 'C' }
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
+    ]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [alice]],
+        [11, [bob]],
+        [12, [carol]],
+      ]),
+    })
+    // Caller order: Carol, Alice. Bob falls through alphabetically.
+    const result = partitionByGroup(todos, 'people', ctx, ['person-3', 'person-1'])
+    expect(result.groups.map((g) => g.label)).toEqual(['Carol', 'Alice', 'Bob'])
+  })
+
+  it('ignores prioritized keys that have no group present', () => {
+    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([[10, [alice]]]),
+    })
+    // person-99 has no group; should be silently dropped, Alice remains.
+    const result = partitionByGroup(todos, 'people', ctx, ['person-99', 'person-1'])
+    expect(result.groups.map((g) => g.label)).toEqual(['Alice'])
+  })
+
+  it('prioritizes org keys when grouping by org', () => {
+    const acme: Org = { id: 1, name: 'Acme' }
+    const beta: Org = { id: 2, name: 'Beta' }
+    const charlie: Org = { id: 3, name: 'Charlie' }
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+      makeTodo({ id: 12 }),
+    ]
+    const ctx = makeCtx({
+      assignedOrgsMap: new Map([
+        [10, [acme]],
+        [11, [beta]],
+        [12, [charlie]],
+      ]),
+    })
+    const result = partitionByGroup(todos, 'org', ctx, ['org-3'])
+    expect(result.groups.map((g) => g.label)).toEqual(['Charlie', 'Acme', 'Beta'])
+  })
+
+  it('prioritizes tag keys when grouping by tag', () => {
+    const zeta: Tag = { id: 3, name: 'zeta', color: '#fff' }
+    const alpha: Tag = { id: 4, name: 'alpha', color: '#fff' }
+    const todos = [
+      makeTodo({ id: 10 }),
+      makeTodo({ id: 11 }),
+    ]
+    const ctx = makeCtx({
+      assignedTagsMap: new Map([
+        [10, [zeta]],
+        [11, [alpha]],
+      ]),
+    })
+    // alpha would lead alphabetically; pulling zeta forward inverts the order.
+    const result = partitionByGroup(todos, 'tag', ctx, ['tag-3'])
+    expect(result.groups.map((g) => g.label)).toEqual(['zeta', 'alpha'])
+  })
+
+  it('falls through to default order when prioritize list is empty or omitted', () => {
+    const zeta: Person = { id: 3, name: 'Zeta', initials: 'Z' }
+    const alpha: Person = { id: 4, name: 'Alpha', initials: 'A' }
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [zeta]],
+        [11, [alpha]],
+      ]),
+    })
+    const noParam = partitionByGroup(todos, 'people', ctx)
+    const emptyParam = partitionByGroup(todos, 'people', ctx, [])
+    expect(noParam.groups.map((g) => g.label)).toEqual(['Alpha', 'Zeta'])
+    expect(emptyParam.groups.map((g) => g.label)).toEqual(['Alpha', 'Zeta'])
+  })
+
+  it('dedupes repeated prioritize ids', () => {
+    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
+    const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [alice]],
+        [11, [bob]],
+      ]),
+    })
+    const result = partitionByGroup(todos, 'people', ctx, ['person-1', 'person-1', 'person-1'])
+    // Alice once at the front; Bob falls through alphabetically after.
+    expect(result.groups.map((g) => g.label)).toEqual(['Alice', 'Bob'])
+  })
+
+  it('does not reorder status / date dimensions when called (no-op for fixed-order dims)', () => {
+    const todos = [
+      makeTodo({ id: 30, statusId: 1 }),
+      makeTodo({ id: 5, statusId: 3 }),
+      makeTodo({ id: 10, statusId: 2 }),
+    ]
+    // Even with prioritize hint, status sort by sortOrder dominates.
+    const result = partitionByGroup(
+      todos,
+      'status',
+      makeCtx({ statuses: STATUSES }),
+      ['status-3', 'status-2'],
+    )
+    // Expected: status-3 first (prioritized), status-2 second (prioritized), status-1 last.
+    expect(result.groups.map((g) => g.key)).toEqual(['status-3', 'status-2', 'status-1'])
+  })
+})

@@ -239,45 +239,74 @@ export function getGroupColor(
   }
 }
 
+/**
+ * Order group keys by dimension-default rules (status sortOrder, date bucket
+ * order, alphabetical for people/org/tag), then optionally pull
+ * `prioritizeGroupKeys` to the front in caller order.
+ *
+ * Used by `partitionByGroup` to satisfy "filter by X + group by X → put X
+ * first" UX (item 12, triage-2026-04-27-batch2 P5). Caller passes the same
+ * prefixed keys `getGroupKey` emits (`person-N` / `org-N` / `tag-N`); only
+ * keys present in the input list are pulled forward, so passing IDs that
+ * don't have a group is harmless. Keys not in the prioritize list keep
+ * their default order.
+ */
 function orderGroupKeys(
   keys: string[],
   groupBy: ProjectGroupBy,
   ctx: GroupingContext,
+  prioritizeGroupKeys?: ReadonlyArray<string>,
 ): string[] {
-  switch (groupBy) {
-    case 'status': {
-      const order = new Map<number, number>()
-      const sorted = [...ctx.statuses].sort(
-        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
-      )
-      sorted.forEach((s, i) => {
-        if (s.id != null) order.set(s.id, i)
-      })
-      return keys.slice().sort((a, b) => {
-        const ai = order.get(parseId('status-', a) ?? -1) ?? Number.MAX_SAFE_INTEGER
-        const bi = order.get(parseId('status-', b) ?? -1) ?? Number.MAX_SAFE_INTEGER
-        return ai - bi
-      })
-    }
-    case 'date':
-    case 'scheduled':
-    case 'deadline': {
-      const idx = (k: string) => {
-        const i = (DATE_BUCKET_ORDER as readonly string[]).indexOf(k)
-        return i === -1 ? DATE_BUCKET_ORDER.length : i
+  const sorted = ((): string[] => {
+    switch (groupBy) {
+      case 'status': {
+        const order = new Map<number, number>()
+        const statusSorted = [...ctx.statuses].sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+        )
+        statusSorted.forEach((s, i) => {
+          if (s.id != null) order.set(s.id, i)
+        })
+        return keys.slice().sort((a, b) => {
+          const ai = order.get(parseId('status-', a) ?? -1) ?? Number.MAX_SAFE_INTEGER
+          const bi = order.get(parseId('status-', b) ?? -1) ?? Number.MAX_SAFE_INTEGER
+          return ai - bi
+        })
       }
-      return keys.slice().sort((a, b) => idx(a) - idx(b))
+      case 'date':
+      case 'scheduled':
+      case 'deadline': {
+        const idx = (k: string) => {
+          const i = (DATE_BUCKET_ORDER as readonly string[]).indexOf(k)
+          return i === -1 ? DATE_BUCKET_ORDER.length : i
+        }
+        return keys.slice().sort((a, b) => idx(a) - idx(b))
+      }
+      case 'people':
+      case 'org':
+      case 'tag':
+        return keys.slice().sort((a, b) =>
+          getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
+        )
+      case 'none':
+      case 'project':
+        return keys.slice()
     }
-    case 'people':
-    case 'org':
-    case 'tag':
-      return keys.slice().sort((a, b) =>
-        getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
-      )
-    case 'none':
-    case 'project':
-      return keys.slice()
+  })()
+
+  if (!prioritizeGroupKeys || prioritizeGroupKeys.length === 0) return sorted
+  const sortedSet = new Set(sorted)
+  const prioritized: string[] = []
+  const seen = new Set<string>()
+  for (const k of prioritizeGroupKeys) {
+    if (sortedSet.has(k) && !seen.has(k)) {
+      prioritized.push(k)
+      seen.add(k)
+    }
   }
+  if (prioritized.length === 0) return sorted
+  const rest = sorted.filter((k) => !seen.has(k))
+  return [...prioritized, ...rest]
 }
 
 /**
@@ -291,11 +320,17 @@ function orderGroupKeys(
  *   alphabetically by label.
  * - A todo with N keys (people/org) appears once per group — the same
  *   row reference, no clone.
+ *
+ * `prioritizeGroupKeys` (optional): keys pulled to the front in caller
+ * order (filter-aware ordering for "filter by X + group by X" — item 12,
+ * P5). Pass the same prefixed keys `getGroupKey` emits (`person-N`,
+ * `org-N`, `tag-N`).
  */
 export function partitionByGroup<T extends PersistedTodoItem>(
   todos: readonly T[],
   groupBy: ProjectGroupBy,
   ctx: GroupingContext,
+  prioritizeGroupKeys?: ReadonlyArray<string>,
 ): PartitionResult<T> {
   const ungrouped: T[] = []
   const groupMap = new Map<string, T[]>()
@@ -329,7 +364,7 @@ export function partitionByGroup<T extends PersistedTodoItem>(
     }
   }
 
-  const groups = orderGroupKeys([...groupMap.keys()], groupBy, ctx).map((key) => ({
+  const groups = orderGroupKeys([...groupMap.keys()], groupBy, ctx, prioritizeGroupKeys).map((key) => ({
     key,
     label: getGroupLabel(key, groupBy, ctx),
     todos: groupMap.get(key)!,
