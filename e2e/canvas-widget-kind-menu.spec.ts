@@ -44,8 +44,9 @@ test.describe('canvas WidgetKindMenu hover flyout (P6)', () => {
     await expect(menu).toBeVisible()
 
     // Lens-only secondary row carries the current def name; hovering opens the
-    // in-place flyout (`onPointerEnter={openFlyoutFromRow}`).
-    const secondary = menu.locator('button[role="menuitem"][aria-haspopup="menu"]')
+    // in-place flyout (`onPointerEnter={openFlyoutFromRow}`). The Stats row
+    // also carries `aria-haspopup="menu"`, so we pin to the row name.
+    const secondary = menu.getByRole('menuitem', { name: /^Change list/ })
     await expect(secondary).toContainText('Change list (Source list)…')
 
     await secondary.hover()
@@ -79,11 +80,11 @@ test.describe('canvas WidgetKindMenu hover flyout (P6)', () => {
     await expect(menu).toBeVisible()
 
     // Roving tabindex: focus lands on the first menuitem; ArrowDown to the
-    // secondary "Change list…" row (after Edit list + 5 kinds).
-    // The order is: Edit list, lens, notes, calendar, taskboard, horizons,
-    // Change list… → 6 ArrowDown presses to land on the secondary row.
-    for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowDown')
-    const secondary = menu.locator('button[role="menuitem"][aria-haspopup="menu"]')
+    // secondary "Change list…" row.
+    // Item order: Edit list, lens, notes, calendar, taskboard, Change list…,
+    // Stats — 5 ArrowDown presses land on the Change list row.
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown')
+    const secondary = menu.getByRole('menuitem', { name: /^Change list/ })
     await expect(secondary).toBeFocused()
 
     // ArrowRight on the secondary opens the flyout (hover-equivalent).

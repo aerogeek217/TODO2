@@ -237,6 +237,15 @@ export function taskRowByTitle(page: Page, title: string): Locator {
   return page.locator('[data-stl-row]').filter({ hasText: title })
 }
 
+/** Click a task row's title span to fire `onSelect`. Clicking the row wrapper's
+ *  bbox center hits a chip popover trigger (`#`/`@`/date/status) after the P10
+ *  slot reorder, so callers that need selection must aim at the title text. The
+ *  title span carries `title={todo.title}` for tooltip parity, which we use as
+ *  a stable, propagation-stopping selector that only fires the row's onSelect. */
+export async function selectTaskRowByTitle(page: Page, title: string): Promise<void> {
+  await taskRowByTitle(page, title).locator(`span[title="${title}"]`).click()
+}
+
 /** All task row wrappers across all projects on the canvas. */
 export function taskRowWrappers(page: Page): Locator {
   return page.locator('[data-stl-row]')

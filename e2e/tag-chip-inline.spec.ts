@@ -21,14 +21,22 @@ test.describe('inline tag chip', () => {
     await expect(row).toBeVisible()
 
     // The empty-state # trigger is rendered but hover-hidden via CSS until
-    // the row receives :hover. Read computed opacity to prove the rule fires.
+    // the row receives :hover. The hide rule (`opacity: 0`) lives on the
+    // surrounding `tagChipEmpty` wrapper (TaskRow CSS module substring-
+    // matches the hashed class name), so we read computed opacity off the
+    // wrapper, not the trigger button — `getComputedStyle(child).opacity`
+    // reports the child's own opacity (always 1) regardless of ancestor.
     const trigger = row.getByLabel('Add tag')
     await expect(trigger).toHaveCount(1)
-    const hiddenOpacity = await trigger.evaluate((el) => getComputedStyle(el).opacity)
+    const readWrapperOpacity = () =>
+      trigger.evaluate((el) =>
+        getComputedStyle(el.parentElement as HTMLElement).opacity,
+      )
+    const hiddenOpacity = await readWrapperOpacity()
     expect(parseFloat(hiddenOpacity)).toBeLessThan(0.05)
 
     await row.hover()
-    await expect.poll(async () => parseFloat(await trigger.evaluate((el) => getComputedStyle(el).opacity)))
+    await expect.poll(async () => parseFloat(await readWrapperOpacity()))
       .toBeGreaterThan(0.95)
 
     await trigger.click()

@@ -4,6 +4,7 @@ import {
   floatingNoteNodes,
   projectNode,
   seedCanvasWithProjects,
+  selectTaskRowByTitle,
   taskRowByTitle,
   taskRowWrappers,
 } from './fixtures/seed'
@@ -33,7 +34,7 @@ test.describe('canvas Enter-chain (P1 baseline)', () => {
 
     // Click the seed row to select it, then press Insert to open the
     // after-row InsertTrigger via the inline-create hotkey path.
-    await taskRowByTitle(page, 'seed').click()
+    await selectTaskRowByTitle(page, 'seed')
     await page.keyboard.press('Insert')
     await expect(activeInsertInput(page)).toBeFocused()
 
@@ -74,7 +75,7 @@ test.describe('canvas Enter-chain (P1 baseline)', () => {
       ],
     })
 
-    await taskRowByTitle(page, 'seed').click()
+    await selectTaskRowByTitle(page, 'seed')
     await page.keyboard.press('Insert')
     await expect(activeInsertInput(page)).toBeFocused()
 
@@ -126,7 +127,7 @@ test.describe('canvas Enter-chain (P1 baseline)', () => {
       projects: [{ name: 'P1', tasks: ['seed'] }],
     })
 
-    await taskRowByTitle(page, 'seed').click()
+    await selectTaskRowByTitle(page, 'seed')
     await page.keyboard.press('Insert')
     await expect(activeInsertInput(page)).toBeFocused()
 
@@ -146,7 +147,7 @@ test.describe('canvas Enter-chain (P1 baseline)', () => {
       projects: [{ name: 'P1', tasks: ['seed'] }],
     })
 
-    await taskRowByTitle(page, 'seed').click()
+    await selectTaskRowByTitle(page, 'seed')
     await page.keyboard.press('Insert')
     await expect(activeInsertInput(page)).toBeFocused()
 
@@ -164,7 +165,7 @@ test.describe('canvas Enter-chain (P1 baseline)', () => {
       projects: [{ name: 'P1', tasks: ['seed'] }],
     })
 
-    await taskRowByTitle(page, 'seed').click()
+    await selectTaskRowByTitle(page, 'seed')
     await page.keyboard.press('Insert')
     await expect(activeInsertInput(page)).toBeFocused()
 
@@ -174,7 +175,7 @@ test.describe('canvas Enter-chain (P1 baseline)', () => {
     // listener → commits "partial" → re-render advances the chain. The
     // subsequent click event reaches the row and fires onSelect. The
     // important non-regression: no infinite focus toggling, no body-leak.
-    await taskRowByTitle(page, 'seed').click()
+    await selectTaskRowByTitle(page, 'seed')
 
     await expect(taskRowByTitle(page, 'partial')).toBeVisible()
     await expect(taskRowWrappers(page)).toHaveCount(2)

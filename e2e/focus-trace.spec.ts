@@ -3,6 +3,7 @@ import {
   activeInsertInput,
   projectNode,
   seedCanvasWithProjects,
+  selectTaskRowByTitle,
   taskRowByTitle,
   taskRowWrappers,
 } from './fixtures/seed'
@@ -62,7 +63,7 @@ test('Enter-chain focus-trace ladder (Phase 2 record)', async ({ page }, testInf
   })
 
   // Open the first InsertTrigger.
-  await taskRowByTitle(page, 'seed').click()
+  await selectTaskRowByTitle(page, 'seed')
   await page.keyboard.press('Insert')
   await expect(activeInsertInput(page)).toBeFocused()
 
