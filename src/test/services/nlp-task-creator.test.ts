@@ -175,6 +175,56 @@ describe('applyNlpMetadata', () => {
     expect(assignPerson).toHaveBeenCalledWith(1, 2)
   })
 
+  it('calls assignOrg for each resolved orgId via the @-mention org-fallback path', async () => {
+    const assignPerson = vi.fn()
+    const assignOrg = vi.fn()
+
+    await applyNlpMetadata(
+      42,
+      {
+        title: 'Test task',
+        personIds: [],
+        orgIds: [50, 51],
+        unmatchedPersons: [],
+        unmatchedProjects: [],
+        tags: [],
+        unmatchedStatuses: [],
+      },
+      vi.fn(),
+      vi.fn(),
+      assignPerson,
+      assignOrg,
+    )
+
+    expect(assignPerson).not.toHaveBeenCalled()
+    expect(assignOrg).toHaveBeenCalledTimes(2)
+    expect(assignOrg).toHaveBeenCalledWith(42, 50)
+    expect(assignOrg).toHaveBeenCalledWith(42, 51)
+  })
+
+  it('skips org assignment when assignOrg is omitted (legacy callers)', async () => {
+    const assignPerson = vi.fn()
+
+    await applyNlpMetadata(
+      1,
+      {
+        title: 'Test task',
+        personIds: [9],
+        orgIds: [50],
+        unmatchedPersons: [],
+        unmatchedProjects: [],
+        tags: [],
+        unmatchedStatuses: [],
+      },
+      vi.fn(),
+      vi.fn(),
+      assignPerson,
+      // assignOrg omitted on purpose — `?` parameter; the persons branch still runs.
+    )
+
+    expect(assignPerson).toHaveBeenCalledWith(1, 9)
+  })
+
   it('assigns NLP-resolved tags through the registry', async () => {
     await db.delete()
     await db.open()

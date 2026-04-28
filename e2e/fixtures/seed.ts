@@ -68,6 +68,12 @@ export interface PersonSeed {
   initials?: string
 }
 
+export interface OrgSeed {
+  name: string
+  initials?: string
+  color?: string
+}
+
 export interface ListInsetSeed {
   /** Index into the `listDefinitions` array passed to `seedCanvas`. */
   listDefIdx: number
@@ -86,6 +92,7 @@ export interface CanvasSeedOptions {
   listDefinitions?: ListDefinitionSeed[]
   listInsets?: ListInsetSeed[]
   people?: PersonSeed[]
+  orgs?: OrgSeed[]
   /** Serialized `RailsState` JSON value persisted under `settings.canvasRails`. */
   canvasRails?: unknown
 }
@@ -279,6 +286,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
     listDefinitions: opts.listDefinitions ?? [],
     listInsets: opts.listInsets ?? [],
     people: opts.people ?? [],
+    orgs: opts.orgs ?? [],
     canvasRails: opts.canvasRails ?? null,
   }
 
@@ -289,7 +297,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
         const idb = req.result
         const tables = [
           'floatingNotes', 'floatingCalendars', 'floatingTaskboards', 'floatingHorizons',
-          'listDefinitions', 'listInsets', 'people', 'settings',
+          'listDefinitions', 'listInsets', 'people', 'orgs', 'settings',
         ]
         const tx = idb.transaction(tables, 'readwrite')
 
@@ -309,6 +317,13 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
           tx.objectStore('people').add({
             name: person.name,
             initials: person.initials ?? person.name.slice(0, 2).toUpperCase(),
+          })
+        }
+        for (const org of seed.orgs) {
+          tx.objectStore('orgs').add({
+            name: org.name,
+            initials: org.initials ?? org.name.slice(0, 2).toUpperCase(),
+            color: org.color ?? '#888888',
           })
         }
 

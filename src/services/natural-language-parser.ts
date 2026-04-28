@@ -34,7 +34,12 @@ export interface ParsedInput {
   statuses: string[]
 }
 
-const PERSON_PATTERN = /@"([^"]+)"|@(\w+)/g
+// `@` mentions match either a person or an org. The parser stays store-free
+// and emits `'person'`-typed tokens for both kinds; `nlp-resolver.ts` does
+// person-first lookup and falls back to org for unmatched names. The token
+// type literal is kept as `'person'` for callsite-churn reasons (the resolver
+// routes correctly without it).
+const MENTION_PATTERN = /@"([^"]+)"|@(\w+)/g
 const PROJECT_PATTERN = /\/([A-Za-z0-9_-]+)/g
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input) and group 2 is the slug. Separator stays in the remaining title
@@ -164,9 +169,10 @@ export function parseInput(text: string): ParsedInput {
 
   let match: RegExpExecArray | null
 
-  // Extract people (@name or @"First Last")
-  PERSON_PATTERN.lastIndex = 0
-  while ((match = PERSON_PATTERN.exec(text)) !== null) {
+  // Extract @-mentions (@name or @"First Last"). Token type stays `'person'`;
+  // the resolver routes mentions to person-first / org-fallback.
+  MENTION_PATTERN.lastIndex = 0
+  while ((match = MENTION_PATTERN.exec(text)) !== null) {
     const value = match[1] ?? match[2]
     if (value == null) continue
     tokens.push({
