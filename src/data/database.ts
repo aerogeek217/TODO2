@@ -344,6 +344,17 @@ export class Todo2Database extends Dexie {
       .upgrade(async (tx) => {
         await runV46Migration(tx)
       })
+
+    // v47: extend `ListDefinition.runtimeFilter` to a discriminated union —
+    // the legacy `{ field, label? }` becomes `{ kind: 'value', field, label? }`
+    // so a new `{ kind: 'date-offset', source, anchor, minDays?, maxDays?,
+    // label? }` variant can land alongside (triage-2026-04-27-batch2 P8).
+    // Idempotent — rows already carrying a `kind` discriminator pass through
+    // unchanged.
+    this.version(47).stores({})
+      .upgrade(async (tx) => {
+        await runV47Migration(tx)
+      })
   }
 }
 
@@ -1799,5 +1810,42 @@ export async function runV46Migration(tx: Transaction): Promise<void> {
   })
   if (touched > 0) {
     console.info(`v46 migration: flattened sort/grouping shape on ${touched} list-definition row(s)`)
+  }
+}
+
+/**
+ * Wrap a legacy `{ field, label? }` runtimeFilter row with a `kind: 'value'`
+ * discriminator so the discriminated-union `RuntimeFilterSpec` reads it
+ * unchanged. Pure — returns true iff the row was rewritten in place. Rows
+ * that already carry a `kind` (`'value'` or `'date-offset'`) pass through.
+ * Used by v47 + the import-validation normalizer.
+ */
+export function liftRuntimeFilterSpecInPlace(def: Record<string, unknown>): boolean {
+  const rf = def.runtimeFilter
+  if (!rf || typeof rf !== 'object') return false
+  const r = rf as Record<string, unknown>
+  if (typeof r.kind === 'string') return false
+  if (typeof r.field !== 'string') return false
+  const next: Record<string, unknown> = { kind: 'value', field: r.field }
+  if (typeof r.label === 'string' && r.label.trim()) next.label = r.label
+  def.runtimeFilter = next
+  return true
+}
+
+/**
+ * v47 upgrade: extend `ListDefinition.runtimeFilter` to a discriminated union.
+ * Walks `listDefinitions` rows and rewrites the legacy `{ field, label? }`
+ * shape to `{ kind: 'value', field, label? }`. New `{ kind: 'date-offset' }`
+ * lists can be authored after this migration ships
+ * (triage-2026-04-27-batch2 P8). Idempotent — rows already carrying a `kind`
+ * discriminator are skipped.
+ */
+export async function runV47Migration(tx: Transaction): Promise<void> {
+  let touched = 0
+  await tx.table('listDefinitions').toCollection().modify((def) => {
+    if (liftRuntimeFilterSpecInPlace(def as Record<string, unknown>)) touched++
+  })
+  if (touched > 0) {
+    console.info(`v47 migration: lifted runtimeFilter shape on ${touched} list-definition row(s)`)
   }
 }

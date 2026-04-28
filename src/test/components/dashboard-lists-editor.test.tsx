@@ -133,7 +133,7 @@ describe('DashboardListsEditor — runtime filter control', () => {
     fireEvent.click(screen.getByRole('button', { name: /save/i }))
     // Flush the microtask queue so the async update() resolves.
     await Promise.resolve()
-    expect(updates.at(-1)?.runtimeFilter).toEqual({ field: 'person' })
+    expect(updates.at(-1)?.runtimeFilter).toEqual({ kind: 'value', field: 'person' })
 
     // Save closes the dialog; re-open to flip the pick back to None.
     fireEvent.click(screen.getAllByText('⚙')[0]!)

@@ -196,7 +196,7 @@ describe('ListDefinitionBody', () => {
   describe('runtime-filter unset', () => {
     function defWithRuntimeFilter(): PersistedListDefinition {
       const def = futureDef()
-      return { ...def, runtimeFilter: { field: 'project', label: 'Project' } }
+      return { ...def, runtimeFilter: { kind: 'value', field: 'project', label: 'Project' } }
     }
 
     it('renders the "Pick a {label}…" placeholder and emits zero rows when value is unset', () => {
@@ -229,7 +229,7 @@ describe('ListDefinitionBody', () => {
       useTodoStore.setState({ todos: [] })
       const def = futureDef()
       useListDefinitionStore.setState({
-        listDefinitions: [{ ...def, runtimeFilter: { field: 'org' } }],
+        listDefinitions: [{ ...def, runtimeFilter: { kind: 'value', field: 'org' } }],
       })
       render(
         <Wrapper>

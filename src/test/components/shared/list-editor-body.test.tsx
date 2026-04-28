@@ -85,16 +85,73 @@ describe('<ListEditorBody>', () => {
     fireEvent.change(promptSelect, { target: { value: 'person' } })
     expect(onChange).toHaveBeenCalled()
     const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
-    expect(next.runtimeFilter).toEqual({ field: 'person' })
+    expect(next.runtimeFilter).toEqual({ kind: 'value', field: 'person' })
   })
 
   it('clears runtimeFilter when the prompt is set back to None', () => {
     const onChange = vi.fn()
-    render(<ListEditorBody draft={makeDraft({ runtimeFilter: { field: 'org' } })} onChange={onChange} />)
+    render(<ListEditorBody draft={makeDraft({ runtimeFilter: { kind: 'value', field: 'org' } })} onChange={onChange} />)
     const promptSelect = screen.getByDisplayValue('Org') as HTMLSelectElement
     fireEvent.change(promptSelect, { target: { value: 'none' } })
     expect(onChange).toHaveBeenCalled()
     const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
     expect(next.runtimeFilter).toBeUndefined()
+  })
+
+  it('switches to a date-offset spec when the prompt is set to Date offset', () => {
+    const onChange = vi.fn()
+    render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
+    const promptSelect = screen.getByDisplayValue('None') as HTMLSelectElement
+    fireEvent.change(promptSelect, { target: { value: 'date-offset' } })
+    expect(onChange).toHaveBeenCalled()
+    const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
+    expect(next.runtimeFilter).toEqual({ kind: 'date-offset', source: 'scheduled', anchor: 'today' })
+  })
+
+  it('exposes Source / min / max controls when runtimeFilter is a date-offset', () => {
+    const onChange = vi.fn()
+    render(
+      <ListEditorBody
+        draft={makeDraft({
+          runtimeFilter: { kind: 'date-offset', source: 'scheduled', anchor: 'today' },
+        })}
+        onChange={onChange}
+      />,
+    )
+    const sourceSelect = screen.getByLabelText('Date offset source') as HTMLSelectElement
+    expect(sourceSelect.value).toBe('scheduled')
+    fireEvent.change(sourceSelect, { target: { value: 'created' } })
+    expect((onChange.mock.calls.at(-1)![0] as PersistedListDefinition).runtimeFilter).toEqual({
+      kind: 'date-offset', source: 'created', anchor: 'today',
+    })
+
+    const minInput = screen.getByLabelText('Minimum days from today') as HTMLInputElement
+    fireEvent.change(minInput, { target: { value: '-7' } })
+    expect((onChange.mock.calls.at(-1)![0] as PersistedListDefinition).runtimeFilter).toEqual({
+      kind: 'date-offset', source: 'scheduled', anchor: 'today', minDays: -7,
+    })
+
+    const maxInput = screen.getByLabelText('Maximum days from today') as HTMLInputElement
+    fireEvent.change(maxInput, { target: { value: '0' } })
+    expect((onChange.mock.calls.at(-1)![0] as PersistedListDefinition).runtimeFilter).toEqual({
+      kind: 'date-offset', source: 'scheduled', anchor: 'today', maxDays: 0,
+    })
+  })
+
+  it('clears a min/max bound when the input is emptied', () => {
+    const onChange = vi.fn()
+    render(
+      <ListEditorBody
+        draft={makeDraft({
+          runtimeFilter: { kind: 'date-offset', source: 'scheduled', anchor: 'today', minDays: -7, maxDays: 0 },
+        })}
+        onChange={onChange}
+      />,
+    )
+    const minInput = screen.getByLabelText('Minimum days from today') as HTMLInputElement
+    fireEvent.change(minInput, { target: { value: '' } })
+    expect((onChange.mock.calls.at(-1)![0] as PersistedListDefinition).runtimeFilter).toEqual({
+      kind: 'date-offset', source: 'scheduled', anchor: 'today', maxDays: 0,
+    })
   })
 })

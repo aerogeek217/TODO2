@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  applyDateOffsetFilter,
   applyRuntimeFilter,
   buildDashboardLists,
   interpretMembership,
@@ -160,7 +161,7 @@ describe('buildDashboardLists — runtime filter', () => {
   it('returns an empty list with runtimeFilterUnset=true when no pick supplied', () => {
     const def = customDef({
       id: 7,
-      runtimeFilter: { field: 'person' },
+      runtimeFilter: { kind: 'value', field: 'person' },
     })
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
     const [list] = buildDashboardLists([def], todos, makeCtx())
@@ -171,7 +172,7 @@ describe('buildDashboardLists — runtime filter', () => {
   it('merges the pick into the predicate and filters via evalPredicate', () => {
     const def = customDef({
       id: 7,
-      runtimeFilter: { field: 'person' },
+      runtimeFilter: { kind: 'value', field: 'person' },
     })
     const calls: TodoPredicate[] = []
     const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
@@ -193,7 +194,7 @@ describe('buildDashboardLists — runtime filter', () => {
   })
 
   it('OR-combines multi-value picks before membership eval', () => {
-    const def = customDef({ id: 7, runtimeFilter: { field: 'person' } })
+    const def = customDef({ id: 7, runtimeFilter: { kind: 'value', field: 'person' } })
     const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
       if (!p.personIds) return true
       return p.personIds.includes(t.id)
@@ -208,7 +209,7 @@ describe('buildDashboardLists — runtime filter', () => {
   })
 
   it('treats an empty pick array as a no-op (predicate passes through)', () => {
-    const def = customDef({ id: 7, runtimeFilter: { field: 'person' } })
+    const def = customDef({ id: 7, runtimeFilter: { kind: 'value', field: 'person' } })
     // evalPredicate returns true unconditionally; if applyRuntimeFilter wrote
     // `personIds: []` into the predicate, a strict evaluator would short-
     // circuit to "match nothing". The helper must instead pass the predicate
@@ -230,7 +231,7 @@ describe('buildDashboardLists — runtime filter', () => {
   })
 
   it('leaves other batched defs untouched by the runtime pick', () => {
-    const withRt = customDef({ id: 1, name: 'rt', runtimeFilter: { field: 'project' } })
+    const withRt = customDef({ id: 1, name: 'rt', runtimeFilter: { kind: 'value', field: 'project' } })
     const plain = customDef({ id: 2, name: 'plain' })
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
     const lists = buildDashboardLists([withRt, plain], todos, makeCtx({
@@ -243,22 +244,22 @@ describe('buildDashboardLists — runtime filter', () => {
 
   it('applyRuntimeFilter rewrites the appropriate id list for each field', () => {
     const base = emptyPredicate()
-    expect(applyRuntimeFilter(base, { field: 'person' }, [5]).personIds).toEqual([5])
-    expect(applyRuntimeFilter(base, { field: 'org' }, [6]).orgIds).toEqual([6])
-    expect(applyRuntimeFilter(base, { field: 'project' }, [7]).projectIds).toEqual([7])
-    expect(applyRuntimeFilter(base, { field: 'status' }, [8]).statusIds).toEqual([8])
-    expect(applyRuntimeFilter(base, { field: 'tag' }, [9]).tags).toEqual([9])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'person' }, [5]).personIds).toEqual([5])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'org' }, [6]).orgIds).toEqual([6])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'project' }, [7]).projectIds).toEqual([7])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'status' }, [8]).statusIds).toEqual([8])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'tag' }, [9]).tags).toEqual([9])
   })
 
   it('applyRuntimeFilter passes multi-value arrays through to the predicate', () => {
     const base = emptyPredicate()
-    expect(applyRuntimeFilter(base, { field: 'person' }, [1, 2, 3]).personIds).toEqual([1, 2, 3])
-    expect(applyRuntimeFilter(base, { field: 'tag' }, [4, 5]).tags).toEqual([4, 5])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'person' }, [1, 2, 3]).personIds).toEqual([1, 2, 3])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'tag' }, [4, 5]).tags).toEqual([4, 5])
   })
 
   it('applyRuntimeFilter is a no-op when values is empty (predicate unchanged)', () => {
     const base: TodoPredicate = { ...emptyPredicate(), personIds: [1, 2, 3] }
-    const result = applyRuntimeFilter(base, { field: 'person' }, [])
+    const result = applyRuntimeFilter(base, { kind: 'value', field: 'person' }, [])
     // Returned predicate has the same personIds — helper did NOT rewrite to
     // `[]` (which would short-circuit a strict evaluator to "match nothing").
     expect(result).toBe(base)
@@ -267,7 +268,132 @@ describe('buildDashboardLists — runtime filter', () => {
 
   it('applyRuntimeFilter overwrites any prior id filter on the same field', () => {
     const base: TodoPredicate = { ...emptyPredicate(), personIds: [1, 2, 3] }
-    expect(applyRuntimeFilter(base, { field: 'person' }, [9]).personIds).toEqual([9])
+    expect(applyRuntimeFilter(base, { kind: 'value', field: 'person' }, [9]).personIds).toEqual([9])
+  })
+
+  it('applyRuntimeFilter is a no-op for date-offset specs (auto-applied path)', () => {
+    const base = emptyPredicate()
+    const result = applyRuntimeFilter(
+      base,
+      { kind: 'date-offset', source: 'scheduled', anchor: 'today', minDays: -7, maxDays: 0 },
+      [1, 2],
+    )
+    // Date-offset is applied via `applyDateOffsetFilter`; calling
+    // `applyRuntimeFilter` on a date-offset spec should pass the predicate
+    // through unchanged so callers don't accidentally narrow on it.
+    expect(result).toBe(base)
+  })
+})
+
+describe('applyDateOffsetFilter', () => {
+  // The interpreter folds a date-offset spec into the predicate at render time
+  // by writing `dateField`, `dateRangeStart`, and `dateRangeEnd` against
+  // `today`. The downstream `matchesFilter` (in filter-store) does the actual
+  // bucket comparison; here we only assert the predicate-rewrite contract.
+  it('rewrites dateField + range from minDays/maxDays against today', () => {
+    const base = emptyPredicate()
+    const result = applyDateOffsetFilter(
+      base,
+      { kind: 'date-offset', source: 'scheduled', anchor: 'today', minDays: -7, maxDays: 0 },
+      today,
+    )
+    expect(result.dateField).toBe('scheduled')
+    expect(result.dateRangeStart).toEqual({ kind: 'fixed', iso: new Date(today.getTime() - 7 * MS_PER_DAY).toISOString() })
+    expect(result.dateRangeEnd).toEqual({ kind: 'fixed', iso: today.toISOString() })
+  })
+
+  it('maps source = "due" → dateField "deadline"', () => {
+    const result = applyDateOffsetFilter(
+      emptyPredicate(),
+      { kind: 'date-offset', source: 'due', anchor: 'today', maxDays: 0 },
+      today,
+    )
+    expect(result.dateField).toBe('deadline')
+  })
+
+  it('maps source = "created" → dateField "created"', () => {
+    const result = applyDateOffsetFilter(
+      emptyPredicate(),
+      { kind: 'date-offset', source: 'created', anchor: 'today', minDays: -30 },
+      today,
+    )
+    expect(result.dateField).toBe('created')
+  })
+
+  it('maps source = "completed" → dateField "modified" + showCompleted: true', () => {
+    const result = applyDateOffsetFilter(
+      emptyPredicate(),
+      { kind: 'date-offset', source: 'completed', anchor: 'today', minDays: -7 },
+      today,
+    )
+    expect(result.dateField).toBe('modified')
+    expect(result.showCompleted).toBe(true)
+  })
+
+  it('leaves dateRangeStart null when minDays is undefined', () => {
+    const result = applyDateOffsetFilter(
+      emptyPredicate(),
+      { kind: 'date-offset', source: 'scheduled', anchor: 'today', maxDays: -7 },
+      today,
+    )
+    expect(result.dateRangeStart).toBeNull()
+    expect(result.dateRangeEnd).toEqual({ kind: 'fixed', iso: new Date(today.getTime() - 7 * MS_PER_DAY).toISOString() })
+  })
+
+  it('leaves dateRangeEnd null when maxDays is undefined', () => {
+    const result = applyDateOffsetFilter(
+      emptyPredicate(),
+      { kind: 'date-offset', source: 'scheduled', anchor: 'today', minDays: 0 },
+      today,
+    )
+    expect(result.dateRangeEnd).toBeNull()
+    expect(result.dateRangeStart).toEqual({ kind: 'fixed', iso: today.toISOString() })
+  })
+
+  it('leaves both bounds null when both are undefined (degenerate case — interpreter still applies)', () => {
+    const result = applyDateOffsetFilter(
+      emptyPredicate(),
+      { kind: 'date-offset', source: 'scheduled', anchor: 'today' },
+      today,
+    )
+    expect(result.dateRangeStart).toBeNull()
+    expect(result.dateRangeEnd).toBeNull()
+  })
+})
+
+describe('buildDashboardLists — date-offset runtime filter', () => {
+  // Date-offset runtime filters are auto-applied: no user pick, no
+  // `runtimeFilterUnset` placeholder. The interpreter rewrites the predicate
+  // and the evaluator receives the narrowed shape.
+  it('auto-applies date-offset narrowing — never marks runtimeFilterUnset', () => {
+    const def = customDef({
+      id: 5,
+      runtimeFilter: { kind: 'date-offset', source: 'scheduled', anchor: 'today', maxDays: 0 },
+    })
+    const seen: TodoPredicate[] = []
+    const ctx = makeCtx({
+      evalPredicate: (p) => { seen.push(p); return true },
+    })
+    const [list] = buildDashboardLists([def], [makeTodo({ id: 1 })], ctx)
+    expect(list!.runtimeFilterUnset).toBeUndefined()
+    expect(seen.every((p) => p.dateField === 'scheduled')).toBe(true)
+    expect(seen.every((p) => p.dateRangeEnd?.kind === 'fixed')).toBe(true)
+  })
+
+  it('does not consult ctx.runtimeFilterValues for date-offset specs', () => {
+    const def = customDef({
+      id: 6,
+      runtimeFilter: { kind: 'date-offset', source: 'created', anchor: 'today', minDays: -30 },
+    })
+    const seen: TodoPredicate[] = []
+    const [list] = buildDashboardLists([def], [makeTodo({ id: 1 })], makeCtx({
+      evalPredicate: (p) => { seen.push(p); return true },
+      // No entry for def 6 — would mark runtimeFilterUnset for a value spec,
+      // but date-offset auto-applies so this should be a no-op.
+      runtimeFilterValues: new Map(),
+    }))
+    expect(list!.runtimeFilterUnset).toBeUndefined()
+    expect(seen.length).toBeGreaterThan(0)
   })
 })
 

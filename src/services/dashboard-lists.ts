@@ -6,8 +6,10 @@ import type {
   Org,
   Project,
   Status,
+  DateField,
 } from '../models'
 import type {
+  DateOffsetSource,
   ListMembership,
   ListSort,
   ListGrouping,
@@ -20,7 +22,7 @@ import {
   resolveScheduled,
   type WeekStart,
 } from '../utils/effective-date'
-import { startOfDay } from '../utils/date'
+import { MS_PER_DAY, startOfDay } from '../utils/date'
 import {
   bucketByTag as bucketByTagUtil,
   UNTAGGED_BUCKET_KEY,
@@ -102,12 +104,17 @@ export interface DashboardList {
  * predicate). Callers that want "show no rows when the filter is unset" must
  * gate on the absence of a pick (see `buildDashboardLists` →
  * `runtimeFilterUnset`).
+ *
+ * Only `kind: 'value'` specs are valid here; `kind: 'date-offset'` is auto-
+ * applied via `applyDateOffsetFilter` and never goes through the user-pick
+ * path.
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
   spec: RuntimeFilterSpec,
   values: number[],
 ): TodoPredicate {
+  if (spec.kind !== 'value') return predicate
   if (values.length === 0) return predicate
   switch (spec.field) {
     case 'person': return { ...predicate, personIds: values }
@@ -115,6 +122,51 @@ export function applyRuntimeFilter(
     case 'project': return { ...predicate, projectIds: values }
     case 'status': return { ...predicate, statusIds: values }
     case 'tag': return { ...predicate, tags: values }
+  }
+}
+
+function dateFieldForOffsetSource(source: DateOffsetSource): DateField {
+  switch (source) {
+    case 'scheduled': return 'scheduled'
+    case 'due': return 'deadline'
+    case 'created': return 'created'
+    // No `completed` dateField exists; `modifiedAt` is the codebase's
+    // completion-time proxy (see v42 todoEvent backfill). Combined with
+    // `showCompleted: true` below, this matches "completed in the offset
+    // window" closely enough for stale-list use cases.
+    case 'completed': return 'modified'
+  }
+}
+
+/**
+ * Return a new predicate that narrows by a relative date window evaluated
+ * against `today`. Used for `RuntimeFilterSpec.kind === 'date-offset'` —
+ * unlike the value variant there is no user pick; the bounds are baked into
+ * the spec. Open bounds (undefined `minDays` / `maxDays`) leave the matching
+ * `dateRangeStart` / `dateRangeEnd` null. Replaces any existing date-range
+ * clause on the predicate — runtime narrowing is authoritative here too. For
+ * `source: 'completed'` the predicate is also flipped to `showCompleted:
+ * true` so completed todos aren't filtered out before the range check.
+ */
+export function applyDateOffsetFilter(
+  predicate: TodoPredicate,
+  spec: Extract<RuntimeFilterSpec, { kind: 'date-offset' }>,
+  today: Date,
+): TodoPredicate {
+  const base = startOfDay(today)
+  const start = spec.minDays !== undefined
+    ? new Date(base.getTime() + spec.minDays * MS_PER_DAY)
+    : null
+  const end = spec.maxDays !== undefined
+    ? new Date(base.getTime() + spec.maxDays * MS_PER_DAY)
+    : null
+  return {
+    ...predicate,
+    dateField: dateFieldForOffsetSource(spec.source),
+    dateRangeStart: start ? { kind: 'fixed', iso: start.toISOString() } : null,
+    dateRangeEnd: end ? { kind: 'fixed', iso: end.toISOString() } : null,
+    dateRangeIncludeNoDate: false,
+    showCompleted: spec.source === 'completed' ? true : predicate.showCompleted,
   }
 }
 
@@ -129,16 +181,31 @@ export function buildDashboardLists(
     let effectiveDef = def
     let runtimeFilterUnset: true | undefined
     if (def.runtimeFilter) {
-      const pick = ctx.runtimeFilterValues?.get(def.id)
-      if (pick == null) {
-        runtimeFilterUnset = true
-      } else if (def.membership.kind === 'custom') {
-        effectiveDef = {
-          ...def,
-          membership: {
-            kind: 'custom',
-            predicate: applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick),
-          },
+      if (def.runtimeFilter.kind === 'date-offset') {
+        // Auto-applied — no user pick needed. Bounds are baked into the spec
+        // and evaluated against `ctx.today`.
+        if (def.membership.kind === 'custom') {
+          effectiveDef = {
+            ...def,
+            membership: {
+              kind: 'custom',
+              predicate: applyDateOffsetFilter(def.membership.predicate, def.runtimeFilter, ctx.today),
+            },
+          }
+        }
+      } else {
+        // kind: 'value' — needs the caller's current pick.
+        const pick = ctx.runtimeFilterValues?.get(def.id)
+        if (pick == null) {
+          runtimeFilterUnset = true
+        } else if (def.membership.kind === 'custom') {
+          effectiveDef = {
+            ...def,
+            membership: {
+              kind: 'custom',
+              predicate: applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick),
+            },
+          }
         }
       }
     }

@@ -110,7 +110,9 @@ export function ListDefinitionBody({
     return () => clearTimeout(timer)
   }, [dayKey])
 
-  const runtimeFilterPending = definition?.runtimeFilter != null && runtimeFilterValue == null
+  // Only the `value` runtime-filter variant ever waits on a user pick;
+  // `date-offset` is auto-applied against today by the interpreter.
+  const runtimeFilterPending = definition?.runtimeFilter?.kind === 'value' && runtimeFilterValue == null
 
   const builtList = useMemo<DashboardList | null>(() => {
     if (!definition) return null
@@ -130,7 +132,7 @@ export function ListDefinitionBody({
         criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, undefined, assignedTagIds,
       )
     }
-    const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
+    const runtimeFilterValues = definition.runtimeFilter?.kind === 'value' && runtimeFilterValue != null
       ? new Map<number, number[]>([[definition.id, runtimeFilterValue]])
       : undefined
     const [list] = buildDashboardLists([definition], todos, {
@@ -170,8 +172,9 @@ export function ListDefinitionBody({
     onResultRef.current?.({ name: definition?.name ?? null, count: filteredTodos.length, todos: filteredTodos })
   }, [definition?.name, filteredTodos])
 
-  const pickerLabel = definition?.runtimeFilter?.label?.trim() || (definition?.runtimeFilter
-    ? (definition.runtimeFilter.field.charAt(0).toUpperCase() + definition.runtimeFilter.field.slice(1))
+  const valueRtFilter = definition?.runtimeFilter?.kind === 'value' ? definition.runtimeFilter : null
+  const pickerLabel = valueRtFilter?.label?.trim() || (valueRtFilter
+    ? (valueRtFilter.field.charAt(0).toUpperCase() + valueRtFilter.field.slice(1))
     : '')
   const placeholderText = runtimeFilterPending
     ? `Pick a ${pickerLabel.toLowerCase()} to populate…`
@@ -197,9 +200,9 @@ export function ListDefinitionBody({
 
   return (
     <>
-      {definition?.runtimeFilter && onRuntimeFilterChange && (
+      {valueRtFilter && onRuntimeFilterChange && (
         <RuntimeFilterPicker
-          spec={definition.runtimeFilter}
+          spec={valueRtFilter}
           value={runtimeFilterValue}
           onChange={onRuntimeFilterChange}
         />
