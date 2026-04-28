@@ -17,6 +17,7 @@ function anchorsEqual(a: DateAnchor | null, b: DateAnchor | null): boolean {
   if (a.kind !== b.kind) return false
   if (a.kind === 'fixed' && b.kind === 'fixed') return a.iso === b.iso
   if (a.kind === 'relative' && b.kind === 'relative') return a.token === b.token
+  if (a.kind === 'offset' && b.kind === 'offset') return a.days === b.days
   return false
 }
 

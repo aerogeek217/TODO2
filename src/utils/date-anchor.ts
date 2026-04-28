@@ -22,6 +22,9 @@ export function readDateAnchor(v: unknown): DateAnchor | null {
         && (RELATIVE_DATE_TOKENS as readonly string[]).includes(o.token)) {
       return { kind: 'relative', token: o.token as RelativeDateToken }
     }
+    if (o.kind === 'offset' && typeof o.days === 'number' && Number.isFinite(o.days)) {
+      return { kind: 'offset', days: Math.trunc(o.days) }
+    }
   }
   return null
 }

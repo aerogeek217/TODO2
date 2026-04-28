@@ -19,6 +19,7 @@ const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
 }
 
 const NONE_SENTINEL = '__none__'
+const OFFSET_SENTINEL = '__offset__'
 
 export interface DateAnchorInputProps {
   value: DateAnchor | null
@@ -28,16 +29,24 @@ export interface DateAnchorInputProps {
 }
 
 /**
- * Combined date input: native `<input type="date">` for fixed dates alongside a
- * `<select>` of relative tokens (today, start-of-week, end-of-month, ...). When
- * the user picks a relative token the fixed date clears and vice versa. Shared
- * between TopBar and FilterSheet so both surfaces author the same DSL.
+ * Combined date input. The `<select>` carries every authoring path: a fixed
+ * date (typed into the native date input below), a named relative token
+ * (today / start-of-week / end-of-month / …), or a custom integer day offset
+ * from today (the `Custom offset…` option swaps the date input out for a
+ * number-of-days input so users can author windows like `-7` for "stale by a
+ * week" without picking a named token). Shared between TopBar, FilterSheet,
+ * and any other surface that authors the same DSL.
  */
 export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnchorInputProps) {
   const dateStr = value && value.kind === 'fixed' ? value.iso.slice(0, 10) : ''
+  const offsetStr = value && value.kind === 'offset' ? String(value.days) : ''
   const tokenStr = value === null
     ? NONE_SENTINEL
-    : value.kind === 'relative' ? value.token : ''
+    : value.kind === 'relative'
+      ? value.token
+      : value.kind === 'offset'
+        ? OFFSET_SENTINEL
+        : ''
 
   const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value
@@ -48,24 +57,53 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
     onChange({ kind: 'fixed', iso: new Date(v + 'T00:00:00').toISOString() })
   }, [onChange])
 
+  const handleOffsetChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    if (raw === '' || raw === '-') {
+      onChange({ kind: 'offset', days: 0 })
+      return
+    }
+    const n = Number(raw)
+    if (!Number.isFinite(n)) return
+    onChange({ kind: 'offset', days: Math.trunc(n) })
+  }, [onChange])
+
   const handleTokenChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value
     if (v === NONE_SENTINEL || !v) {
       onChange(null)
       return
     }
+    if (v === OFFSET_SENTINEL) {
+      const prior = value && value.kind === 'offset' ? value.days : 0
+      onChange({ kind: 'offset', days: prior })
+      return
+    }
     onChange({ kind: 'relative', token: v as RelativeDateToken })
-  }, [onChange])
+  }, [onChange, value])
 
   return (
     <div className={`${styles.wrapper} ${className ?? ''}`}>
-      <input
-        type="date"
-        className={styles.dateInput}
-        value={dateStr}
-        onChange={handleDateChange}
-        aria-label={aria['aria-label']}
-      />
+      {value?.kind === 'offset' ? (
+        <span className={styles.offsetField}>
+          <input
+            type="number"
+            className={styles.offsetInput}
+            value={offsetStr}
+            onChange={handleOffsetChange}
+            aria-label={aria['aria-label'] ? `${aria['aria-label']} (days offset)` : 'Days from today'}
+          />
+          <span className={styles.offsetSuffix}>days</span>
+        </span>
+      ) : (
+        <input
+          type="date"
+          className={styles.dateInput}
+          value={dateStr}
+          onChange={handleDateChange}
+          aria-label={aria['aria-label']}
+        />
+      )}
       <select
         className={styles.tokenSelect}
         value={tokenStr}
@@ -78,6 +116,7 @@ export function DateAnchorInput({ value, onChange, className, ...aria }: DateAnc
         {RELATIVE_DATE_TOKENS.map(t => (
           <option key={t} value={t}>{RELATIVE_TOKEN_LABELS[t]}</option>
         ))}
+        <option value={OFFSET_SENTINEL}>Custom offset…</option>
       </select>
     </div>
   )

@@ -138,7 +138,7 @@ describe('ListView — runtime-filter picker', () => {
     const def = makeDef({
       id: 1,
       name: 'Tasks for…',
-      runtimeFilter: { kind: 'value', field: 'person' },
+      runtimeFilter: { field: 'person' },
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
@@ -172,7 +172,7 @@ describe('ListView — runtime-filter picker', () => {
     const def = makeDef({
       id: 1,
       name: 'Tasks for…',
-      runtimeFilter: { kind: 'value', field: 'project' },
+      runtimeFilter: { field: 'project' },
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
@@ -210,7 +210,7 @@ describe('ListView — runtime-filter picker', () => {
     const def = makeDef({
       id: 1,
       name: 'Tasks for…',
-      runtimeFilter: { kind: 'value', field: 'project' },
+      runtimeFilter: { field: 'project' },
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
@@ -243,7 +243,7 @@ describe('ListView — runtime-filter picker', () => {
     const def = makeDef({
       id: 1,
       name: 'Tasks for…',
-      runtimeFilter: { kind: 'value', field: 'person' },
+      runtimeFilter: { field: 'person' },
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
@@ -261,7 +261,7 @@ describe('ListView — runtime-filter picker', () => {
     const def = makeDef({
       id: 1,
       name: 'Tasks for…',
-      runtimeFilter: { kind: 'value', field: 'person' },
+      runtimeFilter: { field: 'person' },
     })
     useListDefinitionStore.setState({
       listDefinitions: [def],
@@ -302,7 +302,7 @@ describe('ListView — runtime-filter picker', () => {
 
     await triggerSaveConfirm()
     expect(updates.length).toBe(1)
-    expect(updates[0]!.runtimeFilter).toEqual({ kind: 'value', field: 'project' })
+    expect(updates[0]!.runtimeFilter).toEqual({ field: 'project' })
 
     // Clear the spec via 'none'; Save again and confirm it persists as undefined.
     fireEvent.change(promptSelect, { target: { value: 'none' } })

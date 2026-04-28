@@ -22,16 +22,8 @@ interface Option {
   name: string
 }
 
-type ValueRuntimeFilterSpec = Extract<RuntimeFilterSpec, { kind: 'value' }>
-
 interface RuntimeFilterPickerProps {
-  /**
-   * Only `kind: 'value'` specs render through the picker. `date-offset` is
-   * auto-applied at render time by the interpreter and never goes through
-   * this UI — callers gate the mount accordingly (see `ListView` /
-   * `ListDefinitionBody`).
-   */
-  spec: ValueRuntimeFilterSpec
+  spec: RuntimeFilterSpec
   /** Currently picked ids (OR-combined). Empty / undefined ≡ no narrowing. */
   value: number[] | undefined
   /**
@@ -42,7 +34,7 @@ interface RuntimeFilterPickerProps {
   onChange: (value: number[]) => void
 }
 
-function defaultLabel(spec: ValueRuntimeFilterSpec): string {
+function defaultLabel(spec: RuntimeFilterSpec): string {
   if (spec.label && spec.label.trim()) return spec.label
   switch (spec.field) {
     case 'person': return 'Person'

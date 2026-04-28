@@ -466,4 +466,16 @@ describe('resolveDateAnchor', () => {
     const result = resolveDateAnchor({ kind: 'relative', token: 'end-of-week' }, today, 1)
     expect(result.getDate()).toBe(19)
   })
+
+  it('resolves an offset anchor to today + days', () => {
+    const ahead = resolveDateAnchor({ kind: 'offset', days: 7 }, today, 1)
+    expect(ahead.getDate()).toBe(22)
+    expect(ahead.getMonth()).toBe(3)
+    const behind = resolveDateAnchor({ kind: 'offset', days: -7 }, today, 1)
+    expect(behind.getDate()).toBe(8)
+    expect(behind.getMonth()).toBe(3)
+    const same = resolveDateAnchor({ kind: 'offset', days: 0 }, today, 1)
+    expect(same.getDate()).toBe(15)
+    expect(same.getMonth()).toBe(3)
+  })
 })

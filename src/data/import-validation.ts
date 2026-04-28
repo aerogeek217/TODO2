@@ -20,7 +20,6 @@ export interface ImportTodoTag {
   tagId: number
 }
 import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
-import { normalizeRuntimeFilterSpec } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../models/status'
@@ -195,6 +194,7 @@ function isOptDateAnchorOrLegacy(v: unknown): boolean {
   if (!isObj(v)) return false
   if (v.kind === 'fixed') return typeof v.iso === 'string' && isDateLike(v.iso)
   if (v.kind === 'relative') return typeof v.token === 'string' && (RELATIVE_DATE_TOKENS as readonly string[]).includes(v.token)
+  if (v.kind === 'offset') return typeof v.days === 'number' && Number.isFinite(v.days)
   return false
 }
 
@@ -258,38 +258,6 @@ function isValidGrouping(g: unknown): boolean {
   return true
 }
 
-const VALID_RUNTIME_FILTER_FIELDS = ['person', 'org', 'project', 'status', 'tag']
-const VALID_DATE_OFFSET_SOURCES = ['scheduled', 'due', 'created', 'completed']
-
-function isValidRuntimeFilter(v: unknown): boolean {
-  // v47+ shape: discriminated union with `kind`. Pre-v47 backups carry the
-  // legacy `{ field, label? }` shape — accepted here, normalised in
-  // `pickListDefinition` (lifted to `kind: 'value'`).
-  if (v === undefined) return true
-  if (!isObj(v)) return false
-  const kind = (v as { kind?: unknown }).kind
-  if (typeof kind === 'string') {
-    if (kind === 'value') {
-      return typeof v.field === 'string' && VALID_RUNTIME_FILTER_FIELDS.includes(v.field as string)
-        && (v.label === undefined || typeof v.label === 'string')
-    }
-    if (kind === 'date-offset') {
-      const src = v.source
-      const anchor = v.anchor
-      if (typeof src !== 'string' || !VALID_DATE_OFFSET_SOURCES.includes(src)) return false
-      if (anchor !== 'today') return false
-      if (v.minDays !== undefined && !(typeof v.minDays === 'number' && Number.isFinite(v.minDays))) return false
-      if (v.maxDays !== undefined && !(typeof v.maxDays === 'number' && Number.isFinite(v.maxDays))) return false
-      if (v.label !== undefined && typeof v.label !== 'string') return false
-      return true
-    }
-    return false
-  }
-  // Legacy shape: { field, label? }
-  return typeof v.field === 'string' && VALID_RUNTIME_FILTER_FIELDS.includes(v.field as string)
-    && (v.label === undefined || typeof v.label === 'string')
-}
-
 function checkListDefinition(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   const membership = v.membership
@@ -307,7 +275,6 @@ function checkListDefinition(v: unknown): CheckResult {
     ['favorited', v.favorited === undefined || isBool(v.favorited)],
     ['maxTasks', v.maxTasks === undefined || (isFiniteNum(v.maxTasks) && (v.maxTasks as number) >= 1 && (v.maxTasks as number) <= 10000)],
     ['limitMode', v.limitMode === undefined || v.limitMode === 'hard' || v.limitMode === 'scroll'],
-    ['runtimeFilter', isValidRuntimeFilter(v.runtimeFilter)],
   ])
 }
 
@@ -1281,12 +1248,6 @@ function pickListDefinition(v: Record<string, unknown>): ListDefinition {
   // the flat shape (ui-consistency-2026-04-25 P4).
   const flatSort = flattenListSortValue(v.sort)
   const flatGrouping = flattenListGroupingValue(v.grouping, flatSort)
-  // Normalise legacy `runtimeFilter` shape — pre-v47 backups carry
-  // `{ field, label? }` (no `kind`); the runtime expects the discriminated
-  // union (triage-2026-04-27-batch2 P8). `normalizeRuntimeFilterSpec` returns
-  // undefined for invalid payloads — but `isValidRuntimeFilter` already
-  // gated the row, so a non-null `v.runtimeFilter` here always normalises.
-  const runtimeFilter = v.runtimeFilter != null ? normalizeRuntimeFilterSpec(v.runtimeFilter) : undefined
   return {
     id: v.id as number | undefined,
     name: v.name as string,
@@ -1301,7 +1262,7 @@ function pickListDefinition(v: Record<string, unknown>): ListDefinition {
     favorited: typeof v.favorited === 'boolean' ? v.favorited : false,
     ...(typeof v.maxTasks === 'number' ? { maxTasks: v.maxTasks } : {}),
     ...(v.limitMode === 'hard' || v.limitMode === 'scroll' ? { limitMode: v.limitMode } : {}),
-    ...(runtimeFilter ? { runtimeFilter } : {}),
+    ...(v.runtimeFilter != null ? { runtimeFilter: v.runtimeFilter as ListDefinition['runtimeFilter'] } : {}),
   }
 }
 

@@ -90,7 +90,7 @@ describe('useFilterStore', () => {
   // wipes both in one shot. Without this, the runtime filter input remained
   // visible after the user cleared filters from the FilterChipBar.
   it('clearAll also resets runtime filter spec and value', () => {
-    useFilterStore.getState().setRuntimeFilterSpec({ kind: 'value', field: 'person' })
+    useFilterStore.getState().setRuntimeFilterSpec({ field: 'person' })
     useFilterStore.getState().setRuntimeFilterValue([1, 2])
     expect(useFilterStore.getState().runtimeFilterSpec).not.toBeNull()
     expect(useFilterStore.getState().runtimeFilterValue).toEqual([1, 2])
@@ -106,8 +106,8 @@ describe('useFilterStore', () => {
     // the predicate only. Saved-view application sets the predicate and the
     // runtime slot in two distinct calls; bleed between the two would surprise
     // the topbar's filter-active styling.
-    useFilterStore.getState().setRuntimeFilterSpec({ kind: 'value', field: 'org', label: 'Team' })
-    expect(useFilterStore.getState().runtimeFilterSpec).toEqual({ kind: 'value', field: 'org', label: 'Team' })
+    useFilterStore.getState().setRuntimeFilterSpec({ field: 'org', label: 'Team' })
+    expect(useFilterStore.getState().runtimeFilterSpec).toEqual({ field: 'org', label: 'Team' })
     expect(useFilterStore.getState().isActive).toBe(false)
 
     useFilterStore.getState().setRuntimeFilterValue([5])

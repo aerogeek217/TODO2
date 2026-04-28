@@ -40,11 +40,14 @@ export const RELATIVE_DATE_TOKENS: readonly RelativeDateToken[] = [
 
 /**
  * Serializable date-range anchor. `fixed` matches the legacy ISO-string
- * behavior; `relative` carries a token that resolves against today at eval time.
+ * behavior; `relative` carries a named token; `offset` carries an integer
+ * day-count from today (negative = past, positive = future) for arbitrary
+ * windows like "stale > 7 days" that don't map to a named token.
  */
 export type DateAnchor =
   | { kind: 'fixed'; iso: string }
   | { kind: 'relative'; token: RelativeDateToken }
+  | { kind: 'offset'; days: number }
 
 /**
  * Serializable predicate describing the live filter fields. Intentionally does

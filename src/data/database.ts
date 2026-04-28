@@ -345,15 +345,20 @@ export class Todo2Database extends Dexie {
         await runV46Migration(tx)
       })
 
-    // v47: extend `ListDefinition.runtimeFilter` to a discriminated union —
-    // the legacy `{ field, label? }` becomes `{ kind: 'value', field, label? }`
-    // so a new `{ kind: 'date-offset', source, anchor, minDays?, maxDays?,
-    // label? }` variant can land alongside (triage-2026-04-27-batch2 P8).
-    // Idempotent — rows already carrying a `kind` discriminator pass through
-    // unchanged.
+    // v47: was a runtimeFilter discriminated-union migration that wrapped
+    // the legacy `{ field, label? }` as `{ kind: 'value', ... }`. Reverted
+    // before any user data depended on the new shape; v48 unwinds it. The
+    // version is preserved as an empty marker so users whose local DB had
+    // already advanced to v47 can still open without a Dexie version error.
     this.version(47).stores({})
+
+    // v48: unwind the v47 wrap. Flattens `{ kind: 'value', field, label? }`
+    // back to `{ field, label? }` and drops any experimental
+    // `{ kind: 'date-offset', ... }` rows (the offset capability now rides
+    // `DateAnchor` instead — see filter-predicate.ts). Idempotent.
+    this.version(48).stores({})
       .upgrade(async (tx) => {
-        await runV47Migration(tx)
+        await runV48Migration(tx)
       })
   }
 }
@@ -1814,38 +1819,52 @@ export async function runV46Migration(tx: Transaction): Promise<void> {
 }
 
 /**
- * Wrap a legacy `{ field, label? }` runtimeFilter row with a `kind: 'value'`
- * discriminator so the discriminated-union `RuntimeFilterSpec` reads it
- * unchanged. Pure — returns true iff the row was rewritten in place. Rows
- * that already carry a `kind` (`'value'` or `'date-offset'`) pass through.
- * Used by v47 + the import-validation normalizer.
+ * Undo the short-lived v47 wrapping of `runtimeFilter`: reverts
+ * `{ kind: 'value', field, label? }` rows back to the flat
+ * `{ field, label? }` shape, and drops the experimental
+ * `{ kind: 'date-offset', ... }` rows entirely (the offset capability now
+ * rides `DateAnchor` instead). Returns 'unwrapped', 'dropped', or 'none'
+ * depending on what happened to the row. Idempotent — rows already flat
+ * pass through.
  */
-export function liftRuntimeFilterSpecInPlace(def: Record<string, unknown>): boolean {
+export function unwrapRuntimeFilterSpecInPlace(
+  def: Record<string, unknown>,
+): 'unwrapped' | 'dropped' | 'none' {
   const rf = def.runtimeFilter
-  if (!rf || typeof rf !== 'object') return false
+  if (!rf || typeof rf !== 'object') return 'none'
   const r = rf as Record<string, unknown>
-  if (typeof r.kind === 'string') return false
-  if (typeof r.field !== 'string') return false
-  const next: Record<string, unknown> = { kind: 'value', field: r.field }
+  if (r.kind === 'date-offset') {
+    delete def.runtimeFilter
+    return 'dropped'
+  }
+  if (r.kind !== 'value') return 'none'
+  if (typeof r.field !== 'string') {
+    delete def.runtimeFilter
+    return 'dropped'
+  }
+  const next: Record<string, unknown> = { field: r.field }
   if (typeof r.label === 'string' && r.label.trim()) next.label = r.label
   def.runtimeFilter = next
-  return true
+  return 'unwrapped'
 }
 
 /**
- * v47 upgrade: extend `ListDefinition.runtimeFilter` to a discriminated union.
- * Walks `listDefinitions` rows and rewrites the legacy `{ field, label? }`
- * shape to `{ kind: 'value', field, label? }`. New `{ kind: 'date-offset' }`
- * lists can be authored after this migration ships
- * (triage-2026-04-27-batch2 P8). Idempotent — rows already carrying a `kind`
- * discriminator are skipped.
+ * v48 upgrade: unwind the short-lived v47 `runtimeFilter` wrapping. Walks
+ * `listDefinitions` and either flattens `{ kind: 'value', ... }` rows back
+ * to the legacy `{ field, label? }` shape or drops experimental
+ * `{ kind: 'date-offset', ... }` rows. Idempotent.
  */
-export async function runV47Migration(tx: Transaction): Promise<void> {
-  let touched = 0
+export async function runV48Migration(tx: Transaction): Promise<void> {
+  let unwrapped = 0
+  let dropped = 0
   await tx.table('listDefinitions').toCollection().modify((def) => {
-    if (liftRuntimeFilterSpecInPlace(def as Record<string, unknown>)) touched++
+    const r = unwrapRuntimeFilterSpecInPlace(def as Record<string, unknown>)
+    if (r === 'unwrapped') unwrapped++
+    else if (r === 'dropped') dropped++
   })
-  if (touched > 0) {
-    console.info(`v47 migration: lifted runtimeFilter shape on ${touched} list-definition row(s)`)
+  if (unwrapped > 0 || dropped > 0) {
+    console.info(
+      `v48 migration: unwrapped ${unwrapped}, dropped ${dropped} runtimeFilter row(s)`,
+    )
   }
 }

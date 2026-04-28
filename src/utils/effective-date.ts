@@ -97,7 +97,8 @@ export function resolveRelativeToken(
 
 /**
  * Resolve a `DateAnchor` to a concrete midnight Date. `fixed` parses the ISO
- * string; `relative` resolves against `today` via `resolveRelativeToken`.
+ * string; `relative` resolves against `today` via `resolveRelativeToken`;
+ * `offset` is `today + days * MS_PER_DAY` (truncated to midnight).
  */
 export function resolveDateAnchor(
   anchor: DateAnchor,
@@ -105,6 +106,9 @@ export function resolveDateAnchor(
   weekStartsOn: WeekStart,
 ): Date {
   if (anchor.kind === 'fixed') return startOfDay(new Date(anchor.iso))
+  if (anchor.kind === 'offset') {
+    return startOfDay(new Date(startOfDay(today).getTime() + anchor.days * MS_PER_DAY))
+  }
   return resolveRelativeToken(anchor.token, today, weekStartsOn)
 }
 

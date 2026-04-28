@@ -33,7 +33,7 @@ import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy } from '../models'
 import { LIST_GROUP_VALUES, LIST_SORT_VALUES } from '../models'
 import type { RuntimeFilterField } from '../models/list-definition'
-import { applyDateOffsetFilter, applyRuntimeFilter } from '../services/dashboard-lists'
+import { applyRuntimeFilter } from '../services/dashboard-lists'
 import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { bucketByTag, UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
@@ -72,16 +72,13 @@ const itemSortByOptions: readonly SortGroupOption<ListItemSortBy>[] = [
   { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
 ]
 
-type RuntimePromptValue = RuntimeFilterField | 'date-offset' | 'none'
-
-const runtimeFilterOptions: { value: RuntimePromptValue; label: string }[] = [
+const runtimeFilterOptions: { value: RuntimeFilterField | 'none'; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'person', label: 'Person' },
   { value: 'org', label: 'Org' },
   { value: 'project', label: 'Project' },
   { value: 'status', label: 'Status' },
   { value: 'tag', label: 'Tag' },
-  { value: 'date-offset', label: 'Date offset' },
 ]
 
 
@@ -707,26 +704,18 @@ export function ListView() {
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
 
-  // When a loaded def declares a runtime filter, merge it into the criteria.
-  // Two variants:
-  //   • value: prompts the user via the visible picker; an unset / empty pick
-  //     returns the unnarrowed filters (and the activeTodos branch below
-  //     short-circuits to []).
-  //   • date-offset: auto-applied — bounds are baked into the spec, evaluated
-  //     against today. No picker, no user pick — always merges.
+  // When a loaded def declares a runtime filter, merge the picked value into
+  // the criteria via the same helper widgets use. If the spec is set but no
+  // value is picked yet, the list returns empty — mirrors widget behavior and
+  // prompts the user to pick via the visible picker.
   const effectiveFilters = useMemo(() => {
-    if (!runtimeFilterSpec) return filters
-    if (runtimeFilterSpec.kind === 'date-offset') {
-      const narrowed = applyDateOffsetFilter(criteriaToPredicate(filters), runtimeFilterSpec, new Date())
-      return predicateToCriteria(narrowed)
-    }
-    if (runtimeFilterValue == null || runtimeFilterValue.length === 0) return filters
+    if (!runtimeFilterSpec || runtimeFilterValue == null || runtimeFilterValue.length === 0) return filters
     const narrowed = applyRuntimeFilter(criteriaToPredicate(filters), runtimeFilterSpec, runtimeFilterValue)
     return predicateToCriteria(narrowed)
   }, [filters, runtimeFilterSpec, runtimeFilterValue])
 
   const activeTodos = useMemo(() => {
-    if (runtimeFilterSpec?.kind === 'value' && runtimeFilterValue == null) return []
+    if (runtimeFilterSpec && runtimeFilterValue == null) return []
     return applyFilter(effectiveFilters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
   }, [todos, effectiveFilters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
 
@@ -1084,28 +1073,20 @@ export function ListView() {
               <div className={styles.toolbarField}>
                 <span
                   className={styles.toolbarLabel}
-                  title="Prompt for a value at render time — e.g. 'Tasks for {assignee}' — or auto-apply a relative date offset."
+                  title="Prompt for a value at render time — e.g. 'Tasks for {assignee}'."
                 >
                   Prompt
                 </span>
                 <select
                   className={styles.runtimeSelect}
-                  value={
-                    runtimeFilterSpec == null
-                      ? 'none'
-                      : runtimeFilterSpec.kind === 'date-offset'
-                        ? 'date-offset'
-                        : runtimeFilterSpec.field
-                  }
+                  value={runtimeFilterSpec?.field ?? 'none'}
                   aria-label="Prompt field"
                   onChange={(e) => {
-                    const next = e.target.value as RuntimePromptValue
+                    const next = e.target.value as RuntimeFilterField | 'none'
                     if (next === 'none') {
                       setRuntimeFilterSpec(null)
-                    } else if (next === 'date-offset') {
-                      setRuntimeFilterSpec({ kind: 'date-offset', source: 'scheduled', anchor: 'today' })
                     } else {
-                      setRuntimeFilterSpec({ kind: 'value', field: next })
+                      setRuntimeFilterSpec({ field: next })
                     }
                     setRuntimeFilterValue(undefined)
                     setActiveLoadedDefId(null)
@@ -1148,7 +1129,7 @@ export function ListView() {
             </div>
           </div>
 
-          {runtimeFilterSpec?.kind === 'value' && (
+          {runtimeFilterSpec && (
             <div className={styles.runtimeFilterWrap}>
               <RuntimeFilterPicker
                 spec={runtimeFilterSpec}
@@ -1160,7 +1141,7 @@ export function ListView() {
 
           {totalActive === 0 && (
             <div className={styles.empty}>
-              {runtimeFilterSpec?.kind === 'value' && runtimeFilterValue == null ? (
+              {runtimeFilterSpec && runtimeFilterValue == null ? (
                 `Pick a ${(runtimeFilterSpec.label ?? runtimeFilterSpec.field).toLowerCase()} to populate this list.`
               ) : isFilterActive ? (
                 <>

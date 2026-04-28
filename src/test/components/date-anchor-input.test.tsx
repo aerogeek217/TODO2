@@ -102,4 +102,78 @@ describe('DateAnchorInput', () => {
     fireEvent.change(tokenSelect(container), { target: { value: 'end-of-month' } })
     expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'end-of-month' })
   })
+
+  it('exposes a "Custom offset…" option in the dropdown', () => {
+    const { container } = render(<DateAnchorInput value={null} onChange={() => {}} />)
+    const options = Array.from(tokenSelect(container).options).map(o => o.textContent)
+    expect(options).toContain('Custom offset…')
+  })
+
+  it('initializes offset to days=0 when "Custom offset…" is picked from null', () => {
+    const onChange = vi.fn()
+    const { container } = render(<DateAnchorInput value={null} onChange={onChange} />)
+    fireEvent.change(tokenSelect(container), { target: { value: '__offset__' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 0 })
+  })
+
+  it('preserves prior days when re-picking "Custom offset…" while already in offset mode', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: -7 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(tokenSelect(container), { target: { value: '__offset__' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: -7 })
+  })
+
+  it('swaps the date input for a number input when in offset mode', () => {
+    const v: DateAnchor = { kind: 'offset', days: -3 }
+    const { container } = render(<DateAnchorInput value={v} onChange={() => {}} />)
+    expect(container.querySelector('input[type="date"]')).toBeNull()
+    const num = container.querySelector('input[type="number"]') as HTMLInputElement
+    expect(num).not.toBeNull()
+    expect(num.value).toBe('-3')
+    expect(tokenSelect(container).value).toBe('__offset__')
+  })
+
+  it('fires an updated offset anchor as the days input changes', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: 0 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    const num = container.querySelector('input[type="number"]') as HTMLInputElement
+    fireEvent.change(num, { target: { value: '14' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 14 })
+  })
+
+  it('truncates fractional input to an integer days value', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: 0 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    const num = container.querySelector('input[type="number"]') as HTMLInputElement
+    fireEvent.change(num, { target: { value: '7.9' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 7 })
+  })
+
+  it('keeps offset mode (days=0) when the days input is cleared', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: -5 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    const num = container.querySelector('input[type="number"]') as HTMLInputElement
+    fireEvent.change(num, { target: { value: '' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 0 })
+  })
+
+  it('clears to null when "None" is picked from offset mode', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: -7 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(tokenSelect(container), { target: { value: '__none__' } })
+    expect(onChange).toHaveBeenCalledWith(null)
+  })
+
+  it('switching from offset to a named token replaces the value', () => {
+    const onChange = vi.fn()
+    const v: DateAnchor = { kind: 'offset', days: -7 }
+    const { container } = render(<DateAnchorInput value={v} onChange={onChange} />)
+    fireEvent.change(tokenSelect(container), { target: { value: 'end-of-week' } })
+    expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'end-of-week' })
+  })
 })

@@ -37,3 +37,30 @@
 .tokenSelect:focus {
   border-color: var(--color-accent-dim);
 }
+
+.offsetField {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.offsetInput {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-chip);
+  padding: 4px 8px;
+  font-size: var(--font-size-meta);
+  font-family: inherit;
+  outline: none;
+  width: 60px;
+}
+
+.offsetInput:focus {
+  border-color: var(--color-accent-dim);
+}
+
+.offsetSuffix {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+}
