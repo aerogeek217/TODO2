@@ -4,6 +4,9 @@ import { RuntimeFilterPicker } from '../../../components/canvas/RuntimeFilterPic
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useProjectStore } from '../../../stores/project-store'
+import { useOrgStore } from '../../../stores/org-store'
+import { useStatusStore } from '../../../stores/status-store'
+import { db } from '../../../data/database'
 import { makePerson, makeProject, resetEntityStores } from '../../helpers'
 
 function resetStores() {
@@ -187,5 +190,47 @@ describe('RuntimeFilterPicker', () => {
     fireEvent.focus(input)
     fireEvent.keyDown(input, { key: 'Backspace' })
     expect(onChange).toHaveBeenLastCalledWith([1])
+  })
+
+  // Item-14 contract: the picker reads exclusively from cached Zustand stores;
+  // mounting and typing must not issue Dexie reads. Spy on every entity table
+  // the picker could plausibly touch (`toArray` covers the `useXxxStore.ensureLoaded`
+  // path; `where`/`get` cover incidental id-keyed lookups), then assert no spy
+  // fires across mount + focus + keystrokes + option toggle.
+  it('does not hit Dexie on mount, focus, keystrokes, or option toggle', () => {
+    usePersonStore.setState({
+      people: [
+        makePerson({ id: 1, name: 'Alice' }),
+        makePerson({ id: 2, name: 'Bob' }),
+      ],
+      assignedPeopleMap: new Map(),
+    })
+    useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
+    useProjectStore.setState({ projects: [] })
+    useStatusStore.setState({ statuses: [] })
+    useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
+
+    const tables = [db.people, db.orgs, db.projects, db.statuses, db.tags, db.todos] as const
+    const methods = ['toArray', 'where', 'get', 'count', 'each', 'bulkGet', 'orderBy'] as const
+    const spies = tables.flatMap((t) =>
+      methods.map((m) => vi.spyOn(t as unknown as Record<string, () => unknown>, m)),
+    )
+
+    const onChange = vi.fn()
+    const { getByLabelText, getByText } = render(
+      <RuntimeFilterPicker
+        spec={{ field: 'person' }}
+        value={undefined}
+        onChange={onChange}
+      />,
+    )
+    const input = getByLabelText(/Filter tasks by person/i) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'a' } })
+    fireEvent.change(input, { target: { value: 'al' } })
+    fireEvent.click(getByText('Alice'))
+
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled()
+    spies.forEach((s) => s.mockRestore())
   })
 })

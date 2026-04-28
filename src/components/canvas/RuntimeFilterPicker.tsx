@@ -9,6 +9,14 @@ import { useTagStore } from '../../stores/tag-store'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './RuntimeFilterPicker.module.css'
 
+// All option lookups for this picker go through cached Zustand stores
+// (`usePersonStore`, `useOrgStore`, `useProjectStore`, `useStatusStore`,
+// `useTagStore`) — there are no Dexie reads on render or keystroke. Keep it
+// that way: the picker is mounted on canvas/list surfaces during drag-heavy
+// interactions, and re-issuing repository queries per keystroke would tank
+// the hover/typing path. The vitest companion (`runtime-filter-picker.test.tsx`)
+// asserts this contract by failing on any `db.<table>.*` call.
+
 interface Option {
   id: number
   name: string

@@ -72,6 +72,7 @@ export function FilterSheet() {
             onChange={handleChange}
             density="mobile"
             onClearExtra={closeSheet}
+            onClearAll={() => useFilterStore.getState().clearAll()}
           />
         </div>
       </div>

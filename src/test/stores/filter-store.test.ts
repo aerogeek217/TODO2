@@ -85,6 +85,36 @@ describe('useFilterStore', () => {
     expect(isActive).toBe(false)
   })
 
+  // Item 13 (triage-2026-04-27 batch 2): runtime-filter spec lives alongside
+  // the predicate inside `filter-store`, so the topbar's Clear-all path
+  // wipes both in one shot. Without this, the runtime filter input remained
+  // visible after the user cleared filters from the FilterChipBar.
+  it('clearAll also resets runtime filter spec and value', () => {
+    useFilterStore.getState().setRuntimeFilterSpec({ field: 'person' })
+    useFilterStore.getState().setRuntimeFilterValue([1, 2])
+    expect(useFilterStore.getState().runtimeFilterSpec).not.toBeNull()
+    expect(useFilterStore.getState().runtimeFilterValue).toEqual([1, 2])
+
+    useFilterStore.getState().clearAll()
+
+    expect(useFilterStore.getState().runtimeFilterSpec).toBeNull()
+    expect(useFilterStore.getState().runtimeFilterValue).toBeUndefined()
+  })
+
+  it('setRuntimeFilterSpec / setRuntimeFilterValue update independently of the predicate', () => {
+    // Setting runtime spec/value must NOT flip `isActive` — that flag tracks
+    // the predicate only. Saved-view application sets the predicate and the
+    // runtime slot in two distinct calls; bleed between the two would surprise
+    // the topbar's filter-active styling.
+    useFilterStore.getState().setRuntimeFilterSpec({ field: 'org', label: 'Team' })
+    expect(useFilterStore.getState().runtimeFilterSpec).toEqual({ field: 'org', label: 'Team' })
+    expect(useFilterStore.getState().isActive).toBe(false)
+
+    useFilterStore.getState().setRuntimeFilterValue([5])
+    expect(useFilterStore.getState().runtimeFilterValue).toEqual([5])
+    expect(useFilterStore.getState().isActive).toBe(false)
+  })
+
   it('setOrgIds filters by direct org assignment', () => {
     useFilterStore.getState().setOrgIds(new Set([10]))
 

@@ -513,7 +513,11 @@ export function TopBar() {
       </DragOverlay>
       </DndContext>
 
-      <FilterChipBar predicate={filterPredicate} onChange={handleFilterChange} />
+      <FilterChipBar
+        predicate={filterPredicate}
+        onChange={handleFilterChange}
+        onClearAll={() => useFilterStore.getState().clearAll()}
+      />
 
       {isSupported && !isConnected && (
         <span className={styles.storageStatus}>Local only</span>

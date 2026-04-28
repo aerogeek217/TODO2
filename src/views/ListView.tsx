@@ -32,7 +32,7 @@ import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy } from '../models'
 import { LIST_GROUP_VALUES, LIST_SORT_VALUES } from '../models'
-import type { RuntimeFilterSpec, RuntimeFilterField } from '../models/list-definition'
+import type { RuntimeFilterField } from '../models/list-definition'
 import { applyRuntimeFilter } from '../services/dashboard-lists'
 import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
@@ -574,6 +574,14 @@ export function ListView() {
   const removeListDefinition = useListDefinitionStore((s) => s.remove)
   const { filters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
+  // Runtime-filter slot lives in `filter-store` so that the FilterChipBar's
+  // Clear-all button drops the runtime input alongside the predicate (the
+  // store's `clearAll` clears both). `spec` persists on the loaded def via
+  // Save; `value` is transient — mirrors the canvas-widget pattern.
+  const runtimeFilterSpec = useFilterStore((s) => s.runtimeFilterSpec)
+  const runtimeFilterValue = useFilterStore((s) => s.runtimeFilterValue)
+  const setRuntimeFilterSpec = useFilterStore((s) => s.setRuntimeFilterSpec)
+  const setRuntimeFilterValue = useFilterStore((s) => s.setRuntimeFilterValue)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const taskEdit = useTaskEditCallbacks()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -593,12 +601,6 @@ export function ListView() {
   const [maxTasks, setMaxTasks] = useState<number | null>(null)
   const [limitMode, setLimitMode] = useState<'hard' | 'scroll'>('hard')
   const [maxTasksInput, setMaxTasksInput] = useState('')
-
-  // Per-view runtime-filter state. `spec` persists on the loaded def (via Save);
-  // `value` is transient — mirrors widget surfaces, which cache the value per
-  // widget but never write it onto the def.
-  const [runtimeFilterSpec, setRuntimeFilterSpec] = useState<RuntimeFilterSpec | null>(null)
-  const [runtimeFilterValue, setRuntimeFilterValue] = useState<number[] | undefined>(undefined)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })

@@ -42,6 +42,14 @@ interface FilterChipBarProps {
   showClearAll?: boolean
   /** Optional follow-on after the user clicks Clear all (e.g., close the sheet). */
   onClearExtra?: () => void
+  /**
+   * Optional clear-all override. When provided, the Clear-all button calls
+   * this instead of `onChange({...defaultPredicate})`. Used by callers that
+   * route changes through a store carrying non-predicate state (e.g.
+   * runtime-filter spec/value) — those callers prefer their dedicated clear
+   * path so the extra slots get reset along with the predicate.
+   */
+  onClearAll?: () => void
 }
 
 const DEFAULT_PREDICATE: TodoPredicate = {
@@ -337,17 +345,11 @@ function DateRangeDropdown({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const handleOpen = () => {
-    if (!open && !active) {
-      const todayAnchor = fixedAnchor(startOfToday())
-      if (dateField === 'date' || dateField === 'scheduled' || dateField === 'deadline') {
-        onChangeAnchors(todayAnchor, null)
-      } else {
-        onChangeAnchors(null, todayAnchor)
-      }
-    }
-    setOpen(!open)
-  }
+  // Open is non-committal: the dropdown shows blank inputs when no filter is
+  // active, so closing without typing leaves the predicate untouched. Earlier
+  // we auto-stamped a `today` anchor on open as a starting point — that
+  // surprised users by activating a filter from a no-op interaction.
+  const handleOpen = () => setOpen(!open)
 
   return (
     <div className={topBar.dropdownWrapper} ref={ref}>
@@ -567,6 +569,7 @@ export function FilterChipBar({
   enableRightEdgeFlip = true,
   showClearAll = true,
   onClearExtra,
+  onClearAll,
 }: FilterChipBarProps) {
   const p = useMemo<TodoPredicate>(
     () => ({ ...DEFAULT_PREDICATE, ...rawPredicate }),
@@ -698,7 +701,8 @@ export function FilterChipBar({
 
   const clearAll = () => {
     setPreviewEmpty(null)
-    onChange({ ...DEFAULT_PREDICATE })
+    if (onClearAll) onClearAll()
+    else onChange({ ...DEFAULT_PREDICATE })
     onClearExtra?.()
   }
 

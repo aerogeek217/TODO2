@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, Tag, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor } from '../models'
+import type { RuntimeFilterSpec } from '../models/list-definition'
 import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
 import { effectiveDate, resolveDateAnchor, resolveScheduled } from '../utils/effective-date'
@@ -70,6 +71,16 @@ interface FilterState {
   filters: FilterCriteria
   /** Derived: true when any filter is active. Use useFilterStore(s => s.isActive) or getState().isActive. */
   readonly isActive: boolean
+  /**
+   * Per-list-definition runtime filter prompt (e.g. "Tasks for {assignee}").
+   * The spec describes which entity field the list narrows on; the value is
+   * the live picked id list. Lifted into the store so the FilterChipBar's
+   * Clear-all path can drop both predicate AND runtime-filter state in one
+   * shot — and so the runtime input visibly disappears when the user clears
+   * filters from the topbar.
+   */
+  runtimeFilterSpec: RuntimeFilterSpec | null
+  runtimeFilterValue: number[] | undefined
 
   setShowCompleted: (show: boolean) => void
   setShowHiddenStatuses: (show: boolean) => void
@@ -89,6 +100,8 @@ interface FilterState {
   setHasDeadline: (value: boolean | null) => void
   setTags: (tags: Set<number> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
+  setRuntimeFilterSpec: (spec: RuntimeFilterSpec | null) => void
+  setRuntimeFilterValue: (value: number[] | undefined) => void
   clearAll: () => void
 }
 
@@ -349,6 +362,8 @@ function commit(set: (s: Partial<FilterState>) => void, filters: FilterCriteria)
 export const useFilterStore = create<FilterState>((set, get) => ({
   filters: { ...defaultFilters },
   isActive: false,
+  runtimeFilterSpec: null,
+  runtimeFilterValue: undefined,
 
   setShowCompleted(showCompleted: boolean) {
     commit(set, { ...get().filters, showCompleted })
@@ -422,7 +437,20 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...filters })
   },
 
+  setRuntimeFilterSpec(spec: RuntimeFilterSpec | null) {
+    set({ runtimeFilterSpec: spec })
+  },
+
+  setRuntimeFilterValue(value: number[] | undefined) {
+    set({ runtimeFilterValue: value })
+  },
+
   clearAll() {
-    set({ filters: { ...defaultFilters }, isActive: false })
+    set({
+      filters: { ...defaultFilters },
+      isActive: false,
+      runtimeFilterSpec: null,
+      runtimeFilterValue: undefined,
+    })
   },
 }))
