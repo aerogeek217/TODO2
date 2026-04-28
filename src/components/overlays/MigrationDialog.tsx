@@ -27,9 +27,7 @@ export function MigrationDialog(props: MigrationDialogProps) {
   const [exportError, setExportError] = useState<string | null>(null)
   const [cancelled, setCancelled] = useState(false)
 
-  const descriptions = props.mode === 'schema-upgrade'
-    ? props.info.migrations.map(m => m.description)
-    : props.info.descriptions
+  const descriptions = props.mode === 'schema-upgrade' ? [] : props.info.descriptions
 
   const handleExport = async () => {
     setExporting(true)
@@ -118,16 +116,20 @@ export function MigrationDialog(props: MigrationDialogProps) {
     >
       <DialogBody>
         {props.mode === 'schema-upgrade'
-          ? `Your database needs to be updated from version ${props.info.currentVersion} to version ${props.info.targetVersion}.`
-          : 'The data you are loading contains legacy fields that will be converted.'}
+          ? `Your database will be upgraded from version ${props.info.currentVersion} to version ${props.info.targetVersion}. This will rewrite stored data — once it runs, older builds of TODO2 cannot read it.`
+          : props.info.sourceVersion != null
+            ? `The file you are loading was saved at schema version ${props.info.sourceVersion} and will be upgraded to version ${props.info.targetVersion}.`
+            : 'The file you are loading is in an earlier format that will be converted.'}
       </DialogBody>
-      <div className={styles.changeList}>
-        {descriptions.map((desc, i) => (
-          <div key={i} className={styles.changeItem}>
-            {desc}
-          </div>
-        ))}
-      </div>
+      {descriptions.length > 0 && (
+        <div className={styles.changeList}>
+          {descriptions.map((desc, i) => (
+            <div key={i} className={styles.changeItem}>
+              {desc}
+            </div>
+          ))}
+        </div>
+      )}
       <div className={styles.exportSection}>
         <div className={styles.exportHint}>
           We recommend exporting a backup before proceeding.

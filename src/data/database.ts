@@ -12,6 +12,20 @@ export interface SettingRow {
   value: string
 }
 
+/**
+ * Authoritative current Dexie schema version. Used in two places:
+ *
+ *   1. The final `this.version(CURRENT_DB_VERSION)` call below — bumping the
+ *      schema means bumping this constant in the same edit.
+ *   2. `services/migration-check.ts` reads it to decide whether to prompt the
+ *      user before Dexie upgrades the on-disk IDB store. There is a vitest
+ *      that asserts `db.verno === CURRENT_DB_VERSION` after open, so a future
+ *      schema bump that adds `this.version(N+1)` without updating this
+ *      constant will fail the test (the schema-upgrade prompt would otherwise
+ *      silently regress, as it has done historically).
+ */
+export const CURRENT_DB_VERSION = 48
+
 export class Todo2Database extends Dexie {
   todos!: Table<TodoItem, number>
   projects!: Table<Project, number>
@@ -356,7 +370,10 @@ export class Todo2Database extends Dexie {
     // back to `{ field, label? }` and drops any experimental
     // `{ kind: 'date-offset', ... }` rows (the offset capability now rides
     // `DateAnchor` instead — see filter-predicate.ts). Idempotent.
-    this.version(48).stores({})
+    // The version literal is the same as `CURRENT_DB_VERSION`; using the
+    // constant here is what enforces the single-source-of-truth invariant
+    // (see the constant's docblock above).
+    this.version(CURRENT_DB_VERSION).stores({})
       .upgrade(async (tx) => {
         await runV48Migration(tx)
       })

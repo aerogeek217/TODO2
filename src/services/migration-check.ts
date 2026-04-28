@@ -1,49 +1,25 @@
-const CURRENT_DB_VERSION = 23
+import { CURRENT_DB_VERSION } from '../data/database'
+
+export const SCHEMA_VERSION_KEY = '__schemaVersion'
+
 // Dexie multiplies version numbers by 10 for the native IDB version
 const CURRENT_IDB_VERSION = CURRENT_DB_VERSION * 10
-
-export interface PendingMigration {
-  version: number
-  description: string
-}
-
-const DATA_MIGRATIONS: PendingMigration[] = [
-  {
-    version: 20,
-    description: 'Starred and Assigned flags are merged into the new Status system. Default "Assigned" and "Follow-up" statuses will be created, and starred list insets will be removed.',
-  },
-  {
-    version: 21,
-    description: 'Priority is removed and replaced with Scheduled Date + Deadline (hard due-date). Tasks with a recurrence rule or hard-deadline flag keep their due date. Soft-due tasks move their date to "Scheduled". Priority-based list insets are removed.',
-  },
-  {
-    version: 22,
-    description: 'Dashboard list definitions gain a "Pin to Dashboard" toggle. Existing lists are pinned by default; the seeded-list marker is retired so renamed or deleted defaults stay that way.',
-  },
-  {
-    version: 23,
-    description: 'Canvas list insets are unified with dashboard list definitions. Existing insets become unpinned list definitions that continue to appear on the canvas; their filter is preserved as a custom predicate.',
-  },
-]
 
 export interface MigrationInfo {
   currentVersion: number
   targetVersion: number
-  migrations: PendingMigration[]
 }
 
 export interface LegacyImportInfo {
-  starredCount: number
-  assignedCount: number
-  starredInsetCount: number
-  /** v20→v21: todos with a legacy `priority: number` field (any value) */
-  priorityTaskCount: number
-  /** v20→v21: todos with `isHardDeadline === true` */
-  hardDeadlineCount: number
-  /** v20→v21: listInsets with preset='high-priority' or attributeFilter.type='priority' */
-  priorityInsetCount: number
-  /** v22→v23: listInsets carrying a legacy preset or attributeFilter (excluding the retired priority rows counted above). */
-  legacyInsetCount: number
+  /**
+   * Source schema version, when the file embeds `__schemaVersion` (true for any
+   * file written by this build of the app or later). `null` for legacy files
+   * that lack the marker; in that case `descriptions` carries field-shape
+   * signals from heuristic detection (pre-v23 fields) and the dialog falls
+   * back to "an earlier format" wording.
+   */
+  sourceVersion: number | null
+  targetVersion: number
   descriptions: string[]
 }
 
@@ -56,15 +32,9 @@ export async function checkMigrationNeeded(): Promise<MigrationInfo | null> {
 
     if (!existing?.version || existing.version >= CURRENT_IDB_VERSION) return null
 
-    // Convert IDB version back to Dexie version for migration filtering
-    const dexieVersion = Math.floor(existing.version / 10)
-    const pending = DATA_MIGRATIONS.filter(m => m.version > dexieVersion)
-    if (pending.length === 0) return null
-
     return {
-      currentVersion: dexieVersion,
+      currentVersion: Math.floor(existing.version / 10),
       targetVersion: CURRENT_DB_VERSION,
-      migrations: pending,
     }
   } catch {
     return null
@@ -75,6 +45,24 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
 
+  // Authoritative path: file embeds its own schema version (every export
+  // written after the migration-check rewrite carries `__schemaVersion`).
+  // Anything below current → prompt; equal-or-above → no prompt.
+  const embedded = r[SCHEMA_VERSION_KEY]
+  if (typeof embedded === 'number' && Number.isFinite(embedded)) {
+    if (embedded >= CURRENT_DB_VERSION) return null
+    return {
+      sourceVersion: embedded,
+      targetVersion: CURRENT_DB_VERSION,
+      descriptions: [],
+    }
+  }
+
+  // Heuristic fallback for files that pre-date the `__schemaVersion` marker:
+  // sniff for the field shapes that existed in v20–v22 and got rewritten in
+  // v20→v23. We can't tell apart v23..v(current-1) without the marker; the
+  // restore pipeline transforms those rows in place either way, so this prompt
+  // is only a courtesy when we know we're touching pre-v23 data.
   const todos = Array.isArray(r.todos) ? r.todos : []
   const listInsets = Array.isArray(r.listInsets) ? r.listInsets : []
 
@@ -92,15 +80,16 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
     }
   }
 
-  const starredInsetCount = listInsets.filter(
-    li => li && typeof li === 'object' && (li as Record<string, unknown>).preset === 'starred'
-  ).length
-
+  let starredInsetCount = 0
   let priorityInsetCount = 0
   let legacyInsetCount = 0
   for (const li of listInsets) {
     if (!li || typeof li !== 'object') continue
     const lo = li as Record<string, unknown>
+    if (lo.preset === 'starred') {
+      starredInsetCount++
+      continue
+    }
     if (lo.preset === 'high-priority') {
       priorityInsetCount++
       continue
@@ -110,9 +99,7 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
       priorityInsetCount++
       continue
     }
-    // Canvas list inset unification (v23): any non-priority legacy inset
-    // becomes a custom ListDefinition on import.
-    const hasLegacyPreset = typeof lo.preset === 'string' && lo.preset !== 'starred'
+    const hasLegacyPreset = typeof lo.preset === 'string'
     const hasLegacyAttr = af && typeof af.type === 'string'
     if (lo.listDefinitionId == null && (hasLegacyPreset || hasLegacyAttr)) {
       legacyInsetCount++
@@ -141,13 +128,8 @@ export function detectLegacyFormat(raw: unknown): LegacyImportInfo | null {
   )
 
   return {
-    starredCount,
-    assignedCount,
-    starredInsetCount,
-    priorityTaskCount,
-    hardDeadlineCount,
-    priorityInsetCount,
-    legacyInsetCount,
+    sourceVersion: null,
+    targetVersion: CURRENT_DB_VERSION,
     descriptions,
   }
 }

@@ -1,4 +1,5 @@
-import { db } from '../data/database'
+import { db, CURRENT_DB_VERSION } from '../data/database'
+import { SCHEMA_VERSION_KEY } from './migration-check'
 import type { PersistedTodoItem } from '../models'
 import { bySortOrder } from '../utils/sort-order'
 import { scheduledLabel } from '../utils/effective-date'
@@ -7,6 +8,10 @@ import { startOfToday } from '../utils/date'
 /**
  * Reads all database tables and returns a plain object suitable for
  * JSON serialization (export, file-storage save, or backup snapshot).
+ *
+ * The returned object is stamped with `__schemaVersion = CURRENT_DB_VERSION` so
+ * the import path can detect older files without reaching for field-shape
+ * heuristics. See `services/migration-check.ts:detectLegacyFormat`.
  */
 export async function buildExportData() {
   const [todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes] =
@@ -19,7 +24,10 @@ export async function buildExportData() {
       db.floatingCalendars.toArray(), db.floatingNotes.toArray(),
     ])
 
-  return { todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes }
+  return {
+    [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
+    todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes,
+  }
 }
 
 /**

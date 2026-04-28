@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { checkMigrationNeeded, exportCurrentDatabase, detectLegacyFormat } from '../../services/migration-check'
+import { checkMigrationNeeded, exportCurrentDatabase, detectLegacyFormat, SCHEMA_VERSION_KEY } from '../../services/migration-check'
+import { CURRENT_DB_VERSION, db } from '../../data/database'
 
 function createRawDb(version: number, setup?: (db: IDBDatabase) => void): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -19,7 +20,20 @@ function deleteDb(): Promise<void> {
 }
 
 afterEach(async () => {
+  // db must be closed before delete; harmless if it was never opened.
+  if (db.isOpen()) db.close()
   await deleteDb()
+})
+
+describe('schema-upgrade source-of-truth', () => {
+  // Single load-bearing assertion that protects every future schema bump:
+  // if someone adds `this.version(N+1)` without bumping CURRENT_DB_VERSION,
+  // the migration-check prompt would silently regress (this is exactly how
+  // the prompt rotted from v23 → v48). This test fails loud instead.
+  it('CURRENT_DB_VERSION matches the latest declared db.version()', async () => {
+    await db.open()
+    expect(db.verno).toBe(CURRENT_DB_VERSION)
+  })
 })
 
 describe('checkMigrationNeeded', () => {
@@ -27,30 +41,27 @@ describe('checkMigrationNeeded', () => {
     expect(await checkMigrationNeeded()).toBeNull()
   })
 
-  it('returns null when database is at current version', async () => {
-    // Dexie v23 = IDB v230
-    await createRawDb(230, (db) => {
+  it('returns null when the on-disk db is at the current version', async () => {
+    await createRawDb(CURRENT_DB_VERSION * 10, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
     expect(await checkMigrationNeeded()).toBeNull()
   })
 
-  it('returns migration info when data migration is pending', async () => {
-    // Dexie v22 = IDB v220 (only v23 pending)
-    await createRawDb(220, (db) => {
+  it('returns migration info when the on-disk db is one version behind', async () => {
+    const oldVersion = CURRENT_DB_VERSION - 1
+    await createRawDb(oldVersion * 10, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
 
     const result = await checkMigrationNeeded()
     expect(result).not.toBeNull()
-    expect(result!.currentVersion).toBe(22)
-    expect(result!.targetVersion).toBe(23)
-    expect(result!.migrations).toHaveLength(1)
-    expect(result!.migrations[0]!.version).toBe(23)
+    expect(result!.currentVersion).toBe(oldVersion)
+    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
   })
 
   it('detects migration from much older versions', async () => {
-    // Dexie v16 = IDB v160 (v20 + v21 + v22 + v23 pending)
+    // Dexie v16 = IDB v160 (the original base schema)
     await createRawDb(160, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
@@ -58,8 +69,7 @@ describe('checkMigrationNeeded', () => {
     const result = await checkMigrationNeeded()
     expect(result).not.toBeNull()
     expect(result!.currentVersion).toBe(16)
-    expect(result!.migrations).toHaveLength(4)
-    expect(result!.migrations.map(m => m.version)).toEqual([20, 21, 22, 23])
+    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
   })
 })
 
@@ -100,16 +110,34 @@ describe('exportCurrentDatabase', () => {
 })
 
 describe('detectLegacyFormat', () => {
-  it('returns null for data with no legacy fields', () => {
-    expect(detectLegacyFormat({ todos: [{ title: 'Task' }], listInsets: [] })).toBeNull()
-  })
-
   it('returns null for non-object input', () => {
     expect(detectLegacyFormat(null)).toBeNull()
     expect(detectLegacyFormat('string')).toBeNull()
   })
 
-  it('detects isStarred todos', () => {
+  it('returns null for current-version files (embedded marker)', () => {
+    expect(detectLegacyFormat({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION, todos: [] })).toBeNull()
+  })
+
+  it('returns null for files at a future version (forward-compat — restore handles it)', () => {
+    // A file written by a newer build has schema features we may not understand
+    // but is not "legacy"; the prompt is for backward upgrades.
+    expect(detectLegacyFormat({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION + 1, todos: [] })).toBeNull()
+  })
+
+  it('flags files at an older embedded version', () => {
+    const result = detectLegacyFormat({ [SCHEMA_VERSION_KEY]: 30, todos: [] })
+    expect(result).not.toBeNull()
+    expect(result!.sourceVersion).toBe(30)
+    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+    expect(result!.descriptions).toEqual([])
+  })
+
+  it('returns null for marker-less files with no recognised legacy fields', () => {
+    expect(detectLegacyFormat({ todos: [{ title: 'Task' }], listInsets: [] })).toBeNull()
+  })
+
+  it('falls back to heuristic detection when __schemaVersion is missing', () => {
     const result = detectLegacyFormat({
       todos: [
         { title: 'A', isStarred: true },
@@ -118,18 +146,19 @@ describe('detectLegacyFormat', () => {
       ],
     })
     expect(result).not.toBeNull()
-    expect(result!.starredCount).toBe(2)
-    expect(result!.assignedCount).toBe(0)
+    expect(result!.sourceVersion).toBeNull()
+    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+    expect(result!.descriptions.some(d => d.includes('starred'))).toBe(true)
   })
 
-  it('detects isAssigned todos', () => {
+  it('detects isAssigned todos (heuristic path)', () => {
     const result = detectLegacyFormat({
       todos: [{ title: 'A', isAssigned: true }],
     })
-    expect(result!.assignedCount).toBe(1)
+    expect(result!.descriptions.some(d => d.includes('Assigned'))).toBe(true)
   })
 
-  it('detects starred list insets', () => {
+  it('detects starred list insets (heuristic path)', () => {
     const result = detectLegacyFormat({
       todos: [],
       listInsets: [
@@ -137,10 +166,10 @@ describe('detectLegacyFormat', () => {
         { preset: 'due-this-week' },
       ],
     })
-    expect(result!.starredInsetCount).toBe(1)
+    expect(result!.descriptions.some(d => d.includes('starred list inset'))).toBe(true)
   })
 
-  it('builds human-readable descriptions', () => {
+  it('builds multiple human-readable descriptions when several legacy signals are present', () => {
     const result = detectLegacyFormat({
       todos: [{ isStarred: true }, { isAssigned: true }],
       listInsets: [{ preset: 'starred' }],
