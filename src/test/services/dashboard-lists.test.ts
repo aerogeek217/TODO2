@@ -7,7 +7,7 @@ import {
 } from '../../services/dashboard-lists'
 import { resolveFuzzy } from '../../utils/effective-date'
 import { MS_PER_DAY, startOfDay } from '../../utils/date'
-import type { PersistedTodoItem, Tag, TodoPredicate } from '../../models'
+import type { Org, Person, PersistedTodoItem, Tag, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { emptyPredicate } from '../../stores/list-definition-store'
 import { makeTodo } from '../helpers'
@@ -787,5 +787,214 @@ describe('interpretGrouping — by-tag', () => {
     expect(lists[0]!.groups).toEqual([
       { key: 'no-tag', label: 'No tag', todos: [a] },
     ])
+  })
+})
+
+// Postmortem follow-up to triage-2026-04-28 P7 (commit caa4de7): the canvas
+// list-widget / lens / horizon ribbon ride `dashboard-lists` rather than the
+// ListView pipeline, so the visible-groups intersection rule that fixed
+// ListView in P7 has to land here too. A multi-assignee task surviving the
+// membership filter must NOT emit groups for non-picked assignees just
+// because grouping=people / org / tag.
+describe('buildDashboardLists — restrict-mode grouping (P1 cleanup)', () => {
+  const ALICE: Person = { id: 1, name: 'Alice', initials: 'A' }
+  const BOB: Person = { id: 2, name: 'Bob', initials: 'B' }
+  const CHARLIE: Person = { id: 3, name: 'Charlie', initials: 'C' }
+  const ACME: Org = { id: 100, name: 'Acme' }
+  const FOO: Org = { id: 101, name: 'Foo' }
+  const URGENT: Tag = { id: 10, name: 'urgent', color: '#f00' }
+  const LATER: Tag = { id: 20, name: 'later', color: '#0f0' }
+
+  it('person restrict narrows groups to picked ids; non-picked assignees absent', async () => {
+    // T1 is assigned to Alice + Charlie. Filter restricts to [Alice]; the
+    // bug fixed in P7 was that grouping=people surfaced both Alice and
+    // Charlie sections. Post-cleanup only Alice is emitted; Charlie's
+    // assignment doesn't leak.
+    const { predicateToCriteria, matchesFilter, computeFilterPersonOrgIds } = await import('../../stores/filter-store')
+    const personOrgMap = new Map<number, number[]>()
+    const assignedPersonIds = new Map<number, number[]>([[101, [ALICE.id!, CHARLIE.id!]]])
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(p)
+      const personIds = assignedPersonIds.get(t.id) ?? []
+      const personOrgIds = personIds.flatMap((pid) => personOrgMap.get(pid) ?? [])
+      const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
+      return matchesFilter(criteria, t, personIds, personOrgIds, [], filterPersonOrgIds)
+    }
+    const def = customDef({
+      grouping: 'people',
+      membership: {
+        kind: 'custom',
+        predicate: { ...emptyPredicate(), personIds: [ALICE.id!] },
+      },
+    })
+    const t = makeTodo({ id: 101 })
+    const ctx = makeCtx({
+      evalPredicate,
+      people: [ALICE, BOB, CHARLIE],
+      assignedPeopleMap: new Map<number, Person[]>([[101, [ALICE, CHARLIE]]]),
+      personOrgMap,
+    })
+    const [list] = buildDashboardLists([def], [t], ctx)
+    const groups = list!.groups!
+    expect(groups.map((g) => g.key)).toEqual(['person-1'])
+    expect(groups[0]!.label).toBe('Alice')
+    expect(groups[0]!.todos.map((x) => x.id)).toEqual([101])
+  })
+
+  it('person restrict implicit tier: include-orgs surfaces a person reachable only via the task org', async () => {
+    // Bob ∈ Acme. T101 is direct-assigned to Charlie + the org Acme.
+    // Predicate filters [Alice, Bob] in include-orgs mode, so T101 passes
+    // membership via Bob (Bob's org = Acme matches). Grouping must surface
+    // Bob as an implicit-tier section (no direct emit — Charlie is the
+    // direct assignee but is excluded from the restrict set). Alice is
+    // dropped (no path to T101 at all).
+    const { predicateToCriteria, matchesFilter, computeFilterPersonOrgIds } = await import('../../stores/filter-store')
+    const personOrgMap = new Map<number, number[]>([[BOB.id!, [ACME.id!]]])
+    const assignedPersonIds = new Map<number, number[]>([[101, [CHARLIE.id!]]])
+    const assignedDirectOrgIds = new Map<number, number[]>([[101, [ACME.id!]]])
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(p)
+      const personIds = assignedPersonIds.get(t.id) ?? []
+      const personOrgIds = personIds.flatMap((pid) => personOrgMap.get(pid) ?? [])
+      const directOrgIds = assignedDirectOrgIds.get(t.id) ?? []
+      const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
+      return matchesFilter(criteria, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds)
+    }
+    const def = customDef({
+      grouping: 'people',
+      membership: {
+        kind: 'custom',
+        predicate: {
+          ...emptyPredicate(),
+          personIds: [ALICE.id!, BOB.id!],
+          personFilterMode: 'include-orgs',
+        },
+      },
+    })
+    const t = makeTodo({ id: 101 })
+    const ctx = makeCtx({
+      evalPredicate,
+      people: [ALICE, BOB, CHARLIE],
+      orgs: [ACME],
+      assignedPeopleMap: new Map<number, Person[]>([[101, [CHARLIE]]]),
+      assignedOrgsMap: new Map<number, Org[]>([[101, [ACME]]]),
+      personOrgMap,
+    })
+    const [list] = buildDashboardLists([def], [t], ctx)
+    const groups = list!.groups!
+    expect(groups.map((g) => g.key)).toEqual(['person-2'])
+    expect(groups[0]!.label).toBe('Bob')
+    expect(groups[0]!.todos.map((x) => x.id)).toEqual([101])
+  })
+
+  it('person restrict direct-only suppresses the implicit tier — task drops out at membership', async () => {
+    // Same seed, mode=direct-only. Bob's only path to T101 is via Acme;
+    // direct-only ignores org membership. Membership filter excludes T101
+    // entirely → no surviving tasks, no groups. Confirms the runtime-
+    // filter's hard-coded direct-only mode (P5) cooperates correctly with
+    // restrict-mode grouping.
+    const { predicateToCriteria, matchesFilter, computeFilterPersonOrgIds } = await import('../../stores/filter-store')
+    const personOrgMap = new Map<number, number[]>([[BOB.id!, [ACME.id!]]])
+    const assignedPersonIds = new Map<number, number[]>([[101, [CHARLIE.id!]]])
+    const assignedDirectOrgIds = new Map<number, number[]>([[101, [ACME.id!]]])
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(p)
+      const personIds = assignedPersonIds.get(t.id) ?? []
+      const personOrgIds = personIds.flatMap((pid) => personOrgMap.get(pid) ?? [])
+      const directOrgIds = assignedDirectOrgIds.get(t.id) ?? []
+      const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
+      return matchesFilter(criteria, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds)
+    }
+    const def = customDef({
+      grouping: 'people',
+      membership: {
+        kind: 'custom',
+        predicate: {
+          ...emptyPredicate(),
+          personIds: [ALICE.id!, BOB.id!],
+          personFilterMode: 'direct-only',
+        },
+      },
+    })
+    const t = makeTodo({ id: 101 })
+    const ctx = makeCtx({
+      evalPredicate,
+      people: [ALICE, BOB, CHARLIE],
+      orgs: [ACME],
+      assignedPeopleMap: new Map<number, Person[]>([[101, [CHARLIE]]]),
+      assignedOrgsMap: new Map<number, Org[]>([[101, [ACME]]]),
+      personOrgMap,
+    })
+    const [list] = buildDashboardLists([def], [t], ctx)
+    expect(list!.todos).toHaveLength(0)
+    expect(list!.groups).toEqual([])
+  })
+
+  it('org restrict narrows groups to picked org ids; non-picked direct orgs absent', async () => {
+    // T101 has direct orgs [Acme, Foo]. Filter restricts to [Acme]; the
+    // bucketer must emit only the Acme section. Without restrict-mode
+    // grouping the bug would be the symmetric one: Foo would surface as a
+    // separate section despite being filtered out at the membership layer.
+    const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
+    const personOrgMap = new Map<number, number[]>()
+    const assignedDirectOrgIds = new Map<number, number[]>([[101, [ACME.id!, FOO.id!]]])
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(p)
+      const directOrgIds = assignedDirectOrgIds.get(t.id) ?? []
+      return matchesFilter(criteria, t, [], [], directOrgIds)
+    }
+    const def = customDef({
+      grouping: 'org',
+      membership: {
+        kind: 'custom',
+        predicate: { ...emptyPredicate(), orgIds: [ACME.id!] },
+      },
+    })
+    const t = makeTodo({ id: 101 })
+    const ctx = makeCtx({
+      evalPredicate,
+      orgs: [ACME, FOO],
+      assignedOrgsMap: new Map<number, Org[]>([[101, [ACME, FOO]]]),
+      assignedPeopleMap: new Map(),
+      personOrgMap,
+    })
+    const [list] = buildDashboardLists([def], [t], ctx)
+    const groups = list!.groups!
+    expect(groups.map((g) => g.key)).toEqual(['org-100'])
+    expect(groups[0]!.label).toBe('Acme')
+    expect(groups[0]!.todos.map((x) => x.id)).toEqual([101])
+  })
+
+  it('tag restrict narrows groups to picked tag ids; non-picked tags + untagged absent', async () => {
+    // T101 is tagged [#urgent, #later]. Filter restricts to [#urgent]; the
+    // #later bucket must NOT emit. The untagged bucket is also suppressed
+    // in restrict mode (no axis-less tasks survive a non-empty tags clause
+    // anyway, but the suppression is explicit so a rogue task can't sneak in).
+    const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
+    const assignedTagsMap = new Map<number, Tag[]>([[101, [URGENT, LATER]]])
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(p)
+      const assignedTagIds = (assignedTagsMap.get(t.id) ?? []).map((tg) => tg.id!)
+      return matchesFilter(
+        criteria, t,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined,
+        assignedTagIds,
+      )
+    }
+    const def = customDef({
+      grouping: 'tag',
+      membership: {
+        kind: 'custom',
+        predicate: { ...emptyPredicate(), tags: [URGENT.id!] },
+      },
+    })
+    const t = makeTodo({ id: 101 })
+    const ctx = makeCtx({ evalPredicate, assignedTagsMap })
+    const [list] = buildDashboardLists([def], [t], ctx)
+    const groups = list!.groups!
+    expect(groups.map((g) => g.key)).toEqual(['tag-10'])
+    expect(groups[0]!.label).toBe('#urgent')
+    expect(groups.find((g) => g.key === 'no-tag')).toBeUndefined()
   })
 })
