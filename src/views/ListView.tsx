@@ -795,7 +795,14 @@ export function ListView() {
   const allListDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const loadListDefinitions = useListDefinitionStore((s) => s.ensureLoaded)
   const removeListDefinition = useListDefinitionStore((s) => s.remove)
-  const { filters, setAllFilters } = useFilterStore()
+  // Local rename: `filters` from `filter-store` is the **manual** criteria
+  // (chips + search + date controls). `effectiveFilters` below applies the
+  // runtime-prompt narrowing on top — every render-layer read should use
+  // `effectiveFilters`. The two persistence-boundary writes (saving the
+  // current state to a def) deliberately read the raw `manualFilters` so the
+  // saved predicate captures only the manual pre-filter; the runtime pick is
+  // captured separately as `def.runtimeFilter`.
+  const { filters: manualFilters, setAllFilters } = useFilterStore()
   const isFilterActive = useFilterStore((s) => s.isActive)
   // Runtime-filter slot lives in `filter-store` so that the FilterChipBar's
   // Clear-all button drops the runtime input alongside the predicate (the
@@ -871,10 +878,10 @@ export function ListView() {
   // value is picked yet, the list returns empty — mirrors widget behavior and
   // prompts the user to pick via the visible picker.
   const effectiveFilters = useMemo(() => {
-    if (!runtimeFilterSpec || runtimeFilterValue == null || runtimeFilterValue.length === 0) return filters
-    const narrowed = applyRuntimeFilter(criteriaToPredicate(filters), runtimeFilterSpec, runtimeFilterValue)
+    if (!runtimeFilterSpec || runtimeFilterValue == null || runtimeFilterValue.length === 0) return manualFilters
+    const narrowed = applyRuntimeFilter(criteriaToPredicate(manualFilters), runtimeFilterSpec, runtimeFilterValue)
     return predicateToCriteria(narrowed)
-  }, [filters, runtimeFilterSpec, runtimeFilterValue])
+  }, [manualFilters, runtimeFilterSpec, runtimeFilterValue])
 
   const activeTodos = useMemo(() => {
     if (runtimeFilterSpec && runtimeFilterValue == null) return []
@@ -1089,7 +1096,8 @@ export function ListView() {
     const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
     const next: PersistedListDefinition = {
       ...def,
-      membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
+      // Persistence boundary: raw manual filter — runtime pick is captured separately as `def.runtimeFilter`.
+      membership: { kind: 'custom', predicate: criteriaToPredicate(manualFilters) },
       sort,
       grouping,
     }
@@ -1104,7 +1112,7 @@ export function ListView() {
     else delete next.runtimeFilter
     await updateListDefinition(next)
     setActiveLoadedDefId(def.id)
-  }, [listGroupBy, listSortBy, filters, maxTasks, limitMode, runtimeFilterSpec, updateListDefinition])
+  }, [listGroupBy, listSortBy, manualFilters, maxTasks, limitMode, runtimeFilterSpec, updateListDefinition])
 
   const handleSaveClick = useCallback(() => {
     setShowSaveSelector(true)
@@ -1140,7 +1148,8 @@ export function ListView() {
       const { sort, grouping } = encodeGroupSort(listGroupBy, listSortBy)
       const id = await addListDefinition({
         name,
-        membership: { kind: 'custom', predicate: criteriaToPredicate(filters) },
+        // Persistence boundary: raw manual filter — runtime pick is captured separately as `def.runtimeFilter`.
+        membership: { kind: 'custom', predicate: criteriaToPredicate(manualFilters) },
         sort,
         grouping,
         pinnedToDashboard: false,
@@ -1154,7 +1163,7 @@ export function ListView() {
     } catch (e) {
       setNewListError((e as Error).message)
     }
-  }, [newListName, addListDefinition, filters, listGroupBy, listSortBy, maxTasks, limitMode, runtimeFilterSpec])
+  }, [newListName, addListDefinition, manualFilters, listGroupBy, listSortBy, maxTasks, limitMode, runtimeFilterSpec])
 
   const handleLoadPickDef = useCallback((def: PersistedListDefinition) => {
     // Unsaved-edits guard: if a def was last loaded and state diverged, prompt.
