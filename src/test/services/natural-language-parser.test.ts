@@ -197,6 +197,98 @@ describe('natural-language-parser', () => {
       expect(result.title).toBe('Urgent!')
       expect(result.dueDate).toBeUndefined()
     })
+
+    it('extracts "due <day>" as a deadline, not a scheduled date', () => {
+      const result = parseInput('Submit report due friday')
+      expect(result.title).toBe('Submit report')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate!.getDay()).toBe(5)
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "due tomorrow" as a deadline', () => {
+      const result = parseInput('Call vendor due tomorrow')
+      expect(result.title).toBe('Call vendor')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const expected = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "due tmr" as a deadline', () => {
+      const result = parseInput('Ship feature due tmr')
+      expect(result.title).toBe('Ship feature')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const expected = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
+    })
+
+    it('extracts "due today" as a deadline', () => {
+      const result = parseInput('Email client due today')
+      expect(result.title).toBe('Email client')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      expect(result.dueDate!.toDateString()).toBe(today.toDateString())
+    })
+
+    it('extracts "due this week" as a deadline (end-of-window date)', () => {
+      const result = parseInput('Wrap up tasks due this week')
+      expect(result.title).toBe('Wrap up tasks')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "due next monday" as a deadline', () => {
+      const result = parseInput('Present plan due next monday')
+      expect(result.title).toBe('Present plan')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate!.getDay()).toBe(1)
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('extracts "due in 3 days" as a deadline', () => {
+      const result = parseInput('Followup due in 3 days')
+      expect(result.title).toBe('Followup')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const expected = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
+      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
+    })
+
+    it('allows scheduled + "due <day>" deadline in one input', () => {
+      const result = parseInput('Review tomorrow due friday')
+      expect(result.title).toBe('Review')
+      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate!.getDay()).toBe(5)
+    })
+
+    it('does not match "due" followed by non-date words', () => {
+      const result = parseInput('Pay invoice due to vendor')
+      expect(result.title).toBe('Pay invoice due to vendor')
+      expect(result.dueDate).toBeUndefined()
+    })
+
+    it('does not extract "due" inside another word (overdue)', () => {
+      const result = parseInput('Mark task overdue tomorrow')
+      // "overdue" must not satisfy the `\bdue` boundary; the standalone
+      // "tomorrow" then becomes a fuzzy scheduled token, not a deadline.
+      expect(result.dueDate).toBeUndefined()
+      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+    })
+
+    it('only consumes "due monday" from "due monday at 5pm"', () => {
+      const result = parseInput('Sync due monday at 5pm')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate!.getDay()).toBe(1)
+      expect(result.title).toBe('Sync at 5pm')
+    })
   })
 
   describe('tags (#foo)', () => {

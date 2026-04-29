@@ -65,6 +65,11 @@ const DEADLINE_DATE_INNER = String.raw`(today|tomorrow|tmr|this\s+week|next\s+we
 // "by <date>" phrase deadline
 const BY_DEADLINE_PATTERN = new RegExp(String.raw`\bby\s+` + DEADLINE_DATE_INNER + String.raw`\b`, 'gi')
 
+// "due <date>" phrase deadline — mirrors `BY_DEADLINE_PATTERN`. `:due` is a
+// status name (handled by STATUS_PATTERN), so the bare-word `due` here does
+// not collide.
+const DUE_DEADLINE_PATTERN = new RegExp(String.raw`\bdue\s+` + DEADLINE_DATE_INNER + String.raw`\b`, 'gi')
+
 // "!<date>" prefix deadline (single-word forms only)
 const BANG_DEADLINE_PATTERN = /!(today|tomorrow|tmr|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/gi
 
@@ -248,6 +253,18 @@ export function parseInput(text: string): ParsedInput {
   // the inner date text.
   BY_DEADLINE_PATTERN.lastIndex = 0
   while ((match = BY_DEADLINE_PATTERN.exec(text)) !== null) {
+    const value = match[1]
+    if (value == null) continue
+    tokens.push({
+      type: 'deadline',
+      value,
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    })
+  }
+  DUE_DEADLINE_PATTERN.lastIndex = 0
+  while ((match = DUE_DEADLINE_PATTERN.exec(text)) !== null) {
     const value = match[1]
     if (value == null) continue
     tokens.push({
