@@ -884,31 +884,32 @@ export function ListView() {
   // Filter-aware group ordering (P5 + P6, item 12 / item 1): when groupBy
   // matches an active filter dimension (people / org / tag), restrict the
   // visible group sections to that filter's ids and tier-order them
-  // direct→implicit. The snapshot arrays are memoized off the underlying
-  // Set identity to avoid reshuffling on every re-render. Reading off
-  // `filters` directly (not the runtime-narrowed `effectiveFilters`) so
-  // the user's manual filter intent drives the ordering — runtime-filter
-  // values get layered on top via `effectiveFilters` upstream.
+  // direct→implicit. Reads off `effectiveFilters` so the runtime-prompt
+  // pick (which writes into `personIds` / `orgIds` / `tags` via
+  // `applyRuntimeFilter`) restricts the visible groups too — without this,
+  // a multi-assignee task that survives the membership filter would still
+  // emit sections for its other assignees.
   const restrictToPersonIds = useMemo(
-    () => (filters.personIds ? Array.from(filters.personIds) : null),
-    [filters.personIds],
+    () => (effectiveFilters.personIds ? Array.from(effectiveFilters.personIds) : null),
+    [effectiveFilters.personIds],
   )
   const restrictToOrgIds = useMemo(
-    () => (filters.orgIds ? Array.from(filters.orgIds) : null),
-    [filters.orgIds],
+    () => (effectiveFilters.orgIds ? Array.from(effectiveFilters.orgIds) : null),
+    [effectiveFilters.orgIds],
   )
   const restrictToTagIds = useMemo(
-    () => (filters.tags ? Array.from(filters.tags) : null),
-    [filters.tags],
+    () => (effectiveFilters.tags ? Array.from(effectiveFilters.tags) : null),
+    [effectiveFilters.tags],
   )
 
   // P6 cross-axis implicit-keys lookups. People grouping pulls members of
   // the task's directly-assigned orgs (only when person-filter mode is the
   // include-orgs default — direct-only mode skips the implicit tier so
   // tasks that only matched via person-org membership simply drop out of
-  // the grouping). Org grouping is symmetric.
-  const personFilterMode = filters.personFilterMode
-  const orgFilterMode = filters.orgFilterMode
+  // the grouping). Org grouping is symmetric. Read from `effectiveFilters`
+  // so the runtime-prompt's hard-coded `direct-only` mode (P5) is honored.
+  const personFilterMode = effectiveFilters.personFilterMode
+  const orgFilterMode = effectiveFilters.orgFilterMode
   const implicitPersonIdsFor = useCallback(
     (todo: PersistedTodoItem): readonly number[] => {
       const taskOrgs = assignedOrgsMap.get(todo.id) ?? []
@@ -973,7 +974,7 @@ export function ListView() {
           orgs,
           assignedOrgsMap,
           personOrgMap,
-          filters.orgIds,
+          effectiveFilters.orgIds,
           restrictToPersonIds,
           personFilterMode === 'include-orgs' ? implicitPersonIdsFor : undefined,
         )
@@ -986,7 +987,7 @@ export function ListView() {
           assignedPeopleMap,
           assignedOrgsMap,
           personOrgMap,
-          filters.orgIds,
+          effectiveFilters.orgIds,
           restrictToOrgIds,
           orgFilterMode === 'include-people' ? implicitOrgIdsFor : undefined,
         )
@@ -1004,7 +1005,7 @@ export function ListView() {
     projects,
     orgs,
     personOrgMap,
-    filters.orgIds,
+    effectiveFilters.orgIds,
     statuses,
     assignedTagsMap,
     weekStartsOn,
