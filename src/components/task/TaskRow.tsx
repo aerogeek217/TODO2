@@ -216,6 +216,44 @@ export const TaskRow = memo(function TaskRow({
         </div>
       )}
 
+      {/* Notes indicator — click opens inline notes popover. Sits at the
+          leftmost chip slot (just after the title) so it flows freely with
+          tags on the left while leaving people / date / status aligned in
+          their fixed-width slots on the right. */}
+      {todo.notes && !ghost && (
+        <button
+          ref={notesIconRef}
+          type="button"
+          className={styles.notesIndicator}
+          title="Edit notes"
+          aria-label="Edit notes"
+          onClick={(e) => { e.stopPropagation(); setShowNotesPopover(v => !v) }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
+            <path d="M9.5 1.5V5H13" />
+            <path d="M5 8h6M5 11h4" />
+          </svg>
+        </button>
+      )}
+      {todo.notes && ghost && (
+        <span className={styles.notesIndicator} title="Has notes">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
+            <path d="M9.5 1.5V5H13" />
+            <path d="M5 8h6M5 11h4" />
+          </svg>
+        </span>
+      )}
+      {showNotesPopover && !ghost && createPortal(
+        <TaskNotePopover
+          todoId={todo.id}
+          anchorRef={notesIconRef}
+          onClose={() => setShowNotesPopover(false)}
+        />,
+        document.body,
+      )}
+
       {/* Progress label with visual bar */}
       {todo.progress && (
         <span className={styles.progressChip}>
@@ -236,11 +274,8 @@ export const TaskRow = memo(function TaskRow({
       {/* Slots are interleaved per-chip (populated vs empty-state) instead of
           composing the full `<TaskPillBar>`, so each chip stays in a fixed
           JSX position regardless of which sibling is populated. Order is
-          `# tags → @ people → notes → date → status` — notes sits adjacent
-          to the date stack so when only date+notes are set (the common
-          case) the two pills cluster on the right instead of leaving notes
-          stranded behind the invisible hover-reveal placeholders for tags
-          and people (triage-2026-04-28 P3). */}
+          `# tags → @ people → date → status` for both populated and empty
+          variants. */}
 
       {/* Slot 1 — tags. Populated chips render; empty `#` trigger is
           hover-revealed via the `[class*="tagChipEmpty"]` rule. */}
@@ -282,43 +317,6 @@ export const TaskRow = memo(function TaskRow({
           </button>
         </div>
       ))}
-
-      {/* Slot 2.5 — notes indicator. Click opens inline notes popover.
-          Placed immediately before the date stack so the notes pill
-          baselines + clusters with date/status (triage-2026-04-28 P3).  */}
-      {todo.notes && !ghost && (
-        <button
-          ref={notesIconRef}
-          type="button"
-          className={styles.notesIndicator}
-          title="Edit notes"
-          aria-label="Edit notes"
-          onClick={(e) => { e.stopPropagation(); setShowNotesPopover(v => !v) }}
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-            <path d="M9.5 1.5V5H13" />
-            <path d="M5 8h6M5 11h4" />
-          </svg>
-        </button>
-      )}
-      {todo.notes && ghost && (
-        <span className={styles.notesIndicator} title="Has notes">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 1.5h6.5L13 5v9a0.5 0.5 0 0 1-0.5 0.5h-9.5A0.5 0.5 0 0 1 2.5 14V2a0.5 0.5 0 0 1 0.5-0.5Z" />
-            <path d="M9.5 1.5V5H13" />
-            <path d="M5 8h6M5 11h4" />
-          </svg>
-        </span>
-      )}
-      {showNotesPopover && !ghost && createPortal(
-        <TaskNotePopover
-          todoId={todo.id}
-          anchorRef={notesIconRef}
-          onClose={() => setShowNotesPopover(false)}
-        />,
-        document.body,
-      )}
 
       {/* Slot 3 — dates. Populated stack or empty calendar button.
           `dateStackEmpty` reserves the same width so status doesn't shift
