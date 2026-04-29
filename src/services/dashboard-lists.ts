@@ -96,6 +96,13 @@ export interface DashboardList {
  * pick is authoritative for the prompted field. Other clauses are preserved so
  * the def's baseline predicate (status / date window / etc.) still applies.
  *
+ * For `person` / `org` fields the helper additionally hard-codes the matching
+ * mode to `'direct-only'` — the runtime filter has no UI for the
+ * `personFilterMode` / `orgFilterMode` toggles, so the implicit cross-axis
+ * expansion (member-of-org / org-of-person) is suppressed: a task only matches
+ * when it is *directly* assigned to one of the picked ids. Equivalent to the
+ * user clicking "People only" / "Org only" in the manual filter UI.
+ *
  * An empty `values` array is a no-op: the predicate is returned unchanged so
  * "user cleared all chips" doesn't short-circuit the list to "match nothing"
  * (that would be the semantics of writing an empty id array into the
@@ -110,8 +117,8 @@ export function applyRuntimeFilter(
 ): TodoPredicate {
   if (values.length === 0) return predicate
   switch (spec.field) {
-    case 'person': return { ...predicate, personIds: values }
-    case 'org': return { ...predicate, orgIds: values }
+    case 'person': return { ...predicate, personIds: values, personFilterMode: 'direct-only' }
+    case 'org': return { ...predicate, orgIds: values, orgFilterMode: 'direct-only' }
     case 'project': return { ...predicate, projectIds: values }
     case 'status': return { ...predicate, statusIds: values }
     case 'tag': return { ...predicate, tags: values }

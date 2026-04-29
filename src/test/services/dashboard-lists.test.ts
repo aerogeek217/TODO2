@@ -269,6 +269,114 @@ describe('buildDashboardLists — runtime filter', () => {
     const base: TodoPredicate = { ...emptyPredicate(), personIds: [1, 2, 3] }
     expect(applyRuntimeFilter(base, { field: 'person' }, [9]).personIds).toEqual([9])
   })
+
+  it('applyRuntimeFilter forces personFilterMode to direct-only on person picks', () => {
+    // The runtime filter has no UI for the mode toggle, so picking a person
+    // narrows to direct assignment only — equivalent to the user clicking
+    // "People only" in the manual filter UI. A baseline predicate authored
+    // with the default `'include-orgs'` mode must be flipped.
+    const base = emptyPredicate()
+    expect(base.personFilterMode).toBe('include-orgs')
+    expect(applyRuntimeFilter(base, { field: 'person' }, [5]).personFilterMode).toBe('direct-only')
+  })
+
+  it('applyRuntimeFilter forces orgFilterMode to direct-only on org picks', () => {
+    const base = emptyPredicate()
+    expect(base.orgFilterMode).toBe('include-people')
+    expect(applyRuntimeFilter(base, { field: 'org' }, [6]).orgFilterMode).toBe('direct-only')
+  })
+
+  it('applyRuntimeFilter overrides any prior mode on the same axis', () => {
+    // Even if the def authored an explicit non-direct mode, the runtime pick
+    // wins — the picker can't surface the mode toggle so the implicit pivot
+    // would be invisible.
+    const personBase: TodoPredicate = { ...emptyPredicate(), personFilterMode: 'include-orgs' }
+    expect(applyRuntimeFilter(personBase, { field: 'person' }, [1]).personFilterMode).toBe('direct-only')
+    const orgBase: TodoPredicate = { ...emptyPredicate(), orgFilterMode: 'include-people' }
+    expect(applyRuntimeFilter(orgBase, { field: 'org' }, [1]).orgFilterMode).toBe('direct-only')
+  })
+
+  it('applyRuntimeFilter does not touch mode flags for non-person/org fields', () => {
+    // Project / status / tag fields don't have a `*FilterMode` toggle to begin
+    // with — the personFilterMode / orgFilterMode flags must round-trip
+    // unchanged from the input predicate so a def that *does* author a mode
+    // (e.g. "Tasks waiting on org X, including their people") stays intact
+    // when narrowed by a project / status / tag runtime pick.
+    const base: TodoPredicate = {
+      ...emptyPredicate(),
+      personFilterMode: 'direct-only',
+      orgFilterMode: 'include-people',
+    }
+    for (const field of ['project', 'status', 'tag'] as const) {
+      const out = applyRuntimeFilter(base, { field }, [1])
+      expect(out.personFilterMode).toBe('direct-only')
+      expect(out.orgFilterMode).toBe('include-people')
+    }
+  })
+
+  it('end-to-end: runtime person pick of A excludes a task whose only A-membership is via an org', async () => {
+    // This is the user-visible behavior the mode flag protects. Wire the
+    // canonical matchesFilter as evalPredicate (same shape ListView /
+    // HorizonsSlotContent use), seed Alice as a member of Acme, and a task
+    // assigned to Acme but not directly to Alice. Picking Alice via a runtime
+    // person filter must NOT include that task; a directly-assigned task does.
+    const { predicateToCriteria, matchesFilter, computeFilterPersonOrgIds } = await import('../../stores/filter-store')
+    const ALICE = 1
+    const ACME = 100
+    // Alice is a member of Acme.
+    const personOrgMap = new Map<number, number[]>([[ALICE, [ACME]]])
+    // Per-todo assignment maps.
+    const assignedPersonIds = new Map<number, number[]>([
+      [10, [ALICE]],
+      // 11 is org-only.
+    ])
+    const assignedDirectOrgIds = new Map<number, number[]>([
+      [11, [ACME]],
+    ])
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(p)
+      const filterPersonOrgIds = computeFilterPersonOrgIds(criteria.personIds, criteria.personFilterMode, personOrgMap)
+      const personIds = assignedPersonIds.get(t.id) ?? []
+      const personOrgIds = personIds.flatMap((pid) => personOrgMap.get(pid) ?? [])
+      const directOrgIds = assignedDirectOrgIds.get(t.id) ?? []
+      return matchesFilter(criteria, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds)
+    }
+    const def = customDef({ id: 50, runtimeFilter: { field: 'person' } })
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      evalPredicate,
+      runtimeFilterValues: new Map([[50, [ALICE]]]),
+    })
+    const [list] = buildDashboardLists([def], todos, ctx)
+    expect(list!.todos.map((t) => t.id)).toEqual([10])
+  })
+
+  it('end-to-end: runtime org pick of Acme excludes a task whose only Acme-membership is via a person', async () => {
+    // Symmetric to the person test. Bob belongs to Acme; task 21 is assigned
+    // only to Bob (Acme membership is implicit). With direct-only org mode the
+    // runtime pick of Acme drops it; only the directly-assigned task stays.
+    const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
+    const BOB = 2
+    const ACME = 100
+    const personOrgMap = new Map<number, number[]>([[BOB, [ACME]]])
+    const assignedPersonIds = new Map<number, number[]>([[21, [BOB]]])
+    const assignedDirectOrgIds = new Map<number, number[]>([[20, [ACME]]])
+    const evalPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
+      const criteria = predicateToCriteria(p)
+      const personIds = assignedPersonIds.get(t.id) ?? []
+      const personOrgIds = personIds.flatMap((pid) => personOrgMap.get(pid) ?? [])
+      const directOrgIds = assignedDirectOrgIds.get(t.id) ?? []
+      return matchesFilter(criteria, t, personIds, personOrgIds, directOrgIds)
+    }
+    const def = customDef({ id: 51, runtimeFilter: { field: 'org' } })
+    const todos = [makeTodo({ id: 20 }), makeTodo({ id: 21 })]
+    const ctx = makeCtx({
+      evalPredicate,
+      runtimeFilterValues: new Map([[51, [ACME]]]),
+    })
+    const [list] = buildDashboardLists([def], todos, ctx)
+    expect(list!.todos.map((t) => t.id)).toEqual([20])
+  })
 })
 
 describe('interpretMembership — custom', () => {
