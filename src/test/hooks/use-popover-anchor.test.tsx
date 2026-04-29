@@ -205,6 +205,28 @@ describe('usePopoverAnchor — dismissal', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('does NOT close on scroll inside the panel itself', () => {
+    // Regression: when a popover's content area is itself scrollable (e.g.
+    // FilterChipBar's `dropdownItemsScrollable` person list), the user
+    // wheel-scrolling inside the panel used to dismiss it via the capture-
+    // phase scroll listener. Internal scroll is intentional navigation, not
+    // an ancestor reflow — keep the panel open.
+    const onClose = vi.fn()
+    const { getByTestId } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 10, y: 10 }}
+        open={true}
+        onClose={onClose}
+        panelRect={{ width: 100, height: 100 }}
+      />,
+    )
+    const panel = getByTestId('panel')
+    // Capture-phase listener is attached on window; dispatch from inside the
+    // panel and let it bubble.
+    fireEvent.scroll(panel)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('does NOT close on scroll when closeOnScroll is false', () => {
     const onClose = vi.fn()
     render(

@@ -278,7 +278,14 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   // Scroll/resize listeners. Capture-phase scroll catches ancestors.
   useEffect(() => {
     if (!open) return
-    const handleScroll = () => {
+    const handleScroll = (e: Event) => {
+      // Scroll inside the panel itself (e.g., a scrollable items list) is
+      // intentional user navigation within the popover — don't dismiss on it.
+      // Without this guard, dropdowns whose content overflows close the moment
+      // the user wheel-scrolls or drags the inner scrollbar. The target may
+      // be `window` / `document` for page scrolls, hence the Node check.
+      const panel = panelElRef.current
+      if (panel && e.target instanceof Node && panel.contains(e.target)) return
       if (closeOnScrollRef.current) {
         onCloseRef.current()
         return
