@@ -27,7 +27,10 @@ export interface ParsedInput {
   recurrence?: RecurrenceType
   persons: string[]
   projects: string[]
-  /** Lowercase tag slugs in first-seen order, post-`normalizeTag`. */
+  /** User-supplied tag names in first-seen order (trimmed, original case
+   * preserved). Dedup is by case-folded slug so `#Foo` and `#foo` collapse to
+   * one entry — the first-seen case wins. Resolver lookup is also
+   * case-insensitive (`nlp-resolver.resolveTags`). */
   tags: string[]
   /** Raw status names from `:foo` tokens in first-seen order. Resolved against
    * the status registry by `resolveInput`; the parser stays store-free. */
@@ -361,10 +364,14 @@ export function parseInput(text: string): ParsedInput {
     if (token.type === 'person') persons.push(token.value)
     if (token.type === 'project') projects.push(token.value)
     if (token.type === 'tag') {
+      // Dedup by case-folded slug (`normalizeTag`), but write the user-supplied
+      // case (trimmed) so `#FooBar` round-trips as `FooBar`. The resolver
+      // (`nlp-resolver.resolveTags`) also matches case-insensitively, so the
+      // registry never gets two entries for the same case-folded name.
       const slug = normalizeTag(token.value)
       if (slug && !seenTags.has(slug)) {
         seenTags.add(slug)
-        tags.push(slug)
+        tags.push(token.value.trim())
       }
     }
     if (token.type === 'status') statuses.push(token.value)

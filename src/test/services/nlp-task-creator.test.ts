@@ -325,8 +325,8 @@ describe('NLP → tag registry end-to-end', () => {
     const existingId = await useTagStore.getState().add('urgent')
 
     const { resolved } = parseTaskInput('fix #Urgent', [])
-    // Parser normalizes `#Urgent` → slug 'urgent' before hitting the resolver.
-    expect(resolved.tags).toEqual(['urgent'])
+    // Parser preserves user case; the resolver does the case-insensitive lookup.
+    expect(resolved.tags).toEqual(['Urgent'])
 
     const todoId = await addTodo('fix')
     const tagIds = await resolveTags(resolved.tags, { tagStore: useTagStore.getState() })

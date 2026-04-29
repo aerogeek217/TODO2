@@ -215,6 +215,22 @@ describe('resolveTags', () => {
     expect(tagStore.tags[0]!.color).toBe(DEFAULT_ENTITY_COLOR)
   })
 
+  it('preserves user-supplied case when creating a new tag', async () => {
+    const tagStore = makeMockTagStore()
+    const ids = await resolveTags(['FooBar'], { tagStore })
+    expect(ids).toHaveLength(1)
+    expect(tagStore.tags).toHaveLength(1)
+    expect(tagStore.tags[0]!.name).toBe('FooBar')
+  })
+
+  it('returns the existing id without creating when the registry has a case-folded match', async () => {
+    const tagStore = makeMockTagStore([{ id: 9, name: 'foobar', color: '#fff' }])
+    const ids = await resolveTags(['FooBar'], { tagStore })
+    expect(ids).toEqual([9])
+    expect(tagStore.tags).toHaveLength(1)
+    expect(tagStore.tags[0]!.name).toBe('foobar')
+  })
+
   it('returns ids in input order, mixed hits and misses', async () => {
     const tagStore = makeMockTagStore([{ id: 42, name: 'old', color: '#fff' }])
     const ids = await resolveTags(['new1', 'old', 'new2'], { tagStore })

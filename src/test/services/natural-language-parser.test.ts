@@ -214,9 +214,19 @@ describe('natural-language-parser', () => {
       expect(result.tags).toEqual(['foo'])
     })
 
-    it('normalizes casing to lowercase', () => {
+    it('preserves user-supplied case in the parsed tag', () => {
       const result = parseInput('Do thing #Urgent')
-      expect(result.tags).toEqual(['urgent'])
+      expect(result.tags).toEqual(['Urgent'])
+    })
+
+    it('preserves mixed case (#FooBar → FooBar)', () => {
+      const result = parseInput('ship #FooBar')
+      expect(result.tags).toEqual(['FooBar'])
+    })
+
+    it('dedupes case-variant tags by lowercase, preserving first-seen case', () => {
+      const result = parseInput('#Foo work #foo more #FOO')
+      expect(result.tags).toEqual(['Foo'])
     })
 
     it('stops the capture at the first non-slug char (#foo! → foo)', () => {
