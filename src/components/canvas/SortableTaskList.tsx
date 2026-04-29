@@ -129,12 +129,17 @@ export function SortableTaskList({
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const today = useMemo(() => startOfToday(), [])
 
-  // Filter-aware group ordering (item 12, P5): when groupBy matches an
-  // active filter dimension, pull those keys to the front. Subscribing
-  // here keeps ProjectNode unaware of the filter store; the cost is one
-  // re-render of the SortableTaskList memo when filters change.
+  // Filter-aware group ordering (P5 + P6, item 12 / item 1): when groupBy
+  // matches an active filter dimension, restrict the visible groups to that
+  // filter's keys (P6 intersection rule) and order direct-tier groups first
+  // / implicit-tier groups (cross-axis: org→members for people, person→orgs
+  // for org) at the bottom. Subscribing here keeps ProjectNode unaware of
+  // the filter store; the cost is one re-render of the SortableTaskList
+  // memo when filters change.
   const filterPersonIds = useFilterStore((s) => s.filters.personIds)
+  const personFilterMode = useFilterStore((s) => s.filters.personFilterMode)
   const filterOrgIds = useFilterStore((s) => s.filters.orgIds)
+  const orgFilterMode = useFilterStore((s) => s.filters.orgFilterMode)
   const filterTags = useFilterStore((s) => s.filters.tags)
 
   // Which InsertTrigger is currently open (keyed by the todo id it follows, or BEFORE_FIRST)
@@ -226,15 +231,82 @@ export function SortableTaskList({
       today,
       weekStartsOn,
     }
-    let prioritizeGroupKeys: string[] | undefined
+    let restrictToFilterSet: string[] | undefined
+    let implicitKeysFor:
+      | ((todo: PersistedTodoItem, axis: ProjectGroupBy) => readonly string[])
+      | undefined
     if (groupBy === 'people' && filterPersonIds && filterPersonIds.size > 0) {
-      prioritizeGroupKeys = [...filterPersonIds].map((id) => `person-${id}`)
+      restrictToFilterSet = [...filterPersonIds].map((id) => `person-${id}`)
+      // Implicit (cross-axis) keys for the people grouping: when the
+      // person-filter mode is `include-orgs` (the manual-filter default),
+      // tasks that survive the filter via "task has org X, X has member A"
+      // emit under person-A as implicit. Direct-only mode (the runtime-
+      // filter hardcode + the user's explicit "People only" toggle) skips
+      // this branch — those tasks shouldn't have passed the filter anyway,
+      // so the partition's empty-intersection skip leaves them out of every
+      // visible group.
+      if (personFilterMode === 'include-orgs') {
+        implicitKeysFor = (todo) => {
+          const taskOrgs = assignedOrgsMap.get(todo.id) ?? []
+          if (taskOrgs.length === 0) return []
+          const orgIdSet = new Set<number>()
+          for (const o of taskOrgs) {
+            if (o.id != null) orgIdSet.add(o.id)
+          }
+          const memberKeys: string[] = []
+          const seen = new Set<string>()
+          for (const [pid, orgIds] of personOrgMap) {
+            for (const oid of orgIds) {
+              if (orgIdSet.has(oid)) {
+                const k = `person-${pid}`
+                if (!seen.has(k)) {
+                  seen.add(k)
+                  memberKeys.push(k)
+                }
+                break
+              }
+            }
+          }
+          return memberKeys
+        }
+      }
     } else if (groupBy === 'org' && filterOrgIds && filterOrgIds.size > 0) {
-      prioritizeGroupKeys = [...filterOrgIds].map((id) => `org-${id}`)
+      restrictToFilterSet = [...filterOrgIds].map((id) => `org-${id}`)
+      // Symmetric to people grouping: in `include-people` mode, tasks that
+      // survive the filter via "task has person P, P is a member of org X"
+      // emit under org-X as implicit.
+      if (orgFilterMode === 'include-people') {
+        implicitKeysFor = (todo) => {
+          const taskPeople = assignedPeopleMap?.get(todo.id) ?? []
+          if (taskPeople.length === 0) return []
+          const orgKeys: string[] = []
+          const seen = new Set<string>()
+          for (const p of taskPeople) {
+            if (p.id == null) continue
+            const orgIds = personOrgMap.get(p.id) ?? []
+            for (const oid of orgIds) {
+              const k = `org-${oid}`
+              if (!seen.has(k)) {
+                seen.add(k)
+                orgKeys.push(k)
+              }
+            }
+          }
+          return orgKeys
+        }
+      }
     } else if (groupBy === 'tag' && filterTags && filterTags.size > 0) {
-      prioritizeGroupKeys = [...filterTags].map((id) => `tag-${id}`)
+      // Tags have no cross-axis path — direct-only intersection.
+      restrictToFilterSet = [...filterTags].map((id) => `tag-${id}`)
     }
-    const partition = partitionByGroup(displayItems, groupBy, ctx, prioritizeGroupKeys)
+    const partition = partitionByGroup(
+      displayItems,
+      groupBy,
+      ctx,
+      undefined,
+      restrictToFilterSet,
+      implicitKeysFor,
+    )
     const out: RenderBlock[] = []
     if (partition.ungrouped.length > 0) {
       out.push({ key: UNGROUPED_GROUP_KEY, label: null, todos: partition.ungrouped, nextBlockFirstId: null })
@@ -256,7 +328,7 @@ export function SortableTaskList({
       }
     }
     return out
-  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, orgs, personOrgMap, today, weekStartsOn, filterPersonIds, filterOrgIds, filterTags])
+  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, orgs, personOrgMap, today, weekStartsOn, filterPersonIds, personFilterMode, filterOrgIds, orgFilterMode, filterTags])
 
   // Stable refs for ordered IDs (used in range-select without recreating callback)
   const visibleIdsRef = useRef<number[]>([])

@@ -33,6 +33,17 @@ export interface PartitionGroup<T extends PersistedTodoItem> {
   key: string
   label: string
   todos: T[]
+  /**
+   * `'direct'` when at least one task emit under this key came via the task's
+   * direct group keys (assigned person/org/tag). `'implicit'` when every emit
+   * came via the cross-axis `implicitKeysFor` callback (e.g. via the task's
+   * direct orgs' member-people, when grouping by people).
+   *
+   * When `partitionByGroup` is called without `restrictToFilterSet`, every
+   * group reports `'direct'` — the implicit path is gated on restrict mode
+   * (P6, item 1).
+   */
+  tier: 'direct' | 'implicit'
 }
 
 export interface PartitionResult<T extends PersistedTodoItem> {
@@ -325,50 +336,142 @@ function orderGroupKeys(
  * order (filter-aware ordering for "filter by X + group by X" — item 12,
  * P5). Pass the same prefixed keys `getGroupKey` emits (`person-N`,
  * `org-N`, `tag-N`).
+ *
+ * `restrictToFilterSet` (optional, P6 item 1): when set, the partition
+ * narrows to *visible* groups defined by `(filterSet) ∩ (direct keys ∪
+ * implicit keys)`. Tasks whose intersection is empty are skipped; tasks
+ * with no direct keys at all still route to `ungrouped` (preserves the
+ * unassigned-sentinel filter case). Pass the same prefixed keys
+ * `getGroupKey` emits.
+ *
+ * `implicitKeysFor` (optional, P6): caller-supplied cross-axis lookup,
+ * only consulted when `restrictToFilterSet` is set. For
+ * `groupBy === 'people'`, return person keys reachable from the task's
+ * orgs (members of any direct org). For `groupBy === 'org'`, return org
+ * keys reachable from the task's people. Tags have no cross-axis path —
+ * pass nothing.
+ *
+ * Returns `groups` with a per-group `tier`: `'direct'` when at least one
+ * emit under that key came via the task's direct group keys;
+ * `'implicit'` when every emit came via `implicitKeysFor`. When
+ * `restrictToFilterSet` is unset, every group is `'direct'` and ordering
+ * follows the legacy `prioritizeGroupKeys` path. When it *is* set,
+ * ordering is direct-tier first then implicit-tier — within each tier,
+ * the order of `restrictToFilterSet` is preserved.
  */
 export function partitionByGroup<T extends PersistedTodoItem>(
   todos: readonly T[],
   groupBy: ProjectGroupBy,
   ctx: GroupingContext,
   prioritizeGroupKeys?: ReadonlyArray<string>,
+  restrictToFilterSet?: ReadonlyArray<string>,
+  implicitKeysFor?: (todo: T, axis: ProjectGroupBy) => readonly string[],
 ): PartitionResult<T> {
   const ungrouped: T[] = []
-  const groupMap = new Map<string, T[]>()
+  const groupMap = new Map<string, { todos: T[]; hasDirect: boolean }>()
+  const filterSet =
+    restrictToFilterSet && restrictToFilterSet.length > 0
+      ? new Set(restrictToFilterSet)
+      : null
+
+  const pushDirect = (key: string, t: T): void => {
+    let bucket = groupMap.get(key)
+    if (!bucket) {
+      bucket = { todos: [], hasDirect: true }
+      groupMap.set(key, bucket)
+    } else {
+      bucket.hasDirect = true
+    }
+    bucket.todos.push(t)
+  }
+
+  const pushImplicit = (key: string, t: T): void => {
+    let bucket = groupMap.get(key)
+    if (!bucket) {
+      bucket = { todos: [], hasDirect: false }
+      groupMap.set(key, bucket)
+    }
+    bucket.todos.push(t)
+  }
 
   for (const t of todos) {
     const key = getGroupKey(t, groupBy, ctx)
-    if (key == null) {
+    const directKeys: string[] =
+      key == null ? [] : Array.isArray(key) ? key : [key]
+
+    if (directKeys.length === 0) {
       ungrouped.push(t)
       continue
     }
-    if (Array.isArray(key)) {
-      if (key.length === 0) {
-        ungrouped.push(t)
-        continue
-      }
-      for (const k of key) {
-        let bucket = groupMap.get(k)
-        if (!bucket) {
-          bucket = []
-          groupMap.set(k, bucket)
-        }
-        bucket.push(t)
-      }
-    } else {
-      let bucket = groupMap.get(key)
-      if (!bucket) {
-        bucket = []
-        groupMap.set(key, bucket)
-      }
-      bucket.push(t)
+
+    if (filterSet === null) {
+      for (const k of directKeys) pushDirect(k, t)
+      continue
     }
+
+    const emitDirect: string[] = []
+    for (const k of directKeys) if (filterSet.has(k)) emitDirect.push(k)
+
+    const directSet = new Set(emitDirect)
+    const emitImplicit: string[] = []
+    if (implicitKeysFor) {
+      for (const k of implicitKeysFor(t, groupBy)) {
+        if (filterSet.has(k) && !directSet.has(k)) emitImplicit.push(k)
+      }
+    }
+
+    if (emitDirect.length === 0 && emitImplicit.length === 0) {
+      // Restrict mode: empty intersection → task is filtered out of every
+      // visible group. Skip entirely (don't route to ungrouped — the
+      // ungrouped block is reserved for axis-less tasks, not axis-mismatched
+      // ones).
+      continue
+    }
+
+    for (const k of emitDirect) pushDirect(k, t)
+    for (const k of emitImplicit) pushImplicit(k, t)
   }
 
-  const groups = orderGroupKeys([...groupMap.keys()], groupBy, ctx, prioritizeGroupKeys).map((key) => ({
-    key,
-    label: getGroupLabel(key, groupBy, ctx),
-    todos: groupMap.get(key)!,
-  }))
+  const orderedKeys =
+    filterSet !== null
+      ? orderRestrictedKeys(restrictToFilterSet!, groupMap)
+      : orderGroupKeys([...groupMap.keys()], groupBy, ctx, prioritizeGroupKeys)
+
+  const groups = orderedKeys.map((key) => {
+    const bucket = groupMap.get(key)!
+    return {
+      key,
+      label: getGroupLabel(key, groupBy, ctx),
+      todos: bucket.todos,
+      tier: (bucket.hasDirect ? 'direct' : 'implicit') as 'direct' | 'implicit',
+    }
+  })
 
   return { ungrouped, groups }
+}
+
+/**
+ * Tier-aware ordering for restrict mode (P6 item 1). Walks
+ * `restrictToFilterSet` in caller order, splits keys into direct- vs
+ * implicit-only tiers based on `groupMap[k].hasDirect`, and emits
+ * `[...direct, ...implicit]`. Keys not present in `groupMap` (no task
+ * emitted there) are dropped. Repeated keys in the input are deduped to
+ * their first appearance.
+ */
+function orderRestrictedKeys<T extends PersistedTodoItem>(
+  restrictToFilterSet: ReadonlyArray<string>,
+  groupMap: Map<string, { todos: T[]; hasDirect: boolean }>,
+): string[] {
+  const direct: string[] = []
+  const implicit: string[] = []
+  const seen = new Set<string>()
+  for (const k of restrictToFilterSet) {
+    if (seen.has(k)) continue
+    seen.add(k)
+    const bucket = groupMap.get(k)
+    if (!bucket) continue
+    if (bucket.hasDirect) direct.push(k)
+    else implicit.push(k)
+  }
+  return [...direct, ...implicit]
 }

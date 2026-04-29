@@ -152,12 +152,30 @@ export function buildPeopleSections(
   personOrgMap?: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
   /**
-   * Prioritized person ids — when groupBy=people AND the active filter
-   * narrows to specific people, those keys are pulled to the front of the
-   * person-section block (item 12, P5). Org sections (when present) keep
-   * their leading position; only the person block re-orders.
+   * P6 (item 1) intersection rule: when groupBy=people AND the active
+   * filter narrows to specific people, restrict the visible person
+   * sections to these ids AND tier-order them — direct-tier (any task
+   * emitted under the section via direct person assignment) first;
+   * implicit-tier (all emits came via the cross-axis include-orgs
+   * callback) at the bottom of the person block. Tasks whose
+   * intersection is empty are skipped (NOT routed to "Unassigned" — the
+   * filter pass shouldn't have let an axis-mismatched task through).
+   *
+   * `null`/`undefined`/empty → existing behavior (every assigned person
+   * gets a section, alphabetical via `visiblePeople` input order).
+   *
+   * Org sections (when present, driven by `filteredOrgIds`) keep their
+   * leading position regardless — they represent a different axis path.
    */
-  prioritizePersonIds?: ReadonlyArray<number> | null,
+  restrictToPersonIds?: ReadonlyArray<number> | null,
+  /**
+   * P6 cross-axis lookup. Only consulted when `restrictToPersonIds` is
+   * non-empty. For `personFilterMode === 'include-orgs'`: returns the
+   * personIds of members of the task's direct orgs. For `'direct-only'`:
+   * pass `undefined` (no implicit path — tasks that survived the filter
+   * via direct assignment are the only emit path).
+   */
+  implicitPersonIdsFor?: (todo: PersistedTodoItem) => readonly number[],
 ): Section[] {
   // Visible people: when org filter active, only those belonging to a filtered org.
   const visiblePeople = (filteredOrgIds && personOrgMap)
@@ -167,17 +185,38 @@ export function buildPeopleSections(
       })
     : people
 
-  const visibleOrgs = (orgs && assignedOrgsMap)
-    ? (filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs)
-    : []
+  const restrictSet = restrictToPersonIds && restrictToPersonIds.length > 0
+    ? new Set<number>(restrictToPersonIds)
+    : null
+
+  // Visible orgs: in restrict mode (P6 — person axis filter is on), suppress
+  // the org-first short-circuit entirely so direct-org-assigned tasks route
+  // through the implicit-keys callback instead of stranding under an org
+  // section. In legacy mode (no restrict), surface every visible org as a
+  // leading section — tasks with direct org assignment land there and are
+  // excluded from person grouping (existing behavior).
+  const visibleOrgs = restrictSet
+    ? []
+    : (orgs && assignedOrgsMap)
+      ? (filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs)
+      : []
 
   const orgBuckets = new Map<number, PersistedTodoItem[]>()
   for (const o of visibleOrgs) orgBuckets.set(o.id!, [])
-  const personBuckets = new Map<number, PersistedTodoItem[]>()
-  for (const p of visiblePeople) personBuckets.set(p.id!, [])
+
+  // Person-bucket type: in restrict mode we track tier so direct-tier sections
+  // sort above implicit-only ones; non-restrict mode treats every bucket as
+  // direct (no implicit path runs).
+  type PersonBucket = { todos: PersistedTodoItem[]; hasDirect: boolean }
+  const personBuckets = new Map<number, PersonBucket>()
+  if (restrictSet) {
+    for (const id of restrictSet) personBuckets.set(id, { todos: [], hasDirect: false })
+  } else {
+    for (const p of visiblePeople) personBuckets.set(p.id!, { todos: [], hasDirect: false })
+  }
   const unassigned: PersistedTodoItem[] = []
 
-  // Single pass: org first (short-circuits person grouping), else all assigned visible people.
+  // Single pass: org first (short-circuits person grouping), else assigned visible people.
   for (const t of todos) {
     let orgHit = false
     if (assignedOrgsMap) {
@@ -193,15 +232,45 @@ export function buildPeopleSections(
     if (orgHit) continue
 
     const assigned = assignedPeopleMap.get(t.id) ?? []
-    let personHit = false
-    for (const p of assigned) {
-      const bucket = personBuckets.get(p.id!)
-      if (bucket) {
-        bucket.push(t)
-        personHit = true
+
+    if (restrictSet) {
+      const directIds = new Set<number>()
+      for (const p of assigned) {
+        if (p.id != null && restrictSet.has(p.id)) directIds.add(p.id)
       }
+      const implicitIds = new Set<number>()
+      if (implicitPersonIdsFor) {
+        for (const id of implicitPersonIdsFor(t)) {
+          if (restrictSet.has(id) && !directIds.has(id)) implicitIds.add(id)
+        }
+      }
+      if (directIds.size === 0 && implicitIds.size === 0) {
+        // Filter set excluded all keys — task drops out of every visible
+        // person section. Don't route to "Unassigned" (that's reserved for
+        // tasks with no people assigned at all).
+        continue
+      }
+      for (const id of directIds) {
+        const b = personBuckets.get(id)!
+        b.todos.push(t)
+        b.hasDirect = true
+      }
+      for (const id of implicitIds) {
+        const b = personBuckets.get(id)!
+        b.todos.push(t)
+      }
+    } else {
+      let personHit = false
+      for (const p of assigned) {
+        const bucket = personBuckets.get(p.id!)
+        if (bucket) {
+          bucket.todos.push(t)
+          bucket.hasDirect = true
+          personHit = true
+        }
+      }
+      if (!personHit) unassigned.push(t)
     }
-    if (!personHit) unassigned.push(t)
   }
 
   const orgSections: Section[] = []
@@ -211,54 +280,53 @@ export function buildPeopleSections(
       orgSections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: ts })
     }
   }
+
   const personSections: Section[] = []
-  for (const p of visiblePeople) {
-    const ts = personBuckets.get(p.id!)!
-    if (ts.length > 0) {
-      personSections.push({
-        key: `person-${p.id}`,
-        label: p.name,
-        accentColor: (orgs && personOrgMap) ? resolvePersonColor(p.id, personOrgMap, orgs) : undefined,
-        todos: ts,
-      })
+  if (restrictSet) {
+    // Tier-aware order: direct first (caller order), implicit at bottom (caller order).
+    const direct: Section[] = []
+    const implicit: Section[] = []
+    const seen = new Set<number>()
+    for (const id of restrictToPersonIds!) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      const b = personBuckets.get(id)
+      if (!b || b.todos.length === 0) continue
+      const personEntry =
+        visiblePeople.find((p) => p.id === id) ?? people.find((p) => p.id === id)
+      const accentColor =
+        orgs && personOrgMap && personEntry
+          ? resolvePersonColor(personEntry.id!, personOrgMap, orgs)
+          : undefined
+      const section: Section = {
+        key: `person-${id}`,
+        label: personEntry?.name ?? '',
+        accentColor,
+        todos: b.todos,
+      }
+      if (b.hasDirect) direct.push(section)
+      else implicit.push(section)
+    }
+    personSections.push(...direct, ...implicit)
+  } else {
+    for (const p of visiblePeople) {
+      const b = personBuckets.get(p.id!)!
+      if (b.todos.length > 0) {
+        personSections.push({
+          key: `person-${p.id}`,
+          label: p.name,
+          accentColor: (orgs && personOrgMap) ? resolvePersonColor(p.id, personOrgMap, orgs) : undefined,
+          todos: b.todos,
+        })
+      }
     }
   }
-  const orderedPersonSections = prioritizeSectionsByKey(
-    personSections,
-    prioritizePersonIds ? prioritizePersonIds.map((id) => `person-${id}`) : null,
-  )
+
   return [
     ...orgSections,
-    ...orderedPersonSections,
+    ...personSections,
     ...(unassigned.length > 0 ? [{ key: 'unassigned', label: 'Unassigned', todos: unassigned }] : []),
   ]
-}
-
-/**
- * Stable filter-aware reorder helper (item 12, P5). Pulls sections whose
- * `key` matches `prioritizeKeys` to the front, in caller order; the rest
- * keep their input order. Returns input untouched if `prioritizeKeys` is
- * null/empty.
- */
-function prioritizeSectionsByKey(sections: Section[], prioritizeKeys: ReadonlyArray<string> | null): Section[] {
-  if (!prioritizeKeys || prioritizeKeys.length === 0) return sections
-  const priorityMap = new Map<string, Section>()
-  const rest: Section[] = []
-  for (const s of sections) {
-    if (prioritizeKeys.includes(s.key)) priorityMap.set(s.key, s)
-    else rest.push(s)
-  }
-  if (priorityMap.size === 0) return sections
-  const ordered: Section[] = []
-  const seen = new Set<string>()
-  for (const k of prioritizeKeys) {
-    const s = priorityMap.get(k)
-    if (s && !seen.has(k)) {
-      ordered.push(s)
-      seen.add(k)
-    }
-  }
-  return [...ordered, ...rest]
 }
 
 export function buildProjectSections(
@@ -294,53 +362,121 @@ export function buildOrgSections(
   personOrgMap: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
   /**
-   * Prioritized org ids — when groupBy=org AND the active filter narrows
-   * to a multi-org set (filteredOrgIds matches), pull those keys to the
-   * front in caller order (item 12, P5). When `filteredOrgIds` is null
-   * the filter is broader (e.g. by people only) — prioritization can
-   * still surface specific orgs at the top.
+   * P6 (item 1) intersection rule: when groupBy=org AND the active
+   * filter narrows to specific orgs, restrict the visible org sections
+   * to these ids AND tier-order them — direct-tier (any task emitted
+   * via direct org assignment) first; implicit-tier (all emits via the
+   * cross-axis people→orgs membership callback) at the bottom.
+   * `null`/`undefined`/empty → existing behavior (direct + person-org
+   * emits collapsed into one entry per visible org).
    */
-  prioritizeOrgIds?: ReadonlyArray<number> | null,
+  restrictToOrgIds?: ReadonlyArray<number> | null,
+  /**
+   * P6 cross-axis lookup. Only consulted when `restrictToOrgIds` is
+   * non-empty. For `orgFilterMode === 'include-people'`: returns the
+   * orgIds reachable through the task's directly-assigned people via
+   * `personOrgMap`. For `'direct-only'`: pass `undefined` (no implicit
+   * path).
+   */
+  implicitOrgIdsFor?: (todo: PersistedTodoItem) => readonly number[],
 ): Section[] {
   const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
-  const buckets = new Map<number, PersistedTodoItem[]>()
-  for (const o of visibleOrgs) buckets.set(o.id!, [])
-  const showNoOrg = !filteredOrgIds || filteredOrgIds.has(0)
+  const restrictSet = restrictToOrgIds && restrictToOrgIds.length > 0
+    ? new Set<number>(restrictToOrgIds)
+    : null
+
+  const showNoOrg = !restrictSet && (!filteredOrgIds || filteredOrgIds.has(0))
+
+  type OrgBucket = { todos: PersistedTodoItem[]; hasDirect: boolean }
+  const buckets = new Map<number, OrgBucket>()
+  if (restrictSet) {
+    for (const id of restrictSet) buckets.set(id, { todos: [], hasDirect: false })
+  } else {
+    for (const o of visibleOrgs) buckets.set(o.id!, { todos: [], hasDirect: false })
+  }
   const noOrg: PersistedTodoItem[] = []
 
-  // Single pass: direct org assignments + person→org membership, deduped per todo.
   for (const t of todos) {
-    const matchedOrgs = new Set<number>()
     const directOrgs = assignedOrgsMap.get(t.id) ?? []
+    const directOrgIds = new Set<number>()
     for (const o of directOrgs) {
-      if (buckets.has(o.id!)) matchedOrgs.add(o.id!)
+      if (o.id != null) directOrgIds.add(o.id)
     }
-    const assignedPeople = assignedPeopleMap.get(t.id) ?? []
-    for (const p of assignedPeople) {
-      const personOrgs = personOrgMap.get(p.id!) ?? []
-      for (const oid of personOrgs) {
+
+    if (restrictSet) {
+      const emitDirect = new Set<number>()
+      for (const id of directOrgIds) if (restrictSet.has(id)) emitDirect.add(id)
+      const emitImplicit = new Set<number>()
+      if (implicitOrgIdsFor) {
+        for (const id of implicitOrgIdsFor(t)) {
+          if (restrictSet.has(id) && !emitDirect.has(id)) emitImplicit.add(id)
+        }
+      }
+      if (emitDirect.size === 0 && emitImplicit.size === 0) continue
+      for (const id of emitDirect) {
+        const b = buckets.get(id)!
+        b.todos.push(t)
+        b.hasDirect = true
+      }
+      for (const id of emitImplicit) {
+        const b = buckets.get(id)!
+        b.todos.push(t)
+      }
+    } else {
+      const matchedOrgs = new Set<number>()
+      for (const oid of directOrgIds) {
         if (buckets.has(oid)) matchedOrgs.add(oid)
       }
-    }
-    if (matchedOrgs.size === 0) {
-      if (showNoOrg) noOrg.push(t)
-    } else {
-      for (const oid of matchedOrgs) buckets.get(oid)!.push(t)
+      const assignedPeople = assignedPeopleMap.get(t.id) ?? []
+      for (const p of assignedPeople) {
+        const personOrgs = personOrgMap.get(p.id!) ?? []
+        for (const oid of personOrgs) {
+          if (buckets.has(oid)) matchedOrgs.add(oid)
+        }
+      }
+      if (matchedOrgs.size === 0) {
+        if (showNoOrg) noOrg.push(t)
+      } else {
+        for (const oid of matchedOrgs) {
+          const b = buckets.get(oid)!
+          b.todos.push(t)
+          b.hasDirect = true
+        }
+      }
     }
   }
 
-  const orgSections: Section[] = []
-  for (const o of visibleOrgs) {
-    const ts = buckets.get(o.id!)!
-    if (ts.length > 0) {
-      orgSections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: ts })
+  let orgSections: Section[] = []
+  if (restrictSet) {
+    const direct: Section[] = []
+    const implicit: Section[] = []
+    const seen = new Set<number>()
+    for (const id of restrictToOrgIds!) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      const b = buckets.get(id)
+      if (!b || b.todos.length === 0) continue
+      const orgEntry = orgs.find((o) => o.id === id)
+      const section: Section = {
+        key: `org-${id}`,
+        label: orgEntry?.name ?? '',
+        accentColor: orgEntry?.color,
+        todos: b.todos,
+      }
+      if (b.hasDirect) direct.push(section)
+      else implicit.push(section)
+    }
+    orgSections = [...direct, ...implicit]
+  } else {
+    for (const o of visibleOrgs) {
+      const b = buckets.get(o.id!)!
+      if (b.todos.length > 0) {
+        orgSections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: b.todos })
+      }
     }
   }
-  const orderedOrgSections = prioritizeSectionsByKey(
-    orgSections,
-    prioritizeOrgIds ? prioritizeOrgIds.map((id) => `org-${id}`) : null,
-  )
-  const sections: Section[] = [...orderedOrgSections]
+
+  const sections: Section[] = [...orgSections]
   if (noOrg.length > 0) sections.push({ key: 'no-org', label: 'No Organization', todos: noOrg })
   return sections
 }
@@ -382,23 +518,49 @@ export function buildTagSections(
   todos: PersistedTodoItem[],
   assignedTagsMap: Map<number, Tag[]>,
   /**
-   * Prioritized tag ids — when groupBy=tag AND the filter narrows tags,
-   * those tag sections lead the list in caller order (item 12, P5).
+   * P6 (item 1) intersection rule: when groupBy=tag AND the filter has
+   * tags non-empty, restrict the visible tag sections to these ids in
+   * caller order. Tags have no cross-axis path — every emit is direct,
+   * so tier ordering reduces to caller-order dedup.
    */
-  prioritizeTagIds?: ReadonlyArray<number> | null,
+  restrictToTagIds?: ReadonlyArray<number> | null,
 ): Section[] {
   const { tagged, untagged } = bucketByTag(todos, assignedTagsMap)
-  const tagSections: Section[] = tagged.map(({ tag, todos: ts }) => ({
-    key: `tag-${tag.id}`,
-    label: `#${tag.name}`,
-    accentColor: tag.color,
-    todos: ts,
-  }))
-  const orderedTagSections = prioritizeSectionsByKey(
-    tagSections,
-    prioritizeTagIds ? prioritizeTagIds.map((id) => `tag-${id}`) : null,
-  )
-  const sections: Section[] = [...orderedTagSections]
+  const restrictSet = restrictToTagIds && restrictToTagIds.length > 0
+    ? new Set<number>(restrictToTagIds)
+    : null
+
+  let tagSections: Section[]
+  if (restrictSet) {
+    const byKey = new Map<number, Section>()
+    for (const { tag, todos: ts } of tagged) {
+      if (tag.id != null && restrictSet.has(tag.id)) {
+        byKey.set(tag.id, {
+          key: `tag-${tag.id}`,
+          label: `#${tag.name}`,
+          accentColor: tag.color,
+          todos: ts,
+        })
+      }
+    }
+    tagSections = []
+    const seen = new Set<number>()
+    for (const id of restrictToTagIds!) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      const s = byKey.get(id)
+      if (s) tagSections.push(s)
+    }
+  } else {
+    tagSections = tagged.map(({ tag, todos: ts }) => ({
+      key: `tag-${tag.id}`,
+      label: `#${tag.name}`,
+      accentColor: tag.color,
+      todos: ts,
+    }))
+  }
+
+  const sections: Section[] = [...tagSections]
   if (untagged.length > 0) {
     sections.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: untagged })
   }
@@ -719,23 +881,78 @@ export function ListView() {
     return applyFilter(effectiveFilters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
   }, [todos, effectiveFilters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
 
-  // Filter-aware group ordering: when groupBy matches an active filter
-  // dimension (people / org / tag), the filtered ids surface to the top.
-  // Memoize the snapshot arrays so reordering doesn't reshuffle on every
-  // re-render. Reading off the predicate directly (not via setRuntimeFilterSpec
-  // / runtime narrowing) since the user's intent — item 12 — is the *user's
-  // active filter*, not the per-list-definition runtime narrowing.
-  const prioritizePersonIds = useMemo(
+  // Filter-aware group ordering (P5 + P6, item 12 / item 1): when groupBy
+  // matches an active filter dimension (people / org / tag), restrict the
+  // visible group sections to that filter's ids and tier-order them
+  // direct→implicit. The snapshot arrays are memoized off the underlying
+  // Set identity to avoid reshuffling on every re-render. Reading off
+  // `filters` directly (not the runtime-narrowed `effectiveFilters`) so
+  // the user's manual filter intent drives the ordering — runtime-filter
+  // values get layered on top via `effectiveFilters` upstream.
+  const restrictToPersonIds = useMemo(
     () => (filters.personIds ? Array.from(filters.personIds) : null),
     [filters.personIds],
   )
-  const prioritizeOrgIds = useMemo(
+  const restrictToOrgIds = useMemo(
     () => (filters.orgIds ? Array.from(filters.orgIds) : null),
     [filters.orgIds],
   )
-  const prioritizeTagIds = useMemo(
+  const restrictToTagIds = useMemo(
     () => (filters.tags ? Array.from(filters.tags) : null),
     [filters.tags],
+  )
+
+  // P6 cross-axis implicit-keys lookups. People grouping pulls members of
+  // the task's directly-assigned orgs (only when person-filter mode is the
+  // include-orgs default — direct-only mode skips the implicit tier so
+  // tasks that only matched via person-org membership simply drop out of
+  // the grouping). Org grouping is symmetric.
+  const personFilterMode = filters.personFilterMode
+  const orgFilterMode = filters.orgFilterMode
+  const implicitPersonIdsFor = useCallback(
+    (todo: PersistedTodoItem): readonly number[] => {
+      const taskOrgs = assignedOrgsMap.get(todo.id) ?? []
+      if (taskOrgs.length === 0) return []
+      const orgIdSet = new Set<number>()
+      for (const o of taskOrgs) {
+        if (o.id != null) orgIdSet.add(o.id)
+      }
+      const memberIds: number[] = []
+      const seen = new Set<number>()
+      for (const [pid, orgIds] of personOrgMap) {
+        for (const oid of orgIds) {
+          if (orgIdSet.has(oid)) {
+            if (!seen.has(pid)) {
+              seen.add(pid)
+              memberIds.push(pid)
+            }
+            break
+          }
+        }
+      }
+      return memberIds
+    },
+    [assignedOrgsMap, personOrgMap],
+  )
+  const implicitOrgIdsFor = useCallback(
+    (todo: PersistedTodoItem): readonly number[] => {
+      const taskPeople = assignedPeopleMap.get(todo.id) ?? []
+      if (taskPeople.length === 0) return []
+      const orgIds: number[] = []
+      const seen = new Set<number>()
+      for (const p of taskPeople) {
+        if (p.id == null) continue
+        const pOrgs = personOrgMap.get(p.id) ?? []
+        for (const oid of pOrgs) {
+          if (!seen.has(oid)) {
+            seen.add(oid)
+            orgIds.push(oid)
+          }
+        }
+      }
+      return orgIds
+    },
+    [assignedPeopleMap, personOrgMap],
   )
 
   const sections = useMemo(() => {
@@ -749,17 +966,56 @@ export function ListView() {
       case 'deadline':
         return buildDeadlineSections(activeTodos, weekStartsOn)
       case 'people':
-        return buildPeopleSections(activeTodos, people, assignedPeopleMap, orgs, assignedOrgsMap, personOrgMap, filters.orgIds, prioritizePersonIds)
+        return buildPeopleSections(
+          activeTodos,
+          people,
+          assignedPeopleMap,
+          orgs,
+          assignedOrgsMap,
+          personOrgMap,
+          filters.orgIds,
+          restrictToPersonIds,
+          personFilterMode === 'include-orgs' ? implicitPersonIdsFor : undefined,
+        )
       case 'project':
         return buildProjectSections(activeTodos, projects)
       case 'org':
-        return buildOrgSections(activeTodos, orgs, assignedPeopleMap, assignedOrgsMap, personOrgMap, filters.orgIds, prioritizeOrgIds)
+        return buildOrgSections(
+          activeTodos,
+          orgs,
+          assignedPeopleMap,
+          assignedOrgsMap,
+          personOrgMap,
+          filters.orgIds,
+          restrictToOrgIds,
+          orgFilterMode === 'include-people' ? implicitOrgIdsFor : undefined,
+        )
       case 'status':
         return buildStatusSections(activeTodos, statuses)
       case 'tag':
-        return buildTagSections(activeTodos, assignedTagsMap, prioritizeTagIds)
+        return buildTagSections(activeTodos, assignedTagsMap, restrictToTagIds)
     }
-  }, [listGroupBy, activeTodos, people, assignedPeopleMap, assignedOrgsMap, projects, orgs, personOrgMap, filters.orgIds, statuses, assignedTagsMap, weekStartsOn, prioritizePersonIds, prioritizeOrgIds, prioritizeTagIds])
+  }, [
+    listGroupBy,
+    activeTodos,
+    people,
+    assignedPeopleMap,
+    assignedOrgsMap,
+    projects,
+    orgs,
+    personOrgMap,
+    filters.orgIds,
+    statuses,
+    assignedTagsMap,
+    weekStartsOn,
+    restrictToPersonIds,
+    restrictToOrgIds,
+    restrictToTagIds,
+    personFilterMode,
+    orgFilterMode,
+    implicitPersonIdsFor,
+    implicitOrgIdsFor,
+  ])
 
   const withinGroupComparator = useMemo(
     () => itemSortComparator(listSortBy, weekStartsOn),

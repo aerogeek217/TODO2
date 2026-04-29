@@ -596,3 +596,231 @@ describe('partitionByGroup — prioritizeGroupKeys (filter-aware ordering, P5)',
     expect(result.groups.map((g) => g.key)).toEqual(['status-3', 'status-2', 'status-1'])
   })
 })
+
+describe('partitionByGroup — restrictToFilterSet (visible-groups intersection, P6)', () => {
+  const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
+  const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
+  const carol: Person = { id: 3, name: 'Carol', initials: 'C' }
+  const dave: Person = { id: 4, name: 'Dave', initials: 'D' }
+
+  it('emits under direct keys ∩ filter set; non-filter direct keys disappear', () => {
+    // Filter [Alice], group by people, task direct {Alice, Bob, Carol}.
+    // Task emits only under Alice; Bob/Carol sections never appear.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([[10, [alice, bob, carol]]]),
+    })
+    const result = partitionByGroup(todos, 'people', ctx, undefined, ['person-1'])
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0]!.key).toBe('person-1')
+    expect(result.groups[0]!.tier).toBe('direct')
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+  })
+
+  it('emits under each filter-set key the task has directly', () => {
+    // Filter [Alice, Bob], task direct {Alice, Bob, Carol}.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([[10, [alice, bob, carol]]]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1', 'person-2'],
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
+    expect(result.groups.every((g) => g.tier === 'direct')).toBe(true)
+    expect(result.groups[0]!.todos[0]).toBe(result.groups[1]!.todos[0])
+  })
+
+  it('emits via implicit callback when direct keys miss the filter set', () => {
+    // Filter [Alice], task direct {Carol, Dave}, implicit returns {Alice}.
+    // Task emits under Alice as implicit; Carol/Dave sections never appear.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([[10, [carol, dave]]]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1'],
+      () => ['person-1'],
+    )
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0]!.key).toBe('person-1')
+    expect(result.groups[0]!.tier).toBe('implicit')
+  })
+
+  it('skips a task entirely when neither direct nor implicit intersects the filter set', () => {
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([[10, [carol, dave]]]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1'],
+    )
+    expect(result.groups).toEqual([])
+    // Task had direct people (carol, dave) — not unassigned — so it doesn't
+    // route to ungrouped either; it's dropped from the partition entirely.
+    expect(result.ungrouped).toEqual([])
+  })
+
+  it('promotes a group to direct tier when any task emits under it directly', () => {
+    // T1 direct Alice, T2 implicit-only Alice. Group Alice ends up direct.
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [alice]],
+        [11, [carol]],
+      ]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1'],
+      (t) => (t.id === 11 ? ['person-1'] : []),
+    )
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0]!.tier).toBe('direct')
+    expect(result.groups[0]!.todos.map((t) => t.id).sort()).toEqual([10, 11])
+  })
+
+  it('orders [direct, implicit] tiers — direct first then implicit, preserving filter-set order', () => {
+    // Filter [Alice, Bob]. Alice is implicit-only; Bob is direct. Output:
+    // [Bob, Alice] (direct tier first, implicit at bottom).
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [bob]],
+        [11, [carol]],
+      ]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1', 'person-2'],
+      (t) => (t.id === 11 ? ['person-1'] : []),
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['person-2', 'person-1'])
+    expect(result.groups.map((g) => g.tier)).toEqual(['direct', 'implicit'])
+  })
+
+  it('keeps filter-set order when both keys are direct', () => {
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [alice]],
+        [11, [bob]],
+      ]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1', 'person-2'],
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
+    expect(result.groups.map((g) => g.tier)).toEqual(['direct', 'direct'])
+  })
+
+  it('keeps filter-set order within the implicit tier when both keys are implicit-only', () => {
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [carol]],
+        [11, [dave]],
+      ]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1', 'person-2'],
+      (t) => (t.id === 10 ? ['person-1'] : ['person-2']),
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
+    expect(result.groups.map((g) => g.tier)).toEqual(['implicit', 'implicit'])
+  })
+
+  it('reports tier="direct" for every group when restrict mode is unset (regression guard)', () => {
+    const todos = [
+      makeTodo({ id: 10, statusId: 1 }),
+      makeTodo({ id: 11, statusId: 2 }),
+    ]
+    const result = partitionByGroup(todos, 'status', makeCtx({ statuses: STATUSES }))
+    expect(result.groups.map((g) => g.tier)).toEqual(['direct', 'direct'])
+  })
+
+  it('tag analog — filter narrows visible tag sections, drops other tags', () => {
+    const x: Tag = { id: 1, name: 'x' }
+    const y: Tag = { id: 2, name: 'y' }
+    const z: Tag = { id: 3, name: 'z' }
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedTagsMap: new Map([[10, [x, y, z]]]) })
+    const result = partitionByGroup(todos, 'tag', ctx, undefined, ['tag-1'])
+    expect(result.groups.map((g) => g.key)).toEqual(['tag-1'])
+    expect(result.groups[0]!.tier).toBe('direct')
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+  })
+
+  it('routes ungrouped tasks (no axis value) through the ungrouped block even in restrict mode', () => {
+    // Task with no people assigned — directKeys is empty. Still routes to
+    // ungrouped (preserves the unassigned-sentinel filter case).
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedPeopleMap: new Map() })
+    const result = partitionByGroup(todos, 'people', ctx, undefined, ['person-1'])
+    expect(result.groups).toEqual([])
+    expect(result.ungrouped.map((t) => t.id)).toEqual([10])
+  })
+
+  it('ignores prioritizeGroupKeys when restrictToFilterSet drives the order', () => {
+    // Both params passed: restrict wins, prioritize is ignored.
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [alice]],
+        [11, [bob]],
+      ]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      ['person-2', 'person-1'], // prioritize would yield [Bob, Alice]
+      ['person-1', 'person-2'], // restrict says caller order = [Alice, Bob]
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
+  })
+
+  it('dedupes repeated keys in restrictToFilterSet to first appearance', () => {
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
+    const ctx = makeCtx({
+      assignedPeopleMap: new Map([
+        [10, [alice]],
+        [11, [bob]],
+      ]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1', 'person-1', 'person-2'],
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
+  })
+})
