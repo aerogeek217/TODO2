@@ -1,6 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent, TodoSortBy, TodoGroupBy } from '../models'
-import { isTodoSortBy, isTodoGroupBy } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 
@@ -569,80 +568,4 @@ export async function persistHorizonSlots(
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
 export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.tags, db.todoTags, db.todoEvents] as const
-
-/**
- * Translate a legacy `ListSort` discriminated-union value into the flat
- * `TodoSortBy` literal. Idempotent — already-flat strings are returned
- * unchanged when valid; unknown shapes fall back to `'manual'`.
- *
- * Mapping:
- *   `{kind:'sort-order'}`         → `'manual'`
- *   `{kind:'effective-date-asc'}` → `'date'`
- *   `{kind:'scheduled-asc'}`      → `'scheduled'`
- *   `{kind:'deadline-asc'}`       → `'deadline'`
- *   `{kind:'sortBy', by:X}`       → `X` (when X is a valid TodoSortBy)
- *
- * Used by `import-validation.ts` to normalize legacy-shape backups into the
- * flat literal at validate-time.
- */
-export function flattenListSortValue(raw: unknown): TodoSortBy {
-  if (typeof raw === 'string') {
-    return isTodoSortBy(raw) ? raw : 'manual'
-  }
-  if (raw && typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>
-    switch (obj.kind) {
-      case 'sort-order': return 'manual'
-      case 'effective-date-asc': return 'date'
-      case 'scheduled-asc': return 'scheduled'
-      case 'deadline-asc': return 'deadline'
-      case 'sortBy': {
-        const by = obj.by
-        if (typeof by === 'string' && isTodoSortBy(by)) return by
-        return 'manual'
-      }
-    }
-  }
-  return 'manual'
-}
-
-/**
- * Translate a legacy `ListGrouping` discriminated-union value into the flat
- * `TodoGroupBy` literal. Idempotent on flat strings; unknown shapes fall back
- * to `'none'`. The former `{kind:'by-sortBy'}` "match the sort" semantic is
- * resolved against the supplied `flatSort` — if the sort is a valid grouping
- * field, that field becomes the grouping; otherwise `'none'`.
- *
- * Mapping:
- *   `{kind:'none'}`               → `'none'`
- *   `{kind:'relative-effective'}` → `'date'`
- *   `{kind:'relative-deadline'}`  → `'deadline'`
- *   `{kind:'by-tag'}`             → `'tag'`
- *   `{kind:'by-field', by:X}`     → `X` (when X is a valid TodoGroupBy)
- *   `{kind:'by-sortBy'}`          → `flatSort` (when valid TodoGroupBy) | `'none'`
- *
- * Used by `import-validation.ts` alongside `flattenListSortValue`.
- */
-export function flattenListGroupingValue(raw: unknown, flatSort: TodoSortBy): TodoGroupBy {
-  if (typeof raw === 'string') {
-    return isTodoGroupBy(raw) ? raw : 'none'
-  }
-  if (raw && typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>
-    switch (obj.kind) {
-      case 'none': return 'none'
-      case 'relative-effective': return 'date'
-      case 'relative-deadline': return 'deadline'
-      case 'by-tag': return 'tag'
-      case 'by-sortBy':
-        return isTodoGroupBy(flatSort) ? flatSort : 'none'
-      case 'by-field': {
-        const by = obj.by
-        if (typeof by === 'string' && isTodoGroupBy(by)) return by
-        return 'none'
-      }
-    }
-  }
-  return 'none'
-}
 

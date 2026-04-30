@@ -7,7 +7,7 @@ import {
 } from './database'
 import type { ImportData } from './import-validation'
 import { validateImportData } from './import-validation'
-import type { ListInset, Note, Taskboard } from '../models'
+import type { Taskboard } from '../models'
 
 /**
  * Restricts to keys whose value type is an array. The bulk-add dispatch only
@@ -90,11 +90,11 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
     }
 
     if (v.listInsets.length > 0) {
-      await db.listInsets.bulkAdd(v.listInsets as unknown as ListInset[])
+      await db.listInsets.bulkAdd(v.listInsets)
     }
 
     if (v.notes.length > 0) {
-      await db.notes.bulkAdd(v.notes as Note[])
+      await db.notes.bulkAdd(v.notes)
     }
 
     if (v.taskboards.length > 0) {
