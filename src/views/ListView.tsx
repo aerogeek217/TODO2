@@ -36,7 +36,8 @@ import type { RuntimeFilterField } from '../models/list-definition'
 import { applyRuntimeFilter } from '../services/dashboard-lists'
 import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
-import { bucketByTag, UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
+import { UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
+import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { startOfToday, MS_PER_DAY } from '../utils/date'
 import { effectiveDate, resolveScheduled, type WeekStart } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
@@ -508,11 +509,12 @@ export function buildStatusSections(
 }
 
 /**
- * Tag grouping explodes a todo with N tags into N buckets (mirrors the
- * people/org many-to-many pattern). Untagged todos land in a "No tag"
- * bucket. Buckets sort alphabetically by tag name. Labels use the
- * registry's canonical casing; accent uses `tag.color`. Bucketing logic
- * is shared with `dashboard-lists.bucketByTag` via `utils/bucket-by-tag`.
+ * Tag grouping. Adapter over `partitionByGroup`: `tag-N` keys map to
+ * `#name` labels with `tag.color` accents; untagged todos trail in a
+ * single "No tag" bucket regardless of restrict mode (locked in by
+ * `list-view-grouping.test.ts` "keeps untagged trailing alongside the
+ * restricted tag block"). Tags have no cross-axis path, so no
+ * `additionalKeysFor` / `implicitKeysFor` callbacks.
  */
 export function buildTagSections(
   todos: PersistedTodoItem[],
@@ -525,44 +527,36 @@ export function buildTagSections(
    */
   restrictToTagIds?: ReadonlyArray<number> | null,
 ): Section[] {
-  const { tagged, untagged } = bucketByTag(todos, assignedTagsMap)
-  const restrictSet = restrictToTagIds && restrictToTagIds.length > 0
-    ? new Set<number>(restrictToTagIds)
-    : null
-
-  let tagSections: Section[]
-  if (restrictSet) {
-    const byKey = new Map<number, Section>()
-    for (const { tag, todos: ts } of tagged) {
-      if (tag.id != null && restrictSet.has(tag.id)) {
-        byKey.set(tag.id, {
-          key: `tag-${tag.id}`,
-          label: `#${tag.name}`,
-          accentColor: tag.color,
-          todos: ts,
-        })
-      }
-    }
-    tagSections = []
-    const seen = new Set<number>()
-    for (const id of restrictToTagIds!) {
-      if (seen.has(id)) continue
-      seen.add(id)
-      const s = byKey.get(id)
-      if (s) tagSections.push(s)
-    }
-  } else {
-    tagSections = tagged.map(({ tag, todos: ts }) => ({
-      key: `tag-${tag.id}`,
-      label: `#${tag.name}`,
-      accentColor: tag.color,
-      todos: ts,
-    }))
+  const ctx: GroupingContext = {
+    assignedPeopleMap: new Map(),
+    assignedOrgsMap: new Map(),
+    assignedTagsMap,
+    statuses: [],
+    orgs: [],
+    personOrgMap: new Map(),
+    today: startOfToday(),
+    weekStartsOn: 0,
   }
+  const restrictToFilterSet =
+    restrictToTagIds && restrictToTagIds.length > 0
+      ? restrictToTagIds.map((id) => `tag-${id}`)
+      : undefined
+  const { groups, ungrouped } = partitionByGroup(
+    todos,
+    'tag',
+    ctx,
+    undefined,
+    restrictToFilterSet,
+  )
 
-  const sections: Section[] = [...tagSections]
-  if (untagged.length > 0) {
-    sections.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: untagged })
+  const sections: Section[] = groups.map((g) => ({
+    key: g.key,
+    label: `#${g.label}`,
+    accentColor: getGroupColor(g.key, 'tag', ctx),
+    todos: g.todos,
+  }))
+  if (ungrouped.length > 0) {
+    sections.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: ungrouped })
   }
   return sections
 }
