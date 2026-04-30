@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import Dexie from 'dexie'
 import { db } from '../../data/database'
 import { auditData, cleanupIssues } from '../../data/audit'
 import { makeTodo } from '../helpers'
@@ -13,7 +14,7 @@ const now = new Date()
 /** Seed a canvas + project + todo so FKs are valid. Returns their IDs. */
 async function seedBase() {
   const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
-  const projectId = await db.projects.add({ name: 'P', canvasId, sortOrder: 0, createdAt: now } as any)
+  const projectId = await db.projects.add({ name: 'P', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: now } as any)
   const todoId = await db.todos.add(makeTodo({ canvasId, projectId }) as any)
   return { canvasId, projectId, todoId: todoId as number }
 }
@@ -139,7 +140,7 @@ describe('auditData', () => {
   })
 
   it('detects projects with deleted canvasId', async () => {
-    await db.projects.add({ name: 'P', canvasId: 999, sortOrder: 0, createdAt: now } as any)
+    await db.projects.add({ name: 'P', canvasId: 999, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: now } as any)
 
     const report = await auditData()
     const issue = report.issues.find((i) => i.table === 'projects' && i.field === 'canvasId')!
@@ -147,7 +148,7 @@ describe('auditData', () => {
   })
 
   it('detects listInsets with deleted canvasId', async () => {
-    await db.listInsets.add({ canvasId: 999, preset: 'due-this-week', x: 0, y: 0, width: 200, height: 200 } as any)
+    await db.listInsets.add({ listDefinitionId: 1, canvasId: 999, x: 0, y: 0, width: 200, height: 200, isCollapsed: false } as any)
 
     const report = await auditData()
     const issue = report.issues.find((i) => i.table === 'listInsets')!
@@ -277,7 +278,7 @@ describe('cleanupIssues', () => {
   })
 
   it('deletes orphaned listInsets and floating notes', async () => {
-    await db.listInsets.add({ canvasId: 999, preset: 'due-this-week', x: 0, y: 0, width: 200, height: 200 } as any)
+    await db.listInsets.add({ listDefinitionId: 1, canvasId: 999, x: 0, y: 0, width: 200, height: 200, isCollapsed: false } as any)
     await db.floatingNotes.add({ canvasId: 999, x: 0, y: 0, width: 150, height: 150 } as any)
 
     const report = await auditData()
@@ -341,5 +342,135 @@ describe('cleanupIssues', () => {
   it('returns 0 when no issues to clean', async () => {
     const cleaned = await cleanupIssues([])
     expect(cleaned).toBe(0)
+  })
+})
+
+// --- Unknown-row detection: rows in known tables that the current schema rejects.
+// `validateRow` runs every row through its per-table validator; a row whose
+// shape no longer matches (e.g. listInset without `listDefinitionId` after the
+// v23 strip) is flagged for deletion.
+describe('unknown-row audit', () => {
+  it('detects rows in a known table that fail current schema validation', async () => {
+    // Seed a canvas so the canvas-orphan check doesn't ALSO flag this row.
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    // Bad shape: listDefinitionId + isCollapsed are required after P4.
+    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.description.startsWith('Rows in "listInsets"'))!
+    expect(issue).toBeDefined()
+    expect(issue.fix).toBe('delete')
+    expect(issue.count).toBe(1)
+    expect(issue.ids).toHaveLength(1)
+  })
+
+  it('cleanup removes unknown rows but preserves valid ones', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    // Bad row (missing listDefinitionId / isCollapsed)
+    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+    // Valid row
+    await db.listInsets.add({ listDefinitionId: 1, canvasId, x: 10, y: 10, width: 100, height: 100, isCollapsed: false } as any)
+
+    const report = await auditData()
+    await cleanupIssues(report.issues)
+
+    const remaining = await db.listInsets.toArray()
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0]!.x).toBe(10)
+  })
+})
+
+// --- Unknown-setting detection: rows in `settings` whose `key` is not in the
+// build's recognised set. Cleanup deletes by `key` (settings is keyed by string).
+describe('unknown-setting audit', () => {
+  it('detects unrecognised settings keys and reports them by key', async () => {
+    await db.settings.put({ key: 'legacyDashboard', value: 'x' })
+    await db.settings.put({ key: 'themeMode', value: 'dark' })
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.description.startsWith('Unrecognized settings'))!
+    expect(issue).toBeDefined()
+    expect(issue.fix).toBe('delete')
+    expect(issue.keys).toEqual(['legacyDashboard'])
+    expect(issue.count).toBe(1)
+  })
+
+  it('cleanup deletes unknown settings by key, leaving recognised ones intact', async () => {
+    await db.settings.put({ key: 'legacyDashboard', value: 'x' })
+    await db.settings.put({ key: 'themeMode', value: 'dark' })
+
+    const report = await auditData()
+    const cleaned = await cleanupIssues(report.issues)
+    expect(cleaned).toBeGreaterThanOrEqual(1)
+
+    expect(await db.settings.get('legacyDashboard')).toBeUndefined()
+    expect(await db.settings.get('themeMode')).toBeDefined()
+  })
+})
+
+// --- Unknown-table detection: rows in IDB object stores that the current
+// schema does not register. We mock `db.backendDB()` to return a side Dexie
+// instance whose IDB has an extra store; that bypasses the constraint that
+// Dexie itself can only register stores at schema-version time.
+describe('unknown-table audit', () => {
+  let sideDb: Dexie | null = null
+
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    if (sideDb) {
+      try { await sideDb.delete() } catch { /* ignore */ }
+      sideDb = null
+    }
+  })
+
+  it('detects rows in an IDB store the current schema does not know about', async () => {
+    sideDb = new Dexie('audit-unknown-' + Math.random().toString(36).slice(2))
+    sideDb.version(1).stores({ legacyFoo: '++id' })
+    await sideDb.open()
+    await sideDb.table('legacyFoo').add({ stale: 'data' })
+
+    vi.spyOn(db, 'backendDB').mockReturnValue(sideDb.backendDB())
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.fix === 'drop-store')!
+    expect(issue).toBeDefined()
+    expect(issue.table).toBe('legacyFoo')
+    expect(issue.count).toBe(1)
+    expect(issue.field).toBe('__store__')
+  })
+
+  it('cleanup clears every row from an unknown store', async () => {
+    sideDb = new Dexie('audit-unknown-' + Math.random().toString(36).slice(2))
+    sideDb.version(1).stores({ legacyFoo: '++id' })
+    await sideDb.open()
+    await sideDb.table('legacyFoo').add({ stale: 1 })
+    await sideDb.table('legacyFoo').add({ stale: 2 })
+
+    vi.spyOn(db, 'backendDB').mockReturnValue(sideDb.backendDB())
+
+    const report = await auditData()
+    await cleanupIssues(report.issues)
+
+    expect(await sideDb.table('legacyFoo').count()).toBe(0)
+  })
+})
+
+// --- Idempotency: running audit + cleanup twice yields zero issues on the
+// second pass. Covers unknown-row and unknown-setting (drop-store is mocked
+// elsewhere; idempotency holds for it too because raw IDB clear() is a no-op
+// on an empty store).
+describe('audit idempotency with unknown items', () => {
+  it('audit + cleanup twice yields no issues on the second pass', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+    await db.settings.put({ key: 'legacyDashboard', value: 'x' })
+
+    const first = await auditData()
+    expect(first.totalOrphans).toBeGreaterThan(0)
+    await cleanupIssues(first.issues)
+
+    const second = await auditData()
+    expect(second.totalOrphans).toBe(0)
+    expect(second.issues).toHaveLength(0)
   })
 })

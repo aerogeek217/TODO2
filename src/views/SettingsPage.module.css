@@ -274,6 +274,15 @@
   font-size: var(--font-size-meta);
 }
 
+.auditRowSevere {
+  border-left: 3px solid var(--color-danger);
+  padding-left: 7px;
+}
+
+.auditRowSevere .auditCount {
+  color: var(--color-danger);
+}
+
 .auditCount {
   font-weight: var(--font-weight-semibold);
   color: var(--color-warning);

@@ -1,4 +1,10 @@
 import { db } from './database'
+import {
+  KNOWN_DB_TABLES,
+  KNOWN_TABLE_KEYS,
+  validateRow,
+  isKnownSettingKey,
+} from './import-validation'
 
 export interface AuditIssue {
   table: string
@@ -6,7 +12,17 @@ export interface AuditIssue {
   count: number
   /** IDs of rows to delete (join/taskboard orphans) or update (dangling FK) */
   ids: number[]
-  fix: 'delete' | 'clear-field'
+  /**
+   * String keys for delete-by-key tables. Used by the unknown-setting check —
+   * `db.settings` is keyed by `key`, not numeric `id`.
+   */
+  keys?: string[]
+  /**
+   * `'drop-store'` wipes an entire IDB object store via raw IDB (Dexie does
+   * not expose deleteObjectStore at runtime; the closest safe primitive is
+   * `clear()`). The empty store remains until a future schema bump.
+   */
+  fix: 'delete' | 'clear-field' | 'drop-store'
   field?: string
 }
 
@@ -16,13 +32,54 @@ export interface AuditReport {
   scannedAt: Date
 }
 
+function rawCount(idb: IDBDatabase, name: string): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const tx = idb.transaction([name], 'readonly')
+    const req = tx.objectStore(name).count()
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+function rawClear(idb: IDBDatabase, name: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const tx = idb.transaction([name], 'readwrite')
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error)
+    tx.objectStore(name).clear()
+  })
+}
+
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
+  const issues: AuditIssue[] = []
+
+  // --- Unknown IDB object stores (loudest signal of a cross-floor load) ---
+  // Walk the native IDB store list rather than `db.tables` so we catch stores
+  // left behind by older schemas that are no longer Dexie-registered.
+  const idb = db.backendDB()
+  const allStoreNames = Array.from(idb.objectStoreNames)
+  for (const name of allStoreNames) {
+    if (KNOWN_DB_TABLES.has(name)) continue
+    const count = await rawCount(idb, name)
+    if (count === 0) continue
+    issues.push({
+      table: name,
+      description: `Unknown table "${name}" — drop the entire store`,
+      count,
+      ids: [],
+      fix: 'drop-store',
+      field: '__store__',
+    })
+  }
+
   const [
     todos, projects, canvases, people, orgs, statuses, tags,
     todoPeople, todoOrgs, todoTags, personOrgs, taskboards,
     listInsets, floatingNotes, floatingCalendars, floatingTaskboards, floatingHorizons,
     floatingStatus, floatingScoreboard, floatingSnoozeGraveyard, todoEvents,
+    settingsRows, listDefinitions, notes,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
@@ -45,7 +102,57 @@ export async function auditData(): Promise<AuditReport> {
     db.floatingScoreboard.toArray(),
     db.floatingSnoozeGraveyard.toArray(),
     db.todoEvents.toArray(),
+    db.settings.toArray(),
+    db.listDefinitions.toArray(),
+    db.notes.toArray(),
   ])
+
+  // --- Unknown rows in known tables ---
+  // Run validateRow over every row so a forced cross-floor load surfaces any
+  // pre-strip-shape data the current validators reject. Skip `settings` —
+  // its check rejects unknown keys, which the dedicated unknown-setting pass
+  // handles via delete-by-key.
+  const knownTableRows: Partial<Record<string, unknown[]>> = {
+    canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
+    todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards,
+    statuses, listDefinitions, notes,
+    floatingCalendars, floatingNotes, floatingHorizons,
+    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard, todoEvents,
+  }
+  for (const tableKey of KNOWN_TABLE_KEYS) {
+    if (tableKey === 'settings') continue
+    const rows = knownTableRows[tableKey] ?? []
+    const badIds: number[] = []
+    for (const row of rows) {
+      if (validateRow(tableKey, row) === true) continue
+      const id = (row as { id?: number }).id
+      if (typeof id === 'number') badIds.push(id)
+    }
+    if (badIds.length > 0) {
+      issues.push({
+        table: tableKey,
+        description: `Rows in "${tableKey}" that the current schema cannot read`,
+        count: badIds.length,
+        ids: badIds,
+        fix: 'delete',
+      })
+    }
+  }
+
+  // --- Unknown setting keys ---
+  const unknownSettingKeys = settingsRows
+    .filter((s) => !isKnownSettingKey(s.key))
+    .map((s) => s.key)
+  if (unknownSettingKeys.length > 0) {
+    issues.push({
+      table: 'settings',
+      description: 'Unrecognized settings — no UI will read or write them',
+      count: unknownSettingKeys.length,
+      ids: [],
+      keys: unknownSettingKeys,
+      fix: 'delete',
+    })
+  }
 
   const todoIds = new Set(todos.map((t) => t.id!))
   const projectIds = new Set(projects.map((p) => p.id!))
@@ -54,8 +161,6 @@ export async function auditData(): Promise<AuditReport> {
   const orgIds = new Set(orgs.map((o) => o.id!))
   const statusIds = new Set(statuses.map((s) => s.id!))
   const tagIds = new Set(tags.map((t) => t.id!))
-
-  const issues: AuditIssue[] = []
 
   // --- Orphaned join rows ---
 
@@ -329,37 +434,44 @@ export async function auditData(): Promise<AuditReport> {
 /** Clean up all issues found by auditData. */
 export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   let cleaned = 0
-  await db.transaction(
-    'rw',
-    [db.todos, db.projects, db.todoPeople, db.todoOrgs, db.todoTags, db.todoEvents,
-     db.personOrgs, db.taskboards, db.floatingTaskboards, db.listInsets, db.notes,
-     db.floatingNotes, db.floatingCalendars, db.floatingHorizons,
-     db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.statuses],
-    async () => {
-      // Taskboards need a special per-row entry filter rather than a blind field-clear.
-      const todoIds = new Set((await db.todos.toArray()).map((t) => t.id!))
-      for (const issue of issues) {
-        if (issue.fix === 'delete') {
-          const table = db.table(issue.table)
+
+  // drop-store issues bypass Dexie — unknown stores aren't in the registered
+  // schema, so `db.table(name)` would throw. Use raw IDB transactions.
+  for (const issue of issues) {
+    if (issue.fix !== 'drop-store') continue
+    await rawClear(db.backendDB(), issue.table)
+    cleaned += issue.count
+  }
+
+  await db.transaction('rw', db.tables, async () => {
+    // Taskboards need a special per-row entry filter rather than a blind field-clear.
+    const todoIds = new Set((await db.todos.toArray()).map((t) => t.id!))
+    for (const issue of issues) {
+      if (issue.fix === 'drop-store') continue
+      if (issue.fix === 'delete') {
+        const table = db.table(issue.table)
+        if (issue.keys && issue.keys.length > 0) {
+          await table.bulkDelete(issue.keys)
+        } else {
           await table.bulkDelete(issue.ids)
-          cleaned += issue.count
-        } else if (issue.table === 'taskboards' && issue.field === 'entries') {
-          for (const id of issue.ids) {
-            const row = await db.taskboards.get(id)
-            if (!row) continue
-            const filtered = row.entries.filter((e) => todoIds.has(e.todoId))
-            await db.taskboards.update(id, { entries: filtered, updatedAt: new Date() })
-          }
-          cleaned += issue.count
-        } else if (issue.fix === 'clear-field' && issue.field) {
-          const table = db.table(issue.table)
-          for (const id of issue.ids) {
-            await table.update(id, { [issue.field]: undefined })
-          }
-          cleaned += issue.count
         }
+        cleaned += issue.count
+      } else if (issue.table === 'taskboards' && issue.field === 'entries') {
+        for (const id of issue.ids) {
+          const row = await db.taskboards.get(id)
+          if (!row) continue
+          const filtered = row.entries.filter((e) => todoIds.has(e.todoId))
+          await db.taskboards.update(id, { entries: filtered, updatedAt: new Date() })
+        }
+        cleaned += issue.count
+      } else if (issue.fix === 'clear-field' && issue.field) {
+        const table = db.table(issue.table)
+        for (const id of issue.ids) {
+          await table.update(id, { [issue.field]: undefined })
+        }
+        cleaned += issue.count
       }
-    },
-  )
+    }
+  })
   return cleaned
 }

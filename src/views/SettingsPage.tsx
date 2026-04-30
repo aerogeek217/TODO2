@@ -82,6 +82,7 @@ export function SettingsPage() {
   const listsEditorInitialId = useUIStore((s) => s.listsEditorInitialId)
   const openListsEditor = useUIStore((s) => s.openListsEditor)
   const closeListsEditor = useUIStore((s) => s.closeListsEditor)
+  const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const listDefinitionCount = useListDefinitionStore((s) => s.listDefinitions.length)
   const loadListDefinitions = useListDefinitionStore((s) => s.load)
   const backups = useFileOpsStore((s) => s.backups)
@@ -639,20 +640,38 @@ export function SettingsPage() {
           ) : (
             <>
               <div className={styles.auditList}>
-                {auditReport.issues.map((issue, i) => (
-                  <div key={i} className={styles.auditRow}>
-                    <span className={styles.auditCount}>{issue.count}</span>
-                    <span className={styles.auditDesc}>{issue.description}</span>
-                  </div>
-                ))}
+                {auditReport.issues.map((issue, i) => {
+                  const severe = issue.fix === 'drop-store'
+                    || issue.description.startsWith('Rows in "')
+                    || issue.description.startsWith('Unrecognized settings')
+                  return (
+                    <div key={i} className={`${styles.auditRow} ${severe ? styles.auditRowSevere : ''}`}>
+                      <span className={styles.auditCount}>{issue.count}</span>
+                      <span className={styles.auditDesc}>{issue.description}</span>
+                    </div>
+                  )
+                })}
               </div>
               <div className={styles.buttonRow}>
                 <button
                   className={`${styles.button} ${styles.buttonPrimary}`}
                   onClick={async () => {
-                    const cleaned = await cleanupCurrentAudit()
-                    setAuditMsg(`Cleaned up ${cleaned} orphaned record${cleaned !== 1 ? 's' : ''}.`)
-                    track(() => setAuditMsg(''), 4000)
+                    const runCleanup = async () => {
+                      const cleaned = await cleanupCurrentAudit()
+                      setAuditMsg(`Cleaned up ${cleaned} orphaned record${cleaned !== 1 ? 's' : ''}.`)
+                      track(() => setAuditMsg(''), 4000)
+                    }
+                    const hasDropStore = auditReport.issues.some((i) => i.fix === 'drop-store')
+                    if (hasDropStore) {
+                      showBulkConfirmation('custom', [], {
+                        title: 'Confirm destructive cleanup',
+                        message: `Cleaning will permanently delete ${auditReport.totalOrphans} record${auditReport.totalOrphans !== 1 ? 's' : ''} this build doesn't recognize. This is irreversible.`,
+                        confirmLabel: 'Confirm',
+                        onConfirm: () => { void runCleanup() },
+                      })
+                    } else {
+                      await runCleanup()
+                    }
                   }}
                 >
                   Clean Up {auditReport.totalOrphans} Issue{auditReport.totalOrphans !== 1 ? 's' : ''}
