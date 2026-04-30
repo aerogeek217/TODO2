@@ -291,6 +291,110 @@ describe('buildPeopleSections', () => {
   })
 })
 
+describe('buildOrgSections — legacy mode (no restrict)', () => {
+  // Baseline coverage added in P4 of grouping-bucketers-consolidation-2026-04-29
+  // BEFORE migrating to `partitionByGroup`. The legacy person→org inference
+  // path at `ListView.tsx:430-436` (pre-migration) was untested — without
+  // these baselines, a regression in the `additionalKeysFor` callback wiring
+  // (post-migration) would land silently.
+  it('emits a section for each direct org assignment', () => {
+    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
+    const beta: Org = { id: 2, name: 'Beta', color: '#b' }
+    const t1 = makeTodo({ id: 10 })
+    const t2 = makeTodo({ id: 11 })
+    const assignedOrgsMap = new Map<number, Org[]>([
+      [t1.id, [acme]],
+      [t2.id, [beta]],
+    ])
+    const sections = buildOrgSections(
+      [t1, t2],
+      [acme, beta],
+      new Map(),
+      assignedOrgsMap,
+      new Map(),
+    )
+    expect(sections.map((s) => s.key)).toEqual(['org-1', 'org-2'])
+    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
+    expect(sections[1]!.todos.map((t) => t.id)).toEqual([11])
+  })
+
+  it('infers org from assignee membership when task has no direct org assignment', () => {
+    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
+    const alice: Person = { id: 10, name: 'Alice', initials: 'A' }
+    const t = makeTodo({ id: 100 })
+    const assignedPeopleMap = new Map<number, Person[]>([[t.id, [alice]]])
+    const assignedOrgsMap = new Map<number, Org[]>() // T has no direct orgs
+    const personOrgMap = new Map<number, number[]>([[alice.id!, [acme.id!]]]) // Alice ∈ Acme
+    const sections = buildOrgSections(
+      [t],
+      [acme],
+      assignedPeopleMap,
+      assignedOrgsMap,
+      personOrgMap,
+    )
+    expect(sections.map((s) => s.key)).toEqual(['org-1'])
+    expect(sections[0]!.todos.map((t) => t.id)).toEqual([100])
+  })
+
+  it('dedupes a task that has both direct org assignment and person→org inference for the same org', () => {
+    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
+    const alice: Person = { id: 10, name: 'Alice', initials: 'A' }
+    const t = makeTodo({ id: 100 })
+    const assignedPeopleMap = new Map<number, Person[]>([[t.id, [alice]]])
+    const assignedOrgsMap = new Map<number, Org[]>([[t.id, [acme]]]) // T directly → Acme
+    const personOrgMap = new Map<number, number[]>([[alice.id!, [acme.id!]]]) // Alice ∈ Acme
+    const sections = buildOrgSections(
+      [t],
+      [acme],
+      assignedPeopleMap,
+      assignedOrgsMap,
+      personOrgMap,
+    )
+    expect(sections.map((s) => s.key)).toEqual(['org-1'])
+    expect(sections[0]!.todos).toHaveLength(1) // T appears once, not twice
+  })
+
+  it('routes tasks with no orgs and no people-inferred orgs into the No Organization sentinel', () => {
+    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
+    const t1 = makeTodo({ id: 10 })
+    const t2 = makeTodo({ id: 11 })
+    const assignedOrgsMap = new Map<number, Org[]>([[t1.id, [acme]]])
+    const sections = buildOrgSections(
+      [t1, t2],
+      [acme],
+      new Map(),
+      assignedOrgsMap,
+      new Map(),
+    )
+    expect(sections.map((s) => s.key)).toEqual(['org-1', 'no-org'])
+    expect(sections[1]!.label).toBe('No Organization')
+    expect(sections[1]!.todos.map((t) => t.id)).toEqual([11])
+  })
+
+  it('drops direct-org tasks whose orgs are filtered out and suppresses No Organization when filter excludes the sentinel', () => {
+    // filteredOrgIds = [acme.id] (no 0 sentinel) → showNoOrg=false.
+    // T2 directly assigned to Beta (filtered out) is silently dropped.
+    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
+    const beta: Org = { id: 2, name: 'Beta', color: '#b' }
+    const t1 = makeTodo({ id: 10 })
+    const t2 = makeTodo({ id: 11 })
+    const assignedOrgsMap = new Map<number, Org[]>([
+      [t1.id, [acme]],
+      [t2.id, [beta]],
+    ])
+    const sections = buildOrgSections(
+      [t1, t2],
+      [acme, beta],
+      new Map(),
+      assignedOrgsMap,
+      new Map(),
+      new Set([acme.id!]), // filter excludes Beta and the 0 sentinel
+    )
+    expect(sections.map((s) => s.key)).toEqual(['org-1'])
+    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
+  })
+})
+
 describe('buildOrgSections — visible-groups intersection (P6)', () => {
   it('restricts visible org sections to restrictToOrgIds in caller order', () => {
     const orgs: Org[] = [

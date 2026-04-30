@@ -350,6 +350,27 @@ export function buildProjectSections(
   return sections
 }
 
+/**
+ * Org grouping. Adapter over `partitionByGroup`.
+ *
+ * Two ListView-only concerns ride on top of the core partition:
+ * 1. **Person→org inference (legacy mode only)**: a task with no direct
+ *    org assignment can still emit under an org if any of its assigned
+ *    people are members of that org via `personOrgMap`. Wired through
+ *    `partitionByGroup`'s `additionalKeysFor` callback. No other surface
+ *    does this — the canvas project widget intentionally omits inference.
+ * 2. **`filteredOrgIds`-driven visibility (legacy mode only)**: when an
+ *    org filter is active, only orgs in the filter set are emitable.
+ *    Implemented by reshaping `assignedOrgsMap` so `getGroupKey` only
+ *    emits visible-org keys, and by filtering `additionalKeysFor` output
+ *    to visible orgs. Tasks with no visible direct or inferred orgs fall
+ *    to `ungrouped` → render as `No Organization` only when `showNoOrg`
+ *    is true (`!filteredOrgIds || filteredOrgIds.has(0)`).
+ *
+ * Sentinel rule: `No Organization` rendered iff legacy mode AND
+ * `ungrouped.length > 0` AND `showNoOrg`. Restrict mode silently drops
+ * ungrouped (axis-mismatched tasks shouldn't surface as no-org).
+ */
 export function buildOrgSections(
   todos: PersistedTodoItem[],
   orgs: Org[],
@@ -377,103 +398,122 @@ export function buildOrgSections(
   implicitOrgIdsFor?: (todo: PersistedTodoItem) => readonly number[],
 ): Section[] {
   const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
+  const visibleOrgIdSet = new Set(visibleOrgs.map((o) => o.id!))
   const restrictSet = restrictToOrgIds && restrictToOrgIds.length > 0
     ? new Set<number>(restrictToOrgIds)
     : null
 
   const showNoOrg = !restrictSet && (!filteredOrgIds || filteredOrgIds.has(0))
 
-  type OrgBucket = { todos: PersistedTodoItem[]; hasDirect: boolean }
-  const buckets = new Map<number, OrgBucket>()
-  if (restrictSet) {
-    for (const id of restrictSet) buckets.set(id, { todos: [], hasDirect: false })
-  } else {
-    for (const o of visibleOrgs) buckets.set(o.id!, { todos: [], hasDirect: false })
-  }
-  const noOrg: PersistedTodoItem[] = []
+  // Pre-step (legacy mode only): filter `assignedOrgsMap` so `getGroupKey`
+  // only emits visible-org keys. Tasks with only-filtered-out direct orgs
+  // fall to `ungrouped` (and may be rescued by `additionalKeysFor`'s
+  // person→org inference). Restrict mode passes the unfiltered map; the
+  // `restrictToFilterSet` narrowing happens inside `partitionByGroup`.
+  const filteredAssignedOrgsMap: Map<number, Org[]> = (restrictSet || !filteredOrgIds)
+    ? assignedOrgsMap
+    : (() => {
+        const out = new Map<number, Org[]>()
+        for (const [todoId, orgArr] of assignedOrgsMap) {
+          const filtered = orgArr.filter((o) => o.id != null && visibleOrgIdSet.has(o.id))
+          if (filtered.length > 0) out.set(todoId, filtered)
+        }
+        return out
+      })()
 
-  for (const t of todos) {
-    const directOrgs = assignedOrgsMap.get(t.id) ?? []
-    const directOrgIds = new Set<number>()
-    for (const o of directOrgs) {
-      if (o.id != null) directOrgIds.add(o.id)
-    }
-
-    if (restrictSet) {
-      const emitDirect = new Set<number>()
-      for (const id of directOrgIds) if (restrictSet.has(id)) emitDirect.add(id)
-      const emitImplicit = new Set<number>()
-      if (implicitOrgIdsFor) {
-        for (const id of implicitOrgIdsFor(t)) {
-          if (restrictSet.has(id) && !emitDirect.has(id)) emitImplicit.add(id)
-        }
-      }
-      if (emitDirect.size === 0 && emitImplicit.size === 0) continue
-      for (const id of emitDirect) {
-        const b = buckets.get(id)!
-        b.todos.push(t)
-        b.hasDirect = true
-      }
-      for (const id of emitImplicit) {
-        const b = buckets.get(id)!
-        b.todos.push(t)
-      }
-    } else {
-      const matchedOrgs = new Set<number>()
-      for (const oid of directOrgIds) {
-        if (buckets.has(oid)) matchedOrgs.add(oid)
-      }
-      const assignedPeople = assignedPeopleMap.get(t.id) ?? []
-      for (const p of assignedPeople) {
-        const personOrgs = personOrgMap.get(p.id!) ?? []
-        for (const oid of personOrgs) {
-          if (buckets.has(oid)) matchedOrgs.add(oid)
-        }
-      }
-      if (matchedOrgs.size === 0) {
-        if (showNoOrg) noOrg.push(t)
-      } else {
-        for (const oid of matchedOrgs) {
-          const b = buckets.get(oid)!
-          b.todos.push(t)
-          b.hasDirect = true
-        }
-      }
-    }
+  const ctx: GroupingContext = {
+    assignedPeopleMap,
+    assignedOrgsMap: filteredAssignedOrgsMap,
+    assignedTagsMap: new Map(),
+    statuses: [],
+    orgs,
+    personOrgMap,
+    today: startOfToday(),
+    weekStartsOn: 0,
   }
 
-  let orgSections: Section[] = []
+  const restrictToFilterSet = restrictSet
+    ? Array.from(restrictSet).map((id) => `org-${id}`)
+    : undefined
+
+  // Legacy mode only: person→org inference contributes direct-tier keys.
+  // Restrict mode uses `implicitKeysFor` (below) instead — the two paths
+  // are mutually exclusive per the plan §3 / P3 handoff.
+  const additionalKeysFor = !restrictSet
+    ? (todo: PersistedTodoItem): readonly string[] => {
+        const taskPeople = assignedPeopleMap.get(todo.id) ?? []
+        if (taskPeople.length === 0) return []
+        const out: string[] = []
+        const seen = new Set<number>()
+        for (const p of taskPeople) {
+          if (p.id == null) continue
+          const pOrgs = personOrgMap.get(p.id) ?? []
+          for (const oid of pOrgs) {
+            if (!seen.has(oid) && (!filteredOrgIds || visibleOrgIdSet.has(oid))) {
+              seen.add(oid)
+              out.push(`org-${oid}`)
+            }
+          }
+        }
+        return out
+      }
+    : undefined
+
+  const implicitKeysFor = restrictSet && implicitOrgIdsFor
+    ? (todo: PersistedTodoItem): readonly string[] =>
+        implicitOrgIdsFor(todo).map((id) => `org-${id}`)
+    : undefined
+
+  const { groups, ungrouped } = partitionByGroup(
+    todos,
+    'org',
+    ctx,
+    undefined,
+    restrictToFilterSet,
+    additionalKeysFor,
+    implicitKeysFor,
+  )
+
+  // Section labels/colors come from the `orgs` registry — `g.label` /
+  // `getGroupColor` look at `ctx.assignedOrgsMap` which misses orgs that
+  // only emerge via `additionalKeysFor` / `implicitKeysFor` (no task
+  // directly assigns them). Mirrors P3's adapter pattern for people.
+  const groupsByKey = new Map(groups.map((g) => [g.key, g] as const))
+
+  let orgSections: Section[]
   if (restrictSet) {
-    const direct: Section[] = []
-    const implicit: Section[] = []
-    const seen = new Set<number>()
-    for (const id of restrictToOrgIds!) {
-      if (seen.has(id)) continue
-      seen.add(id)
-      const b = buckets.get(id)
-      if (!b || b.todos.length === 0) continue
+    // Restrict mode: tier-aware ordering already encoded in `groups`.
+    orgSections = groups.map((g) => {
+      const id = Number(g.key.slice('org-'.length))
       const orgEntry = orgs.find((o) => o.id === id)
-      const section: Section = {
-        key: `org-${id}`,
+      return {
+        key: g.key,
         label: orgEntry?.name ?? '',
         accentColor: orgEntry?.color,
-        todos: b.todos,
+        todos: g.todos,
       }
-      if (b.hasDirect) direct.push(section)
-      else implicit.push(section)
-    }
-    orgSections = [...direct, ...implicit]
+    })
   } else {
+    // Legacy mode: iterate `visibleOrgs` in registry order so additional-key
+    // emits (which `getGroupLabel` sees as '') don't drift to the front.
+    orgSections = []
     for (const o of visibleOrgs) {
-      const b = buckets.get(o.id!)!
-      if (b.todos.length > 0) {
-        orgSections.push({ key: `org-${o.id}`, label: o.name, accentColor: o.color, todos: b.todos })
+      const g = groupsByKey.get(`org-${o.id}`)
+      if (g && g.todos.length > 0) {
+        orgSections.push({
+          key: g.key,
+          label: o.name,
+          accentColor: o.color,
+          todos: g.todos,
+        })
       }
     }
   }
 
   const sections: Section[] = [...orgSections]
-  if (noOrg.length > 0) sections.push({ key: 'no-org', label: 'No Organization', todos: noOrg })
+  if (showNoOrg && ungrouped.length > 0) {
+    sections.push({ key: 'no-org', label: 'No Organization', todos: ungrouped })
+  }
   return sections
 }
 
