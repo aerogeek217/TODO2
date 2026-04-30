@@ -274,19 +274,19 @@ export function buildProjectSections(
 /**
  * Org grouping. Adapter over `partitionByGroup`.
  *
- * Two ListView-only concerns ride on top of the core partition:
- * 1. **Person→org inference (legacy mode only)**: a task with no direct
- *    org assignment can still emit under an org if any of its assigned
- *    people are members of that org via `personOrgMap`. Wired through
- *    `partitionByGroup`'s `additionalKeysFor` callback. No other surface
- *    does this — the canvas project widget intentionally omits inference.
- * 2. **`filteredOrgIds`-driven visibility (legacy mode only)**: when an
- *    org filter is active, only orgs in the filter set are emitable.
- *    Implemented by reshaping `assignedOrgsMap` so `getGroupKey` only
- *    emits visible-org keys, and by filtering `additionalKeysFor` output
- *    to visible orgs. Tasks with no visible direct or inferred orgs fall
- *    to `ungrouped` → render as `No Organization` only when `showNoOrg`
- *    is true (`!filteredOrgIds || filteredOrgIds.has(0)`).
+ * One ListView-only concern rides on top of the core partition:
+ * **`filteredOrgIds`-driven visibility (legacy mode only)**: when an org
+ * filter is active, only orgs in the filter set are emitable. Implemented
+ * by reshaping `assignedOrgsMap` so `getGroupKey` only emits visible-org
+ * keys. Tasks with no visible direct orgs fall to `ungrouped` → render as
+ * `No Organization` only when `showNoOrg` is true (`!filteredOrgIds ||
+ * filteredOrgIds.has(0)`).
+ *
+ * Person→org inference (legacy mode) was retired in
+ * grouping-cross-surface-convergence-2026-04-29 P3 — group-by-org now
+ * means "show direct-org assignments only", matching every other surface.
+ * Restrict-mode `implicitOrgIdsFor` (the `'include-people'` filter mode)
+ * stays — it's filter-driven, not grouping-driven.
  *
  * Sentinel rule: `No Organization` rendered iff legacy mode AND
  * `ungrouped.length > 0` AND `showNoOrg`. Restrict mode silently drops
@@ -295,7 +295,6 @@ export function buildProjectSections(
 export function buildOrgSections(
   todos: PersistedTodoItem[],
   orgs: Org[],
-  assignedPeopleMap: Map<number, Person[]>,
   assignedOrgsMap: Map<number, Org[]>,
   personOrgMap: Map<number, number[]>,
   filteredOrgIds?: Set<number> | null,
@@ -328,8 +327,7 @@ export function buildOrgSections(
 
   // Pre-step (legacy mode only): filter `assignedOrgsMap` so `getGroupKey`
   // only emits visible-org keys. Tasks with only-filtered-out direct orgs
-  // fall to `ungrouped` (and may be rescued by `additionalKeysFor`'s
-  // person→org inference). Restrict mode passes the unfiltered map; the
+  // fall to `ungrouped`. Restrict mode passes the unfiltered map; the
   // `restrictToFilterSet` narrowing happens inside `partitionByGroup`.
   const filteredAssignedOrgsMap: Map<number, Org[]> = (restrictSet || !filteredOrgIds)
     ? assignedOrgsMap
@@ -343,7 +341,7 @@ export function buildOrgSections(
       })()
 
   const ctx: GroupingContext = {
-    assignedPeopleMap,
+    assignedPeopleMap: new Map(),
     assignedOrgsMap: filteredAssignedOrgsMap,
     assignedTagsMap: new Map(),
     statuses: [],
@@ -357,29 +355,6 @@ export function buildOrgSections(
     ? Array.from(restrictSet).map((id) => `org-${id}`)
     : undefined
 
-  // Legacy mode only: person→org inference contributes direct-tier keys.
-  // Restrict mode uses `implicitKeysFor` (below) instead — the two paths
-  // are mutually exclusive per the plan §3 / P3 handoff.
-  const additionalKeysFor = !restrictSet
-    ? (todo: PersistedTodoItem): readonly string[] => {
-        const taskPeople = assignedPeopleMap.get(todo.id) ?? []
-        if (taskPeople.length === 0) return []
-        const out: string[] = []
-        const seen = new Set<number>()
-        for (const p of taskPeople) {
-          if (p.id == null) continue
-          const pOrgs = personOrgMap.get(p.id) ?? []
-          for (const oid of pOrgs) {
-            if (!seen.has(oid) && (!filteredOrgIds || visibleOrgIdSet.has(oid))) {
-              seen.add(oid)
-              out.push(`org-${oid}`)
-            }
-          }
-        }
-        return out
-      }
-    : undefined
-
   const implicitKeysFor = restrictSet && implicitOrgIdsFor
     ? (todo: PersistedTodoItem): readonly string[] =>
         implicitOrgIdsFor(todo).map((id) => `org-${id}`)
@@ -391,14 +366,14 @@ export function buildOrgSections(
     ctx,
     undefined,
     restrictToFilterSet,
-    additionalKeysFor,
+    undefined,
     implicitKeysFor,
   )
 
   // Section labels/colors come from the `orgs` registry — `g.label` /
   // `getGroupColor` look at `ctx.assignedOrgsMap` which misses orgs that
-  // only emerge via `additionalKeysFor` / `implicitKeysFor` (no task
-  // directly assigns them). Mirrors P3's adapter pattern for people.
+  // only emerge via `implicitKeysFor` (no task directly assigns them).
+  // Mirrors P3's adapter pattern for people.
   const groupsByKey = new Map(groups.map((g) => [g.key, g] as const))
 
   let orgSections: Section[]
@@ -940,7 +915,6 @@ export function ListView() {
         return buildOrgSections(
           activeTodos,
           orgs,
-          assignedPeopleMap,
           assignedOrgsMap,
           personOrgMap,
           effectiveFilters.orgIds,
