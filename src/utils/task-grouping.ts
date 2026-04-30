@@ -340,9 +340,13 @@ function orderGroupKeys(
  * `restrictToFilterSet` (optional, P6 item 1): when set, the partition
  * narrows to *visible* groups defined by `(filterSet) ∩ (direct keys ∪
  * implicit keys)`. Tasks whose intersection is empty are skipped; tasks
- * with no direct keys at all still route to `ungrouped` (preserves the
- * unassigned-sentinel filter case). Pass the same prefixed keys
- * `getGroupKey` emits.
+ * with no direct keys at all (and no implicit rescue) still route to
+ * `ungrouped` (preserves the unassigned-sentinel filter case). When a
+ * task has no direct keys but `implicitKeysFor` returns filter-matched
+ * keys, the task emits under those keys as implicit-tier (mirrors
+ * ListView legacy `buildPeopleSections` behavior — task assigned only
+ * to an org whose member is in the people filter). Pass the same
+ * prefixed keys `getGroupKey` emits.
  *
  * `additionalKeysFor` (optional): caller-supplied direct-tier extension.
  * Runs in **both** legacy and restrict modes (vs `implicitKeysFor` which
@@ -427,12 +431,12 @@ export function partitionByGroup<T extends PersistedTodoItem>(
       }
     }
 
-    if (directKeys.length === 0) {
-      ungrouped.push(t)
-      continue
-    }
-
     if (filterSet === null) {
+      // Legacy mode: no implicit path runs.
+      if (directKeys.length === 0) {
+        ungrouped.push(t)
+        continue
+      }
       for (const k of directKeys) pushDirect(k, t)
       continue
     }
@@ -449,10 +453,13 @@ export function partitionByGroup<T extends PersistedTodoItem>(
     }
 
     if (emitDirect.length === 0 && emitImplicit.length === 0) {
-      // Restrict mode: empty intersection → task is filtered out of every
-      // visible group. Skip entirely (don't route to ungrouped — the
-      // ungrouped block is reserved for axis-less tasks, not axis-mismatched
-      // ones).
+      // Restrict mode, empty intersection. Two sub-cases:
+      // - directKeys.length === 0: task has no direct keys at all (e.g.,
+      //   no people assigned). Route to ungrouped — preserves the
+      //   unassigned-sentinel filter case.
+      // - directKeys.length > 0 but none match the filter set, and implicit
+      //   didn't rescue: task is axis-mismatched. Drop entirely.
+      if (directKeys.length === 0) ungrouped.push(t)
       continue
     }
 

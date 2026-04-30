@@ -791,6 +791,30 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
     expect(result.ungrouped.map((t) => t.id)).toEqual([10])
   })
 
+  it('emits via implicitKeysFor in restrict mode even when directKeys is empty', () => {
+    // Task with no direct people but implicitKeysFor returns a filter-matched
+    // key (e.g., task assigned only to an org whose member is in the people
+    // filter, surfaced via personFilterMode='include-orgs' upstream). Emits
+    // as implicit-tier; mirrors ListView legacy `buildPeopleSections` — the
+    // migration in P3 of grouping-bucketers-consolidation depends on this.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedPeopleMap: new Map() })
+    const result = partitionByGroup(
+      todos,
+      'people',
+      ctx,
+      undefined,
+      ['person-1'],
+      undefined,
+      () => ['person-1'],
+    )
+    expect(result.ungrouped).toEqual([])
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0]!.key).toBe('person-1')
+    expect(result.groups[0]!.tier).toBe('implicit')
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+  })
+
   it('ignores prioritizeGroupKeys when restrictToFilterSet drives the order', () => {
     // Both params passed: restrict wins, prioritize is ignored.
     const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
