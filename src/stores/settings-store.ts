@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { settingsRepository } from '../data'
 import { isValidCssColor } from '../utils/css'
-import { parseHorizonSlots, resolveLegacySelectedHorizon } from '../utils/horizon-slots'
+import { parseHorizonSlots } from '../utils/horizon-slots'
 import type { WeekStart } from '../utils/effective-date'
 import type { CanvasViewport } from './ui-store'
 import type { RailsState } from '../models/canvas-rails'
@@ -291,12 +291,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         light: { ...defaultThemedColors.light },
       }
       const customKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
-      // Legacy rows under `color.<key>` predate the per-theme split; their
-      // values are dark-tuned (the only theme the editor exposed before).
-      // We capture them here, then migrate to `color.dark.<key>` after
-      // the loop so the new key wins on the next load and the legacy row
-      // never lingers in IndexedDB.
-      const legacyColorRows: Array<{ key: keyof ThemeColors; value: string }> = []
       let defaultProjectId: number | null = null
       let defaultStatusId: number | null = null
       let quickStatusId: number | null = null
@@ -308,8 +302,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let canvasViewport: CanvasViewport | null = null
       let horizonSlots: number[] = []
       let selectedHorizonDefId: number | null = null
-      let legacySelectedHorizon: string | null = null
-      let legacyHorizonSlotsValue: string | null = null
       let canvasRails: RailsState | null = null
       let maxTags: number = DEFAULT_MAX_TAGS
       let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
@@ -323,12 +315,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             if (colorKey in colors[theme] && isValidCssColor(row.value)) {
               colors[theme][colorKey] = row.value
               customKeys[theme].add(colorKey)
-            }
-          } else {
-            // Legacy `color.<key>` row (pre-per-theme). Capture for migration.
-            const colorKey = rest as keyof ThemeColors
-            if (colorKey in colors.dark && isValidCssColor(row.value)) {
-              legacyColorRows.push({ key: colorKey, value: row.value })
             }
           }
         } else if (row.key === 'defaultProjectId') {
@@ -358,16 +344,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           } catch { /* ignore invalid JSON */ }
         } else if (row.key === 'horizonSlots') {
           horizonSlots = parseHorizonSlots(row.value)
-          legacyHorizonSlotsValue = row.value
         } else if (row.key === 'selectedHorizonDefId') {
           if (row.value === '' || row.value == null) selectedHorizonDefId = null
           else {
             const n = Number(row.value)
             if (Number.isFinite(n)) selectedHorizonDefId = n
           }
-        } else if (row.key === 'selectedHorizon') {
-          // Legacy key — resolved against legacy `horizonSlots` map below.
-          legacySelectedHorizon = row.value
         } else if (row.key === 'canvasRails') {
           canvasRails = parseRailsState(row.value)
         } else if (row.key === 'maxTags') {
@@ -381,52 +363,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (isValidCanvasMaxExtent(parsed)) canvasMaxExtent = parsed
         }
       }
-      // Apply legacy `color.<key>` rows: seed `colors.dark` (dark-tuned) and
-      // mark them as customized, but only when the new key isn't already set —
-      // a user who has already saved under the new schema wins. Then rewrite
-      // each legacy row to `color.dark.<key>` and drop the original so the
-      // store persists in the new shape going forward.
-      for (const { key, value } of legacyColorRows) {
-        if (!customKeys.dark.has(key)) {
-          colors.dark[key] = value
-          customKeys.dark.add(key)
-          await settingsRepository.put(`color.dark.${key}`, value)
-        }
-        await settingsRepository.delete(`color.${key}`)
-      }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      // Resolve legacy `selectedHorizon` (HorizonKey string) → defId via the
-      // legacy map row. Only consulted when the new `selectedHorizonDefId`
-      // setting is unset; the new key wins as soon as the user makes any
-      // selection. Falls back to the first horizonSlots entry when neither
-      // is set.
-      if (selectedHorizonDefId == null) {
-        const legacyResolved = resolveLegacySelectedHorizon(legacySelectedHorizon, legacyHorizonSlotsValue)
-        if (legacyResolved != null && horizonSlots.includes(legacyResolved)) {
-          selectedHorizonDefId = legacyResolved
-        } else if (horizonSlots.length > 0) {
-          selectedHorizonDefId = horizonSlots[0] ?? null
-        }
+      if (selectedHorizonDefId == null && horizonSlots.length > 0) {
+        selectedHorizonDefId = horizonSlots[0] ?? null
       }
-      // Strip dormant Dashboard-era keys (`dashboardUserLists`,
-      // `notesPinnedToDashboard`, `dashboardTopOrder`) and the older
-      // `notesDock` / `notesVisible` legacy rows so they don't accumulate
-      // forever in IndexedDB. The store surface for these was retired in
-      // code-review-2026-04-25 P8. `horizonCollapsed` is dropped here too
-      // (P6 retired the per-key collapse state — flexible-slot model has
-      // no analogue). Legacy `selectedHorizon` is retained until the user
-      // makes a selection (then `setSelectedHorizonDefId` writes the new
-      // key); stripping eagerly would lose the resolved selection on the
-      // following load if no other horizon mutation has happened.
-      await settingsRepository.bulkDelete([
-        'dashboardUserLists',
-        'notesPinnedToDashboard',
-        'dashboardTopOrder',
-        'notesDock',
-        'notesVisible',
-        'horizonCollapsed',
-      ])
       set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizonDefId, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)

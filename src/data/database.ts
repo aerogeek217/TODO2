@@ -554,10 +554,8 @@ export async function ensureSeededListDefinitions(
 }
 
 /**
- * Writes `settings.horizonSlots` as JSON (one row). Post-P6 this is a plain
- * `number[]` of `ListDefinition.id`s (the order users see on the horizons
- * widget); `parseHorizonSlots` still accepts the legacy
- * `Partial<Record<HorizonKey, number>>` shape for older backups.
+ * Writes `settings.horizonSlots` as JSON (one row): a plain `number[]` of
+ * `ListDefinition.id`s in the order users see on the horizons widget.
  */
 export async function persistHorizonSlots(
   settingsTable: Table<SettingRow, string>,
