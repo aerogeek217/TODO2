@@ -348,15 +348,6 @@ function orderGroupKeys(
  * to an org whose member is in the people filter). Pass the same
  * prefixed keys `getGroupKey` emits.
  *
- * `additionalKeysFor` (optional): caller-supplied direct-tier extension.
- * Runs in **both** legacy and restrict modes (vs `implicitKeysFor` which
- * is restrict-only). Returned keys are merged into the task's direct emit
- * set, deduped against `getGroupKey`'s direct keys. In restrict mode the
- * merged keys still pass through `restrictToFilterSet` and emit as
- * `'direct'` tier. Used by ListView legacy `buildOrgSections` for
- * person→org inference; do not use elsewhere — canvas project widget
- * intentionally omits inference.
- *
  * `implicitKeysFor` (optional, P6): caller-supplied cross-axis lookup,
  * only consulted when `restrictToFilterSet` is set. For
  * `groupBy === 'people'`, return person keys reachable from the task's
@@ -365,10 +356,9 @@ function orderGroupKeys(
  * pass nothing.
  *
  * Returns `groups` with a per-group `tier`: `'direct'` when at least one
- * emit under that key came via the task's direct group keys (including
- * any contributed by `additionalKeysFor`); `'implicit'` when every emit
- * came via `implicitKeysFor`. When `restrictToFilterSet` is unset, every
- * group is `'direct'` and ordering follows the legacy
+ * emit under that key came via the task's direct group keys; `'implicit'`
+ * when every emit came via `implicitKeysFor`. When `restrictToFilterSet`
+ * is unset, every group is `'direct'` and ordering follows the legacy
  * `prioritizeGroupKeys` path. When it *is* set, ordering is direct-tier
  * first then implicit-tier — within each tier, the order of
  * `restrictToFilterSet` is preserved.
@@ -379,7 +369,6 @@ export function partitionByGroup<T extends PersistedTodoItem>(
   ctx: GroupingContext,
   prioritizeGroupKeys?: ReadonlyArray<string>,
   restrictToFilterSet?: ReadonlyArray<string>,
-  additionalKeysFor?: (todo: T, axis: ProjectGroupBy) => readonly string[],
   implicitKeysFor?: (todo: T, axis: ProjectGroupBy) => readonly string[],
 ): PartitionResult<T> {
   const ungrouped: T[] = []
@@ -420,14 +409,6 @@ export function partitionByGroup<T extends PersistedTodoItem>(
       if (!directSeen.has(k)) {
         directSeen.add(k)
         directKeys.push(k)
-      }
-    }
-    if (additionalKeysFor) {
-      for (const k of additionalKeysFor(t, groupBy)) {
-        if (!directSeen.has(k)) {
-          directSeen.add(k)
-          directKeys.push(k)
-        }
       }
     }
 

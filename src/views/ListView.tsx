@@ -219,7 +219,6 @@ export function buildPeopleSections(
     ctx,
     undefined,
     restrictToFilterSet,
-    undefined,
     implicitKeysFor,
   )
 
@@ -366,7 +365,6 @@ export function buildOrgSections(
     ctx,
     undefined,
     restrictToFilterSet,
-    undefined,
     implicitKeysFor,
   )
 
@@ -445,8 +443,7 @@ export function buildStatusSections(
  * single "No tag" bucket in legacy mode only — when filtering by tag
  * (restrict mode), the untagged trail is suppressed (the user has
  * narrowed to specific tags, so an "untagged" bucket is incoherent).
- * Tags have no cross-axis path, so no `additionalKeysFor` /
- * `implicitKeysFor` callbacks.
+ * Tags have no cross-axis path, so no `implicitKeysFor` callback.
  */
 export function buildTagSections(
   todos: PersistedTodoItem[],
