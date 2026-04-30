@@ -648,6 +648,7 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
       ctx,
       undefined,
       ['person-1'],
+      undefined,
       () => ['person-1'],
     )
     expect(result.groups).toHaveLength(1)
@@ -688,6 +689,7 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
       ctx,
       undefined,
       ['person-1'],
+      undefined,
       (t) => (t.id === 11 ? ['person-1'] : []),
     )
     expect(result.groups).toHaveLength(1)
@@ -711,6 +713,7 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
       ctx,
       undefined,
       ['person-1', 'person-2'],
+      undefined,
       (t) => (t.id === 11 ? ['person-1'] : []),
     )
     expect(result.groups.map((g) => g.key)).toEqual(['person-2', 'person-1'])
@@ -750,6 +753,7 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
       ctx,
       undefined,
       ['person-1', 'person-2'],
+      undefined,
       (t) => (t.id === 10 ? ['person-1'] : ['person-2']),
     )
     expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
@@ -822,5 +826,182 @@ describe('partitionByGroup — restrictToFilterSet (visible-groups intersection,
       ['person-1', 'person-1', 'person-2'],
     )
     expect(result.groups.map((g) => g.key)).toEqual(['person-1', 'person-2'])
+  })
+})
+
+describe('partitionByGroup — additionalKeysFor (direct-tier extension, P1)', () => {
+  const acme: Org = { id: 1, name: 'Acme' }
+  const initech: Org = { id: 2, name: 'Initech' }
+
+  it('legacy: emits under additionalKeysFor keys as direct when task has no direct keys', () => {
+    // Task has no direct orgs; additionalKeysFor returns ['org-1'] (e.g.,
+    // ListView legacy person→org inference). Task emits under Acme as direct.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedOrgsMap: new Map() })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      undefined,
+      () => ['org-1'],
+    )
+    expect(result.ungrouped).toEqual([])
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0]!.key).toBe('org-1')
+    expect(result.groups[0]!.tier).toBe('direct')
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+  })
+
+  it('legacy: merges additionalKeysFor with direct keys, deduped, all direct tier', () => {
+    // Direct = [org-1], additional = [org-1, org-2]. Output: org-1 once, org-2 once.
+    // (Both orgs need to be findable in assignedOrgsMap for getGroupLabel to
+    // resolve their names so orderGroupKeys sorts alphabetically — Acme, Initech.)
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedOrgsMap: new Map([
+        [10, [acme]],
+        [99, [initech]],
+      ]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      undefined,
+      () => ['org-1', 'org-2'],
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['org-1', 'org-2'])
+    expect(result.groups.every((g) => g.tier === 'direct')).toBe(true)
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+    expect(result.groups[1]!.todos.map((t) => t.id)).toEqual([10])
+    // Same row reference, no clone
+    expect(result.groups[0]!.todos[0]).toBe(result.groups[1]!.todos[0])
+  })
+
+  it('legacy: routes task to ungrouped when both direct and additionalKeysFor are empty', () => {
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedOrgsMap: new Map() })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      undefined,
+      () => [],
+    )
+    expect(result.ungrouped.map((t) => t.id)).toEqual([10])
+    expect(result.groups).toEqual([])
+  })
+
+  it('restrict: additionalKeysFor keys filter through filterSet and emit as direct', () => {
+    // Filter [org-2], task direct {org-1}, additional returns [org-2].
+    // Task emits under org-2 as direct (additionalKeysFor wins direct tier).
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedOrgsMap: new Map([[10, [acme]]]) })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      ['org-2'],
+      () => ['org-2'],
+    )
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0]!.key).toBe('org-2')
+    expect(result.groups[0]!.tier).toBe('direct')
+    expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([10])
+  })
+
+  it('restrict: additionalKeysFor keys outside filterSet are dropped', () => {
+    // Filter [org-1], task direct {} (none), additional returns [org-2].
+    // org-2 is outside the filter — task drops out entirely.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedOrgsMap: new Map() })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      ['org-1'],
+      () => ['org-2'],
+    )
+    expect(result.groups).toEqual([])
+    expect(result.ungrouped).toEqual([])
+  })
+
+  it('restrict: additionalKeysFor wins direct tier over implicitKeysFor for the same key', () => {
+    // Filter [org-1], task direct {} (none), additional returns [org-1],
+    // implicit also returns [org-1]. additionalKeysFor wins → direct tier.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedOrgsMap: new Map() })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      ['org-1'],
+      () => ['org-1'],
+      () => ['org-1'],
+    )
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0]!.key).toBe('org-1')
+    expect(result.groups[0]!.tier).toBe('direct')
+  })
+
+  it('restrict: implicitKeysFor still emits residue when additionalKeysFor doesn’t cover it', () => {
+    // Filter [org-1, org-2]. Task direct {}, additional → [org-1],
+    // implicit → [org-2]. org-1 is direct, org-2 is implicit.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedOrgsMap: new Map() })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      ['org-1', 'org-2'],
+      () => ['org-1'],
+      () => ['org-2'],
+    )
+    expect(result.groups.map((g) => g.key)).toEqual(['org-1', 'org-2'])
+    expect(result.groups.map((g) => g.tier)).toEqual(['direct', 'implicit'])
+  })
+
+  it('legacy: additionalKeysFor receives the same axis the partition was called with', () => {
+    // Sanity check: additionalKeysFor is called with (todo, axis); axis
+    // matches the groupBy. Used by adapters that share one helper across axes.
+    const seenAxes: string[] = []
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({ assignedOrgsMap: new Map([[10, [acme]]]) })
+    partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      undefined,
+      (_t, axis) => {
+        seenAxes.push(axis)
+        return []
+      },
+    )
+    expect(seenAxes).toEqual(['org'])
+  })
+
+  it('legacy: orders merged groups by default rules (alphabetical for org)', () => {
+    // Direct = [org-1 Acme], additional = [org-2 Initech]. Expected order: alphabetical.
+    const todos = [makeTodo({ id: 10 })]
+    const ctx = makeCtx({
+      assignedOrgsMap: new Map([[10, [acme, initech]]]),
+    })
+    const result = partitionByGroup(
+      todos,
+      'org',
+      ctx,
+      undefined,
+      undefined,
+      () => ['org-2'],
+    )
+    expect(result.groups.map((g) => g.label)).toEqual(['Acme', 'Initech'])
   })
 })

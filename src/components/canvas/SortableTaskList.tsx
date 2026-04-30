@@ -305,6 +305,7 @@ export function SortableTaskList({
       ctx,
       undefined,
       restrictToFilterSet,
+      undefined,
       implicitKeysFor,
     )
     const out: RenderBlock[] = []
