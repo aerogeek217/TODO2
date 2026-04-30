@@ -1,7 +1,35 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, TodoEvent, TodoEventType } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, TodoEvent, TodoEventType, ListSortBy, ListGroupBy, ListItemSortBy, TodoPredicate } from '../models'
 import { isTodoSortBy, isTodoGroupBy } from '../models'
 import { flattenListSortValue, flattenListGroupingValue } from './database'
-import type { LegacySavedView, LegacySavedViewFilters } from './saved-view-legacy'
+
+/**
+ * Pre-v39 saved-view shape, retained here so the validator can still pick
+ * legacy `savedViews` arrays out of older imports. The `restoreFromImportData`
+ * consumer was dropped in P3; the validator + pickers go away in P4 (which
+ * also removes these types).
+ */
+interface LegacySavedViewFilters extends Partial<TodoPredicate> {
+  priorities?: number[] | null
+  completedFilter?: string
+  assignedFilter?: string
+  followupFilter?: string
+  showAssigned?: boolean
+  starredOnly?: boolean
+  hardDeadlineOnly?: boolean
+  dateRangeIncludeNoDue?: boolean
+}
+
+interface LegacySavedView {
+  id?: number
+  name: string
+  sortBy: ListSortBy
+  groupBy?: ListGroupBy
+  itemSortBy?: ListItemSortBy
+  filters: LegacySavedViewFilters
+  sortOrder: number
+  maxTasks?: number
+  limitMode?: 'hard' | 'scroll'
+}
 
 /**
  * Top-level tag registry rows. Shape is shared between pre-v29 backups

@@ -11,8 +11,7 @@ import type { ListGrouping, ListSort } from '../models/list-definition'
  * and the `ListDefinition.{sort, grouping}` encoding the canvas + lens widgets read.
  *
  * Lives in `utils/` rather than `data/` so the layering rule holds: views import
- * from `utils/`, never from `data/`. The legacy SavedView types still live in
- * `data/saved-view-legacy.ts` and are imported only by migration + restore.
+ * from `utils/`, never from `data/`.
  *
  * Post ui-consistency-2026-04-25 P4 the `sort` / `grouping` fields are flat
  * `TodoSortBy` / `TodoGroupBy` literals (the discriminated unions were
