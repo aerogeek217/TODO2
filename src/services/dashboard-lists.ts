@@ -22,12 +22,11 @@ import {
 } from '../utils/effective-date'
 import { startOfDay } from '../utils/date'
 import {
-  bucketByTag as bucketByTagUtil,
   UNTAGGED_BUCKET_KEY,
   UNTAGGED_BUCKET_LABEL,
 } from '../utils/bucket-by-tag'
 import { bucketByDate, type DateBucketKey } from '../utils/bucket-by-date'
-import { bucketByMany } from '../utils/bucket-by-many'
+import { partitionByGroup, type GroupingContext } from '../utils/task-grouping'
 
 export interface DashboardListsContext {
   today: Date
@@ -587,14 +586,21 @@ function bucketByStatus(
 }
 
 /**
- * People bucketing — N-assignee todos land in all N buckets (many-to-many
- * via `ctx.assignedPeopleMap`). Unassigned todos go to a trailing "Unassigned"
- * bucket. Buckets enumerate from `ctx.people` in registry order. Shares
- * `bucketByMany` with task-grouping's people branch.
+ * People bucketing. Adapter over `partitionByGroup`.
+ *
+ * Legacy mode: every assigned person emits a section, ordered alphabetically
+ * by label (canvas convention); unassigned todos trail in a single
+ * "Unassigned" bucket.
  *
  * Restrict mode: when `restrict.restrictToPersonIds` is non-empty, narrow to
- * those ids only and tier-order direct→implicit. Mirrors ListView's
- * `buildPeopleSections` restrict path (P6 / P7).
+ * those ids only and tier-order direct→implicit. The implicit-tier callback
+ * (`implicitPersonIdsFor`) is gated on `personFilterMode === 'include-orgs'`
+ * by the caller (`computeGroupingRestrict`). Restrict mode silently drops
+ * `ungrouped` (axis-mismatched tasks shouldn't surface as Unassigned —
+ * the membership filter already let them through).
+ *
+ * Mirrors ListView's `buildPeopleSections` (post P3 of
+ * grouping-cross-surface-convergence-2026-04-29).
  */
 function bucketByPeople(
   todos: PersistedTodoItem[],
@@ -606,82 +612,73 @@ function bucketByPeople(
       ? restrict.restrictToPersonIds
       : null
 
-  if (!restrictIds) {
-    const { buckets, unassigned } = bucketByMany(todos, ctx.people ?? [], ctx.assignedPeopleMap)
-    const groups: DashboardListGroup[] = buckets.map((b) => ({
-      key: `person-${b.entity.id}`,
-      label: b.entity.name,
-      todos: b.todos,
-    }))
-    if (unassigned.length > 0) groups.push({ key: 'unassigned', label: 'Unassigned', todos: unassigned })
-    return groups
+  const groupingCtx: GroupingContext = {
+    assignedPeopleMap: ctx.assignedPeopleMap ?? new Map(),
+    assignedOrgsMap: new Map(),
+    assignedTagsMap: new Map(),
+    statuses: [],
+    orgs: ctx.orgs ?? [],
+    personOrgMap: ctx.personOrgMap ?? new Map(),
+    today: startOfDay(ctx.today),
+    weekStartsOn: ctx.weekStartsOn,
   }
 
-  const restrictSet = new Set<number>(restrictIds)
-  type PersonBucket = { todos: PersistedTodoItem[]; hasDirect: boolean }
-  const buckets = new Map<number, PersonBucket>()
-  for (const id of restrictSet) buckets.set(id, { todos: [], hasDirect: false })
+  const restrictToFilterSet = restrictIds
+    ? restrictIds.map((id) => `person-${id}`)
+    : undefined
 
-  const assignedPeopleMap = ctx.assignedPeopleMap
-  const implicitFor = restrict?.implicitPersonIdsFor
+  const implicitPersonIdsFor = restrict?.implicitPersonIdsFor
+  const implicitKeysFor =
+    restrictIds && implicitPersonIdsFor
+      ? (todo: PersistedTodoItem): readonly string[] =>
+          implicitPersonIdsFor(todo).map((id) => `person-${id}`)
+      : undefined
 
-  for (const t of todos) {
-    const assigned = assignedPeopleMap?.get(t.id) ?? []
-    const directIds = new Set<number>()
-    for (const p of assigned) {
-      if (p.id != null && restrictSet.has(p.id)) directIds.add(p.id)
-    }
-    const implicitIds = new Set<number>()
-    if (implicitFor) {
-      for (const id of implicitFor(t)) {
-        if (restrictSet.has(id) && !directIds.has(id)) implicitIds.add(id)
-      }
-    }
-    if (directIds.size === 0 && implicitIds.size === 0) continue
-    for (const id of directIds) {
-      const b = buckets.get(id)!
-      b.todos.push(t)
-      b.hasDirect = true
-    }
-    for (const id of implicitIds) {
-      const b = buckets.get(id)!
-      b.todos.push(t)
-    }
-  }
+  const { groups, ungrouped } = partitionByGroup(
+    todos,
+    'people',
+    groupingCtx,
+    undefined,
+    restrictToFilterSet,
+    implicitKeysFor,
+  )
 
-  const personRegistry = ctx.people ?? []
-  const direct: DashboardListGroup[] = []
-  const implicit: DashboardListGroup[] = []
-  const seen = new Set<number>()
-  for (const id of restrictIds) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    const b = buckets.get(id)
-    if (!b || b.todos.length === 0) continue
-    const personEntry = personRegistry.find((p) => p.id === id)
-    const section: DashboardListGroup = {
-      key: `person-${id}`,
+  // Use the people registry for label resolution so restrict-mode implicit-
+  // tier emits (people who don't appear in any task's `assignedPeopleMap`)
+  // still resolve a name. Mirrors ListView P3.
+  const peopleRegistry = ctx.people ?? []
+  const out: DashboardListGroup[] = groups.map((g) => {
+    const id = Number(g.key.slice('person-'.length))
+    const personEntry = peopleRegistry.find((p) => p.id === id)
+    return {
+      key: g.key,
       label: personEntry?.name ?? '',
-      todos: b.todos,
+      todos: g.todos,
     }
-    if (b.hasDirect) direct.push(section)
-    else implicit.push(section)
+  })
+  if (!restrictIds && ungrouped.length > 0) {
+    out.push({ key: 'unassigned', label: 'Unassigned', todos: ungrouped })
   }
-  return [...direct, ...implicit]
+  return out
 }
 
 /**
- * Org bucketing — each todo's direct org assignments plus the orgs its
- * assigned people belong to (via `personOrgMap`), deduped. Todos with no
- * matched org go into a trailing "No organization" bucket. Direct-org +
- * inferred-via-person fall together so the bucketByMany helper isn't a clean
- * fit; the inline walk stays here.
+ * Org bucketing. Adapter over `partitionByGroup`.
+ *
+ * Legacy mode: every direct-org assignment emits a section, ordered
+ * alphabetically by label (canvas convention); todos with no direct org
+ * trail in "No organization". The pre-cleanup person→org inference walk
+ * (a task assigned only to Alice ∈ Acme emitting under "Acme") was retired
+ * in grouping-cross-surface-convergence-2026-04-29 P5 — group-by-org now
+ * means "show direct-org assignments only", matching every other surface.
  *
  * Restrict mode: when `restrict.restrictToOrgIds` is non-empty, narrow to
- * those ids only and tier-order direct→implicit. The bespoke person→org
- * inference is suppressed in restrict mode — the `implicitOrgIdsFor`
- * callback (gated on `orgFilterMode === 'include-people'` by the caller)
- * handles the cross-axis instead. Mirrors ListView's `buildOrgSections`.
+ * those ids only and tier-order direct→implicit. The implicit-tier callback
+ * (`implicitOrgIdsFor`) is gated on `orgFilterMode === 'include-people'`
+ * by the caller. Restrict mode silently drops `ungrouped` (axis-mismatched
+ * tasks shouldn't surface as no-org).
+ *
+ * Mirrors ListView's `buildOrgSections` (post P3).
  */
 function bucketByOrg(
   todos: PersistedTodoItem[],
@@ -693,104 +690,67 @@ function bucketByOrg(
       ? restrict.restrictToOrgIds
       : null
 
-  if (!restrictIds) {
-    const orgs = ctx.orgs ?? []
-    const assignedPeopleMap = ctx.assignedPeopleMap
-    const assignedOrgsMap = ctx.assignedOrgsMap
-    const personOrgMap = ctx.personOrgMap
-    const buckets = new Map<number, PersistedTodoItem[]>()
-    for (const o of orgs) if (o.id != null) buckets.set(o.id, [])
-    const noOrg: PersistedTodoItem[] = []
-
-    for (const t of todos) {
-      const matched = new Set<number>()
-      const directOrgs = assignedOrgsMap?.get(t.id) ?? []
-      for (const o of directOrgs) if (o.id != null && buckets.has(o.id)) matched.add(o.id)
-      const assignedPeople = assignedPeopleMap?.get(t.id) ?? []
-      for (const p of assignedPeople) {
-        const pid = p.id
-        if (pid == null) continue
-        const personOrgs = personOrgMap?.get(pid) ?? []
-        for (const oid of personOrgs) if (buckets.has(oid)) matched.add(oid)
-      }
-      if (matched.size === 0) noOrg.push(t)
-      else for (const oid of matched) buckets.get(oid)!.push(t)
-    }
-
-    const groups: DashboardListGroup[] = []
-    for (const o of orgs) {
-      const ts = o.id != null ? buckets.get(o.id)! : []
-      if (ts.length > 0) groups.push({ key: `org-${o.id}`, label: o.name, todos: ts })
-    }
-    if (noOrg.length > 0) groups.push({ key: 'no-org', label: 'No organization', todos: noOrg })
-    return groups
+  const groupingCtx: GroupingContext = {
+    assignedPeopleMap: new Map(),
+    assignedOrgsMap: ctx.assignedOrgsMap ?? new Map(),
+    assignedTagsMap: new Map(),
+    statuses: [],
+    orgs: ctx.orgs ?? [],
+    personOrgMap: ctx.personOrgMap ?? new Map(),
+    today: startOfDay(ctx.today),
+    weekStartsOn: ctx.weekStartsOn,
   }
 
-  const restrictSet = new Set<number>(restrictIds)
-  type OrgBucket = { todos: PersistedTodoItem[]; hasDirect: boolean }
-  const buckets = new Map<number, OrgBucket>()
-  for (const id of restrictSet) buckets.set(id, { todos: [], hasDirect: false })
+  const restrictToFilterSet = restrictIds
+    ? restrictIds.map((id) => `org-${id}`)
+    : undefined
 
-  const assignedOrgsMap = ctx.assignedOrgsMap
-  const implicitFor = restrict?.implicitOrgIdsFor
+  const implicitOrgIdsFor = restrict?.implicitOrgIdsFor
+  const implicitKeysFor =
+    restrictIds && implicitOrgIdsFor
+      ? (todo: PersistedTodoItem): readonly string[] =>
+          implicitOrgIdsFor(todo).map((id) => `org-${id}`)
+      : undefined
 
-  for (const t of todos) {
-    const directIds = new Set<number>()
-    const directOrgs = assignedOrgsMap?.get(t.id) ?? []
-    for (const o of directOrgs) {
-      if (o.id != null && restrictSet.has(o.id)) directIds.add(o.id)
-    }
-    const implicitIds = new Set<number>()
-    if (implicitFor) {
-      for (const id of implicitFor(t)) {
-        if (restrictSet.has(id) && !directIds.has(id)) implicitIds.add(id)
-      }
-    }
-    if (directIds.size === 0 && implicitIds.size === 0) continue
-    for (const id of directIds) {
-      const b = buckets.get(id)!
-      b.todos.push(t)
-      b.hasDirect = true
-    }
-    for (const id of implicitIds) {
-      const b = buckets.get(id)!
-      b.todos.push(t)
-    }
-  }
+  const { groups, ungrouped } = partitionByGroup(
+    todos,
+    'org',
+    groupingCtx,
+    undefined,
+    restrictToFilterSet,
+    implicitKeysFor,
+  )
 
   const orgRegistry = ctx.orgs ?? []
-  const direct: DashboardListGroup[] = []
-  const implicit: DashboardListGroup[] = []
-  const seen = new Set<number>()
-  for (const id of restrictIds) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    const b = buckets.get(id)
-    if (!b || b.todos.length === 0) continue
+  const out: DashboardListGroup[] = groups.map((g) => {
+    const id = Number(g.key.slice('org-'.length))
     const orgEntry = orgRegistry.find((o) => o.id === id)
-    const section: DashboardListGroup = {
-      key: `org-${id}`,
+    return {
+      key: g.key,
       label: orgEntry?.name ?? '',
-      todos: b.todos,
+      todos: g.todos,
     }
-    if (b.hasDirect) direct.push(section)
-    else implicit.push(section)
+  })
+  if (!restrictIds && ungrouped.length > 0) {
+    out.push({ key: 'no-org', label: 'No organization', todos: ungrouped })
   }
-  return [...direct, ...implicit]
+  return out
 }
 
 /**
- * Tag buckets — N-tag todos land in all N buckets (many-to-many). Untagged
- * todos go into a trailing "No tag" bucket. Buckets sort alphabetically by
- * registry name. Parallels `buildTagSections` in ListView so widget +
- * ListView grouping stays consistent; reads from `ctx.assignedTagsMap`
- * rather than the (transient) inline `todo.tags` string bag. Bucketing
- * logic is shared with `ListView.buildTagSections` via `utils/bucket-by-tag`.
+ * Tag bucketing. Adapter over `partitionByGroup`.
+ *
+ * Legacy mode: every assigned tag emits a section, ordered alphabetically
+ * by tag name (canvas convention); untagged todos trail in a single
+ * "No tag" bucket.
  *
  * Restrict mode: when `restrict.restrictToTagIds` is non-empty, narrow to
  * those ids only in caller order. Tags have no cross-axis path — every emit
  * is direct, so tier ordering reduces to caller-order dedup. The untagged
- * bucket is suppressed (the membership filter excluded those tasks).
+ * bucket is suppressed in restrict mode (the membership filter excluded
+ * those tasks).
+ *
+ * Mirrors ListView's `buildTagSections`.
  */
 function bucketByTag(
   todos: PersistedTodoItem[],
@@ -801,38 +761,37 @@ function bucketByTag(
     restrict?.restrictToTagIds && restrict.restrictToTagIds.length > 0
       ? restrict.restrictToTagIds
       : null
-  const { tagged, untagged } = bucketByTagUtil(todos, ctx.assignedTagsMap)
 
-  if (!restrictIds) {
-    const groups: DashboardListGroup[] = tagged.map(({ tag, todos: ts }) => ({
-      key: `tag-${tag.id}`,
-      label: `#${tag.name}`,
-      todos: ts,
-    }))
-    if (untagged.length > 0) {
-      groups.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: untagged })
-    }
-    return groups
+  const groupingCtx: GroupingContext = {
+    assignedPeopleMap: new Map(),
+    assignedOrgsMap: new Map(),
+    assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
+    statuses: [],
+    orgs: [],
+    personOrgMap: new Map(),
+    today: startOfDay(ctx.today),
+    weekStartsOn: ctx.weekStartsOn,
   }
 
-  const restrictSet = new Set<number>(restrictIds)
-  const byKey = new Map<number, DashboardListGroup>()
-  for (const { tag, todos: ts } of tagged) {
-    if (tag.id != null && restrictSet.has(tag.id)) {
-      byKey.set(tag.id, {
-        key: `tag-${tag.id}`,
-        label: `#${tag.name}`,
-        todos: ts,
-      })
-    }
+  const restrictToFilterSet = restrictIds
+    ? restrictIds.map((id) => `tag-${id}`)
+    : undefined
+
+  const { groups, ungrouped } = partitionByGroup(
+    todos,
+    'tag',
+    groupingCtx,
+    undefined,
+    restrictToFilterSet,
+  )
+
+  const out: DashboardListGroup[] = groups.map((g) => ({
+    key: g.key,
+    label: `#${g.label}`,
+    todos: g.todos,
+  }))
+  if (!restrictIds && ungrouped.length > 0) {
+    out.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: ungrouped })
   }
-  const groups: DashboardListGroup[] = []
-  const seen = new Set<number>()
-  for (const id of restrictIds) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    const g = byKey.get(id)
-    if (g) groups.push(g)
-  }
-  return groups
+  return out
 }

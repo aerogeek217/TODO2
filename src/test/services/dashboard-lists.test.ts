@@ -721,6 +721,39 @@ describe('interpretGrouping — sort-coupled (post-flatten)', () => {
     const lists = buildDashboardLists([def], [t], makeCtx())
     expect(lists[0]!.groups).toBeUndefined()
   })
+
+  // Post grouping-cross-surface-convergence-2026-04-29 P5: legacy-mode
+  // bucketByOrg follows the canvas convention — direct-org assignments emit;
+  // person→org inference does NOT (a task assigned only via Alice ∈ Acme
+  // lands in "No organization", not under "Acme"). Restrict-mode `include-
+  // people` mode still surfaces inferred orgs via the implicit-tier callback.
+  it('grouping=org legacy mode emits only direct-org assignments — person→org inference suppressed', () => {
+    const ALICE: import('../../models').Person = { id: 1, name: 'Alice', initials: 'A' }
+    const ACME: import('../../models').Org = { id: 100, name: 'Acme' }
+    const FOO: import('../../models').Org = { id: 101, name: 'Foo' }
+    const directOrg = makeTodo({ id: 201 })
+    const personOnly = makeTodo({ id: 202 })
+    const assignedOrgsMap = new Map<number, import('../../models').Org[]>([
+      [201, [ACME]],
+      // 202 has no direct org assignment.
+    ])
+    const assignedPeopleMap = new Map<number, import('../../models').Person[]>([
+      [202, [ALICE]],
+    ])
+    const personOrgMap = new Map<number, number[]>([[ALICE.id!, [ACME.id!]]])
+    const def = customDef({ grouping: 'org' })
+    const lists = buildDashboardLists([def], [directOrg, personOnly], makeCtx({
+      orgs: [ACME, FOO],
+      assignedOrgsMap,
+      assignedPeopleMap,
+      personOrgMap,
+    }))
+    const groups = lists[0]!.groups!
+    // Acme emits T201 (direct). T202 falls to "No organization" — no inference.
+    expect(groups.map((g) => g.key)).toEqual(['org-100', 'no-org'])
+    expect(groups[0]!.todos.map((t) => t.id)).toEqual([201])
+    expect(groups[1]!.todos.map((t) => t.id)).toEqual([202])
+  })
 })
 
 describe('interpretGrouping — by-tag', () => {
