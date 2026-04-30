@@ -11,7 +11,7 @@ import { startOfToday } from '../utils/date'
  *
  * The returned object is stamped with `__schemaVersion = CURRENT_DB_VERSION` so
  * the import path can detect older files without reaching for field-shape
- * heuristics. See `services/migration-check.ts:detectLegacyFormat`.
+ * heuristics. See `services/migration-check.ts:detectUnsupportedImport`.
  */
 export async function buildExportData() {
   const [todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes] =

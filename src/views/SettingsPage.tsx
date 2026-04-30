@@ -9,8 +9,8 @@ import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 import type { ImportData } from '../data/import-validation'
-import { detectLegacyFormat } from '../services/migration-check'
-import type { LegacyImportInfo } from '../services/migration-check'
+import { detectUnsupportedImport } from '../services/migration-check'
+import type { UnsupportedImportInfo } from '../services/migration-check'
 import { MigrationDialog } from '../components/overlays/MigrationDialog'
 import { buildExportData, buildMarkdownExport } from '../services/export-import'
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
@@ -102,7 +102,7 @@ export function SettingsPage() {
   const [showCleanupPopup, setShowCleanupPopup] = useState(false)
   const [cleanupDays, setCleanupDays] = useState(30)
   const [confirmingCleanup, setConfirmingCleanup] = useState(false)
-  const [pendingMigration, setPendingMigration] = useState<{ info: LegacyImportInfo; action: () => Promise<void> } | null>(null)
+  const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
   const timerRefs = useRef<number[]>([])
   const track = (fn: () => void, ms: number) => {
     timerRefs.current.push(window.setTimeout(fn, ms))
@@ -266,7 +266,7 @@ export function SettingsPage() {
         return
       }
 
-      const legacyInfo = detectLegacyFormat(parsed)
+      const legacyInfo = detectUnsupportedImport(parsed)
       if (legacyInfo) {
         setPendingMigration({
           info: legacyInfo,
@@ -700,7 +700,7 @@ export function SettingsPage() {
                             if (!data) { setBackupMsg('Backup not found'); track(() => setBackupMsg(''), 3000); return }
                             let parsed: unknown
                             try { parsed = JSON.parse(data) } catch { parsed = null }
-                            const legacyInfo = parsed ? detectLegacyFormat(parsed) : null
+                            const legacyInfo = parsed ? detectUnsupportedImport(parsed) : null
                             if (legacyInfo) {
                               setPendingMigration({
                                 info: legacyInfo,

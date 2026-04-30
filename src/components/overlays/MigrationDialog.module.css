@@ -1,52 +1,19 @@
-.changeList {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.changeItem {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-secondary);
-  line-height: 1.5;
-  padding: 8px 12px;
-  background: var(--color-surface-high);
-  border-radius: var(--radius-sm);
-}
-
 .exportSection {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .exportHint {
   font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  margin-bottom: 8px;
-}
-
-.exportButton {
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
-  padding: 6px 14px;
-  cursor: pointer;
-}
-
-.exportButton:hover:not(:disabled) {
-  border-color: var(--color-text-muted);
-}
-
-.exportButton:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .exportError {
-  margin-top: 8px;
   font-size: var(--font-size-meta);
   color: var(--color-danger);
 }
@@ -76,14 +43,18 @@
   cursor: pointer;
 }
 
-.primaryButton:hover {
+.primaryButton:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 @media (max-width: 640px) {
   .cancelButton,
-  .primaryButton,
-  .exportButton {
+  .primaryButton {
     min-height: var(--touch-target-min);
     padding: 10px 18px;
   }

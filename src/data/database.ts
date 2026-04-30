@@ -26,6 +26,21 @@ export interface SettingRow {
  */
 export const CURRENT_DB_VERSION = 48
 
+/**
+ * Lowest database version this build will silently load. A database whose
+ * on-disk version (or imported file's `__schemaVersion`) is below this floor
+ * triggers a warning dialog before any restore or Dexie upgrade runs —
+ * legacy translators have been removed for older shapes and proceeding may
+ * permanently lose data.
+ *
+ * Policy: this constant rises over time. After each progressive strip it
+ * jumps back up to CURRENT_DB_VERSION; in the rare case a release wants to
+ * keep one prior version readable it may sit at CURRENT_DB_VERSION - N
+ * temporarily. Never raise this without auditing import-validation.ts +
+ * restore.ts to confirm the dropped versions truly have no consumers.
+ */
+export const OLDEST_SUPPORTED_DB_VERSION = 16
+
 export class Todo2Database extends Dexie {
   todos!: Table<TodoItem, number>
   projects!: Table<Project, number>

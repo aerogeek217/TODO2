@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { MigrationInfo, LegacyImportInfo } from '../../services/migration-check'
+import type { UnsupportedDBInfo, UnsupportedImportInfo } from '../../services/migration-check'
 import { exportCurrentDatabase } from '../../services/migration-check'
+import { OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
 import { buildExportData } from '../../services/export-import'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { getSaveFilePicker } from '../../utils/file-picker'
@@ -8,13 +9,13 @@ import styles from './MigrationDialog.module.css'
 
 interface SchemaUpgradeProps {
   mode: 'schema-upgrade'
-  info: MigrationInfo
+  info: UnsupportedDBInfo
   onProceed: () => void
 }
 
 interface LegacyImportProps {
   mode: 'legacy-import'
-  info: LegacyImportInfo
+  info: UnsupportedImportInfo
   onProceed: () => void
   onCancel: () => void
 }
@@ -26,8 +27,6 @@ export function MigrationDialog(props: MigrationDialogProps) {
   const [exported, setExported] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [cancelled, setCancelled] = useState(false)
-
-  const descriptions = props.mode === 'schema-upgrade' ? [] : props.info.descriptions
 
   const handleExport = async () => {
     setExporting(true)
@@ -106,36 +105,31 @@ export function MigrationDialog(props: MigrationDialogProps) {
     )
   }
 
+  const title = props.mode === 'schema-upgrade'
+    ? 'Database too old to load safely'
+    : 'File too old to load safely'
+
+  const body = props.mode === 'schema-upgrade'
+    ? `Your on-disk database is at version ${props.info.currentVersion}. This build only supports databases at version ${OLDEST_SUPPORTED_DB_VERSION} or newer — translators for older versions have been removed. Proceeding upgrades the schema to version ${props.info.targetVersion}, but stale fields from the older shape stay in the records and may not be readable here. After the upgrade, the Data Integrity audit in Settings can sweep up any rows the current schema does not recognize. Some data may be permanently inaccessible.`
+    : props.info.sourceVersion != null
+      ? `The file you are loading is at schema version ${props.info.sourceVersion}. This build only supports imports at version ${OLDEST_SUPPORTED_DB_VERSION} or newer — translators for older versions have been removed. Proceeding will drop any fields the current schema does not recognize. Some data in this file may be lost.`
+      : `The file you are loading is in an earlier format that this build no longer supports. Proceeding will drop any fields the current schema does not recognize. Some data in this file may be lost.`
+
   return (
     <Dialog
       open
       onClose={handleCancel}
       blockBackdropClose
       size="md"
-      title={props.mode === 'schema-upgrade' ? 'Database update required' : 'Data migration required'}
+      title={title}
     >
-      <DialogBody>
-        {props.mode === 'schema-upgrade'
-          ? `Your database will be upgraded from version ${props.info.currentVersion} to version ${props.info.targetVersion}. This will rewrite stored data — once it runs, older builds of TODO2 cannot read it.`
-          : props.info.sourceVersion != null
-            ? `The file you are loading was saved at schema version ${props.info.sourceVersion} and will be upgraded to version ${props.info.targetVersion}.`
-            : 'The file you are loading is in an earlier format that will be converted.'}
-      </DialogBody>
-      {descriptions.length > 0 && (
-        <div className={styles.changeList}>
-          {descriptions.map((desc, i) => (
-            <div key={i} className={styles.changeItem}>
-              {desc}
-            </div>
-          ))}
-        </div>
-      )}
+      <DialogBody>{body}</DialogBody>
       <div className={styles.exportSection}>
         <div className={styles.exportHint}>
-          We recommend exporting a backup before proceeding.
+          Export a backup before continuing — this is your only path back.
         </div>
         <button
-          className={styles.exportButton}
+          className={styles.primaryButton}
           onClick={handleExport}
           disabled={exporting}
         >
@@ -148,7 +142,7 @@ export function MigrationDialog(props: MigrationDialogProps) {
           Cancel
         </button>
         <button className={styles.primaryButton} onClick={props.onProceed}>
-          Apply update
+          {props.mode === 'schema-upgrade' ? 'Apply update' : 'Proceed'}
         </button>
       </DialogActions>
     </Dialog>

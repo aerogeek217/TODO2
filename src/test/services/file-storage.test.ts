@@ -55,10 +55,11 @@ const mockTables = Array.from({ length: 14 }, () => makeMockTable())
 
 vi.mock('../../data/database', () => ({
   ALL_DATA_TABLES: mockTables,
-  // file-storage doesn't read this directly, but migration-check (transitively
-  // imported via detectLegacyFormat) does. Mocked exports must mirror the real
-  // module's surface or the import explodes — see vitest "No X export defined".
+  // file-storage doesn't read these directly, but migration-check (transitively
+  // imported via detectUnsupportedImport) does. Mocked exports must mirror the
+  // real module's surface or the import explodes — see vitest "No X export defined".
   CURRENT_DB_VERSION: 48,
+  OLDEST_SUPPORTED_DB_VERSION: 16,
 }))
 
 // ─── Helpers ──────────────────────────────────────────────────────────

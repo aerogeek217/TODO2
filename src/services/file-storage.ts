@@ -4,8 +4,8 @@ import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-valida
 import { restoreFromImportData } from '../data/restore'
 import { buildExportData } from './export-import'
 import { backupScheduler } from './backup-scheduler'
-import { detectLegacyFormat } from './migration-check'
-import type { LegacyImportInfo } from './migration-check'
+import { detectUnsupportedImport } from './migration-check'
+import type { UnsupportedImportInfo } from './migration-check'
 
 export type FileStorageStatus = {
   isConnected: boolean
@@ -17,7 +17,7 @@ export type FileStorageStatus = {
 
 type StatusListener = (status: FileStorageStatus) => void
 type AfterImportListener = () => Promise<void>
-type MigrationConfirmListener = (info: LegacyImportInfo) => Promise<boolean>
+type MigrationConfirmListener = (info: UnsupportedImportInfo) => Promise<boolean>
 
 const FILE_TYPES = [{ description: 'TODO2 Database', accept: { 'application/json': ['.json'] } }]
 const DEBOUNCE_MS = 500
@@ -197,7 +197,7 @@ class FileStorageService {
         return
       }
 
-      const legacyInfo = detectLegacyFormat(parsed)
+      const legacyInfo = detectUnsupportedImport(parsed)
       if (legacyInfo && this.migrationConfirmListener) {
         const confirmed = await this.migrationConfirmListener(legacyInfo)
         if (!confirmed) {

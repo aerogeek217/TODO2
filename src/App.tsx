@@ -27,8 +27,8 @@ import { createCommands, searchDynamicCommands } from './services/command-regist
 import { backupScheduler } from './services/backup-scheduler'
 import { applyNlpMetadata } from './services/nlp-task-creator'
 import { ensureDefaultProject } from './services/ensure-default-project'
-import { checkMigrationNeeded } from './services/migration-check'
-import type { MigrationInfo } from './services/migration-check'
+import { checkUnsupportedOldDB } from './services/migration-check'
+import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
@@ -364,19 +364,19 @@ function AppShell() {
 }
 
 export default function App() {
-  const [migrationInfo, setMigrationInfo] = useState<MigrationInfo | null>(null)
-  const [migrationChecked, setMigrationChecked] = useState(false)
+  const [unsupportedDBInfo, setUnsupportedDBInfo] = useState<UnsupportedDBInfo | null>(null)
+  const [dbVersionChecked, setDbVersionChecked] = useState(false)
 
   useEffect(() => {
-    checkMigrationNeeded()
+    checkUnsupportedOldDB()
       .then(info => {
-        setMigrationInfo(info)
-        setMigrationChecked(true)
+        setUnsupportedDBInfo(info)
+        setDbVersionChecked(true)
       })
-      .catch(() => setMigrationChecked(true))
+      .catch(() => setDbVersionChecked(true))
   }, [])
 
-  if (!migrationChecked) {
+  if (!dbVersionChecked) {
     return (
       <div className={styles.initLoading}>
         <div className={styles.spinner} />
@@ -385,8 +385,8 @@ export default function App() {
     )
   }
 
-  if (migrationInfo) {
-    return <MigrationDialog mode="schema-upgrade" info={migrationInfo} onProceed={() => setMigrationInfo(null)} />
+  if (unsupportedDBInfo) {
+    return <MigrationDialog mode="schema-upgrade" info={unsupportedDBInfo} onProceed={() => setUnsupportedDBInfo(null)} />
   }
 
   return (
@@ -400,9 +400,9 @@ export default function App() {
 }
 
 function FileMigrationOverlay() {
-  const pending = useFileStorageStore((s) => s.pendingMigration)
-  const confirm = useFileStorageStore((s) => s.confirmMigration)
-  const cancel = useFileStorageStore((s) => s.cancelMigration)
+  const pending = useFileStorageStore((s) => s.pendingLegacyImport)
+  const confirm = useFileStorageStore((s) => s.confirmLegacyImport)
+  const cancel = useFileStorageStore((s) => s.cancelLegacyImport)
 
   if (!pending) return null
 
