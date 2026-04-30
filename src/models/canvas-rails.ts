@@ -16,9 +16,7 @@ export interface Tab {
    * Lens-only: the user's current picks for a runtime-filter list-def (see
    * `ListDefinition.runtimeFilter`). Stored on the tab so remounting the rail
    * doesn't reset the picks. OR-combined when the helper applies them.
-   * Ignored on non-lens tabs. Lifted from a scalar `number` to `number[]` by
-   * the v41 Dexie migration (rails state is serialized JSON in
-   * `settings.canvasRails`, so the migration walks that blob).
+   * Ignored on non-lens tabs.
    */
   runtimeFilterValue?: number[]
 }
@@ -175,21 +173,13 @@ function parseTab(raw: unknown): Tab | null {
   if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
     tab.listDefinitionId = r.listDefinitionId
   }
-  // Accept both shapes: legacy scalar (pre-v41) and array (post-v41). The
-  // v41 Dexie migration rewrites the persisted blob to the array shape, but
-  // an import of a pre-v41 backup may still land a scalar — coerce it here so
-  // hydration doesn't drop the pick.
   if (Array.isArray(r.runtimeFilterValue)) {
     const ids: number[] = []
     for (const v of r.runtimeFilterValue) {
       if (typeof v === 'number' && Number.isFinite(v)) ids.push(v)
     }
     if (ids.length > 0) tab.runtimeFilterValue = ids
-  } else if (typeof r.runtimeFilterValue === 'number' && Number.isFinite(r.runtimeFilterValue)) {
-    tab.runtimeFilterValue = [r.runtimeFilterValue]
   }
-  // Legacy `taskboardId` fields on persisted tabs are silently ignored —
-  // taskboard became a singleton in the widget-taskboard-dnd Phase 1 collapse.
   return tab
 }
 
@@ -198,34 +188,18 @@ function parseSlot(raw: unknown): Slot | null {
   const r = raw as Record<string, unknown>
   if (typeof r.id !== 'string' || r.id.length === 0 || r.id.length > 100) return null
 
-  // New shape: { id, tabs, activeTabId, flex?, orientation?, weekOffset? }
-  let tabs: Tab[] | null = null
-  let activeTabId: string | null = null
-  if (Array.isArray(r.tabs)) {
-    const parsedTabs: Tab[] = []
-    for (const raw of r.tabs) {
-      const t = parseTab(raw)
-      if (t) parsedTabs.push(t)
-    }
-    if (parsedTabs.length === 0) return null
-    tabs = parsedTabs
-    const want = typeof r.activeTabId === 'string' ? r.activeTabId : null
-    const firstTab = parsedTabs[0]
-    if (!firstTab) return null
-    activeTabId = want && parsedTabs.some((t) => t.id === want) ? want : firstTab.id
-  } else if (typeof r.kind === 'string' && SLOT_KINDS.includes(r.kind as SlotKind)) {
-    // Legacy shape: { id, kind, listDefinitionId?, taskboardId?, flex?, orientation?, weekOffset? }
-    const tab: Tab = { id: `${r.id}-t0`, type: r.kind as TabType }
-    if (typeof r.listDefinitionId === 'number' && Number.isFinite(r.listDefinitionId)) {
-      tab.listDefinitionId = r.listDefinitionId
-    }
-    tabs = [tab]
-    activeTabId = tab.id
-  } else {
-    return null
+  if (!Array.isArray(r.tabs)) return null
+  const parsedTabs: Tab[] = []
+  for (const raw of r.tabs) {
+    const t = parseTab(raw)
+    if (t) parsedTabs.push(t)
   }
+  const firstTab = parsedTabs[0]
+  if (!firstTab) return null
+  const want = typeof r.activeTabId === 'string' ? r.activeTabId : null
+  const activeTabId = want && parsedTabs.some((t) => t.id === want) ? want : firstTab.id
 
-  const slot: Slot = { id: r.id, tabs, activeTabId }
+  const slot: Slot = { id: r.id, tabs: parsedTabs, activeTabId }
   if (typeof r.flex === 'number' && Number.isFinite(r.flex) && r.flex > 0) {
     slot.flex = r.flex
   }
