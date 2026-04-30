@@ -112,6 +112,23 @@ describe('buildPeopleSections', () => {
     expect(sections[1]!.todos).toHaveLength(1)
   })
 
+  // grouping-cross-surface-convergence-2026-04-29 P2 — group-by-people emits
+  // person sections only. The legacy org-first short-circuit (siphon
+  // direct-org-assigned tasks into a leading per-org bucket) is dropped;
+  // a task with both a direct person AND a direct org now lands under the
+  // person, matching the canvas project widget / list widget / lens.
+  it('emits under person sections only when a task has both direct person and direct org', () => {
+    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
+    const acme: Org = { id: 100, name: 'Acme', color: '#abc' }
+    const t = makeTodo({ id: 10 })
+    const assignedPeopleMap = new Map<number, Person[]>([[10, [alice]]])
+    // `orgs` + `personOrgMap` are kept on the signature for `resolvePersonColor`
+    // accent resolution; they no longer drive a leading org section.
+    const sections = buildPeopleSections([t], [alice], assignedPeopleMap, [acme], new Map())
+    expect(sections.map((s) => s.label)).toEqual(['Alice'])
+    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
+  })
+
   // Item 1, P6 — visible-groups intersection rule. When the active filter
   // narrows to specific people AND grouping is by people, ONLY those
   // people's sections appear. Carol+Alice are restricted-to; Bob is filtered
@@ -140,8 +157,6 @@ describe('buildPeopleSections', () => {
       assignedPeopleMap,
       undefined,
       undefined,
-      undefined,
-      undefined,
       [3, 1], // restrict to Carol then Alice; Bob's task drops out of the visible groups.
     )
     expect(sections.map((s) => s.label)).toEqual(['Carol', 'Alice'])
@@ -163,11 +178,9 @@ describe('buildPeopleSections', () => {
       assignedPeopleMap,
       undefined,
       undefined,
-      undefined,
-      undefined,
       null,
     )
-    // Order follows visiblePeople, which mirrors `people` input order.
+    // Order follows the `people` registry input order.
     expect(sections.map((s) => s.label)).toEqual(['Alice', 'Bob'])
   })
 
@@ -215,9 +228,7 @@ describe('buildPeopleSections', () => {
       [alice, bob, charlie],
       assignedPeopleMap,
       [acme],
-      assignedOrgsMap,
       personOrgMap,
-      undefined,
       [alice.id!, bob.id!],
       implicitPersonIdsFor,
     )
@@ -239,8 +250,6 @@ describe('buildPeopleSections', () => {
       todos,
       [alice, bob],
       assignedPeopleMap,
-      undefined,
-      undefined,
       undefined,
       undefined,
       [alice.id!],
@@ -279,9 +288,7 @@ describe('buildPeopleSections', () => {
       [alice, charlie],
       assignedPeopleMap,
       [acme],
-      assignedOrgsMap,
       personOrgMap,
-      undefined,
       [alice.id!],
       implicitPersonIdsFor,
     )
