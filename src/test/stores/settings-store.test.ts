@@ -37,18 +37,7 @@ beforeEach(async () => {
 })
 
 describe('useSettingsStore', () => {
-  it('load migrates legacy color.<key> rows to color.dark.<key>', async () => {
-    await db.settings.put({ key: 'color.accent', value: '#ff0000' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#ff0000')
-    // Other dark keys fall through to defaults
-    expect(useSettingsStore.getState().colors.dark.canvasBg).toBe('#0e0e0e')
-    // Legacy row migrated and dropped
-    expect(await db.settings.get('color.accent')).toBeUndefined()
-    expect((await db.settings.get('color.dark.accent'))!.value).toBe('#ff0000')
-  })
-
-  it('load reads new-shape color.dark.<key> and color.light.<key> rows', async () => {
+  it('load reads color.dark.<key> and color.light.<key> rows', async () => {
     await db.settings.put({ key: 'color.dark.accent', value: '#112233' })
     await db.settings.put({ key: 'color.light.canvasBg', value: '#fafafa' })
     await useSettingsStore.getState().load()
@@ -56,21 +45,12 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().colors.light.canvasBg).toBe('#fafafa')
   })
 
-  it('load ignores invalid colors (legacy + per-theme)', async () => {
-    await db.settings.put({ key: 'color.accent', value: 'not-a-color' })
+  it('load ignores invalid per-theme colors', async () => {
+    await db.settings.put({ key: 'color.dark.accent', value: 'not-a-color' })
     await db.settings.put({ key: 'color.light.danger', value: 'still-not' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().colors.dark.accent).toBe('#a2cfcb') // default
     expect(useSettingsStore.getState().colors.light.danger).toBe('#d94a43') // default
-  })
-
-  it('load: new key wins over legacy when both exist', async () => {
-    await db.settings.put({ key: 'color.accent', value: '#aa0000' })
-    await db.settings.put({ key: 'color.dark.accent', value: '#0000aa' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().colors.dark.accent).toBe('#0000aa')
-    // Legacy still gets cleaned up regardless
-    expect(await db.settings.get('color.accent')).toBeUndefined()
   })
 
   it('setColor persists per-theme keys', async () => {
@@ -186,24 +166,6 @@ describe('useSettingsStore', () => {
   })
 })
 
-describe('useSettingsStore.load — dormant Dashboard-era keys', () => {
-  beforeEach(async () => {
-    await db.delete()
-    await db.open()
-  })
-
-  it('strips dashboardUserLists / notesPinnedToDashboard / notesDock / notesVisible from IndexedDB', async () => {
-    await db.settings.put({ key: 'dashboardUserLists', value: JSON.stringify([1, 2]) })
-    await db.settings.put({ key: 'notesPinnedToDashboard', value: 'true' })
-    await db.settings.put({ key: 'notesDock', value: 'floating' })
-    await db.settings.put({ key: 'notesVisible', value: 'true' })
-    await useSettingsStore.getState().load()
-    for (const key of ['dashboardUserLists', 'notesPinnedToDashboard', 'notesDock', 'notesVisible']) {
-      expect(await db.settings.get(key)).toBeUndefined()
-    }
-  })
-})
-
 describe('useSettingsStore.load canvasViewport parse', () => {
   it('accepts finite numbers', async () => {
     await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 10, y: -5, zoom: 1.5 }) })
@@ -283,7 +245,14 @@ describe('useSettingsStore.canvasRails persistence', () => {
       key: 'canvasRails',
       value: JSON.stringify({
         left: null,
-        right: { orientation: 'vertical', slots: [{ id: 's1', kind: 'lens', listDefinitionId: 7 }] },
+        right: {
+          orientation: 'vertical',
+          slots: [{
+            id: 's1',
+            tabs: [{ id: 's1-t0', type: 'lens', listDefinitionId: 7 }],
+            activeTabId: 's1-t0',
+          }],
+        },
         top: null,
         bottom: null,
       }),
@@ -291,7 +260,6 @@ describe('useSettingsStore.canvasRails persistence', () => {
     await useSettingsStore.getState().load()
     const rails = useSettingsStore.getState().canvasRails
     expect(rails).not.toBeNull()
-    // Legacy shape gets wrapped into a single-tab slot on parse.
     expect(rails!.right!.slots[0]).toEqual({
       id: 's1',
       tabs: [{ id: 's1-t0', type: 'lens', listDefinitionId: 7 }],

@@ -43,47 +43,6 @@ describe('canvas-rails model', () => {
       expect(parsed).toEqual(state)
     })
 
-    it('round-trips a legacy-shape blob into a single-tab slot', () => {
-      const raw = JSON.stringify({
-        left: null,
-        right: {
-          orientation: 'vertical',
-          slots: [
-            { id: 'slot-a', kind: 'lens', listDefinitionId: 42, flex: 150 },
-            { id: 'slot-b', kind: 'calendar', orientation: 'horizontal', weekOffset: 2 },
-            { id: 'slot-c', kind: 'taskboard', taskboardId: 7 },
-          ],
-        },
-        top: null,
-        bottom: null,
-      })
-      const parsed = parseRailsState(raw)
-      const slots = parsed!.right!.slots
-      expect(slots).toHaveLength(3)
-
-      // Each legacy slot becomes a single-tab slot with a derived tab id.
-      expect(slots[0]).toEqual({
-        id: 'slot-a',
-        tabs: [{ id: 'slot-a-t0', type: 'lens', listDefinitionId: 42 }],
-        activeTabId: 'slot-a-t0',
-        flex: 150,
-      })
-      // Calendar orientation + weekOffset stay on the slot, not the tab.
-      expect(slots[1]).toEqual({
-        id: 'slot-b',
-        tabs: [{ id: 'slot-b-t0', type: 'calendar' }],
-        activeTabId: 'slot-b-t0',
-        orientation: 'horizontal',
-        weekOffset: 2,
-      })
-      // Legacy `taskboardId` on tabs is silently stripped (widget-taskboard-dnd P1).
-      expect(slots[2]).toEqual({
-        id: 'slot-c',
-        tabs: [{ id: 'slot-c-t0', type: 'taskboard' }],
-        activeTabId: 'slot-c-t0',
-      })
-    })
-
     it('repairs a stale activeTabId to the first tab', () => {
       const raw = JSON.stringify({
         left: null,
@@ -142,7 +101,10 @@ describe('canvas-rails model', () => {
       const raw = JSON.stringify({
         left: null,
         right: null,
-        top: { orientation: 'vertical', slots: [{ id: 'x', kind: 'lens' }] },
+        top: {
+          orientation: 'vertical',
+          slots: [{ id: 'x', tabs: [{ id: 'x-t0', type: 'lens' }], activeTabId: 'x-t0' }],
+        },
         bottom: null,
       })
       const parsed = parseRailsState(raw)
@@ -150,30 +112,14 @@ describe('canvas-rails model', () => {
       expect(parsed!.top).toBeNull()
     })
 
-    it('drops slots with unknown kinds but keeps valid siblings', () => {
-      const raw = JSON.stringify({
-        left: null,
-        right: {
-          orientation: 'vertical',
-          slots: [
-            { id: 'a', kind: 'lens' },
-            { id: 'b', kind: 'bogus' },
-            { id: 'c', kind: 'notes' },
-          ],
-        },
-        top: null,
-        bottom: null,
-      })
-      const parsed = parseRailsState(raw)
-      expect(parsed!.right!.slots.map((s) => s.id)).toEqual(['a', 'c'])
-    })
-
     it('collapses a rail with no valid slots to null', () => {
+      // A slot whose only tab has a bogus type yields no parsed tabs and is
+      // dropped; the rail collapses to null when no slot survives.
       const raw = JSON.stringify({
         left: null,
         right: {
           orientation: 'vertical',
-          slots: [{ id: 'a', kind: 'bogus' }],
+          slots: [{ id: 'a', tabs: [{ id: 'a-t0', type: 'bogus' }], activeTabId: 'a-t0' }],
         },
         top: null,
         bottom: null,
@@ -216,12 +162,18 @@ describe('canvas-rails model', () => {
       expect(parsed!.heights).toBeUndefined()
     })
 
-    it('parses calendar slot orientation + weekOffset (legacy shape)', () => {
+    it('parses calendar slot orientation + weekOffset', () => {
       const raw = JSON.stringify({
         left: null,
         right: {
           orientation: 'vertical',
-          slots: [{ id: 's1', kind: 'calendar', orientation: 'horizontal', weekOffset: 3 }],
+          slots: [{
+            id: 's1',
+            tabs: [{ id: 's1-t0', type: 'calendar' }],
+            activeTabId: 's1-t0',
+            orientation: 'horizontal',
+            weekOffset: 3,
+          }],
         },
         top: null,
         bottom: null,
@@ -237,7 +189,12 @@ describe('canvas-rails model', () => {
         left: null,
         right: {
           orientation: 'vertical',
-          slots: [{ id: 's1', kind: 'calendar', weekOffset: w }],
+          slots: [{
+            id: 's1',
+            tabs: [{ id: 's1-t0', type: 'calendar' }],
+            activeTabId: 's1-t0',
+            weekOffset: w,
+          }],
         },
         top: null,
         bottom: null,
@@ -247,12 +204,18 @@ describe('canvas-rails model', () => {
       expect(parseRailsState(mkRaw(2.9))!.right!.slots[0]!.weekOffset).toBe(2) // truncated
     })
 
-    it('ignores invalid orientation + non-numeric weekOffset (pre-v32 rows round-trip without them)', () => {
+    it('ignores invalid orientation + non-numeric weekOffset', () => {
       const raw = JSON.stringify({
         left: null,
         right: {
           orientation: 'vertical',
-          slots: [{ id: 's1', kind: 'calendar', orientation: 'sideways', weekOffset: 'bad' }],
+          slots: [{
+            id: 's1',
+            tabs: [{ id: 's1-t0', type: 'calendar' }],
+            activeTabId: 's1-t0',
+            orientation: 'sideways',
+            weekOffset: 'bad',
+          }],
         },
         top: null,
         bottom: null,
@@ -262,12 +225,16 @@ describe('canvas-rails model', () => {
       expect(slot.weekOffset).toBeUndefined()
     })
 
-    it('drops a slot with non-numeric listDefinitionId but keeps the slot', () => {
+    it('strips a tab with non-numeric listDefinitionId but keeps the slot', () => {
       const raw = JSON.stringify({
         left: null,
         right: {
           orientation: 'vertical',
-          slots: [{ id: 'a', kind: 'lens', listDefinitionId: 'not-a-number' }],
+          slots: [{
+            id: 'a',
+            tabs: [{ id: 'a-t0', type: 'lens', listDefinitionId: 'not-a-number' }],
+            activeTabId: 'a-t0',
+          }],
         },
         top: null,
         bottom: null,

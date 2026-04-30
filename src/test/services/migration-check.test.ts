@@ -1,6 +1,11 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { checkMigrationNeeded, exportCurrentDatabase, detectLegacyFormat, SCHEMA_VERSION_KEY } from '../../services/migration-check'
-import { CURRENT_DB_VERSION, db } from '../../data/database'
+import {
+  checkUnsupportedOldDB,
+  detectUnsupportedImport,
+  exportCurrentDatabase,
+  SCHEMA_VERSION_KEY,
+} from '../../services/migration-check'
+import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/database'
 
 function createRawDb(version: number, setup?: (db: IDBDatabase) => void): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -20,7 +25,6 @@ function deleteDb(): Promise<void> {
 }
 
 afterEach(async () => {
-  // db must be closed before delete; harmless if it was never opened.
   if (db.isOpen()) db.close()
   await deleteDb()
 })
@@ -28,45 +32,51 @@ afterEach(async () => {
 describe('schema-upgrade source-of-truth', () => {
   // Single load-bearing assertion that protects every future schema bump:
   // if someone adds `this.version(N+1)` without bumping CURRENT_DB_VERSION,
-  // the migration-check prompt would silently regress (this is exactly how
-  // the prompt rotted from v23 → v48). This test fails loud instead.
+  // the cross-floor warning would silently regress.
   it('CURRENT_DB_VERSION matches the latest declared db.version()', async () => {
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
   })
 })
 
-describe('checkMigrationNeeded', () => {
+describe('checkUnsupportedOldDB', () => {
   it('returns null when no database exists', async () => {
-    expect(await checkMigrationNeeded()).toBeNull()
+    expect(await checkUnsupportedOldDB()).toBeNull()
+  })
+
+  it('returns null when the on-disk db is at the floor', async () => {
+    await createRawDb(OLDEST_SUPPORTED_DB_VERSION * 10, (db) => {
+      db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
+    })
+    expect(await checkUnsupportedOldDB()).toBeNull()
   })
 
   it('returns null when the on-disk db is at the current version', async () => {
     await createRawDb(CURRENT_DB_VERSION * 10, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
-    expect(await checkMigrationNeeded()).toBeNull()
+    expect(await checkUnsupportedOldDB()).toBeNull()
   })
 
-  it('returns migration info when the on-disk db is one version behind', async () => {
-    const oldVersion = CURRENT_DB_VERSION - 1
+  it('returns info when the on-disk db is one version below the floor', async () => {
+    const oldVersion = OLDEST_SUPPORTED_DB_VERSION - 1
     await createRawDb(oldVersion * 10, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
 
-    const result = await checkMigrationNeeded()
+    const result = await checkUnsupportedOldDB()
     expect(result).not.toBeNull()
     expect(result!.currentVersion).toBe(oldVersion)
     expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
   })
 
-  it('detects migration from much older versions', async () => {
+  it('returns info for a much older database', async () => {
     // Dexie v16 = IDB v160 (the original base schema)
     await createRawDb(160, (db) => {
       db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
     })
 
-    const result = await checkMigrationNeeded()
+    const result = await checkUnsupportedOldDB()
     expect(result).not.toBeNull()
     expect(result!.currentVersion).toBe(16)
     expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
@@ -75,7 +85,6 @@ describe('checkMigrationNeeded', () => {
 
 describe('exportCurrentDatabase', () => {
   it('exports all table data as JSON', async () => {
-    // Dexie v19 = IDB v190; exportCurrentDatabase takes Dexie version
     await createRawDb(190, (db) => {
       const store = db.createObjectStore('todos', { keyPath: 'id', autoIncrement: true })
       store.add({ title: 'Test Task', priority: 0 })
@@ -109,87 +118,49 @@ describe('exportCurrentDatabase', () => {
   })
 })
 
-describe('detectLegacyFormat', () => {
+describe('detectUnsupportedImport', () => {
   it('returns null for non-object input', () => {
-    expect(detectLegacyFormat(null)).toBeNull()
-    expect(detectLegacyFormat('string')).toBeNull()
+    expect(detectUnsupportedImport(null)).toBeNull()
+    expect(detectUnsupportedImport('string')).toBeNull()
   })
 
-  it('returns null for current-version files (embedded marker)', () => {
-    expect(detectLegacyFormat({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION, todos: [] })).toBeNull()
+  it('returns null when the embedded marker is at the floor', () => {
+    expect(
+      detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: OLDEST_SUPPORTED_DB_VERSION, todos: [] }),
+    ).toBeNull()
   })
 
-  it('returns null for files at a future version (forward-compat — restore handles it)', () => {
-    // A file written by a newer build has schema features we may not understand
-    // but is not "legacy"; the prompt is for backward upgrades.
-    expect(detectLegacyFormat({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION + 1, todos: [] })).toBeNull()
+  it('returns null when the embedded marker is at the current version', () => {
+    expect(
+      detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION, todos: [] }),
+    ).toBeNull()
   })
 
-  it('flags files at an older embedded version', () => {
-    const result = detectLegacyFormat({ [SCHEMA_VERSION_KEY]: 30, todos: [] })
-    expect(result).not.toBeNull()
-    expect(result!.sourceVersion).toBe(30)
-    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
-    expect(result!.descriptions).toEqual([])
+  it('returns null when the embedded marker is a future version (forward-compat)', () => {
+    expect(
+      detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION + 1, todos: [] }),
+    ).toBeNull()
   })
 
-  // Marker-less files always trigger the prompt — we can't tell which version
-  // they came from (anywhere v16..v(current-1)) and won't know whether
-  // restore.ts will rewrite anything in place. Erring on the side of "ask" is
-  // what the user explicitly requested for any cross-version data import.
-  it('flags marker-less files even with no recognised legacy fields', () => {
-    const result = detectLegacyFormat({ todos: [{ title: 'Task' }], listInsets: [] })
-    expect(result).not.toBeNull()
-    expect(result!.sourceVersion).toBeNull()
-    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
-    expect(result!.descriptions).toEqual([])
-  })
-
-  it('flags marker-less files when legacy booleans are all false', () => {
-    const result = detectLegacyFormat({
-      todos: [{ isStarred: false, isAssigned: false }],
-    })
-    expect(result).not.toBeNull()
-    expect(result!.sourceVersion).toBeNull()
-  })
-
-  it('enriches descriptions[] with heuristic signals when present', () => {
-    const result = detectLegacyFormat({
-      todos: [
-        { title: 'A', isStarred: true },
-        { title: 'B', isStarred: false },
-        { title: 'C', isStarred: true },
-      ],
-    })
-    expect(result).not.toBeNull()
-    expect(result!.sourceVersion).toBeNull()
-    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
-    expect(result!.descriptions.some(d => d.includes('starred'))).toBe(true)
-  })
-
-  it('detects isAssigned todos (heuristic path)', () => {
-    const result = detectLegacyFormat({
-      todos: [{ title: 'A', isAssigned: true }],
-    })
-    expect(result!.descriptions.some(d => d.includes('Assigned'))).toBe(true)
-  })
-
-  it('detects starred list insets (heuristic path)', () => {
-    const result = detectLegacyFormat({
+  it('flags an embedded marker one version below the floor', () => {
+    const result = detectUnsupportedImport({
+      [SCHEMA_VERSION_KEY]: OLDEST_SUPPORTED_DB_VERSION - 1,
       todos: [],
-      listInsets: [
-        { preset: 'starred' },
-        { preset: 'due-this-week' },
-      ],
     })
-    expect(result!.descriptions.some(d => d.includes('starred list inset'))).toBe(true)
+    expect(result).not.toBeNull()
+    expect(result!.sourceVersion).toBe(OLDEST_SUPPORTED_DB_VERSION - 1)
+    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+    expect(result!.descriptions).toEqual([])
   })
 
-  it('builds multiple human-readable descriptions when several legacy signals are present', () => {
-    const result = detectLegacyFormat({
-      todos: [{ isStarred: true }, { isAssigned: true }],
-      listInsets: [{ preset: 'starred' }],
-    })
-    expect(result!.descriptions).toHaveLength(3)
+  // Marker-less files always trigger the warning — we can't tell which version
+  // they came from, so we surface the "earlier format" message and let the
+  // user decide whether to proceed.
+  it('flags marker-less files with sourceVersion null and empty descriptions', () => {
+    const result = detectUnsupportedImport({ todos: [{ title: 'Task' }], listInsets: [] })
+    expect(result).not.toBeNull()
+    expect(result!.sourceVersion).toBeNull()
+    expect(result!.targetVersion).toBe(CURRENT_DB_VERSION)
+    expect(result!.descriptions).toEqual([])
   })
 })
