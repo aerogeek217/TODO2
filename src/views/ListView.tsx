@@ -546,10 +546,11 @@ export function buildStatusSections(
 /**
  * Tag grouping. Adapter over `partitionByGroup`: `tag-N` keys map to
  * `#name` labels with `tag.color` accents; untagged todos trail in a
- * single "No tag" bucket regardless of restrict mode (locked in by
- * `list-view-grouping.test.ts` "keeps untagged trailing alongside the
- * restricted tag block"). Tags have no cross-axis path, so no
- * `additionalKeysFor` / `implicitKeysFor` callbacks.
+ * single "No tag" bucket in legacy mode only — when filtering by tag
+ * (restrict mode), the untagged trail is suppressed (the user has
+ * narrowed to specific tags, so an "untagged" bucket is incoherent).
+ * Tags have no cross-axis path, so no `additionalKeysFor` /
+ * `implicitKeysFor` callbacks.
  */
 export function buildTagSections(
   todos: PersistedTodoItem[],
@@ -590,7 +591,7 @@ export function buildTagSections(
     accentColor: getGroupColor(g.key, 'tag', ctx),
     todos: g.todos,
   }))
-  if (ungrouped.length > 0) {
+  if (ungrouped.length > 0 && !restrictToFilterSet) {
     sections.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: ungrouped })
   }
   return sections

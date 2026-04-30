@@ -481,7 +481,7 @@ describe('buildTagSections — visible-groups intersection (P6)', () => {
     expect(sections.map((s) => s.label)).toEqual(['#zeta', '#alpha'])
   })
 
-  it('keeps untagged trailing alongside the restricted tag block', () => {
+  it('suppresses the untagged trailing bucket when restricting by tag', () => {
     const todos = [
       makeTodo({ id: 10 }),
       makeTodo({ id: 11 }),
@@ -491,9 +491,10 @@ describe('buildTagSections — visible-groups intersection (P6)', () => {
       [10, [ALPHA]],
       [11, [ZETA]],
     ])
-    // Restrict to {zeta} → alpha bucket drops; untagged trails.
+    // Restrict to {zeta} → alpha bucket drops; untagged is suppressed
+    // (the user narrowed to specific tags, so "untagged" is incoherent).
     const sections = buildTagSections(todos, assigned, [5])
-    expect(sections.map((s) => s.key)).toEqual(['tag-5', 'no-tag'])
+    expect(sections.map((s) => s.key)).toEqual(['tag-5'])
   })
 
   it('emits a task under each filter-set tag it has, dropping non-filter tags', () => {
