@@ -1,5 +1,5 @@
 import type { SlotKind } from '../models/canvas-rails'
-import { floatKindBySlotKind } from '../utils/float-kind-registry'
+import { floatKindBySlotKind } from './float-kind-registry'
 
 export interface FloatRect {
   x: number

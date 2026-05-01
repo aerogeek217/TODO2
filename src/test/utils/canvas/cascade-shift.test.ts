@@ -3,8 +3,8 @@ import {
   CASCADE_GAP_THRESHOLD,
   computeCascadeShifts,
   type HeightDelta,
-} from '../../components/canvas/cascade-shift'
-import type { ScopedRect } from '../../components/canvas/alignment'
+} from '../../../utils/canvas/cascade-shift'
+import type { ScopedRect } from '../../../utils/canvas/alignment'
 
 function makeRect(nodeId: string, x: number, y: number, width = 280, height = 200): ScopedRect {
   return { nodeId, x, y, width, height }

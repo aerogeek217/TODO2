@@ -20,7 +20,8 @@ import { HorizonRibbon, type HorizonRow } from '../../dashboard/HorizonRibbon'
 import { DraggableTaskRow } from '../shared/DraggableTaskRow'
 import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
 import { ListDefinitionPickerPopup } from '../../overlays/ListDefinitionPickerPopup'
-import { CanvasContextMenu, type ContextMenuItem } from '../../overlays/CanvasContextMenu'
+import { CanvasContextMenu } from '../../overlays/CanvasContextMenu'
+import type { ContextMenuItem } from '../../../models/context-menu'
 import styles from './HorizonsSlotContent.module.css'
 
 type PickerMode =

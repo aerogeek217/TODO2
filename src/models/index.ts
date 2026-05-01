@@ -57,3 +57,4 @@ export {
   type RuntimeFilterField,
   type RuntimeFilterSpec,
 } from './list-definition'
+export { type ContextMenuItem } from './context-menu'

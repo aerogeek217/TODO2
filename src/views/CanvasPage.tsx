@@ -6,7 +6,7 @@ import {
 import { RAILS_DRAG_TYPE, isRailsDropId, type FloatDockTarget } from '../utils/rail-dnd'
 import { useCanvasRailsStore } from '../stores/canvas-rails-store'
 import { describeFloatDockTarget, computeEmptySideCornerClaim } from '../utils/float-dock-announce'
-import { floatKindByDragKind } from '../utils/float-kind-registry'
+import { floatKindByDragKind } from '../services/float-kind-registry'
 import type { FloatDragKind } from '../stores/ui-store'
 import { buildTaskCollision } from '../utils/task-dnd'
 import { useCanvasStore } from '../stores/canvas-store'

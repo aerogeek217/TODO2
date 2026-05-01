@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import type { ContextMenuItem } from '../../models/context-menu'
 import styles from './CanvasContextMenu.module.css'
-
-export interface ContextMenuItem {
-  label: string
-  action: () => void
-  danger?: boolean
-  separator?: boolean
-}
 
 interface CanvasContextMenuProps {
   x: number

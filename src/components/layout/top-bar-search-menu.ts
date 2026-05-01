@@ -2,7 +2,7 @@ import type { PersistedTodoItem } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
-import type { ContextMenuItem } from '../overlays/CanvasContextMenu'
+import type { ContextMenuItem } from '../../models/context-menu'
 
 /**
  * Build the context-menu items shown when a search result is right-clicked —

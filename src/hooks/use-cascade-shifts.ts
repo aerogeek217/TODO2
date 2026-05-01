@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react'
 import type { Node, NodeChange, ReactFlowInstance } from '@xyflow/react'
-import { findAlignmentsScoped, type AlignmentLine, type ScopedRect } from '../components/canvas/alignment'
-import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from '../components/canvas/cascade-shift'
-import { isFloatNodeId } from '../utils/float-kind-registry'
+import { findAlignmentsScoped, type AlignmentLine, type ScopedRect } from '../utils/canvas/alignment'
+import { computeCascadeShifts, CASCADE_GAP_THRESHOLD, type HeightDelta } from '../utils/canvas/cascade-shift'
+import { isFloatNodeId } from '../services/float-kind-registry'
 
 export interface CascadeShiftsResult {
   /**

@@ -5,7 +5,7 @@ import {
   floatKindByDragKind,
   floatKindForNodeId,
   isFloatNodeId,
-} from '../../utils/float-kind-registry'
+} from '../../services/float-kind-registry'
 import type { SlotKind } from '../../models/canvas-rails'
 import type { FloatDragKind } from '../../stores/ui-store'
 

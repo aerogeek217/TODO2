@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import type { PersistedTodoItem } from '../models'
 import { useBulkActions } from './use-bulk-actions'
 import { useTaskboardStore } from '../stores/taskboard-store'
-import type { ContextMenuItem } from '../components/overlays/CanvasContextMenu'
+import type { ContextMenuItem } from '../models/context-menu'
 
 interface BuildMenuItemsOpts {
   todo: PersistedTodoItem

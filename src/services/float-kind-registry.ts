@@ -10,7 +10,7 @@ import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-grave
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { listInsetRepository } from '../data'
-import type { FloatDescriptor } from './rail-dnd'
+import type { FloatDescriptor } from '../utils/rail-dnd'
 
 /**
  * Single source of truth for every floating canvas widget kind. Five entries

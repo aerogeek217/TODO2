@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findAlignments, findAlignmentsScoped, findResizeSnap, type Rect, type ScopedRect } from '../../components/canvas/alignment'
+import { findAlignments, findAlignmentsScoped, findResizeSnap, type Rect, type ScopedRect } from '../../../utils/canvas/alignment'
 
 // Default snap threshold is 5px
 

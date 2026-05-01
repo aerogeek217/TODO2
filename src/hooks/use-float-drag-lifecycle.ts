@@ -3,7 +3,7 @@ import type { NodeChange } from '@xyflow/react'
 import { useCanvasRailsStore } from '../stores/canvas-rails-store'
 import { useUIStore } from '../stores/ui-store'
 import { resolveFloatDockTarget, type FloatDockTarget } from '../utils/rail-dnd'
-import { floatKindForNodeId } from '../utils/float-kind-registry'
+import { floatKindForNodeId } from '../services/float-kind-registry'
 import type { FloatDragKind } from '../stores/ui-store'
 import type { RailSide } from '../models/canvas-rails'
 

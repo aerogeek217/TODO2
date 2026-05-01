@@ -23,7 +23,7 @@ import { FloatingStatusNode, type FloatingStatusNodeData } from './FloatingStatu
 import { FloatingScoreboardNode, type FloatingScoreboardNodeData } from './FloatingScoreboardNode'
 import { FloatingSnoozeGraveyardNode, type FloatingSnoozeGraveyardNodeData } from './FloatingSnoozeGraveyardNode'
 import { DragInsertContext } from './DragInsertContext'
-import { findResizeSnap, type AlignmentLine, type ScopedRect } from './alignment'
+import { findResizeSnap, type AlignmentLine, type ScopedRect } from '../../utils/canvas/alignment'
 import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Taskboard } from '../../models'
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -33,7 +33,8 @@ import { DEFAULT_FLOAT_HEIGHT, DEFAULT_FLOAT_WIDTH } from '../../constants'
 import { REACT_FLOW_NODE_CLASS } from '../../utils/react-flow-dom'
 import { useFloatDragLifecycle } from '../../hooks/use-float-drag-lifecycle'
 import { useCascadeShifts } from '../../hooks/use-cascade-shifts'
-import { CanvasContextMenu, type ContextMenuItem } from '../overlays/CanvasContextMenu'
+import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
+import type { ContextMenuItem } from '../../models/context-menu'
 import { CanvasToolbar } from './CanvasToolbar'
 import styles from './CanvasView.module.css'
 import './drag-preview.css'
@@ -112,7 +113,7 @@ const BoundsOverlay = memo(function BoundsOverlay({ maxExtent }: { maxExtent: nu
 })
 
 // React Flow node id prefixes for the floating widget kinds live in
-// `utils/float-kind-registry.ts`. Adding a new widget kind: append an entry
+// `services/float-kind-registry.ts`. Adding a new widget kind: append an entry
 // there + define the matching floating-* store + dispatch handler.
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
