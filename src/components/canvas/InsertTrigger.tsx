@@ -19,9 +19,17 @@ import styles from './InsertTrigger.module.css'
 
 // Debug-only focus trace gated on `?debug-focus=1`. Logs every focus() call
 // site + document-wide focusin/focusout. Used by `e2e/focus-trace.spec.ts`
-// to verify the imperative focus path lands focus consistently.
-const DEBUG_FOCUS =
-  typeof window !== 'undefined' && window.location.search.includes('debug-focus')
+// to verify the imperative focus path lands focus consistently. Mirrors the
+// `URLSearchParams.has()` parse in `utils/debug-flags.ts` so the flag
+// matching is structural (avoids false-positive substring hits).
+const DEBUG_FOCUS = (() => {
+  if (typeof window === 'undefined') return false
+  try {
+    return new URLSearchParams(window.location.search).has('debug-focus')
+  } catch {
+    return false
+  }
+})()
 
 function fmtEl(el: Element | null): string {
   if (!el) return 'null'

@@ -37,12 +37,15 @@ function escapeHtml(s: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function escapeHtmlAttr(s: string): string {
   return s
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 }
@@ -85,16 +88,18 @@ export function sanitizeHref(raw: string): string {
 }
 
 function inlineMd(s: string): string {
+  // Every `$1` capture below is fed back through `escapeHtml` even though
+  // the outer `escapeHtml(s)` already ran. The defensive re-escape pins the
+  // invariant: a future chain reorder that lets raw `<` / `>` reach the
+  // captures (e.g. moving a transformation that emits HTML before these
+  // regexes) cannot smuggle them into the output. The double-encoding is
+  // visible (`&lt;` → `&amp;lt;`) and asserted in the test suite.
   return escapeHtml(s)
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, (_m, text) => `<strong>${escapeHtml(text)}</strong>`)
+    .replace(/\*([^*]+)\*/g, (_m, text) => `<em>${escapeHtml(text)}</em>`)
+    .replace(/`([^`]+)`/g, (_m, text) => `<code>${escapeHtml(text)}</code>`)
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
       const safe = sanitizeHref(href)
-      // Defensive re-escape: `text` is already HTML-safe via the outer
-      // `escapeHtml(s)`, but applying `escapeHtml` again here pins the
-      // invariant against a future chain reorder that might introduce raw
-      // `<` / `>` before the link regex runs.
       return `<a href="${escapeHtmlAttr(safe)}">${escapeHtml(text)}</a>`
     })
 }

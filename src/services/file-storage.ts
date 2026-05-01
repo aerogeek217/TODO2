@@ -208,15 +208,24 @@ class FileStorageService {
         needsRestamp = true
       }
 
+      let snapshotFailed = false
       await backupScheduler.snapshotBeforeDestructive().catch((err) => {
-        // Best-effort snapshot; surface in console so silent failures don't
-        // mask a problem with the backup table on the next destructive op.
+        // Best-effort: the destructive op still proceeds because the file is
+        // canonical, but we surface the failure to the user so a broken backup
+        // table doesn't slip past behind console noise. The error sticks until
+        // the next save (which clears it via the saveToFile success path).
         console.warn('[file-storage] pre-destructive snapshot failed', err)
+        snapshotFailed = true
       })
       await restoreFromImportData(result.data)
 
       // Notify caller to refresh all Zustand stores
       await this.afterImportListener?.()
+
+      if (snapshotFailed) {
+        this._error = 'Pre-import snapshot failed — your data was loaded, but the backup may be unavailable.'
+        this.notify()
+      }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'NotFoundError') {
         this._error = 'File not found — it may have been moved or deleted'

@@ -5,10 +5,11 @@ import styles from './FileSyncBanner.module.css'
 const DISMISSED_KEY = 'todo2-file-sync-banner-dismissed'
 
 export function FileSyncBanner() {
-  const { isConnected, isSupported, needsPermission, reconnect, fileName } = useFileStorageStore()
+  const { isConnected, isSupported, needsPermission, reconnect, fileName, error } = useFileStorageStore()
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISSED_KEY) === '1',
   )
+  const [errorDismissed, setErrorDismissed] = useState<string | null>(null)
 
   const handleDismiss = useCallback(() => {
     localStorage.setItem(DISMISSED_KEY, '1')
@@ -24,6 +25,19 @@ export function FileSyncBanner() {
         </span>
         <button className={styles.grantAccess} onClick={reconnect}>
           Grant Access
+        </button>
+      </div>
+    )
+  }
+
+  // Surface file-storage errors (e.g. failed pre-import snapshot, parse
+  // failures, write failures) so they don't sit invisibly in the store.
+  if (error && error !== errorDismissed) {
+    return (
+      <div className={`${styles.banner} ${styles.bannerWarning}`}>
+        <span className={styles.message}>{error}</span>
+        <button className={styles.dismiss} onClick={() => setErrorDismissed(error)} title="Dismiss">
+          &times;
         </button>
       </div>
     )

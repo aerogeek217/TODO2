@@ -484,4 +484,81 @@ describe('validateImportData', () => {
     }))
     expect(result.ok).toBe(true)
   })
+
+  describe('listDefinition.runtimeFilter validation', () => {
+    function makeListDef(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 1, name: 'List', sortOrder: 0, pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            showCompleted: false, showHiddenStatuses: false,
+            searchText: '', dateRangeIncludeNoDate: false,
+          },
+        },
+        sort: 'manual',
+        grouping: 'none',
+        ...overrides,
+      }
+    }
+
+    it('accepts each known runtimeFilter field', () => {
+      for (const field of ['person', 'org', 'project', 'status', 'tag']) {
+        const result = validateImportData(validData({
+          listDefinitions: [makeListDef({ runtimeFilter: { field } })],
+        }))
+        expect(result.ok, `field=${field}`).toBe(true)
+      }
+    })
+
+    it('accepts runtimeFilter with optional label', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'Assignee' } })],
+      }))
+      expect(result.ok).toBe(true)
+    })
+
+    it('rejects runtimeFilter with unknown field (anchor 3 — was an open door)', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'evil', label: '<img onerror=x>' } })],
+      }))
+      expect(result.ok).toBe(false)
+    })
+
+    it('rejects runtimeFilter with non-string label', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 42 } })],
+      }))
+      expect(result.ok).toBe(false)
+    })
+
+    it('rejects runtimeFilter with label exceeding 100 chars', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'x'.repeat(101) } })],
+      }))
+      expect(result.ok).toBe(false)
+    })
+
+    it('rejects runtimeFilter that is not an object', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: 'person' })],
+      }))
+      expect(result.ok).toBe(false)
+    })
+
+    it('strips runtimeFilter with non-allowlisted shape via pickListDefinition (defense in depth)', () => {
+      // Even if a future regression weakens the validator, pickListDefinition
+      // only emits a `runtimeFilter` when the field is in the allowlist —
+      // the `as` cast that previously passed unknown shapes through is gone.
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'person', label: 'Assignee' } })],
+      }))
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.data.listDefinitions[0]?.runtimeFilter).toEqual({
+        field: 'person',
+        label: 'Assignee',
+      })
+    })
+  })
 })

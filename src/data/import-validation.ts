@@ -12,7 +12,7 @@ export interface ImportTodoTag {
   tagId: number
 }
 
-import type { ListDefinition, ListMembership, ListSort, ListGrouping } from '../models/list-definition'
+import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../models/status'
@@ -200,6 +200,16 @@ function isValidGrouping(g: unknown): boolean {
   return typeof g === 'string' && isTodoGroupBy(g)
 }
 
+const VALID_RUNTIME_FILTER_FIELDS: readonly RuntimeFilterField[] = ['person', 'org', 'project', 'status', 'tag']
+
+function isOptRuntimeFilter(v: unknown): boolean {
+  if (v === undefined || v === null) return true
+  if (!isObj(v)) return false
+  if (typeof v.field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(v.field)) return false
+  if (!isOptStr(v.label, 100)) return false
+  return true
+}
+
 function checkListDefinition(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -212,6 +222,7 @@ function checkListDefinition(v: unknown): CheckResult {
     ['favorited', v.favorited === undefined || isBool(v.favorited)],
     ['maxTasks', v.maxTasks === undefined || (isFiniteNum(v.maxTasks) && (v.maxTasks as number) >= 1 && (v.maxTasks as number) <= 10000)],
     ['limitMode', v.limitMode === undefined || v.limitMode === 'hard' || v.limitMode === 'scroll'],
+    ['runtimeFilter', isOptRuntimeFilter(v.runtimeFilter)],
   ])
 }
 
@@ -822,7 +833,18 @@ function pickTodoEvent(v: Record<string, unknown>): TodoEvent {
   }
 }
 
+function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
+  if (!isObj(v)) return undefined
+  const field = v.field
+  if (typeof field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(field)) return undefined
+  return {
+    field: field as RuntimeFilterField,
+    ...(typeof v.label === 'string' ? { label: v.label } : {}),
+  }
+}
+
 function pickListDefinition(v: Record<string, unknown>): ListDefinition {
+  const runtimeFilter = pickRuntimeFilter(v.runtimeFilter)
   return {
     id: v.id as number | undefined,
     name: v.name as string,
@@ -834,7 +856,7 @@ function pickListDefinition(v: Record<string, unknown>): ListDefinition {
     favorited: typeof v.favorited === 'boolean' ? v.favorited : false,
     ...(typeof v.maxTasks === 'number' ? { maxTasks: v.maxTasks } : {}),
     ...(v.limitMode === 'hard' || v.limitMode === 'scroll' ? { limitMode: v.limitMode } : {}),
-    ...(v.runtimeFilter != null ? { runtimeFilter: v.runtimeFilter as ListDefinition['runtimeFilter'] } : {}),
+    ...(runtimeFilter ? { runtimeFilter } : {}),
   }
 }
 
