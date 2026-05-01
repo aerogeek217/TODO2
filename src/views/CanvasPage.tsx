@@ -6,7 +6,7 @@ import {
 import { RAILS_DRAG_TYPE, isRailsDropId, type FloatDockTarget } from '../utils/rail-dnd'
 import { useCanvasRailsStore } from '../stores/canvas-rails-store'
 import { describeFloatDockTarget, computeEmptySideCornerClaim } from '../utils/float-dock-announce'
-import { floatKindByDragKind } from '../services/float-kind-registry'
+import { floatKindByDragKind, floatKindBySlotKind } from '../services/float-kind-registry'
 import type { FloatDragKind } from '../stores/ui-store'
 import { buildTaskCollision } from '../utils/task-dnd'
 import { useCanvasStore } from '../stores/canvas-store'
@@ -20,17 +20,20 @@ import { useStatusStore } from '../stores/status-store'
 import { useFilterStore, computeFilterPersonOrgIds, matchesFilter } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
-import { useFloatingNoteStore } from '../stores/floating-note-store'
-import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
-import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
-import { useFloatingStatusStore } from '../stores/floating-status-store'
-import { useFloatingScoreboardStore } from '../stores/floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-graveyard-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
+import {
+  useFloatingNoteController,
+  useFloatingCalendarController,
+  useFloatingTaskboardController,
+  useFloatingHorizonsController,
+  useFloatingStatusController,
+  useFloatingScoreboardController,
+  useFloatingSnoozeGraveyardController,
+} from '../hooks/use-floating-widget-controller'
 import { CanvasView } from '../components/canvas/CanvasView'
 import { ProjectNavigator } from '../components/canvas/ProjectNavigator'
 import { RailsFrame } from '../components/canvas/rails/RailsFrame'
@@ -74,47 +77,21 @@ export function CanvasPage() {
   const listEditorInitialId = useUIStore((s) => s.listsEditorInitialId)
   const openListsEditor = useUIStore((s) => s.openListsEditor)
   const closeListsEditor = useUIStore((s) => s.closeListsEditor)
-  const floatingNotes = useFloatingNoteStore((s) => s.notes)
-  const loadFloatingNotes = useFloatingNoteStore((s) => s.loadByCanvas)
-  const updateFloatingNotePosition = useFloatingNoteStore((s) => s.updatePosition)
-  const updateFloatingNoteSize = useFloatingNoteStore((s) => s.updateSize)
-  const removeFloatingNote = useFloatingNoteStore((s) => s.remove)
-  const floatingCalendars = useFloatingCalendarStore((s) => s.calendars)
-  const loadFloatingCalendars = useFloatingCalendarStore((s) => s.loadByCanvas)
-  const updateFloatingCalendarPosition = useFloatingCalendarStore((s) => s.updatePosition)
-  const updateFloatingCalendarSize = useFloatingCalendarStore((s) => s.updateSize)
-  const removeFloatingCalendar = useFloatingCalendarStore((s) => s.remove)
+  // Per-kind floating-widget controllers. Each subscribes to its store, fires
+  // `loadByCanvas(selectedCanvasId)` on change, and exposes the standard
+  // {items, handlers, addAtPosition} triple — the seven blocks of identical
+  // store-pull + drag/resize/close wrappers landed here pre-P8.
+  const noteController = useFloatingNoteController(selectedCanvasId)
+  const calendarController = useFloatingCalendarController(selectedCanvasId)
+  const taskboardController = useFloatingTaskboardController(selectedCanvasId)
+  const horizonsController = useFloatingHorizonsController(selectedCanvasId)
+  const statusController = useFloatingStatusController(selectedCanvasId)
+  const scoreboardController = useFloatingScoreboardController(selectedCanvasId)
+  const snoozeGraveyardController = useFloatingSnoozeGraveyardController(selectedCanvasId)
 
-  const floatingTaskboards = useFloatingTaskboardStore((s) => s.taskboards)
-  const loadFloatingTaskboards = useFloatingTaskboardStore((s) => s.loadByCanvas)
-  const updateFloatingTaskboardPosition = useFloatingTaskboardStore((s) => s.updatePosition)
-  const updateFloatingTaskboardSize = useFloatingTaskboardStore((s) => s.updateSize)
+  // Taskboard collapse is taskboard-only and lives outside the standard
+  // controller surface.
   const setFloatingTaskboardCollapsed = useFloatingTaskboardStore((s) => s.setCollapsed)
-  const removeFloatingTaskboard = useFloatingTaskboardStore((s) => s.remove)
-
-  const floatingHorizons = useFloatingHorizonsStore((s) => s.horizons)
-  const loadFloatingHorizons = useFloatingHorizonsStore((s) => s.loadByCanvas)
-  const updateFloatingHorizonsPosition = useFloatingHorizonsStore((s) => s.updatePosition)
-  const updateFloatingHorizonsSize = useFloatingHorizonsStore((s) => s.updateSize)
-  const removeFloatingHorizons = useFloatingHorizonsStore((s) => s.remove)
-
-  const floatingStatus = useFloatingStatusStore((s) => s.statuses)
-  const loadFloatingStatus = useFloatingStatusStore((s) => s.loadByCanvas)
-  const updateFloatingStatusPosition = useFloatingStatusStore((s) => s.updatePosition)
-  const updateFloatingStatusSize = useFloatingStatusStore((s) => s.updateSize)
-  const removeFloatingStatus = useFloatingStatusStore((s) => s.remove)
-
-  const floatingScoreboard = useFloatingScoreboardStore((s) => s.scoreboards)
-  const loadFloatingScoreboard = useFloatingScoreboardStore((s) => s.loadByCanvas)
-  const updateFloatingScoreboardPosition = useFloatingScoreboardStore((s) => s.updatePosition)
-  const updateFloatingScoreboardSize = useFloatingScoreboardStore((s) => s.updateSize)
-  const removeFloatingScoreboard = useFloatingScoreboardStore((s) => s.remove)
-
-  const floatingSnoozeGraveyard = useFloatingSnoozeGraveyardStore((s) => s.graveyards)
-  const loadFloatingSnoozeGraveyard = useFloatingSnoozeGraveyardStore((s) => s.loadByCanvas)
-  const updateFloatingSnoozeGraveyardPosition = useFloatingSnoozeGraveyardStore((s) => s.updatePosition)
-  const updateFloatingSnoozeGraveyardSize = useFloatingSnoozeGraveyardStore((s) => s.updateSize)
-  const removeFloatingSnoozeGraveyard = useFloatingSnoozeGraveyardStore((s) => s.remove)
 
   const taskboard = useTaskboardStore((s) => s.board)
   const loadTaskboard = useTaskboardStore((s) => s.ensureLoaded)
@@ -138,15 +115,9 @@ export function CanvasPage() {
       loadProjects(selectedCanvasId)
       loadTodos(selectedCanvasId)
       loadInsets(selectedCanvasId)
-      loadFloatingNotes(selectedCanvasId)
-      loadFloatingCalendars(selectedCanvasId)
-      loadFloatingTaskboards(selectedCanvasId)
-      loadFloatingHorizons(selectedCanvasId)
-      loadFloatingStatus(selectedCanvasId)
-      loadFloatingScoreboard(selectedCanvasId)
-      loadFloatingSnoozeGraveyard(selectedCanvasId)
+      // Floating widgets load via their per-kind controllers (above).
     }
-  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets, loadFloatingNotes, loadFloatingCalendars, loadFloatingTaskboards, loadFloatingHorizons, loadFloatingStatus, loadFloatingScoreboard, loadFloatingSnoozeGraveyard])
+  }, [selectedCanvasId, loadProjects, loadTodos, loadInsets])
 
   // Reset normalization guard when file-storage completes an operation (e.g. import)
   const normalizedRef = useRef(false)
@@ -450,22 +421,13 @@ export function CanvasPage() {
         return
       }
       setAddWidgetMenuPos(null)
-      if (kind === 'notes') {
-        await useFloatingNoteStore.getState().add(selectedCanvasId, flowX, flowY)
-      } else if (kind === 'calendar') {
-        await useFloatingCalendarStore.getState().add(selectedCanvasId, flowX, flowY)
-      } else if (kind === 'taskboard') {
+      // Taskboard's body reads from the singleton `Taskboard` row — make sure
+      // it's loaded so the just-spawned float renders entries on first paint
+      // instead of flashing the empty-state.
+      if (kind === 'taskboard') {
         await useTaskboardStore.getState().ensureLoaded()
-        await useFloatingTaskboardStore.getState().add(selectedCanvasId, flowX, flowY)
-      } else if (kind === 'horizons') {
-        await useFloatingHorizonsStore.getState().add(selectedCanvasId, flowX, flowY)
-      } else if (kind === 'status') {
-        await useFloatingStatusStore.getState().add(selectedCanvasId, flowX, flowY)
-      } else if (kind === 'scoreboard') {
-        await useFloatingScoreboardStore.getState().add(selectedCanvasId, flowX, flowY)
-      } else if (kind === 'snoozeGraveyard') {
-        await useFloatingSnoozeGraveyardStore.getState().add(selectedCanvasId, flowX, flowY)
       }
+      await floatKindBySlotKind(kind).addFloat({ canvasId: selectedCanvasId, x: flowX, y: flowY })
     },
     [selectedCanvasId, addWidgetMenuPos],
   )
@@ -518,13 +480,6 @@ export function CanvasPage() {
     await addProject('New Project', selectedCanvasId, x, y, defaultProjectGroupBy)
   }, [selectedCanvasId, addProject])
 
-  const handleResizeFloatingNote = useCallback(
-    async (id: number, width: number, height: number) => {
-      await updateFloatingNoteSize(id, width, height)
-    },
-    [updateFloatingNoteSize],
-  )
-
   const projectHandlers = useMemo(() => ({
     onAddTask: handleAddTask,
     onInsertTask: handleInsertTask,
@@ -545,27 +500,16 @@ export function CanvasPage() {
   }), [removeInset, handleToggleCollapseInset, updateInsetPosition, handleRequestAddWidget, handleResizeInset])
 
   const noteHandlers = useMemo(() => ({
-    onDeleteNote: removeFloatingNote,
-    onNoteDragStop: updateFloatingNotePosition,
-    onResizeNote: handleResizeFloatingNote,
-  }), [removeFloatingNote, updateFloatingNotePosition, handleResizeFloatingNote])
-
-  const handleResizeFloatingCalendar = useCallback(
-    async (id: number, width: number, height: number) => {
-      await updateFloatingCalendarSize(id, width, height)
-    },
-    [updateFloatingCalendarSize],
-  )
+    onDeleteNote: noteController.handlers.onClose,
+    onNoteDragStop: noteController.handlers.onDragStop,
+    onResizeNote: noteController.handlers.onResize,
+  }), [noteController.handlers])
 
   const floatingCalendarHandlers = useMemo(() => ({
-    onDeleteCalendar: removeFloatingCalendar,
-    onCalendarDragStop: updateFloatingCalendarPosition,
-    onResizeCalendar: handleResizeFloatingCalendar,
-  }), [removeFloatingCalendar, updateFloatingCalendarPosition, handleResizeFloatingCalendar])
-
-  const handleTaskboardDragStop = useCallback((id: number, x: number, y: number) => {
-    updateFloatingTaskboardPosition(id, x, y)
-  }, [updateFloatingTaskboardPosition])
+    onDeleteCalendar: calendarController.handlers.onClose,
+    onCalendarDragStop: calendarController.handlers.onDragStop,
+    onResizeCalendar: calendarController.handlers.onResize,
+  }), [calendarController.handlers])
 
   const handleToggleTaskboardCollapse = useCallback((id: number) => {
     const current = useFloatingTaskboardStore.getState().taskboards.find((n) => n.id === id)
@@ -573,63 +517,8 @@ export function CanvasPage() {
     setFloatingTaskboardCollapsed(id, !current.collapsed)
   }, [setFloatingTaskboardCollapsed])
 
-  const handleCloseTaskboard = useCallback((id: number) => {
-    removeFloatingTaskboard(id)
-  }, [removeFloatingTaskboard])
   // showBulkConfirmation kept available for future clear-entries affordance.
   void showBulkConfirmation
-
-  const handleResizeTaskboard = useCallback((id: number, w: number, h: number) => {
-    updateFloatingTaskboardSize(id, w, h)
-  }, [updateFloatingTaskboardSize])
-
-  const handleHorizonsDragStop = useCallback((id: number, x: number, y: number) => {
-    updateFloatingHorizonsPosition(id, x, y)
-  }, [updateFloatingHorizonsPosition])
-
-  const handleCloseHorizons = useCallback((id: number) => {
-    removeFloatingHorizons(id)
-  }, [removeFloatingHorizons])
-
-  const handleResizeHorizons = useCallback((id: number, w: number, h: number) => {
-    updateFloatingHorizonsSize(id, w, h)
-  }, [updateFloatingHorizonsSize])
-
-  const handleStatusDragStop = useCallback((id: number, x: number, y: number) => {
-    updateFloatingStatusPosition(id, x, y)
-  }, [updateFloatingStatusPosition])
-
-  const handleCloseStatus = useCallback((id: number) => {
-    removeFloatingStatus(id)
-  }, [removeFloatingStatus])
-
-  const handleResizeStatus = useCallback((id: number, w: number, h: number) => {
-    updateFloatingStatusSize(id, w, h)
-  }, [updateFloatingStatusSize])
-
-  const handleScoreboardDragStop = useCallback((id: number, x: number, y: number) => {
-    updateFloatingScoreboardPosition(id, x, y)
-  }, [updateFloatingScoreboardPosition])
-
-  const handleCloseScoreboard = useCallback((id: number) => {
-    removeFloatingScoreboard(id)
-  }, [removeFloatingScoreboard])
-
-  const handleResizeScoreboard = useCallback((id: number, w: number, h: number) => {
-    updateFloatingScoreboardSize(id, w, h)
-  }, [updateFloatingScoreboardSize])
-
-  const handleSnoozeGraveyardDragStop = useCallback((id: number, x: number, y: number) => {
-    updateFloatingSnoozeGraveyardPosition(id, x, y)
-  }, [updateFloatingSnoozeGraveyardPosition])
-
-  const handleCloseSnoozeGraveyard = useCallback((id: number) => {
-    removeFloatingSnoozeGraveyard(id)
-  }, [removeFloatingSnoozeGraveyard])
-
-  const handleResizeSnoozeGraveyard = useCallback((id: number, w: number, h: number) => {
-    updateFloatingSnoozeGraveyardSize(id, w, h)
-  }, [updateFloatingSnoozeGraveyardSize])
 
   /**
    * Float-dock handler — called by `CanvasView` on release of a floating
@@ -729,34 +618,34 @@ export function CanvasPage() {
           listInsets={insets}
           allTodos={todos}
           insetHandlers={insetHandlers}
-          floatingNotes={floatingNotes}
+          floatingNotes={noteController.items}
           noteHandlers={noteHandlers}
-          floatingCalendars={floatingCalendars}
+          floatingCalendars={calendarController.items}
           floatingCalendarHandlers={floatingCalendarHandlers}
           allPeople={people}
           allOrgs={orgs}
-          floatingTaskboards={floatingTaskboards}
+          floatingTaskboards={taskboardController.items}
           taskboard={taskboard}
           onToggleTaskboardCollapse={handleToggleTaskboardCollapse}
-          onCloseTaskboard={handleCloseTaskboard}
-          onTaskboardDragStop={handleTaskboardDragStop}
-          onResizeTaskboard={handleResizeTaskboard}
-          floatingHorizons={floatingHorizons}
-          onHorizonsDragStop={handleHorizonsDragStop}
-          onCloseHorizons={handleCloseHorizons}
-          onResizeHorizons={handleResizeHorizons}
-          floatingStatus={floatingStatus}
-          onStatusDragStop={handleStatusDragStop}
-          onCloseStatus={handleCloseStatus}
-          onResizeStatus={handleResizeStatus}
-          floatingScoreboard={floatingScoreboard}
-          onScoreboardDragStop={handleScoreboardDragStop}
-          onCloseScoreboard={handleCloseScoreboard}
-          onResizeScoreboard={handleResizeScoreboard}
-          floatingSnoozeGraveyard={floatingSnoozeGraveyard}
-          onSnoozeGraveyardDragStop={handleSnoozeGraveyardDragStop}
-          onCloseSnoozeGraveyard={handleCloseSnoozeGraveyard}
-          onResizeSnoozeGraveyard={handleResizeSnoozeGraveyard}
+          onCloseTaskboard={taskboardController.handlers.onClose}
+          onTaskboardDragStop={taskboardController.handlers.onDragStop}
+          onResizeTaskboard={taskboardController.handlers.onResize}
+          floatingHorizons={horizonsController.items}
+          onHorizonsDragStop={horizonsController.handlers.onDragStop}
+          onCloseHorizons={horizonsController.handlers.onClose}
+          onResizeHorizons={horizonsController.handlers.onResize}
+          floatingStatus={statusController.items}
+          onStatusDragStop={statusController.handlers.onDragStop}
+          onCloseStatus={statusController.handlers.onClose}
+          onResizeStatus={statusController.handlers.onResize}
+          floatingScoreboard={scoreboardController.items}
+          onScoreboardDragStop={scoreboardController.handlers.onDragStop}
+          onCloseScoreboard={scoreboardController.handlers.onClose}
+          onResizeScoreboard={scoreboardController.handlers.onResize}
+          floatingSnoozeGraveyard={snoozeGraveyardController.items}
+          onSnoozeGraveyardDragStop={snoozeGraveyardController.handlers.onDragStop}
+          onCloseSnoozeGraveyard={snoozeGraveyardController.handlers.onClose}
+          onResizeSnoozeGraveyard={snoozeGraveyardController.handlers.onResize}
           onCascadeShift={handleCascadeShift}
           showCompleted={filters.showCompleted}
           showHiddenStatuses={filters.showHiddenStatuses}

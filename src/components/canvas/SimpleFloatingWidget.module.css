@@ -1,9 +1,8 @@
-.horizons {
+.widget {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  min-width: 320px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -16,6 +15,21 @@
   flex-direction: column;
   min-height: 0;
   overflow: auto;
+}
+
+/*
+ * The notes kind embeds a CodeMirror editor that owns its own scroll surface;
+ * an outer `overflow: auto` would race the inner `.cm-scroller` and produce a
+ * second scrollbar. The font-size override is the original FloatingNoteNode
+ * rule preserved verbatim — the inline-editor variant uses a denser type scale
+ * than the rail-slot variant.
+ */
+.body[data-kind="notes"] {
+  overflow: hidden;
+}
+
+.body[data-kind="notes"] :global(.cm-editor) {
+  font-size: var(--font-size-task);
 }
 
 .resizeHandle {

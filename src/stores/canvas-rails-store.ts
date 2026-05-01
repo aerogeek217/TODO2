@@ -20,14 +20,7 @@ import {
   type SplitZone,
   type TabDropTarget,
 } from '../utils/rail-dnd'
-import { useFloatingCalendarStore } from './floating-calendar-store'
-import { useFloatingHorizonsStore } from './floating-horizons-store'
-import { useFloatingNoteStore } from './floating-note-store'
-import { useFloatingTaskboardStore } from './floating-taskboard-store'
-import { useFloatingStatusStore } from './floating-status-store'
-import { useFloatingScoreboardStore } from './floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from './floating-snooze-graveyard-store'
-import { useListInsetStore } from './list-inset-store'
+import { floatKindByDragKind } from '../services/float-kind-registry'
 
 function genSlotId(): string {
   return `slot-${Math.random().toString(36).slice(2, 10)}`
@@ -41,19 +34,12 @@ function genTabId(slotId: string): string {
  * Delete the source float row after a successful dock — inverse of
  * `popTabToCanvas` in `RailsFrame.tsx`. Fire-and-forget: the rails update is
  * already committed; a removal failure leaves a duplicate float visible but
- * doesn't break the docked tab.
+ * doesn't break the docked tab. Routes through `floatKindByDragKind`
+ * (the per-kind registry) so adding a ninth widget kind doesn't require a
+ * matching switch arm here.
  */
 async function removeFloatRow(descriptor: FloatDescriptor): Promise<void> {
-  switch (descriptor.kind) {
-    case 'note':            await useFloatingNoteStore.getState().remove(descriptor.id); return
-    case 'calendar':        await useFloatingCalendarStore.getState().remove(descriptor.id); return
-    case 'taskboard':       await useFloatingTaskboardStore.getState().remove(descriptor.id); return
-    case 'lens':            await useListInsetStore.getState().remove(descriptor.id); return
-    case 'horizons':        await useFloatingHorizonsStore.getState().remove(descriptor.id); return
-    case 'status':          await useFloatingStatusStore.getState().remove(descriptor.id); return
-    case 'scoreboard':      await useFloatingScoreboardStore.getState().remove(descriptor.id); return
-    case 'snoozeGraveyard': await useFloatingSnoozeGraveyardStore.getState().remove(descriptor.id); return
-  }
+  await floatKindByDragKind(descriptor.kind).remove(descriptor.id)
 }
 
 /**
