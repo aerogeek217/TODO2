@@ -1,51 +1,7 @@
 import { create } from 'zustand'
 import { fileStorageService, type FileStorageStatus } from '../services/file-storage'
-import { useCanvasStore } from './canvas-store'
-import { useSettingsStore } from './settings-store'
-import { useTodoStore } from './todo-store'
-import { useProjectStore } from './project-store'
-import { usePersonStore } from './person-store'
-import { useListInsetStore } from './list-inset-store'
-import { useOrgStore } from './org-store'
-import { useNoteStore } from './note-store'
-import { useFloatingNoteStore } from './floating-note-store'
-import { useFloatingCalendarStore } from './floating-calendar-store'
-import { useTaskboardStore } from './taskboard-store'
-import { useStatusStore } from './status-store'
-import { useUndoStore } from './undo-store'
-import { useFilterStore } from './filter-store'
+import { refreshAllStores } from './refresh-all'
 import type { UnsupportedImportInfo } from '../services/migration-check'
-
-async function refreshAllStores() {
-  useUndoStore.getState().clear()
-  useFilterStore.getState().clearAll()
-  await useCanvasStore.getState().ensureDefault()
-  await useSettingsStore.getState().load()
-  const canvasId = useCanvasStore.getState().selectedCanvasId
-  await Promise.all([
-    useTodoStore.getState().loadAll(),
-    useProjectStore.getState().loadAll(),
-    usePersonStore.getState().load(),
-    useOrgStore.getState().load(),
-    useOrgStore.getState().loadPersonOrgMap(),
-    useStatusStore.getState().load(),
-    useTaskboardStore.getState().load(),
-    useNoteStore.getState().load(),
-    ...(canvasId != null ? [
-      useListInsetStore.getState().loadByCanvas(canvasId),
-      useFloatingNoteStore.getState().loadByCanvas(canvasId),
-      useFloatingCalendarStore.getState().loadByCanvas(canvasId),
-    ] : []),
-  ])
-  // Reload assignment maps after entities and todos are loaded
-  const todoIds = useTodoStore.getState().todos.map(t => t.id)
-  if (todoIds.length > 0) {
-    await Promise.all([
-      usePersonStore.getState().loadAssignments(todoIds),
-      useOrgStore.getState().loadAssignments(todoIds),
-    ])
-  }
-}
 
 let legacyImportResolve: ((confirmed: boolean) => void) | null = null
 
@@ -147,5 +103,3 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
     },
   }
 })
-
-export { refreshAllStores }

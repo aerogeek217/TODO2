@@ -4,7 +4,7 @@ import { auditData, cleanupIssues, type AuditReport } from '../data/audit'
 import { restoreFromImportData } from '../data/restore'
 import type { ImportData } from '../data/import-validation'
 import { backupScheduler } from '../services/backup-scheduler'
-import { refreshAllStores } from './file-storage-store'
+import { refreshAllStores } from './refresh-all'
 
 export type { BackupSummary, AuditReport }
 
