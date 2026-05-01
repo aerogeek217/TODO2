@@ -131,7 +131,7 @@
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .presetChip:hover {
@@ -173,7 +173,7 @@
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .actionRow:hover {

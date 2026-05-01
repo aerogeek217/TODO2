@@ -1,12 +1,12 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9998;
+  z-index: var(--z-portal-popup);
 }
 
 .popup {
   position: fixed;
-  z-index: 9999;
+  z-index: var(--z-portal-popup-flyout);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);

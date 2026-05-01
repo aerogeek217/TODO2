@@ -34,7 +34,7 @@
   pointer-events: none;
   background: color-mix(in oklab, var(--color-accent) 14%, transparent);
   color: var(--color-accent);
-  z-index: 2;
+  z-index: var(--z-above-2);
   border-radius: var(--radius-sm);
   user-select: none;
 }

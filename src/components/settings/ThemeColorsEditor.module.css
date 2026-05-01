@@ -23,7 +23,7 @@
   padding: 4px 14px;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .themeToggleBtn:hover {

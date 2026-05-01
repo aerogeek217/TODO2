@@ -3,7 +3,7 @@
   flex-grow: 0;
   background: transparent;
   position: relative;
-  z-index: 2;
+  z-index: var(--z-above-2);
   touch-action: none;
   transition: background 0.15s ease;
 }

@@ -53,7 +53,7 @@
   opacity: 0.4;
   border-radius: 0 0 var(--radius-card) 0;
   transition: opacity 0.15s;
-  z-index: 2;
+  z-index: var(--z-above-2);
 }
 
 .resizeHandle:hover {

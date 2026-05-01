@@ -26,14 +26,22 @@
 
   /* Z-Index */
   --z-above: 1;
+  --z-above-2: 2;
+  --z-above-3: 3;
   --z-dropdown: 10;
   --z-row-open: 20;
   --z-fab: 100;
   --z-overlay: 300;
   --z-canvas-draw: 1000;
+  --z-popover: 1000;
   --z-dialog: 1001;
   --z-dialog-overlay: 1002;
   --z-dialog-nested: 1003;
+  /* FilteredListPopup escape-hatch tier — sits above every in-document layer
+     because it portals to <body> and must overlay any host (popovers, modals,
+     drag overlays). Keep these as the only consumers. */
+  --z-portal-popup: 9998;
+  --z-portal-popup-flyout: 9999;
 
   /* Layout */
   --sidebar-width: 44px;
@@ -50,7 +58,14 @@
   /* Transitions */
   --transition-fast: 120ms ease;
   --transition-fade: 180ms ease;
+  --transition-medium: 200ms ease;
   --transition-spring: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* Breakpoints — value-only; CSS @media queries cannot consume custom
+     properties, so the literal `640px` is duplicated in @media (max-width:
+     640px) rules across component .module.css files and in
+     `hooks/use-is-mobile.ts` MOBILE_QUERY. Update all three together. */
+  --breakpoint-mobile: 640px;
 
   /* Typography */
   --font-family: 'Plus Jakarta Sans', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
