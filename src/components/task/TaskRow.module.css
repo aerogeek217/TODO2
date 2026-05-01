@@ -378,59 +378,6 @@
   min-width: 140px;
 }
 
-.chipCheck {
-  width: 14px;
-  text-align: center;
-  color: var(--color-accent);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.chipCreateRow {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--color-border);
-  margin-top: 2px;
-}
-
-.chipCreateInput {
-  flex: 1;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border: none;
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  padding: 2px 2px;
-  outline: none;
-  min-width: 0;
-}
-
-.chipCreateInput::placeholder {
-  color: var(--color-text-muted);
-}
-
-.chipCreateBtn {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-accent);
-  border-radius: var(--radius-chip);
-  width: 18px;
-  height: 18px;
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.chipCreateBtn:hover {
-  background: var(--color-surface-high);
-}
-
 .tagColorInput {
   width: 18px;
   height: 18px;

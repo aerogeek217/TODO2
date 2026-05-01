@@ -484,61 +484,6 @@
   background: var(--color-tint-5);
 }
 
-.chipCheck {
-  width: 16px;
-  text-align: center;
-  color: var(--color-accent);
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.chipCreateRow {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 8px;
-  border-top: 1px solid var(--color-tint-6);
-  margin-top: 2px;
-}
-
-.chipCreateInput {
-  flex: 1;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border: none;
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 2px;
-  outline: none;
-  min-width: 0;
-}
-
-.chipCreateInput::placeholder {
-  color: var(--color-text-muted);
-}
-
-.chipCreateBtn {
-  background: transparent;
-  border: 1px solid var(--color-tint-8);
-  color: var(--color-accent);
-  border-radius: var(--radius-pill);
-  width: 22px;
-  height: 22px;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
-}
-
-.chipCreateBtn:hover {
-  background: var(--color-tint-5);
-  border-color: var(--color-tint-14);
-}
-
 /* ── Project Selector ── */
 
 .projectChip {
