@@ -500,11 +500,18 @@ export async function dragWidgetTo(
   // Initial nudge so RF's drag-threshold passes immediately.
   await page.mouse.move(startX + 4, startY + 4, { steps: 2 })
   await page.mouse.move(target.x, target.y, { steps })
-  // Brief settle so the post-mouseup React Flow `dragging:false` change is
-  // dispatched before we move on (the dock dispatch races the next assertion
-  // otherwise on Windows).
   await page.mouse.up()
-  await page.waitForTimeout(120)
+  // Wait for React Flow's drag controller to clear `dragging:false`. RF
+  // applies the `.dragging` className to the dragged node mid-drag and
+  // removes it post-mouseup; the dock dispatch chain (publish floatDrag,
+  // resolve target, apply reducer) fires inside that transition. Reading
+  // its absence is the deterministic post-mouseup signal the prior 120 ms
+  // timer was approximating.
+  await page.waitForFunction(
+    () => document.querySelector('.react-flow__node.dragging') === null,
+    null,
+    { timeout: 2000 },
+  )
 }
 
 /** Locator for the WidgetKindMenu portal panel. */
@@ -560,7 +567,18 @@ export async function dragTabTo(
   await page.mouse.move(startX + 6, startY + 6, { steps: 2 })
   await page.mouse.move(target.x, target.y, { steps })
   await page.mouse.up()
-  // Brief settle so the rails-monitor `onDragEnd → popTabAtPosition` chain
-  // resolves and the React Flow node mounts before assertions.
-  await page.waitForTimeout(150)
+  // Wait for `useDndMonitor`'s `onDragEnd` to clear `tabDragActive`.
+  // `CanvasView.tsx:831` writes `data-canvas-drop-active` on its wrapper
+  // while a rails tab drag is over the canvas; the attribute is removed as
+  // soon as `setTabDragActive(false)` fires inside the rails monitor's
+  // `onDragEnd` chain (`popTabAtPosition` runs synchronously inside that
+  // handler, so the attribute clear races with the dispatch end). Reading
+  // the attribute's absence is the deterministic post-mouseup signal the
+  // prior 150 ms timer was approximating. Falls through immediately if the
+  // drag never entered the canvas zone (attribute was never set).
+  await page.waitForFunction(
+    () => document.querySelector('[data-canvas-drop-active]') === null,
+    null,
+    { timeout: 2000 },
+  )
 }

@@ -62,49 +62,6 @@ function leftLensTopTwo(): RailsState {
   }
 }
 
-// Single-rail seeds for corner-claim regressions (Phase 2): a slot has to
-// live somewhere to be dragged, but the perpendicular rail to the target
-// corner must be absent so the pre-fix collapse behavior is exercised.
-function rightOnlyLens(): RailsState {
-  return {
-    left: null,
-    right: { orientation: 'vertical', slots: [s('slot-R', 'lens')] },
-    top: null,
-    bottom: null,
-  }
-}
-
-function leftOnlyLens(): RailsState {
-  return {
-    left: { orientation: 'vertical', slots: [s('slot-L', 'lens')] },
-    right: null,
-    top: null,
-    bottom: null,
-  }
-}
-
-// Symmetric single-rail seeds for the left/right corner-asymmetry regressions
-// (P3 of code-review-2026-04-25). The dropped slot ends up on left/right; the
-// perpendicular rail (top or bottom) is intentionally absent so the pre-fix
-// raw `var(--top-size)` / `var(--bottom-size)` collapse behaviour is exercised.
-function bottomOnlyLens(): RailsState {
-  return {
-    left: null,
-    right: null,
-    top: null,
-    bottom: { orientation: 'horizontal', slots: [s('slot-B', 'lens')] },
-  }
-}
-
-function topOnlyLens(): RailsState {
-  return {
-    left: null,
-    right: null,
-    top: { orientation: 'horizontal', slots: [s('slot-T', 'lens')] },
-    bottom: null,
-  }
-}
-
 describe('rails dragSlot — empty-side dock', () => {
   it('drags slot-A from left rail onto empty top rail', async () => {
     const h = await setupRailsHarness(leftLens())
@@ -176,91 +133,11 @@ describe('rails dragSlot — empty-side dock', () => {
     h.cleanup()
   })
 
-  // Phase 2 (bugs-ui-2026-04-24): when the perpendicular rail is absent the
-  // top/bottom corner sub-zone width was driven by `var(--{perp}-size, 0px)`
-  // and collapsed to 0, leaving the user's corner-claim drag with no target.
-  // The drop fell into the adjacent center sub-zone instead. The CSS now
-  // floors that width at `CORNER_HIT_MIN_PX` (mirrored in the harness), so
-  // the corner sub-zone stays hit-targettable in every layout.
-  it('claim=start on top resolves to top_start when left rail is absent', async () => {
-    const h = await setupRailsHarness(rightOnlyLens())
-    await h.dragSlot('slot-R', { kind: 'empty-side', side: 'top', claim: 'start' })
-    const rails = h.getRails()
-    expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-R'])
-    expect(rails.corners).toEqual({ nw: 'h' })
-    h.cleanup()
-  })
-
-  it('claim=end on top resolves to top_end when right rail is absent', async () => {
-    const h = await setupRailsHarness(leftOnlyLens())
-    await h.dragSlot('slot-L', { kind: 'empty-side', side: 'top', claim: 'end' })
-    const rails = h.getRails()
-    expect(rails.top?.slots.map((s) => s.id)).toEqual(['slot-L'])
-    expect(rails.corners).toEqual({ ne: 'h' })
-    h.cleanup()
-  })
-
-  it('claim=start on bottom resolves to bottom_start when left rail is absent', async () => {
-    const h = await setupRailsHarness(rightOnlyLens())
-    await h.dragSlot('slot-R', { kind: 'empty-side', side: 'bottom', claim: 'start' })
-    const rails = h.getRails()
-    expect(rails.bottom?.slots.map((s) => s.id)).toEqual(['slot-R'])
-    expect(rails.corners).toEqual({ sw: 'h' })
-    h.cleanup()
-  })
-
-  it('claim=end on bottom resolves to bottom_end when right rail is absent', async () => {
-    const h = await setupRailsHarness(leftOnlyLens())
-    await h.dragSlot('slot-L', { kind: 'empty-side', side: 'bottom', claim: 'end' })
-    const rails = h.getRails()
-    expect(rails.bottom?.slots.map((s) => s.id)).toEqual(['slot-L'])
-    expect(rails.corners).toEqual({ se: 'h' })
-    h.cleanup()
-  })
-
-  // P3 of code-review-2026-04-25: the left/right corner sub-zones used the
-  // raw `var(--top-size)` / `var(--bottom-size)` (no floor) — symmetric to the
-  // top/bottom regressions above but unfixed in bugs-ui P2. CSS now mirrors
-  // the floor on every side; these four tests pin that.
-  it('claim=start on left resolves to left_start when top rail is absent', async () => {
-    const h = await setupRailsHarness(bottomOnlyLens())
-    await h.dragSlot('slot-B', { kind: 'empty-side', side: 'left', claim: 'start' })
-    const rails = h.getRails()
-    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-B'])
-    // start claimed → nw='v' (default → cleared). end pinched → sw='h' stored.
-    expect(rails.corners).toEqual({ sw: 'h' })
-    h.cleanup()
-  })
-
-  it('claim=end on left resolves to left_end when bottom rail is absent', async () => {
-    const h = await setupRailsHarness(topOnlyLens())
-    await h.dragSlot('slot-T', { kind: 'empty-side', side: 'left', claim: 'end' })
-    const rails = h.getRails()
-    expect(rails.left?.slots.map((s) => s.id)).toEqual(['slot-T'])
-    // end claimed → sw='v' (default → cleared). start pinched → nw='h' stored.
-    expect(rails.corners).toEqual({ nw: 'h' })
-    h.cleanup()
-  })
-
-  it('claim=start on right resolves to right_start when top rail is absent', async () => {
-    const h = await setupRailsHarness(bottomOnlyLens())
-    await h.dragSlot('slot-B', { kind: 'empty-side', side: 'right', claim: 'start' })
-    const rails = h.getRails()
-    expect(rails.right?.slots.map((s) => s.id)).toEqual(['slot-B'])
-    // start claimed → ne='v' (default → cleared). end pinched → se='h' stored.
-    expect(rails.corners).toEqual({ se: 'h' })
-    h.cleanup()
-  })
-
-  it('claim=end on right resolves to right_end when bottom rail is absent', async () => {
-    const h = await setupRailsHarness(topOnlyLens())
-    await h.dragSlot('slot-T', { kind: 'empty-side', side: 'right', claim: 'end' })
-    const rails = h.getRails()
-    expect(rails.right?.slots.map((s) => s.id)).toEqual(['slot-T'])
-    // end claimed → se='v' (default → cleared). start pinched → ne='h' stored.
-    expect(rails.corners).toEqual({ ne: 'h' })
-    h.cleanup()
-  })
+  // Corner-hit cases — pinning that the empty-side strip's corner sub-zone
+  // retains a non-zero hit target when the perpendicular rail is absent —
+  // were migrated to `e2e/canvas-rail-dock.spec.ts` in P13 of
+  // `code-review-2026-04-30`. The CSS contract `var(--{perp}-size, 80px)`
+  // is what JSDOM cannot authoritatively model.
 
   it('claim=start on left rail pinches SW (stores sw=h; clears default nw=v)', async () => {
     // Left claim=start means left extends into NW only. Pre-existing nw='h'

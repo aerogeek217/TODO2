@@ -67,26 +67,37 @@ test('Enter-chain focus-trace ladder (Phase 2 record)', async ({ page }, testInf
   await page.keyboard.press('Insert')
   await expect(activeInsertInput(page)).toBeFocused()
 
-  // Run 20 Enter-chain handoffs. Each run types `tN`, presses Enter, then
-  // waits 400ms — long enough for autoFocus + useLayoutEffect + rAF +
-  // t0/t50/t150/t300 + the focusout reclaim window to all complete.
+  // Run 20 Enter-chain handoffs. Each run types `tN`, presses Enter, asserts
+  // focus is on the new input (auto-retries until SortableTaskList's t50
+  // imperative call lands), then emits the END marker and waits for it to
+  // appear in our captured `events` array — replaces the prior flat 400ms ×
+  // 20 = 8s of `waitForTimeout` with a deterministic per-run drain that
+  // unblocks as soon as the trace flushes.
   const N = 20
   for (let i = 1; i <= N; i++) {
     // Run-boundary marker so post-hoc analysis can split events per run.
     await page.evaluate((n) => console.log('[focus-trace]', `===== run ${n} START =====`), i)
     await page.keyboard.type(`t${i}`)
     await page.keyboard.press('Enter')
-    await page.waitForTimeout(400)
+    // Deterministic per-run drain: wait for the just-committed task row to
+    // appear, then for focus to land on the new InsertTrigger input. Both
+    // events tail the t50 imperative-focus call, so once they're true the
+    // [focus-trace] ladder for this run is fully flushed and run N+1's
+    // START won't bleed into run N's tally.
+    await expect(taskRowByTitle(page, `t${i}`)).toBeVisible()
     await expect(activeInsertInput(page)).toBeFocused()
     await page.evaluate((n) => console.log('[focus-trace]', `===== run ${n} END =====`), i)
+    // Keyed wait: confirm this run's END marker landed in `events` before
+    // run N+1's START fires.
+    await expect.poll(() => events.some((e) => e.label === `===== run ${i} END =====`)).toBe(true)
   }
 
   // 1 seed + 20 chained inserts.
   await expect(taskRowWrappers(page)).toHaveCount(N + 1)
 
   // Post-process: split events by run boundary and tally which reclaim
-  // label landed focus first per run.
-  await page.waitForTimeout(200) // let trailing console events flush
+  // label landed focus first per run. The per-run loop above already drained
+  // each run's END marker, so no trailing flush is needed.
   const runs: { run: number; events: { label: string; data: Record<string, unknown> }[] }[] = []
   let current: typeof runs[number] | null = null
   for (const ev of events) {
