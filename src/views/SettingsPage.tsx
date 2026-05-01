@@ -12,6 +12,8 @@ import type { ImportData } from '../data/import-validation'
 import { detectUnsupportedImport } from '../services/migration-check'
 import type { UnsupportedImportInfo } from '../services/migration-check'
 import { MigrationDialog } from '../components/overlays/MigrationDialog'
+import { AuditIssueDetailDialog } from '../components/overlays/AuditIssueDetailDialog'
+import type { AuditIssue } from '../data/audit'
 import { buildExportData, buildMarkdownExport } from '../services/export-import'
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
 import { getSaveFilePicker, getOpenFilePicker } from '../utils/file-picker'
@@ -100,6 +102,7 @@ export function SettingsPage() {
   const [confirmRestoreId, setConfirmRestoreId] = useState<number | null>(null)
   const [auditMsg, setAuditMsg] = useState('')
   const [auditRunning, setAuditRunning] = useState(false)
+  const [selectedAuditIssue, setSelectedAuditIssue] = useState<AuditIssue | null>(null)
   const [showCleanupPopup, setShowCleanupPopup] = useState(false)
   const [cleanupDays, setCleanupDays] = useState(30)
   const [confirmingCleanup, setConfirmingCleanup] = useState(false)
@@ -644,11 +647,20 @@ export function SettingsPage() {
                   const severe = issue.fix === 'drop-store'
                     || issue.description.startsWith('Rows in "')
                     || issue.description.startsWith('Unrecognized settings')
+                  const hasDetail = (issue.samples?.length ?? 0) > 0
                   return (
-                    <div key={i} className={`${styles.auditRow} ${severe ? styles.auditRowSevere : ''}`}>
+                    <button
+                      key={i}
+                      type="button"
+                      className={`${styles.auditRow} ${severe ? styles.auditRowSevere : ''} ${hasDetail ? styles.auditRowClickable : ''}`}
+                      onClick={hasDetail ? () => setSelectedAuditIssue(issue) : undefined}
+                      disabled={!hasDetail}
+                      aria-label={hasDetail ? `View ${issue.count} offending records: ${issue.description}` : issue.description}
+                    >
                       <span className={styles.auditCount}>{issue.count}</span>
                       <span className={styles.auditDesc}>{issue.description}</span>
-                    </div>
+                      {hasDetail && <span className={styles.auditViewHint} aria-hidden="true">View →</span>}
+                    </button>
                   )
                 })}
               </div>
@@ -858,6 +870,11 @@ export function SettingsPage() {
           onCancel={() => setPendingMigration(null)}
         />
       )}
+
+      <AuditIssueDetailDialog
+        issue={selectedAuditIssue}
+        onClose={() => setSelectedAuditIssue(null)}
+      />
     </div>
   )
 }

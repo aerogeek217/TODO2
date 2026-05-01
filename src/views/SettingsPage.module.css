@@ -271,7 +271,13 @@
   padding: 6px 10px;
   background: var(--color-surface-high);
   border-radius: var(--radius-card);
+  border: 1px solid transparent;
   font-size: var(--font-size-meta);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  cursor: default;
 }
 
 .auditRowSevere {
@@ -292,6 +298,33 @@
 
 .auditDesc {
   color: var(--color-text-secondary);
+  flex: 1 1 auto;
+}
+
+.auditRowClickable {
+  cursor: pointer;
+}
+
+.auditRowClickable:hover,
+.auditRowClickable:focus-visible {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+}
+
+.auditRowClickable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.auditViewHint {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.auditRowClickable:hover .auditViewHint,
+.auditRowClickable:focus-visible .auditViewHint {
+  color: var(--color-accent);
 }
 
 .backupEmpty {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import Dexie from 'dexie'
 import { db } from '../../data/database'
-import { auditData, cleanupIssues } from '../../data/audit'
+import { auditData, cleanupIssues, MAX_SAMPLES_PER_ISSUE } from '../../data/audit'
 import { makeTodo } from '../helpers'
 
 beforeEach(async () => {
@@ -342,6 +342,89 @@ describe('cleanupIssues', () => {
   it('returns 0 when no issues to clean', async () => {
     const cleaned = await cleanupIssues([])
     expect(cleaned).toBe(0)
+  })
+})
+
+// --- Samples power the detail popup. Each issue carries up to
+// MAX_SAMPLES_PER_ISSUE row-level records with bad-field hints so the popup
+// can surface exactly what's wrong without re-querying the DB.
+describe('audit samples', () => {
+  it('flags the missing FK on an orphaned join row', async () => {
+    const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
+    await db.todoPeople.add({ todoId: 999, personId })
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'todoPeople')!
+    expect(issue.samples).toHaveLength(1)
+    const sample = issue.samples![0]!
+    expect(sample.badFields).toEqual(['todoId'])
+    expect(sample.note).toContain('todoId 999 not in todos')
+    expect(sample.row.todoId).toBe(999)
+  })
+
+  it('flags the dangling FK field on a row that will be cleared', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    await db.todos.add(makeTodo({ canvasId, projectId: 999 }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.field === 'projectId')!
+    expect(issue.samples).toHaveLength(1)
+    expect(issue.samples![0]!.badFields).toEqual(['projectId'])
+    expect(issue.samples![0]!.row.projectId).toBe(999)
+  })
+
+  it('returns one sample per offending taskboard entry, not per board', async () => {
+    await db.taskboards.add({
+      entries: [
+        { todoId: 999, sortOrder: 0 },
+        { todoId: 888, sortOrder: 1 },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'taskboards')!
+    expect(issue.samples).toHaveLength(2)
+    expect(issue.samples!.map((s) => s.row.todoId).sort()).toEqual([888, 999])
+  })
+
+  it('caps samples at MAX_SAMPLES_PER_ISSUE while ids covers every offender', async () => {
+    const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
+    const offenderCount = MAX_SAMPLES_PER_ISSUE + 5
+    for (let i = 0; i < offenderCount; i++) {
+      await db.todoPeople.add({ todoId: 1000 + i, personId })
+    }
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'todoPeople')!
+    expect(issue.count).toBe(offenderCount)
+    expect(issue.ids).toHaveLength(offenderCount)
+    expect(issue.samples).toHaveLength(MAX_SAMPLES_PER_ISSUE)
+  })
+
+  it('flags the bad field for unknown-row schema rejections', async () => {
+    const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
+    // listInsets requires listDefinitionId + isCollapsed.
+    await db.listInsets.add({ canvasId, x: 0, y: 0, width: 100, height: 100 } as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.description.startsWith('Rows in "listInsets"'))!
+    expect(issue.samples).toHaveLength(1)
+    expect(issue.samples![0]!.badFields!.length).toBeGreaterThan(0)
+    expect(issue.samples![0]!.note).toMatch(/Schema validator rejected/)
+  })
+
+  it('attaches one sample per unrecognised setting key', async () => {
+    await db.settings.put({ key: 'legacyDashboard', value: 'x' })
+    await db.settings.put({ key: 'someOtherLegacy', value: 'y' })
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.description.startsWith('Unrecognized settings'))!
+    expect(issue.samples).toHaveLength(2)
+    const keys = issue.samples!.map((s) => s.row.key).sort()
+    expect(keys).toEqual(['legacyDashboard', 'someOtherLegacy'])
+    expect(issue.samples![0]!.badFields).toEqual(['key'])
   })
 })
 

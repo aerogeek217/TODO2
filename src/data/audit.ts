@@ -6,6 +6,27 @@ import {
   isKnownSettingKey,
 } from './import-validation'
 
+export interface AuditSample {
+  /** The full offending record. JSON-serialised verbatim in the detail popup. */
+  row: Record<string, unknown>
+  /**
+   * The row's primary key — numeric `id` for most tables, string `key` for
+   * settings, undefined when the source row has no stable identity (sample
+   * pulled from an unknown store with no key path).
+   */
+  id?: number | string
+  /**
+   * Field names whose value triggered the issue. The detail popup highlights
+   * these to point the eye at the broken column without forcing the user to
+   * eyeball the whole record. Examples: the FK column whose target was
+   * deleted (`todoId` for an orphaned join), the dangling-FK field that the
+   * cleanup will null out, or the bad field reported by `validateRow`.
+   */
+  badFields?: string[]
+  /** Plain-English context shown above the JSON, e.g. "todoId 999 not in todos". */
+  note?: string
+}
+
 export interface AuditIssue {
   table: string
   description: string
@@ -24,7 +45,19 @@ export interface AuditIssue {
    */
   fix: 'delete' | 'clear-field' | 'drop-store'
   field?: string
+  /**
+   * Up to `MAX_SAMPLES_PER_ISSUE` of the offending rows for the detail popup.
+   * Capped to keep the in-memory report light when an unknown table holds
+   * thousands of rows. The full `count` still drives cleanup.
+   */
+  samples?: AuditSample[]
 }
+
+/**
+ * Cap on per-issue sample collection. The popup shows "N of M" when truncated.
+ * 25 fits comfortably in the dialog without paging and bounds report size.
+ */
+export const MAX_SAMPLES_PER_ISSUE = 25
 
 export interface AuditReport {
   issues: AuditIssue[]
@@ -51,6 +84,47 @@ function rawClear(idb: IDBDatabase, name: string): Promise<void> {
   })
 }
 
+/**
+ * Pull up to `limit` rows from an IDB object store via raw IDB. The audit's
+ * unknown-store detection runs before Dexie has registered the store, so we
+ * cannot use `db.table(name).limit(...)` here.
+ */
+function rawSample(idb: IDBDatabase, name: string, limit: number): Promise<unknown[]> {
+  return new Promise<unknown[]>((resolve, reject) => {
+    const tx = idb.transaction([name], 'readonly')
+    const req = tx.objectStore(name).getAll(null, limit)
+    req.onsuccess = () => resolve(req.result as unknown[])
+    req.onerror = () => reject(req.error)
+  })
+}
+
+/**
+ * Strip Dexie/IDB internals from the row before handing it to the popup so
+ * the JSON view shows the same shape the user authored. We don't have any
+ * such fields today, but this is the choke point if we ever do.
+ */
+function toSampleRow(row: unknown): Record<string, unknown> {
+  if (row !== null && typeof row === 'object') return { ...(row as Record<string, unknown>) }
+  return { value: row }
+}
+
+/**
+ * Map an FK column on a join row to the table it points at, for the popup's
+ * "todoId 999 not in todos" hover note.
+ */
+function joinTargetTable(field: string): string {
+  switch (field) {
+    case 'todoId': return 'todos'
+    case 'personId': return 'people'
+    case 'orgId': return 'orgs'
+    case 'tagId': return 'tags'
+    case 'canvasId': return 'canvases'
+    case 'projectId': return 'projects'
+    case 'statusId': return 'statuses'
+    default: return field
+  }
+}
+
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
   const issues: AuditIssue[] = []
@@ -64,6 +138,7 @@ export async function auditData(): Promise<AuditReport> {
     if (KNOWN_DB_TABLES.has(name)) continue
     const count = await rawCount(idb, name)
     if (count === 0) continue
+    const sampleRows = await rawSample(idb, name, MAX_SAMPLES_PER_ISSUE)
     issues.push({
       table: name,
       description: `Unknown table "${name}" — drop the entire store`,
@@ -71,6 +146,11 @@ export async function auditData(): Promise<AuditReport> {
       ids: [],
       fix: 'drop-store',
       field: '__store__',
+      samples: sampleRows.map((r) => {
+        const row = toSampleRow(r)
+        const id = typeof row.id === 'number' || typeof row.id === 'string' ? row.id : undefined
+        return { row, id, note: `Row in unregistered store "${name}"` }
+      }),
     })
   }
 
@@ -123,10 +203,25 @@ export async function auditData(): Promise<AuditReport> {
     if (tableKey === 'settings') continue
     const rows = knownTableRows[tableKey] ?? []
     const badIds: number[] = []
+    const badSamples: AuditSample[] = []
     for (const row of rows) {
-      if (validateRow(tableKey, row) === true) continue
+      const result = validateRow(tableKey, row)
+      if (result === true) continue
       const id = (row as { id?: number }).id
-      if (typeof id === 'number') badIds.push(id)
+      if (typeof id !== 'number') continue
+      badIds.push(id)
+      if (badSamples.length < MAX_SAMPLES_PER_ISSUE) {
+        // `validateRow` returns the bad field name (or a short phrase like
+        // "key (unrecognized)") on failure. Strip the parenthetical so the
+        // popup can highlight the field name reliably.
+        const badField = result.replace(/\s*\(.*\)$/, '').trim()
+        badSamples.push({
+          row: toSampleRow(row),
+          id,
+          badFields: badField ? [badField] : [],
+          note: `Schema validator rejected this row: ${result}`,
+        })
+      }
     }
     if (badIds.length > 0) {
       issues.push({
@@ -135,22 +230,27 @@ export async function auditData(): Promise<AuditReport> {
         count: badIds.length,
         ids: badIds,
         fix: 'delete',
+        samples: badSamples,
       })
     }
   }
 
   // --- Unknown setting keys ---
-  const unknownSettingKeys = settingsRows
-    .filter((s) => !isKnownSettingKey(s.key))
-    .map((s) => s.key)
-  if (unknownSettingKeys.length > 0) {
+  const unknownSettings = settingsRows.filter((s) => !isKnownSettingKey(s.key))
+  if (unknownSettings.length > 0) {
     issues.push({
       table: 'settings',
       description: 'Unrecognized settings — no UI will read or write them',
-      count: unknownSettingKeys.length,
+      count: unknownSettings.length,
       ids: [],
-      keys: unknownSettingKeys,
+      keys: unknownSettings.map((s) => s.key),
       fix: 'delete',
+      samples: unknownSettings.slice(0, MAX_SAMPLES_PER_ISSUE).map((s) => ({
+        row: { key: s.key, value: s.value },
+        id: s.key,
+        badFields: ['key'],
+        note: `"${s.key}" is not a setting any code in this build reads or writes`,
+      })),
     })
   }
 
@@ -164,6 +264,20 @@ export async function auditData(): Promise<AuditReport> {
 
   // --- Orphaned join rows ---
 
+  // Helper: build a sample for an orphan-join row, naming which FK is missing.
+  const joinSample = (row: Record<string, unknown>, checks: { field: string; valid: boolean }[]): AuditSample => {
+    const missing = checks.filter((c) => !c.valid).map((c) => c.field)
+    const note = missing
+      .map((f) => `${f} ${String(row[f])} not in ${joinTargetTable(f)}`)
+      .join(' • ')
+    return {
+      row: toSampleRow(row),
+      id: typeof row.id === 'number' ? (row.id as number) : undefined,
+      badFields: missing,
+      note,
+    }
+  }
+
   const orphanedTodoPeople = todoPeople.filter(
     (r) => !todoIds.has(r.todoId) || !personIds.has(r.personId),
   )
@@ -174,6 +288,12 @@ export async function auditData(): Promise<AuditReport> {
       count: orphanedTodoPeople.length,
       ids: orphanedTodoPeople.map((r) => r.id!),
       fix: 'delete',
+      samples: orphanedTodoPeople.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
+        joinSample(r as unknown as Record<string, unknown>, [
+          { field: 'todoId', valid: todoIds.has(r.todoId) },
+          { field: 'personId', valid: personIds.has(r.personId) },
+        ]),
+      ),
     })
   }
 
@@ -187,6 +307,12 @@ export async function auditData(): Promise<AuditReport> {
       count: orphanedTodoOrgs.length,
       ids: orphanedTodoOrgs.map((r) => r.id!),
       fix: 'delete',
+      samples: orphanedTodoOrgs.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
+        joinSample(r as unknown as Record<string, unknown>, [
+          { field: 'todoId', valid: todoIds.has(r.todoId) },
+          { field: 'orgId', valid: orgIds.has(r.orgId) },
+        ]),
+      ),
     })
   }
 
@@ -200,6 +326,12 @@ export async function auditData(): Promise<AuditReport> {
       count: orphanedPersonOrgs.length,
       ids: orphanedPersonOrgs.map((r) => r.id!),
       fix: 'delete',
+      samples: orphanedPersonOrgs.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
+        joinSample(r as unknown as Record<string, unknown>, [
+          { field: 'personId', valid: personIds.has(r.personId) },
+          { field: 'orgId', valid: orgIds.has(r.orgId) },
+        ]),
+      ),
     })
   }
 
@@ -213,6 +345,12 @@ export async function auditData(): Promise<AuditReport> {
       count: orphanedTodoTags.length,
       ids: orphanedTodoTags.map((r) => r.id!),
       fix: 'delete',
+      samples: orphanedTodoTags.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
+        joinSample(r as unknown as Record<string, unknown>, [
+          { field: 'todoId', valid: todoIds.has(r.todoId) },
+          { field: 'tagId', valid: tagIds.has(r.tagId) },
+        ]),
+      ),
     })
   }
 
@@ -224,6 +362,11 @@ export async function auditData(): Promise<AuditReport> {
       count: orphanedTodoEvents.length,
       ids: orphanedTodoEvents.map((r) => r.id!),
       fix: 'delete',
+      samples: orphanedTodoEvents.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
+        joinSample(r as unknown as Record<string, unknown>, [
+          { field: 'todoId', valid: todoIds.has(r.todoId) },
+        ]),
+      ),
     })
   }
 
@@ -233,6 +376,22 @@ export async function auditData(): Promise<AuditReport> {
     t.entries.some((e) => !todoIds.has(e.todoId)),
   )
   if (taskboardsWithOrphanedEntries.length > 0) {
+    // Sample shape is one row per offending entry (not per board) so the popup
+    // can show the actual stale `todoId` rather than the surrounding board.
+    const taskboardSamples: AuditSample[] = []
+    for (const board of taskboardsWithOrphanedEntries) {
+      for (const entry of board.entries) {
+        if (todoIds.has(entry.todoId)) continue
+        if (taskboardSamples.length >= MAX_SAMPLES_PER_ISSUE) break
+        taskboardSamples.push({
+          row: { taskboardId: board.id, ...toSampleRow(entry) },
+          id: board.id,
+          badFields: ['todoId'],
+          note: `todoId ${entry.todoId} not in todos (board #${board.id})`,
+        })
+      }
+      if (taskboardSamples.length >= MAX_SAMPLES_PER_ISSUE) break
+    }
     issues.push({
       table: 'taskboards',
       description: 'Taskboard entries referencing deleted todos',
@@ -243,8 +402,25 @@ export async function auditData(): Promise<AuditReport> {
       ids: taskboardsWithOrphanedEntries.map((t) => t.id!),
       fix: 'clear-field',
       field: 'entries',
+      samples: taskboardSamples,
     })
   }
+
+  // Helper: sample a row whose single FK column points at a deleted entity.
+  // The popup highlights the dangling field and notes the missing target.
+  const fkSample = (
+    rows: { id?: number }[],
+    field: string,
+  ): AuditSample[] =>
+    rows.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) => {
+      const obj = r as unknown as Record<string, unknown>
+      return {
+        row: toSampleRow(obj),
+        id: typeof obj.id === 'number' ? (obj.id as number) : undefined,
+        badFields: [field],
+        note: `${field} ${String(obj[field])} not in ${joinTargetTable(field)}`,
+      }
+    })
 
   const floatingTaskboardsWithBadCanvas = floatingTaskboards.filter(
     (t) => !canvasIds.has(t.canvasId),
@@ -256,6 +432,7 @@ export async function auditData(): Promise<AuditReport> {
       count: floatingTaskboardsWithBadCanvas.length,
       ids: floatingTaskboardsWithBadCanvas.map((t) => t.id!),
       fix: 'delete',
+      samples: fkSample(floatingTaskboardsWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -272,6 +449,7 @@ export async function auditData(): Promise<AuditReport> {
       ids: todosWithBadProject.map((t) => t.id!),
       fix: 'clear-field',
       field: 'projectId',
+      samples: fkSample(todosWithBadProject, 'projectId'),
     })
   }
 
@@ -286,6 +464,7 @@ export async function auditData(): Promise<AuditReport> {
       ids: todosWithBadCanvas.map((t) => t.id!),
       fix: 'clear-field',
       field: 'canvasId',
+      samples: fkSample(todosWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -300,6 +479,7 @@ export async function auditData(): Promise<AuditReport> {
       ids: todosWithBadStatus.map((t) => t.id!),
       fix: 'clear-field',
       field: 'statusId',
+      samples: fkSample(todosWithBadStatus, 'statusId'),
     })
   }
 
@@ -314,6 +494,7 @@ export async function auditData(): Promise<AuditReport> {
       ids: projectsWithBadCanvas.map((p) => p.id!),
       fix: 'clear-field',
       field: 'canvasId',
+      samples: fkSample(projectsWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -327,6 +508,7 @@ export async function auditData(): Promise<AuditReport> {
       count: listInsetsWithBadCanvas.length,
       ids: listInsetsWithBadCanvas.map((l) => l.id!),
       fix: 'delete',
+      samples: fkSample(listInsetsWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -340,6 +522,7 @@ export async function auditData(): Promise<AuditReport> {
       count: floatingNotesWithBadCanvas.length,
       ids: floatingNotesWithBadCanvas.map((n) => n.id!),
       fix: 'delete',
+      samples: fkSample(floatingNotesWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -353,6 +536,7 @@ export async function auditData(): Promise<AuditReport> {
       count: floatingCalendarsWithBadCanvas.length,
       ids: floatingCalendarsWithBadCanvas.map((c) => c.id!),
       fix: 'delete',
+      samples: fkSample(floatingCalendarsWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -366,6 +550,7 @@ export async function auditData(): Promise<AuditReport> {
       count: floatingHorizonsWithBadCanvas.length,
       ids: floatingHorizonsWithBadCanvas.map((h) => h.id!),
       fix: 'delete',
+      samples: fkSample(floatingHorizonsWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -379,6 +564,7 @@ export async function auditData(): Promise<AuditReport> {
       count: floatingStatusWithBadCanvas.length,
       ids: floatingStatusWithBadCanvas.map((h) => h.id!),
       fix: 'delete',
+      samples: fkSample(floatingStatusWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -392,6 +578,7 @@ export async function auditData(): Promise<AuditReport> {
       count: floatingScoreboardWithBadCanvas.length,
       ids: floatingScoreboardWithBadCanvas.map((h) => h.id!),
       fix: 'delete',
+      samples: fkSample(floatingScoreboardWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -405,6 +592,7 @@ export async function auditData(): Promise<AuditReport> {
       count: floatingSnoozeGraveyardWithBadCanvas.length,
       ids: floatingSnoozeGraveyardWithBadCanvas.map((h) => h.id!),
       fix: 'delete',
+      samples: fkSample(floatingSnoozeGraveyardWithBadCanvas, 'canvasId'),
     })
   }
 
@@ -421,6 +609,12 @@ export async function auditData(): Promise<AuditReport> {
       ids: unplacedTasks.map((t) => t.id!),
       fix: 'clear-field',
       field: 'canvasId',
+      samples: unplacedTasks.slice(0, MAX_SAMPLES_PER_ISSUE).map((t) => ({
+        row: toSampleRow(t as unknown as Record<string, unknown>),
+        id: t.id,
+        badFields: ['canvasId', 'projectId'],
+        note: 'Has canvasId but no projectId — the canvas view filters tasks by project, so this row is invisible there',
+      })),
     })
   }
 
