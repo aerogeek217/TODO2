@@ -9,6 +9,9 @@ import { useFloatingWidget } from '../../hooks/use-floating-widget'
 import styles from './FloatingHorizonsNode.module.css'
 
 export interface FloatingHorizonsNodeData {
+  // React Flow's `Node['data']` requires `Record<string, unknown>`. The index
+  // signature lets canvas builders register typed nodes without casting.
+  [key: string]: unknown
   horizons: FloatingHorizons
   onDelete: (id: number) => void
   onResize?: (id: number, width: number, height: number) => void

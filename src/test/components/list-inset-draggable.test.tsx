@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
 import { DndContext, useDndMonitor, type DragStartEvent } from '@dnd-kit/core'
 import type { ReactNode } from 'react'
-import { DraggableTaskRow } from '../../components/canvas/ListInsetNode'
+import { DraggableTaskRow } from '../../components/canvas/shared/DraggableTaskRow'
 import { makeTodo } from '../helpers'
 
 vi.mock('../../hooks/use-bulk-actions', () => ({

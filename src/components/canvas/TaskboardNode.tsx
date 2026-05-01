@@ -25,6 +25,9 @@ import { DropIndicator, dropCellClassName } from '../shared/DropIndicator'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {
+  // React Flow's `Node['data']` requires `Record<string, unknown>`. The index
+  // signature lets canvas builders register typed nodes without casting.
+  [key: string]: unknown
   floatingId: number
   entries: TaskboardEntry[]
   allTodos: PersistedTodoItem[]

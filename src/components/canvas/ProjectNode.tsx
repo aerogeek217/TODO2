@@ -61,6 +61,9 @@ export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: ProjectSort
 }
 
 export interface ProjectNodeData {
+  // React Flow's `Node['data']` requires `Record<string, unknown>`. The index
+  // signature lets canvas builders register typed nodes without casting.
+  [key: string]: unknown
   project: Project
   todos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>

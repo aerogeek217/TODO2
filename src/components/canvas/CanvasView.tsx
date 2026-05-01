@@ -1,4 +1,4 @@
-import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef, type ComponentType, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   ReactFlow,
   Background,
@@ -7,6 +7,7 @@ import {
   type CoordinateExtent,
   type Node,
   type NodeChange,
+  type NodeProps,
   type NodeTypes,
   type ReactFlowInstance,
   BackgroundVariant,
@@ -133,9 +134,9 @@ const NOOP = () => {}
  * reference-equal values. Used to stabilize node `data` references so that
  * React.memo on canvas nodes short-circuits when nothing relevant changed.
  */
-function shallowEqualObject(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+function shallowEqualObject<T extends object>(a: T, b: T): boolean {
   if (a === b) return true
-  const aKeys = Object.keys(a)
+  const aKeys = Object.keys(a) as Array<keyof T>
   const bKeys = Object.keys(b)
   if (aKeys.length !== bKeys.length) return false
   for (const key of aKeys) {
@@ -145,16 +146,26 @@ function shallowEqualObject(a: Record<string, unknown>, b: Record<string, unknow
   return true
 }
 
+// React Flow's `NodeTypes[string]` is `ComponentType<NodeProps & { data: any; type: any }>`,
+// but each of our node components types its `data` to a specific shape (e.g. `ProjectNodeData`).
+// Containing the cast here lets the `nodeTypes` object below register components by their
+// real prop signatures instead of a per-row `as unknown as NodeTypes[string]` double-cast.
+function asNodeType<TData>(
+  C: ComponentType<NodeProps & { data: TData }>,
+): NodeTypes[string] {
+  return C as NodeTypes[string]
+}
+
 const nodeTypes: NodeTypes = {
-  project: ProjectNode as unknown as NodeTypes[string],
-  listInset: ListInsetNode as unknown as NodeTypes[string],
-  floatingNote: FloatingNoteNode as unknown as NodeTypes[string],
-  floatingCalendar: FloatingCalendarNode as unknown as NodeTypes[string],
-  taskboard: TaskboardNode as unknown as NodeTypes[string],
-  floatingHorizons: FloatingHorizonsNode as unknown as NodeTypes[string],
-  floatingStatus: FloatingStatusNode as unknown as NodeTypes[string],
-  floatingScoreboard: FloatingScoreboardNode as unknown as NodeTypes[string],
-  floatingSnoozeGraveyard: FloatingSnoozeGraveyardNode as unknown as NodeTypes[string],
+  project: asNodeType(ProjectNode),
+  listInset: asNodeType(ListInsetNode),
+  floatingNote: asNodeType(FloatingNoteNode),
+  floatingCalendar: asNodeType(FloatingCalendarNode),
+  taskboard: asNodeType(TaskboardNode),
+  floatingHorizons: asNodeType(FloatingHorizonsNode),
+  floatingStatus: asNodeType(FloatingStatusNode),
+  floatingScoreboard: asNodeType(FloatingScoreboardNode),
+  floatingSnoozeGraveyard: asNodeType(FloatingSnoozeGraveyardNode),
 }
 
 export interface ProjectHandlers {
@@ -447,7 +458,9 @@ export function CanvasView({
   // on ProjectNode/ListInsetNode/FloatingNoteNode/TaskboardNode can short-circuit.
   // Without this, any single-project change (new `todosByProject` Map reference)
   // produces fresh `data` objects for *every* node, forcing all nodes to re-render.
-  const nodeDataCacheRef = useRef(new Map<string, Record<string, unknown>>())
+  // Cache stores `unknown` because each id maps to a kind-specific data shape; the
+  // shape is recovered inside `stabilize<T>` from the call-site's typed argument.
+  const nodeDataCacheRef = useRef(new Map<string, unknown>())
 
   // Stable per-project onBringToFront functions so the closure doesn't produce a
   // new reference every render (which would defeat the data cache).
@@ -465,10 +478,10 @@ export function CanvasView({
   // Build nodes from props data (recomputes when data changes)
   const dataNodes: Node[] = useMemo(() => {
     const prevCache = nodeDataCacheRef.current
-    const nextCache = new Map<string, Record<string, unknown>>()
-    const stabilize = <T extends Record<string, unknown>>(id: string, data: T): T => {
-      const prior = prevCache.get(id)
-      const stable = (prior && shallowEqualObject(prior, data) ? (prior as T) : data)
+    const nextCache = new Map<string, unknown>()
+    const stabilize = <T extends object>(id: string, data: T): T => {
+      const prior = prevCache.get(id) as T | undefined
+      const stable = (prior && shallowEqualObject(prior, data) ? prior : data)
       nextCache.set(id, stable)
       return stable
     }
@@ -496,7 +509,7 @@ export function CanvasView({
         id,
         type: 'project',
         position: { x: project.positionX, y: project.positionY },
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -519,7 +532,7 @@ export function CanvasView({
         id,
         type: 'listInset',
         position: { x: inset.x, y: inset.y },
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -535,7 +548,7 @@ export function CanvasView({
         type: 'floatingNote',
         position: { x: note.x, y: note.y },
         zIndex: 10,
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -551,7 +564,7 @@ export function CanvasView({
         type: 'floatingCalendar',
         position: { x: cal.x, y: cal.y },
         zIndex: 10,
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -578,7 +591,7 @@ export function CanvasView({
         id,
         type: 'taskboard',
         position: { x: ft.x, y: ft.y },
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -594,7 +607,7 @@ export function CanvasView({
         type: 'floatingHorizons',
         position: { x: fh.x, y: fh.y },
         zIndex: 10,
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -610,7 +623,7 @@ export function CanvasView({
         type: 'floatingStatus',
         position: { x: fs.x, y: fs.y },
         zIndex: 10,
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -626,7 +639,7 @@ export function CanvasView({
         type: 'floatingScoreboard',
         position: { x: sb.x, y: sb.y },
         zIndex: 10,
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 
@@ -642,7 +655,7 @@ export function CanvasView({
         type: 'floatingSnoozeGraveyard',
         position: { x: sg.x, y: sg.y },
         zIndex: 10,
-        data: stabilize(id, data as unknown as Record<string, unknown>),
+        data: stabilize(id, data),
       }
     })
 

@@ -64,7 +64,7 @@ export function encodeScheduledValue(v: ScheduledValue | undefined | null): stri
   if (v.kind === 'date') {
     if (v.value instanceof Date) return v.value.toISOString()
     if (typeof v.value === 'string') {
-      const t = Date.parse(v.value as unknown as string)
+      const t = Date.parse(v.value)
       return isNaN(t) ? null : new Date(t).toISOString()
     }
     return null
@@ -78,7 +78,7 @@ export function encodeDateValue(d: Date | undefined | null): string | null {
   if (d == null) return null
   if (d instanceof Date && !isNaN(d.getTime())) return d.toISOString()
   if (typeof d === 'string') {
-    const t = Date.parse(d as unknown as string)
+    const t = Date.parse(d)
     return isNaN(t) ? null : new Date(t).toISOString()
   }
   return null

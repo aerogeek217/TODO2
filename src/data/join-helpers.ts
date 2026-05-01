@@ -25,15 +25,28 @@ export async function captureJoinRows(
 }
 
 /**
+ * Shape every join-table row in this codebase shares: an optional auto-id plus
+ * two number FKs. Used as the constraint for `createJoinOps` so the row builder
+ * can type-check without passing through `unknown`.
+ */
+type JoinTableRow<AK extends string, BK extends string> =
+  & Record<AK | BK, number>
+  & { id?: number }
+
+/**
  * DUP-9: Create assign/unassign operations for a join table.
  * @param table The Dexie join table (e.g., db.todoPeople)
  * @param aKey The first foreign key field name (e.g., 'todoId')
  * @param bKey The second foreign key field name (e.g., 'personId')
  */
-export function createJoinOps<T>(
+export function createJoinOps<
+  AK extends string,
+  BK extends string,
+  T extends JoinTableRow<AK, BK>,
+>(
   table: Table<T, number>,
-  aKey: keyof T & string,
-  bKey: keyof T & string,
+  aKey: AK,
+  bKey: BK,
 ) {
   return {
     async assign(aId: number, bId: number): Promise<void> {
@@ -43,7 +56,10 @@ export function createJoinOps<T>(
           .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
           .first()
         if (!exists) {
-          await table.add({ [aKey]: aId, [bKey]: bId } as unknown as T)
+          // Build the FK row through a typed intermediary so the assertion to T
+          // is a same-shape cast, not a force-through-unknown.
+          const row = { [aKey]: aId, [bKey]: bId } as Record<AK | BK, number>
+          await table.add(row as T)
         }
       })
     },

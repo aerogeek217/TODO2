@@ -15,10 +15,10 @@ import { copyTasksRich } from '../../services/task-copy'
 import { REACT_FLOW_NODE_SELECTOR } from '../../utils/react-flow-dom'
 import styles from './ListInsetNode.module.css'
 
-// Re-exported for back-compat with existing call sites.
-export { DraggableTaskRow }
-
 export interface ListInsetNodeData {
+  // React Flow's `Node['data']` requires `Record<string, unknown>`. The index
+  // signature lets canvas builders register typed nodes without casting.
+  [key: string]: unknown
   inset: ListInset
   allTodos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>

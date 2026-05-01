@@ -9,6 +9,9 @@ import { useFloatingWidget } from '../../hooks/use-floating-widget'
 import styles from './FloatingScoreboardNode.module.css'
 
 export interface FloatingScoreboardNodeData {
+  // React Flow's `Node['data']` requires `Record<string, unknown>`. The index
+  // signature lets canvas builders register typed nodes without casting.
+  [key: string]: unknown
   scoreboard: FloatingScoreboard
   onDelete: (id: number) => void
   onResize?: (id: number, width: number, height: number) => void
