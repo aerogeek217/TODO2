@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Person, Org, Status, Tag } from '../../models'
+import type { Person, Org, Project, Status, Tag } from '../../models'
 import {
   getGroupKey,
   getGroupLabel,
@@ -453,6 +453,51 @@ describe('partitionByGroup', () => {
     const result = partitionByGroup(todos, 'deadline', makeCtx({ today }))
     expect(result.groups).toHaveLength(0)
     expect(result.ungrouped.map((t) => t.id)).toEqual([1])
+  })
+
+  describe('project axis', () => {
+    const mkProject = (id: number, name: string, sortOrder: number): Project => ({
+      id,
+      name,
+      canvasId: 1,
+      positionX: 0,
+      positionY: 0,
+      isCollapsed: false,
+      sortOrder,
+      createdAt: new Date(),
+    })
+
+    it('routes project-less todos into ungrouped, groups the rest by projectId', () => {
+      const projects = [mkProject(1, 'Alpha', 0), mkProject(2, 'Beta', 1)]
+      const todos = [
+        makeTodo({ id: 10, projectId: 1 }),
+        makeTodo({ id: 11, projectId: 2 }),
+        makeTodo({ id: 12 }),
+      ]
+      const result = partitionByGroup(todos, 'project', makeCtx({ projects }))
+      expect(result.ungrouped.map((t) => t.id)).toEqual([12])
+      expect(result.groups.map((g) => g.key)).toEqual(['project-1', 'project-2'])
+      expect(result.groups[0]!.label).toBe('Alpha')
+      expect(result.groups[1]!.label).toBe('Beta')
+    })
+
+    it('orders project groups by registry sortOrder, not first-encounter', () => {
+      const projects = [mkProject(1, 'Alpha', 2), mkProject(2, 'Beta', 0), mkProject(3, 'Charlie', 1)]
+      const todos = [
+        makeTodo({ id: 10, projectId: 1 }),
+        makeTodo({ id: 11, projectId: 2 }),
+        makeTodo({ id: 12, projectId: 3 }),
+      ]
+      const result = partitionByGroup(todos, 'project', makeCtx({ projects }))
+      expect(result.groups.map((g) => g.label)).toEqual(['Beta', 'Charlie', 'Alpha'])
+    })
+
+    it('returns empty label when ctx.projects is missing (caller resolves at site)', () => {
+      const todos = [makeTodo({ id: 10, projectId: 1 })]
+      const result = partitionByGroup(todos, 'project', makeCtx())
+      expect(result.groups.map((g) => g.key)).toEqual(['project-1'])
+      expect(result.groups[0]!.label).toBe('')
+    })
   })
 })
 

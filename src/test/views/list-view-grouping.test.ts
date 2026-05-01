@@ -15,9 +15,13 @@ import { encodeGroupSort } from '../../utils/list-view-encoding'
 import { makeTodo } from '../helpers'
 
 describe('buildDateSections', () => {
+  // Fixed Monday so `+3 days` (Thursday) and `+4 days` (Friday) stay inside
+  // the calendar week (weekStartsOn=1 → Mon-Sun); the post-P9 bucketer keys
+  // "this week" off the calendar boundary, not a rolling-7-day window.
+  const MONDAY = new Date(2026, 0, 12)
+
   it('groups into overdue, today, this week, later, no date', () => {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const today = MONDAY
     const yesterday = new Date(today.getTime() - 86400000)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const inTenDays = new Date(today.getTime() + 10 * 86400000)
@@ -29,7 +33,7 @@ describe('buildDateSections', () => {
       makeTodo({ id: 4, dueDate: inTenDays }),
       makeTodo({ id: 5 }), // no dates
     ]
-    const sections = buildDateSections(todos, 1)
+    const sections = buildDateSections(todos, 1, today)
     expect(sections.map((s) => s.key)).toEqual(['overdue', 'today', 'week', 'later', 'none'])
     expect(sections[0]!.todos).toHaveLength(1) // overdue
     expect(sections[1]!.todos).toHaveLength(1) // today
@@ -39,8 +43,7 @@ describe('buildDateSections', () => {
   })
 
   it('preserves input order within a bucket (caller sorts upstream)', () => {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const today = MONDAY
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const inFourDays = new Date(today.getTime() + 4 * 86400000)
 
@@ -50,20 +53,19 @@ describe('buildDateSections', () => {
       makeTodo({ id: 3, dueDate: inThreeDays, sortOrder: 10 }),
       makeTodo({ id: 4, dueDate: inFourDays, sortOrder: 20 }),
     ]
-    const sections = buildDateSections(todos, 1)
+    const sections = buildDateSections(todos, 1, today)
     const week = sections.find((s) => s.key === 'week')!
     expect(week.todos.map((t) => t.id)).toEqual([1, 2, 3, 4])
   })
 
   it('uses scheduledDate when dueDate is absent', () => {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const today = MONDAY
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
 
     const todos = [
       makeTodo({ id: 1, scheduledDate: { kind: 'date', value: inThreeDays } }),
     ]
-    const sections = buildDateSections(todos, 1)
+    const sections = buildDateSections(todos, 1, today)
     const week = sections.find((s) => s.key === 'week')!
     expect(week.todos.map((t) => t.id)).toEqual([1])
   })

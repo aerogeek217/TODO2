@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Person, Org, Status, Tag, ProjectGroupBy } from '../models'
+import type { PersistedTodoItem, Person, Org, Status, Tag, Project, ProjectGroupBy } from '../models'
 import { effectiveDate, resolveScheduled, type WeekStart } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
 import { resolvePersonColor } from './person-color'
@@ -25,6 +25,11 @@ export interface GroupingContext {
   orgs: readonly Org[]
   /** personId → orgId[] — used by `getGroupColor` to resolve person colors. */
   personOrgMap: Map<number, number[]>
+  /** Project registry — used by `orderGroupKeys` to sort project keys by
+   *  registry `sortOrder`. Optional: empty/undefined is fine when not grouping
+   *  by project (caller can also resolve labels at the call site, mirroring
+   *  the people/org pattern). */
+  projects?: readonly Project[]
   today: Date
   weekStartsOn: WeekStart
 }
@@ -90,10 +95,11 @@ function parseId(prefix: string, key: string): number | null {
  * same grouping across views.
  *
  * Post ui-consistency-2026-04-25 P4 `ProjectGroupBy = TodoGroupBy` widens
- * the union to include `'none'` and `'project'`. Both are no-ops at the
- * task-grouping layer — `'none'` means "ungrouped" and shouldn't reach this
- * function (callers gate on it); `'project'` is meaningless inside a single
- * project's grouped task list.
+ * the union to include `'none'` and `'project'`. `'none'` is a no-op at this
+ * layer (means "ungrouped"; callers gate on it). `'project'` returns
+ * `project-${todo.projectId}` for surfaces that can group by project (the
+ * canvas `ProjectNode` is one project at a time and excludes this axis from
+ * `PROJECT_GROUP_VALUES`; ListView includes it).
  */
 export function getGroupKey(
   todo: PersistedTodoItem,
@@ -127,6 +133,8 @@ export function getGroupKey(
       }
       return keys.size === 0 ? null : [...keys]
     }
+    case 'project':
+      return todo.projectId != null ? `project-${todo.projectId}` : null
     case 'date':
       return bucketDateKey(effectiveDate(todo, ctx.today, ctx.weekStartsOn), ctx.today)
     case 'scheduled':
@@ -137,7 +145,6 @@ export function getGroupKey(
         ctx.today,
       )
     case 'none':
-    case 'project':
       return null
   }
 }
@@ -187,12 +194,17 @@ export function getGroupLabel(
       }
       return ''
     }
+    case 'project': {
+      const id = parseId('project-', key)
+      if (id == null) return ''
+      const project = ctx.projects?.find((p) => p.id === id)
+      return project?.name ?? ''
+    }
     case 'date':
     case 'scheduled':
     case 'deadline':
       return DATE_BUCKET_LABELS[key] ?? ''
     case 'none':
-    case 'project':
       return ''
   }
 }
@@ -241,11 +253,11 @@ export function getGroupColor(
       }
       return undefined
     }
+    case 'project':
     case 'date':
     case 'scheduled':
     case 'deadline':
     case 'none':
-    case 'project':
       return undefined
   }
 }
@@ -299,8 +311,28 @@ function orderGroupKeys(
         return keys.slice().sort((a, b) =>
           getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
         )
+      case 'project': {
+        // Sort by project registry sortOrder when `ctx.projects` is supplied;
+        // otherwise fall through to alphabetical-by-label fallback (mirrors
+        // people/org/tag behavior when label is empty).
+        const projects = ctx.projects
+        if (projects && projects.length > 0) {
+          const order = new Map<number, number>()
+          const sorted = [...projects].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+          sorted.forEach((p, i) => {
+            if (p.id != null) order.set(p.id, i)
+          })
+          return keys.slice().sort((a, b) => {
+            const ai = order.get(parseId('project-', a) ?? -1) ?? Number.MAX_SAFE_INTEGER
+            const bi = order.get(parseId('project-', b) ?? -1) ?? Number.MAX_SAFE_INTEGER
+            return ai - bi
+          })
+        }
+        return keys.slice().sort((a, b) =>
+          getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
+        )
+      }
       case 'none':
-      case 'project':
         return keys.slice()
     }
   })()

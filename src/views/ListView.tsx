@@ -38,7 +38,8 @@ import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
 import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
-import { startOfToday, MS_PER_DAY } from '../utils/date'
+import { bucketByDate, type DateBucketKey } from '../utils/bucket-by-date'
+import { startOfToday, startOfDay } from '../utils/date'
 import { effectiveDate, resolveScheduled, type WeekStart } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
 import { useIsMobile } from '../hooks/use-is-mobile'
@@ -89,8 +90,20 @@ function pickBucketDate(todo: PersistedTodoItem, field: DateBucketField, today: 
   switch (field) {
     case 'date': return effectiveDate(todo, today, weekStartsOn)
     case 'scheduled': return todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today, weekStartsOn) : null
-    case 'deadline': return todo.dueDate ? new Date(todo.dueDate) : null
+    case 'deadline': return todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null
   }
+}
+
+const DATE_LIST_WINDOWS: readonly DateBucketKey[] = ['overdue', 'today', 'thisWeek', 'later']
+
+const DATE_LIST_META: Partial<Record<DateBucketKey, { sectionKey: string; label: string; accentColor?: string }>> = {
+  overdue: { sectionKey: 'overdue', label: 'Overdue', accentColor: 'var(--color-danger)' },
+  today: { sectionKey: 'today', label: 'Today', accentColor: 'var(--color-accent)' },
+  // Section key stays `'week'` for parity with prior call sites; the bucket
+  // primitive's `thisWeek` keys it on calendar week boundaries (the migration
+  // intentionally drops the rolling-7-day window).
+  thisWeek: { sectionKey: 'week', label: 'This Week', accentColor: 'var(--color-accent)' },
+  later: { sectionKey: 'later', label: 'Later' },
 }
 
 function buildBucketSections(
@@ -100,29 +113,14 @@ function buildBucketSections(
   weekStartsOn: WeekStart,
   noDateLabel: string,
 ): Section[] {
-  const tomorrow = new Date(today.getTime() + MS_PER_DAY)
-  const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
-
-  const overdue: PersistedTodoItem[] = []
-  const dueToday: PersistedTodoItem[] = []
-  const thisWeek: PersistedTodoItem[] = []
-  const later: PersistedTodoItem[] = []
-  const noDate: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const d = pickBucketDate(t, field, today, weekStartsOn)
-    if (!d) { noDate.push(t); continue }
-    if (d < today) overdue.push(t)
-    else if (d < tomorrow) dueToday.push(t)
-    else if (d < weekEnd) thisWeek.push(t)
-    else later.push(t)
-  }
-
+  const getDate = (t: PersistedTodoItem): Date | null => pickBucketDate(t, field, today, weekStartsOn)
+  const { buckets, noDate } = bucketByDate(todos, getDate, today, weekStartsOn, DATE_LIST_WINDOWS)
   const sections: Section[] = []
-  if (overdue.length > 0) sections.push({ key: 'overdue', label: 'Overdue', accentColor: 'var(--color-danger)', todos: overdue })
-  if (dueToday.length > 0) sections.push({ key: 'today', label: 'Today', accentColor: 'var(--color-accent)', todos: dueToday })
-  if (thisWeek.length > 0) sections.push({ key: 'week', label: 'This Week', accentColor: 'var(--color-accent)', todos: thisWeek })
-  if (later.length > 0) sections.push({ key: 'later', label: 'Later', todos: later })
+  for (const b of buckets) {
+    const meta = DATE_LIST_META[b.key]
+    if (!meta) continue
+    sections.push({ key: meta.sectionKey, label: meta.label, accentColor: meta.accentColor, todos: b.todos })
+  }
   if (noDate.length > 0) sections.push({ key: 'none', label: noDateLabel, todos: noDate })
   return sections
 }
@@ -245,28 +243,36 @@ export function buildPeopleSections(
   return sections
 }
 
+/**
+ * Project grouping. Adapter over `partitionByGroup`. Iterates the `projects`
+ * registry in input order at the call site to preserve the ListView convention
+ * of "registry order, empty buckets dropped, no-project sentinel last".
+ */
 export function buildProjectSections(
   todos: PersistedTodoItem[],
   projects: Project[],
 ): Section[] {
-  const buckets = new Map<number, PersistedTodoItem[]>()
-  for (const p of projects) buckets.set(p.id!, [])
-  const noProject: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const bucket = t.projectId != null ? buckets.get(t.projectId) : undefined
-    if (bucket) bucket.push(t)
-    else noProject.push(t)
+  const ctx: GroupingContext = {
+    assignedPeopleMap: new Map(),
+    assignedOrgsMap: new Map(),
+    assignedTagsMap: new Map(),
+    statuses: [],
+    orgs: [],
+    personOrgMap: new Map(),
+    today: startOfToday(),
+    weekStartsOn: 0,
   }
+  const { groups, ungrouped } = partitionByGroup(todos, 'project', ctx)
+  const groupsByKey = new Map(groups.map((g) => [g.key, g] as const))
 
   const sections: Section[] = []
   for (const p of projects) {
-    const ts = buckets.get(p.id!)!
-    if (ts.length > 0) {
-      sections.push({ key: `project-${p.id}`, label: p.name, accentColor: 'var(--color-accent)', todos: ts })
+    const g = groupsByKey.get(`project-${p.id}`)
+    if (g && g.todos.length > 0) {
+      sections.push({ key: g.key, label: p.name, accentColor: 'var(--color-accent)', todos: g.todos })
     }
   }
-  if (noProject.length > 0) sections.push({ key: 'no-project', label: 'No Project', todos: noProject })
+  if (ungrouped.length > 0) sections.push({ key: 'no-project', label: 'No Project', todos: ungrouped })
   return sections
 }
 
@@ -411,29 +417,33 @@ export function buildOrgSections(
   return sections
 }
 
+/**
+ * Status grouping. Adapter over `partitionByGroup`. `partitionByGroup` already
+ * orders status groups by registry `sortOrder` via `orderGroupKeys`, so the
+ * adapter just maps through and appends the no-status sentinel.
+ */
 export function buildStatusSections(
   todos: PersistedTodoItem[],
   statuses: Status[],
 ): Section[] {
-  const sorted = [...statuses].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-  const buckets = new Map<number, PersistedTodoItem[]>()
-  for (const s of sorted) buckets.set(s.id!, [])
-  const noStatus: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const bucket = t.statusId != null ? buckets.get(t.statusId) : undefined
-    if (bucket) bucket.push(t)
-    else noStatus.push(t)
+  const ctx: GroupingContext = {
+    assignedPeopleMap: new Map(),
+    assignedOrgsMap: new Map(),
+    assignedTagsMap: new Map(),
+    statuses,
+    orgs: [],
+    personOrgMap: new Map(),
+    today: startOfToday(),
+    weekStartsOn: 0,
   }
-
-  const sections: Section[] = []
-  for (const s of sorted) {
-    const ts = buckets.get(s.id!)!
-    if (ts.length > 0) {
-      sections.push({ key: `status-${s.id}`, label: s.name, accentColor: s.color, todos: ts })
-    }
-  }
-  if (noStatus.length > 0) sections.push({ key: 'no-status', label: 'No Status', todos: noStatus })
+  const { groups, ungrouped } = partitionByGroup(todos, 'status', ctx)
+  const sections: Section[] = groups.map((g) => ({
+    key: g.key,
+    label: g.label,
+    accentColor: getGroupColor(g.key, 'status', ctx),
+    todos: g.todos,
+  }))
+  if (ungrouped.length > 0) sections.push({ key: 'no-status', label: 'No Status', todos: ungrouped })
   return sections
 }
 
