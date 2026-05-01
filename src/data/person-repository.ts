@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { Person } from '../models'
 import { createRepository } from './create-repository'
-import { createJoinOps, buildAssignmentMap } from './join-helpers'
+import { createJoinOps, buildAssignmentMap, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Person>(db.people, 'name')
 const todoPeopleOps = createJoinOps(db.todoPeople, 'todoId', 'personId')
@@ -49,5 +49,19 @@ export const personRepository = {
 
   async getTodoCountForPerson(personId: number): Promise<number> {
     return db.todoPeople.where('personId').equals(personId).count()
+  },
+
+  /**
+   * Undo-restore for `delete`: re-insert the person row (preserving its id)
+   * plus every captured join row (`todoPeople` + `personOrgs`) inside one
+   * transaction.
+   */
+  async restoreWithJoins(person: Person, joins: JoinCapture[]): Promise<void> {
+    await db.transaction('rw', [db.people, ...joins.map(j => j.table)], async () => {
+      await db.people.add(person)
+      for (const { table, rows } of joins) {
+        if (rows.length) await table.bulkAdd(rows)
+      }
+    })
   },
 }

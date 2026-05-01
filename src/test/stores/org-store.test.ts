@@ -5,7 +5,7 @@ import { useOrgStore } from '../../stores/org-store'
 beforeEach(async () => {
   await db.delete()
   await db.open()
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), loading: false, error: null })
+  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map(), loading: false, error: null })
 })
 
 async function addTodo(title = 'Task'): Promise<number> {
@@ -95,5 +95,22 @@ describe('useOrgStore', () => {
 
     expect(useOrgStore.getState().getAssignedOrgs(todoId)).toHaveLength(1)
     expect(useOrgStore.getState().getAssignedOrgs(99999)).toEqual([])
+  })
+
+  it('setPersonOrgs replaces memberships and updates personOrgMap in place', async () => {
+    const eng = await useOrgStore.getState().add('Engineering')
+    const design = await useOrgStore.getState().add('Design')
+    const personId = (await db.people.add({ name: 'Alice', initials: 'A' })) as number
+
+    await useOrgStore.getState().setPersonOrgs(personId, [eng])
+    expect(useOrgStore.getState().personOrgMap.get(personId)).toEqual([eng])
+
+    await useOrgStore.getState().setPersonOrgs(personId, [eng, design])
+    expect(useOrgStore.getState().personOrgMap.get(personId)).toEqual([eng, design])
+
+    // Empty array clears the entry rather than leaving an empty list.
+    await useOrgStore.getState().setPersonOrgs(personId, [])
+    expect(useOrgStore.getState().personOrgMap.has(personId)).toBe(false)
+    expect(await db.personOrgs.where('personId').equals(personId).count()).toBe(0)
   })
 })

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Status } from '../models'
-import { db, statusRepository, settingsRepository } from '../data'
+import { statusRepository, settingsRepository } from '../data'
 import { loadWithState, optimistic, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
@@ -61,7 +61,7 @@ export const useStatusStore = create<StatusState>((set, get) => {
   async remove(id: number) {
     const status = get().statuses.find(s => s.id === id)
     // Capture affected todos and default setting before deletion
-    const affectedTodoIds = await db.todos.where('statusId').equals(id).primaryKeys()
+    const affectedTodoIds = await statusRepository.getTodoIdsForStatus(id)
     const { useSettingsStore } = await import('./settings-store')
     const settingsState = useSettingsStore.getState()
     const wasDefault = settingsState.defaultStatusId === id
@@ -98,16 +98,7 @@ export const useStatusStore = create<StatusState>((set, get) => {
         `Delete status "${status.name}"`,
         () => get().remove(id),
         async () => {
-          // Restore the status entity with original ID
-          await db.statuses.add(status)
-          // Re-assign statusId to affected todos
-          if (affectedTodoIds.length > 0) {
-            await db.transaction('rw', db.todos, async () => {
-              for (const todoId of affectedTodoIds) {
-                await db.todos.update(todoId, { statusId: id })
-              }
-            })
-          }
+          await statusRepository.restoreWithTodos(status, affectedTodoIds)
           if (wasDefault) {
             await useSettingsStore.getState().setDefaultStatusId(id)
           }
@@ -142,11 +133,7 @@ export const useStatusStore = create<StatusState>((set, get) => {
     set({ statuses: updated })
 
     try {
-      await db.transaction('rw', db.statuses, async () => {
-        for (const s of updated) {
-          await db.statuses.update(s.id!, { sortOrder: s.sortOrder })
-        }
-      })
+      await statusRepository.reorder(updated.map(s => s.id!))
     } catch (e) {
       console.error('Failed to reorder statuses:', e)
       set({ statuses: prev, error: 'Failed to reorder statuses' })

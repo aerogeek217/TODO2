@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import type { Tag } from '../models'
 import { db, tagRepository } from '../data'
+import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 import { useSettingsStore } from './settings-store'
@@ -123,7 +124,7 @@ export const useTagStore = create<TagState>((set, get) => {
           `Delete tag "${tag.name}"`,
           () => get().remove(id),
           async () => {
-            await restoreEntityWithJoins(db.tags, tag, joins)
+            await tagRepository.restoreWithJoins(tag, joins)
             await get().load()
             const { useTodoStore } = await import('./todo-store')
             const todoIds = useTodoStore.getState().todos.map((t) => t.id)

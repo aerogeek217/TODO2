@@ -2,6 +2,29 @@ import type { Table } from 'dexie'
 import { db } from './database'
 
 /**
+ * One row of join-table data to be captured pre-delete and restored on undo.
+ * Carries its `Table` ref so a single transaction can span the entity table
+ * plus every join table the entity touches.
+ */
+export interface JoinCapture { table: Table; rows: unknown[] }
+
+/**
+ * Capture every row in the listed join tables that references the given id —
+ * used by `*Store.remove` before deleting the entity, so undo can restore the
+ * exact join membership that existed at delete time.
+ */
+export async function captureJoinRows(
+  captures: Array<{ table: Table; key: string; id: number }>,
+): Promise<JoinCapture[]> {
+  return Promise.all(
+    captures.map(async ({ table, key, id }) => ({
+      table,
+      rows: await table.where(key).equals(id).toArray(),
+    })),
+  )
+}
+
+/**
  * DUP-9: Create assign/unassign operations for a join table.
  * @param table The Dexie join table (e.g., db.todoPeople)
  * @param aKey The first foreign key field name (e.g., 'todoId')

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { personRepository } from '../../data/person-repository'
+import { orgRepository } from '../../data/org-repository'
+import { captureJoinRows } from '../../data/join-helpers'
 
 beforeEach(async () => {
   await db.delete()
@@ -119,5 +121,35 @@ describe('personRepository', () => {
 
     const todoIds = await personRepository.getTodoIdsForPerson(personId)
     expect(todoIds.sort()).toEqual([t1, t2].sort())
+  })
+
+  it('restoreWithJoins re-inserts the person with id plus todoPeople + personOrgs links', async () => {
+    const personId = await personRepository.insert({ name: 'Alice', initials: 'A' })
+    const person = (await personRepository.getById(personId))!
+    const orgId = await orgRepository.insert({ name: 'Engineering' })
+    const todoId = (await db.todos.add({
+      title: 'Task', isCompleted: false,
+      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
+    })) as number
+    await personRepository.assignPerson(todoId, personId)
+    await orgRepository.assignPersonToOrg(personId, orgId)
+
+    const joins = await captureJoinRows([
+      { table: db.todoPeople, key: 'personId', id: personId },
+      { table: db.personOrgs, key: 'personId', id: personId },
+    ])
+
+    await personRepository.delete(personId)
+    expect(await personRepository.getById(personId)).toBeUndefined()
+    expect(await db.todoPeople.where('personId').equals(personId).count()).toBe(0)
+    expect(await db.personOrgs.where('personId').equals(personId).count()).toBe(0)
+
+    await personRepository.restoreWithJoins(person, joins)
+
+    expect(await personRepository.getById(personId)).toMatchObject({ id: personId, name: 'Alice' })
+    expect(await db.todoPeople.where('personId').equals(personId).toArray())
+      .toMatchObject([{ todoId, personId }])
+    expect(await db.personOrgs.where('personId').equals(personId).toArray())
+      .toMatchObject([{ personId, orgId }])
   })
 })

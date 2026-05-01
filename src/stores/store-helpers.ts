@@ -2,13 +2,15 @@
  * Shared helpers for Zustand store patterns.
  * DUP-1: loadWithState — loading/error boilerplate
  * DUP-2: updateEntityInMap — refresh entity references in assignment maps
- * DUP-3: captureJoinRows / restoreJoinRows — capture and restore join table rows for undo
  * DUP-4: captureAssignments — capture person/org IDs for undo
  * DUP-5: bulkUpdateField — shared bulk field update with undo
+ *
+ * Capture/restore for soft-delete undo lives in `data/join-helpers.ts`
+ * (`captureJoinRows`) and the per-entity repositories' `restoreWithJoins`
+ * methods (org / tag / person) — store-layer undo paths consume those
+ * rather than reaching into `db.X.add` directly.
  */
 
-import type { Table } from 'dexie'
-import { db } from '../data/database'
 import { personRepository } from '../data/person-repository'
 import { orgRepository } from '../data/org-repository'
 import { todoRepository } from '../data'
@@ -192,38 +194,6 @@ export async function captureAssignmentsBulk(todoIds: number[]): Promise<
     personIds: (pMap.get(todoId) ?? []).map((p) => p.id!),
     orgIds: (oMap.get(todoId) ?? []).map((o) => o.id!),
   }))
-}
-
-/**
- * DUP-3: Capture join table rows for an entity being deleted (for undo restore).
- */
-export interface JoinCapture { table: Table; rows: unknown[] }
-
-export async function captureJoinRows(
-  captures: Array<{ table: Table; key: string; id: number }>,
-): Promise<JoinCapture[]> {
-  return Promise.all(
-    captures.map(async ({ table, key, id }) => ({
-      table,
-      rows: await table.where(key).equals(id).toArray(),
-    })),
-  )
-}
-
-/**
- * DUP-3: Restore an entity and its join table rows (undo of delete).
- */
-export async function restoreEntityWithJoins(
-  entityTable: Table,
-  entity: unknown,
-  joins: JoinCapture[],
-): Promise<void> {
-  await db.transaction('rw', [entityTable, ...joins.map(j => j.table)], async () => {
-    await entityTable.add(entity)
-    for (const { table, rows } of joins) {
-      if (rows.length) await table.bulkAdd(rows)
-    }
-  })
 }
 
 /**

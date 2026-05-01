@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import type { Org } from '../models'
 import { db, orgRepository } from '../data'
+import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 
@@ -21,6 +22,7 @@ interface OrgState {
   remove: (id: number) => Promise<void>
   loadAssignments: (todoIds: number[]) => Promise<void>
   loadPersonOrgMap: () => Promise<void>
+  setPersonOrgs: (personId: number, orgIds: number[]) => Promise<void>
   assignOrg: (todoId: number, orgId: number) => Promise<void>
   unassignOrg: (todoId: number, orgId: number) => Promise<void>
   bulkAssignOrg: (todoIds: number[], orgId: number) => Promise<void>
@@ -62,6 +64,14 @@ export const useOrgStore = create<OrgState>((set, get) => {
     async loadPersonOrgMap() {
       const map = await orgRepository.getPersonOrgMap()
       set({ personOrgMap: map })
+    },
+
+    async setPersonOrgs(personId: number, orgIds: number[]) {
+      await orgRepository.setPersonOrgs(personId, orgIds)
+      const next = new Map(get().personOrgMap)
+      if (orgIds.length === 0) next.delete(personId)
+      else next.set(personId, [...orgIds])
+      set({ personOrgMap: next })
     },
 
     async add(name: string, color = DEFAULT_ENTITY_COLOR, initials?: string) {
@@ -106,7 +116,7 @@ export const useOrgStore = create<OrgState>((set, get) => {
           `Delete org "${org.name}"`,
           () => get().remove(id),
           async () => {
-            await restoreEntityWithJoins(db.orgs, org, joins)
+            await orgRepository.restoreWithJoins(org, joins)
             await get().load()
             const { useTodoStore } = await import('./todo-store')
             const todoIds = useTodoStore.getState().todos.map(t => t.id)

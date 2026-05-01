@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { listDefinitionRepository } from '../data/list-definition-repository'
-import { db } from '../data/database'
 import type {
   ListDefinition,
   ListGrouping,
@@ -148,7 +147,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       `Delete list "${def.name}"`,
       () => get().remove(id),
       async () => {
-        await db.listDefinitions.add(def)
+        await listDefinitionRepository.restore(def)
         await get().load()
       },
       true,

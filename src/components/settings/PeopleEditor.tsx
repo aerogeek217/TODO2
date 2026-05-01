@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
-import { personRepository, orgRepository } from '../../data'
+import { personRepository } from '../../data'
 import { generateInitials } from '../../utils/person'
 import { resolvePersonColor } from '../../utils/person-color'
 import { ChipSelector } from '../shared/ChipSelector'
@@ -28,6 +28,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const loadOrgs = useOrgStore((s) => s.load)
   const loadPersonOrgMap = useOrgStore((s) => s.loadPersonOrgMap)
+  const setPersonOrgs = useOrgStore((s) => s.setPersonOrgs)
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
   const [editInitialsManual, setEditInitialsManual] = useState(false)
@@ -68,8 +69,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     if (!editing || !editing.name.trim()) return
     try {
       await updatePerson({ id: editing.id, name: editing.name.trim(), initials: editing.initials || generateInitials(editing.name) })
-      await orgRepository.setPersonOrgs(editing.id, editing.orgIds)
-      await loadPersonOrgMap()
+      await setPersonOrgs(editing.id, editing.orgIds)
       setEditing(null)
       setNameError('')
     } catch (e) {
@@ -101,8 +101,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
     try {
       const id = await addPerson(newName.trim(), newInitials || generateInitials(newName))
       if (newOrgIds.length > 0) {
-        await orgRepository.setPersonOrgs(id, newOrgIds)
-        await loadPersonOrgMap()
+        await setPersonOrgs(id, newOrgIds)
       }
       setAdding(false)
       setNameError('')

@@ -19,4 +19,12 @@ export const listDefinitionRepository = {
       }
     })
   },
+
+  /**
+   * Undo-restore for `remove`: re-insert the row preserving its original id so
+   * any saved references (canvas inset, dashboard pin) keep pointing at it.
+   */
+  async restore(def: PersistedListDefinition): Promise<void> {
+    await db.listDefinitions.add(def)
+  },
 }

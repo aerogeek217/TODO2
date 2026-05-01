@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { Tag } from '../models'
 import { createRepository } from './create-repository'
-import { createJoinOps, buildAssignmentMap } from './join-helpers'
+import { createJoinOps, buildAssignmentMap, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Tag>(db.tags, 'name')
 const todoTagOps = createJoinOps(db.todoTags, 'todoId', 'tagId')
@@ -74,5 +74,18 @@ export const tagRepository = {
 
   async unassignTag(todoId: number, tagId: number): Promise<void> {
     await todoTagOps.unassign(todoId, tagId)
+  },
+
+  /**
+   * Undo-restore for `delete`: re-insert the tag row (preserving its id) plus
+   * every captured `todoTags` join row inside one transaction.
+   */
+  async restoreWithJoins(tag: Tag, joins: JoinCapture[]): Promise<void> {
+    await db.transaction('rw', [db.tags, ...joins.map(j => j.table)], async () => {
+      await db.tags.add(tag)
+      for (const { table, rows } of joins) {
+        if (rows.length) await table.bulkAdd(rows)
+      }
+    })
   },
 }

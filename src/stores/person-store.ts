@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import type { Person } from '../models'
 import { db, personRepository } from '../data'
+import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions } from './assignment-helpers'
-import { loadWithState, optimistic, updateEntityInMap, captureJoinRows, restoreEntityWithJoins, makeEnsureLoaded } from './store-helpers'
+import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
 
 interface PersonState {
@@ -95,7 +96,7 @@ export const usePersonStore = create<PersonState>((set, get) => {
           `Delete person "${person.name}"`,
           () => get().remove(id),
           async () => {
-            await restoreEntityWithJoins(db.people, person, joins)
+            await personRepository.restoreWithJoins(person, joins)
             await get().load()
             const { useTodoStore } = await import('./todo-store')
             const todoIds = useTodoStore.getState().todos.map(t => t.id)

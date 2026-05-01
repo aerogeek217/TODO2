@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   closestCenter,
@@ -23,6 +24,7 @@ import { ColorInput } from '../shared/ColorInput'
 import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
 import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './EntityEditor.module.css'
 
 interface EditState {
@@ -39,20 +41,17 @@ interface StatusEditorProps {
 
 function IconPicker({ value, onChange, color }: { value?: string; onChange: (icon?: string) => void; color: string }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
-  }, [open])
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: triggerRef },
+    open,
+    onClose: () => setOpen(false),
+  })
 
   return (
-    <div ref={ref} className={styles.iconPickerWrap}>
+    <div className={styles.iconPickerWrap}>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.iconPickerBtn}
         style={{ color }}
@@ -61,8 +60,8 @@ function IconPicker({ value, onChange, color }: { value?: string; onChange: (ico
       >
         <StatusIcon icon={value || 'circle'} />
       </button>
-      {open && (
-        <div className={styles.iconPickerGrid}>
+      {open && createPortal(
+        <div ref={panelRef} className={styles.iconPickerGrid} style={{ ...style, marginTop: 0 }}>
           {STATUS_ICON_KEYS.map(key => (
             <button
               key={key}
@@ -74,7 +73,8 @@ function IconPicker({ value, onChange, color }: { value?: string; onChange: (ico
               <StatusIcon icon={key} />
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

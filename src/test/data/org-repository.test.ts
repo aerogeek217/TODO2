@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { orgRepository } from '../../data/org-repository'
+import { captureJoinRows } from '../../data/join-helpers'
 
 beforeEach(async () => {
   await db.delete()
@@ -153,5 +154,36 @@ describe('orgRepository', () => {
     await orgRepository.unassignOrg(todoId, orgId)
     const links = await db.todoOrgs.where('todoId').equals(todoId).toArray()
     expect(links).toHaveLength(0)
+  })
+
+  it('restoreWithJoins re-inserts the org with its id plus every captured join row', async () => {
+    const orgId = await orgRepository.insert({ name: 'Engineering', color: '#abcdef' })
+    const org = (await orgRepository.getById(orgId))!
+    const personId = (await db.people.add({ name: 'Alice', initials: 'A' })) as number
+    const todoId = (await db.todos.add({
+      title: 'Task', isCompleted: false,
+      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
+    })) as number
+    await orgRepository.assignPersonToOrg(personId, orgId)
+    await orgRepository.assignOrg(todoId, orgId)
+
+    const joins = await captureJoinRows([
+      { table: db.personOrgs, key: 'orgId', id: orgId },
+      { table: db.todoOrgs, key: 'orgId', id: orgId },
+    ])
+
+    await orgRepository.delete(orgId)
+    expect(await orgRepository.getById(orgId)).toBeUndefined()
+    expect(await db.personOrgs.where('orgId').equals(orgId).count()).toBe(0)
+    expect(await db.todoOrgs.where('orgId').equals(orgId).count()).toBe(0)
+
+    await orgRepository.restoreWithJoins(org, joins)
+
+    const restored = await orgRepository.getById(orgId)
+    expect(restored).toMatchObject({ id: orgId, name: 'Engineering', color: '#abcdef' })
+    const personLinks = await db.personOrgs.where('orgId').equals(orgId).toArray()
+    expect(personLinks.map(l => l.personId)).toEqual([personId])
+    const todoLinks = await db.todoOrgs.where('orgId').equals(orgId).toArray()
+    expect(todoLinks.map(l => l.todoId)).toEqual([todoId])
   })
 })
