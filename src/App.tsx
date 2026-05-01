@@ -15,6 +15,7 @@ import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
 import { BulkConfirmDialog } from './components/overlays/BulkConfirmDialog'
 import { QuickAddBar, type QuickAddDraft } from './components/overlays/QuickAddBar'
+import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
@@ -127,6 +128,7 @@ function AppQuickAddBar() {
       usePersonStore.getState().assignPerson,
       useOrgStore.getState().assignOrg,
     )
+    useUIStore.getState().showRecentlyCreated(id)
     close()
   }, [close])
 
@@ -356,6 +358,7 @@ function AppShell() {
 
       <AppBulkConfirmDialog />
       <AppQuickAddBar />
+      <RecentTaskPill />
       <UndoSnackbar />
       {isMobile && <FilterSheet />}
       {isMobile && <BottomTabBar />}

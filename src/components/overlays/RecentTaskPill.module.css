@@ -1,0 +1,130 @@
+/* Anchored to the same top-center position the QuickAddBar surfaces at
+ * (`QuickAddBar.module.css` — overlay padding-top 120px, justify-content
+ * center) so the pill visually replaces the dialog the user just dismissed.
+ * Width caps at the same 720px so the silhouettes match. */
+.pill {
+  position: fixed;
+  top: 120px;
+  left: 50%;
+  z-index: var(--z-dialog);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  background: var(--color-surface-high);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  max-width: min(720px, calc(100vw - 48px));
+  /* Single keyframe handles both entry and the late fade-out — the JS
+   * `onAnimationEnd` clears the store after the cycle completes. Hover pauses
+   * the animation, so the pill won't fade while the user is interacting.
+   * Every frame keeps the -50% X translate so the pill stays centered. */
+  animation: appearLingerFade 5500ms forwards;
+}
+
+.pill:hover,
+.pill:focus-within {
+  animation-play-state: paused;
+}
+
+@keyframes appearLingerFade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  4% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  90% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  padding-left: 4px;
+}
+
+.rowWrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The TaskRow paints a 1 px separator at the bottom (`::after`) for stacking
+ * inside lists. The pill renders a single row — suppress so it doesn't read
+ * as a divider. */
+.rowWrapper > *::after {
+  display: none;
+}
+
+/* TaskRow advertises `cursor: grab` because it normally lives inside a
+ * sortable list. The pill has no DndContext above it, so a drag would no-op
+ * — flatten the affordance to avoid implying drag-to-taskboard. */
+.rowWrapper > *,
+.rowWrapper > *:active {
+  cursor: default;
+}
+
+.boardButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-task);
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.boardButton:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-bg-light);
+}
+
+.boardButton:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.dismissButton {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.dismissButton:hover {
+  color: var(--color-text-secondary);
+}
+
+@media (max-width: 640px) {
+  .pill {
+    top: 16px;
+    max-width: calc(100vw - 24px);
+  }
+
+  .boardButton,
+  .dismissButton {
+    min-height: var(--touch-target-min);
+  }
+}

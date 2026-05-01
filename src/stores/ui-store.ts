@@ -127,6 +127,15 @@ interface UIState {
    *    draft via `closeEditPopup` on its close.
    */
   quickAddDraft: { rawTitle: string } | null
+  /**
+   * Most recently created task — drives the transient `RecentTaskPill`
+   * overlay. The pill renders for ~5s after creation so the user can click
+   * to open the editor or one-click add it to the taskboard before it fades.
+   * `key` is a fresh value (Date.now) so React can remount the pill — and
+   * restart its CSS animation — when a new task is created while the
+   * previous pill is still visible.
+   */
+  recentlyCreated: { todoId: number; key: number } | null
 
   setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
@@ -164,6 +173,8 @@ interface UIState {
   openQuickAdd: (seed?: string) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: { rawTitle: string } | null) => void
+  showRecentlyCreated: (todoId: number) => void
+  clearRecentlyCreated: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -193,6 +204,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   floatAnnouncement: '',
   quickAddOpen: false,
   quickAddDraft: null,
+  recentlyCreated: null,
 
   setActiveView(view: AppView) {
     set({ activeView: view })
@@ -371,5 +383,14 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setQuickAddDraft(draft) {
     set({ quickAddDraft: draft })
+  },
+
+  showRecentlyCreated(todoId) {
+    set({ recentlyCreated: { todoId, key: Date.now() } })
+  },
+
+  clearRecentlyCreated() {
+    if (get().recentlyCreated === null) return
+    set({ recentlyCreated: null })
   },
 }))

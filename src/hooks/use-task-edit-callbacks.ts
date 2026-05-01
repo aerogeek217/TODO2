@@ -79,6 +79,7 @@ export function useTaskEditCallbacks() {
       : []
     const allTagIds = new Set<number>([...nlpTagIds, ...(assignments?.tagIds ?? [])])
     for (const tagId of allTagIds) await useTagStore.getState().assignTag(id, tagId)
+    useUIStore.getState().showRecentlyCreated(id)
     return id
   }, [selectedCanvasId, addTodo, updateTodo, assignPerson, assignOrg, addProject, people, projects, orgs, statuses])
 
