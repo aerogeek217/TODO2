@@ -28,6 +28,7 @@ import { matchTodoText, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
+import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { computeSearchDropIndex } from '../../utils/task-dnd'
@@ -131,32 +132,47 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
   onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, todoId: number) => void
   onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
 }) {
+  const { handleToggleComplete } = useTaskRowActions({ todo })
   return (
     <TaskDraggable todo={todo} surface="search">
       {({ attributes, listeners, setNodeRef, isDragging }) => (
-        <button
-          ref={setNodeRef}
-          {...attributes}
-          {...listeners}
-          role="option"
-          aria-selected={false}
+        <div
           className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onOpen(todo.id)}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onOpenContextMenu(todo, e.clientX, e.clientY)
-          }}
-          onKeyDown={(e) => onKeyDown(e, todo.id)}
-          style={{ opacity: isDragging ? 0 : undefined, cursor: 'pointer' }}
+          style={{ opacity: isDragging ? 0 : undefined }}
         >
-          <span className={styles.miniListTitle}>{todo.title}</span>
-          {field === 'notes' && todo.notes && (
-            <span className={styles.miniListMatchSnippet}>{todo.notes.replace(/\s+/g, ' ').trim()}</span>
-          )}
-          <SearchResultPills todo={todo} ctx={pillCtx} />
-        </button>
+          <input
+            type="checkbox"
+            className={styles.miniListCheckbox}
+            checked={todo.isCompleted}
+            onChange={handleToggleComplete}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+          />
+          <button
+            ref={setNodeRef}
+            {...attributes}
+            {...listeners}
+            role="option"
+            aria-selected={false}
+            className={styles.miniListItemContent}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onOpen(todo.id)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onOpenContextMenu(todo, e.clientX, e.clientY)
+            }}
+            onKeyDown={(e) => onKeyDown(e, todo.id)}
+            style={{ cursor: 'pointer' }}
+          >
+            <span className={styles.miniListTitle}>{todo.title}</span>
+            {field === 'notes' && todo.notes && (
+              <span className={styles.miniListMatchSnippet}>{todo.notes.replace(/\s+/g, ' ').trim()}</span>
+            )}
+            <SearchResultPills todo={todo} ctx={pillCtx} />
+          </button>
+        </div>
       )}
     </TaskDraggable>
   )

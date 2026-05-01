@@ -96,19 +96,32 @@
   gap: 8px;
   width: 100%;
   padding: 6px 8px;
-  background: none;
-  border: none;
   border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-task);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
   transition: background 0.1s;
 }
 
 .miniListItem:hover {
   background: var(--color-surface-high);
+}
+
+.miniListCheckbox {
+  composes: checkbox from '../task/TaskRow.module.css';
+}
+
+.miniListItemContent {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .miniListItemCompleted {
