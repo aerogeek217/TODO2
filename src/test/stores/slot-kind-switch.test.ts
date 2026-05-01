@@ -1,40 +1,33 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useCanvasRailsStore, createLensSlot, createSlot, createTaskboardSlot } from '../../stores/canvas-rails-store'
 import { EMPTY_RAILS, getActiveTab } from '../../models/canvas-rails'
+import type { SlotKind } from '../../models/canvas-rails'
+import { SLOT_KIND_SWITCH_CASES } from '../utils/kind-switch-table'
+import { resetRailsStore } from '../helpers'
 
-function resetRails() {
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true })
+function seedSlot(kind: SlotKind) {
+  if (kind === 'lens') return createLensSlot(42)
+  if (kind === 'taskboard') return createTaskboardSlot()
+  return createSlot(kind)
 }
 
 describe('canvas-rails-store.setSlotKind', () => {
-  beforeEach(resetRails)
+  beforeEach(() => resetRailsStore({ hydrated: true }))
 
-  it('switches a lens slot to notes and clears listDefinitionId', () => {
-    const slot = createLensSlot(42)
+  it.each(SLOT_KIND_SWITCH_CASES)('$from → $to', ({ from, to, expectClearListDef }) => {
+    const slot = seedSlot(from)
     useCanvasRailsStore.setState({
       rails: { ...EMPTY_RAILS, right: { orientation: 'vertical', slots: [slot] } },
     })
-    useCanvasRailsStore.getState().setSlotKind(slot.id, 'notes')
+    useCanvasRailsStore.getState().setSlotKind(slot.id, to)
     const after = useCanvasRailsStore.getState().rails.right!.slots[0]!
     const tab = getActiveTab(after)
-    expect(tab.type).toBe('notes')
-    expect(tab.listDefinitionId).toBeUndefined()
+    expect(tab.type).toBe(to)
     expect(after.id).toBe(slot.id)
+    if (expectClearListDef) expect(tab.listDefinitionId).toBeUndefined()
   })
 
-  it('switches a notes slot to taskboard (no per-tab seed — singleton board)', () => {
-    const slot = createSlot('notes')
-    slot.id = 'slot-1'
-    useCanvasRailsStore.setState({
-      rails: { ...EMPTY_RAILS, left: { orientation: 'vertical', slots: [slot] } },
-    })
-    useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard')
-    const after = useCanvasRailsStore.getState().rails.left!.slots[0]!
-    const tab = getActiveTab(after)
-    expect(tab.type).toBe('taskboard')
-  })
-
-  it('preserves slot id and rail position', () => {
+  it('preserves slot id and rail position across a 3-slot rail', () => {
     const slotA = createSlot('notes')
     slotA.id = 'a'
     const slotB = createTaskboardSlot()
@@ -50,18 +43,6 @@ describe('canvas-rails-store.setSlotKind', () => {
     const tab = getActiveTab(slots[1]!)
     expect(tab.type).toBe('lens')
     expect(tab.listDefinitionId).toBe(11)
-  })
-
-  it('switching lens → taskboard clears listDefinitionId', () => {
-    const slot = createLensSlot(42)
-    useCanvasRailsStore.setState({
-      rails: { ...EMPTY_RAILS, top: { orientation: 'horizontal', slots: [slot] } },
-    })
-    useCanvasRailsStore.getState().setSlotKind(slot.id, 'taskboard')
-    const after = useCanvasRailsStore.getState().rails.top!.slots[0]!
-    const tab = getActiveTab(after)
-    expect(tab.type).toBe('taskboard')
-    expect(tab.listDefinitionId).toBeUndefined()
   })
 
   it('is a no-op when the slotId is not found', () => {

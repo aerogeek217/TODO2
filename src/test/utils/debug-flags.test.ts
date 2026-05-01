@@ -74,121 +74,15 @@ describe('dndLog', () => {
   })
 })
 
-describe('debug-dnd wrap sites — fixture drag emits the ladder', () => {
-  it('dispatchTaskDrop logs the calendar-reschedule branch under ?debug-dnd=1', async () => {
-    stubSearch('?debug-dnd=1')
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const dispatchMod = await import('../../utils/task-dnd/dispatch')
-    const kindsMod = await import('../../utils/task-dnd/kinds')
-    const helpers = await import('../helpers')
-
-    const reschedule = vi.fn(async () => {})
-    const fakeTaskboard: import('../../utils/task-dnd/dispatch').TaskboardOps = {
-      board: null,
-      getEntries: () => [],
-      ensureLoaded: async () => ({
-        id: 1, entries: [], createdAt: new Date(), updatedAt: new Date(),
-      }),
-      has: () => false,
-      reorder: async () => {},
-      removeEntry: async () => {},
-      addAt: async () => {},
-      addMultipleAt: async () => {},
-    }
-    const todo = helpers.makeTodo({ id: 7 })
-    const event = {
-      active: {
-        id: 'a', data: { current: { type: kindsMod.TASK_DRAG_KIND.task, todo } },
-      },
-      over: {
-        id: 'cal-2026-04-26',
-        data: { current: { type: kindsMod.TASK_DROP_KIND.calendarDay, date: new Date(2026, 3, 26) } },
-      },
-      delta: { x: 0, y: 0 },
-    } as unknown as import('@dnd-kit/core').DragEndEvent
-
-    await dispatchMod.dispatchTaskDrop(event, { taskboard: fakeTaskboard, calendar: { reschedule } })
-
-    expect(reschedule).toHaveBeenCalledTimes(1)
-    const labels = warn.mock.calls.map((c) => c[1])
-    expect(labels).toContain('dispatch.calendar-day-reschedule')
-  })
-
-  it('dispatchTaskDrop logs the unhandled branch (no-active-todo) under ?debug-dnd=1', async () => {
-    stubSearch('?debug-dnd=1')
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const dispatchMod = await import('../../utils/task-dnd/dispatch')
-
-    const fakeTaskboard: import('../../utils/task-dnd/dispatch').TaskboardOps = {
-      board: null,
-      getEntries: () => [],
-      ensureLoaded: async () => ({
-        id: 1, entries: [], createdAt: new Date(), updatedAt: new Date(),
-      }),
-      has: () => false,
-      reorder: async () => {},
-      removeEntry: async () => {},
-      addAt: async () => {},
-      addMultipleAt: async () => {},
-    }
-    const event = {
-      active: { id: 'a', data: { current: {} } },
-      over: null,
-      delta: { x: 0, y: 0 },
-    } as unknown as import('@dnd-kit/core').DragEndEvent
-
-    const handled = await dispatchMod.dispatchTaskDrop(event, { taskboard: fakeTaskboard })
-    expect(handled).toBe(false)
-    expect(warn.mock.calls.map((c) => c[1])).toContain('dispatch.no-active-todo')
-  })
-
-  it('buildTaskCollision logs the matched rule under ?debug-dnd=1', async () => {
-    stubSearch('?debug-dnd=1')
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const collisionMod = await import('../../utils/task-dnd/collision')
-    const kindsMod = await import('../../utils/task-dnd/kinds')
-
-    const detect = collisionMod.buildTaskCollision([
-      {
-        when: (a) => a.data.current?.type === kindsMod.TASK_DRAG_KIND.task,
-        accept: (id) => String(id).startsWith('project-drop-'),
-        algorithm: 'pointerWithin',
-      },
-    ])
-    const args = {
-      active: { id: 'todo-5', data: { current: { type: kindsMod.TASK_DRAG_KIND.task } } },
-      droppableContainers: [
-        { id: 'project-drop-1', data: { current: {} } },
-        { id: 'rails:slot:x', data: { current: {} } },
-      ],
-      collisionRect: { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0 },
-      droppableRects: new Map(),
-      pointerCoordinates: { x: 0, y: 0 },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any
-    detect(args)
-    expect(warn.mock.calls.map((c) => c[1])).toContain('collision.rule-matched')
-  })
-
-  it('resolveFloatDockTarget logs the empty-side resolution under ?debug-dnd=1', async () => {
-    stubSearch('?debug-dnd=1')
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const railMod = await import('../../utils/rail-dnd')
-
-    const fakeEl = document.createElement('div')
-    fakeEl.dataset.railsDropId = 'rails:empty-side:right'
-    const target = railMod.resolveFloatDockTarget(
-      { x: 100, y: 100 },
-      {
-        elementsFromPoint: () => [fakeEl],
-        getSlotOrientation: () => null,
-      },
-    )
-    expect(target).toEqual({ kind: 'empty-side', side: 'right' })
-    expect(warn.mock.calls.map((c) => c[1])).toContain('rail-dnd.resolveFloatDockTarget.empty-side')
-  })
-
-  it('emits no logs when ?debug-dnd is absent (production silence)', async () => {
+describe('debug-dnd wrap sites — production silence', () => {
+  // The wrap-site fixture drags previously asserted that each of the four
+  // dndLog call-sites (dispatch / collision / rail-dnd / drag-monitor) emits
+  // its expected label under `?debug-dnd=1`. That coverage was a costly
+  // mock-heavy walk to assert "this string passed through dndLog at this
+  // call-site"; the dndLog tests above already pin the contract end-to-end.
+  // The single remaining test below pins the load-bearing invariant:
+  // production (no flag) emits no debug noise.
+  it('emits no logs when ?debug-dnd is absent', async () => {
     stubSearch('')
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const dispatchMod = await import('../../utils/task-dnd/dispatch')

@@ -39,48 +39,23 @@ const projects: Project[] = [
 ]
 
 describe('nlp-resolver', () => {
-  it('resolves exact person name match', () => {
-    const parsed = parseInput('Task @Mike')
-    const result = resolveInput(parsed, people)
-    expect(result.personIds).toEqual([3])
-    expect(result.unmatchedPersons).toEqual([])
-  })
+  type PersonCase = { input: string; personIds: number[]; unmatched?: string[] }
 
-  it('resolves person by first name', () => {
-    const parsed = parseInput('Task @John')
-    const result = resolveInput(parsed, people)
-    expect(result.personIds).toEqual([1])
-  })
+  const personCases: PersonCase[] = [
+    { input: 'Task @Mike', personIds: [3] },           // exact name
+    { input: 'Task @John', personIds: [1] },           // first name
+    { input: 'Task @SC', personIds: [2] },             // initials
+    { input: 'Task @Sar', personIds: [2] },            // prefix
+    { input: 'Task @Mike @Sarah', personIds: [3, 2] }, // multiple
+    { input: 'Task @Mike @Mike', personIds: [3] },     // dedupe
+    { input: 'Task @Unknown', personIds: [], unmatched: ['Unknown'] },
+  ]
 
-  it('resolves person by initials', () => {
-    const parsed = parseInput('Task @SC')
+  it.each(personCases)('resolves persons from "$input"', ({ input, personIds, unmatched = [] }) => {
+    const parsed = parseInput(input)
     const result = resolveInput(parsed, people)
-    expect(result.personIds).toEqual([2])
-  })
-
-  it('resolves person by prefix', () => {
-    const parsed = parseInput('Task @Sar')
-    const result = resolveInput(parsed, people)
-    expect(result.personIds).toEqual([2])
-  })
-
-  it('reports unmatched person', () => {
-    const parsed = parseInput('Task @Unknown')
-    const result = resolveInput(parsed, people)
-    expect(result.personIds).toEqual([])
-    expect(result.unmatchedPersons).toEqual(['Unknown'])
-  })
-
-  it('resolves multiple persons', () => {
-    const parsed = parseInput('Task @Mike @Sarah')
-    const result = resolveInput(parsed, people)
-    expect(result.personIds).toEqual([3, 2])
-  })
-
-  it('deduplicates person IDs', () => {
-    const parsed = parseInput('Task @Mike @Mike')
-    const result = resolveInput(parsed, people)
-    expect(result.personIds).toEqual([3])
+    expect(result.personIds).toEqual(personIds)
+    expect(result.unmatchedPersons).toEqual(unmatched)
   })
 
   it('preserves scheduledDate from parsed input', () => {
@@ -98,30 +73,20 @@ describe('nlp-resolver', () => {
     expect(result.personIds).toEqual([1])
   })
 
-  it('resolves exact project name match', () => {
-    const parsed = parseInput('Fix bug /Backend')
-    const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBe(100)
-    expect(result.unmatchedProjects).toEqual([])
-  })
+  type ProjectCase = { input: string; projectId?: number; unmatched?: string[] }
 
-  it('resolves project by prefix', () => {
-    const parsed = parseInput('Task /Des')
-    const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBe(101)
-  })
+  const projectCases: ProjectCase[] = [
+    { input: 'Fix bug /Backend', projectId: 100 },           // exact
+    { input: 'Task /Des', projectId: 101 },                  // prefix
+    { input: 'Task /Backend /Frontend', projectId: 100 },    // first-match
+    { input: 'Task /Unknown', unmatched: ['Unknown'] },
+  ]
 
-  it('reports unmatched project', () => {
-    const parsed = parseInput('Task /Unknown')
+  it.each(projectCases)('resolves projects from "$input"', ({ input, projectId, unmatched = [] }) => {
+    const parsed = parseInput(input)
     const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBeUndefined()
-    expect(result.unmatchedProjects).toEqual(['Unknown'])
-  })
-
-  it('uses first matched project when multiple specified', () => {
-    const parsed = parseInput('Task /Backend /Frontend')
-    const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBe(100)
+    expect(result.projectId).toBe(projectId)
+    expect(result.unmatchedProjects).toEqual(unmatched)
   })
 
   it('resolves project alongside people', () => {

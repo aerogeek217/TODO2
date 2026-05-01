@@ -4,8 +4,8 @@ import { useDefaultRails } from '../../hooks/use-default-rails'
 import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { emptyPredicate, useListDefinitionStore } from '../../stores/list-definition-store'
-import { EMPTY_RAILS } from '../../models/canvas-rails'
 import type { RailsState } from '../../models/canvas-rails'
+import { resetRailsStore } from '../helpers'
 import type { PersistedListDefinition } from '../../models/list-definition'
 
 /**
@@ -46,7 +46,7 @@ const persistedSeed: RailsState = {
 }
 
 beforeEach(() => {
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: false, pendingFocusSlotId: null })
+  resetRailsStore()
   useSettingsStore.setState({ canvasRails: null, horizonSlots: [] })
   useListDefinitionStore.setState({ listDefinitions: [] })
 })

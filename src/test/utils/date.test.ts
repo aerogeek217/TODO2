@@ -101,10 +101,6 @@ describe('formatDate', () => {
     const d = new Date(2023, 11, 31) // Dec 31, 2023
     expect(formatDate(d)).toBe('Dec 31, 2023')
   })
-
-  it('returns a non-empty string', () => {
-    expect(formatDate(new Date())).toBeTruthy()
-  })
 })
 
 describe('formatDateShort', () => {

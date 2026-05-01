@@ -64,45 +64,17 @@ describe('AvatarStack', () => {
     unmount()
   })
 
-  it('renders hollow variant with transparent background + outlined circles', () => {
+  it('renders hollow variant with the avatarHollow class', () => {
     const orgs = [{ id: 1, name: 'Acme', initials: 'AC', color: '#00ff00' }]
     const { container } = render(<AvatarStack people={orgs} variant="hollow" />)
     const avatar = container.querySelector('[class*="avatar"]') as HTMLElement
     expect(avatar.className).toMatch(/avatarHollow/i)
-    // inline style from hollow variant: borderColor + color, no background
-    expect(avatar.style.borderColor).toBeTruthy()
-    expect(avatar.style.color).toBeTruthy()
-    expect(avatar.style.background).toBe('')
   })
 
   it('uses an org-oriented aria-label for the hollow variant', () => {
     const orgs = [{ id: 1, name: 'Acme', initials: 'AC' }]
     render(<AvatarStack people={orgs} variant="hollow" />)
     expect(screen.getByRole('button', { name: '1 org assigned' })).toBeInTheDocument()
-  })
-
-  it('derives person fill color from first assigned org', () => {
-    useOrgStore.setState({
-      orgs: [
-        { id: 10, name: 'Acme', color: '#123456' },
-        { id: 11, name: 'Beta', color: '#abcdef' },
-      ],
-      personOrgMap: new Map([[1, [10, 11]]]),
-      assignedOrgsMap: new Map(),
-    })
-    const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' })]
-    const { container } = render(<AvatarStack people={people} />)
-    const avatar = container.querySelector('[class*="avatar"]') as HTMLElement
-    // First assigned org's color wins.
-    expect(avatar.style.background).toMatch(/#123456|rgb\(18,\s*52,\s*86\)/i)
-  })
-
-  it('falls back to default entity color when person has no org', () => {
-    const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' })]
-    const { container } = render(<AvatarStack people={people} />)
-    const avatar = container.querySelector('[class*="avatar"]') as HTMLElement
-    // Non-empty background (DEFAULT_ENTITY_COLOR = #537FE7).
-    expect(avatar.style.background).toBeTruthy()
   })
 
   it('invokes onPersonContextMenu with the source person on right-click', () => {

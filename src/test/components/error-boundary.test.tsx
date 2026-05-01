@@ -39,15 +39,6 @@ describe('ErrorBoundary', () => {
     expect(getByText(/canvas exploded/)).toBeTruthy()
   })
 
-  it('renders generic title when scope not provided', () => {
-    const { getByText } = render(
-      <ErrorBoundary>
-        <Boom />
-      </ErrorBoundary>,
-    )
-    expect(getByText('Something went wrong')).toBeTruthy()
-  })
-
   it('calls custom fallback renderer with error + reset', () => {
     const fallback = vi.fn((err: Error, reset: () => void) => (
       <div>

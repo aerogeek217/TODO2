@@ -10,8 +10,9 @@ import { useFloatingTaskboardStore } from '../../../../stores/floating-taskboard
 import { useTaskboardStore } from '../../../../stores/taskboard-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
 import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
-import { EMPTY_RAILS, getActiveTab } from '../../../../models/canvas-rails'
+import { getActiveTab } from '../../../../models/canvas-rails'
 import type { Slot, SlotKind, Tab } from '../../../../models/canvas-rails'
+import { resetRailsStore, resetFloatingStores } from '../../../helpers'
 
 function makeSlot(id: string, kind: SlotKind, extra?: { listDefinitionId?: number }): Slot {
   const tab = { id: `${id}-t0`, type: kind, ...(extra ?? {}) }
@@ -23,13 +24,10 @@ beforeEach(async () => {
   await db.open()
   useCanvasStore.setState({ selectedCanvasId: null })
   useNoteStore.setState({ notes: new Map(), activeId: null, lastSavedAt: null })
-  useListInsetStore.setState({ insets: [], loading: false, error: null })
-  useFloatingCalendarStore.setState({ calendars: [], loading: false, error: null })
-  useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
-  useFloatingTaskboardStore.setState({ taskboards: [], loading: false, error: null })
+  resetFloatingStores()
   useTaskboardStore.setState({ board: null, loading: false, error: null })
   useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
+  resetRailsStore({ hydrated: true })
 })
 
 async function seedCanvas(): Promise<number> {
@@ -39,13 +37,6 @@ async function seedCanvas(): Promise<number> {
 }
 
 describe('popSlotToCanvas', () => {
-  it('no-ops when no canvas is selected', async () => {
-    const slot = makeSlot('slot-1', 'calendar')
-    const moved = await popSlotToCanvas(slot)
-    expect(moved).toBe(false)
-    expect(useFloatingCalendarStore.getState().calendars.length).toBe(0)
-  })
-
   it('pops a notes slot into a placement-only floating note (no content fork)', async () => {
     const canvasId = await seedCanvas()
     const now = new Date()

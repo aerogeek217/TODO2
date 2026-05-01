@@ -224,14 +224,6 @@ export async function setupRailsHarness(initial: RailsState): Promise<RailsHarne
   }
 }
 
-export function resetRailsStore() {
-  useCanvasRailsStore.setState({
-    rails: { left: null, right: null, top: null, bottom: null },
-    hydrated: false,
-    pendingFocusSlotId: null,
-  })
-}
-
 // ── Layout resolver ────────────────────────────────────────────────────────
 
 function makeDefaultResolver(layout: Required<RailsLayout>): RectResolver {

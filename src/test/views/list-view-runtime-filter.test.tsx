@@ -145,10 +145,7 @@ describe('ListView — runtime-filter picker', () => {
     const { getByText, getByLabelText } = render(<ListView />)
     fireEvent.click(getByText('Tasks for…'))
 
-    // Picker input is visible (multi-select shape — chips + searchable list).
     const picker = getByLabelText(/Filter tasks by person/i) as HTMLInputElement
-    expect(picker).toBeTruthy()
-    expect(picker.tagName).toBe('INPUT')
     // Focusing the input opens the option list; Alice should appear.
     fireEvent.focus(picker)
     expect(document.body.textContent).toMatch(/Alice/)
@@ -184,7 +181,6 @@ describe('ListView — runtime-filter picker', () => {
     // Click the Alpha option in the anchored panel.
     const alphaOption = Array.from(document.querySelectorAll('button'))
       .find((b) => b.textContent === 'Alpha')
-    expect(alphaOption).toBeTruthy()
     fireEvent.click(alphaOption!)
 
     // Alpha task is visible; Beta task is filtered out.
@@ -223,14 +219,12 @@ describe('ListView — runtime-filter picker', () => {
     // Pick Alpha first.
     const alphaOption = Array.from(document.querySelectorAll('button'))
       .find((b) => b.textContent === 'Alpha')
-    expect(alphaOption).toBeTruthy()
     fireEvent.click(alphaOption!)
 
     // Re-focus to re-open the option panel and pick Beta.
     fireEvent.focus(picker)
     const betaOption = Array.from(document.querySelectorAll('button'))
       .find((b) => b.textContent === 'Beta')
-    expect(betaOption).toBeTruthy()
     fireEvent.click(betaOption!)
 
     // Both Alpha and Beta tasks visible; Gamma filtered out (OR semantics).

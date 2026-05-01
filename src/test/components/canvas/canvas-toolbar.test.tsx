@@ -3,6 +3,7 @@ import { cleanup, render, fireEvent, screen } from '@testing-library/react'
 import { CanvasToolbar } from '../../../components/canvas/CanvasToolbar'
 import { useCanvasRailsStore } from '../../../stores/canvas-rails-store'
 import { EMPTY_RAILS, type Rail } from '../../../models/canvas-rails'
+import { resetRailsStore } from '../../helpers'
 
 const lensRail: Rail = {
   orientation: 'vertical',
@@ -15,7 +16,7 @@ const topRail: Rail = {
 }
 
 beforeEach(() => {
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
+  resetRailsStore({ hydrated: true })
 })
 
 afterEach(cleanup)

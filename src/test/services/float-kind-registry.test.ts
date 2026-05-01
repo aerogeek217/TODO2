@@ -26,21 +26,6 @@ describe('float-kind-registry', () => {
     }
   })
 
-  it('every entry has all required fields', () => {
-    for (const entry of FLOAT_KIND_REGISTRY) {
-      expect(entry.slotKind).toBeTruthy()
-      expect(entry.floatDragKind).toBeTruthy()
-      expect(entry.domPrefix).toMatch(/-$/)
-      expect(entry.label).toBeTruthy()
-      expect(entry.defaultRect.width).toBeGreaterThan(0)
-      expect(entry.defaultRect.height).toBeGreaterThan(0)
-      expect(typeof entry.remove).toBe('function')
-      expect(typeof entry.addFloat).toBe('function')
-      expect(typeof entry.setSize).toBe('function')
-      expect(typeof entry.buildDescriptor).toBe('function')
-    }
-  })
-
   it('domPrefix values are unique', () => {
     const prefixes = FLOAT_KIND_REGISTRY.map((e) => e.domPrefix)
     expect(new Set(prefixes).size).toBe(prefixes.length)

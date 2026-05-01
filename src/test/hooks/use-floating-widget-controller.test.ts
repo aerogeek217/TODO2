@@ -10,14 +10,13 @@ import {
   useFloatingHorizonsController,
   useFloatingScoreboardController,
 } from '../../hooks/use-floating-widget-controller'
+import { resetFloatingStores } from '../helpers'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useCanvasStore.setState({ selectedCanvasId: null })
-  useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
-  useFloatingHorizonsStore.setState({ horizons: [], loading: false, error: null })
-  useFloatingScoreboardStore.setState({ scoreboards: [], loading: false, error: null })
+  resetFloatingStores()
 })
 
 async function seedCanvas(): Promise<number> {

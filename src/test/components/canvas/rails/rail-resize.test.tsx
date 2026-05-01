@@ -3,9 +3,9 @@ import { act, render, cleanup, fireEvent, screen } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { RailContainer } from '../../../../components/canvas/rails/RailContainer'
 import type { Rail } from '../../../../models/canvas-rails'
-import { EMPTY_RAILS } from '../../../../models/canvas-rails'
 import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
 import { useUIStore } from '../../../../stores/ui-store'
+import { resetRailsStore } from '../../../helpers'
 
 // The resize handle schedules onResize through requestAnimationFrame; run it
 // synchronously so assertions see the latest value without awaiting frames.
@@ -16,7 +16,7 @@ beforeEach(() => {
     cb(performance.now())
     return 0
   })
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: false })
+  resetRailsStore()
   useUIStore.setState({ floatDrag: null })
 })
 

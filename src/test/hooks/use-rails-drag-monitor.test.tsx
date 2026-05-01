@@ -3,19 +3,17 @@ import { renderHook, act } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import type { ReactNode } from 'react'
 import { useRailsDragMonitor } from '../../hooks/use-rails-drag-monitor'
-import { useCanvasRailsStore } from '../../stores/canvas-rails-store'
-import { EMPTY_RAILS } from '../../models/canvas-rails'
+import { resetRailsStore } from '../helpers'
 
 /**
  * Smoke tests for `useRailsDragMonitor` (extracted from RailsFrame in
  * code-review-2026-04-25 P5). The monitor's behavior is exercised end-to-end
- * by the harness tests in `rail-dnd-harness.test.tsx` + `rail-dnd-pointer
- * .test.tsx`; these tests cover only the no-op + initial-state contract so
- * a regression in the extraction surfaces independently.
+ * by `rail-dnd-pointer.test.tsx`; these tests cover only the no-op + initial-
+ * state contract so a regression in the extraction surfaces independently.
  */
 
 beforeEach(() => {
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
+  resetRailsStore({ hydrated: true })
 })
 
 function wrapInDndContext(children: ReactNode) {

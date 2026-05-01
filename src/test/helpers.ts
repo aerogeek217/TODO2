@@ -8,6 +8,16 @@ import { useOrgStore } from '../stores/org-store'
 import { useStatusStore } from '../stores/status-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTagStore } from '../stores/tag-store'
+import { useCanvasRailsStore } from '../stores/canvas-rails-store'
+import { EMPTY_RAILS } from '../models/canvas-rails'
+import { useFloatingNoteStore } from '../stores/floating-note-store'
+import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
+import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
+import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
+import { useFloatingStatusStore } from '../stores/floating-status-store'
+import { useFloatingScoreboardStore } from '../stores/floating-scoreboard-store'
+import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-graveyard-store'
+import { useListInsetStore } from '../stores/list-inset-store'
 
 export function makeTodo(
   overrides: Partial<PersistedTodoItem> & { id?: number; scheduledDate?: ScheduledValue } = {},
@@ -107,4 +117,27 @@ export function resetEntityStores(opts: {
   if (statuses) useStatusStore.setState({ statuses: [] })
   if (projects) useProjectStore.setState({ projects: [] })
   if (tags) useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
+}
+
+/** Reset the canvas-rails store to its empty + un-hydrated state. Pass
+ * `{ hydrated: true }` for tests that exercise post-hydration behavior. */
+export function resetRailsStore(opts: { hydrated?: boolean } = {}): void {
+  useCanvasRailsStore.setState({
+    rails: EMPTY_RAILS,
+    hydrated: opts.hydrated ?? false,
+    pendingFocusSlotId: null,
+  })
+}
+
+/** Reset every per-canvas float store + the lens (`listInset`) store. Mirrors
+ * the inline reset block several test files used to repeat. */
+export function resetFloatingStores(): void {
+  useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
+  useFloatingCalendarStore.setState({ calendars: [], loading: false, error: null })
+  useFloatingTaskboardStore.setState({ taskboards: [], loading: false, error: null })
+  useFloatingHorizonsStore.setState({ horizons: [], loading: false, error: null })
+  useFloatingStatusStore.setState({ statuses: [], loading: false, error: null })
+  useFloatingScoreboardStore.setState({ scoreboards: [], loading: false, error: null })
+  useFloatingSnoozeGraveyardStore.setState({ graveyards: [], loading: false, error: null })
+  useListInsetStore.setState({ insets: [], loading: false, error: null })
 }

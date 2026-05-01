@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useCanvasRailsStore, createLensSlot, createSlot } from '../../stores/canvas-rails-store'
 import { EMPTY_RAILS, getActiveTab } from '../../models/canvas-rails'
+import { resetRailsStore } from '../helpers'
 
 beforeEach(() => {
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: false })
+  resetRailsStore()
 })
 
 describe('canvas-rails-store', () => {

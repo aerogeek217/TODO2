@@ -12,51 +12,35 @@ const statuses: Status[] = [
 ]
 
 describe('natural-language-parser — :status token', () => {
-  it('extracts :doing as a status token and strips it from the title', () => {
+  type StatusCase = { input: string; statuses: string[]; title?: string }
+
+  const cases: StatusCase[] = [
+    { input: ':doing fix it', statuses: ['doing'], title: 'fix it' },
+    { input: 'cleanup task :done', statuses: ['done'], title: 'cleanup task' },
+    // No match: middle-of-word colon, post-word colon, leading-digit colon.
+    { input: 'meeting at 12:30', statuses: [], title: 'meeting at 12:30' },
+    { input: 'notes: thing', statuses: [], title: 'notes: thing' },
+    { input: 'weird :123 input', statuses: [] },
+    { input: ':doing first :blocked second', statuses: ['doing', 'blocked'], title: 'first second' },
+    { input: ':in-progress :v_2 task', statuses: ['in-progress', 'v_2'], title: 'task' },
+  ]
+
+  it.each(cases)('parses statuses from "$input"', ({ input, statuses, title }) => {
+    const result = parseInput(input)
+    expect(result.statuses).toEqual(statuses)
+    if (title !== undefined) expect(result.title).toBe(title)
+  })
+
+  it('captures :doing and emits a status token', () => {
     const result = parseInput(':doing fix it')
-    expect(result.title).toBe('fix it')
-    expect(result.statuses).toEqual(['doing'])
     expect(result.tokens.find((t) => t.type === 'status')?.value).toBe('doing')
   })
 
   it('captures :status mid-sentence (alongside other tokens)', () => {
     const result = parseInput('ship the thing :blocked tomorrow')
-    // `tomorrow` is also stripped (date keyword) — title only retains the
-    // un-tokenized words. The point of the test is the status extraction in
-    // a non-leading position with surrounding context.
     expect(result.title).toBe('ship the thing')
     expect(result.statuses).toEqual(['blocked'])
     expect(result.scheduledDate).toBeDefined()
-  })
-
-  it('captures :status at end of input', () => {
-    const result = parseInput('cleanup task :done')
-    expect(result.title).toBe('cleanup task')
-    expect(result.statuses).toEqual(['done'])
-  })
-
-  it('does not match a colon in the middle of a word (12:30)', () => {
-    const result = parseInput('meeting at 12:30')
-    expect(result.statuses).toEqual([])
-    expect(result.title).toBe('meeting at 12:30')
-  })
-
-  it('does not match a colon directly after a word (notes: thing)', () => {
-    const result = parseInput('notes: thing')
-    expect(result.statuses).toEqual([])
-    expect(result.title).toBe('notes: thing')
-  })
-
-  it('does not match a colon followed by digits (:123)', () => {
-    // STATUS_PATTERN requires a leading letter — `:123` is not a status.
-    const result = parseInput('weird :123 input')
-    expect(result.statuses).toEqual([])
-  })
-
-  it('captures multiple :status tokens preserving first-seen order', () => {
-    const result = parseInput(':doing first :blocked second')
-    expect(result.statuses).toEqual(['doing', 'blocked'])
-    expect(result.title).toBe('first second')
   })
 
   it('!<weekday> deadline syntax is unaffected by status pattern', () => {
@@ -77,12 +61,6 @@ describe('natural-language-parser — :status token', () => {
     expect(result.title).toBe('ship it')
     expect(result.statuses).toEqual(['tomorrow'])
     expect(result.scheduledDate).toBeUndefined()
-  })
-
-  it('accepts hyphens and underscores in status slugs', () => {
-    const result = parseInput(':in-progress :v_2 task')
-    expect(result.statuses).toEqual(['in-progress', 'v_2'])
-    expect(result.title).toBe('task')
   })
 })
 

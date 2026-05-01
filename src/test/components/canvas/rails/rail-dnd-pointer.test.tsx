@@ -5,7 +5,8 @@ import type { RailsState, Slot, SlotKind } from '../../../../models/canvas-rails
 function s(id: string, kind: SlotKind): Slot {
   return { id, tabs: [{ id: `${id}-t0`, type: kind }], activeTabId: `${id}-t0` }
 }
-import { setupRailsHarness, resetRailsStore } from '../../../utils/rail-dnd-harness'
+import { setupRailsHarness } from '../../../utils/rail-dnd-harness'
+import { resetRailsStore } from '../../../helpers'
 import * as railDnd from '../../../../utils/rail-dnd'
 import { db } from '../../../../data/database'
 import { useCanvasStore } from '../../../../stores/canvas-store'

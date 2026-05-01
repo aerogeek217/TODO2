@@ -141,124 +141,65 @@ describe('natural-language-parser', () => {
   })
 
   describe('deadline syntax', () => {
-    it('extracts "by <day>" as a deadline, not a scheduled date', () => {
-      const result = parseInput('Submit report by friday')
-      expect(result.title).toBe('Submit report')
+    function dateAtOffset(days: number): string {
+      const t = new Date()
+      t.setHours(0, 0, 0, 0)
+      return new Date(t.getTime() + days * 24 * 60 * 60 * 1000).toDateString()
+    }
+
+    type DeadlineCase = {
+      input: string
+      title: string
+      day?: number
+      offsetDays?: number
+    }
+
+    const matches: DeadlineCase[] = [
+      // `by` syntax
+      { input: 'Submit report by friday', title: 'Submit report', day: 5 },
+      { input: 'Call vendor by tomorrow', title: 'Call vendor', offsetDays: 1 },
+      { input: 'Wrap up tasks by this week', title: 'Wrap up tasks' },
+      // `!` syntax
+      { input: 'Urgent task !tuesday', title: 'Urgent task', day: 2 },
+      { input: 'Ship it !today', title: 'Ship it', offsetDays: 0 },
+      // `due` syntax
+      { input: 'Submit report due friday', title: 'Submit report', day: 5 },
+      { input: 'Call vendor due tomorrow', title: 'Call vendor', offsetDays: 1 },
+      { input: 'Ship feature due tmr', title: 'Ship feature', offsetDays: 1 },
+      { input: 'Email client due today', title: 'Email client', offsetDays: 0 },
+      { input: 'Wrap up tasks due this week', title: 'Wrap up tasks' },
+      { input: 'Present plan due next monday', title: 'Present plan', day: 1 },
+      { input: 'Followup due in 3 days', title: 'Followup', offsetDays: 3 },
+    ]
+
+    it.each(matches)('extracts deadline from "$input"', ({ input, title, day, offsetDays }) => {
+      const result = parseInput(input)
+      expect(result.title).toBe(title)
       expect(result.dueDate).toBeInstanceOf(Date)
       expect(result.scheduledDate).toBeUndefined()
+      if (day !== undefined) expect(result.dueDate!.getDay()).toBe(day)
+      if (offsetDays !== undefined) {
+        expect(result.dueDate!.toDateString()).toBe(dateAtOffset(offsetDays))
+      }
     })
 
-    it('extracts "by tomorrow" as a deadline', () => {
-      const result = parseInput('Call vendor by tomorrow')
-      expect(result.title).toBe('Call vendor')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const expected = new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
-      expect(result.scheduledDate).toBeUndefined()
+    const noMatches: Array<{ input: string; reason: string }> = [
+      { input: 'Done by default', reason: '"by" followed by non-date words' },
+      { input: 'Urgent!', reason: 'bare "!" without a date' },
+      { input: 'Pay invoice due to vendor', reason: '"due" followed by non-date words' },
+    ]
+
+    it.each(noMatches)('does not extract deadline ($reason): "$input"', ({ input }) => {
+      const result = parseInput(input)
+      expect(result.title).toBe(input)
+      expect(result.dueDate).toBeUndefined()
     })
 
-    it('extracts "by this week" as a deadline (end-of-window date)', () => {
-      const result = parseInput('Wrap up tasks by this week')
-      expect(result.title).toBe('Wrap up tasks')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.scheduledDate).toBeUndefined()
-    })
-
-    it('extracts "!<day>" as a deadline', () => {
-      const result = parseInput('Urgent task !tuesday')
-      expect(result.title).toBe('Urgent task')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.scheduledDate).toBeUndefined()
-    })
-
-    it('extracts "!today" as a deadline', () => {
-      const result = parseInput('Ship it !today')
-      expect(result.title).toBe('Ship it')
-      expect(result.dueDate).toBeInstanceOf(Date)
-    })
-
-    it('allows scheduled + deadline in one input', () => {
+    it('allows scheduled + "by <day>" deadline in one input', () => {
       const result = parseInput('Review tomorrow by friday')
       expect(result.title).toBe('Review')
       expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
       expect(result.dueDate).toBeInstanceOf(Date)
-    })
-
-    it('does not match "by" followed by non-date words', () => {
-      const result = parseInput('Done by default')
-      expect(result.title).toBe('Done by default')
-      expect(result.dueDate).toBeUndefined()
-    })
-
-    it('does not match bare "!" without a date', () => {
-      const result = parseInput('Urgent!')
-      expect(result.title).toBe('Urgent!')
-      expect(result.dueDate).toBeUndefined()
-    })
-
-    it('extracts "due <day>" as a deadline, not a scheduled date', () => {
-      const result = parseInput('Submit report due friday')
-      expect(result.title).toBe('Submit report')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.dueDate!.getDay()).toBe(5)
-      expect(result.scheduledDate).toBeUndefined()
-    })
-
-    it('extracts "due tomorrow" as a deadline', () => {
-      const result = parseInput('Call vendor due tomorrow')
-      expect(result.title).toBe('Call vendor')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const expected = new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
-      expect(result.scheduledDate).toBeUndefined()
-    })
-
-    it('extracts "due tmr" as a deadline', () => {
-      const result = parseInput('Ship feature due tmr')
-      expect(result.title).toBe('Ship feature')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const expected = new Date(today.getTime() + 24 * 60 * 60 * 1000)
-      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
-    })
-
-    it('extracts "due today" as a deadline', () => {
-      const result = parseInput('Email client due today')
-      expect(result.title).toBe('Email client')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      expect(result.dueDate!.toDateString()).toBe(today.toDateString())
-    })
-
-    it('extracts "due this week" as a deadline (end-of-window date)', () => {
-      const result = parseInput('Wrap up tasks due this week')
-      expect(result.title).toBe('Wrap up tasks')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.scheduledDate).toBeUndefined()
-    })
-
-    it('extracts "due next monday" as a deadline', () => {
-      const result = parseInput('Present plan due next monday')
-      expect(result.title).toBe('Present plan')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.dueDate!.getDay()).toBe(1)
-      expect(result.scheduledDate).toBeUndefined()
-    })
-
-    it('extracts "due in 3 days" as a deadline', () => {
-      const result = parseInput('Followup due in 3 days')
-      expect(result.title).toBe('Followup')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const expected = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)
-      expect(result.dueDate!.toDateString()).toBe(expected.toDateString())
     })
 
     it('allows scheduled + "due <day>" deadline in one input', () => {
@@ -267,12 +208,6 @@ describe('natural-language-parser', () => {
       expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
       expect(result.dueDate).toBeInstanceOf(Date)
       expect(result.dueDate!.getDay()).toBe(5)
-    })
-
-    it('does not match "due" followed by non-date words', () => {
-      const result = parseInput('Pay invoice due to vendor')
-      expect(result.title).toBe('Pay invoice due to vendor')
-      expect(result.dueDate).toBeUndefined()
     })
 
     it('does not extract "due" inside another word (overdue)', () => {
@@ -292,68 +227,35 @@ describe('natural-language-parser', () => {
   })
 
   describe('tags (#foo)', () => {
-    it('captures #foo and leaves the rest of the title', () => {
+    type TagCase = { input: string; tags: string[]; title?: string }
+
+    const cases: TagCase[] = [
+      { input: '#foo bar', tags: ['foo'], title: 'bar' },
+      { input: '/proj #foo bar', tags: ['foo'], title: 'bar' },
+      { input: 'Do thing #Urgent', tags: ['Urgent'] },
+      { input: 'ship #FooBar', tags: ['FooBar'] },
+      // Dedupe case-variants by lowercase, first-seen case wins.
+      { input: '#Foo work #foo more #FOO', tags: ['Foo'] },
+      // Capture stops at the first non-slug char.
+      { input: 'ship it #foo!', tags: ['foo'], title: 'ship it !' },
+      { input: '#urgent ship it', tags: ['urgent'], title: 'ship it' },
+      // word#tag is NOT a tag (requires whitespace before #).
+      { input: 'email@work#followup today', tags: [] },
+      { input: '#foo work #bar then #foo', tags: ['foo', 'bar'] },
+      { input: '#alpha middle #beta end', tags: ['alpha', 'beta'], title: 'middle end' },
+      { input: '#high-priority #v_2', tags: ['high-priority', 'v_2'] },
+      { input: 'Plain title', tags: [] },
+    ]
+
+    it.each(cases)('parses tags from "$input"', ({ input, tags, title }) => {
+      const result = parseInput(input)
+      expect(result.tags).toEqual(tags)
+      if (title !== undefined) expect(result.title).toBe(title)
+    })
+
+    it('captures #foo and emits a tag token', () => {
       const result = parseInput('#foo bar')
-      expect(result.title).toBe('bar')
-      expect(result.tags).toEqual(['foo'])
       expect(result.tokens.find((t) => t.type === 'tag')?.value).toBe('foo')
-    })
-
-    it('captures /proj and #foo together', () => {
-      const result = parseInput('/proj #foo bar')
-      expect(result.title).toBe('bar')
-      expect(result.projects).toEqual(['proj'])
-      expect(result.tags).toEqual(['foo'])
-    })
-
-    it('preserves user-supplied case in the parsed tag', () => {
-      const result = parseInput('Do thing #Urgent')
-      expect(result.tags).toEqual(['Urgent'])
-    })
-
-    it('preserves mixed case (#FooBar → FooBar)', () => {
-      const result = parseInput('ship #FooBar')
-      expect(result.tags).toEqual(['FooBar'])
-    })
-
-    it('dedupes case-variant tags by lowercase, preserving first-seen case', () => {
-      const result = parseInput('#Foo work #foo more #FOO')
-      expect(result.tags).toEqual(['Foo'])
-    })
-
-    it('stops the capture at the first non-slug char (#foo! → foo)', () => {
-      const result = parseInput('ship it #foo!')
-      // The `!` is not a tag char, so only "foo" is captured. The leftover `!`
-      // stays in the remaining title.
-      expect(result.tags).toEqual(['foo'])
-      expect(result.title).toBe('ship it !')
-    })
-
-    it('captures #tag at start of input', () => {
-      const result = parseInput('#urgent ship it')
-      expect(result.title).toBe('ship it')
-      expect(result.tags).toEqual(['urgent'])
-    })
-
-    it('requires whitespace before # (word#tag is not a tag)', () => {
-      const result = parseInput('email@work#followup today')
-      expect(result.tags).toEqual([])
-    })
-
-    it('dedupes repeated tags in first-seen order', () => {
-      const result = parseInput('#foo work #bar then #foo')
-      expect(result.tags).toEqual(['foo', 'bar'])
-    })
-
-    it('captures multiple tags preserving first-seen order', () => {
-      const result = parseInput('#alpha middle #beta end')
-      expect(result.tags).toEqual(['alpha', 'beta'])
-      expect(result.title).toBe('middle end')
-    })
-
-    it('accepts hyphens and underscores in tag slugs', () => {
-      const result = parseInput('#high-priority #v_2')
-      expect(result.tags).toEqual(['high-priority', 'v_2'])
     })
 
     it('tag does not shadow date keyword elsewhere in the input', () => {
@@ -361,11 +263,6 @@ describe('natural-language-parser', () => {
       const result = parseInput('#today today')
       expect(result.tags).toEqual(['today'])
       expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
-    })
-
-    it('empty tags array when no # tokens present', () => {
-      const result = parseInput('Plain title')
-      expect(result.tags).toEqual([])
     })
   })
 })

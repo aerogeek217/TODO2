@@ -6,6 +6,7 @@ import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
 import { useSettingsStore } from '../../../../stores/settings-store'
 import { useUIStore } from '../../../../stores/ui-store'
+import { resetRailsStore } from '../../../helpers'
 import {
   COLLAPSED_RAIL_PX,
   DEFAULT_VERTICAL_RAIL_WIDTH,
@@ -45,7 +46,7 @@ function frameStyleVar(name: string): string | undefined {
 }
 
 beforeEach(() => {
-  useCanvasRailsStore.setState({ rails: EMPTY_RAILS, hydrated: true, pendingFocusSlotId: null })
+  resetRailsStore({ hydrated: true })
   useSettingsStore.setState({ canvasRails: null, horizonSlots: [] })
   useListDefinitionStore.setState({ listDefinitions: [] })
   useUIStore.setState({ floatDrag: null, floatAnnouncement: '' })

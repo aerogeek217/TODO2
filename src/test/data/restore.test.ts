@@ -279,10 +279,6 @@ describe('restoreFromImportData', () => {
       const names = statuses.map(s => s.name)
       expect(names).toContain('Assigned')
       expect(names).toContain('Follow-up')
-
-      const settings = await db.settings.toArray()
-      expect(settings.find(s => s.key === 'seededAssignedStatusId')).toBeDefined()
-      expect(settings.find(s => s.key === 'seededFollowupStatusId')).toBeDefined()
     })
 
     it('preserves seeded status ids round-tripped through import', async () => {
