@@ -17,6 +17,7 @@ import { copyTasksRich } from '../../services/task-copy'
 import { TASK_DROP_KIND, projectDropId } from '../../utils/task-dnd'
 import { GROUP_OPTIONS } from '../../utils/task-grouping'
 import { SortGroupToolbar, type SortGroupOption } from '../shared/SortGroupToolbar'
+import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 import styles from './ProjectNode.module.css'
 
 export { GROUP_OPTIONS }
@@ -265,7 +266,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
           <input
             type="color"
             className={`${styles.colorPicker} nopan nodrag`}
-            value={project.color || '#a2cfcb'}
+            value={project.color || DEFAULT_THEMED_COLORS.dark.accent}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => { e.stopPropagation(); project.id && onSetColor(project.id, e.target.value) }}
             onDoubleClick={(e) => { e.stopPropagation(); project.id && onSetColor(project.id, undefined) }}

@@ -15,8 +15,10 @@ export interface ImportTodoTag {
 import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { FUZZY_TOKENS } from '../models/scheduled-value'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
-import { STATUS_ICON_KEYS } from '../models/status'
+import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { SLOT_KINDS } from '../models/canvas-rails'
+import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
+import { MAX_CANVAS_RAILS_SETTING_BYTES } from '../constants'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -460,7 +462,7 @@ function checkFloatingTaskboard(v: unknown): CheckResult {
   ])
 }
 
-const VALID_SETTING_KEYS = ['themeMode', 'defaultProjectId', 'defaultStatusId', 'quickStatusId', 'seededAssignedStatusId', 'seededFollowupStatusId', 'completedRetentionDays', 'weekStartsOn', 'canvasViewport', 'horizonSlots', 'selectedHorizonDefId', 'canvasRails', 'maxTags', 'defaultProjectGroupBy', 'canvasMaxExtent']
+const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS
 
 // `defaultProjectGroupBy` shares the unified `TodoGroupBy` literal set; the
 // canonical "no grouping" sentinel is `null` (carried as the empty string in
@@ -469,9 +471,9 @@ const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'org', '
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
-  canvasRails: 8000,
-  canvasViewport: 200,
-  horizonSlots: 500,
+  [SETTING_KEYS.canvasRails]: MAX_CANVAS_RAILS_SETTING_BYTES,
+  [SETTING_KEYS.canvasViewport]: 200,
+  [SETTING_KEYS.horizonSlots]: 500,
 }
 
 const MAX_HORIZON_ENTRIES = 16
@@ -549,23 +551,28 @@ function checkSetting(v: unknown): CheckResult {
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
   }
-  if (v.key === 'defaultProjectId') {
+  if (v.key === SETTING_KEYS.defaultProjectId) {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : `value (${v.key} must be numeric)`
   }
-  if (v.key === 'defaultStatusId' || v.key === 'quickStatusId' || v.key === 'seededAssignedStatusId' || v.key === 'seededFollowupStatusId') {
+  if (
+    v.key === SETTING_KEYS.defaultStatusId ||
+    v.key === SETTING_KEYS.quickStatusId ||
+    v.key === SETTING_KEYS.seededAssignedStatusId ||
+    v.key === SETTING_KEYS.seededFollowupStatusId
+  ) {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : `value (${v.key} must be numeric)`
   }
-  if (v.key === 'completedRetentionDays') {
+  if (v.key === SETTING_KEYS.completedRetentionDays) {
     const n = Number(v.value)
     return Number.isInteger(n) && n >= 1 && n <= 3650 ? true : 'value (retention days out of range)'
   }
-  if (v.key === 'weekStartsOn') {
+  if (v.key === SETTING_KEYS.weekStartsOn) {
     const n = Number(v.value)
     return n === 0 || n === 1 ? true : 'value (weekStartsOn must be 0 or 1)'
   }
-  if (v.key === 'canvasRails') {
+  if (v.key === SETTING_KEYS.canvasRails) {
     let parsed: unknown
     try {
       parsed = JSON.parse(v.value as string)
@@ -575,7 +582,7 @@ function checkSetting(v: unknown): CheckResult {
     const res = validateRailsShape(parsed)
     return res === true ? true : `value (canvasRails: ${res})`
   }
-  if (v.key === 'canvasViewport') {
+  if (v.key === SETTING_KEYS.canvasViewport) {
     try {
       const parsed = JSON.parse(v.value as string) as unknown
       if (!parsed || typeof parsed !== 'object') return 'value (canvasViewport must be an object)'
@@ -588,7 +595,7 @@ function checkSetting(v: unknown): CheckResult {
       return 'value (canvasViewport must be valid JSON)'
     }
   }
-  if (v.key === 'horizonSlots') {
+  if (v.key === SETTING_KEYS.horizonSlots) {
     try {
       const parsed = JSON.parse(v.value as string) as unknown
       if (!Array.isArray(parsed)) return 'value (horizonSlots must be an array)'
@@ -603,17 +610,17 @@ function checkSetting(v: unknown): CheckResult {
       return 'value (horizonSlots must be valid JSON)'
     }
   }
-  if (v.key === 'selectedHorizonDefId') {
+  if (v.key === SETTING_KEYS.selectedHorizonDefId) {
     if (v.value === '' || v.value == null) return true
     const n = Number(v.value)
     return Number.isFinite(n) ? true : 'value (selectedHorizonDefId must be numeric or empty)'
   }
-  if (v.key === 'defaultProjectGroupBy') {
+  if (v.key === SETTING_KEYS.defaultProjectGroupBy) {
     return (VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).includes(v.value as string)
       ? true
       : `value (defaultProjectGroupBy must be one of: ${(VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).filter(Boolean).join(', ')} or empty)`
   }
-  if (v.key === 'canvasMaxExtent') {
+  if (v.key === SETTING_KEYS.canvasMaxExtent) {
     const n = Number(v.value)
     return Number.isFinite(n) && n >= 1000 && n <= 100000
       ? true
@@ -657,9 +664,11 @@ function pickTodo(v: Record<string, unknown>): TodoItem {
 }
 
 function pickStatus(v: Record<string, unknown>): Status {
+  // `icon` already validated by `checkStatus` -> `isOptStatusIcon`; the cast
+  // narrows the validated string to the StatusIconKey union.
   return {
     id: v.id as number | undefined, name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
-    ...(v.icon != null ? { icon: v.icon as string } : {}),
+    ...(v.icon != null ? { icon: v.icon as StatusIconKey } : {}),
     ...(v.hideByDefault != null ? { hideByDefault: v.hideByDefault as boolean } : {}),
   }
 }

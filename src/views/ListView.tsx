@@ -29,6 +29,7 @@ import { SectionHeader } from '../components/shared/SectionHeader'
 import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
+import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, PersistedListDefinition, Person, Project, Org, Status, Tag, ListGroupBy, ListItemSortBy } from '../models'
 import { LIST_GROUP_VALUES, LIST_SORT_VALUES } from '../models'
@@ -766,7 +767,7 @@ export function ListView() {
   const [maxTasksInput, setMaxTasksInput] = useState('')
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } })
   )
 
   useEffect(() => {

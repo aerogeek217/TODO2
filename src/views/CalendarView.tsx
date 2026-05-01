@@ -37,6 +37,7 @@ import {
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { StatusIcon } from '../components/shared/StatusIcon'
 import { dropCellClassName } from '../components/shared/DropIndicator'
+import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { TaskRow } from '../components/task/TaskRow'
 import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
 import { buildEntries as buildCalendarEntries } from '../services/calendar-entries'
@@ -140,7 +141,7 @@ export function CalendarView() {
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
   )
 
   const collisionDetection = useMemo(

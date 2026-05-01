@@ -6,6 +6,7 @@ import {
   createSetCollapsed,
   type FloatPlacementMethods,
 } from './create-float-placement-store'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the discipline scoreboard stat widget
@@ -27,7 +28,7 @@ export const useFloatingScoreboardStore = create<FloatingScoreboardState>((set, 
   ...createFloatPlacementMethods<FloatingScoreboard>(
     {
       repo: floatingScoreboardRepository,
-      defaults: { width: 720, height: 280 },
+      defaults: FLOAT_DEFAULT_RECTS.scoreboard,
       slice: 'scoreboards',
       label: 'floating scoreboard',
       removeUndoLabel: 'Close floating scoreboard',

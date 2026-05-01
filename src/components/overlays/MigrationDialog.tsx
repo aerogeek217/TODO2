@@ -5,6 +5,7 @@ import { OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
 import { buildExportData } from '../../services/export-import'
 import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { getSaveFilePicker } from '../../utils/file-picker'
+import { OBJECT_URL_REVOKE_MS } from '../../constants'
 import styles from './MigrationDialog.module.css'
 
 interface SchemaUpgradeProps {
@@ -68,7 +69,7 @@ export function MigrationDialog(props: MigrationDialogProps) {
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_MS)
       setExported(true)
     } catch (err) {
       setExportError(err instanceof Error ? err.message : String(err))

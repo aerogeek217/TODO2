@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
 import { useLocation } from 'react-router'
+import { ROUTE_SETTINGS } from '../../routes'
+import { DRAG_ACTIVATION_DISTANCE_PX, SEARCH_DEBOUNCE_MS } from '../../constants'
 import {
   DndContext,
   DragOverlay,
@@ -263,7 +265,7 @@ export function TopBar() {
   const searchPointerRef = useRef<{ x: number; y: number } | null>(null)
   const searchMoveListenerRef = useRef<((e: PointerEvent) => void) | null>(null)
   const searchSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
   )
   // P4: right-click menu state is kept on TopBar (not SearchResultRow) so the
   // menu + project picker outlive the search dropdown closing when the menu
@@ -285,7 +287,7 @@ export function TopBar() {
   const handleSearchChange = useCallback((value: string) => {
     setLocalSearch(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setSearchText(value), 150)
+    debounceRef.current = setTimeout(() => setSearchText(value), SEARCH_DEBOUNCE_MS)
   }, [setSearchText])
 
   // Sync local state when store is cleared externally
@@ -340,7 +342,7 @@ export function TopBar() {
 
   const { isConnected, isSupported } = useFileStorageStore()
   const location = useLocation()
-  const isSettingsPage = location.pathname === '/settings'
+  const isSettingsPage = location.pathname === ROUTE_SETTINGS
 
   const handleSearchDragStart = useCallback((event: DragStartEvent) => {
     const activator = event.activatorEvent as PointerEvent

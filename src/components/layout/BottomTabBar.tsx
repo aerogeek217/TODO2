@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router'
 import { useFilterStore } from '../../stores/filter-store'
 import { useUIStore } from '../../stores/ui-store'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_SETTINGS } from '../../routes'
 import styles from './BottomTabBar.module.css'
 
 export function BottomTabBar() {
@@ -10,8 +11,8 @@ export function BottomTabBar() {
   const isFilterSheetOpen = useUIStore((s) => s.isFilterSheetOpen)
   const toggleFilterSheet = useUIStore((s) => s.toggleFilterSheet)
 
-  const isListActive = location.pathname === '/list' || location.pathname === '/'
-  const isSettingsActive = location.pathname === '/settings'
+  const isListActive = location.pathname === ROUTE_LIST || location.pathname === ROUTE_CANVAS
+  const isSettingsActive = location.pathname === ROUTE_SETTINGS
 
   return (
     <nav className={styles.tabBar} aria-label="Main navigation">
@@ -21,7 +22,7 @@ export function BottomTabBar() {
         aria-selected={isListActive && !isFilterSheetOpen}
         onClick={() => {
           if (isFilterSheetOpen) toggleFilterSheet()
-          if (location.pathname !== '/list') navigate('/list')
+          if (location.pathname !== ROUTE_LIST) navigate(ROUTE_LIST)
         }}
       >
         <span className={styles.tabIcon}>
@@ -55,7 +56,7 @@ export function BottomTabBar() {
         aria-selected={isSettingsActive && !isFilterSheetOpen}
         onClick={() => {
           if (isFilterSheetOpen) toggleFilterSheet()
-          navigate('/settings')
+          navigate(ROUTE_SETTINGS)
         }}
       >
         <span className={styles.tabIcon}>

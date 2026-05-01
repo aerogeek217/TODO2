@@ -23,6 +23,7 @@ import { ConfirmDialog } from '../shared/Dialog'
 import { ListEditorDialog } from '../shared/ListEditorDialog'
 import { ListEditorBody } from '../shared/ListEditorBody'
 import { defsEqual } from '../../utils/list-def-equal'
+import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -159,7 +160,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   }, [dirty, showBulkConfirmation])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 

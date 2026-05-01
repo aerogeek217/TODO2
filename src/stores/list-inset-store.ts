@@ -4,6 +4,7 @@ import { listInsetRepository } from '../data'
 import { undoable } from '../services/undoable'
 import { mutate, optimistic, updateItemInList } from './store-helpers'
 import { clampCanvasPosition } from '../utils/canvas-bounds'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 interface ListInsetState {
   insets: ListInset[]
@@ -43,8 +44,8 @@ export const useListInsetStore = create<ListInsetState>((set, get) => ({
         canvasId,
         x: clamped.x,
         y: clamped.y,
-        width: 320,
-        height: 300,
+        width: FLOAT_DEFAULT_RECTS.lens.width,
+        height: FLOAT_DEFAULT_RECTS.lens.height,
         isCollapsed: false,
       })
       const inset = await listInsetRepository.getById(id)

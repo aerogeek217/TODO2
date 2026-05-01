@@ -10,6 +10,7 @@ import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-grave
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { listInsetRepository } from '../data'
+import { FLOAT_DEFAULT_RECTS } from './float-default-rects'
 import type { FloatDescriptor } from '../utils/rail-dnd'
 
 /**
@@ -61,7 +62,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'lens',
     domPrefix: 'inset-',
     label: 'list',
-    defaultRect: { width: 320, height: 300 },
+    defaultRect: FLOAT_DEFAULT_RECTS.lens,
     remove: (id) => useListInsetStore.getState().remove(id),
     addFloat: async ({ canvasId, x, y, listDefinitionId }) => {
       if (listDefinitionId == null) {
@@ -90,7 +91,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'note',
     domPrefix: 'note-',
     label: 'note',
-    defaultRect: { width: 240, height: 200 },
+    defaultRect: FLOAT_DEFAULT_RECTS.notes,
     remove: (id) => useFloatingNoteStore.getState().remove(id),
     addFloat: ({ canvasId, x, y }) => useFloatingNoteStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingNoteStore.getState().updateSize(id, width, height),
@@ -101,7 +102,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'calendar',
     domPrefix: 'calendar-',
     label: 'calendar',
-    defaultRect: { width: 380, height: 320 },
+    defaultRect: FLOAT_DEFAULT_RECTS.calendar,
     remove: (id) => useFloatingCalendarStore.getState().remove(id),
     addFloat: ({ canvasId, x, y }) => useFloatingCalendarStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingCalendarStore.getState().updateSize(id, width, height),
@@ -121,7 +122,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'taskboard',
     domPrefix: 'taskboard-',
     label: 'taskboard',
-    defaultRect: { width: 320, height: 400 },
+    defaultRect: FLOAT_DEFAULT_RECTS.taskboard,
     remove: (id) => useFloatingTaskboardStore.getState().remove(id),
     addFloat: ({ canvasId, x, y }) => useFloatingTaskboardStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingTaskboardStore.getState().updateSize(id, width, height),
@@ -140,7 +141,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'horizons',
     domPrefix: 'horizons-',
     label: 'horizons',
-    defaultRect: { width: 520, height: 360 },
+    defaultRect: FLOAT_DEFAULT_RECTS.horizons,
     remove: (id) => useFloatingHorizonsStore.getState().remove(id),
     addFloat: ({ canvasId, x, y }) => useFloatingHorizonsStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingHorizonsStore.getState().updateSize(id, width, height),
@@ -151,7 +152,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'status',
     domPrefix: 'status-',
     label: 'open by status',
-    defaultRect: { width: 380, height: 240 },
+    defaultRect: FLOAT_DEFAULT_RECTS.status,
     remove: (id) => useFloatingStatusStore.getState().remove(id),
     addFloat: ({ canvasId, x, y }) => useFloatingStatusStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingStatusStore.getState().updateSize(id, width, height),
@@ -162,7 +163,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'scoreboard',
     domPrefix: 'scoreboard-',
     label: 'discipline scoreboard',
-    defaultRect: { width: 720, height: 280 },
+    defaultRect: FLOAT_DEFAULT_RECTS.scoreboard,
     remove: (id) => useFloatingScoreboardStore.getState().remove(id),
     addFloat: ({ canvasId, x, y }) => useFloatingScoreboardStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingScoreboardStore.getState().updateSize(id, width, height),
@@ -173,7 +174,7 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     floatDragKind: 'snoozeGraveyard',
     domPrefix: 'snooze-graveyard-',
     label: 'snooze graveyard',
-    defaultRect: { width: 380, height: 240 },
+    defaultRect: FLOAT_DEFAULT_RECTS.snoozeGraveyard,
     remove: (id) => useFloatingSnoozeGraveyardStore.getState().remove(id),
     addFloat: ({ canvasId, x, y }) => useFloatingSnoozeGraveyardStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingSnoozeGraveyardStore.getState().updateSize(id, width, height),

@@ -2,6 +2,9 @@ import Dexie, { type Table } from 'dexie'
 import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
+import { SETTING_KEYS } from './setting-keys'
+import { DEFAULT_ENTITY_COLOR } from '../constants'
+import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 
 export interface SettingRow {
   key: string
@@ -351,8 +354,8 @@ export async function ensureSeededStatuses(
   settingsTable: Table<SettingRow, string>,
 ): Promise<{ assignedId: number; followupId: number }> {
   const [assignedSetting, followupSetting] = await Promise.all([
-    settingsTable.get('seededAssignedStatusId'),
-    settingsTable.get('seededFollowupStatusId'),
+    settingsTable.get(SETTING_KEYS.seededAssignedStatusId),
+    settingsTable.get(SETTING_KEYS.seededFollowupStatusId),
   ])
 
   const seededAssignedId = assignedSetting ? Number(assignedSetting.value) : null
@@ -372,23 +375,25 @@ export async function ensureSeededStatuses(
   let assignedId = existingAssigned?.id
   if (assignedId == null) {
     nextSort += 1
-    assignedId = (await statusesTable.add({
-      name: 'Assigned', color: '#537FE7', sortOrder: nextSort,
+    const seedAssigned: Status = {
+      name: 'Assigned', color: DEFAULT_ENTITY_COLOR, sortOrder: nextSort,
       icon: 'person', hideByDefault: true,
-    } as Status)) as number
+    }
+    assignedId = (await statusesTable.add(seedAssigned)) as number
   }
 
   let followupId = existingFollowup?.id
   if (followupId == null) {
     nextSort += 1
-    followupId = (await statusesTable.add({
-      name: 'Follow-up', color: '#F5A623', sortOrder: nextSort,
+    const seedFollowup: Status = {
+      name: 'Follow-up', color: DEFAULT_THEMED_COLORS.dark.warning, sortOrder: nextSort,
       icon: 'message-bubble', hideByDefault: false,
-    } as Status)) as number
+    }
+    followupId = (await statusesTable.add(seedFollowup)) as number
   }
 
-  await settingsTable.put({ key: 'seededAssignedStatusId', value: String(assignedId) })
-  await settingsTable.put({ key: 'seededFollowupStatusId', value: String(followupId) })
+  await settingsTable.put({ key: SETTING_KEYS.seededAssignedStatusId, value: String(assignedId) })
+  await settingsTable.put({ key: SETTING_KEYS.seededFollowupStatusId, value: String(followupId) })
 
   return { assignedId, followupId }
 }
@@ -561,7 +566,7 @@ export async function persistHorizonSlots(
   settingsTable: Table<SettingRow, string>,
   slots: number[],
 ): Promise<void> {
-  await settingsTable.put({ key: 'horizonSlots', value: JSON.stringify(slots) })
+  await settingsTable.put({ key: SETTING_KEYS.horizonSlots, value: JSON.stringify(slots) })
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */

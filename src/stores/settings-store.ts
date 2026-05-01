@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { settingsRepository } from '../data'
+import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import { parseHorizonSlots } from '../utils/horizon-slots'
 import type { WeekStart } from '../utils/effective-date'
@@ -7,6 +8,8 @@ import type { CanvasViewport } from './ui-store'
 import type { RailsState } from '../models/canvas-rails'
 import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
 import type { ProjectGroupBy } from '../models'
+import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
+import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import { DEFAULT_CANVAS_MAX_EXTENT, isValidCanvasMaxExtent } from '../utils/canvas-bounds'
 
 const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
@@ -21,50 +24,8 @@ export type ThemeMode = 'light' | 'dark' | 'system'
  * override by writing a `maxTags` row to the settings repo. */
 const DEFAULT_MAX_TAGS = 500
 
-export interface ThemeColors {
-  accent: string
-  canvasBg: string
-  surface: string
-  danger: string
-  warning: string
-  star: string
-  scheduled: string
-  deadline: string
-}
-
-export interface ThemedColors {
-  dark: ThemeColors
-  light: ThemeColors
-}
-
-export type ThemeName = 'dark' | 'light'
-
-const defaultThemedColors: ThemedColors = {
-  dark: {
-    accent: '#a2cfcb',
-    canvasBg: '#0e0e0e',
-    surface: '#191a1a',
-    danger: '#ee7d77',
-    warning: '#f5a623',
-    star: '#f5c842',
-    scheduled: '#7ec4bc',
-    deadline: '#e86bf0',
-  },
-  // Light seeds mirror tokens.css's [data-theme="light"] block — these are the
-  // values applied by the theme stylesheet when the user has no overrides;
-  // surfacing them in the editor lets a user re-tune light mode without
-  // pulling dark-tuned values into it.
-  light: {
-    accent: '#3a9e93',
-    canvasBg: '#f5f4f2',
-    surface: '#ffffff',
-    danger: '#d94a43',
-    warning: '#d08a12',
-    star: '#c09a15',
-    scheduled: '#3a9e93',
-    deadline: '#b838c0',
-  },
-}
+export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
+export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 
 interface SettingsState {
   colors: ThemedColors
@@ -264,8 +225,8 @@ function createDebouncedPersist<T>(opts: {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: {
-    dark: { ...defaultThemedColors.dark },
-    light: { ...defaultThemedColors.light },
+    dark: { ...DEFAULT_THEMED_COLORS.dark },
+    light: { ...DEFAULT_THEMED_COLORS.light },
   },
   themeMode: 'dark' as ThemeMode,
   defaultProjectId: null,
@@ -287,8 +248,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       const rows = await settingsRepository.getAll()
       const colors: ThemedColors = {
-        dark: { ...defaultThemedColors.dark },
-        light: { ...defaultThemedColors.light },
+        dark: { ...DEFAULT_THEMED_COLORS.dark },
+        light: { ...DEFAULT_THEMED_COLORS.light },
       }
       const customKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
       let defaultProjectId: number | null = null
@@ -317,48 +278,48 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
               customKeys[theme].add(colorKey)
             }
           }
-        } else if (row.key === 'defaultProjectId') {
+        } else if (row.key === SETTING_KEYS.defaultProjectId) {
           defaultProjectId = row.value ? Number(row.value) : null
-        } else if (row.key === 'defaultStatusId') {
+        } else if (row.key === SETTING_KEYS.defaultStatusId) {
           defaultStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === 'quickStatusId') {
+        } else if (row.key === SETTING_KEYS.quickStatusId) {
           quickStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === 'seededAssignedStatusId') {
+        } else if (row.key === SETTING_KEYS.seededAssignedStatusId) {
           seededAssignedStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === 'seededFollowupStatusId') {
+        } else if (row.key === SETTING_KEYS.seededFollowupStatusId) {
           seededFollowupStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === 'completedRetentionDays') {
+        } else if (row.key === SETTING_KEYS.completedRetentionDays) {
           const parsed = row.value ? Number(row.value) : null
           completedRetentionDays = parsed != null && isValidRetentionDays(parsed) ? parsed : null
-        } else if (row.key === 'themeMode') {
+        } else if (row.key === SETTING_KEYS.themeMode) {
           if (isValidThemeMode(row.value)) themeMode = row.value
-        } else if (row.key === 'weekStartsOn') {
+        } else if (row.key === SETTING_KEYS.weekStartsOn) {
           const parsed = Number(row.value)
           if (isValidWeekStart(parsed)) weekStartsOn = parsed
-        } else if (row.key === 'canvasViewport') {
+        } else if (row.key === SETTING_KEYS.canvasViewport) {
           try {
             const parsed = JSON.parse(row.value)
             if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y) && Number.isFinite(parsed.zoom)) {
               canvasViewport = { x: parsed.x, y: parsed.y, zoom: parsed.zoom }
             }
           } catch { /* ignore invalid JSON */ }
-        } else if (row.key === 'horizonSlots') {
+        } else if (row.key === SETTING_KEYS.horizonSlots) {
           horizonSlots = parseHorizonSlots(row.value)
-        } else if (row.key === 'selectedHorizonDefId') {
+        } else if (row.key === SETTING_KEYS.selectedHorizonDefId) {
           if (row.value === '' || row.value == null) selectedHorizonDefId = null
           else {
             const n = Number(row.value)
             if (Number.isFinite(n)) selectedHorizonDefId = n
           }
-        } else if (row.key === 'canvasRails') {
+        } else if (row.key === SETTING_KEYS.canvasRails) {
           canvasRails = parseRailsState(row.value)
-        } else if (row.key === 'maxTags') {
+        } else if (row.key === SETTING_KEYS.maxTags) {
           const parsed = Number(row.value)
           if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
-        } else if (row.key === 'defaultProjectGroupBy') {
+        } else if (row.key === SETTING_KEYS.defaultProjectGroupBy) {
           if (row.value === '') defaultProjectGroupBy = null
           else if (isValidProjectGroupBy(row.value)) defaultProjectGroupBy = row.value
-        } else if (row.key === 'canvasMaxExtent') {
+        } else if (row.key === SETTING_KEYS.canvasMaxExtent) {
           const parsed = Number(row.value)
           if (isValidCanvasMaxExtent(parsed)) canvasMaxExtent = parsed
         }
@@ -395,19 +356,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   async resetColors(theme?: ThemeName) {
     const targets: ReadonlyArray<ThemeName> = theme == null ? ['dark', 'light'] : [theme]
     for (const t of targets) {
-      const keys = Object.keys(defaultThemedColors[t]).map((k) => `color.${t}.${k}`)
+      const keys = Object.keys(DEFAULT_THEMED_COLORS[t]).map((k) => `color.${t}.${k}`)
       await settingsRepository.bulkDelete(keys)
       customizedColorKeys[t] = new Set()
     }
     const current = get().colors
     const colors: ThemedColors = { ...current }
-    for (const t of targets) colors[t] = { ...defaultThemedColors[t] }
+    for (const t of targets) colors[t] = { ...DEFAULT_THEMED_COLORS[t] }
     set({ colors })
     applyThemeOverrides(customizedColorKeys, colors, resolveTheme(get().themeMode))
   },
 
   async setThemeMode(mode: ThemeMode) {
-    await settingsRepository.put('themeMode', mode)
+    await settingsRepository.put(SETTING_KEYS.themeMode, mode)
     set({ themeMode: mode })
     applyThemeMode(mode)
     setupMediaQueryListener(mode)
@@ -418,44 +379,44 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setDefaultProjectId(id: number | null) {
     if (id == null) {
-      await settingsRepository.delete('defaultProjectId')
+      await settingsRepository.delete(SETTING_KEYS.defaultProjectId)
     } else {
-      await settingsRepository.put('defaultProjectId', String(id))
+      await settingsRepository.put(SETTING_KEYS.defaultProjectId, String(id))
     }
     set({ defaultProjectId: id })
   },
 
   async setDefaultStatusId(id: number | null) {
     if (id == null) {
-      await settingsRepository.delete('defaultStatusId')
+      await settingsRepository.delete(SETTING_KEYS.defaultStatusId)
     } else {
-      await settingsRepository.put('defaultStatusId', String(id))
+      await settingsRepository.put(SETTING_KEYS.defaultStatusId, String(id))
     }
     set({ defaultStatusId: id })
   },
 
   async setQuickStatusId(id: number | null) {
     if (id == null) {
-      await settingsRepository.delete('quickStatusId')
+      await settingsRepository.delete(SETTING_KEYS.quickStatusId)
     } else {
-      await settingsRepository.put('quickStatusId', String(id))
+      await settingsRepository.put(SETTING_KEYS.quickStatusId, String(id))
     }
     set({ quickStatusId: id })
   },
 
   async setWeekStartsOn(day: WeekStart) {
     if (!isValidWeekStart(day)) return
-    await settingsRepository.put('weekStartsOn', String(day))
+    await settingsRepository.put(SETTING_KEYS.weekStartsOn, String(day))
     set({ weekStartsOn: day })
   },
 
   async setCompletedRetentionDays(days: number | null) {
     if (days == null) {
-      await settingsRepository.delete('completedRetentionDays')
+      await settingsRepository.delete(SETTING_KEYS.completedRetentionDays)
     } else if (!isValidRetentionDays(days)) {
       return
     } else {
-      await settingsRepository.put('completedRetentionDays', String(days))
+      await settingsRepository.put(SETTING_KEYS.completedRetentionDays, String(days))
     }
     set({ completedRetentionDays: days })
   },
@@ -465,11 +426,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const current = get().horizonSlots
     const insertAt = atIndex == null ? current.length : Math.max(0, Math.min(atIndex, current.length))
     const next = [...current.slice(0, insertAt), defId, ...current.slice(insertAt)]
-    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
     let nextSelected = get().selectedHorizonDefId
     if (nextSelected == null) {
       nextSelected = next[0] ?? null
-      await settingsRepository.put('selectedHorizonDefId', nextSelected == null ? '' : String(nextSelected))
+      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, nextSelected == null ? '' : String(nextSelected))
     }
     set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
   },
@@ -479,11 +440,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (atIndex < 0 || atIndex >= current.length) return
     const removed = current[atIndex]
     const next = [...current.slice(0, atIndex), ...current.slice(atIndex + 1)]
-    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
     let nextSelected = get().selectedHorizonDefId
     if (removed != null && nextSelected === removed) {
       nextSelected = next[0] ?? null
-      await settingsRepository.put('selectedHorizonDefId', nextSelected == null ? '' : String(nextSelected))
+      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, nextSelected == null ? '' : String(nextSelected))
     }
     set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
   },
@@ -497,7 +458,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const [moved] = next.splice(fromIndex, 1)
     if (moved == null) return
     next.splice(toIndex, 0, moved)
-    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
     set({ horizonSlots: next })
   },
 
@@ -508,30 +469,30 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const prev = current[atIndex]
     const next = [...current]
     next[atIndex] = defId
-    await settingsRepository.put('horizonSlots', JSON.stringify(next))
+    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
     let nextSelected = get().selectedHorizonDefId
     if (prev != null && nextSelected === prev) {
       nextSelected = defId
-      await settingsRepository.put('selectedHorizonDefId', String(nextSelected))
+      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, String(nextSelected))
     }
     set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
   },
 
   async setSelectedHorizonDefId(defId: number | null) {
     if (defId != null && !Number.isFinite(defId)) return
-    await settingsRepository.put('selectedHorizonDefId', defId == null ? '' : String(defId))
+    await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, defId == null ? '' : String(defId))
     set({ selectedHorizonDefId: defId })
   },
 
   async setDefaultProjectGroupBy(groupBy: ProjectGroupBy | null) {
     if (groupBy != null && !isValidProjectGroupBy(groupBy)) return
-    await settingsRepository.put('defaultProjectGroupBy', groupBy ?? '')
+    await settingsRepository.put(SETTING_KEYS.defaultProjectGroupBy, groupBy ?? '')
     set({ defaultProjectGroupBy: groupBy })
   },
 
   async setCanvasMaxExtent(n: number) {
     if (!isValidCanvasMaxExtent(n)) return
-    await settingsRepository.put('canvasMaxExtent', String(n))
+    await settingsRepository.put(SETTING_KEYS.canvasMaxExtent, String(n))
     set({ canvasMaxExtent: n })
   },
 
@@ -539,7 +500,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     setMs: 150,
     persistMs: 500,
     apply: (rails) => set({ canvasRails: rails }),
-    persist: (rails) => { settingsRepository.put('canvasRails', serializeRailsState(rails)) },
+    persist: (rails) => { settingsRepository.put(SETTING_KEYS.canvasRails, serializeRailsState(rails)) },
   }),
 
   // React Flow fires onViewportChange ~60/sec during pan/zoom; subscribers
@@ -552,6 +513,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     setMs: 150,
     persistMs: 500,
     apply: (vp) => set({ canvasViewport: vp }),
-    persist: (vp) => { settingsRepository.put('canvasViewport', JSON.stringify(vp)) },
+    persist: (vp) => { settingsRepository.put(SETTING_KEYS.canvasViewport, JSON.stringify(vp)) },
   }),
 }))

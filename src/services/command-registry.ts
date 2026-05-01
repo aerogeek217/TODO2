@@ -1,6 +1,7 @@
 import type { PersistedTodoItem, Project, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from '../routes'
 
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks' | 'projects'
 
@@ -57,10 +58,10 @@ export function createCommands(ctx: CommandContext): Command[] {
   const cmdX = formatShortcut('Mod-X')
   const commands: Command[] = [
     // Navigation
-    { id: 'nav-canvas', name: 'Go to Canvas', shortcut: 'G then C', category: 'navigation', action: () => ctx.navigateTo('/') },
-    { id: 'nav-list', name: 'Go to List', shortcut: 'G then L', category: 'navigation', action: () => ctx.navigateTo('/list') },
-    { id: 'nav-calendar', name: 'Go to Calendar', shortcut: 'G then A', category: 'navigation', action: () => ctx.navigateTo('/calendar') },
-    { id: 'nav-settings', name: 'Go to Settings', shortcut: 'G then S', category: 'navigation', action: () => ctx.navigateTo('/settings') },
+    { id: 'nav-canvas', name: 'Go to Canvas', shortcut: 'G then C', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CANVAS) },
+    { id: 'nav-list', name: 'Go to List', shortcut: 'G then L', category: 'navigation', action: () => ctx.navigateTo(ROUTE_LIST) },
+    { id: 'nav-calendar', name: 'Go to Calendar', shortcut: 'G then A', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CALENDAR) },
+    { id: 'nav-settings', name: 'Go to Settings', shortcut: 'G then S', category: 'navigation', action: () => ctx.navigateTo(ROUTE_SETTINGS) },
     { id: 'focus-filter', name: 'Focus Filters', shortcut: 'F', category: 'navigation', action: () => {
       const filterRow = document.querySelector('[data-filter-row]')
       const firstBtn = filterRow?.querySelector('button') as HTMLElement | null

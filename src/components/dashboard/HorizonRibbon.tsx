@@ -17,6 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem } from '../../models'
 import { DragHandle } from '../shared/DragHandle'
+import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import styles from './HorizonRibbon.module.css'
 
 export interface HorizonRow {
@@ -117,7 +118,7 @@ export function HorizonRibbon({
   onReorder,
 }: Props) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const ids = useMemo(() => rows.map((r) => r.defId), [rows])

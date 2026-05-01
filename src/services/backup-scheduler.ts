@@ -1,6 +1,7 @@
 import { backupRepository } from '../data/backup-repository'
+import { MS_PER_DAY } from '../utils/date'
 
-const DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const DEFAULT_INTERVAL_MS = MS_PER_DAY
 const MAX_BACKUPS = 10
 
 class BackupScheduler {

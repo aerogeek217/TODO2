@@ -1,16 +1,15 @@
-import type { PersistedTodoItem, Status } from '../../models'
+import { type PersistedTodoItem, type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../../models'
 
 export interface StatusBreakdownEntry {
   /** `null` represents the synthetic "No status" bucket. */
   id: number | null
   label: string
-  icon: string
+  icon: StatusIconKey
   count: number
   color: string
 }
 
 const NO_STATUS_LABEL = 'No status'
-const NO_STATUS_ICON = 'circle'
 const NO_STATUS_COLOR = 'var(--color-text-muted)'
 
 /**
@@ -45,7 +44,7 @@ export function selectStatusBreakdown(
     .map((s) => ({
       id: s.id!,
       label: s.name,
-      icon: s.icon ?? 'circle',
+      icon: s.icon ?? DEFAULT_STATUS_ICON,
       count: counts.get(s.id!) ?? 0,
       color: s.color,
     }))
@@ -54,7 +53,7 @@ export function selectStatusBreakdown(
     entries.push({
       id: null,
       label: NO_STATUS_LABEL,
-      icon: NO_STATUS_ICON,
+      icon: DEFAULT_STATUS_ICON,
       count: noStatusCount,
       color: NO_STATUS_COLOR,
     })

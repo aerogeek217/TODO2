@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { CSSProperties, MouseEvent, Ref } from 'react'
-import type { PersistedTodoItem, Person, Org, Status } from '../../models'
+import { type PersistedTodoItem, type Person, type Org, type Status, DEFAULT_STATUS_ICON } from '../../models'
 import { formatDateShort } from '../../utils/date'
 import { scheduledLabel, isScheduledPast, isDeadlinePast } from '../../utils/effective-date'
 import { StatusIcon } from './StatusIcon'
@@ -276,7 +276,7 @@ export const TaskPillStatus = memo(function TaskPillStatus({
           aria-label={status ? `Status: ${status.name}` : 'Set status'}
         >
           {status
-            ? <StatusIcon icon={status.icon || 'circle'} filled />
+            ? <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled />
             : <span className={styles.statusDotEmpty} />}
         </button>
       </div>
@@ -291,7 +291,7 @@ export const TaskPillStatus = memo(function TaskPillStatus({
       aria-label={status ? `Status: ${status.name}` : 'No status'}
     >
       {status
-        ? <StatusIcon icon={status.icon || 'circle'} filled />
+        ? <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled />
         : <span className={styles.statusReadOnlyEmpty} aria-hidden="true" />}
     </span>
   )

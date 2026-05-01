@@ -23,6 +23,7 @@ import { useFloatingNoteStore } from './stores/floating-note-store'
 import { useStatusStore } from './stores/status-store'
 import { useTagStore } from './stores/tag-store'
 import { formatShortcut } from './utils/platform'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
@@ -169,7 +170,7 @@ function AppShell() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const showFab = location.pathname !== '/settings' && location.pathname !== '/calendar'
+  const showFab = location.pathname !== ROUTE_SETTINGS && location.pathname !== ROUTE_CALENDAR
 
   // Reset filter sheet when viewport transitions from mobile to desktop
   useEffect(() => {
@@ -210,7 +211,7 @@ function AppShell() {
   }, [ensureDefault, loadSettings, initFileStorage, loadPeople, loadOrgs])
 
   const createFloatingNote = useCallback(() => {
-    if (location.pathname !== '/') return
+    if (location.pathname !== ROUTE_CANVAS) return
     const canvasId = useCanvasStore.getState().selectedCanvasId
     if (!canvasId) return
     const vp = useSettingsStore.getState().canvasViewport
@@ -227,13 +228,13 @@ function AppShell() {
   // but we can directly use the React Flow instance via the DOM for simplicity.
   // The fitView button in the controls already exists; this wires Ctrl+0.
   const fitView = useCallback(() => {
-    if (location.pathname !== '/') return
+    if (location.pathname !== ROUTE_CANVAS) return
     // React Flow exposes fitView on the instance; trigger via a custom event
     window.dispatchEvent(new CustomEvent('canvas-fit-view'))
   }, [location.pathname])
 
   const toggleProjectNavigator = useCallback(() => {
-    if (location.pathname !== '/') return
+    if (location.pathname !== ROUTE_CANVAS) return
     useUIStore.getState().toggleProjectNavigator()
   }, [location.pathname])
 
@@ -277,17 +278,17 @@ function AppShell() {
         if (!project) return
         useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
         useUIStore.getState().selectOneTodo(todoId)
-        navigate('/')
+        navigate(ROUTE_CANVAS)
       },
       focusProject: (projectId: number) => {
         const project = useProjectStore.getState().projects.find((p) => p.id === projectId)
         if (!project) return
         useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
-        navigate('/')
+        navigate(ROUTE_CANVAS)
       },
       fitView,
-      createFloatingNote: location.pathname === '/' ? createFloatingNote : undefined,
-      toggleProjectNavigator: location.pathname === '/' ? toggleProjectNavigator : undefined,
+      createFloatingNote: location.pathname === ROUTE_CANVAS ? createFloatingNote : undefined,
+      toggleProjectNavigator: location.pathname === ROUTE_CANVAS ? toggleProjectNavigator : undefined,
       openShortcutsModal: () => setShowShortcuts(true),
       getStatuses: () => useStatusStore.getState().statuses,
     }),
@@ -329,16 +330,16 @@ function AppShell() {
         <div className={styles.content}>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={isMobile ? <Navigate to="/list" replace /> : (
+            <Route path={ROUTE_CANVAS} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : (
               <ErrorBoundary scope="Canvas">
                 <CanvasPage />
               </ErrorBoundary>
             )} />
-            <Route path="/dashboard" element={<Navigate to="/" replace />} />
-            <Route path="/list" element={<ListView />} />
-            <Route path="/calendar" element={isMobile ? <Navigate to="/list" replace /> : <CalendarView />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to={isMobile ? '/list' : '/'} replace />} />
+            <Route path="/dashboard" element={<Navigate to={ROUTE_CANVAS} replace />} />
+            <Route path={ROUTE_LIST} element={<ListView />} />
+            <Route path={ROUTE_CALENDAR} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : <CalendarView />} />
+            <Route path={ROUTE_SETTINGS} element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to={isMobile ? ROUTE_LIST : ROUTE_CANVAS} replace />} />
           </Routes>
         </Suspense>
         </div>

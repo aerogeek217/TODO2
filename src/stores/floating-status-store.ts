@@ -6,6 +6,7 @@ import {
   createSetCollapsed,
   type FloatPlacementMethods,
 } from './create-float-placement-store'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the open-tasks-by-status stat widget.
@@ -27,7 +28,7 @@ export const useFloatingStatusStore = create<FloatingStatusState>((set, get) => 
   ...createFloatPlacementMethods<FloatingStatus>(
     {
       repo: floatingStatusRepository,
-      defaults: { width: 380, height: 240 },
+      defaults: FLOAT_DEFAULT_RECTS.status,
       slice: 'statuses',
       label: 'floating status',
       removeUndoLabel: 'Close floating status',

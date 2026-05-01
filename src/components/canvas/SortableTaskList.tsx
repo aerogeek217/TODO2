@@ -21,6 +21,7 @@ import { pasteTasksAt } from '../../services/clipboard'
 import { partitionByGroup, getGroupColor } from '../../utils/task-grouping'
 import { UNGROUPED_GROUP_KEY, blockContextId } from '../../utils/cross-group-drag'
 import { startOfToday } from '../../utils/date'
+import { FLIP_FOCUS_RETRY_MS, PHANTOM_CLEANUP_OUTER_MS } from '../../constants'
 import { TaskGroup } from './shared/TaskGroup'
 import styles from './SortableTaskList.module.css'
 
@@ -176,7 +177,7 @@ export function SortableTaskList({
   useLayoutEffect(() => {
     if (activeInsertAfterId == null) return
     const id = activeInsertAfterId
-    const t = setTimeout(() => triggerRefs.current.get(id)?.focusInput(), 50)
+    const t = setTimeout(() => triggerRefs.current.get(id)?.focusInput(), FLIP_FOCUS_RETRY_MS)
     return () => clearTimeout(t)
   }, [activeInsertAfterId])
 
@@ -476,7 +477,7 @@ export function SortableTaskList({
           phantom.style.opacity = '0'
           phantom.addEventListener('transitionend', () => phantom.remove(), { once: true })
           // Safety net: remove phantom if transitionend never fires
-          setTimeout(() => { if (phantom.isConnected) phantom.remove() }, 600)
+          setTimeout(() => { if (phantom.isConnected) phantom.remove() }, PHANTOM_CLEANUP_OUTER_MS)
         }
 
         // Other tasks: slide into new positions
@@ -490,7 +491,7 @@ export function SortableTaskList({
           }
           animating[0]?.addEventListener('transitionend', onEnd, { once: true })
           // Safety net: if animating[0] unmounts before transitionend, clear transitions on the rest anyway
-          setTimeout(onEnd, 600)
+          setTimeout(onEnd, PHANTOM_CLEANUP_OUTER_MS)
         }
       })
     } else if (isRecentDrop && orderChanged && prefersReducedMotion) {

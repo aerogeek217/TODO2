@@ -5,6 +5,7 @@ import { WEEK_OFFSET_MAX } from '../models/canvas-rails'
 import { floatingCalendarRepository } from '../data'
 import { optimistic, updateItemInList } from './store-helpers'
 import { createFloatPlacementMethods, type FloatPlacementMethods } from './create-float-placement-store'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 interface FloatingCalendarState extends FloatPlacementMethods<FloatingCalendar> {
   calendars: FloatingCalendar[]
@@ -21,7 +22,7 @@ export const useFloatingCalendarStore = create<FloatingCalendarState>((set, get)
   ...createFloatPlacementMethods<FloatingCalendar>(
     {
       repo: floatingCalendarRepository,
-      defaults: { width: 380, height: 320 },
+      defaults: FLOAT_DEFAULT_RECTS.calendar,
       slice: 'calendars',
       label: 'floating calendars',
       removeUndoLabel: 'Delete floating calendar',

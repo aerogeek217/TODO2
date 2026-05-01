@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { FloatingNote } from '../models'
 import { floatingNoteRepository } from '../data'
 import { createFloatPlacementMethods, type FloatPlacementMethods } from './create-float-placement-store'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the single global note on a canvas.
@@ -23,7 +24,7 @@ export const useFloatingNoteStore = create<FloatingNoteState>((set, get) => ({
   ...createFloatPlacementMethods<FloatingNote>(
     {
       repo: floatingNoteRepository,
-      defaults: { width: 240, height: 200 },
+      defaults: FLOAT_DEFAULT_RECTS.notes,
       slice: 'notes',
       label: 'floating notes',
       removeUndoLabel: 'Close floating note',

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, memo } from 'react'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person } from '../../models'
+import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -195,7 +195,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           aria-label={status ? `Status: ${status.name}` : 'Set status'}
         >
           {status ? (
-            <StatusIcon icon={status.icon || 'circle'} filled />
+            <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled />
           ) : (
             <span className={styles.statusDotEmpty} />
           )}

@@ -6,6 +6,7 @@ import {
   createSetCollapsed,
   type FloatPlacementMethods,
 } from './create-float-placement-store'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the global horizon ribbon + selected
@@ -27,7 +28,7 @@ export const useFloatingHorizonsStore = create<FloatingHorizonsState>((set, get)
   ...createFloatPlacementMethods<FloatingHorizons>(
     {
       repo: floatingHorizonsRepository,
-      defaults: { width: 520, height: 360 },
+      defaults: FLOAT_DEFAULT_RECTS.horizons,
       slice: 'horizons',
       label: 'floating horizons',
       removeUndoLabel: 'Close floating horizons',

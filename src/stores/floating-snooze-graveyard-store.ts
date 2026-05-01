@@ -6,6 +6,7 @@ import {
   createSetCollapsed,
   type FloatPlacementMethods,
 } from './create-float-placement-store'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the snooze-graveyard stat widget (top-N
@@ -27,7 +28,7 @@ export const useFloatingSnoozeGraveyardStore = create<FloatingSnoozeGraveyardSta
   ...createFloatPlacementMethods<FloatingSnoozeGraveyard>(
     {
       repo: floatingSnoozeGraveyardRepository,
-      defaults: { width: 380, height: 240 },
+      defaults: FLOAT_DEFAULT_RECTS.snoozeGraveyard,
       slice: 'graveyards',
       label: 'floating snooze graveyard',
       removeUndoLabel: 'Close floating snooze graveyard',

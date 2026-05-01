@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useClickOutside } from '../../hooks/use-click-outside'
 import { useTodoStore } from '../../stores/todo-store'
 import { NotesBody, type NotesSource } from '../shared/notes/NotesBody'
+import { TOAST_VISIBLE_MS } from '../../constants'
 import styles from './TaskNotePopover.module.css'
 
 interface TaskNotePopoverProps {
@@ -80,7 +81,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   const handleToast = useCallback((message: string) => {
     setToast(message)
-    window.setTimeout(() => setToast(null), 1800)
+    window.setTimeout(() => setToast(null), TOAST_VISIBLE_MS)
   }, [])
 
   return (

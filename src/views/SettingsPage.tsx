@@ -31,6 +31,7 @@ import { useUIStore } from '../stores/ui-store'
 import { GROUP_OPTIONS } from '../utils/task-grouping'
 import type { ProjectGroupBy } from '../models'
 import { MIN_CANVAS_MAX_EXTENT, MAX_CANVAS_MAX_EXTENT } from '../utils/canvas-bounds'
+import { BYTES_PER_KB, OBJECT_URL_REVOKE_MS } from '../constants'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -213,7 +214,7 @@ export function SettingsPage() {
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_MS)
     setExportMsg('Exported!')
     track(() => setExportMsg(''), 2000)
   }
@@ -319,7 +320,7 @@ export function SettingsPage() {
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_MS)
     setExportMsg('Markdown exported!')
     track(() => setExportMsg(''), 2000)
   }
@@ -718,7 +719,7 @@ export function SettingsPage() {
                     {b.trigger === 'pre-destructive' ? 'pre-op' : b.trigger}
                   </span>
                   <span className={styles.backupSize}>
-                    {b.sizeBytes < 1024 ? `${b.sizeBytes} B` : `${Math.round(b.sizeBytes / 1024)} KB`}
+                    {b.sizeBytes < BYTES_PER_KB ? `${b.sizeBytes} B` : `${Math.round(b.sizeBytes / BYTES_PER_KB)} KB`}
                   </span>
                   <div className={styles.backupActions}>
                     {confirmRestoreId === b.id ? (

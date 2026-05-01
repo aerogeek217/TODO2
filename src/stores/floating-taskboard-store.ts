@@ -6,6 +6,7 @@ import {
   createSetCollapsed,
   type FloatPlacementMethods,
 } from './create-float-placement-store'
+import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the singleton `Taskboard` on a canvas.
@@ -27,7 +28,7 @@ export const useFloatingTaskboardStore = create<FloatingTaskboardState>((set, ge
   ...createFloatPlacementMethods<FloatingTaskboard>(
     {
       repo: floatingTaskboardRepository,
-      defaults: { width: 320, height: 400 },
+      defaults: FLOAT_DEFAULT_RECTS.taskboard,
       slice: 'taskboards',
       label: 'floating taskboards',
       removeUndoLabel: 'Close floating taskboard',

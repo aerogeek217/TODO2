@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { Status } from '../models'
+import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../models'
 import { statusRepository, settingsRepository } from '../data'
+import { SETTING_KEYS } from '../data/setting-keys'
 import { loadWithState, optimistic, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
@@ -12,7 +13,7 @@ interface StatusState {
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
-  add: (name: string, color?: string, icon?: string, hideByDefault?: boolean) => Promise<number>
+  add: (name: string, color?: string, icon?: StatusIconKey, hideByDefault?: boolean) => Promise<number>
   update: (status: Status) => Promise<void>
   remove: (id: number) => Promise<void>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
@@ -31,7 +32,7 @@ export const useStatusStore = create<StatusState>((set, get) => {
   },
   ensureLoaded: () => statusEnsure.ensureLoaded(),
 
-  async add(name: string, color = DEFAULT_ENTITY_COLOR, icon = 'circle', hideByDefault?: boolean) {
+  async add(name: string, color = DEFAULT_ENTITY_COLOR, icon: StatusIconKey = DEFAULT_STATUS_ICON, hideByDefault?: boolean) {
     const { statuses } = get()
     if (statuses.some(s => s.name.toLowerCase() === name.toLowerCase())) {
       throw new Error(`Status "${name}" already exists`)
@@ -85,11 +86,11 @@ export const useStatusStore = create<StatusState>((set, get) => {
       await useSettingsStore.getState().setDefaultStatusId(null)
     }
     if (wasSeededAssigned) {
-      await settingsRepository.delete('seededAssignedStatusId')
+      await settingsRepository.delete(SETTING_KEYS.seededAssignedStatusId)
       useSettingsStore.setState({ seededAssignedStatusId: null })
     }
     if (wasSeededFollowup) {
-      await settingsRepository.delete('seededFollowupStatusId')
+      await settingsRepository.delete(SETTING_KEYS.seededFollowupStatusId)
       useSettingsStore.setState({ seededFollowupStatusId: null })
     }
 
@@ -103,11 +104,11 @@ export const useStatusStore = create<StatusState>((set, get) => {
             await useSettingsStore.getState().setDefaultStatusId(id)
           }
           if (wasSeededAssigned) {
-            await settingsRepository.put('seededAssignedStatusId', String(id))
+            await settingsRepository.put(SETTING_KEYS.seededAssignedStatusId, String(id))
             useSettingsStore.setState({ seededAssignedStatusId: id })
           }
           if (wasSeededFollowup) {
-            await settingsRepository.put('seededFollowupStatusId', String(id))
+            await settingsRepository.put(SETTING_KEYS.seededFollowupStatusId, String(id))
             useSettingsStore.setState({ seededFollowupStatusId: id })
           }
           await get().load()

@@ -1,11 +1,12 @@
 import { useNavigate, useLocation } from 'react-router'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useResolvedTheme } from '../../hooks/use-resolved-theme'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from '../../routes'
 import styles from './Sidebar.module.css'
 
 const views = [
   {
-    path: '/',
+    path: ROUTE_CANVAS,
     label: 'Canvas',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -17,7 +18,7 @@ const views = [
     ),
   },
   {
-    path: '/list',
+    path: ROUTE_LIST,
     label: 'List',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -31,7 +32,7 @@ const views = [
     ),
   },
   {
-    path: '/calendar',
+    path: ROUTE_CALENDAR,
     label: 'Calendar',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -77,8 +78,8 @@ export function Sidebar() {
           <span style={{ fontSize: 18, lineHeight: 1 }}>{resolvedTheme === 'dark' ? '☀' : '☾'}</span>
         </button>
         <button
-          className={`${styles.iconButton} ${location.pathname === '/settings' ? styles.active : ''}`}
-          onClick={() => navigate('/settings')}
+          className={`${styles.iconButton} ${location.pathname === ROUTE_SETTINGS ? styles.active : ''}`}
+          onClick={() => navigate(ROUTE_SETTINGS)}
           title="Settings"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

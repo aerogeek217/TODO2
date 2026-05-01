@@ -1,5 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 
+/** Trigger characters that open the NLP autocomplete dropdown. */
+export const NLP_TRIGGERS = ['@', '/', '#', ':'] as const
+export type NlpTrigger = (typeof NLP_TRIGGERS)[number]
+
+const NLP_TRIGGER_SET = new Set<string>(NLP_TRIGGERS)
+
 export interface AutocompleteItem {
   id: number
   name: string
@@ -9,7 +15,7 @@ export interface AutocompleteItem {
 
 export interface AutocompleteState {
   visible: boolean
-  trigger: '@' | '/' | '#' | ':' | null
+  trigger: NlpTrigger | null
   query: string
   items: AutocompleteItem[]
   selectedIndex: number
@@ -59,13 +65,13 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
     const beforeCursor = value.slice(0, cursorPos)
     // Look backwards for @, /, #, or : that isn't preceded by a word character
     let triggerIdx = -1
-    let triggerChar: '@' | '/' | '#' | ':' | null = null
+    let triggerChar: NlpTrigger | null = null
     for (let i = beforeCursor.length - 1; i >= 0; i--) {
       const ch = beforeCursor[i]
       if (ch === ' ' || ch === '\t' || ch === '\n') break // whitespace before finding trigger = no trigger
-      if ((ch === '@' || ch === '/' || ch === '#' || ch === ':') && (i === 0 || /\s/.test(beforeCursor[i - 1] ?? ''))) {
+      if (ch !== undefined && NLP_TRIGGER_SET.has(ch) && (i === 0 || /\s/.test(beforeCursor[i - 1] ?? ''))) {
         triggerIdx = i
-        triggerChar = ch as '@' | '/' | '#' | ':'
+        triggerChar = ch as NlpTrigger
         break
       }
     }

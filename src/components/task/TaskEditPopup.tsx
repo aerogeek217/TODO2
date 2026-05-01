@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoItem, PersistedTodoItem, Person, Org, RecurrenceType, Tag } from '../../models'
-import { AppView } from '../../models'
+import { AppView, DEFAULT_STATUS_ICON } from '../../models'
 import type { ScheduledValue } from '../../models/scheduled-value'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -571,7 +571,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 onClick={() => setShowStatusMenu((v) => !v)}
               >
                 {statusId ? (
-                  <><span style={{ color: statuses.find(s => s.id === statusId)?.color }}><StatusIcon icon={statuses.find(s => s.id === statusId)?.icon || 'circle'} filled /></span> {statuses.find(s => s.id === statusId)?.name ?? 'Status'}</>
+                  <><span style={{ color: statuses.find(s => s.id === statusId)?.color }}><StatusIcon icon={statuses.find(s => s.id === statusId)?.icon || DEFAULT_STATUS_ICON} filled /></span> {statuses.find(s => s.id === statusId)?.name ?? 'Status'}</>
                 ) : (
                   'Status'
                 )}
@@ -602,7 +602,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                         if (isEdit && todo) props.onUpdate({ ...todo, statusId: s.id, modifiedAt: new Date() })
                       }}
                     >
-                      <span style={{ color: s.color }}><StatusIcon icon={s.icon || 'circle'} filled /></span>
+                      <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
                       {s.name}
                     </button>
                   ))}

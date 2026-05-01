@@ -31,7 +31,7 @@ import {
   parseBlockContextId,
   type CrossGroupMutation,
 } from '../utils/cross-group-drag'
-import { DRAG_MEASURE_FREQUENCY_MS, PHANTOM_CLEANUP_MS } from '../constants'
+import { DRAG_ACTIVATION_DISTANCE_PX, DRAG_MEASURE_FREQUENCY_MS, PHANTOM_CLEANUP_MS } from '../constants'
 
 interface UseCanvasDnDOptions {
   todos: PersistedTodoItem[]
@@ -76,7 +76,7 @@ export function useCanvasDnD({
   // Pointer sensor with distance constraint to avoid conflicting with React Flow pan
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 5 },
+      activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX },
     })
   )
 

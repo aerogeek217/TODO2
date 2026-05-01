@@ -18,8 +18,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useStatusStore } from '../../stores/status-store'
 import { statusRepository } from '../../data'
-import type { Status } from '../../models'
-import { DEFAULT_ENTITY_COLOR } from '../../constants'
+import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../../models'
+import { DEFAULT_ENTITY_COLOR, DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
 import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
@@ -31,7 +31,7 @@ interface EditState {
   id: number
   name: string
   color: string
-  icon?: string
+  icon?: StatusIconKey
   hideByDefault?: boolean
 }
 
@@ -39,7 +39,7 @@ interface StatusEditorProps {
   onClose: () => void
 }
 
-function IconPicker({ value, onChange, color }: { value?: string; onChange: (icon?: string) => void; color: string }) {
+function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChange: (icon?: StatusIconKey) => void; color: string }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const { panelRef, style } = usePopoverAnchor({
@@ -58,14 +58,14 @@ function IconPicker({ value, onChange, color }: { value?: string; onChange: (ico
         onClick={() => setOpen(!open)}
         title={value ? `Icon: ${value}` : 'No icon — click to pick'}
       >
-        <StatusIcon icon={value || 'circle'} />
+        <StatusIcon icon={value || DEFAULT_STATUS_ICON} />
       </button>
       {open && createPortal(
         <div ref={panelRef} className={styles.iconPickerGrid} style={{ ...style, marginTop: 0 }}>
           {STATUS_ICON_KEYS.map(key => (
             <button
               key={key}
-              className={`${styles.iconPickerCell} ${(value || 'circle') === key ? styles.iconPickerCellActive : ''}`}
+              className={`${styles.iconPickerCell} ${(value || DEFAULT_STATUS_ICON) === key ? styles.iconPickerCellActive : ''}`}
               style={{ color }}
               onClick={() => { onChange(key); setOpen(false) }}
               title={key}
@@ -93,7 +93,7 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
       <DragHandle className={styles.dragHandle} attributes={attributes} listeners={listeners} ariaHidden={false} />
       <div className={styles.colorSwatch} style={{ background: status.color }} onClick={() => onEdit(status)} />
       <span className={styles.iconPreview} style={{ color: status.color }} onClick={() => onEdit(status)}>
-        <StatusIcon icon={status.icon || 'circle'} />
+        <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} />
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
       {status.hideByDefault && <span className={styles.hiddenLabel}>(hidden)</span>}
@@ -110,7 +110,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
-  const [newIcon, setNewIcon] = useState<string | undefined>(undefined)
+  const [newIcon, setNewIcon] = useState<StatusIconKey | undefined>(undefined)
   const [newHidden, setNewHidden] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
@@ -201,7 +201,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const visibleIds = useMemo(() => visible.map(s => s.id!), [visible])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 

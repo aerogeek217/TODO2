@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem, Person } from '../../models'
+import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
@@ -428,7 +428,7 @@ export const TaskRow = memo(function TaskRow({
                 className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
                 onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, s.id); setShowStatusMenu(false) }}
               >
-                <span style={{ color: s.color }}><StatusIcon icon={s.icon || 'circle'} filled /></span>
+                <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
                 {s.name}
               </button>
             ))}
