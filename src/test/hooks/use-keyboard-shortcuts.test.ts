@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useKeyboardShortcuts } from '../../hooks/use-keyboard-shortcuts'
+import { matchChord } from '../../services/keyboard-shortcuts'
 
 function dispatchKey(target: EventTarget, key: string, init: KeyboardEventInit = {}) {
   target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }))
@@ -64,5 +65,76 @@ describe('useKeyboardShortcuts — focus gating', () => {
     renderHook(() => useKeyboardShortcuts(options))
     dispatchKey(input, 'n')
     expect(createFloatingNote).not.toHaveBeenCalled()
+  })
+})
+
+describe('useKeyboardShortcuts — sequence chords (G then …)', () => {
+  const noop = () => {}
+  let navigate: ReturnType<typeof vi.fn<(path: string) => void>>
+
+  beforeEach(() => {
+    navigate = vi.fn<(path: string) => void>()
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('G then L navigates to /list', () => {
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
+    dispatchKey(window, 'g')
+    dispatchKey(window, 'l')
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('/list')
+  })
+
+  it('G then C navigates to /', () => {
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
+    dispatchKey(window, 'g')
+    dispatchKey(window, 'c')
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('/')
+  })
+
+  it('G then unrelated key (e.g., x) does not navigate', () => {
+    renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
+    dispatchKey(window, 'g')
+    dispatchKey(window, 'x')
+    expect(navigate).not.toHaveBeenCalled()
+  })
+})
+
+describe('matchChord predicate', () => {
+  function ev(init: KeyboardEventInit) {
+    return new KeyboardEvent('keydown', init)
+  }
+
+  it('matches Mod-K via ctrlKey', () => {
+    expect(matchChord(ev({ key: 'k', ctrlKey: true }), { key: 'k', mod: true })).toBe(true)
+  })
+
+  it('matches Mod-K via metaKey', () => {
+    expect(matchChord(ev({ key: 'k', metaKey: true }), { key: 'k', mod: true })).toBe(true)
+  })
+
+  it('rejects Mod-K with extraneous shift when shift defaults to false', () => {
+    expect(matchChord(ev({ key: 'k', ctrlKey: true, shiftKey: true }), { key: 'k', mod: true })).toBe(false)
+  })
+
+  it('matches both shift states when shiftAny is set', () => {
+    expect(matchChord(ev({ key: 'ArrowUp', shiftKey: false }), { key: 'arrowup', shiftAny: true })).toBe(true)
+    expect(matchChord(ev({ key: 'ArrowUp', shiftKey: true }), { key: 'arrowup', shiftAny: true })).toBe(true)
+  })
+
+  it('matches Mod-Shift-Z strictly', () => {
+    expect(matchChord(ev({ key: 'z', ctrlKey: true, shiftKey: true }), { key: 'z', mod: true, shift: true })).toBe(true)
+    expect(matchChord(ev({ key: 'z', ctrlKey: true, shiftKey: false }), { key: 'z', mod: true, shift: true })).toBe(false)
+  })
+
+  it('matches by code when useCode is true', () => {
+    // Ctrl+Space: e.key is ' ', e.code is 'Space'.
+    expect(matchChord(ev({ key: ' ', code: 'Space', ctrlKey: true }), { key: 'Space', useCode: true, mod: true })).toBe(true)
+  })
+
+  it('case-insensitive on letter keys', () => {
+    expect(matchChord(ev({ key: 'F' }), { key: 'f' })).toBe(true)
   })
 })
