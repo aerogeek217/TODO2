@@ -1,9 +1,52 @@
-import { db, CURRENT_DB_VERSION } from '../data/database'
+import { ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../data/database'
+import type { SettingRow } from '../data/database'
 import { SCHEMA_VERSION_KEY } from './migration-check'
-import type { PersistedTodoItem } from '../models'
+import type {
+  TodoItem, Project, Canvas, Person, Org, ListInset,
+  TodoPerson, TodoOrg, PersonOrg, Taskboard, Status, Note,
+  FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons,
+  FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard,
+  Tag, TodoTag, TodoEvent, PersistedTodoItem,
+} from '../models'
+import type { ListDefinition } from '../models/list-definition'
 import { bySortOrder } from '../utils/sort-order'
 import { scheduledLabel } from '../utils/effective-date'
 import { startOfToday } from '../utils/date'
+
+/**
+ * Shape of `buildExportData`'s return — every data table by name plus
+ * `__schemaVersion`. The interface is the contract for consumers that read
+ * named fields (e.g. `buildMarkdownExport`); the runtime body iterates
+ * `ALL_DATA_TABLES` so adding a new table to that array auto-flows through
+ * export.
+ */
+export interface ExportData {
+  [SCHEMA_VERSION_KEY]: number
+  todos: TodoItem[]
+  projects: Project[]
+  canvases: Canvas[]
+  listInsets: ListInset[]
+  people: Person[]
+  settings: SettingRow[]
+  todoPeople: TodoPerson[]
+  todoOrgs: TodoOrg[]
+  personOrgs: PersonOrg[]
+  orgs: Org[]
+  taskboards: Taskboard[]
+  statuses: Status[]
+  listDefinitions: ListDefinition[]
+  notes: Note[]
+  floatingCalendars: FloatingCalendar[]
+  floatingNotes: FloatingNote[]
+  floatingTaskboards: FloatingTaskboard[]
+  floatingHorizons: FloatingHorizons[]
+  floatingStatus: FloatingStatus[]
+  floatingScoreboard: FloatingScoreboard[]
+  floatingSnoozeGraveyard: FloatingSnoozeGraveyard[]
+  tags: Tag[]
+  todoTags: TodoTag[]
+  todoEvents: TodoEvent[]
+}
 
 /**
  * Reads all database tables and returns a plain object suitable for
@@ -12,22 +55,18 @@ import { startOfToday } from '../utils/date'
  * The returned object is stamped with `__schemaVersion = CURRENT_DB_VERSION` so
  * the import path can detect older files without reaching for field-shape
  * heuristics. See `services/migration-check.ts:detectUnsupportedImport`.
+ *
+ * Iterates `ALL_DATA_TABLES` from `data/database.ts` so the export covers every
+ * data table — round-trips through `parseAndRestore` without silent loss.
  */
-export async function buildExportData() {
-  const [todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes] =
-    await Promise.all([
-      db.todos.toArray(), db.projects.toArray(), db.canvases.toArray(), db.listInsets.toArray(),
-      db.people.toArray(), db.settings.toArray(),
-      db.todoPeople.toArray(), db.todoOrgs.toArray(), db.personOrgs.toArray(), db.orgs.toArray(),
-      db.taskboards.toArray(), db.floatingTaskboards.toArray(),
-      db.statuses.toArray(), db.listDefinitions.toArray(), db.notes.toArray(),
-      db.floatingCalendars.toArray(), db.floatingNotes.toArray(),
-    ])
-
+export async function buildExportData(): Promise<ExportData> {
+  const entries = await Promise.all(
+    ALL_DATA_TABLES.map(async (table) => [table.name, await table.toArray()] as const),
+  )
   return {
     [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
-    todos, projects, canvases, listInsets, people, settings, todoPeople, todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards, statuses, listDefinitions, notes, floatingCalendars, floatingNotes,
-  }
+    ...Object.fromEntries(entries),
+  } as ExportData
 }
 
 /**
