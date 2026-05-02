@@ -160,13 +160,11 @@ export function HorizonRibbon({
           </SortableContext>
         </DndContext>
       )}
-      {rows.length === 0 && (
-        <div className={styles.ribbonFooter}>
-          <button type="button" className={styles.addBtn} onClick={handleAdd}>
-            + Add list
-          </button>
-        </div>
-      )}
+      <div className={styles.ribbonFooter}>
+        <button type="button" className={styles.addBtn} onClick={handleAdd}>
+          + Add list
+        </button>
+      </div>
     </div>
   )
 }

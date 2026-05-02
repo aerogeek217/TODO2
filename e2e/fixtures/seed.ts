@@ -95,6 +95,13 @@ export interface CanvasSeedOptions {
   orgs?: OrgSeed[]
   /** Serialized `RailsState` JSON value persisted under `settings.canvasRails`. */
   canvasRails?: unknown
+  /** Indexes into `listDefinitions` to use as ordered `horizonSlots`. The
+   *  helper resolves indexes to ids inside the seed transaction and writes
+   *  `settings.horizonSlots` as a JSON-stringified `number[]`. Required when a
+   *  horizons widget needs ribbon rows on first paint — fresh DBs have no
+   *  seeded horizons (the v24 reseed migration body was emptied by the
+   *  `strip-backcompat-pre-v46` pass). */
+  horizonSlotIndexes?: number[]
 }
 
 /**
@@ -297,6 +304,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
     people: opts.people ?? [],
     orgs: opts.orgs ?? [],
     canvasRails: opts.canvasRails ?? null,
+    horizonSlotIndexes: opts.horizonSlotIndexes ?? null,
   }
 
   await page.evaluate(async ({ db, seed }) => {
@@ -405,6 +413,21 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
             tx.objectStore('settings').put({
               key: 'canvasRails',
               value: JSON.stringify(rails),
+            })
+          }
+          if (seed.horizonSlotIndexes != null) {
+            const resolved: number[] = []
+            for (const idx of seed.horizonSlotIndexes) {
+              const id = defIds[idx]
+              if (id == null) {
+                reject(new Error(`seed: horizonSlotIndexes references missing listDefIdx ${idx}`))
+                return
+              }
+              resolved.push(id)
+            }
+            tx.objectStore('settings').put({
+              key: 'horizonSlots',
+              value: JSON.stringify(resolved),
             })
           }
         }

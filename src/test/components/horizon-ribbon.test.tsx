@@ -94,10 +94,11 @@ describe('HorizonRibbon', () => {
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
   })
 
-  it('+ Add list footer is hidden when at least one row exists (right-click drives Insert below)', () => {
+  it('+ Add list footer stays visible even when rows exist, and invokes onAdd', () => {
     const rows = [makeRow({ defId: 1, label: 'This week', total: 1 })]
-    const { queryByText } = renderRibbon({ rows })
-    expect(queryByText('+ Add list')).toBeNull()
+    const { getByText, onAdd } = renderRibbon({ rows })
+    fireEvent.click(getByText('+ Add list'))
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }))
   })
 
   it('selected row carries the rowSelected class so callers can style it', () => {
