@@ -106,12 +106,25 @@ function viewportSize(): { vw: number; vh: number } {
   }
 }
 
-const INITIAL_STYLE: PopoverStyle = {
-  position: 'fixed',
-  left: 0,
-  top: 0,
-  maxWidth: 0,
-  maxHeight: 0,
+/**
+ * Off-screen initial position so the panel renders at its natural size on the
+ * first commit (constrained by the consumer's CSS) without flashing at 0,0.
+ * The first `compute()` then reads a real `getBoundingClientRect()` and the
+ * flip/clamp branches engage. A `maxWidth/maxHeight` of 0 here is a footgun:
+ * it forces the panel to 0×0, `compute()` reads 0, the `panelHeight > 0` gate
+ * skips both flip and clamp, and the panel ends up positioned at the raw
+ * anchor — clipping the bottom of the viewport for anchors near the bottom
+ * (e.g. the bottom rail's "+ Add tab" → list picker).
+ */
+function makeInitialStyle(): PopoverStyle {
+  const { vw, vh } = viewportSize()
+  return {
+    position: 'fixed',
+    left: -9999,
+    top: -9999,
+    maxWidth: Math.max(0, vw - VIEWPORT_MARGIN_PX * 2),
+    maxHeight: Math.max(0, vh - VIEWPORT_MARGIN_PX * 2),
+  }
 }
 
 function styleEqual(a: PopoverStyle, b: PopoverStyle): boolean {
@@ -160,7 +173,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     extraInsideRefs,
   } = opts
 
-  const [style, setStyle] = useState<PopoverStyle>(INITIAL_STYLE)
+  const [style, setStyle] = useState<PopoverStyle>(makeInitialStyle)
   const [placementUsed, setPlacementUsed] = useState<PopoverPlacement>(placement)
   const panelElRef = useRef<HTMLElement | null>(null)
 

@@ -4,7 +4,10 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-dropdown);
-  z-index: var(--z-dropdown);
+  /* Portaled to body — needs to sit above the canvas FAB layer
+     (--z-fab: 100) where CanvasToolbar lives in the lower-left. Matches
+     WidgetKindMenu / SlotMenu, the other portaled popovers on this flow. */
+  z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
   overflow: hidden;
