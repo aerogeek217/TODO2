@@ -187,23 +187,34 @@ export function ListDefinitionBody({
     ? `Pick a ${pickerLabel.toLowerCase()} to populate…`
     : emptyLabel
 
-  // Footer "+ Add task" gating: a runtime-filter prompt that's still unset
-  // means the predicate is incomplete, so seeding metadata from it would be
-  // wrong (the user hasn't picked a person/org/project/etc yet). We hide the
-  // affordance until the prompt is filled — the placeholder already steers
-  // the user to RuntimeFilterPicker.
+  // Footer "+ Add task" gating:
+  // - Runtime-filter prompt unset → predicate is incomplete; the placeholder
+  //   already steers the user to RuntimeFilterPicker, so suppress the button.
+  // - Predicate has no seedable axis (only date / search / completion clauses)
+  //   → the seed would be empty, and the global FAB does the same thing.
+  //   Surface the button only when the predicate filters by at least one of
+  //   project / people / org / status / tag.
+  const mergedPredicate = (definition?.membership.kind === 'custom' && !runtimeFilterPending)
+    ? ((definition.runtimeFilter && runtimeFilterValue && runtimeFilterValue.length > 0)
+        ? applyRuntimeFilter(definition.membership.predicate, definition.runtimeFilter, runtimeFilterValue)
+        : definition.membership.predicate)
+    : null
+  const hasSeedableFilter = mergedPredicate != null && (
+    mergedPredicate.projectIds != null
+    || mergedPredicate.personIds != null
+    || mergedPredicate.orgIds != null
+    || mergedPredicate.statusIds != null
+    || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
+  )
   const canAddTask = !!showAddTask
     && !!definition
     && definition.membership.kind === 'custom'
     && !runtimeFilterPending
+    && hasSeedableFilter
 
   const handleAddTaskClick = () => {
-    if (!canAddTask || !definition || definition.membership.kind !== 'custom') return
-    const basePredicate = definition.membership.predicate
-    const merged = (definition.runtimeFilter && runtimeFilterValue && runtimeFilterValue.length > 0)
-      ? applyRuntimeFilter(basePredicate, definition.runtimeFilter, runtimeFilterValue)
-      : basePredicate
-    const defaults = predicateToFilterDefaults(merged)
+    if (!canAddTask || !mergedPredicate) return
+    const defaults = predicateToFilterDefaults(mergedPredicate)
     useUIStore.getState().openQuickAdd({ defaults })
   }
 
