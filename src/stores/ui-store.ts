@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { AppView } from '../models'
 import type { ListGroupBy, ListItemSortBy } from '../models'
+import type { FilterDefaults } from '../utils/filter-defaults'
 
 type EditPopupMode = 'edit' | 'create' | null
 
@@ -118,15 +119,20 @@ interface UIState {
   quickAddOpen: boolean
   /**
    * In-progress draft seed for the QuickAddBar / TaskEditPopup create-mode
-   * handoff. Used in two ways:
+   * handoff. Used in three ways:
    * 1. `openQuickAdd(seed)` writes `{ rawTitle: seed }` so the bar can
    *    pre-fill its title field on open.
    * 2. The bar's Details / Tab handoff stashes the in-progress draft here,
    *    then opens `TaskEditPopup` create mode which reads it on mount and
    *    pre-fills title + parser-derived metadata. The popup clears the
    *    draft via `closeEditPopup` on its close.
+   * 3. `defaults` carries pre-resolved task metadata that overrides the
+   *    active filter when seeding a new task — used by the canvas list
+   *    widget's "+ Add task" affordance to plumb the list's predicate
+   *    through to QuickAddBar's submit handler. When absent, the submit
+   *    handler falls back to `useFilterStore.getState().filters`.
    */
-  quickAddDraft: { rawTitle: string } | null
+  quickAddDraft: { rawTitle: string; defaults?: FilterDefaults } | null
   /**
    * Most recently created task — drives the transient `RecentTaskPill`
    * overlay. The pill renders for ~5s after creation so the user can click
@@ -170,9 +176,9 @@ interface UIState {
   closeListsEditor: () => void
   openListEditorDialog: (id: number) => void
   closeListEditorDialog: () => void
-  openQuickAdd: (seed?: string) => void
+  openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults }) => void
   closeQuickAdd: () => void
-  setQuickAddDraft: (draft: { rawTitle: string } | null) => void
+  setQuickAddDraft: (draft: { rawTitle: string; defaults?: FilterDefaults } | null) => void
   showRecentlyCreated: (todoId: number) => void
   clearRecentlyCreated: () => void
 }
@@ -371,10 +377,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openQuickAdd(seed) {
-    set({
-      quickAddOpen: true,
-      quickAddDraft: seed ? { rawTitle: seed } : null,
-    })
+    let draft: { rawTitle: string; defaults?: FilterDefaults } | null = null
+    if (typeof seed === 'string') {
+      draft = { rawTitle: seed }
+    } else if (seed && (seed.rawTitle != null || seed.defaults)) {
+      draft = { rawTitle: seed.rawTitle ?? '', ...(seed.defaults ? { defaults: seed.defaults } : {}) }
+    }
+    set({ quickAddOpen: true, quickAddDraft: draft })
   },
 
   closeQuickAdd() {

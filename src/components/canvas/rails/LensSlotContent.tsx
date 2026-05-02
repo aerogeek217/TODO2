@@ -28,6 +28,7 @@ export function LensSlotContent({
       emptyClassName={styles.empty}
       runtimeFilterValue={runtimeFilterValue}
       onRuntimeFilterChange={onRuntimeFilterChange}
+      showAddTask
       renderRow={({ todo, assignedPeople, onOpenDetail }) => (
         <DraggableTaskRow
           key={todo.id}

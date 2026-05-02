@@ -14,7 +14,8 @@ import { useProjectStore } from '../../stores/project-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { buildDashboardLists, type DashboardList } from '../../services/dashboard-lists'
+import { applyRuntimeFilter, buildDashboardLists, type DashboardList } from '../../services/dashboard-lists'
+import { predicateToFilterDefaults } from '../../utils/filter-defaults'
 import { startOfToday } from '../../utils/date'
 import { TaskRow } from '../task/TaskRow'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
@@ -51,6 +52,14 @@ interface ListDefinitionBodyProps {
   runtimeFilterValue?: number[]
   /** Setter paired with `runtimeFilterValue`. Required when runtime filter is active. */
   onRuntimeFilterChange?: (value: number[] | undefined) => void
+  /**
+   * When true, render a footer "+ Add task" button that opens QuickAddBar
+   * with the definition's predicate (post-runtime-filter merge) seeded as
+   * task creation defaults. Suppressed when there is no live definition,
+   * when its membership is non-custom, or when a runtime filter prompt
+   * is unset (the predicate isn't fully specified yet).
+   */
+  showAddTask?: boolean
 }
 
 /**
@@ -70,6 +79,7 @@ export function ListDefinitionBody({
   emptyClassName,
   runtimeFilterValue,
   onRuntimeFilterChange,
+  showAddTask,
 }: ListDefinitionBodyProps) {
   const statuses = useStatusStore((s) => s.statuses)
   const definition = useListDefinitionStore((s) =>
@@ -177,6 +187,26 @@ export function ListDefinitionBody({
     ? `Pick a ${pickerLabel.toLowerCase()} to populate…`
     : emptyLabel
 
+  // Footer "+ Add task" gating: a runtime-filter prompt that's still unset
+  // means the predicate is incomplete, so seeding metadata from it would be
+  // wrong (the user hasn't picked a person/org/project/etc yet). We hide the
+  // affordance until the prompt is filled — the placeholder already steers
+  // the user to RuntimeFilterPicker.
+  const canAddTask = !!showAddTask
+    && !!definition
+    && definition.membership.kind === 'custom'
+    && !runtimeFilterPending
+
+  const handleAddTaskClick = () => {
+    if (!canAddTask || !definition || definition.membership.kind !== 'custom') return
+    const basePredicate = definition.membership.predicate
+    const merged = (definition.runtimeFilter && runtimeFilterValue && runtimeFilterValue.length > 0)
+      ? applyRuntimeFilter(basePredicate, definition.runtimeFilter, runtimeFilterValue)
+      : basePredicate
+    const defaults = predicateToFilterDefaults(merged)
+    useUIStore.getState().openQuickAdd({ defaults })
+  }
+
   const renderTodoRow = (todo: PersistedTodoItem) => {
     const args: ListDefinitionBodyRenderRowArgs = {
       todo,
@@ -221,6 +251,18 @@ export function ListDefinitionBody({
       ) : (
         <div className={className}>
           {filteredTodos.map(renderTodoRow)}
+        </div>
+      )}
+      {canAddTask && (
+        <div className={groupStyles.addFooter}>
+          <button
+            type="button"
+            className={groupStyles.addButton}
+            onClick={handleAddTaskClick}
+            title="Add a task to this list"
+          >
+            + Add task
+          </button>
         </div>
       )}
     </>

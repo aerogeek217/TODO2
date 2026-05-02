@@ -78,9 +78,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
 
-  // Compute filter defaults once for create mode (views with filter UI only)
+  // Compute filter defaults once for create mode (views with filter UI only).
+  // List-widget handoff: when the QuickAddBar was opened from a list's
+  // "+ Add task" affordance, `ui-store.quickAddDraft.defaults` carries the
+  // list's predicate-derived seed, which takes precedence over the global
+  // filter (the canvas might have an empty topbar filter even though the
+  // list itself narrows). Falls back to the active filter otherwise.
   const filterDefaults = useMemo(() => {
     if (mode !== 'create') return null
+    const draftDefaults = useUIStore.getState().quickAddDraft?.defaults
+    if (draftDefaults) return draftDefaults
     const activeView = useUIStore.getState().activeView
     if (activeView === AppView.Dashboard || activeView === AppView.Settings) return null
     return getFilterDefaults(useFilterStore.getState().filters)
@@ -134,7 +141,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [projectId, setProjectId] = useState<number | undefined>(
     todo?.projectId
     ?? quickAddSeed?.resolved.projectId
-    ?? (mode === 'create' ? (defaultProjectId ?? undefined) : undefined),
+    ?? (mode === 'create' ? (filterDefaults?.projectId ?? defaultProjectId ?? undefined) : undefined),
   )
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
     todo?.recurrenceRule?.type ?? quickAddSeed?.resolved.recurrence ?? '',
@@ -148,7 +155,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     () => new Set([...(filterDefaults?.orgIds ?? []), ...(quickAddSeed?.resolved.orgIds ?? [])]),
   )
   const [pendingTagIds, setPendingTagIds] = useState<Set<number>>(
-    () => new Set(quickAddSeed?.tagIds ?? []),
+    () => new Set([...(filterDefaults?.tagIds ?? []), ...(quickAddSeed?.tagIds ?? [])]),
   )
 
   const effectiveAssignedPeople = mode === 'create'

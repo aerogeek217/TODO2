@@ -22,3 +22,28 @@
   color: var(--color-text-muted);
   font-weight: var(--font-weight-regular);
 }
+
+.addFooter {
+  display: flex;
+  justify-content: flex-start;
+  padding: 6px 8px 4px;
+  border-top: 1px solid var(--color-border-subtle, var(--color-border));
+  margin-top: 4px;
+}
+
+.addButton {
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.addButton:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}

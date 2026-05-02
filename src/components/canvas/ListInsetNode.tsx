@@ -123,6 +123,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
           emptyClassName={styles.emptyMessage}
           runtimeFilterValue={inset.runtimeFilterValue}
           onRuntimeFilterChange={handleRuntimeFilterChange}
+          showAddTask
           renderRow={({ todo, assignedPeople }) => (
             <DraggableTaskRow
               todo={todo}

@@ -28,6 +28,9 @@ import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from './rout
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
 import { applyNlpMetadata } from './services/nlp-task-creator'
+import { getFilterDefaults, supplementWithFilterDefaults } from './utils/filter-defaults'
+import { applyRuntimeFilter } from './services/dashboard-lists'
+import { criteriaToPredicate, predicateToCriteria } from './stores/filter-store'
 import { ensureDefaultProject } from './services/ensure-default-project'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
@@ -101,15 +104,48 @@ function AppQuickAddBar() {
   const draft = useUIStore((s) => s.quickAddDraft)
   const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
   const projects = useProjectStore((s) => s.projects)
+  // List-widget handoff: if the draft carries a seeded projectId (the list's
+  // predicate narrowed to a single project), prefer that over the user's
+  // global default — so the chip the bar renders matches the project the
+  // task will actually land in.
+  const seedProjectId = draft?.defaults?.projectId
   const defaultProject = useMemo(
-    () => (defaultProjectId != null ? projects.find((p) => p.id === defaultProjectId) : undefined),
-    [defaultProjectId, projects],
+    () => {
+      const id = seedProjectId ?? defaultProjectId
+      return id != null ? projects.find((p) => p.id === id) : undefined
+    },
+    [seedProjectId, defaultProjectId, projects],
   )
 
   const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
     const { resolved } = submitted
     const canvasId = useCanvasStore.getState().selectedCanvasId
     if (canvasId == null) return
+    // Filter-default seed: prefer an explicit list-predicate seed stashed on
+    // `quickAddDraft.defaults` (from a list widget's "+ Add task" path) so a
+    // canvas-level FAB invocation in a non-list context still falls through to
+    // the active topbar filter. `supplementWithFilterDefaults` only fills
+    // fields the user didn't type — so an `@person` or `/project` token always
+    // wins over the seed.
+    //
+    // Runtime filter: ListView's saved-list path keeps the runtime-prompt pick
+    // separate from the manual-criteria predicate (so saving captures only the
+    // baseline). At submit time we want the runtime entity baked into the
+    // defaults too, so a list keyed on `Tasks for {assignee}` adds new tasks
+    // assigned to whoever the user picked.
+    const draft = useUIStore.getState().quickAddDraft
+    let fd = draft?.defaults
+    if (!fd) {
+      const filterStore = useFilterStore.getState()
+      let baseFilters = filterStore.filters
+      const { runtimeFilterSpec, runtimeFilterValue } = filterStore
+      if (runtimeFilterSpec && runtimeFilterValue && runtimeFilterValue.length > 0) {
+        const merged = applyRuntimeFilter(criteriaToPredicate(baseFilters), runtimeFilterSpec, runtimeFilterValue)
+        baseFilters = predicateToCriteria(merged)
+      }
+      fd = getFilterDefaults(baseFilters)
+    }
+    supplementWithFilterDefaults(resolved, fd)
     // Mirror CanvasPage.handleAddTask: parse-cleaned title fed to addTodo,
     // then applyNlpMetadata for everything the resolver pulled out. Tags ride
     // through applyNlpMetadata's resolve-or-create path (`nlp-task-creator.ts`)
@@ -119,7 +155,7 @@ function AppQuickAddBar() {
     // when no default project exists at all — `ensureDefaultProject` returns
     // the first project on this canvas (handles the "user removed the default"
     // edge) or auto-creates an Inbox + persists it.
-    const projectId = submitted.project?.id ?? (await ensureDefaultProject(canvasId))
+    const projectId = resolved.projectId ?? submitted.project?.id ?? (await ensureDefaultProject(canvasId))
     const id = await useTodoStore.getState().add(resolved.title || submitted.title, canvasId, projectId)
     await applyNlpMetadata(
       id,
@@ -129,6 +165,18 @@ function AppQuickAddBar() {
       usePersonStore.getState().assignPerson,
       useOrgStore.getState().assignOrg,
     )
+    // Seed-default tags ride a separate channel (resolved.tags is slug-based,
+    // applyNlpMetadata calls resolveTags on it). Tag ids from a list-predicate
+    // seed / active filter are already resolved against the registry so we
+    // assign them directly. User-typed `#tag` tokens still take precedence —
+    // applyNlpMetadata applied those above; this only adds the seed ids that
+    // weren't already covered.
+    if (fd.tagIds.length > 0) {
+      const tagStore = useTagStore.getState()
+      for (const tagId of fd.tagIds) {
+        await tagStore.assignTag(id, tagId)
+      }
+    }
     useUIStore.getState().showRecentlyCreated(id)
     close()
   }, [close])
@@ -137,10 +185,16 @@ function AppQuickAddBar() {
     // Preserve-draft handoff: set the seed, flip the bar closed without
     // clearing the draft, then open the popup. `closeQuickAdd` clears the
     // draft (we don't call it); `closeEditPopup` clears the draft when the
-    // popup closes.
+    // popup closes. We also preserve any `defaults` already on the draft so
+    // a list-widget "+ Add task" → Tab handoff carries the list's predicate
+    // seed into the full editor.
+    const existing = useUIStore.getState().quickAddDraft
     useUIStore.setState({
       quickAddOpen: false,
-      quickAddDraft: { rawTitle: submitted.rawTitle },
+      quickAddDraft: {
+        rawTitle: submitted.rawTitle,
+        ...(existing?.defaults ? { defaults: existing.defaults } : {}),
+      },
     })
     useUIStore.getState().openCreatePopup()
   }, [])
