@@ -10,6 +10,8 @@ const colorLabels: Record<keyof ThemeColors, string> = {
   accent: 'Accent',
   canvasBg: 'Canvas Background',
   surface: 'Surface',
+  border: 'Border',
+  header: 'Header',
   danger: 'Danger accent',
   warning: 'Warning accent',
   star: 'Follow up',

@@ -4,7 +4,7 @@
   gap: 6px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-accent-bg-subtle);
+  background: var(--color-header-bg);
   flex-shrink: 0;
   min-height: 30px;
   user-select: none;

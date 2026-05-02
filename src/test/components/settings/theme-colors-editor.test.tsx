@@ -14,6 +14,8 @@ beforeEach(async () => {
         accent: '#a2cfcb',
         canvasBg: '#0e0e0e',
         surface: '#191a1a',
+        border: '#302e2b',
+        header: '#1f2120',
         danger: '#ee7d77',
         warning: '#f5a623',
         star: '#f5c842',
@@ -24,6 +26,8 @@ beforeEach(async () => {
         accent: '#3a9e93',
         canvasBg: '#f5f4f2',
         surface: '#ffffff',
+        border: '#d9d5d0',
+        header: '#f7fbfa',
         danger: '#d94a43',
         warning: '#d08a12',
         star: '#c09a15',
@@ -40,6 +44,7 @@ afterEach(() => {
   const root = document.documentElement
   for (const v of [
     '--color-accent', '--color-canvas-bg', '--color-surface',
+    '--color-border', '--color-header-bg',
     '--color-danger', '--color-warning', '--color-followup',
     '--color-scheduled', '--color-deadline', '--color-accent-dim',
   ]) root.style.removeProperty(v)

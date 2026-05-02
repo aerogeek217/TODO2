@@ -107,6 +107,8 @@ const colorVarMap: Record<keyof ThemeColors, string> = {
   accent: '--color-accent',
   canvasBg: '--color-canvas-bg',
   surface: '--color-surface',
+  border: '--color-border',
+  header: '--color-header-bg',
   danger: '--color-danger',
   warning: '--color-warning',
   star: '--color-followup',

@@ -101,6 +101,10 @@
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(255, 255, 255, 0.06);
+  /* Solid background for WidgetHeader / FilteredListPopup chrome. Approximates
+     the prior `rgba(126,196,188,0.05)` overlay over `--color-surface` so the
+     editor's color picker shows the actual rendered color. */
+  --color-header-bg: #1f2120;
 
   /* Favorite/star marker — single value across themes for v1. */
   --color-favorite: #e6c34d;
@@ -226,6 +230,8 @@
   /* Aliased to --color-border for v1; reserved for future divergence (e.g. dialog-on-dialog edges). */
   --color-border-strong: var(--color-border);
   --color-border-muted: rgba(0, 0, 0, 0.06);
+  /* Solid background for WidgetHeader / FilteredListPopup chrome. */
+  --color-header-bg: #f7fbfa;
 
   /* Favorite/star marker — single value across themes for v1. */
   --color-favorite: #e6c34d;
