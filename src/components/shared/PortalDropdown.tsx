@@ -5,6 +5,12 @@ import styles from './PortalDropdown.module.css'
 interface PortalDropdownProps {
   anchorRef: React.RefObject<HTMLElement | null>
   onClickOutside: () => void
+  /**
+   * Extra class on the portal wrapper. Consumers in modal contexts use this
+   * to bump z-index above `--z-dialog` (the wrapper otherwise sits at
+   * `--z-dropdown` which is below modal). Composes with `.portalDropdown`.
+   */
+  className?: string
   children: React.ReactNode
 }
 
@@ -15,7 +21,7 @@ interface PortalDropdownProps {
  * viewport. Used by `TaskRow`'s status / people / scheduled menus, and by
  * `MobileTaskRow`'s long-press context menu + chip popovers (Phase 6 parity).
  */
-export function PortalDropdown({ anchorRef, onClickOutside, children }: PortalDropdownProps) {
+export function PortalDropdown({ anchorRef, onClickOutside, className, children }: PortalDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
 
@@ -59,7 +65,11 @@ export function PortalDropdown({ anchorRef, onClickOutside, children }: PortalDr
   }, [anchorRef])
 
   return (
-    <div ref={dropdownRef} className={styles.portalDropdown} style={{ top: pos.top, left: pos.left }}>
+    <div
+      ref={dropdownRef}
+      className={className ? `${styles.portalDropdown} ${className}` : styles.portalDropdown}
+      style={{ top: pos.top, left: pos.left }}
+    >
       {children}
     </div>
   )

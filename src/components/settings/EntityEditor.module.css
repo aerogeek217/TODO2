@@ -336,18 +336,20 @@
   border-color: var(--color-text-muted);
 }
 
+/* PortalDropdown owns position; this rule provides visual chrome only. */
 .orgDropdownPanel {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 4px;
-  z-index: var(--z-dialog);
   width: 200px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-modal);
   overflow: hidden;
+}
+
+/* Bumps PortalDropdown's wrapper above the People modal (z-dialog) so the
+   org chip picker isn't behind the modal it was opened from. */
+.orgDropdownPortal {
+  z-index: var(--z-dialog-overlay);
 }
 
 

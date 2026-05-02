@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { usePersonStore } from '../../stores/person-store'
 import { useOrgStore } from '../../stores/org-store'
 import { personRepository } from '../../data'
 import { generateInitials } from '../../utils/person'
 import { resolvePersonColor } from '../../utils/person-color'
 import { ChipSelector } from '../shared/ChipSelector'
+import { PortalDropdown } from '../shared/PortalDropdown'
 import { ConfirmDialog } from '../shared/Dialog'
-import { useClickOutside } from '../../hooks/use-click-outside'
 import type { Person } from '../../models'
 import { UNAFFILIATED_PERSON_COLOR } from '../../constants'
 import styles from './EntityEditor.module.css'
@@ -42,10 +43,11 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const [searchText, setSearchText] = useState('')
   const [nameError, setNameError] = useState('')
 
-  // Org dropdown for person edit/add
+  // Org dropdown for person edit/add. The two modes are mutually exclusive
+  // (only one row is in edit/add state at a time), so a single trigger ref
+  // anchors whichever mode's `Orgs` button is currently rendered.
   const [showOrgDropdown, setShowOrgDropdown] = useState<'edit' | 'add' | null>(null)
-  const orgDropdownRef = useRef<HTMLDivElement>(null)
-  useClickOutside(orgDropdownRef, () => setShowOrgDropdown(null), showOrgDropdown !== null)
+  const orgToggleBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => { loadPeople(); loadOrgs(); loadPersonOrgMap() }, [loadPeople, loadOrgs, loadPersonOrgMap])
 
@@ -138,20 +140,33 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
 
   const renderOrgSelector = (selectedOrgIds: number[], onToggle: (orgId: number) => void, mode: 'edit' | 'add') => {
     const selectedNames = selectedOrgIds.map((id) => orgs.find((o) => o.id === id)?.name).filter(Boolean)
+    const isOpen = showOrgDropdown === mode
     return (
-      <div className={styles.orgDropdownWrap} ref={showOrgDropdown === mode ? orgDropdownRef : undefined}>
-        <button type="button" className={styles.orgToggleBtn} onClick={(e) => { e.stopPropagation(); setShowOrgDropdown(showOrgDropdown === mode ? null : mode) }}>
+      <div className={styles.orgDropdownWrap}>
+        <button
+          type="button"
+          ref={isOpen ? orgToggleBtnRef : undefined}
+          className={styles.orgToggleBtn}
+          onClick={(e) => { e.stopPropagation(); setShowOrgDropdown(isOpen ? null : mode) }}
+        >
           {selectedNames.length > 0 ? selectedNames.join(', ') : 'Orgs'}
         </button>
-        {showOrgDropdown === mode && (
-          <div className={styles.orgDropdownPanel}>
-            <ChipSelector
-              items={orgs.map((o) => ({ id: o.id!, name: o.name, color: o.color }))}
-              selectedIds={new Set(selectedOrgIds)}
-              onToggle={onToggle}
-              placeholder="Search orgs..."
-            />
-          </div>
+        {isOpen && createPortal(
+          <PortalDropdown
+            anchorRef={orgToggleBtnRef}
+            onClickOutside={() => setShowOrgDropdown(null)}
+            className={styles.orgDropdownPortal}
+          >
+            <div className={styles.orgDropdownPanel}>
+              <ChipSelector
+                items={orgs.map((o) => ({ id: o.id!, name: o.name, color: o.color }))}
+                selectedIds={new Set(selectedOrgIds)}
+                onToggle={onToggle}
+                placeholder="Search orgs..."
+              />
+            </div>
+          </PortalDropdown>,
+          document.body,
         )}
       </div>
     )
