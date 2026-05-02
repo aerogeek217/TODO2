@@ -190,8 +190,11 @@ export async function auditData(): Promise<AuditReport> {
   // --- Unknown rows in known tables ---
   // Run validateRow over every row so a forced cross-floor load surfaces any
   // pre-strip-shape data the current validators reject. Skip `settings` —
-  // its check rejects unknown keys, which the dedicated unknown-setting pass
-  // handles via delete-by-key.
+  // it's keyed by string (`key`) rather than numeric `id`, so the two
+  // dedicated settings passes below handle it via delete-by-key: the
+  // unknown-key pass for rows whose `key` isn't recognized, and the
+  // invalid-value pass for rows whose `key` is fine but whose `value`
+  // fails the per-key value validator (legacy shapes, stale formats).
   const knownTableRows: Partial<Record<string, unknown[]>> = {
     canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
     todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards,
@@ -251,6 +254,38 @@ export async function auditData(): Promise<AuditReport> {
         badFields: ['key'],
         note: `"${s.key}" is not a setting any code in this build reads or writes`,
       })),
+    })
+  }
+
+  // --- Settings rows with recognized keys but invalid values ---
+  // The store-load code silently falls back to defaults for a row whose value
+  // fails to parse (e.g. a pre-strip legacy-map-shape `horizonSlots`), so the
+  // user sees missing state — empty horizon ribbon, lost canvas viewport —
+  // and exporting the DB round-trips the bad row into a backup that
+  // `validateImportData` then refuses to re-import. Surface it here so the
+  // audit cleanup can drop the row and let the next save re-seed.
+  const invalidSettings = settingsRows
+    .map((s) => ({ row: s, result: validateRow('settings', s) }))
+    .filter((p): p is { row: typeof p.row; result: string } =>
+      p.result !== true && isKnownSettingKey(p.row.key),
+    )
+  if (invalidSettings.length > 0) {
+    issues.push({
+      table: 'settings',
+      description: 'Settings rows whose value the current schema cannot read',
+      count: invalidSettings.length,
+      ids: [],
+      keys: invalidSettings.map((p) => p.row.key),
+      fix: 'delete',
+      samples: invalidSettings.slice(0, MAX_SAMPLES_PER_ISSUE).map(({ row, result }) => {
+        const badField = result.replace(/\s*\(.*\)$/, '').trim()
+        return {
+          row: { key: row.key, value: row.value },
+          id: row.key,
+          badFields: badField ? [badField] : [],
+          note: `Schema validator rejected this row: ${result}`,
+        }
+      }),
     })
   }
 

@@ -491,6 +491,68 @@ describe('unknown-setting audit', () => {
   })
 })
 
+// --- Invalid-setting-value detection: rows in `settings` whose `key` is in
+// the build's recognised set but whose `value` fails the per-key validator
+// (e.g. a legacy-map-shape `horizonSlots` carried over from a pre-strip DB).
+// These slip through both the unknown-row pass (skips settings entirely) and
+// the unknown-key pass (key is recognised) — this dedicated pass closes the
+// gap so the user can drop them via audit cleanup.
+describe('invalid-setting-value audit', () => {
+  it('flags a recognised settings key whose value fails the per-key validator', async () => {
+    // Legacy map shape — `horizonSlots` validator now requires an array.
+    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1 }) })
+
+    const report = await auditData()
+    const issue = report.issues.find((i) =>
+      i.description.startsWith('Settings rows whose value'),
+    )!
+    expect(issue).toBeDefined()
+    expect(issue.fix).toBe('delete')
+    expect(issue.keys).toEqual(['horizonSlots'])
+    expect(issue.count).toBe(1)
+    expect(issue.samples).toHaveLength(1)
+    expect(issue.samples![0]!.badFields).toEqual(['value'])
+    expect(issue.samples![0]!.note).toMatch(/horizonSlots must be an array/)
+  })
+
+  it('does not flag valid settings rows', async () => {
+    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify([1, 2, 3]) })
+    await db.settings.put({ key: 'themeMode', value: 'dark' })
+
+    const report = await auditData()
+    const issue = report.issues.find((i) =>
+      i.description.startsWith('Settings rows whose value'),
+    )
+    expect(issue).toBeUndefined()
+  })
+
+  it('does not double-count an unrecognised key as an invalid value', async () => {
+    await db.settings.put({ key: 'legacyDashboard', value: '{}' })
+
+    const report = await auditData()
+    const unknown = report.issues.find((i) =>
+      i.description.startsWith('Unrecognized settings'),
+    )!
+    const invalid = report.issues.find((i) =>
+      i.description.startsWith('Settings rows whose value'),
+    )
+    expect(unknown.keys).toEqual(['legacyDashboard'])
+    expect(invalid).toBeUndefined()
+  })
+
+  it('cleanup deletes invalid-value rows by key, leaving valid ones intact', async () => {
+    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1 }) })
+    await db.settings.put({ key: 'themeMode', value: 'dark' })
+
+    const report = await auditData()
+    const cleaned = await cleanupIssues(report.issues)
+    expect(cleaned).toBeGreaterThanOrEqual(1)
+
+    expect(await db.settings.get('horizonSlots')).toBeUndefined()
+    expect(await db.settings.get('themeMode')).toBeDefined()
+  })
+})
+
 // --- Unknown-table detection: rows in IDB object stores that the current
 // schema does not register. We mock `db.backendDB()` to return a side Dexie
 // instance whose IDB has an extra store; that bypasses the constraint that
