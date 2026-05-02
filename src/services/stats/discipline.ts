@@ -1,7 +1,9 @@
 import type { TodoEvent, PersistedTodoItem } from '../../models'
 import type { WeekStart } from '../../utils/effective-date'
+import { resolveFuzzy } from '../../utils/effective-date'
 import { MS_PER_DAY } from '../../utils/date'
 import { weeklyBuckets } from './buckets'
+import { isFutureShift, resolveEventDateValue } from './event-dates'
 
 export interface ScoreMetric {
   id: 'defer' | 'completion' | 'lag'
@@ -17,7 +19,7 @@ export interface ScoreMetric {
 
 export interface DisciplineMetricsInput {
   events: readonly TodoEvent[]
-  /** Carried for parity with the plan signature; not consumed by v1 metrics. */
+  /** Required for the defer denominator (counts tasks scheduled/due in the bucket). */
   todos?: readonly PersistedTodoItem[]
   now: Date
   weekStartsOn: WeekStart
@@ -28,31 +30,42 @@ const DEFAULT_WEEKS = 12
 
 /**
  * Three discipline metrics over a weekly-bucketed window of `todoEvents`:
- *  - **defer** — avg `scheduled` event count per todo `completed` in this week
+ *  - **defer** — share of the week's planned tasks that the user pushed.
+ *    Denominator: distinct todos that were scheduled or due in week N — both
+ *    those still landing in the week (current `scheduledDate` / `dueDate`)
+ *    AND those pushed *out of* the week during week N (a `scheduled` /
+ *    `deadline` push event in week N whose `fromValue` resolves to a date in
+ *    week N). Numerator: of those, the count that had ≥1 such push event.
+ *    Counts tasks, not events — pushing the same task twice still counts once.
  *  - **completion** — fraction of todos whose first `scheduled.toValue` lands
  *    in week N AND who completed by `weekN.end`
  *  - **lag** — avg `(completed.timestamp - first scheduled.timestamp)` in days
  *    for todos `completed` in this week
  *
  * Empty buckets emit `0`. A bucket with `0` cohort produces a `0` for the
- * completion metric (treated as "no signal" by the UI's delta formatter).
+ * completion metric (treated as "no signal" by the UI's delta formatter); a
+ * bucket with no planned tasks produces a `0` defer rate.
  *
- * Fuzzy `scheduled.toValue` (`'fuzzy:<token>'`) does NOT contribute to the
- * completion cohort — we don't store the as-of date so we can't resolve the
- * token retroactively.
+ * Fuzzy date values (`'fuzzy:<token>'` on `fromValue` / `toValue`, or
+ * `{kind: 'fuzzy', …}` on a todo's `scheduledDate`) are resolved to a concrete
+ * Date by `resolveEventDateValue` / `resolveFuzzy`. Event-side fuzzy values
+ * use the event's `timestamp` as the as-of anchor (so a `fuzzy:today` recorded
+ * Tuesday resolves to Tuesday, not whatever today is when the metric runs).
+ * Todo-side fuzzy `scheduledDate` uses `now` (the user's current schedule).
+ * Unknown fuzzy tokens still return `null` and are skipped, but every shipped
+ * `FuzzyToken` resolves cleanly.
  */
 export function selectDisciplineMetrics(input: DisciplineMetricsInput): ScoreMetric[] {
   const { events, now, weekStartsOn } = input
+  const todos = input.todos ?? []
   const weeks = input.weeks ?? DEFAULT_WEEKS
   const buckets = weeklyBuckets(now, weeks, weekStartsOn)
 
-  const scheduledCountByTodo = new Map<number, number>()
   const firstScheduledByTodo = new Map<number, TodoEvent>()
   const earliestCompletedByTodo = new Map<number, TodoEvent>()
 
   for (const e of events) {
     if (e.type === 'scheduled') {
-      scheduledCountByTodo.set(e.todoId, (scheduledCountByTodo.get(e.todoId) ?? 0) + 1)
       const prev = firstScheduledByTodo.get(e.todoId)
       if (!prev || e.timestamp < prev.timestamp) firstScheduledByTodo.set(e.todoId, e)
     } else if (e.type === 'completed') {
@@ -68,18 +81,42 @@ export function selectDisciplineMetrics(input: DisciplineMetricsInput): ScoreMet
   for (const bucket of buckets) {
     const startMs = bucket.start.getTime()
     const endMs = bucket.end.getTime()
+    const inBucket = (ms: number): boolean => ms >= startMs && ms < endMs
 
-    let deferSum = 0
-    let deferN = 0
     let lagSum = 0
     let lagN = 0
+    const plannedInBucket = new Set<number>()
+    const pushedFromBucket = new Set<number>()
+
+    for (const t of todos) {
+      if (t.id == null) continue
+      const sched = t.scheduledDate
+      if (sched) {
+        let schedDate: Date | null = null
+        if (sched.kind === 'date' && sched.value instanceof Date) schedDate = sched.value
+        else if (sched.kind === 'fuzzy') schedDate = resolveFuzzy(sched.token, now, weekStartsOn)
+        if (schedDate && inBucket(schedDate.getTime())) plannedInBucket.add(t.id)
+      }
+      if (t.dueDate instanceof Date && inBucket(t.dueDate.getTime())) {
+        plannedInBucket.add(t.id)
+      }
+    }
+
+    for (const e of events) {
+      if (e.type !== 'scheduled' && e.type !== 'deadline') continue
+      const tMs = Date.parse(e.timestamp)
+      if (isNaN(tMs) || !inBucket(tMs)) continue
+      const asOf = new Date(tMs)
+      if (!isFutureShift(e.fromValue, e.toValue, asOf, weekStartsOn)) continue
+      const fromDate = resolveEventDateValue(e.fromValue, asOf, weekStartsOn)
+      if (!fromDate || !inBucket(fromDate.getTime())) continue
+      pushedFromBucket.add(e.todoId)
+      plannedInBucket.add(e.todoId)
+    }
 
     for (const [todoId, ce] of earliestCompletedByTodo) {
       const cMs = Date.parse(ce.timestamp)
       if (isNaN(cMs) || cMs < startMs || cMs >= endMs) continue
-      deferSum += scheduledCountByTodo.get(todoId) ?? 0
-      deferN += 1
-
       const fse = firstScheduledByTodo.get(todoId)
       if (fse) {
         const fsMs = Date.parse(fse.timestamp)
@@ -90,14 +127,16 @@ export function selectDisciplineMetrics(input: DisciplineMetricsInput): ScoreMet
       }
     }
 
-    deferValues.push(deferN > 0 ? deferSum / deferN : 0)
+    const denom = plannedInBucket.size
+    deferValues.push(denom > 0 ? (pushedFromBucket.size / denom) * 100 : 0)
     lagValues.push(lagN > 0 ? lagSum / lagN : 0)
 
     let cohort = 0
     let completedInCohort = 0
     for (const [todoId, fse] of firstScheduledByTodo) {
-      if (typeof fse.toValue !== 'string') continue
-      const target = parseEventDateValue(fse.toValue)
+      const fseTs = Date.parse(fse.timestamp)
+      if (isNaN(fseTs)) continue
+      const target = resolveEventDateValue(fse.toValue, new Date(fseTs), weekStartsOn)
       if (target == null) continue
       const tMs = target.getTime()
       if (tMs < startMs || tMs >= endMs) continue
@@ -115,12 +154,12 @@ export function selectDisciplineMetrics(input: DisciplineMetricsInput): ScoreMet
     {
       id: 'defer',
       label: 'Defer rate',
-      unit: '×',
+      unit: '%',
       values: deferValues,
       color: 'var(--color-warning)',
       lowerIsBetter: true,
-      format: (v) => v.toFixed(1),
-      blurb: 'reschedules per completed task',
+      format: (v) => Math.round(v).toString(),
+      blurb: "of week's planned tasks I pushed",
     },
     {
       id: 'completion',
@@ -145,8 +184,3 @@ export function selectDisciplineMetrics(input: DisciplineMetricsInput): ScoreMet
   ]
 }
 
-function parseEventDateValue(v: string): Date | null {
-  if (v.startsWith('fuzzy:')) return null
-  const t = Date.parse(v)
-  return isNaN(t) ? null : new Date(t)
-}

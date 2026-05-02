@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useTodoEventStore } from '../../../stores/todo-event-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { selectMostDeferred, type SnoozedTask } from '../../../services/stats/snooze'
 import { formatDateShort } from '../../../utils/date'
@@ -25,6 +26,7 @@ export function SnoozeGraveyardSlotContent() {
   const todos = useTodoStore((s) => s.todos)
   const todosVersion = useTodoStore((s) => s.todosVersion)
   const events = useTodoEventStore((s) => s.events)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
   useEffect(() => {
@@ -33,9 +35,9 @@ export function SnoozeGraveyardSlotContent() {
   }, [todos, todosVersion])
 
   const rows = useMemo<SnoozedTask[]>(
-    () => selectMostDeferred({ events, todos, limit: LIMIT }),
+    () => selectMostDeferred({ events, todos, weekStartsOn, limit: LIMIT }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [events, todos, todosVersion],
+    [events, todos, todosVersion, weekStartsOn],
   )
 
   if (rows.length === 0) {

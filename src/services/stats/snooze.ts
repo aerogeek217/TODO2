@@ -1,4 +1,6 @@
 import type { TodoEvent, PersistedTodoItem } from '../../models'
+import type { WeekStart } from '../../utils/effective-date'
+import { isFutureShift, resolveEventDateValue } from './event-dates'
 
 export interface SnoozedTask {
   todo: PersistedTodoItem
@@ -15,6 +17,8 @@ export interface SnoozedTask {
 export interface MostDeferredInput {
   events: readonly TodoEvent[]
   todos: readonly PersistedTodoItem[]
+  /** Anchors fuzzy `fromValue` / `toValue` resolution. Defaults to Monday-first. */
+  weekStartsOn?: WeekStart
   limit?: number
 }
 
@@ -35,6 +39,7 @@ const DEFAULT_LIMIT = 5
  */
 export function selectMostDeferred(input: MostDeferredInput): SnoozedTask[] {
   const { events, todos } = input
+  const weekStartsOn = input.weekStartsOn ?? 1
   const limit = input.limit ?? DEFAULT_LIMIT
 
   const todoById = new Map<number, PersistedTodoItem>()
@@ -52,7 +57,9 @@ export function selectMostDeferred(input: MostDeferredInput): SnoozedTask[] {
     const prev = firstScheduled.get(e.todoId)
     if (!prev || e.timestamp < prev.timestamp) firstScheduled.set(e.todoId, e)
 
-    if (isFutureShift(e.fromValue, e.toValue)) {
+    const eTs = Date.parse(e.timestamp)
+    if (isNaN(eTs)) continue
+    if (isFutureShift(e.fromValue, e.toValue, new Date(eTs), weekStartsOn)) {
       snoozeCount.set(e.todoId, (snoozeCount.get(e.todoId) ?? 0) + 1)
     }
   }
@@ -63,11 +70,14 @@ export function selectMostDeferred(input: MostDeferredInput): SnoozedTask[] {
     const todo = todoById.get(todoId)
     if (!todo) continue
     const fse = firstScheduled.get(todoId)
-    ranked.push({
-      todo,
-      count,
-      oldestScheduled: fse ? parseToValueDate(fse.toValue) : null,
-    })
+    let oldestScheduled: Date | null = null
+    if (fse) {
+      const fseTs = Date.parse(fse.timestamp)
+      if (!isNaN(fseTs)) {
+        oldestScheduled = resolveEventDateValue(fse.toValue, new Date(fseTs), weekStartsOn)
+      }
+    }
+    ranked.push({ todo, count, oldestScheduled })
   }
 
   ranked.sort((a, b) => {
@@ -76,20 +86,4 @@ export function selectMostDeferred(input: MostDeferredInput): SnoozedTask[] {
   })
 
   return ranked.slice(0, limit)
-}
-
-function isFutureShift(
-  from: TodoEvent['fromValue'],
-  to: TodoEvent['toValue'],
-): boolean {
-  if (typeof from !== 'string' || typeof to !== 'string') return false
-  if (from.startsWith('fuzzy:') || to.startsWith('fuzzy:')) return false
-  return to > from
-}
-
-function parseToValueDate(v: TodoEvent['toValue']): Date | null {
-  if (typeof v !== 'string') return null
-  if (v.startsWith('fuzzy:')) return null
-  const t = Date.parse(v)
-  return isNaN(t) ? null : new Date(t)
 }

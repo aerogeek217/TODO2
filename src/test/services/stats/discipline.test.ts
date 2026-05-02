@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { TodoEvent } from '../../../models'
+import type { PersistedTodoItem, TodoEvent } from '../../../models'
+import type { ScheduledValue } from '../../../models/scheduled-value'
 import { selectDisciplineMetrics } from '../../../services/stats/discipline'
 import { weeklyBuckets } from '../../../services/stats/buckets'
 
@@ -18,6 +19,24 @@ function ev(overrides: Partial<TodoEvent> & Pick<TodoEvent, 'todoId' | 'type' | 
     toValue: null,
     ...overrides,
   }
+}
+
+let nextTodoId = 1
+function makeTodo(
+  fields: Partial<PersistedTodoItem> & { id?: number; scheduledDate?: ScheduledValue; dueDate?: Date } = {},
+): PersistedTodoItem {
+  return {
+    id: fields.id ?? nextTodoId++,
+    title: fields.title ?? 't',
+    isCompleted: fields.isCompleted ?? false,
+    createdAt: fields.createdAt ?? new Date(2026, 0, 1),
+    modifiedAt: fields.modifiedAt ?? new Date(2026, 0, 1),
+    sortOrder: fields.sortOrder ?? 0,
+    ...fields,
+  } as PersistedTodoItem
+}
+function schedDate(d: Date): ScheduledValue {
+  return { kind: 'date', value: d }
 }
 
 describe('weeklyBuckets', () => {
@@ -69,20 +88,122 @@ describe('selectDisciplineMetrics', () => {
     }
   })
 
-  it('defer = avg scheduled-event count per todo completed in that week', () => {
-    // Single completion in week of 2026-04-13 (latest bucket).
-    const events: TodoEvent[] = [
-      ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 1, 10), fromValue: null, toValue: localISO(2026, 3, 5) }),
-      ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 5, 10), fromValue: localISO(2026, 3, 5), toValue: localISO(2026, 3, 10) }),
-      ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 10, 10), fromValue: localISO(2026, 3, 10), toValue: localISO(2026, 3, 12) }),
-      ev({ todoId: 1, type: 'completed', timestamp: localISO(2026, 3, 14, 11) }),
+  it('defer = pushed-from-week tasks / (currently sched+due in week ∪ pushed-from-week)', () => {
+    // Week of Mon 2026-04-13: 10 tasks scheduled or due in the week —
+    //   - 7 still scheduled in the week (no push)
+    //   - 3 pushed away during the week (push event with fromValue ∈ week, toValue > week)
+    // Expected denom = 10 (7 still + 3 pushed-away), numerator = 3 → 30%.
+    const todos: PersistedTodoItem[] = [
+      ...Array.from({ length: 5 }, (_, i) =>
+        makeTodo({ id: 100 + i, scheduledDate: schedDate(new Date(2026, 3, 15)) })),
+      ...Array.from({ length: 2 }, (_, i) =>
+        makeTodo({ id: 200 + i, dueDate: new Date(2026, 3, 16) })),
     ]
-    const out = selectDisciplineMetrics({ events, now: NOW, weekStartsOn: 1, weeks: 4 })
-    const defer = out[0]!.values
-    // Last bucket (week of Mon 2026-04-13): one completion with 3 scheduled events → avg = 3.
-    expect(defer[defer.length - 1]).toBe(3)
-    // Earlier buckets have no completions → 0.
-    for (let i = 0; i < defer.length - 1; i++) expect(defer[i]).toBe(0)
+    const events: TodoEvent[] = [
+      ev({ todoId: 300, type: 'scheduled', timestamp: localISO(2026, 3, 14, 10), fromValue: localISO(2026, 3, 15), toValue: localISO(2026, 3, 22) }),
+      ev({ todoId: 301, type: 'scheduled', timestamp: localISO(2026, 3, 14, 11), fromValue: localISO(2026, 3, 16), toValue: localISO(2026, 3, 23) }),
+      ev({ todoId: 302, type: 'deadline',  timestamp: localISO(2026, 3, 14, 12), fromValue: localISO(2026, 3, 17), toValue: localISO(2026, 3, 24) }),
+    ]
+    const out = selectDisciplineMetrics({ events, todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    expect(out[0]!.values[0]).toBe(30)
+  })
+
+  it('defer dedupes a task counted by both current state and a push-away event', () => {
+    // Task pushed within the week (fromValue ∈ week, toValue still ∈ week, just later).
+    // Currently scheduled in week AND has push-from-week event → counted once.
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1, scheduledDate: schedDate(new Date(2026, 3, 18)) }),
+    ]
+    const events: TodoEvent[] = [
+      ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 14, 10), fromValue: localISO(2026, 3, 14), toValue: localISO(2026, 3, 18) }),
+    ]
+    const out = selectDisciplineMetrics({ events, todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    expect(out[0]!.values[0]).toBe(100)
+  })
+
+  it('defer counts deadline pushes the same as scheduled pushes', () => {
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1, dueDate: new Date(2026, 3, 15) }),
+      makeTodo({ id: 2, dueDate: new Date(2026, 3, 16) }),
+    ]
+    const events: TodoEvent[] = [
+      ev({ todoId: 2, type: 'deadline', timestamp: localISO(2026, 3, 14, 10), fromValue: localISO(2026, 3, 16), toValue: localISO(2026, 3, 22) }),
+    ]
+    const out = selectDisciplineMetrics({ events, todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    expect(out[0]!.values[0]).toBe(50)
+  })
+
+  it('defer ignores pushes whose fromValue is not in the bucket', () => {
+    // A task scheduled for next week, pushed today (in this week) — doesn't
+    // affect THIS week's defer, since fromValue (next week) is outside.
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1, scheduledDate: schedDate(new Date(2026, 3, 15)) }),
+    ]
+    const events: TodoEvent[] = [
+      ev({ todoId: 2, type: 'scheduled', timestamp: localISO(2026, 3, 14, 10), fromValue: localISO(2026, 3, 22), toValue: localISO(2026, 3, 29) }),
+    ]
+    const out = selectDisciplineMetrics({ events, todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    // Denom = 1 (todo 1 currently in week), numerator = 0 → 0%.
+    expect(out[0]!.values[0]).toBe(0)
+  })
+
+  it('fuzzy fromValue resolves using the event timestamp (schedule-today + push counts)', () => {
+    // User flow: schedule a task for fuzzy:today (this week), then push it
+    // to next week. The push event has fromValue='fuzzy:today', anchored at
+    // the push timestamp (also this week). Resolved → it lands in this week
+    // → counts in numerator. Currently `scheduledDate` is next week, so the
+    // todos pass alone wouldn't add it to plannedInBucket — the event branch
+    // does. Expected: 100% defer for the week.
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1, scheduledDate: schedDate(new Date(2026, 3, 20)) }),
+    ]
+    const events: TodoEvent[] = [
+      ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 14, 11), fromValue: 'fuzzy:today', toValue: localISO(2026, 3, 20) }),
+    ]
+    const out = selectDisciplineMetrics({ events, todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    expect(out[0]!.values[0]).toBe(100)
+  })
+
+  it('todo with fuzzy scheduledDate counts in defer denominator when it resolves into the bucket', () => {
+    // Task currently scheduled fuzzy:today; today (NOW) is in the latest bucket.
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } }),
+    ]
+    const out = selectDisciplineMetrics({ events: [], todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    // Denom=1, num=0 → 0%. Important: the denominator counts the task even
+    // though no push happened. (Same task with a push would yield 100%.)
+    expect(out[0]!.values[0]).toBe(0)
+  })
+
+  it('completion: scheduled fuzzy:today + completed today scores 100% on-time', () => {
+    // The bug the user reported on the on-time card. First scheduled event
+    // toValue='fuzzy:today' anchored at the event's timestamp (today)
+    // resolves into this week's bucket; completed event before week-end.
+    const events: TodoEvent[] = [
+      ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 14, 9), fromValue: null, toValue: 'fuzzy:today' }),
+      ev({ todoId: 1, type: 'completed', timestamp: localISO(2026, 3, 14, 17) }),
+    ]
+    const out = selectDisciplineMetrics({ events, now: NOW, weekStartsOn: 1, weeks: 1 })
+    expect(out[1]!.values[0]).toBe(100)
+  })
+
+  it('unrecognized fuzzy token on a push event is skipped (defensive parse failure)', () => {
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1, scheduledDate: schedDate(new Date(2026, 3, 15)) }),
+    ]
+    const events: TodoEvent[] = [
+      ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 14, 10), fromValue: 'fuzzy:bogus', toValue: localISO(2026, 3, 22) }),
+    ]
+    const out = selectDisciplineMetrics({ events, todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    expect(out[0]!.values[0]).toBe(0)
+  })
+
+  it('defer = 0 when no tasks are planned for the week (denom = 0)', () => {
+    const todos: PersistedTodoItem[] = [
+      makeTodo({ id: 1, scheduledDate: schedDate(new Date(2026, 5, 1)) }), // June, well outside.
+    ]
+    const out = selectDisciplineMetrics({ events: [], todos, now: NOW, weekStartsOn: 1, weeks: 1 })
+    expect(out[0]!.values[0]).toBe(0)
   })
 
   it('lag = avg days between first scheduled and completed for completions in that week', () => {
@@ -127,22 +248,23 @@ describe('selectDisciplineMetrics', () => {
     expect(out[1]!.values[0]).toBe(0)
   })
 
-  it('only the earliest completed event per todo is counted (re-completion is a no-op)', () => {
+  it('only the earliest completed event per todo is counted for lag (re-complete is a no-op)', () => {
     const events: TodoEvent[] = [
       ev({ todoId: 1, type: 'scheduled', timestamp: localISO(2026, 3, 6, 10), toValue: localISO(2026, 3, 10) }),
-      // First completion in the previous week (Mon 4/6 .. Mon 4/13):
+      // First completion in bucket 0 (Mon 4/6 .. Mon 4/13):
       ev({ todoId: 1, type: 'completed', timestamp: localISO(2026, 3, 9, 10) }),
-      // Re-open then re-complete in the current week — should not double-count.
+      // Re-open + re-complete in bucket 1 (Mon 4/13 .. Mon 4/20) — earliest still wins.
       ev({ todoId: 1, type: 'reopened', timestamp: localISO(2026, 3, 14, 10) }),
       ev({ todoId: 1, type: 'completed', timestamp: localISO(2026, 3, 15, 10) }),
     ]
     const out = selectDisciplineMetrics({ events, now: NOW, weekStartsOn: 1, weeks: 2 })
-    // Defer: earliest completion lands in bucket 0 (week of Mon 4/6). Last bucket = 0.
-    expect(out[0]!.values[1]).toBe(0)
-    expect(out[0]!.values[0]).toBe(1) // todo 1 has 1 scheduled event.
+    // Lag attributes the completion to bucket 0 only (4/9 - 4/6 = 3 days). The
+    // re-completion in bucket 1 must NOT add a second lag sample.
+    expect(out[2]!.values[0]).toBeCloseTo(3, 5)
+    expect(out[2]!.values[1]).toBe(0)
   })
 
-  it('weekStartsOn parity — flipping from 1 to 0 shifts which bucket a completion lands in', () => {
+  it('weekStartsOn parity — flipping from 1 to 0 shifts which bucket a completion lands in (lag)', () => {
     // Completion on Sunday 2026-04-12 local; with weekStartsOn=1 it sits in the
     // week of Monday 2026-04-06; with weekStartsOn=0 it opens a new week.
     const events: TodoEvent[] = [
@@ -151,11 +273,13 @@ describe('selectDisciplineMetrics', () => {
     ]
     const monAligned = selectDisciplineMetrics({ events, now: NOW, weekStartsOn: 1, weeks: 2 })
     const sunAligned = selectDisciplineMetrics({ events, now: NOW, weekStartsOn: 0, weeks: 2 })
+    // Lag (scheduled 4/8 10:00 → completed 4/12 12:00) ≈ 4.08 days, attributed to
+    // whichever bucket the completion lands in.
     // Mon-week containing Sunday 4/12 = the week starting Mon 4/6 → bucket 0.
-    expect(monAligned[0]!.values[0]).toBe(1)
-    expect(monAligned[0]!.values[1]).toBe(0)
+    expect(monAligned[2]!.values[0]).toBeCloseTo(4.08, 1)
+    expect(monAligned[2]!.values[1]).toBe(0)
     // Sun-week containing Sunday 4/12 = the week starting Sun 4/12 → bucket 1.
-    expect(sunAligned[0]!.values[0]).toBe(0)
-    expect(sunAligned[0]!.values[1]).toBe(1)
+    expect(sunAligned[2]!.values[0]).toBe(0)
+    expect(sunAligned[2]!.values[1]).toBeCloseTo(4.08, 1)
   })
 })
