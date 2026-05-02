@@ -504,6 +504,7 @@ export function CalendarView() {
             {...taskEdit.editProps}
             allPeople={taskEdit.allPeople}
             allOrgs={taskEdit.allOrgs}
+            allTags={taskEdit.allTags}
             onClose={taskEdit.closeEditPopup}
             {...taskEdit.entityCreators}
           />
