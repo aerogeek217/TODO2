@@ -10,7 +10,7 @@ import {
   itemSortComparator,
   truncateSections,
   type Section,
-} from '../../views/ListView'
+} from '../../services/list-view-sections'
 import { encodeGroupSort } from '../../utils/list-view-encoding'
 import { makeTodo } from '../helpers'
 
