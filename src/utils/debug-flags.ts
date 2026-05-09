@@ -1,15 +1,16 @@
 /**
- * URL-flag debug switches. Pattern matches the `DEBUG_FOCUS` flag in
- * `components/canvas/InsertTrigger.tsx` (`?debug-focus=1`, shipped by the
- * real-browser-testing plan): read `window.location.search` once at module
- * load, expose the resolved boolean as a const, and gate per-call-site logs
- * on it via a small `dndLog` helper so production console stays quiet when
- * the flag is absent.
+ * Permanent diagnostic infrastructure for the rail / float / taskboard /
+ * calendar DnD subsystem. `?debug-dnd=1` traces the full drop path on every
+ * pointer-up — source slot/tab → collision rule chosen → resolved `over.id`
+ * → guard outcomes → final dispatch — so the next silent failure (the kind
+ * triage P5 had to forensically diagnose) shows its mechanics in the console
+ * without needing a fresh instrumentation pass.
  *
- * `?debug-dnd=1` traces the rails / float / taskboard / calendar drag-drop
- * subsystem so the next silent failure (the kind triage P5 had to forensically
- * diagnose) shows its full path: source slot/tab → collision rule chosen →
- * resolved `over.id` → guard outcomes → final dispatch.
+ * Pattern: read `window.location.search` once at module load, expose the
+ * resolved boolean as a const, and gate per-call-site logs on it via the
+ * `dndLog` helper so production console stays quiet when the flag is absent.
+ * The bundle cost is a few dozen no-op string literals — accepted as the
+ * price of permanent diagnose infrastructure for a recurring failure surface.
  */
 
 function readFlag(name: string): boolean {

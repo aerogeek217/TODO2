@@ -17,75 +17,6 @@ import { useTagStore } from '../../stores/tag-store'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './InsertTrigger.module.css'
 
-// Debug-only focus trace gated on `?debug-focus=1`. Logs every focus() call
-// site + document-wide focusin/focusout. Used by `e2e/focus-trace.spec.ts`
-// to verify the imperative focus path lands focus consistently. Mirrors the
-// `URLSearchParams.has()` parse in `utils/debug-flags.ts` so the flag
-// matching is structural (avoids false-positive substring hits).
-const DEBUG_FOCUS = (() => {
-  if (typeof window === 'undefined') return false
-  try {
-    return new URLSearchParams(window.location.search).has('debug-focus')
-  } catch {
-    return false
-  }
-})()
-
-function fmtEl(el: Element | null): string {
-  if (!el) return 'null'
-  if (typeof document !== 'undefined' && el === document.body) return 'BODY'
-  const tag = el.tagName
-  const id = (el as HTMLElement).id ? `#${(el as HTMLElement).id}` : ''
-  const cls =
-    typeof (el as HTMLElement).className === 'string' && (el as HTMLElement).className
-      ? `.${((el as HTMLElement).className as string).trim().split(/\s+/).slice(0, 2).join('.')}`
-      : ''
-  const ph = (el as HTMLInputElement).placeholder
-    ? `[ph="${(el as HTMLInputElement).placeholder.slice(0, 18)}"]`
-    : ''
-  return `${tag}${id}${cls}${ph}`
-}
-
-function dbg(label: string, extra: Record<string, unknown> = {}): void {
-  if (!DEBUG_FOCUS) return
-  // eslint-disable-next-line no-console
-  console.log('[focus-trace]', label, {
-    t: Math.round(performance.now()),
-    active: fmtEl(typeof document !== 'undefined' ? document.activeElement : null),
-    ...extra,
-  })
-}
-
-let documentListenersAttached = false
-function ensureDocumentListeners(): void {
-  if (!DEBUG_FOCUS || documentListenersAttached || typeof document === 'undefined') return
-  documentListenersAttached = true
-  document.addEventListener(
-    'focusin',
-    (e: FocusEvent) => {
-      // eslint-disable-next-line no-console
-      console.log('[focus-trace]', 'focusin', {
-        t: Math.round(performance.now()),
-        target: fmtEl(e.target as Element | null),
-        relatedTarget: fmtEl(e.relatedTarget as Element | null),
-      })
-    },
-    true,
-  )
-  document.addEventListener(
-    'focusout',
-    (e: FocusEvent) => {
-      // eslint-disable-next-line no-console
-      console.log('[focus-trace]', 'focusout', {
-        t: Math.round(performance.now()),
-        target: fmtEl(e.target as Element | null),
-        relatedTarget: fmtEl(e.relatedTarget as Element | null),
-      })
-    },
-    true,
-  )
-}
-
 /** Imperative handle exposed to `SortableTaskList` so the parent owns *when*
  * to focus the input (after the activeInsertAfterId render commits + the
  * t50 macrotask gap). The trigger owns *how*: a single `inputRef.focus()`
@@ -112,12 +43,9 @@ export const InsertTrigger = forwardRef<InsertTriggerHandle, InsertTriggerProps>
   const titleRef = useRef('')
   const committedRef = useRef(false)
 
-  if (DEBUG_FOCUS) ensureDocumentListeners()
-
   // Stable callback ref: only fires on real input mount/unmount.
   const setInputRef = useCallback((el: HTMLInputElement | null): void => {
     inputRef.current = el
-    if (DEBUG_FOCUS && el) dbg('mount', { node: fmtEl(el), autoFocusOnNode: el === document.activeElement })
   }, [])
 
   // Imperative focus handoff (Phase 3). Phase 2's post-Phase-4 trace showed
@@ -133,23 +61,9 @@ export const InsertTrigger = forwardRef<InsertTriggerHandle, InsertTriggerProps>
     () => ({
       focusInput: () => {
         const input = inputRef.current
-        if (!input || committedRef.current) {
-          dbg('focusInput', { skipped: 'no-input-or-committed' })
-          return
-        }
-        const before = document.activeElement
-        if (before === input) {
-          dbg('focusInput', { skipped: 'already-on-input' })
-          return
-        }
+        if (!input || committedRef.current) return
+        if (document.activeElement === input) return
         input.focus()
-        dbg('t50', {
-          calledFocus: true,
-          before: fmtEl(before),
-          after: fmtEl(document.activeElement),
-          changed: before !== document.activeElement,
-          landedOnInput: document.activeElement === input,
-        })
       },
     }),
     [],
