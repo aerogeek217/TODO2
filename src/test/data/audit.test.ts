@@ -600,6 +600,119 @@ describe('unknown-table audit', () => {
   })
 })
 
+// --- Orphan-recurrence-rule audit: a `recurrenceRule` is dead weight on a row
+// that has no precise anchor (`dueDate` or precise `scheduledDate`) because
+// `recurrenceAnchor` returns null and `advanceRecurring` short-circuits. The
+// repository invariant (`todoRepository.update` / `bulkUpdate`) drops the rule
+// on new writes; this audit pass detects + cleans rows that pre-date the
+// invariant or were written by a path that bypassed the repository.
+describe('orphan-recurrence-rule audit', () => {
+  const fuzzy = { kind: 'fuzzy' as const, token: 'this-week' as const, setAt: now }
+  const precise = { kind: 'date' as const, value: new Date(2026, 5, 1) }
+
+  it('detects a recurring task whose only schedule is fuzzy', async () => {
+    const { canvasId, projectId } = await seedBase()
+    await db.todos.add(makeTodo({
+      canvasId, projectId,
+      scheduledDate: fuzzy,
+      recurrenceRule: { type: 'weekly' },
+    }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'todos' && i.field === 'recurrenceRule')!
+    expect(issue).toBeDefined()
+    expect(issue.count).toBe(1)
+    expect(issue.fix).toBe('clear-field')
+    expect(issue.samples).toHaveLength(1)
+    expect(issue.samples![0]!.badFields).toEqual(['recurrenceRule'])
+    expect(issue.samples![0]!.note).toMatch(/no precise anchor/)
+  })
+
+  it('detects a recurring task with no scheduledDate and no deadline', async () => {
+    const { canvasId, projectId } = await seedBase()
+    await db.todos.add(makeTodo({
+      canvasId, projectId,
+      recurrenceRule: { type: 'monthly', originalDayOfMonth: 15 },
+    }) as any)
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'todos' && i.field === 'recurrenceRule')!
+    expect(issue.count).toBe(1)
+  })
+
+  it('does not flag a recurring task with a precise scheduledDate', async () => {
+    const { canvasId, projectId } = await seedBase()
+    await db.todos.add(makeTodo({
+      canvasId, projectId,
+      scheduledDate: precise,
+      recurrenceRule: { type: 'weekly' },
+    }) as any)
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
+  })
+
+  it('does not flag a recurring task anchored on a deadline (even with fuzzy schedule)', async () => {
+    const { canvasId, projectId } = await seedBase()
+    await db.todos.add(makeTodo({
+      canvasId, projectId,
+      scheduledDate: fuzzy,
+      dueDate: new Date(2026, 5, 10),
+      recurrenceRule: { type: 'weekly' },
+    }) as any)
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
+  })
+
+  it('does not flag a non-recurring task without an anchor', async () => {
+    const { canvasId, projectId } = await seedBase()
+    await db.todos.add(makeTodo({
+      canvasId, projectId,
+      scheduledDate: fuzzy,
+    }) as any)
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
+  })
+
+  it('cleanup strips recurrenceRule and leaves the rest of the row intact', async () => {
+    const { canvasId, projectId } = await seedBase()
+    const todoId = await db.todos.add(makeTodo({
+      canvasId, projectId,
+      title: 'Stale recurring',
+      scheduledDate: fuzzy,
+      recurrenceRule: { type: 'weekly' },
+    }) as any) as number
+
+    const report = await auditData()
+    const cleaned = await cleanupIssues(report.issues)
+    expect(cleaned).toBeGreaterThanOrEqual(1)
+
+    const after = await db.todos.get(todoId)
+    expect(after!.recurrenceRule).toBeUndefined()
+    expect(after!.title).toBe('Stale recurring')
+    expect(after!.scheduledDate).toEqual(fuzzy)
+  })
+
+  it('is idempotent: re-running audit after cleanup reports no recurrence issues', async () => {
+    const { canvasId, projectId } = await seedBase()
+    await db.todos.add(makeTodo({
+      canvasId, projectId,
+      scheduledDate: fuzzy,
+      recurrenceRule: { type: 'weekly' },
+    }) as any)
+
+    const first = await auditData()
+    expect(first.issues.find((i) => i.field === 'recurrenceRule')).toBeDefined()
+
+    await cleanupIssues(first.issues)
+
+    const second = await auditData()
+    expect(second.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
+  })
+})
+
 // --- Idempotency: running audit + cleanup twice yields zero issues on the
 // second pass. Covers unknown-row and unknown-setting (drop-store is mocked
 // elsewhere; idempotency holds for it too because raw IDB clear() is a no-op
