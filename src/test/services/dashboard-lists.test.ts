@@ -573,6 +573,46 @@ describe('buildDashboardLists — visibility via def predicate', () => {
   })
 })
 
+describe('fuzzy aging via setAt (post-fuzzy-aging-2026-05-09)', () => {
+  // Regression: a fuzzy `this-week` picked three weeks ago must NOT land in
+  // today's `this-week` bucket. resolveFuzzyOrigin anchors the resolved date
+  // on `setAt`, so the bucketer routes the historically-set value out of the
+  // current-week slot. Forward-only EFFECTIVE_WINDOWS bucketer folds past
+  // dates into the first matching window (`tomorrow` since its matcher is
+  // `ms ≤ tomorrow_midnight`); the load-bearing assertion here is that the
+  // aged task is *no longer* in `this-week` — proving aging works end-to-end.
+  it('aged fuzzy this-week (setAt three weeks ago) leaves the this-week bucket', () => {
+    const today = startOfDay(new Date('2026-04-16T00:00:00')) // Thu — week ends Sun Apr 19.
+    const setAt = startOfDay(new Date('2026-03-26T00:00:00')) // Thu, 3 weeks earlier.
+    const aged = makeTodo({
+      id: 1,
+      title: 'Aged this-week',
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
+    })
+    const lists = buildDashboardLists([DATE_GROUPED_DEF], [aged], makeCtx({ today }))
+    const groups = lists[0]!.groups!
+    const thisWeek = groups.find((g) => g.key === 'this-week')
+    expect(thisWeek?.todos.map((t) => t.id) ?? []).not.toContain(1)
+    // And the task is still placed somewhere (no silent drop). Whichever
+    // bucket it lands in is fine for this regression — the post-aging UX
+    // refinement of routing to a dedicated 'overdue' bucket is a separate
+    // fork; this test pins the underlying aging behavior.
+    expect(groups.flatMap((g) => g.todos).map((t) => t.id)).toContain(1)
+  })
+
+  it('current fuzzy this-week (setAt today) still lands in this-week', () => {
+    const today = startOfDay(new Date('2026-04-16T00:00:00')) // Thu — Mon-first this-week.
+    const current = makeTodo({
+      id: 1,
+      title: 'Current this-week',
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: today },
+    })
+    const lists = buildDashboardLists([DATE_GROUPED_DEF], [current], makeCtx({ today }))
+    const thisWeek = lists[0]!.groups!.find((g) => g.key === 'this-week')
+    expect(thisWeek?.todos.map((t) => t.id) ?? []).toContain(1)
+  })
+})
+
 describe('week boundary parity with resolveFuzzy', () => {
   it('bucketByEffective thisWeekEnd matches resolveFuzzy("this-week") for Mon-first', () => {
     const anchor = startOfDay(new Date('2026-04-15T00:00:00')) // Wed

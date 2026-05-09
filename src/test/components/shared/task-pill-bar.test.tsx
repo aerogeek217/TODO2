@@ -27,7 +27,7 @@ describe('<TaskPillBar>', () => {
     it('renders people avatars + scheduled chip + deadline chip + status', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today' },
+        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
         statusId: 5,
       })
@@ -125,7 +125,7 @@ describe('<TaskPillBar>', () => {
       const onScheduledClick = vi.fn()
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today' },
+        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
       })
       const { container } = render(
         <TaskPillBar
@@ -197,7 +197,7 @@ describe('<TaskPillBar>', () => {
     it('renders icon-only date markers (no labels)', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today' },
+        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
       })
       const { container } = render(
@@ -240,7 +240,7 @@ describe('<TaskPillBar>', () => {
     it('renders chips as <span>, not <button>', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today' },
+        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
         statusId: 5,
       })
@@ -260,7 +260,7 @@ describe('<TaskPillBar>', () => {
     })
 
     it('wraps the bar in `pointer-events: none` via barReadOnly', () => {
-      const todo = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })
+      const todo = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today } })
       const { container } = render(
         <TaskPillBar
           todo={todo}
@@ -277,7 +277,7 @@ describe('<TaskPillBar>', () => {
     })
 
     it('marks the wrapper aria-hidden when ariaHidden is true', () => {
-      const todo = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })
+      const todo = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today } })
       const { container } = render(
         <TaskPillBar
           todo={todo}
@@ -298,7 +298,7 @@ describe('<TaskPillBar>', () => {
     it('wraps scheduled+deadline in a vertical date-stack container', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today' },
+        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
       })
       const { container } = render(
@@ -318,7 +318,7 @@ describe('<TaskPillBar>', () => {
     it('uses inline layout by default', () => {
       const todo = makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'today' },
+        scheduledDate: { kind: 'fuzzy', token: 'today', setAt: today },
         dueDate: new Date(2026, 3, 25),
       })
       const { container } = render(
@@ -424,6 +424,34 @@ describe('<TaskPillDates>', () => {
       <TaskPillDates todo={todo} today={today} weekStartsOn={weekStartsOn} interactive={false} />,
     )
     expect(container.firstChild).toBeNull()
+  })
+
+  // Aged-label vocabulary at the chip level (post fuzzy-schedule-aging-2026-05-09).
+  // The full vocabulary is unit-tested in `effective-date.test.ts`; here we assert
+  // the chip renders the resulting string via TaskPillBar's setAt-aware path.
+  it('renders "Last week" for fuzzy this-week stamped one week ago', () => {
+    const setAt = new Date(2026, 3, 9) // 1 week before today (Apr 16).
+    const todo = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
+    })
+    render(
+      <TaskPillDates todo={todo} today={today} weekStartsOn={weekStartsOn} interactive={false} />,
+    )
+    expect(screen.getByText('Last week')).toBeInTheDocument()
+  })
+
+  it('renders the formatted date for fuzzy this-week stamped five weeks ago', () => {
+    const setAt = new Date(2026, 2, 12) // 5 weeks before today.
+    const todo = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
+    })
+    render(
+      <TaskPillDates todo={todo} today={today} weekStartsOn={weekStartsOn} interactive={false} />,
+    )
+    // Mon-first: that week's Sunday is Mar 15.
+    expect(screen.getByText('Mar 15')).toBeInTheDocument()
   })
 })
 

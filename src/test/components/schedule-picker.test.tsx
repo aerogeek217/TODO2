@@ -23,7 +23,7 @@ describe('SchedulePicker', () => {
 
   it('shows a scheduled label when a fuzzy value is set', () => {
     const { container } = render(
-      <SchedulePicker value={{ kind: 'fuzzy', token: 'this-week' }} onChange={() => {}} today={today} />,
+      <SchedulePicker value={{ kind: 'fuzzy', token: 'this-week', setAt: today }} onChange={() => {}} today={today} />,
     )
     expect(trigger(container).textContent).toContain('This week')
   })
@@ -79,7 +79,7 @@ describe('SchedulePicker', () => {
   it('emits null when Clear is clicked', () => {
     const onChange = vi.fn()
     const { container } = render(
-      <SchedulePicker value={{ kind: 'fuzzy', token: 'today' }} onChange={onChange} today={today} />,
+      <SchedulePicker value={{ kind: 'fuzzy', token: 'today', setAt: today }} onChange={onChange} today={today} />,
     )
     fireEvent.click(trigger(container))
     fireEvent.click(screen.getByText('Clear'))
@@ -88,7 +88,7 @@ describe('SchedulePicker', () => {
 
   it('marks the active fuzzy chip as selected', () => {
     const { container } = render(
-      <SchedulePicker value={{ kind: 'fuzzy', token: 'tomorrow' }} onChange={() => {}} today={today} />,
+      <SchedulePicker value={{ kind: 'fuzzy', token: 'tomorrow', setAt: today }} onChange={() => {}} today={today} />,
     )
     fireEvent.click(trigger(container))
     // "Tomorrow" also appears in the trigger label — scope to buttons inside the menu

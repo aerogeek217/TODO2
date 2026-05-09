@@ -238,6 +238,27 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2025-03-15') }))).toBe(false)
   })
 
+  it('aged fuzzy scheduledDate ages into past windows when dateField is scheduled', () => {
+    // Post fuzzy-schedule-aging-2026-05-09: a fuzzy this-week picked in March
+    // resolves to that week's window-end (origin-anchored), so the date-range
+    // filter for March 2025 finds it by setAt — the value never re-resolves
+    // forward to today's frame.
+    useFilterStore.getState().setDateField('scheduled')
+    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
+
+    // Aged fuzzy this-week setAt 2025-03-15 (Sat) → Mon-first this-week ends
+    // Sun 2025-03-16. Falls inside the [2025-03-01, 2025-03-31] window.
+    expect(matchesFilter(f(), makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2025-03-15') },
+    }))).toBe(true)
+    // setAt outside range — fuzzy this-week picked in May — falls outside.
+    expect(matchesFilter(f(), makeTodo({
+      id: 2,
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2025-05-15') },
+    }))).toBe(false)
+  })
+
   it('date range filters by dueDate when dateField is deadline', () => {
     useFilterStore.getState().setDateField('deadline')
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
@@ -261,14 +282,14 @@ describe('useFilterStore', () => {
   describe('hasScheduled / hasDeadline presence filters', () => {
     it('hasScheduled=true keeps only tasks with a scheduledDate', () => {
       useFilterStore.getState().setHasScheduled(true)
-      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
     })
 
     it('hasScheduled=false keeps only tasks without a scheduledDate', () => {
       useFilterStore.getState().setHasScheduled(false)
-      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
     })
@@ -276,14 +297,14 @@ describe('useFilterStore', () => {
     it('hasDeadline=true keeps only tasks with a deadline', () => {
       useFilterStore.getState().setHasDeadline(true)
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
     })
 
     it('hasDeadline=false keeps only tasks without a deadline', () => {
       useFilterStore.getState().setHasDeadline(false)
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
     })
 
@@ -299,10 +320,10 @@ describe('useFilterStore', () => {
       // Only the task with both should pass
       expect(matchesFilter(f(), makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'this-week' },
+        scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') },
         dueDate: new Date('2026-04-20'),
       }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week' } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2026-04-20') }))).toBe(false)
     })
   })

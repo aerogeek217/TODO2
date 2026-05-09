@@ -59,4 +59,38 @@ describe('buildEntries (shared)', () => {
     const map = buildEntries([t], [], { today, weekStartsOn: 1, sortMode: 'sortOrder' })
     expect(map.size).toBe(0)
   })
+
+  it('places aged fuzzy this-week on the original week\'s window-end day, not the current week\'s', () => {
+    // Regression for fuzzy-schedule-aging-2026-05-09: pre-P1, a fuzzy
+    // `this-week` always resolved to the upcoming Sunday, pinning the card
+    // to the current week's window-end. Post-P1 the resolution anchors on
+    // `setAt`, so a "this-week" picked two weeks ago places on that week's
+    // Sunday — which here is BEFORE the visible window (Wed today − 3 days).
+    // Days array spans today − 3 .. today + 3 (Sun 4/12 .. Sat 4/18).
+    // setAt 2026-04-01 (Wed) → Mon-first this-week ends Sun 4/5 (out of window).
+    const setAt = new Date(2026, 3, 1)
+    const t = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
+    })
+    const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
+    expect([...map.values()].flat()).toHaveLength(0)
+  })
+
+  it('places fuzzy tomorrow stamped today on today + 1 (within the visible window)', () => {
+    // Mirror of the aging regression above: a fresh-stamp fuzzy resolves
+    // forward via resolveFuzzyOrigin(setAt=today), so 'tomorrow' lands on
+    // today + 1 (Apr 16 = days[4]). Pre-P1 the same input would have
+    // resolved against `today` and given the same answer; this test pins
+    // the post-P1 setAt-anchored path produces a placement that's still in
+    // window.
+    const t = makeTodo({
+      id: 1,
+      scheduledDate: { kind: 'fuzzy', token: 'tomorrow', setAt: today },
+    })
+    const map = buildEntries([t], days, { today, weekStartsOn: 1, sortMode: 'sortOrder' })
+    const tomorrow = days[4]! // today + 1
+    const entries = map.get(tomorrow.toISOString()) ?? []
+    expect(entries.map((e) => e.todo.id)).toEqual([1])
+  })
 })

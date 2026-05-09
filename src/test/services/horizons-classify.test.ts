@@ -12,7 +12,7 @@ describe('classifyByDateSource', () => {
   })
 
   it("reports 'scheduled' when scheduledDate is fuzzy", () => {
-    const t = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week' } })
+    const t = makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: today } })
     expect(classifyByDateSource(t, today, 1)).toBe('scheduled')
   })
 

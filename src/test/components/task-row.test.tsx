@@ -37,10 +37,14 @@ function resetStores() {
   useUIStore.setState({ hoveredTodoId: null })
 }
 
+// April 16, 2026 (Thursday) — matches `vi.setSystemTime` below. Pinned for
+// fuzzy `setAt` so post-aging resolution lands on today's window.
+const TODAY = new Date(2026, 3, 16)
+
 describe('TaskRow (unified scheduling)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 3, 16)) // April 16, 2026 (Thursday)
+    vi.setSystemTime(TODAY)
     resetStores()
     Object.values(mockBulk).forEach((fn) => (fn as ReturnType<typeof vi.fn>).mockClear())
     // jsdom does not implement showPicker; stub for deadline-inline tests
@@ -62,7 +66,7 @@ describe('TaskRow (unified scheduling)', () => {
 
   describe('scheduled chip', () => {
     it('renders with fuzzy label when scheduledDate is fuzzy', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
       expect(screen.getByText('Today')).toBeInTheDocument()
     })
 
@@ -78,7 +82,7 @@ describe('TaskRow (unified scheduling)', () => {
 
     it('does not render the empty-state calendar button when scheduledDate is set', () => {
       // When scheduledDate is present, the empty-state "Schedule or set deadline" button is hidden
-      const { container } = render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />)
+      const { container } = render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
       expect(container.querySelector('[title="Schedule or set deadline"]')).toBeNull()
     })
   })
@@ -142,7 +146,7 @@ describe('TaskRow (unified scheduling)', () => {
         <TaskRow
           todo={makeTodo({
             id: 1,
-            scheduledDate: { kind: 'fuzzy', token: 'today' },
+            scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY },
             dueDate: new Date(2026, 3, 20),
           })}
         />,
@@ -159,7 +163,7 @@ describe('TaskRow (unified scheduling)', () => {
     })
 
     it('does not render when only scheduled is set', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />)
+      render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
       expect(screen.queryByTitle('Schedule or set deadline')).not.toBeInTheDocument()
     })
 
@@ -183,7 +187,7 @@ describe('TaskRow (unified scheduling)', () => {
     it('clicking the scheduled chip opens an inline menu (does not open detail popup)', () => {
       const onOpenDetail = vi.fn()
       const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} onOpenDetail={onOpenDetail} />,
+        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} onOpenDetail={onOpenDetail} />,
       )
       const chip = container.querySelector('[class*="scheduledChip"]') as HTMLElement
       fireEvent.click(chip)
@@ -195,7 +199,7 @@ describe('TaskRow (unified scheduling)', () => {
 
     it('picking a fuzzy option in the scheduled menu calls setScheduled', () => {
       const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />,
+        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />,
       )
       fireEvent.click(container.querySelector('[class*="scheduledChip"]') as HTMLElement)
       fireEvent.click(screen.getByText('Next week'))
@@ -204,7 +208,7 @@ describe('TaskRow (unified scheduling)', () => {
 
     it('scheduled menu shows an "Add deadline" action when dueDate is not set', () => {
       const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />,
+        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />,
       )
       fireEvent.click(container.querySelector('[class*="scheduledChip"]') as HTMLElement)
       expect(screen.getByText(/Add deadline/i)).toBeInTheDocument()
@@ -215,7 +219,7 @@ describe('TaskRow (unified scheduling)', () => {
         <TaskRow
           todo={makeTodo({
             id: 1,
-            scheduledDate: { kind: 'fuzzy', token: 'today' },
+            scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY },
             dueDate: new Date(2026, 3, 20),
           })}
         />,
@@ -306,7 +310,7 @@ describe('TaskRow (unified scheduling)', () => {
         <TaskRow
           todo={makeTodo({
             id: 1,
-            scheduledDate: { kind: 'fuzzy', token: 'today' },
+            scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY },
             dueDate: new Date(2026, 3, 20),
           })}
         />,

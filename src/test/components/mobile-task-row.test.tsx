@@ -32,10 +32,14 @@ function getRow(): HTMLElement {
   return document.querySelector('[data-todo-id]') as HTMLElement
 }
 
+// April 11, 2026 — matches `vi.setSystemTime`. Fuzzy `setAt` uses this so
+// post-aging resolution lands on today's window.
+const TODAY = new Date(2026, 3, 11)
+
 describe('MobileTaskRow', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 3, 11)) // April 11, 2026
+    vi.setSystemTime(TODAY)
     vi.clearAllMocks()
     useOrgStore.setState({ assignedOrgsMap: new Map() })
   })
@@ -89,7 +93,7 @@ describe('MobileTaskRow', () => {
     })
 
     it('shows scheduled chip label for fuzzy token', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />)
+      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
       expect(screen.getByText('Today')).toBeInTheDocument()
     })
 
@@ -273,7 +277,7 @@ describe('MobileTaskRow', () => {
     })
 
     it('exposes scheduled chip as a button (tap → opens scheduled menu)', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today' } })} />)
+      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
       const chip = screen.getByLabelText('Edit scheduled')
       expect(chip.tagName).toBe('BUTTON')
     })

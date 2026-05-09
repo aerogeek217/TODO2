@@ -78,11 +78,12 @@ describe('applyNlpMetadata', () => {
     const updateTodo = vi.fn()
     const assignPerson = vi.fn()
 
+    const setAt = new Date('2026-04-16')
     await applyNlpMetadata(
       1,
       {
         title: 'Test task',
-        scheduledDate: { kind: 'fuzzy', token: 'tomorrow' },
+        scheduledDate: { kind: 'fuzzy', token: 'tomorrow', setAt },
         personIds: [],
         orgIds: [],
         unmatchedPersons: [],
@@ -97,7 +98,7 @@ describe('applyNlpMetadata', () => {
 
     expect(updateTodo).toHaveBeenCalledOnce()
     const updated = updateTodo.mock.calls[0]![0]
-    expect(updated.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+    expect(updated.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow', setAt })
   })
 
   it('applies recurrence only when the todo has a deadline', async () => {

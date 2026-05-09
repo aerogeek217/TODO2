@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { parseInput } from '../../services/natural-language-parser'
 
 describe('natural-language-parser', () => {
@@ -382,6 +382,40 @@ describe('natural-language-parser', () => {
     it('strips the numeric date from the title', () => {
       const result = parseInput('Pay rent 5/15/2099')
       expect(result.title).toBe('Pay rent')
+    })
+  })
+
+  describe('fuzzy scheduledDate carries setAt (post fuzzy-schedule-aging-2026-05-09)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('parsing "this week" stamps setAt with the current Date', () => {
+      const NOW = new Date(2026, 3, 16, 9, 30) // Apr 16 2026, 09:30 local.
+      vi.useFakeTimers()
+      vi.setSystemTime(NOW)
+      const result = parseInput('Wrap up things this week')
+      expect(result.scheduledDate).toBeDefined()
+      expect(result.scheduledDate!.kind).toBe('fuzzy')
+      if (result.scheduledDate!.kind === 'fuzzy') {
+        expect(result.scheduledDate!.token).toBe('this-week')
+        expect(result.scheduledDate!.setAt).toBeInstanceOf(Date)
+        expect(result.scheduledDate!.setAt.getTime()).toBe(NOW.getTime())
+      }
+    })
+
+    it('parsing single-word "tomorrow" also stamps setAt', () => {
+      const NOW = new Date(2026, 3, 16, 12, 0)
+      vi.useFakeTimers()
+      vi.setSystemTime(NOW)
+      const result = parseInput('Submit report tomorrow')
+      expect(result.scheduledDate).toBeDefined()
+      if (result.scheduledDate!.kind === 'fuzzy') {
+        expect(result.scheduledDate!.token).toBe('tomorrow')
+        expect(result.scheduledDate!.setAt.getTime()).toBe(NOW.getTime())
+      } else {
+        throw new Error('expected fuzzy scheduledDate')
+      }
     })
   })
 

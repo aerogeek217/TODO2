@@ -60,7 +60,7 @@ describe('buildTasksPlain', () => {
       id: 1,
       title: 'Meeting',
       statusId: 7,
-      scheduledDate: { kind: 'fuzzy', token: 'today' },
+      scheduledDate: { kind: 'fuzzy', token: 'today', setAt: new Date(2026, 3, 23) },
       dueDate: new Date(2026, 3, 25),
     })
     const out = buildTasksPlain([{ todos: [todo] }], ctx({ statusMap, assignedPeopleMap }))
