@@ -59,8 +59,14 @@ const STATUS_PATTERN = /(^|\s):([A-Za-z][A-Za-z0-9_-]*)\b/g
 // "this week" wins overlap-dedup against any embedded day name.
 const FUZZY_SCHEDULE_PATTERN = /\b(this\s+week|next\s+week|this\s+month|next\s+month)\b/gi
 
+// Numeric date sub-phrase: MM/DD with optional /YY or /YYYY suffix. Used both
+// inside deadline syntax (`due 5/4`, `by 6/3/27`) and as the bare scheduled
+// form. Year resolution lives in `parseNumericDate` — when omitted, the parser
+// rolls forward (past MM/DD → next year).
+const NUMERIC_DATE_SUB = String.raw`\d{1,2}\/\d{1,2}(?:\/(?:\d{2}|\d{4}))?`
+
 // Shared inner date phrase for deadline syntax. Group-1 is the date text.
-const DEADLINE_DATE_INNER = String.raw`(today|tomorrow|tmr|this\s+week|next\s+week|this\s+month|next\s+month|next\s+(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|in\s+\d+\s+days?)`
+const DEADLINE_DATE_INNER = String.raw`(today|tomorrow|tmr|this\s+week|next\s+week|this\s+month|next\s+month|next\s+(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|in\s+\d+\s+days?|` + NUMERIC_DATE_SUB + String.raw`)`
 
 // "by <date>" phrase deadline
 const BY_DEADLINE_PATTERN = new RegExp(String.raw`\bby\s+` + DEADLINE_DATE_INNER + String.raw`\b`, 'gi')
@@ -70,8 +76,17 @@ const BY_DEADLINE_PATTERN = new RegExp(String.raw`\bby\s+` + DEADLINE_DATE_INNER
 // not collide.
 const DUE_DEADLINE_PATTERN = new RegExp(String.raw`\bdue\s+` + DEADLINE_DATE_INNER + String.raw`\b`, 'gi')
 
-// "!<date>" prefix deadline (single-word forms only)
-const BANG_DEADLINE_PATTERN = /!(today|tomorrow|tmr|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/gi
+// "!<date>" prefix deadline (single-word forms + numeric MM/DD)
+const BANG_DEADLINE_PATTERN = new RegExp(
+  String.raw`!(today|tomorrow|tmr|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?|` + NUMERIC_DATE_SUB + String.raw`)\b`,
+  'gi',
+)
+
+// Bare numeric date (MM/DD, MM/DD/YY, MM/DD/YYYY) — extracted as a `'date'`
+// token so it flows through the same scheduled-date pipeline as `today` /
+// `tomorrow` / day names. Lookbehind/lookahead reject digit-or-slash neighbours
+// so paths like `path/12/05/file` and ISO-ish `2025/12/05` don't match.
+const NUMERIC_DATE_PATTERN = /(?<![\d/.])\d{1,2}\/\d{1,2}(?:\/(?:\d{2}|\d{4}))?(?![\d/])/g
 
 function parseRelativeDate(text: string): Date | null {
   const lower = text.toLowerCase().trim()
@@ -122,7 +137,48 @@ function parseRelativeDate(text: string): Date | null {
     }
   }
 
+  // Numeric MM/DD, MM/DD/YY, MM/DD/YYYY
+  const numeric = parseNumericDate(text, today)
+  if (numeric) return numeric
+
   return null
+}
+
+/**
+ * Parse a numeric date string in MM/DD, MM/DD/YY, or MM/DD/YYYY form.
+ *  - Two-digit years are interpreted as 2000–2099.
+ *  - When the year is omitted, the date rolls forward: if MM/DD this year is
+ *    already past, advance to next year (so on 12/5/26 "due 2/3" → 2/3/27).
+ *  - Out-of-range months/days, and dates that JS would silently roll over
+ *    (Feb 30 → Mar 2, Feb 29 in a non-leap year), return null.
+ */
+function parseNumericDate(text: string, today: Date): Date | null {
+  const match = text.trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/)
+  if (!match) return null
+
+  const monthRaw = match[1]
+  const dayRaw = match[2]
+  const yearRaw = match[3]
+  if (monthRaw == null || dayRaw == null) return null
+
+  const month = parseInt(monthRaw, 10)
+  const day = parseInt(dayRaw, 10)
+  if (month < 1 || month > 12) return null
+  if (day < 1 || day > 31) return null
+
+  let year: number
+  if (yearRaw != null) {
+    const y = parseInt(yearRaw, 10)
+    year = yearRaw.length === 2 ? 2000 + y : y
+  } else {
+    year = today.getFullYear()
+    const candidate = new Date(year, month - 1, day)
+    if (candidate.getTime() < today.getTime()) year += 1
+  }
+
+  const result = new Date(year, month - 1, day)
+  if (result.getMonth() !== month - 1 || result.getDate() !== day) return null
+  return result
 }
 
 // Patterns that look like dates in natural text
@@ -314,6 +370,21 @@ export function parseInput(text: string): ParsedInput {
         end: match.index + match[0].length,
       })
     }
+  }
+
+  // Extract bare numeric dates (MM/DD, MM/DD/YY, MM/DD/YYYY). Pushed after the
+  // deadline patterns so `due 5/4` already owns those positions; non-prefixed
+  // numeric dates land here as `'date'` tokens (scheduled-date pipeline).
+  NUMERIC_DATE_PATTERN.lastIndex = 0
+  while ((match = NUMERIC_DATE_PATTERN.exec(text)) !== null) {
+    if (!parseRelativeDate(match[0])) continue
+    tokens.push({
+      type: 'date',
+      value: match[0],
+      raw: match[0],
+      start: match.index,
+      end: match.index + match[0].length,
+    })
   }
 
   // Extract recurrence

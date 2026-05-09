@@ -23,6 +23,7 @@ import { OrgEditor } from '../components/settings/OrgEditor'
 import { TagEditor } from '../components/settings/TagEditor'
 import { ThemeColorsEditor } from '../components/settings/ThemeColorsEditor'
 import { KeyboardShortcutsModal } from '../components/settings/KeyboardShortcutsModal'
+import { NlpSyntaxModal } from '../components/settings/NlpSyntaxModal'
 import { StatusEditor } from '../components/settings/StatusEditor'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { useStatusStore } from '../stores/status-store'
@@ -80,6 +81,7 @@ export function SettingsPage() {
   const [showTagEditor, setShowTagEditor] = useState(false)
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showNlpSyntax, setShowNlpSyntax] = useState(false)
   const [showStatusEditor, setShowStatusEditor] = useState(false)
   const listsEditorOpen = useUIStore((s) => s.listsEditorOpen)
   const listsEditorInitialId = useUIStore((s) => s.listsEditorInitialId)
@@ -378,6 +380,9 @@ export function SettingsPage() {
                 Keyboard Shortcuts
               </button>
             )}
+            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowNlpSyntax(true)}>
+              Quick-Add Syntax
+            </button>
           </div>
         </div>
 
@@ -806,6 +811,7 @@ export function SettingsPage() {
 
       {showThemeColors && <ThemeColorsEditor onClose={() => setShowThemeColors(false)} />}
       {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showNlpSyntax && <NlpSyntaxModal onClose={() => setShowNlpSyntax(false)} />}
       {showPeopleEditor && <PeopleEditor onClose={() => setShowPeopleEditor(false)} />}
       {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showStatusEditor && <StatusEditor onClose={() => setShowStatusEditor(false)} />}

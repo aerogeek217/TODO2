@@ -226,6 +226,165 @@ describe('natural-language-parser', () => {
     })
   })
 
+  describe('numeric dates (MM/DD)', () => {
+    function todayMidnight(): Date {
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      return d
+    }
+    function pad(n: number): string {
+      return n.toString().padStart(2, '0')
+    }
+
+    it('parses bare MM/DD as a precise scheduled date in the next-future year', () => {
+      // Pick a date that's definitely in the past for "this year" — yesterday.
+      const today = todayMidnight()
+      const past = new Date(today)
+      past.setDate(past.getDate() - 1)
+      const input = `Task ${past.getMonth() + 1}/${past.getDate()}`
+      const result = parseInput(input)
+      expect(result.title).toBe('Task')
+      expect(result.scheduledDate).toBeDefined()
+      if (result.scheduledDate?.kind === 'date') {
+        // Past MM/DD rolls forward to next year.
+        expect(result.scheduledDate.value.getFullYear()).toBe(today.getFullYear() + 1)
+        expect(result.scheduledDate.value.getMonth()).toBe(past.getMonth())
+        expect(result.scheduledDate.value.getDate()).toBe(past.getDate())
+      } else {
+        throw new Error('expected precise date')
+      }
+    })
+
+    it('parses bare MM/DD as today when MM/DD === today', () => {
+      const today = todayMidnight()
+      const input = `Task ${today.getMonth() + 1}/${today.getDate()}`
+      const result = parseInput(input)
+      expect(result.scheduledDate?.kind).toBe('date')
+      if (result.scheduledDate?.kind === 'date') {
+        expect(result.scheduledDate.value.toDateString()).toBe(today.toDateString())
+      }
+    })
+
+    it('parses bare MM/DD as future date in current year when MM/DD is upcoming', () => {
+      const today = todayMidnight()
+      const future = new Date(today)
+      future.setDate(future.getDate() + 14)
+      const input = `Task ${future.getMonth() + 1}/${future.getDate()}`
+      const result = parseInput(input)
+      expect(result.scheduledDate?.kind).toBe('date')
+      if (result.scheduledDate?.kind === 'date') {
+        expect(result.scheduledDate.value.getFullYear()).toBe(future.getFullYear())
+        expect(result.scheduledDate.value.toDateString()).toBe(future.toDateString())
+      }
+    })
+
+    it('respects an explicit two-digit year (MM/DD/YY → 20YY)', () => {
+      const result = parseInput('Task 5/4/30')
+      expect(result.title).toBe('Task')
+      if (result.scheduledDate?.kind === 'date') {
+        expect(result.scheduledDate.value.getFullYear()).toBe(2030)
+        expect(result.scheduledDate.value.getMonth()).toBe(4) // May
+        expect(result.scheduledDate.value.getDate()).toBe(4)
+      } else {
+        throw new Error('expected precise date')
+      }
+    })
+
+    it('respects an explicit four-digit year (MM/DD/YYYY)', () => {
+      const result = parseInput('Task 12/31/2099')
+      if (result.scheduledDate?.kind === 'date') {
+        expect(result.scheduledDate.value.getFullYear()).toBe(2099)
+        expect(result.scheduledDate.value.getMonth()).toBe(11) // December
+        expect(result.scheduledDate.value.getDate()).toBe(31)
+      } else {
+        throw new Error('expected precise date')
+      }
+    })
+
+    it('"due MM/DD" is a deadline (not a scheduled date)', () => {
+      const today = todayMidnight()
+      const future = new Date(today)
+      future.setDate(future.getDate() + 14)
+      const input = `Task due ${future.getMonth() + 1}/${future.getDate()}`
+      const result = parseInput(input)
+      expect(result.title).toBe('Task')
+      expect(result.scheduledDate).toBeUndefined()
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate!.toDateString()).toBe(future.toDateString())
+    })
+
+    it('"by MM/DD/YY" is a deadline with explicit year', () => {
+      const result = parseInput('Ship feature by 6/3/27')
+      expect(result.title).toBe('Ship feature')
+      expect(result.scheduledDate).toBeUndefined()
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate!.getFullYear()).toBe(2027)
+      expect(result.dueDate!.getMonth()).toBe(5) // June
+      expect(result.dueDate!.getDate()).toBe(3)
+    })
+
+    it('"!MM/DD" is a deadline', () => {
+      const today = todayMidnight()
+      const future = new Date(today)
+      future.setDate(future.getDate() + 7)
+      const input = `Urgent !${future.getMonth() + 1}/${future.getDate()}`
+      const result = parseInput(input)
+      expect(result.title).toBe('Urgent')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate!.toDateString()).toBe(future.toDateString())
+    })
+
+    it('rejects out-of-range month (13/1)', () => {
+      const result = parseInput('Task 13/1')
+      expect(result.title).toBe('Task 13/1')
+      expect(result.scheduledDate).toBeUndefined()
+      expect(result.dueDate).toBeUndefined()
+    })
+
+    it('rejects rolled-over invalid date (2/30)', () => {
+      const result = parseInput('Task 2/30')
+      expect(result.title).toBe('Task 2/30')
+      expect(result.scheduledDate).toBeUndefined()
+    })
+
+    it('does not match digits inside path/12/05/file', () => {
+      const result = parseInput('Edit path/12/05/file.txt')
+      expect(result.scheduledDate).toBeUndefined()
+      expect(result.title).toBe('Edit path/12/05/file.txt')
+    })
+
+    it('does not match inside ISO-like 2025/12/05', () => {
+      const result = parseInput('Stamp 2025/12/05')
+      expect(result.scheduledDate).toBeUndefined()
+      expect(result.title).toBe('Stamp 2025/12/05')
+    })
+
+    it('does not match a single-digit "year" suffix (5/4/3 stays in title)', () => {
+      const result = parseInput('Note 5/4/3')
+      expect(result.scheduledDate).toBeUndefined()
+      expect(result.title).toBe('Note 5/4/3')
+    })
+
+    it('allows scheduled bare MM/DD + "due MM/DD" deadline together', () => {
+      const today = todayMidnight()
+      const sched = new Date(today); sched.setDate(sched.getDate() + 3)
+      const dl = new Date(today); dl.setDate(dl.getDate() + 10)
+      const input = `Review ${pad(sched.getMonth() + 1)}/${pad(sched.getDate())} due ${dl.getMonth() + 1}/${dl.getDate()}`
+      const result = parseInput(input)
+      expect(result.scheduledDate?.kind).toBe('date')
+      expect(result.dueDate).toBeInstanceOf(Date)
+      if (result.scheduledDate?.kind === 'date') {
+        expect(result.scheduledDate.value.toDateString()).toBe(sched.toDateString())
+      }
+      expect(result.dueDate!.toDateString()).toBe(dl.toDateString())
+    })
+
+    it('strips the numeric date from the title', () => {
+      const result = parseInput('Pay rent 5/15/2099')
+      expect(result.title).toBe('Pay rent')
+    })
+  })
+
   describe('tags (#foo)', () => {
     type TagCase = { input: string; tags: string[]; title?: string }
 

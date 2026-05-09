@@ -107,6 +107,25 @@
   padding: 2px 0;
 }
 
+/* ── Syntax cheatsheet (NlpSyntaxModal) ── */
+
+.syntaxKey {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-primary);
+  padding: 2px 8px;
+  background: var(--color-surface-high);
+  border-radius: 3px;
+  font-family: monospace;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.syntaxDesc {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  padding: 2px 0;
+}
+
 @media (max-width: 640px) {
   .button {
     min-height: var(--touch-target-min);
