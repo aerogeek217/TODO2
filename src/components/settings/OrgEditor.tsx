@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useOrgStore } from '../../stores/org-store'
-import { orgRepository } from '../../data'
 import { generateInitials } from '../../utils/person'
 import type { Org } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
@@ -20,7 +19,7 @@ interface OrgEditorProps {
 }
 
 export function OrgEditor({ onClose }: OrgEditorProps) {
-  const { orgs, load: loadOrgs, add: addOrg, update: updateOrg, remove: removeOrg } = useOrgStore()
+  const { orgs, load: loadOrgs, add: addOrg, update: updateOrg, remove: removeOrg, loadPersonOrgMap, selectPersonCountByOrgId } = useOrgStore()
 
   const [editing, setEditing] = useState<OrgEditState | null>(null)
   const [editInitialsManual, setEditInitialsManual] = useState(false)
@@ -34,7 +33,7 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
   const [searchText, setSearchText] = useState('')
   const [nameError, setNameError] = useState('')
 
-  useEffect(() => { loadOrgs() }, [loadOrgs])
+  useEffect(() => { loadOrgs(); loadPersonOrgMap() }, [loadOrgs, loadPersonOrgMap])
 
   const clearState = () => {
     setEditing(null)
@@ -82,11 +81,10 @@ export function OrgEditor({ onClose }: OrgEditorProps) {
     }
   }
 
-  const startDelete = async (id: number) => {
+  const startDelete = (id: number) => {
     clearState()
     setDeleteId(id)
-    const count = await orgRepository.getPersonCount(id)
-    setDeleteCount(count)
+    setDeleteCount(selectPersonCountByOrgId(id))
   }
 
   const confirmDelete = async () => {

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTagStore } from '../../stores/tag-store'
-import { tagRepository } from '../../data'
+import { useTodoStore } from '../../stores/todo-store'
 import type { Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
@@ -18,9 +18,10 @@ interface TagEditorProps {
 }
 
 export function TagEditor({ onClose }: TagEditorProps) {
-  const { tags, load, add, update, remove } = useTagStore()
+  const { tags, load, add, update, remove, loadAssignments, selectTodoCountByTagId, selectTodoCountsByTag, assignedTagsMap } = useTagStore()
+  const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
+  const todos = useTodoStore((s) => s.todos)
 
-  const [counts, setCounts] = useState<Map<number, number>>(new Map())
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -30,15 +31,16 @@ export function TagEditor({ onClose }: TagEditorProps) {
   const [nameError, setNameError] = useState('')
   const [searchText, setSearchText] = useState('')
 
-  const refreshCounts = useCallback(async () => {
-    const map = await tagRepository.getTodoCounts()
-    setCounts(map)
-  }, [])
-
+  // Ensure todos are loaded so we can derive counts from the cached
+  // `assignedTagsMap`. The map is keyed by todoId, so it only covers todos
+  // we've explicitly loaded assignments for — request the assignment join
+  // for every todo whenever the visible todo set changes.
+  useEffect(() => { load(); ensureTodosLoaded() }, [load, ensureTodosLoaded])
   useEffect(() => {
-    load()
-    refreshCounts()
-  }, [load, refreshCounts])
+    if (todos.length > 0) loadAssignments(todos.map((t) => t.id))
+  }, [todos, loadAssignments])
+
+  const counts = useMemo(() => selectTodoCountsByTag(), [selectTodoCountsByTag, assignedTagsMap])
 
   const clearState = () => {
     setEditing(null)
@@ -92,18 +94,16 @@ export function TagEditor({ onClose }: TagEditorProps) {
     }
   }
 
-  const startDelete = async (id: number) => {
+  const startDelete = (id: number) => {
     clearState()
     setDeleteId(id)
-    const count = await tagRepository.getTodoCount(id)
-    setDeleteCount(count)
+    setDeleteCount(selectTodoCountByTagId(id))
   }
 
   const confirmDelete = async () => {
     if (deleteId == null) return
     await remove(deleteId)
     setDeleteId(null)
-    await refreshCounts()
   }
 
   const handleEditKeyDown = (e: React.KeyboardEvent) => {

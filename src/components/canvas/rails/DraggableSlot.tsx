@@ -3,7 +3,7 @@ import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { RailSide } from '../../../models/canvas-rails'
 import { railOrientationForSide } from '../../../models/canvas-rails'
 import { Slot } from './Slot'
-import { encodeRailsDropId, pointerToSplitZone, RAILS_DRAG_ID_SLOT_PREFIX, RAILS_DRAG_TYPE, type RailsDragData, type SplitZone } from '../../../utils/rail-dnd'
+import { encodeRailsDropId, pointerToSplitZone, RAILS_DRAG_ID_SLOT_PREFIX, RAILS_DRAG_KIND, RAILS_DRAG_TYPE, type RailsDragData, type SplitZone } from '../../../utils/rail-dnd'
 import { useUIStore } from '../../../stores/ui-store'
 import styles from './DraggableSlot.module.css'
 
@@ -20,7 +20,7 @@ interface DraggableSlotProps {
 export function DraggableSlot({ slotId, fromSide, header, children, flex, bodyRole, bodyLabelledBy }: DraggableSlotProps) {
   const dragId = `${RAILS_DRAG_ID_SLOT_PREFIX}${slotId}`
   const dropId = encodeRailsDropId({ kind: 'slot', slotId })
-  const dragData: RailsDragData = { type: RAILS_DRAG_TYPE, kind: 'slot', slotId, fromSide }
+  const dragData: RailsDragData = { type: RAILS_DRAG_TYPE, kind: RAILS_DRAG_KIND.slot, slotId, fromSide }
 
   const draggable = useDraggable({ id: dragId, data: dragData })
   const droppable = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId } })

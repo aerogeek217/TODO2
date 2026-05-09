@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type CSSProperties } from 'react'
+import { useCallback, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -6,18 +6,16 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  useSortable,
 } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem } from '../../models'
 import { DragHandle } from '../shared/DragHandle'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
+import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import styles from './HorizonRibbon.module.css'
 
 export interface HorizonRow {
@@ -48,8 +46,7 @@ interface RowProps {
 }
 
 function SortableRow({ row, selected, maxTotal, onSelect, onSwap, onRowContext }: RowProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.defId })
-  const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(row.defId)
   const fillPct = maxTotal > 0 ? Math.round((row.total / maxTotal) * 100) : 0
   const scheduledCount = row.scheduled.length
   const dueCount = row.due.length
@@ -124,13 +121,7 @@ export function HorizonRibbon({
   const ids = useMemo(() => rows.map((r) => r.defId), [rows])
   const maxTotal = useMemo(() => rows.reduce((m, r) => Math.max(m, r.total), 0), [rows])
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const from = rows.findIndex((r) => r.defId === active.id)
-    const to = rows.findIndex((r) => r.defId === over.id)
-    if (from !== -1 && to !== -1) onReorder(from, to)
-  }, [rows, onReorder])
+  const handleDragEnd = useSortableReorderHandler(rows, (r) => r.defId, onReorder)
 
   const handleAdd = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()

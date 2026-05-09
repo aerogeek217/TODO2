@@ -9,6 +9,7 @@ import {
   encodeRailsDropId,
   pointerToFlowPosition,
   pointerToSplitZone,
+  RAILS_DRAG_KIND,
   RAILS_DRAG_TYPE,
   type RailsDragData,
   type TabDropTarget,
@@ -62,7 +63,7 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
         return
       }
       setDraggingSlot(data)
-      if (data.kind === 'tab') {
+      if (data.kind === RAILS_DRAG_KIND.tab) {
         const label = findTabLabel(rails, data.slotId, data.tabId) ?? 'tab'
         dndLog('rails-monitor.onDragStart.tab', { slotId: data.slotId, tabId: data.tabId, fromSide: data.fromSide, label })
         setAnnouncement(`Dragging tab ${label}`)
@@ -100,12 +101,12 @@ export function useRailsDragMonitor(): RailsDragMonitorResult {
       dndLog('rails-monitor.onDragEnd.resolved', {
         kind: data.kind,
         slotId: data.slotId,
-        tabId: data.kind === 'tab' ? data.tabId : null,
+        tabId: data.kind === RAILS_DRAG_KIND.tab ? data.tabId : null,
         zoneKind: zone.kind,
       })
       setAnnouncement(`Dropped in ${describeDropZone(zone, rails)}`)
 
-      if (data.kind === 'tab') {
+      if (data.kind === RAILS_DRAG_KIND.tab) {
         // Tab drag: route by drop zone kind.
         if (zone.kind === 'canvas') {
           // Phase 5 float-dock (reverse): pop the tab out to a free-floating

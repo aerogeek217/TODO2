@@ -6,15 +6,12 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  useSortable,
 } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
@@ -25,6 +22,7 @@ import { ListEditorBody } from '../shared/ListEditorBody'
 import { defsEqual } from '../../utils/list-def-equal'
 import { bySortOrder } from '../../utils/sort-order'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
+import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -55,8 +53,7 @@ function SortableRow({
   onDelete: (id: number) => void
   hideDelete?: boolean
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: def.id })
-  const style = { transform: CSS.Transform.toString(transform), transition }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(def.id)
   return (
     <div ref={setNodeRef} style={style} className={`${styles.row} ${isDragging ? styles.rowDragging : ''}`}>
       <DragHandle className={styles.dragHandle} attributes={attributes} listeners={listeners} ariaHidden={false} />
@@ -165,13 +162,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const from = sorted.findIndex(d => d.id === active.id)
-    const to = sorted.findIndex(d => d.id === over.id)
-    if (from !== -1 && to !== -1) reorder(from, to)
-  }, [sorted, reorder])
+  const handleDragEnd = useSortableReorderHandler(sorted, (d) => d.id, reorder)
 
   const handleEdit = useCallback((id: number) => {
     if (editingListId === id) return

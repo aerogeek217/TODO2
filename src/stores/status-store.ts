@@ -3,6 +3,7 @@ import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../models'
 import { statusRepository, settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { loadWithState, optimistic, makeEnsureLoaded } from './store-helpers'
+import { useTodoStore } from './todo-store'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
 import { bySortOrder } from '../utils/sort-order'
@@ -18,6 +19,14 @@ interface StatusState {
   update: (status: Status) => Promise<void>
   remove: (id: number) => Promise<void>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
+  /**
+   * Count todos currently assigned to `statusId`, derived from the in-memory
+   * `useTodoStore.todos` cache. Replaces `statusRepository.getTodoCountForStatus`
+   * for editor delete-confirmation prompts so the count comes from the same
+   * data the rest of the UI is reading. Caller is responsible for ensuring
+   * todos are loaded (`useTodoStore.ensureAllLoaded()`).
+   */
+  selectTodoCountByStatusId: (statusId: number) => number
 }
 
 export const useStatusStore = create<StatusState>((set, get) => {
@@ -140,6 +149,14 @@ export const useStatusStore = create<StatusState>((set, get) => {
       console.error('Failed to reorder statuses:', e)
       set({ statuses: prev, error: 'Failed to reorder statuses' })
     }
+  },
+
+  selectTodoCountByStatusId(statusId: number) {
+    let count = 0
+    for (const t of useTodoStore.getState().todos) {
+      if (t.statusId === statusId) count++
+    }
+    return count
   },
   }
 })

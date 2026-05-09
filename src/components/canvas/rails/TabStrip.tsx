@@ -7,6 +7,7 @@ import { WidgetKindMenu } from '../../shared/WidgetKindMenu'
 import {
   encodeRailsDropId,
   RAILS_DRAG_ID_TAB_PREFIX,
+  RAILS_DRAG_KIND,
   RAILS_DRAG_TYPE,
   type RailsDragData,
 } from '../../../utils/rail-dnd'
@@ -90,7 +91,7 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
 
   const dragData: RailsDragData = {
     type: RAILS_DRAG_TYPE,
-    kind: 'tab',
+    kind: RAILS_DRAG_KIND.tab,
     slotId,
     tabId: tab.id,
     fromSide,

@@ -28,6 +28,14 @@ interface OrgState {
   bulkAssignOrg: (todoIds: number[], orgId: number) => Promise<void>
   bulkUnassignOrg: (todoIds: number[], orgId: number) => Promise<void>
   getAssignedOrgs: (todoId: number) => Org[]
+  /**
+   * Count people currently assigned to `orgId`, derived from the in-memory
+   * `personOrgMap`. Replaces `orgRepository.getPersonCount` for editor
+   * delete-confirmation prompts. Caller is responsible for ensuring
+   * `personOrgMap` is loaded (`loadPersonOrgMap()`); OrgEditor triggers it
+   * on mount.
+   */
+  selectPersonCountByOrgId: (orgId: number) => number
 }
 
 export const useOrgStore = create<OrgState>((set, get) => {
@@ -135,6 +143,14 @@ export const useOrgStore = create<OrgState>((set, get) => {
 
     getAssignedOrgs(todoId: number) {
       return get().assignedOrgsMap.get(todoId) ?? []
+    },
+
+    selectPersonCountByOrgId(orgId: number) {
+      let count = 0
+      for (const orgIds of get().personOrgMap.values()) {
+        if (orgIds.includes(orgId)) count++
+      }
+      return count
     },
   }
 })

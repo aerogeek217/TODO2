@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DndContext,
@@ -7,17 +7,14 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  useSortable,
 } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { useStatusStore } from '../../stores/status-store'
-import { statusRepository } from '../../data'
+import { useTodoStore } from '../../stores/todo-store'
 import { type Status, type StatusIconKey, DEFAULT_STATUS_ICON } from '../../models'
 import { DEFAULT_ENTITY_COLOR, DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { ColorInput } from '../shared/ColorInput'
@@ -25,6 +22,7 @@ import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
 import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import { bySortOrder } from '../../utils/sort-order'
 import styles from './EntityEditor.module.css'
 
@@ -86,8 +84,7 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
   onEdit: (s: Status) => void
   onDelete: (id: number) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: status.id })
-  const style = { transform: CSS.Transform.toString(transform), transition }
+  const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(status.id)
 
   return (
     <div ref={setNodeRef} style={style} className={`${styles.row} ${isDragging ? styles.rowDragging : ''}`}>
@@ -106,7 +103,8 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
 }
 
 export function StatusEditor({ onClose }: StatusEditorProps) {
-  const { statuses, load, add, update, remove, reorder } = useStatusStore()
+  const { statuses, load, add, update, remove, reorder, selectTodoCountByStatusId } = useStatusStore()
+  const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
   const [editing, setEditing] = useState<EditState | null>(null)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -118,7 +116,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [nameError, setNameError] = useState('')
   const [searchText, setSearchText] = useState('')
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); ensureTodosLoaded() }, [load, ensureTodosLoaded])
 
   const startEdit = (s: Status) => {
     setEditing({ id: s.id!, name: s.name, color: s.color, icon: s.icon, hideByDefault: s.hideByDefault })
@@ -166,12 +164,11 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     }
   }
 
-  const startDelete = async (id: number) => {
+  const startDelete = (id: number) => {
     setDeleteId(id)
     setEditing(null)
     setAdding(false)
-    const count = await statusRepository.getTodoCountForStatus(id)
-    setDeleteCount(count)
+    setDeleteCount(selectTodoCountByStatusId(id))
   }
 
   const confirmDelete = async () => {
@@ -206,15 +203,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const fromIndex = sorted.findIndex(s => s.id === active.id)
-    const toIndex = sorted.findIndex(s => s.id === over.id)
-    if (fromIndex !== -1 && toIndex !== -1) {
-      reorder(fromIndex, toIndex)
-    }
-  }, [sorted, reorder])
+  const handleDragEnd = useSortableReorderHandler(sorted, (s) => s.id, reorder)
 
   return (
     <>

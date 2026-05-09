@@ -3,11 +3,13 @@ import { render, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { TagEditor } from '../../../components/settings/TagEditor'
 import { db } from '../../../data/database'
 import { useTagStore } from '../../../stores/tag-store'
+import { useTodoStore } from '../../../stores/todo-store'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
+  useTodoStore.setState({ todos: [], todosVersion: 0, loading: false, error: null })
 })
 
 afterEach(() => {
@@ -66,6 +68,13 @@ describe('TagEditor', () => {
     const tagId = await useTagStore.getState().add('urgent')
     const todoId = await addTodo()
     await db.todoTags.add({ todoId, tagId })
+    // Pre-populate the todo + assignment caches so the count selector has the
+    // data it needs on first render. In production the user has navigated
+    // through a view that loaded these before reaching Settings; here we mirror
+    // that preload explicitly so the test doesn't race the editor's own
+    // mount-time fetches.
+    await useTodoStore.getState().loadAll()
+    await useTagStore.getState().loadAssignments([todoId])
 
     const { container, getByText, findByText } = render(<TagEditor onClose={() => {}} />)
     await findByText('urgent')

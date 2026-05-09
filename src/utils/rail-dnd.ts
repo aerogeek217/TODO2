@@ -10,6 +10,20 @@ export const RAILS_DRAG_ID_TAB_PREFIX = 'rails-tab-drag:' as const
 export const RAILS_DRAG_ID_SLOT_PREFIX = 'rails-slot-drag:' as const
 
 /**
+ * Discriminator values for `RailsDragData.kind`. Lifted from inline literals
+ * for parity with `TASK_DRAG_KIND` (see `utils/task-dnd/kinds.ts`) and to give
+ * grep a single landing site when adding a new rails-drag flavor.
+ */
+export const RAILS_DRAG_KIND = {
+  /** Whole rail slot dragged by its header handle (DraggableSlot). */
+  slot: 'slot',
+  /** Single tab pill dragged out of its strip (TabStrip). */
+  tab: 'tab',
+} as const
+
+export type RailsDragKind = typeof RAILS_DRAG_KIND[keyof typeof RAILS_DRAG_KIND]
+
+/**
  * Re-export so existing rail consumers (harness, tests, monitor helpers) keep
  * a single rail-dnd import. Source of truth is `src/constants.ts`. CSS uses
  * `max(var(--{perp}-size, 0px), 80px)` to keep the perpendicular-side corner
@@ -27,13 +41,13 @@ export { CORNER_HIT_MIN_PX } from '../constants'
 export type RailsDragData =
   | {
       type: typeof RAILS_DRAG_TYPE
-      kind: 'slot'
+      kind: typeof RAILS_DRAG_KIND.slot
       slotId: string
       fromSide: RailSide
     }
   | {
       type: typeof RAILS_DRAG_TYPE
-      kind: 'tab'
+      kind: typeof RAILS_DRAG_KIND.tab
       slotId: string
       tabId: string
       fromSide: RailSide

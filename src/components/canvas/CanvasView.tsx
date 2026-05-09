@@ -28,7 +28,7 @@ import { findResizeSnap, type AlignmentLine, type ScopedRect } from '../../utils
 import type { Project, PersistedTodoItem, Person, Org, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Taskboard } from '../../models'
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { encodeRailsDropId, RAILS_DRAG_TYPE, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
+import { encodeRailsDropId, RAILS_DRAG_KIND, RAILS_DRAG_TYPE, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
 import { deriveCanvasMinZoom } from '../../utils/canvas-bounds'
 import { DEFAULT_FLOAT_HEIGHT, DEFAULT_FLOAT_WIDTH } from '../../constants'
 import { REACT_FLOW_NODE_CLASS } from '../../utils/react-flow-dom'
@@ -394,7 +394,7 @@ export function CanvasView({
   useDndMonitor({
     onDragStart: ({ active }) => {
       const data = active.data.current as RailsDragData | undefined
-      setTabDragActive(data?.type === RAILS_DRAG_TYPE && data.kind === 'tab')
+      setTabDragActive(data?.type === RAILS_DRAG_TYPE && data.kind === RAILS_DRAG_KIND.tab)
     },
     onDragEnd: () => { setTabDragActive(false); setTabDragPointer(null) },
     onDragCancel: () => { setTabDragActive(false); setTabDragPointer(null) },
