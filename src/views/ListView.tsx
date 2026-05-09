@@ -22,6 +22,7 @@ import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { encodeGroupSort } from '../utils/list-view-encoding'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
+import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import { TaskList } from '../components/task/TaskList'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
@@ -151,13 +152,11 @@ interface PendingReassign {
 
 export function ListView() {
   const { todos, ensureAllLoaded: loadAll, update: updateTodo } = useTodoStore()
-  const todosVersion = useTodoStore((s) => s.todosVersion)
-  const { people, assignedPeopleMap, ensureLoaded: loadPeople, loadAssignments: loadPeopleAssignments, assignPerson, unassignPerson } = usePersonStore()
+  const { people, assignedPeopleMap, ensureLoaded: loadPeople, assignPerson, unassignPerson } = usePersonStore()
   const { projects, ensureAllLoaded: loadAllProjects } = useProjectStore()
-  const { orgs, assignedOrgsMap, personOrgMap, ensureLoaded: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const { orgs, assignedOrgsMap, personOrgMap, ensureLoaded: loadOrgs, loadPersonOrgMap } = useOrgStore()
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTags = useTagStore((s) => s.ensureLoaded)
-  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { statuses, ensureLoaded: loadStatuses } = useStatusStore()
   const { listGroupBy, setListGroupBy, listSortBy, setListSortBy, openEditPopup, showBulkConfirmation } = useUIStore()
   const updateListDefinition = useListDefinitionStore((s) => s.update)
@@ -215,22 +214,7 @@ export function ListView() {
     loadListDefinitions()
   }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadTags, loadStatuses, loadListDefinitions])
 
-  // Re-load assignment joins only when the set of todo ids changes.
-  // Identity-based dep on `todos` would re-fire on every attribute edit;
-  // `todosVersion` is bumped only on add / remove / bulk-remove / restore /
-  // purge, so `${length}:${version}` is a stable O(1) key.
-  const todoIdsKey = `${todos.length}:${todosVersion}`
-  useEffect(() => {
-    if (todos.length === 0) return
-    const ids = todos.map((t) => t.id)
-    loadPeopleAssignments(ids)
-    loadOrgAssignments(ids)
-    loadTagAssignments(ids)
-    // `todos` identity-changes on every mutation, but `todoIdsKey` only
-    // changes when the id-set does — gating the effect on the key keeps this
-    // join-load pinned to real composition changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todoIdsKey, loadPeopleAssignments, loadOrgAssignments, loadTagAssignments])
+  useEntityAssignmentsForTodos(todos)
 
   useEffect(() => {
     setCollapsed({})

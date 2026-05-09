@@ -19,6 +19,7 @@ import { useFilterStore, applyFilter } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
+import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { TaskDraggable } from '../components/task/dnd/TaskDraggable'
@@ -123,11 +124,10 @@ function DayDroppable({ day, children }: DayCellProps) {
 
 export function CalendarView() {
   const { todos, ensureAllLoaded: loadAll } = useTodoStore()
-  const { people, ensureLoaded: loadPeople, assignedPeopleMap, loadAssignments: loadPeopleAssignments } = usePersonStore()
-  const { orgs, personOrgMap, assignedOrgsMap, ensureLoaded: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap } = useOrgStore()
+  const { people, ensureLoaded: loadPeople, assignedPeopleMap } = usePersonStore()
+  const { orgs, personOrgMap, assignedOrgsMap, ensureLoaded: loadOrgs, loadPersonOrgMap } = useOrgStore()
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTags = useTagStore((s) => s.ensureLoaded)
-  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { projects, ensureAllLoaded: loadAllProjects } = useProjectStore()
   const { openEditPopup } = useUIStore()
   const { filters } = useFilterStore()
@@ -163,14 +163,7 @@ export function CalendarView() {
     loadAllProjects()
   }, [loadAll, loadPeople, loadOrgs, loadTags, loadAllProjects])
 
-  useEffect(() => {
-    const todoIds = todos.map((t) => t.id)
-    if (todoIds.length > 0) {
-      loadPeopleAssignments(todoIds)
-      loadOrgAssignments(todoIds)
-      loadTagAssignments(todoIds)
-    }
-  }, [todos, loadPeopleAssignments, loadOrgAssignments, loadTagAssignments])
+  useEntityAssignmentsForTodos(todos)
 
   useEffect(() => {
     loadPersonOrgMap()

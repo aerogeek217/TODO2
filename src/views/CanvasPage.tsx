@@ -24,6 +24,7 @@ import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
+import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import {
   useFloatingNoteController,
@@ -59,11 +60,10 @@ export function CanvasPage() {
   const { selectedCanvasId } = useCanvasStore()
   const { projects, loadByCanvas: loadProjects, add: addProject, updatePosition, bulkUpdatePositions, update: updateProject, remove: removeProject } = useProjectStore()
   const { todos, loadByCanvas: loadTodos, add: addTodo, addAt: addTodoAt, update: updateTodo, applyMutations } = useTodoStore()
-  const { people, assignedPeopleMap, ensureLoaded: loadPeople, loadAssignments, assignPerson } = usePersonStore()
-  const { orgs, assignedOrgsMap, personOrgMap, ensureLoaded: loadOrgs, loadAssignments: loadOrgAssignments, loadPersonOrgMap, assignOrg } = useOrgStore()
+  const { people, assignedPeopleMap, ensureLoaded: loadPeople, assignPerson } = usePersonStore()
+  const { orgs, assignedOrgsMap, personOrgMap, ensureLoaded: loadOrgs, loadPersonOrgMap, assignOrg } = useOrgStore()
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTags = useTagStore((s) => s.ensureLoaded)
-  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { openEditPopup, showBulkConfirmation } = useUIStore()
   const { statuses } = useStatusStore()
   const taskEdit = useTaskEditCallbacks()
@@ -145,15 +145,8 @@ export function CanvasPage() {
     }
   }, [todos, applyMutations])
 
-  // Load people / org / tag assignments when todos change
-  useEffect(() => {
-    const todoIds = todos.map((t) => t.id)
-    if (todoIds.length > 0) {
-      loadAssignments(todoIds)
-      loadOrgAssignments(todoIds)
-      loadTagAssignments(todoIds)
-    }
-  }, [todos, loadAssignments, loadOrgAssignments, loadTagAssignments])
+  // Load people / org / tag assignments when the visible todo set changes.
+  useEntityAssignmentsForTodos(todos)
 
   // Consume pending canvas navigation target from command palette
   const pendingTarget = useUIStore((s) => s.pendingCanvasTarget)

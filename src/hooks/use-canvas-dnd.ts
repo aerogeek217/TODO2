@@ -15,9 +15,6 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
-import { usePersonStore } from '../stores/person-store'
-import { useOrgStore } from '../stores/org-store'
-import { useTagStore } from '../stores/tag-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { bySortOrder } from '../utils/sort-order'
@@ -29,7 +26,7 @@ import {
 import {
   resolveCrossGroupMutation,
   parseBlockContextId,
-  type CrossGroupMutation,
+  dispatchCrossGroupMutation,
 } from '../utils/cross-group-drag'
 import { DRAG_ACTIVATION_DISTANCE_PX, DRAG_MEASURE_FREQUENCY_MS, PHANTOM_CLEANUP_MS } from '../constants'
 
@@ -371,45 +368,6 @@ export function useCanvasDnD({
     [projects]
   )
 
-  const dispatchCrossGroupMutation = useCallback(
-    async (mutation: CrossGroupMutation) => {
-      switch (mutation.kind) {
-        case 'status': {
-          await useTodoStore.getState().bulkSetStatus([mutation.todoId], mutation.statusId)
-          return
-        }
-        case 'people': {
-          if (mutation.removeId != null) {
-            await usePersonStore.getState().unassignPerson(mutation.todoId, mutation.removeId)
-          }
-          if (mutation.addId != null) {
-            await usePersonStore.getState().assignPerson(mutation.todoId, mutation.addId)
-          }
-          return
-        }
-        case 'org': {
-          if (mutation.removeId != null) {
-            await useOrgStore.getState().unassignOrg(mutation.todoId, mutation.removeId)
-          }
-          if (mutation.addId != null) {
-            await useOrgStore.getState().assignOrg(mutation.todoId, mutation.addId)
-          }
-          return
-        }
-        case 'tag': {
-          if (mutation.removeId != null) {
-            await useTagStore.getState().unassignTag(mutation.todoId, mutation.removeId)
-          }
-          if (mutation.addId != null) {
-            await useTagStore.getState().assignTag(mutation.todoId, mutation.addId)
-          }
-          return
-        }
-      }
-    },
-    [],
-  )
-
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       // Cache values needed for drop execution before resetting state
@@ -531,7 +489,7 @@ export function useCanvasDnD({
         }
       }
     },
-    [todosByProject, selectedCanvasId, executeDrop, resetDragState, expandTargetArea, rfInstanceRef, projects, dispatchCrossGroupMutation]
+    [todosByProject, selectedCanvasId, executeDrop, resetDragState, expandTargetArea, rfInstanceRef, projects]
   )
 
   return {
