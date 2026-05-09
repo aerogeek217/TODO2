@@ -23,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 48
+export const CURRENT_DB_VERSION = 49
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -340,10 +340,40 @@ export class Todo2Database extends Dexie {
     // back to `{ field, label? }` and drops any experimental
     // `{ kind: 'date-offset', ... }` rows (the offset capability now rides
     // `DateAnchor` instead — see filter-predicate.ts). Idempotent.
+    this.version(48).stores({})
+
+    // v49: stamp `setAt: Date` onto every fuzzy `scheduledDate`. For each
+    // fuzzy todo missing the field, look up the most recent `'scheduled'`
+    // todoEvent for that row — its timestamp is exactly when the user picked
+    // the current fuzzy value (the repository emits a `'scheduled'` event on
+    // every `scheduledDate` mutation; see `todo-repository.ts`). When no
+    // event exists (pre-v42 task untouched since v42 shipped), fall back to
+    // `todo.createdAt`. `modifiedAt` is the wrong fallback — it advances on
+    // unrelated edits (title rename, status change). Idempotent: only rows
+    // with `kind === 'fuzzy'` and missing `setAt` are rewritten.
     // The version literal is the same as `CURRENT_DB_VERSION`; using the
     // constant here is what enforces the single-source-of-truth invariant
     // (see the constant's docblock above).
-    this.version(CURRENT_DB_VERSION).stores({})
+    this.version(CURRENT_DB_VERSION).stores({}).upgrade(async (tx) => {
+      const scheduledEvents = await tx.table('todoEvents')
+        .where('type').equals('scheduled')
+        .toArray()
+      const lastScheduledByTodo = new Map<number, string>()
+      for (const ev of scheduledEvents) {
+        const prev = lastScheduledByTodo.get(ev.todoId)
+        if (prev === undefined || ev.timestamp > prev) {
+          lastScheduledByTodo.set(ev.todoId, ev.timestamp)
+        }
+      }
+      await tx.table('todos').toCollection().modify((todo) => {
+        const sd = todo.scheduledDate
+        if (!sd || sd.kind !== 'fuzzy') return
+        if (sd.setAt) return
+        const eventTs = lastScheduledByTodo.get(todo.id)
+        const setAt = eventTs ? new Date(eventTs) : todo.createdAt
+        todo.scheduledDate = { ...sd, setAt }
+      })
+    })
   }
 }
 

@@ -134,7 +134,13 @@ function isOptScheduledValue(v: unknown): boolean {
   if (v === undefined || v === null) return true
   if (!isObj(v)) return false
   if (v.kind === 'date') return isDateLike(v.value)
-  if (v.kind === 'fuzzy') return typeof v.token === 'string' && (FUZZY_TOKENS as readonly string[]).includes(v.token)
+  if (v.kind === 'fuzzy') {
+    if (typeof v.token !== 'string' || !(FUZZY_TOKENS as readonly string[]).includes(v.token)) return false
+    // `setAt` was added in Dexie v49 (fuzzy schedule aging). `isOptDateLike`
+    // (not `isDateLike`) lets a stale export from a v48 backup still validate;
+    // the v49 upgrader re-stamps the field on import via the same backfill.
+    return isOptDateLike(v.setAt)
+  }
   return false
 }
 

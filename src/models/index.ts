@@ -47,7 +47,7 @@ export { type FloatingScoreboard } from './floating-scoreboard'
 export { type FloatingSnoozeGraveyard } from './floating-snooze-graveyard'
 export { type TodoEvent, type PersistedTodoEvent, type TodoEventType } from './todo-event'
 export { type Status, type PersistedStatus, type StatusIconKey, STATUS_ICON_KEYS, DEFAULT_STATUS_ICON } from './status'
-export { type ScheduledValue, type FuzzyToken, FUZZY_TOKENS, isScheduledValue } from './scheduled-value'
+export { type ScheduledValue, type FuzzyToken, FUZZY_TOKENS, isScheduledValue, makeFuzzy } from './scheduled-value'
 export {
   type ListDefinition,
   type PersistedListDefinition,

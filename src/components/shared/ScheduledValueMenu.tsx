@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ScheduledValue, FuzzyToken } from '../../models/scheduled-value'
+import { type ScheduledValue, type FuzzyToken, makeFuzzy } from '../../models/scheduled-value'
 import { StatusIcon } from './StatusIcon'
 import { toDateInputValue } from '../../utils/date'
 import { scheduledValuesEqual } from '../../utils/effective-date'
@@ -61,7 +61,7 @@ export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: 
   }
 
   const selectFuzzy = (token: FuzzyToken) => {
-    stage({ kind: 'fuzzy', token })
+    stage(makeFuzzy(token))
     onClose()
   }
 

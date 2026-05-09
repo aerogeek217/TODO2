@@ -25,12 +25,12 @@ describe('natural-language-parser', () => {
   it('extracts tomorrow as fuzzy scheduled token', () => {
     const result = parseInput('Submit report tomorrow')
     expect(result.title).toBe('Submit report')
-    expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+    expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
   })
 
   it('extracts today as fuzzy scheduled token', () => {
     const result = parseInput('Call dentist today')
-    expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
+    expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'today' })
   })
 
   it('parses a complex input with date + person', () => {
@@ -198,14 +198,14 @@ describe('natural-language-parser', () => {
     it('allows scheduled + "by <day>" deadline in one input', () => {
       const result = parseInput('Review tomorrow by friday')
       expect(result.title).toBe('Review')
-      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
       expect(result.dueDate).toBeInstanceOf(Date)
     })
 
     it('allows scheduled + "due <day>" deadline in one input', () => {
       const result = parseInput('Review tomorrow due friday')
       expect(result.title).toBe('Review')
-      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
       expect(result.dueDate).toBeInstanceOf(Date)
       expect(result.dueDate!.getDay()).toBe(5)
     })
@@ -215,7 +215,7 @@ describe('natural-language-parser', () => {
       // "overdue" must not satisfy the `\bdue` boundary; the standalone
       // "tomorrow" then becomes a fuzzy scheduled token, not a deadline.
       expect(result.dueDate).toBeUndefined()
-      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow' })
+      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
     })
 
     it('only consumes "due monday" from "due monday at 5pm"', () => {
@@ -421,7 +421,7 @@ describe('natural-language-parser', () => {
       // `#today` is a tag; a bare `today` after it is still a date.
       const result = parseInput('#today today')
       expect(result.tags).toEqual(['today'])
-      expect(result.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
+      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'today' })
     })
   })
 })

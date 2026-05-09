@@ -199,7 +199,7 @@ describe('TaskRow (unified scheduling)', () => {
       )
       fireEvent.click(container.querySelector('[class*="scheduledChip"]') as HTMLElement)
       fireEvent.click(screen.getByText('Next week'))
-      expect(mockBulk.setScheduled).toHaveBeenCalledWith(1, { kind: 'fuzzy', token: 'next-week' })
+      expect(mockBulk.setScheduled).toHaveBeenCalledWith(1, expect.objectContaining({ kind: 'fuzzy', token: 'next-week' }))
     })
 
     it('scheduled menu shows an "Add deadline" action when dueDate is not set', () => {

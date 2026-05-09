@@ -421,6 +421,61 @@ describe('validateImportData', () => {
     expect(invalidResult.ok).toBe(false)
   })
 
+  // Fuzzy ScheduledValue carries `setAt: Date` post-Dexie v49. The validator
+  // accepts Date | ISO string (round-trips through JSON export). Fuzzy values
+  // missing `setAt` still validate (legacy v48 backups) — the v49 upgrader
+  // backfills the field on import.
+  describe('fuzzy scheduledDate.setAt', () => {
+    it('accepts a fuzzy scheduledDate carrying a Date setAt', () => {
+      const result = validateImportData(validData({
+        todos: [makeTodo({
+          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date(2026, 4, 1) },
+        })],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data.todos[0]?.scheduledDate).toEqual({
+          kind: 'fuzzy', token: 'this-week', setAt: new Date(2026, 4, 1),
+        })
+      }
+    })
+
+    it('accepts a fuzzy scheduledDate carrying an ISO-string setAt (post-JSON round-trip)', () => {
+      const iso = '2026-05-01T12:00:00.000Z'
+      const result = validateImportData(validData({
+        todos: [makeTodo({
+          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: iso },
+        })],
+      }))
+      expect(result.ok).toBe(true)
+    })
+
+    it('accepts a legacy fuzzy scheduledDate with no setAt (v48 backup)', () => {
+      const result = validateImportData(validData({
+        todos: [makeTodo({ scheduledDate: { kind: 'fuzzy', token: 'this-week' } })],
+      }))
+      expect(result.ok).toBe(true)
+    })
+
+    it('rejects a fuzzy scheduledDate whose setAt is a non-date string', () => {
+      const result = validateImportData(validData({
+        todos: [makeTodo({
+          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: 'not-a-date' },
+        })],
+      }))
+      expect(result.ok).toBe(false)
+    })
+
+    it('rejects a fuzzy scheduledDate with an unknown token', () => {
+      const result = validateImportData(validData({
+        todos: [makeTodo({
+          scheduledDate: { kind: 'fuzzy', token: 'someday-maybe', setAt: new Date() },
+        })],
+      }))
+      expect(result.ok).toBe(false)
+    })
+  })
+
   // Status validation.
   it('valid status object passes validation', () => {
     const result = validateImportData(validData({

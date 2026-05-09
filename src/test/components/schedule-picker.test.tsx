@@ -51,7 +51,7 @@ describe('SchedulePicker', () => {
     const { container } = render(<SchedulePicker value={null} onChange={onChange} today={today} />)
     fireEvent.click(trigger(container))
     fireEvent.click(screen.getByText('Today'))
-    expect(onChange).toHaveBeenCalledWith({ kind: 'fuzzy', token: 'today' })
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fuzzy', token: 'today' }))
   })
 
   it('emits next-week when the Next week chip is clicked', () => {
@@ -59,7 +59,7 @@ describe('SchedulePicker', () => {
     const { container } = render(<SchedulePicker value={null} onChange={onChange} today={today} />)
     fireEvent.click(trigger(container))
     fireEvent.click(screen.getByText('Next week'))
-    expect(onChange).toHaveBeenCalledWith({ kind: 'fuzzy', token: 'next-week' })
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fuzzy', token: 'next-week' }))
   })
 
   it('emits a precise ScheduledValue when the date input changes', () => {

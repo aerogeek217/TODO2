@@ -1,5 +1,5 @@
 import type { RecurrenceType } from '../models'
-import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
+import { type FuzzyToken, type ScheduledValue, makeFuzzy } from '../models/scheduled-value'
 import { MS_PER_DAY } from '../utils/date'
 import { resolveFuzzy } from '../utils/effective-date'
 import { normalizeTag } from '../utils/tags'
@@ -435,12 +435,12 @@ export function parseInput(text: string): ParsedInput {
       if (parsed) dueDate = parsed
     }
     if (token.type === 'fuzzy-schedule' && scheduledDate === undefined) {
-      scheduledDate = { kind: 'fuzzy', token: token.value as FuzzyToken }
+      scheduledDate = makeFuzzy(token.value as FuzzyToken, now)
     }
     if (token.type === 'date' && scheduledDate === undefined) {
       const lower = token.value.toLowerCase()
       if (FUZZY_SINGLE[lower]) {
-        scheduledDate = { kind: 'fuzzy', token: FUZZY_SINGLE[lower] }
+        scheduledDate = makeFuzzy(FUZZY_SINGLE[lower], now)
       } else {
         const parsed = parseRelativeDate(token.value)
         if (parsed) scheduledDate = { kind: 'date', value: parsed }

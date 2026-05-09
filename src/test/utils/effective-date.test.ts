@@ -152,7 +152,7 @@ describe('resolveScheduled', () => {
   })
 
   it('resolves a fuzzy token via resolveFuzzy', () => {
-    const result = resolveScheduled({ kind: 'fuzzy', token: 'tomorrow' }, today, 1)
+    const result = resolveScheduled({ kind: 'fuzzy', token: 'tomorrow', setAt: today }, today, 1)
     expect(result).not.toBeNull()
     expect(result!.getDate()).toBe(17)
   })
@@ -186,7 +186,7 @@ describe('effectiveDate', () => {
 
   it('returns resolved fuzzy when only fuzzy scheduled is set', () => {
     const result = effectiveDate({
-      scheduledDate: { kind: 'fuzzy', token: 'this-week' },
+      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: today },
     }, today, 1)
     expect(result!.getDate()).toBe(19)
   })
@@ -202,11 +202,11 @@ describe('effectiveDate', () => {
 })
 
 describe('isScheduledExpired', () => {
-  // Fuzzy tokens re-resolve against the current `today` each evaluation, so
-  // windows containing or following today never precede it. With no stored
-  // "set-at" date on ScheduledValue (by design in Phase 1), the function is
-  // effectively a placeholder that only fires for contrived edge cases where
-  // resolveFuzzy returns a date < today (e.g., none of the current tokens).
+  // P0 keeps `isScheduledExpired` anchored on `today` for fuzzy tokens, so
+  // these cases still assert the pre-aging "fuzzy never expires" semantic.
+  // P1 flips the resolver to `setAt`-anchored and P2 rewrites these cases
+  // accordingly. Each fixture stamps `setAt` matching its evaluation `today`
+  // so the P1 rewrite has a clear "set today, evaluate today" baseline.
   const today = d('2026-04-20')
 
   it('returns false for precise scheduled in the past', () => {
@@ -219,7 +219,7 @@ describe('isScheduledExpired', () => {
   it('returns false for fuzzy this-week (always resolves to upcoming Sunday)', () => {
     const mondayAfter = d('2026-04-27')
     const result = isScheduledExpired(
-      { scheduledDate: { kind: 'fuzzy', token: 'this-week' } },
+      { scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: mondayAfter } },
       mondayAfter,
       1,
     )
@@ -227,18 +227,20 @@ describe('isScheduledExpired', () => {
   })
 
   it('returns false for fuzzy today evaluated on a later day (re-resolves forward)', () => {
+    const evalDay = d('2026-04-17')
     const result = isScheduledExpired(
-      { scheduledDate: { kind: 'fuzzy', token: 'today' } },
-      d('2026-04-17'),
+      { scheduledDate: { kind: 'fuzzy', token: 'today', setAt: evalDay } },
+      evalDay,
       1,
     )
     expect(result).toBe(false)
   })
 
   it('returns false for fuzzy tomorrow evaluated on the same day', () => {
+    const evalDay = d('2026-04-16')
     const result = isScheduledExpired(
-      { scheduledDate: { kind: 'fuzzy', token: 'tomorrow' } },
-      d('2026-04-16'),
+      { scheduledDate: { kind: 'fuzzy', token: 'tomorrow', setAt: evalDay } },
+      evalDay,
       1,
     )
     expect(result).toBe(false)
@@ -265,7 +267,7 @@ describe('isScheduledPast', () => {
   })
 
   it('returns false for fuzzy this-week (end-of-window always today or later)', () => {
-    expect(isScheduledPast({ scheduledDate: { kind: 'fuzzy', token: 'this-week' } }, today, 1)).toBe(false)
+    expect(isScheduledPast({ scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: today } }, today, 1)).toBe(false)
   })
 
   it('returns false when no scheduled', () => {
@@ -297,15 +299,15 @@ describe('scheduledLabel', () => {
   const today = d('2026-04-16')
 
   it('labels fuzzy today', () => {
-    expect(scheduledLabel({ kind: 'fuzzy', token: 'today' }, today)).toBe('Today')
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'today', setAt: today }, today)).toBe('Today')
   })
 
   it('labels fuzzy this-week', () => {
-    expect(scheduledLabel({ kind: 'fuzzy', token: 'this-week' }, today)).toBe('This week')
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'this-week', setAt: today }, today)).toBe('This week')
   })
 
   it('labels fuzzy next-month', () => {
-    expect(scheduledLabel({ kind: 'fuzzy', token: 'next-month' }, today)).toBe('Next month')
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'next-month', setAt: today }, today)).toBe('Next month')
   })
 
   it('labels precise today as Today', () => {
