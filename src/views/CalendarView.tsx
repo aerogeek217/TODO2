@@ -379,7 +379,7 @@ export function CalendarView() {
                             {hasSched && (
                               <span
                                 className={styles.scheduledMarker}
-                                title={`Scheduled: ${scheduledLabel(todo.scheduledDate!, today)}`}
+                                title={`Scheduled: ${scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}`}
                                 aria-label="Scheduled"
                               >
                                 <StatusIcon icon="calendar" />

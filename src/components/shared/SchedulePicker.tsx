@@ -30,7 +30,7 @@ export function SchedulePicker({ value, onChange, today }: SchedulePickerProps) 
 
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const todayDate = today ?? new Date()
-  const label = value ? scheduledLabel(value, todayDate) : 'Schedule'
+  const label = value ? scheduledLabel(value, todayDate, weekStartsOn) : 'Schedule'
   const expired = !!(value && isScheduledExpired({ scheduledDate: value }, todayDate, weekStartsOn))
 
   const triggerCls = [

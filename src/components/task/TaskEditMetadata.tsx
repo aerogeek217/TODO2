@@ -6,6 +6,7 @@ import { DeadlinePicker } from '../shared/DeadlinePicker'
 import { scheduledLabel } from '../../utils/effective-date'
 import { formatDate, startOfToday } from '../../utils/date'
 import { useOrgStore } from '../../stores/org-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './TaskEditPopup.module.css'
 
@@ -71,6 +72,7 @@ export function TaskEditMetadata({
 }: TaskEditMetadataProps) {
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const orgs = useOrgStore((s) => s.orgs)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   return (
     <div className={styles.metaSection}>
       {/* Scheduled */}
@@ -103,7 +105,7 @@ export function TaskEditMetadata({
       {/* Combined helper line — shown only when both are set */}
       {scheduledDate && deadline && (
         <div className={styles.scheduleHint}>
-          Deadline {formatDate(deadline)} — scheduled {scheduledLabel(scheduledDate, startOfToday()).toLowerCase()}
+          Deadline {formatDate(deadline)} — scheduled {scheduledLabel(scheduledDate, startOfToday(), weekStartsOn).toLowerCase()}
         </div>
       )}
 

@@ -1317,7 +1317,7 @@ export function ListView() {
                     label: listGroupBy === 'none' ? undefined : s.label,
                     todos: s.todos,
                   }))
-                  void copyTasksRich(copySections, { assignedPeopleMap, statusMap })
+                  void copyTasksRich(copySections, { assignedPeopleMap, statusMap, weekStartsOn })
                 }}
                 title="Copy tasks"
               >

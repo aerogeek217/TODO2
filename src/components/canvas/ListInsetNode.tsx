@@ -6,6 +6,7 @@ import { useListInsetStore } from '../../stores/list-inset-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { ListDefinitionBody } from './ListDefinitionBody'
 import { DraggableTaskRow } from './shared/DraggableTaskRow'
 import { WidgetHeader } from '../shared/WidgetHeader'
@@ -47,6 +48,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
   const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
 
   useEffect(() => () => { resizeCleanupRef.current?.() }, [])
 
@@ -99,7 +101,7 @@ function ListInsetNodeInner({ data }: NodeProps & { data: ListInsetNodeType }) {
               onClick={() => {
                 void copyTasksRich(
                   [{ todos: listTodos }],
-                  { assignedPeopleMap, statusMap },
+                  { assignedPeopleMap, statusMap, weekStartsOn },
                 )
               }}
               aria-label="Copy tasks"

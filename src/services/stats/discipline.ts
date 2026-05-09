@@ -1,6 +1,6 @@
 import type { TodoEvent, PersistedTodoItem } from '../../models'
 import type { WeekStart } from '../../utils/effective-date'
-import { resolveFuzzy } from '../../utils/effective-date'
+import { resolveFuzzyOrigin } from '../../utils/effective-date'
 import { MS_PER_DAY } from '../../utils/date'
 import { weeklyBuckets } from './buckets'
 import { isFutureShift, resolveEventDateValue } from './event-dates'
@@ -48,12 +48,14 @@ const DEFAULT_WEEKS = 12
  *
  * Fuzzy date values (`'fuzzy:<token>'` on `fromValue` / `toValue`, or
  * `{kind: 'fuzzy', …}` on a todo's `scheduledDate`) are resolved to a concrete
- * Date by `resolveEventDateValue` / `resolveFuzzy`. Event-side fuzzy values
- * use the event's `timestamp` as the as-of anchor (so a `fuzzy:today` recorded
- * Tuesday resolves to Tuesday, not whatever today is when the metric runs).
- * Todo-side fuzzy `scheduledDate` uses `now` (the user's current schedule).
- * Unknown fuzzy tokens still return `null` and are skipped, but every shipped
- * `FuzzyToken` resolves cleanly.
+ * Date by `resolveEventDateValue` / `resolveFuzzy` / `resolveFuzzyOrigin`.
+ * Event-side fuzzy values use the event's `timestamp` as the as-of anchor (so
+ * a `fuzzy:today` recorded Tuesday resolves to Tuesday, not whatever today is
+ * when the metric runs). Todo-side fuzzy `scheduledDate` anchors on the
+ * value's `setAt` stamp (the moment the user picked the token), so the defer
+ * denominator attributes a "this week" picked three weeks ago to the
+ * historical week, not the current one. Unknown fuzzy tokens still return
+ * `null` and are skipped, but every shipped `FuzzyToken` resolves cleanly.
  */
 export function selectDisciplineMetrics(input: DisciplineMetricsInput): ScoreMetric[] {
   const { events, now, weekStartsOn } = input
@@ -94,7 +96,7 @@ export function selectDisciplineMetrics(input: DisciplineMetricsInput): ScoreMet
       if (sched) {
         let schedDate: Date | null = null
         if (sched.kind === 'date' && sched.value instanceof Date) schedDate = sched.value
-        else if (sched.kind === 'fuzzy') schedDate = resolveFuzzy(sched.token, now, weekStartsOn)
+        else if (sched.kind === 'fuzzy') schedDate = resolveFuzzyOrigin(sched.token, new Date(sched.setAt), weekStartsOn)
         if (schedDate && inBucket(schedDate.getTime())) plannedInBucket.add(t.id)
       }
       if (t.dueDate instanceof Date && inBucket(t.dueDate.getTime())) {

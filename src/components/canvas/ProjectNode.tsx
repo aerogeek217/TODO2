@@ -254,7 +254,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
             e.stopPropagation()
             void copyTasksRich(
               [{ todos }],
-              { assignedPeopleMap, statusMap },
+              { assignedPeopleMap, statusMap, weekStartsOn },
             )
           }}
           title="Copy tasks"

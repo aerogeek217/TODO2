@@ -9,7 +9,7 @@
  * with no label; a grouped view passes one section per heading.
  */
 import type { PersistedTodoItem, Person, Status } from '../models'
-import { scheduledLabel } from '../utils/effective-date'
+import { scheduledLabel, type WeekStart } from '../utils/effective-date'
 import { startOfToday } from '../utils/date'
 
 export interface CopyTaskSection {
@@ -21,6 +21,8 @@ export interface CopyTaskContext {
   assignedPeopleMap: Map<number, Person[]>
   statusMap: Map<number, Status>
   today?: Date
+  /** Week-start preference for aged fuzzy `scheduledLabel` rendering. Defaults to Sunday-first when omitted. */
+  weekStartsOn?: WeekStart
 }
 
 function escapeHtml(s: string): string {
@@ -49,7 +51,7 @@ function todoDetails(
   const check = todo.isCompleted ? '[x]' : '[ ]'
   const status = todo.statusId ? ctx.statusMap.get(todo.statusId) : undefined
   const statusStr = status ? ` [${status.name}]` : ''
-  const sched = todo.scheduledDate ? ` (sched: ${scheduledLabel(todo.scheduledDate, today)})` : ''
+  const sched = todo.scheduledDate ? ` (sched: ${scheduledLabel(todo.scheduledDate, today, ctx.weekStartsOn ?? 0)})` : ''
   const deadline = todo.dueDate ? ` (deadline ${new Date(todo.dueDate).toLocaleDateString()})` : ''
   const people = ctx.assignedPeopleMap.get(todo.id) ?? []
   const peopleStr = people.length > 0 ? ` @${people.map((p) => p.name).join(', @')}` : ''

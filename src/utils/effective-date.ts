@@ -1,4 +1,4 @@
-import { startOfDay, startOfToday, MS_PER_DAY } from './date'
+import { startOfDay, startOfToday, MS_PER_DAY, formatDateShort } from './date'
 import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
 import type { TodoItem } from '../models/todo-item'
 import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
@@ -10,7 +10,10 @@ import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 export type WeekStart = 0 | 1
 
 /**
- * Resolve a fuzzy token to a concrete Date: the end-of-window (inclusive last day).
+ * Resolve a fuzzy token to a concrete Date: the end-of-window (inclusive last day),
+ * anchored on `today`. Used by the *event*-side resolution path in `discipline.ts`,
+ * where each event carries its own as-of (`event.timestamp`). Todo-side fuzzy
+ * resolution should anchor on the value's `setAt` — see `resolveFuzzyOrigin`.
  */
 export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn: WeekStart): Date {
   const base = startOfDay(today)
@@ -36,6 +39,18 @@ export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn: WeekS
     case 'next-month':
       return new Date(base.getFullYear(), base.getMonth() + 2, 0)
   }
+}
+
+/**
+ * Resolve a fuzzy token to its *originally-intended* end-of-window — same
+ * window-math as `resolveFuzzy`, but anchored on the value's `setAt` (when the
+ * user picked the token) instead of `today`. This is the right anchor for
+ * todo-side fuzzy `scheduledDate`: a "this week" picked three weeks ago should
+ * resolve to that week's window-end, not the current one. Used by
+ * `resolveScheduled` and the aged-vocabulary `scheduledLabel`.
+ */
+export function resolveFuzzyOrigin(token: FuzzyToken, setAt: Date, weekStartsOn: WeekStart): Date {
+  return resolveFuzzy(token, setAt, weekStartsOn)
 }
 
 /**
@@ -112,15 +127,23 @@ export function resolveDateAnchor(
   return resolveRelativeToken(anchor.token, today, weekStartsOn)
 }
 
-/** Resolve scheduledDate to a concrete Date, or null if unset. */
+/**
+ * Resolve scheduledDate to a concrete Date, or null if unset.
+ *
+ * Fuzzy values resolve against their `setAt` stamp (origin-anchored), so a
+ * "this week" picked three weeks ago resolves to that week's window-end. The
+ * `today` argument stays in the signature for API symmetry — only the precise
+ * `kind: 'date'` branch ignores it, the fuzzy branch dispatches to
+ * `resolveFuzzyOrigin(s.token, s.setAt, weekStartsOn)`.
+ */
 export function resolveScheduled(
   s: ScheduledValue | undefined,
-  today: Date,
+  _today: Date,
   weekStartsOn: WeekStart,
 ): Date | null {
   if (!s) return null
   if (s.kind === 'date') return startOfDay(new Date(s.value))
-  return resolveFuzzy(s.token, today, weekStartsOn)
+  return resolveFuzzyOrigin(s.token, new Date(s.setAt), weekStartsOn)
 }
 
 /**
@@ -139,8 +162,10 @@ export function effectiveDate(
 }
 
 /**
- * True when `scheduledDate` is fuzzy and its end-of-window is before today.
- * Precise-scheduled tasks are NOT "expired"; this is only for fuzzy values.
+ * True when `scheduledDate` is fuzzy and its origin-resolved end-of-window is
+ * before today. Precise-scheduled tasks are NOT "expired"; this is only for
+ * fuzzy values. Anchored on `setAt`, so a "this week" picked three weeks ago
+ * fires `true` once the week passes.
  */
 export function isScheduledExpired(
   t: Pick<TodoItem, 'scheduledDate'>,
@@ -148,14 +173,14 @@ export function isScheduledExpired(
   weekStartsOn: WeekStart,
 ): boolean {
   if (!t.scheduledDate || t.scheduledDate.kind !== 'fuzzy') return false
-  const resolved = resolveFuzzy(t.scheduledDate.token, today, weekStartsOn)
+  const resolved = resolveFuzzyOrigin(t.scheduledDate.token, new Date(t.scheduledDate.setAt), weekStartsOn)
   return resolved < startOfDay(today)
 }
 
 /**
  * True when the scheduled date's resolved day is before today — covers both
- * fuzzy-expired (end-of-window passed) and precise past dates. Used for
- * "past" chip styling; `isScheduledExpired` remains fuzzy-only.
+ * fuzzy-expired (origin-anchored end-of-window passed) and precise past dates.
+ * Used for "past" chip styling; `isScheduledExpired` remains fuzzy-only.
  */
 export function isScheduledPast(
   t: Pick<TodoItem, 'scheduledDate'>,
@@ -176,25 +201,66 @@ export function isDeadlinePast(
   return startOfDay(new Date(t.dueDate)) < startOfDay(today)
 }
 
-/** Human-readable label for a scheduled chip. */
-export function scheduledLabel(s: ScheduledValue, today: Date): string {
-  if (s.kind === 'fuzzy') {
-    switch (s.token) {
-      case 'today': return 'Today'
-      case 'tomorrow': return 'Tomorrow'
-      case 'this-week': return 'This week'
-      case 'next-week': return 'Next week'
-      case 'this-month': return 'This month'
-      case 'next-month': return 'Next month'
+/**
+ * Human-readable label for a scheduled chip.
+ *
+ * Fuzzy values render aged labels: a "this week" picked three weeks ago shows
+ * its formatted intended date, not "This week". The vocabulary collapses to
+ * "Today / Yesterday / Tomorrow / This week / Last week / Next week / This
+ * month / Last month / Next month" when the intended window aligns with
+ * today's frame, and falls through to `formatDateShort(intended)` otherwise.
+ * `weekStartsOn` is required so week-boundary comparisons honor the user's
+ * setting.
+ */
+export function scheduledLabel(s: ScheduledValue, today: Date, weekStartsOn: WeekStart): string {
+  if (s.kind === 'date') {
+    const d = startOfDay(new Date(s.value))
+    const base = startOfDay(today)
+    const diff = Math.round((d.getTime() - base.getTime()) / MS_PER_DAY)
+    if (diff === 0) return 'Today'
+    if (diff === 1) return 'Tomorrow'
+    if (diff === -1) return 'Yesterday'
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  // Fuzzy: compare the *originally-intended* window to today's frame.
+  const setAt = new Date(s.setAt)
+  const intended = resolveFuzzyOrigin(s.token, setAt, weekStartsOn)
+  const base = startOfDay(today)
+  const dayDiff = Math.round((intended.getTime() - base.getTime()) / MS_PER_DAY)
+
+  switch (s.token) {
+    case 'today': {
+      if (dayDiff === 0) return 'Today'
+      if (dayDiff === -1) return 'Yesterday'
+      return formatDateShort(intended)
+    }
+    case 'tomorrow': {
+      if (dayDiff === 0) return 'Today'
+      if (dayDiff === -1) return 'Yesterday'
+      if (dayDiff === 1) return 'Tomorrow'
+      return formatDateShort(intended)
+    }
+    case 'this-week':
+    case 'next-week': {
+      const todaysEow = resolveFuzzy('this-week', today, weekStartsOn)
+      const weekDiff = Math.round((intended.getTime() - todaysEow.getTime()) / (MS_PER_DAY * 7))
+      if (weekDiff === 0) return 'This week'
+      if (weekDiff === 1) return 'Next week'
+      if (weekDiff === -1) return 'Last week'
+      return formatDateShort(intended)
+    }
+    case 'this-month':
+    case 'next-month': {
+      const intendedIdx = intended.getFullYear() * 12 + intended.getMonth()
+      const todayIdx = today.getFullYear() * 12 + today.getMonth()
+      const monthDiff = intendedIdx - todayIdx
+      if (monthDiff === 0) return 'This month'
+      if (monthDiff === 1) return 'Next month'
+      if (monthDiff === -1) return 'Last month'
+      return formatDateShort(intended)
     }
   }
-  const d = startOfDay(new Date(s.value))
-  const base = startOfDay(today)
-  const diff = Math.round((d.getTime() - base.getTime()) / MS_PER_DAY)
-  if (diff === 0) return 'Today'
-  if (diff === 1) return 'Tomorrow'
-  if (diff === -1) return 'Yesterday'
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 /**

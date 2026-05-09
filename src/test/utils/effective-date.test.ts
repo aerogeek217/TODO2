@@ -299,21 +299,22 @@ describe('scheduledLabel', () => {
   const today = d('2026-04-16')
 
   it('labels fuzzy today', () => {
-    expect(scheduledLabel({ kind: 'fuzzy', token: 'today', setAt: today }, today)).toBe('Today')
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'today', setAt: today }, today, 0)).toBe('Today')
   })
 
   it('labels fuzzy this-week', () => {
-    expect(scheduledLabel({ kind: 'fuzzy', token: 'this-week', setAt: today }, today)).toBe('This week')
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'this-week', setAt: today }, today, 0)).toBe('This week')
   })
 
   it('labels fuzzy next-month', () => {
-    expect(scheduledLabel({ kind: 'fuzzy', token: 'next-month', setAt: today }, today)).toBe('Next month')
+    expect(scheduledLabel({ kind: 'fuzzy', token: 'next-month', setAt: today }, today, 0)).toBe('Next month')
   })
 
   it('labels precise today as Today', () => {
     const result = scheduledLabel(
       { kind: 'date', value: new Date(2026, 3, 16) },
       today,
+      0,
     )
     expect(result).toBe('Today')
   })
@@ -322,6 +323,7 @@ describe('scheduledLabel', () => {
     const result = scheduledLabel(
       { kind: 'date', value: new Date(2026, 3, 17) },
       today,
+      0,
     )
     expect(result).toBe('Tomorrow')
   })
@@ -330,6 +332,7 @@ describe('scheduledLabel', () => {
     const result = scheduledLabel(
       { kind: 'date', value: new Date(2026, 3, 15) },
       today,
+      0,
     )
     expect(result).toBe('Yesterday')
   })
@@ -338,6 +341,7 @@ describe('scheduledLabel', () => {
     const result = scheduledLabel(
       { kind: 'date', value: new Date(2026, 3, 21) },
       today,
+      0,
     )
     expect(result).toBe('Apr 21')
   })

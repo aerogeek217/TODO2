@@ -183,7 +183,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         aria-label="Edit scheduled"
       >
         <StatusIcon icon="calendar" />
-        {scheduledLabel(todo.scheduledDate!, today)}
+        {scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}
       </button>
     ) : (
       <span
@@ -192,7 +192,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
       >
         <StatusIcon icon="calendar" />
-        {scheduledLabel(todo.scheduledDate!, today)}
+        {scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}
       </span>
     )
   )
