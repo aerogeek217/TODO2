@@ -2,6 +2,26 @@ import { db } from './database'
 import type { TodoItem, PersistedTodoItem, TodoEvent } from '../models'
 import { startOfToday } from '../utils/date'
 import { encodeScheduledValue, encodeDateValue } from './todo-event-repository'
+import { hasPreciseRecurrenceAnchor } from './recurrence-anchor'
+
+/**
+ * Repository-level invariant: a `recurrenceRule` is only meaningful when the
+ * row has a precise anchor (`recurrenceAnchor` would return non-null). When a
+ * write produces a merged row with a rule but no anchor — e.g. a bulk
+ * `bulkSetScheduled` flips a recurring task to a fuzzy schedule, or a bulk
+ * `bulkSetDeadline(null)` clears the only anchor — splice
+ * `recurrenceRule: undefined` into the patch so the rule is dropped on disk.
+ * Mirrors TaskEditPopup's silent-clear UX so every write path converges on
+ * the same shape regardless of caller.
+ */
+function dropOrphanedRule<T extends Partial<TodoItem>>(
+  merged: Pick<TodoItem, 'dueDate' | 'scheduledDate' | 'recurrenceRule'>,
+  changes: T,
+): T {
+  if (!merged.recurrenceRule) return changes
+  if (hasPreciseRecurrenceAnchor(merged)) return changes
+  return { ...changes, recurrenceRule: undefined }
+}
 
 /**
  * Diff a todo write against its prior state and produce one event per
@@ -114,7 +134,8 @@ export const todoRepository = {
     const now = new Date()
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const prior = await db.todos.get(todo.id) as PersistedTodoItem | undefined
-      const next = { ...todo, modifiedAt: now }
+      const cleaned = dropOrphanedRule(todo, todo)
+      const next = { ...cleaned, modifiedAt: now }
       const events = buildFieldChangeEvents(todo.id, prior, next, now.toISOString())
       await db.todos.put(next)
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
@@ -190,8 +211,10 @@ export const todoRepository = {
       const events: Omit<TodoEvent, 'id'>[] = []
       for (const { todoId, changes } of mutations) {
         const prior = await db.todos.get(todoId) as PersistedTodoItem | undefined
-        await db.todos.update(todoId, { ...changes, modifiedAt: now })
-        events.push(...buildFieldChangeEvents(todoId, prior, changes, ts))
+        const merged = { ...prior, ...changes } as PersistedTodoItem
+        const cleaned = dropOrphanedRule(merged, changes)
+        await db.todos.update(todoId, { ...cleaned, modifiedAt: now })
+        events.push(...buildFieldChangeEvents(todoId, prior, cleaned, ts))
       }
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
     })
