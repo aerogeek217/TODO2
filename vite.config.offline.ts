@@ -1,6 +1,15 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+
+if (existsSync(resolve(__dirname, 'public/node_modules'))) {
+  throw new Error(
+    'public/node_modules/ exists — Vite would copy 230MB of node_modules into\n' +
+    'dist/. Delete public/node_modules/ and retry. (See vite.config.ts.)'
+  )
+}
 
 // Fix the built HTML for file:// compatibility:
 // 1. Remove type="module" (blocked on file://)
