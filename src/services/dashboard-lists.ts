@@ -1,11 +1,11 @@
 import type {
   PersistedTodoItem,
   TodoPredicate,
-  Tag,
   Person,
   Org,
   Project,
   Status,
+  Tag,
 } from '../models'
 import type {
   ListMembership,
@@ -33,41 +33,27 @@ export interface DashboardListsContext {
   /** Settings-driven week boundary used by every relative-date bucketer. */
   weekStartsOn: WeekStart
   /**
-   * Evaluator for `{kind:'custom', predicate}` membership. The caller closes
-   * over assignment maps + statuses so the interpreter can stay UI-agnostic.
-   * The definition's own predicate (via this evaluator) is authoritative for
-   * `showCompleted` / `showHiddenStatuses` — there is no ctx-level override.
-   * Omitted when no custom definitions are in play — in that case an accidental
-   * `{kind:'custom'}` definition is treated as matching no todos (with a
-   * console warning once per build).
+   * Evaluator for `{kind:'custom', predicate}` membership; closes over
+   * assignment maps + statuses. Omitted → custom def matches no todos
+   * with a once-per-build warning.
    */
   evalPredicate?: (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
-  /**
-   * Required for `{kind:'by-tag'}` grouping. Parallels `assignedPeopleMap` /
-   * `assignedOrgsMap`: caller threads the registry + assignments through so
-   * the interpreter can bucket by tag id without reading the (transient)
-   * inline `todo.tags` string bag. When omitted, by-tag grouping yields an
-   * empty group list (untagged bucket still emits).
-   */
+  /** Required for `{kind:'by-tag'}` grouping; caller threads in registry + assignments. */
   assignedTagsMap?: Map<number, Tag[]>
-  /** For `by-field` people/org bucketing. Missing → all todos go to "Unassigned" / "No organization". */
+  /** For `by-field` people/org bucketing. Missing → "Unassigned" / "No organization". */
   assignedPeopleMap?: Map<number, Person[]>
   assignedOrgsMap?: Map<number, Org[]>
   /** Person→org membership bridge for `by-field: 'org'`. */
   personOrgMap?: Map<number, number[]>
-  /** Registries used to enumerate + label categorical buckets. Missing → only empty/unassigned buckets render. */
+  /** Registries used to enumerate + label categorical buckets. */
   people?: Person[]
   orgs?: Org[]
   projects?: Project[]
   statuses?: Status[]
   /**
-   * Per-definition runtime-filter picks keyed by def id. When a def declares a
-   * `runtimeFilter`, the interpreter reads the caller's current pick here and
-   * merges it into the predicate as a multi-value OR before membership is
-   * evaluated. A missing key means the user has not picked yet — the list
-   * returns with `todos: []` and `runtimeFilterUnset: true` so the surface can
-   * render a "Pick a {label} to populate…" placeholder instead of an empty
-   * state. An empty array is treated as a no-op (helper passes the predicate
+   * Per-definition runtime-filter picks keyed by def id. Missing key → list
+   * returns `todos: []` + `runtimeFilterUnset: true` (surface renders a
+   * "Pick a {label}…" placeholder). Empty array → no-op (predicate passes
    * through unchanged) — matches "user cleared all chips" UX.
    */
   runtimeFilterValues?: ReadonlyMap<number, number[]>
@@ -90,74 +76,28 @@ export interface DashboardList {
 }
 
 /**
- * Per-call grouping restrict args. Mirrors ListView's
- * `restrictToPersonIds` / `restrictToOrgIds` / `restrictToTagIds` +
- * `implicitPersonIdsFor` / `implicitOrgIdsFor` shape so a future consolidation
- * can fold both bucketer families together. When unset (or the relevant axis
- * field is empty/null) the corresponding bucketer behaves exactly as it did
- * pre-cleanup — every existing call site that doesn't pass restrict args is
- * unaffected.
- *
- * The visible-groups intersection rule (P7 fix in ListView, postmortem
- * follow-up): tasks that survive membership filtering may still emit groups
- * for axes the caller didn't pick (e.g. a multi-assignee task surfacing
- * non-picked assignees as group rows). The restrict args narrow grouping to
- * the picked axis ids and tier-order direct→implicit so the picker output
- * matches the user's selection exactly.
+ * Per-call grouping restrict args. Visible-groups intersection rule (P7):
+ * narrow grouping to picked ids and tier-order direct→implicit so a multi-
+ * assignee task surviving membership filter doesn't emit non-picked sections.
  */
 export interface DashboardListGroupingRestrict {
-  /**
-   * When non-empty, `bucketByPeople` narrows to these ids only and
-   * tier-orders direct→implicit (within each tier, caller order is
-   * preserved). Tasks whose intersection with the restrict set is empty are
-   * skipped — NOT routed to "Unassigned" (the membership filter already let
-   * the task through, so the unassigned bucket is reserved for axis-less
-   * tasks).
-   */
+  /** Non-empty → narrow `bucketByPeople` to these ids in tier-order direct→implicit. */
   restrictToPersonIds?: ReadonlyArray<number> | null
   /** Symmetric to `restrictToPersonIds` for `bucketByOrg`. */
   restrictToOrgIds?: ReadonlyArray<number> | null
-  /**
-   * Symmetric for `bucketByTag` — narrow to caller-ordered tag ids. Tags have
-   * no cross-axis path; the untagged bucket is suppressed in restrict mode
-   * (the filter already excluded those tasks).
-   */
+  /** Symmetric for `bucketByTag` — untagged bucket suppressed in restrict mode. */
   restrictToTagIds?: ReadonlyArray<number> | null
-  /**
-   * Cross-axis lookup for `bucketByPeople`. Only consulted when
-   * `restrictToPersonIds` is non-empty AND the caller wants the implicit-tier
-   * (i.e. predicate's `personFilterMode === 'include-orgs'`). Returns the
-   * person ids of all members of the task's directly-assigned orgs. Pass
-   * `undefined` for `'direct-only'` to suppress the implicit tier entirely.
-   */
+  /** Cross-axis lookup for `bucketByPeople`; consulted only when person predicate is `'include-orgs'`. */
   implicitPersonIdsFor?: (todo: PersistedTodoItem) => readonly number[]
-  /**
-   * Symmetric for `bucketByOrg`. Returns the org ids reachable through the
-   * task's directly-assigned people via `personOrgMap`. Pass `undefined`
-   * under `'direct-only'`.
-   */
+  /** Symmetric for `bucketByOrg` (`'include-people'`). */
   implicitOrgIdsFor?: (todo: PersistedTodoItem) => readonly number[]
 }
 
 /**
- * Return a new predicate that narrows the given field to the supplied ids
- * (OR-combined). Replaces any existing id filter on that field — the runtime
- * pick is authoritative for the prompted field. Other clauses are preserved so
- * the def's baseline predicate (status / date window / etc.) still applies.
- *
- * For `person` / `org` fields the helper additionally hard-codes the matching
- * mode to `'direct-only'` — the runtime filter has no UI for the
- * `personFilterMode` / `orgFilterMode` toggles, so the implicit cross-axis
- * expansion (member-of-org / org-of-person) is suppressed: a task only matches
- * when it is *directly* assigned to one of the picked ids. Equivalent to the
- * user clicking "People only" / "Org only" in the manual filter UI.
- *
- * An empty `values` array is a no-op: the predicate is returned unchanged so
- * "user cleared all chips" doesn't short-circuit the list to "match nothing"
- * (that would be the semantics of writing an empty id array into the
- * predicate). Callers that want "show no rows when the filter is unset" must
- * gate on the absence of a pick (see `buildDashboardLists` →
- * `runtimeFilterUnset`).
+ * Narrow `field` to `values` (OR-combined). Empty `values` is a no-op so
+ * "user cleared all chips" doesn't short-circuit to "match nothing". For
+ * `person`/`org` hard-codes `*FilterMode = 'direct-only'` (the runtime picker
+ * has no UI for the toggle).
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
@@ -175,15 +115,9 @@ export function applyRuntimeFilter(
 }
 
 /**
- * Harvest restrict args for `interpretGrouping` from the def's effective
- * predicate (post-`applyRuntimeFilter`). The runtime-filter pick is already
- * baked into the predicate at this point, so a person/org/tag pick narrows
- * the visible group set automatically — no separate runtime path needed.
- *
- * Implicit-tier callbacks are gated on `personFilterMode === 'include-orgs'`
- * / `orgFilterMode === 'include-people'` so the runtime pick's hard-coded
- * `'direct-only'` mode (see `applyRuntimeFilter`) suppresses cross-axis
- * group emits — matching ListView's restrict semantics post-P5/P7.
+ * Harvest restrict args from def's effective predicate. Implicit-tier
+ * callbacks gated on `personFilterMode === 'include-orgs'` /
+ * `orgFilterMode === 'include-people'`.
  */
 function computeGroupingRestrict(
   def: PersistedListDefinition,
@@ -196,31 +130,20 @@ function computeGroupingRestrict(
   const restrictToTagIds = predicate.tags ?? null
   if (!restrictToPersonIds && !restrictToOrgIds && !restrictToTagIds) return undefined
 
-  const assignedOrgsMap = ctx.assignedOrgsMap
-  const assignedPeopleMap = ctx.assignedPeopleMap
-  const personOrgMap = ctx.personOrgMap
+  const { assignedOrgsMap, assignedPeopleMap, personOrgMap } = ctx
 
   const implicitPersonIdsFor =
     predicate.personFilterMode === 'include-orgs' && assignedOrgsMap && personOrgMap
       ? (todo: PersistedTodoItem): readonly number[] => {
-          const taskOrgs = assignedOrgsMap.get(todo.id) ?? []
-          if (taskOrgs.length === 0) return []
           const orgIdSet = new Set<number>()
-          for (const o of taskOrgs) {
+          for (const o of assignedOrgsMap.get(todo.id) ?? []) {
             if (o.id != null) orgIdSet.add(o.id)
           }
+          if (orgIdSet.size === 0) return []
+          // personOrgMap is iterated once per pid, so no dedupe needed.
           const memberIds: number[] = []
-          const seen = new Set<number>()
           for (const [pid, orgIds] of personOrgMap) {
-            for (const oid of orgIds) {
-              if (orgIdSet.has(oid)) {
-                if (!seen.has(pid)) {
-                  seen.add(pid)
-                  memberIds.push(pid)
-                }
-                break
-              }
-            }
+            if (orgIds.some((oid) => orgIdSet.has(oid))) memberIds.push(pid)
           }
           return memberIds
         }
@@ -229,18 +152,12 @@ function computeGroupingRestrict(
   const implicitOrgIdsFor =
     predicate.orgFilterMode === 'include-people' && assignedPeopleMap && personOrgMap
       ? (todo: PersistedTodoItem): readonly number[] => {
-          const taskPeople = assignedPeopleMap.get(todo.id) ?? []
-          if (taskPeople.length === 0) return []
           const orgIds: number[] = []
           const seen = new Set<number>()
-          for (const p of taskPeople) {
+          for (const p of assignedPeopleMap.get(todo.id) ?? []) {
             if (p.id == null) continue
-            const pOrgs = personOrgMap.get(p.id) ?? []
-            for (const oid of pOrgs) {
-              if (!seen.has(oid)) {
-                seen.add(oid)
-                orgIds.push(oid)
-              }
+            for (const oid of personOrgMap.get(p.id) ?? []) {
+              if (!seen.has(oid)) { seen.add(oid); orgIds.push(oid) }
             }
           }
           return orgIds
@@ -289,7 +206,7 @@ export function buildDashboardLists(
       : computeGroupingRestrict(effectiveDef, ctx)
     const groups = runtimeFilterUnset
       ? undefined
-      : interpretGrouping(effectiveDef.grouping, effectiveDef.sort, sorted, ctx, groupingRestrict)
+      : interpretGrouping(effectiveDef.grouping, sorted, ctx, groupingRestrict)
     result.push({
       id: def.id,
       key: `def-${def.id}`,
@@ -302,83 +219,46 @@ export function buildDashboardLists(
   return result
 }
 
-export function interpretMembership(
-  m: ListMembership,
-  t: PersistedTodoItem,
-  ctx: DashboardListsContext,
-): boolean {
+let warnedMissingEvaluator = false
+export function interpretMembership(m: ListMembership, t: PersistedTodoItem, ctx: DashboardListsContext): boolean {
   if (!ctx.evalPredicate) {
-    warnOnceMissingEvaluator()
+    if (!warnedMissingEvaluator) {
+      warnedMissingEvaluator = true
+      console.warn('dashboard-lists: custom-membership list found but ctx.evalPredicate was not supplied; matching zero todos.')
+    }
     return false
   }
   return ctx.evalPredicate(m.predicate, t)
 }
 
-let warnedMissingEvaluator = false
-function warnOnceMissingEvaluator() {
-  if (warnedMissingEvaluator) return
-  warnedMissingEvaluator = true
-  console.warn(
-    'dashboard-lists: custom-membership list found but ctx.evalPredicate was not supplied; matching zero todos.',
-  )
-}
-
-export function interpretSort(
-  s: ListSort,
-  a: PersistedTodoItem,
-  b: PersistedTodoItem,
-  ctx: DashboardListsContext,
-): number {
+export function interpretSort(s: ListSort, a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
   switch (s) {
-    case 'date':
-      return compareEffectiveDateAsc(a, b, ctx)
-    case 'scheduled':
-      return compareScheduledAsc(a, b, ctx)
-    case 'deadline':
-      return compareDeadlineAsc(a, b)
-    case 'manual':
-    case 'name':
-    case 'created':
-    case 'people':
-    case 'project':
-    case 'org':
-    case 'status':
+    case 'date':      return compareEffectiveDateAsc(a, b, ctx)
+    case 'scheduled': return compareScheduledAsc(a, b, ctx)
+    case 'deadline':  return compareDeadlineAsc(a, b)
+    case 'manual': case 'name': case 'created': case 'people':
+    case 'project': case 'org': case 'status':
       return compareSortOrder(a, b)
   }
+}
+
+const compareSortOrder = (a: PersistedTodoItem, b: PersistedTodoItem): number =>
+  ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
+
+function compareNullableDates(ad: Date | null, bd: Date | null, a: PersistedTodoItem, b: PersistedTodoItem): number {
+  if (ad === null && bd === null) return compareSortOrder(a, b)
+  if (ad === null) return 1
+  if (bd === null) return -1
+  return (ad.getTime() - bd.getTime()) || compareSortOrder(a, b)
 }
 
 function compareEffectiveDateAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
   const today = startOfDay(ctx.today)
   const ws = ctx.weekStartsOn
-  const aExpired = isScheduledExpired(a, today, ws)
-  const bExpired = isScheduledExpired(b, today, ws)
-  if (aExpired !== bExpired) return aExpired ? -1 : 1
-
-  const ad = effectiveDate(a, today, ws)
-  const bd = effectiveDate(b, today, ws)
-  if (ad === null && bd === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-  if (ad === null) return 1
-  if (bd === null) return -1
-  const cmp = ad.getTime() - bd.getTime()
-  if (cmp !== 0) return cmp
-  return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-}
-
-function compareDeadlineAsc(a: PersistedTodoItem, b: PersistedTodoItem): number {
-  const ad = a.dueDate ? startOfDay(new Date(a.dueDate)).getTime() : null
-  const bd = b.dueDate ? startOfDay(new Date(b.dueDate)).getTime() : null
-  if (ad === null && bd === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-  if (ad === null) return 1
-  if (bd === null) return -1
-  const cmp = ad - bd
-  if (cmp !== 0) return cmp
-  return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-}
-
-function compareSortOrder(a: PersistedTodoItem, b: PersistedTodoItem): number {
-  const cmp = (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-  if (cmp !== 0) return cmp
-  return a.id - b.id
+  const aExp = isScheduledExpired(a, today, ws)
+  const bExp = isScheduledExpired(b, today, ws)
+  if (aExp !== bExp) return aExp ? -1 : 1
+  return compareNullableDates(effectiveDate(a, today, ws), effectiveDate(b, today, ws), a, b)
 }
 
 function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
@@ -386,78 +266,45 @@ function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: Da
   const ws = ctx.weekStartsOn
   const as = a.scheduledDate ? resolveScheduled(a.scheduledDate, today, ws) : null
   const bs = b.scheduledDate ? resolveScheduled(b.scheduledDate, today, ws) : null
-  if (as === null && bs === null) return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-  if (as === null) return 1
-  if (bs === null) return -1
-  const cmp = as.getTime() - bs.getTime()
-  if (cmp !== 0) return cmp
-  return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
+  return compareNullableDates(as, bs, a, b)
+}
+
+function compareDeadlineAsc(a: PersistedTodoItem, b: PersistedTodoItem): number {
+  const ad = a.dueDate ? startOfDay(new Date(a.dueDate)) : null
+  const bd = b.dueDate ? startOfDay(new Date(b.dueDate)) : null
+  return compareNullableDates(ad, bd, a, b)
 }
 
 export function interpretGrouping(
   g: ListGrouping,
-  _sort: ListSort,
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
   restrict?: DashboardListGroupingRestrict,
 ): DashboardListGroup[] | undefined {
   switch (g) {
-    case 'none':
-      return undefined
-    case 'date':
-      return bucketByEffective(todos, ctx)
-    case 'scheduled':
-      return bucketByScheduled(todos, ctx)
-    case 'deadline':
-      return bucketByDeadline(todos, ctx)
-    case 'project':
-      return bucketByProject(todos, ctx)
-    case 'status':
-      return bucketByStatus(todos, ctx)
-    case 'people':
-      return bucketByPeople(todos, ctx, restrict)
-    case 'org':
-      return bucketByOrg(todos, ctx, restrict)
-    case 'tag':
-      return bucketByTag(todos, ctx, restrict)
+    case 'none':      return undefined
+    case 'date':      return bucketByEffective(todos, ctx)
+    case 'scheduled': return bucketByScheduled(todos, ctx)
+    case 'deadline':  return bucketByDeadline(todos, ctx)
+    case 'project':   return bucketByProject(todos, ctx)
+    case 'status':    return bucketByStatus(todos, ctx)
+    case 'people':    return bucketByPeople(todos, ctx, restrict)
+    case 'org':       return bucketByOrg(todos, ctx, restrict)
+    case 'tag':       return bucketByTag(todos, ctx, restrict)
   }
 }
 
-
-const DASHBOARD_BUCKET_KEYS: Record<DateBucketKey, string> = {
-  overdue: 'overdue',
-  today: 'today',
-  tomorrow: 'tomorrow',
-  thisWeek: 'this-week',
-  nextWeek: 'next-week',
-  thisMonth: 'this-month',
-  laterMonth: 'later-month',
-  nextMonth: 'next-month',
-  later: 'later',
-  beyond: 'beyond',
-}
-
-const DASHBOARD_BUCKET_LABELS: Record<DateBucketKey, string> = {
-  overdue: 'Overdue',
-  today: 'Today',
-  tomorrow: 'Tomorrow',
-  thisWeek: 'This week',
-  nextWeek: 'Next week',
-  thisMonth: 'This month',
-  laterMonth: 'Later this month',
-  nextMonth: 'Next month',
-  later: 'Later',
-  beyond: 'Beyond',
-}
-
-function toGroups(
-  buckets: { key: DateBucketKey; todos: PersistedTodoItem[] }[],
-): DashboardListGroup[] {
-  return buckets.map((b) => ({
-    key: DASHBOARD_BUCKET_KEYS[b.key],
-    label: DASHBOARD_BUCKET_LABELS[b.key],
-    todos: b.todos,
-  }))
+const DATE_BUCKET_META: Record<DateBucketKey, { key: string; label: string }> = {
+  overdue:    { key: 'overdue',     label: 'Overdue' },
+  today:      { key: 'today',       label: 'Today' },
+  tomorrow:   { key: 'tomorrow',    label: 'Tomorrow' },
+  thisWeek:   { key: 'this-week',   label: 'This week' },
+  nextWeek:   { key: 'next-week',   label: 'Next week' },
+  thisMonth:  { key: 'this-month',  label: 'This month' },
+  laterMonth: { key: 'later-month', label: 'Later this month' },
+  nextMonth:  { key: 'next-month',  label: 'Next month' },
+  later:      { key: 'later',       label: 'Later' },
+  beyond:     { key: 'beyond',      label: 'Beyond' },
 }
 
 const EFFECTIVE_WINDOWS: readonly DateBucketKey[] = [
@@ -468,330 +315,180 @@ const DEADLINE_WINDOWS: readonly DateBucketKey[] = [
 ]
 const SCHEDULED_WINDOWS = EFFECTIVE_WINDOWS
 
-function bucketByEffective(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
+/**
+ * Shared body for the 3 date bucketers. Resolves the day-anchor + week-start,
+ * runs `bucketByDate`, maps buckets to dashboard groups; caller appends or
+ * folds the no-date tail.
+ */
+function buildDateGroups(
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+  windows: readonly DateBucketKey[],
+  getDate: (t: PersistedTodoItem, today: Date, ws: WeekStart) => Date | null,
+): { groups: DashboardListGroup[]; noDate: PersistedTodoItem[] } {
   const today = startOfDay(ctx.today)
   const ws = ctx.weekStartsOn
-  const { buckets, noDate } = bucketByDate(
-    todos,
-    (t) => effectiveDate(t, today, ws),
-    today,
-    ws,
-    EFFECTIVE_WINDOWS,
-  )
-  const groups = toGroups(buckets)
-  // Effective-date bucketing folds null-date todos into the trailing 'beyond'
-  // bucket — they have neither scheduled nor deadline, so semantically they
-  // are "Someday / no specific date" which the surface renders as Beyond.
+  const { buckets, noDate } = bucketByDate(todos, (t) => getDate(t, today, ws), today, ws, windows)
+  const groups: DashboardListGroup[] = buckets.map((b) => ({ ...DATE_BUCKET_META[b.key], todos: b.todos }))
+  return { groups, noDate }
+}
+
+function bucketByEffective(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
+  const { groups, noDate } = buildDateGroups(todos, ctx, EFFECTIVE_WINDOWS, (t, today, ws) => effectiveDate(t, today, ws))
+  // No-date todos fold into 'beyond' (semantically Someday).
   if (noDate.length > 0) {
-    const beyond = groups.find((g) => g.key === 'beyond')
+    const beyond = groups.find((g) => g.key === DATE_BUCKET_META.beyond.key)
     if (beyond) beyond.todos.push(...noDate)
-    else groups.push({
-      key: DASHBOARD_BUCKET_KEYS.beyond,
-      label: DASHBOARD_BUCKET_LABELS.beyond,
-      todos: noDate,
-    })
+    else groups.push({ ...DATE_BUCKET_META.beyond, todos: noDate })
   }
   return groups
 }
 
 function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
-  const today = startOfDay(ctx.today)
-  const ws = ctx.weekStartsOn
-  const { buckets, noDate } = bucketByDate(
-    todos,
-    (t) => t.dueDate ? startOfDay(new Date(t.dueDate)) : null,
-    today,
-    ws,
-    DEADLINE_WINDOWS,
-  )
-  const groups = toGroups(buckets)
+  const { groups, noDate } = buildDateGroups(todos, ctx, DEADLINE_WINDOWS,
+    (t) => t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
   if (noDate.length > 0) groups.push({ key: 'no-deadline', label: 'No deadline', todos: noDate })
   return groups
 }
 
 function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
-  const today = startOfDay(ctx.today)
-  const ws = ctx.weekStartsOn
-  const { buckets, noDate } = bucketByDate(
-    todos,
-    (t) => t.scheduledDate ? resolveScheduled(t.scheduledDate, today, ws) : null,
-    today,
-    ws,
-    SCHEDULED_WINDOWS,
-  )
-  const groups = toGroups(buckets)
+  const { groups, noDate } = buildDateGroups(todos, ctx, SCHEDULED_WINDOWS,
+    (t, today, ws) => t.scheduledDate ? resolveScheduled(t.scheduledDate, today, ws) : null)
   if (noDate.length > 0) groups.push({ key: 'no-date', label: 'No scheduled date', todos: noDate })
   return groups
 }
 
-/**
- * Project bucketing — each todo lands in exactly one bucket based on
- * `todo.projectId`. Unassigned todos go to a trailing "No project" bucket.
- * Buckets enumerate from `ctx.projects` in registry order; empty buckets are
- * dropped. Mirrors `buildProjectSections` in ListView.
- */
+function dashboardGroupingContext(ctx: DashboardListsContext): GroupingContext {
+  return {
+    assignedPeopleMap: ctx.assignedPeopleMap ?? new Map(),
+    assignedOrgsMap: ctx.assignedOrgsMap ?? new Map(),
+    assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
+    statuses: ctx.statuses ?? [],
+    orgs: ctx.orgs ?? [],
+    personOrgMap: ctx.personOrgMap ?? new Map(),
+    projects: ctx.projects ?? [],
+    today: startOfDay(ctx.today),
+    weekStartsOn: ctx.weekStartsOn,
+  }
+}
+
+/** Project bucketing — adapter over `partitionByGroup` (registry sortOrder). */
 function bucketByProject(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
 ): DashboardListGroup[] {
-  const projects = ctx.projects ?? []
-  const buckets = new Map<number, PersistedTodoItem[]>()
-  for (const p of projects) if (p.id != null) buckets.set(p.id, [])
-  const noProject: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const bucket = t.projectId != null ? buckets.get(t.projectId) : undefined
-    if (bucket) bucket.push(t)
-    else noProject.push(t)
-  }
-
-  const groups: DashboardListGroup[] = []
-  for (const p of projects) {
-    const ts = p.id != null ? buckets.get(p.id)! : []
-    if (ts.length > 0) groups.push({ key: `project-${p.id}`, label: p.name, todos: ts })
-  }
-  if (noProject.length > 0) groups.push({ key: 'no-project', label: 'No project', todos: noProject })
-  return groups
+  const groupingCtx = dashboardGroupingContext(ctx)
+  const { groups, ungrouped } = partitionByGroup(todos, 'project', groupingCtx)
+  const projectsById = new Map((ctx.projects ?? []).map((p) => [p.id, p] as const))
+  const out: DashboardListGroup[] = groups.map((g) => {
+    const id = Number(g.key.slice('project-'.length))
+    return { key: g.key, label: projectsById.get(id)?.name ?? '', todos: g.todos }
+  })
+  if (ungrouped.length > 0) out.push({ key: 'no-project', label: 'No project', todos: ungrouped })
+  return out
 }
 
-/**
- * Status bucketing — each todo lands in exactly one bucket based on
- * `todo.statusId`. Unassigned todos go to a trailing "No status" bucket.
- * Buckets enumerate from `ctx.statuses` in registry `sortOrder`.
- */
+/** Status bucketing — adapter over `partitionByGroup` (registry sortOrder). */
 function bucketByStatus(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
 ): DashboardListGroup[] {
-  const statuses = [...(ctx.statuses ?? [])].sort(
-    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
-  )
-  const buckets = new Map<number, PersistedTodoItem[]>()
-  for (const s of statuses) if (s.id != null) buckets.set(s.id, [])
-  const noStatus: PersistedTodoItem[] = []
-
-  for (const t of todos) {
-    const bucket = t.statusId != null ? buckets.get(t.statusId) : undefined
-    if (bucket) bucket.push(t)
-    else noStatus.push(t)
-  }
-
-  const groups: DashboardListGroup[] = []
-  for (const s of statuses) {
-    const ts = s.id != null ? buckets.get(s.id)! : []
-    if (ts.length > 0) groups.push({ key: `status-${s.id}`, label: s.name, todos: ts })
-  }
-  if (noStatus.length > 0) groups.push({ key: 'no-status', label: 'No status', todos: noStatus })
-  return groups
+  const groupingCtx = dashboardGroupingContext(ctx)
+  const { groups, ungrouped } = partitionByGroup(todos, 'status', groupingCtx)
+  const out: DashboardListGroup[] = groups.map((g) => ({ key: g.key, label: g.label, todos: g.todos }))
+  if (ungrouped.length > 0) out.push({ key: 'no-status', label: 'No status', todos: ungrouped })
+  return out
 }
 
 /**
- * People bucketing. Adapter over `partitionByGroup`.
- *
- * Legacy mode: every assigned person emits a section, ordered alphabetically
- * by label (canvas convention); unassigned todos trail in a single
- * "Unassigned" bucket.
- *
- * Restrict mode: when `restrict.restrictToPersonIds` is non-empty, narrow to
- * those ids only and tier-order direct→implicit. The implicit-tier callback
- * (`implicitPersonIdsFor`) is gated on `personFilterMode === 'include-orgs'`
- * by the caller (`computeGroupingRestrict`). Restrict mode silently drops
- * `ungrouped` (axis-mismatched tasks shouldn't surface as Unassigned —
- * the membership filter already let them through).
- *
- * Mirrors ListView's `buildPeopleSections` (post P3 of
- * grouping-cross-surface-convergence-2026-04-29).
+ * Generic adapter for people/org/tag. Resolves labels from `registry` so
+ * restrict-mode implicit-tier emits still get names. Restrict mode drops
+ * `ungrouped` (axis-mismatched tasks shouldn't surface as the sentinel).
  */
+function bucketByEntity(
+  todos: PersistedTodoItem[],
+  ctx: DashboardListsContext,
+  axis: 'people' | 'org' | 'tag',
+  prefix: 'person-' | 'org-' | 'tag-',
+  registry: ReadonlyArray<{ id?: number; name: string }>,
+  options: {
+    restrictIds?: ReadonlyArray<number> | null
+    implicitIdsFor?: (todo: PersistedTodoItem) => readonly number[]
+    formatLabel: (name: string) => string
+    ungroupedSentinel: { key: string; label: string }
+  },
+): DashboardListGroup[] {
+  const restrictIds =
+    options.restrictIds && options.restrictIds.length > 0 ? options.restrictIds : null
+
+  const groupingCtx = dashboardGroupingContext(ctx)
+
+  const restrictToFilterSet = restrictIds
+    ? restrictIds.map((id) => `${prefix}${id}`)
+    : undefined
+
+  const implicitIdsFor = options.implicitIdsFor
+  const implicitKeysFor =
+    restrictIds && implicitIdsFor
+      ? (todo: PersistedTodoItem): readonly string[] =>
+          implicitIdsFor(todo).map((id) => `${prefix}${id}`)
+      : undefined
+
+  const { groups, ungrouped } = partitionByGroup(
+    todos, axis, groupingCtx,
+    undefined, restrictToFilterSet, implicitKeysFor,
+  )
+
+  const registryById = new Map(registry.map((e) => [e.id, e] as const))
+
+  const out: DashboardListGroup[] = groups.map((g) => {
+    const id = Number(g.key.slice(prefix.length))
+    const name = registryById.get(id)?.name ?? g.label
+    return { key: g.key, label: options.formatLabel(name), todos: g.todos }
+  })
+
+  if (!restrictIds && ungrouped.length > 0) {
+    out.push({ ...options.ungroupedSentinel, todos: ungrouped })
+  }
+  return out
+}
+
 function bucketByPeople(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
   restrict?: DashboardListGroupingRestrict,
 ): DashboardListGroup[] {
-  const restrictIds =
-    restrict?.restrictToPersonIds && restrict.restrictToPersonIds.length > 0
-      ? restrict.restrictToPersonIds
-      : null
-
-  const groupingCtx: GroupingContext = {
-    assignedPeopleMap: ctx.assignedPeopleMap ?? new Map(),
-    assignedOrgsMap: new Map(),
-    assignedTagsMap: new Map(),
-    statuses: [],
-    orgs: ctx.orgs ?? [],
-    personOrgMap: ctx.personOrgMap ?? new Map(),
-    today: startOfDay(ctx.today),
-    weekStartsOn: ctx.weekStartsOn,
-  }
-
-  const restrictToFilterSet = restrictIds
-    ? restrictIds.map((id) => `person-${id}`)
-    : undefined
-
-  const implicitPersonIdsFor = restrict?.implicitPersonIdsFor
-  const implicitKeysFor =
-    restrictIds && implicitPersonIdsFor
-      ? (todo: PersistedTodoItem): readonly string[] =>
-          implicitPersonIdsFor(todo).map((id) => `person-${id}`)
-      : undefined
-
-  const { groups, ungrouped } = partitionByGroup(
-    todos,
-    'people',
-    groupingCtx,
-    undefined,
-    restrictToFilterSet,
-    implicitKeysFor,
-  )
-
-  // Use the people registry for label resolution so restrict-mode implicit-
-  // tier emits (people who don't appear in any task's `assignedPeopleMap`)
-  // still resolve a name. Mirrors ListView P3.
-  const peopleRegistry = ctx.people ?? []
-  const out: DashboardListGroup[] = groups.map((g) => {
-    const id = Number(g.key.slice('person-'.length))
-    const personEntry = peopleRegistry.find((p) => p.id === id)
-    return {
-      key: g.key,
-      label: personEntry?.name ?? '',
-      todos: g.todos,
-    }
+  return bucketByEntity(todos, ctx, 'people', 'person-', ctx.people ?? [], {
+    restrictIds: restrict?.restrictToPersonIds,
+    implicitIdsFor: restrict?.implicitPersonIdsFor,
+    formatLabel: (name) => name,
+    ungroupedSentinel: { key: 'unassigned', label: 'Unassigned' },
   })
-  if (!restrictIds && ungrouped.length > 0) {
-    out.push({ key: 'unassigned', label: 'Unassigned', todos: ungrouped })
-  }
-  return out
 }
 
-/**
- * Org bucketing. Adapter over `partitionByGroup`.
- *
- * Legacy mode: every direct-org assignment emits a section, ordered
- * alphabetically by label (canvas convention); todos with no direct org
- * trail in "No organization". The pre-cleanup person→org inference walk
- * (a task assigned only to Alice ∈ Acme emitting under "Acme") was retired
- * in grouping-cross-surface-convergence-2026-04-29 P5 — group-by-org now
- * means "show direct-org assignments only", matching every other surface.
- *
- * Restrict mode: when `restrict.restrictToOrgIds` is non-empty, narrow to
- * those ids only and tier-order direct→implicit. The implicit-tier callback
- * (`implicitOrgIdsFor`) is gated on `orgFilterMode === 'include-people'`
- * by the caller. Restrict mode silently drops `ungrouped` (axis-mismatched
- * tasks shouldn't surface as no-org).
- *
- * Mirrors ListView's `buildOrgSections` (post P3).
- */
 function bucketByOrg(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
   restrict?: DashboardListGroupingRestrict,
 ): DashboardListGroup[] {
-  const restrictIds =
-    restrict?.restrictToOrgIds && restrict.restrictToOrgIds.length > 0
-      ? restrict.restrictToOrgIds
-      : null
-
-  const groupingCtx: GroupingContext = {
-    assignedPeopleMap: new Map(),
-    assignedOrgsMap: ctx.assignedOrgsMap ?? new Map(),
-    assignedTagsMap: new Map(),
-    statuses: [],
-    orgs: ctx.orgs ?? [],
-    personOrgMap: ctx.personOrgMap ?? new Map(),
-    today: startOfDay(ctx.today),
-    weekStartsOn: ctx.weekStartsOn,
-  }
-
-  const restrictToFilterSet = restrictIds
-    ? restrictIds.map((id) => `org-${id}`)
-    : undefined
-
-  const implicitOrgIdsFor = restrict?.implicitOrgIdsFor
-  const implicitKeysFor =
-    restrictIds && implicitOrgIdsFor
-      ? (todo: PersistedTodoItem): readonly string[] =>
-          implicitOrgIdsFor(todo).map((id) => `org-${id}`)
-      : undefined
-
-  const { groups, ungrouped } = partitionByGroup(
-    todos,
-    'org',
-    groupingCtx,
-    undefined,
-    restrictToFilterSet,
-    implicitKeysFor,
-  )
-
-  const orgRegistry = ctx.orgs ?? []
-  const out: DashboardListGroup[] = groups.map((g) => {
-    const id = Number(g.key.slice('org-'.length))
-    const orgEntry = orgRegistry.find((o) => o.id === id)
-    return {
-      key: g.key,
-      label: orgEntry?.name ?? '',
-      todos: g.todos,
-    }
+  return bucketByEntity(todos, ctx, 'org', 'org-', ctx.orgs ?? [], {
+    restrictIds: restrict?.restrictToOrgIds,
+    implicitIdsFor: restrict?.implicitOrgIdsFor,
+    formatLabel: (name) => name,
+    ungroupedSentinel: { key: 'no-org', label: 'No organization' },
   })
-  if (!restrictIds && ungrouped.length > 0) {
-    out.push({ key: 'no-org', label: 'No organization', todos: ungrouped })
-  }
-  return out
 }
 
-/**
- * Tag bucketing. Adapter over `partitionByGroup`.
- *
- * Legacy mode: every assigned tag emits a section, ordered alphabetically
- * by tag name (canvas convention); untagged todos trail in a single
- * "No tag" bucket.
- *
- * Restrict mode: when `restrict.restrictToTagIds` is non-empty, narrow to
- * those ids only in caller order. Tags have no cross-axis path — every emit
- * is direct, so tier ordering reduces to caller-order dedup. The untagged
- * bucket is suppressed in restrict mode (the membership filter excluded
- * those tasks).
- *
- * Mirrors ListView's `buildTagSections`.
- */
 function bucketByTag(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
   restrict?: DashboardListGroupingRestrict,
 ): DashboardListGroup[] {
-  const restrictIds =
-    restrict?.restrictToTagIds && restrict.restrictToTagIds.length > 0
-      ? restrict.restrictToTagIds
-      : null
-
-  const groupingCtx: GroupingContext = {
-    assignedPeopleMap: new Map(),
-    assignedOrgsMap: new Map(),
-    assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
-    statuses: [],
-    orgs: [],
-    personOrgMap: new Map(),
-    today: startOfDay(ctx.today),
-    weekStartsOn: ctx.weekStartsOn,
-  }
-
-  const restrictToFilterSet = restrictIds
-    ? restrictIds.map((id) => `tag-${id}`)
-    : undefined
-
-  const { groups, ungrouped } = partitionByGroup(
-    todos,
-    'tag',
-    groupingCtx,
-    undefined,
-    restrictToFilterSet,
-  )
-
-  const out: DashboardListGroup[] = groups.map((g) => ({
-    key: g.key,
-    label: `#${g.label}`,
-    todos: g.todos,
-  }))
-  if (!restrictIds && ungrouped.length > 0) {
-    out.push({ key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL, todos: ungrouped })
-  }
-  return out
+  // No tag registry on ctx — labels come from `g.label` (resolved via
+  // assignedTagsMap). Tags have no cross-axis path, so no implicitIdsFor.
+  return bucketByEntity(todos, ctx, 'tag', 'tag-', [], {
+    restrictIds: restrict?.restrictToTagIds,
+    formatLabel: (name) => `#${name}`,
+    ungroupedSentinel: { key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL },
+  })
 }
