@@ -5,6 +5,7 @@ import { SETTING_KEYS } from '../data/setting-keys'
 import { loadWithState, optimistic, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
+import { bySortOrder } from '../utils/sort-order'
 
 interface StatusState {
   statuses: Status[]
@@ -123,7 +124,7 @@ export const useStatusStore = create<StatusState>((set, get) => {
 
   async reorder(fromIndex: number, toIndex: number) {
     const prev = get().statuses
-    const sorted = [...prev].sort((a, b) => a.sortOrder - b.sortOrder)
+    const sorted = [...prev].sort(bySortOrder)
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
 
     const [moved] = sorted.splice(fromIndex, 1)

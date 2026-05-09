@@ -1,14 +1,5 @@
 import type { PersistedTodoItem } from '../models'
 import type { WeekStart } from '../utils/effective-date'
-import { startOfDay, MS_PER_DAY } from '../utils/date'
-
-/** Start of the week containing `today`, honoring `weekStartsOn` (0 = Sun, 1 = Mon). */
-export function startOfWeek(today: Date, ws: WeekStart): Date {
-  const base = startOfDay(today)
-  const dow = base.getDay()
-  const days = (dow - ws + 7) % 7
-  return new Date(base.getTime() - days * MS_PER_DAY)
-}
 
 /**
  * Which date drove a todo's horizon placement. Mirrors `effectiveDate`'s

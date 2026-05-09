@@ -1,7 +1,8 @@
 import { startOfDay, startOfToday, MS_PER_DAY, formatDateShort } from './date'
 import type { FuzzyToken, ScheduledValue } from '../models/scheduled-value'
-import type { TodoItem } from '../models/todo-item'
+import type { TodoItem, PersistedTodoItem } from '../models/todo-item'
 import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
+import { bySortOrder } from './sort-order'
 
 /**
  * 0 = Sunday-first week (week ends Saturday).
@@ -53,6 +54,14 @@ export function resolveFuzzyOrigin(token: FuzzyToken, setAt: Date, weekStartsOn:
   return resolveFuzzy(token, setAt, weekStartsOn)
 }
 
+/** Start of the week containing `today`, honoring `weekStartsOn` (0 = Sun, 1 = Mon). */
+export function startOfWeek(today: Date, weekStartsOn: WeekStart): Date {
+  const base = startOfDay(today)
+  const dow = base.getDay()
+  const days = (dow - weekStartsOn + 7) % 7
+  return new Date(base.getTime() - days * MS_PER_DAY)
+}
+
 /**
  * Resolve a `RelativeDateToken` to a concrete midnight Date. Week tokens honor
  * `weekStartsOn`. Month tokens work off calendar month boundaries regardless
@@ -69,11 +78,6 @@ export function resolveRelativeToken(
   const addDays = (d: Date, n: number) =>
     startOfDay(new Date(d.getTime() + n * MS_PER_DAY))
 
-  const startOfWeek = () => {
-    const startDow = weekStartsOn // 0 = Sun-first, 1 = Mon-first
-    const days = (dow - startDow + 7) % 7
-    return addDays(base, -days)
-  }
   const endOfWeek = () => {
     const endDow = weekStartsOn === 1 ? 0 : 6
     const days = (endDow - dow + 7) % 7
@@ -90,11 +94,11 @@ export function resolveRelativeToken(
     case 'tomorrow':
       return addDays(base, 1)
     case 'start-of-week':
-      return startOfWeek()
+      return startOfWeek(today, weekStartsOn)
     case 'end-of-week':
       return endOfWeek()
     case 'start-of-next-week':
-      return addDays(startOfWeek(), 7)
+      return addDays(startOfWeek(today, weekStartsOn), 7)
     case 'end-of-next-week':
       return addDays(endOfWeek(), 7)
     case 'start-of-month':
@@ -299,3 +303,45 @@ export function scheduledValuesEqual(a?: ScheduledValue | null, b?: ScheduledVal
 }
 
 export { startOfToday }
+
+/**
+ * Which date a todo contributes to a given comparator field. `'date'` uses the
+ * unified `effectiveDate` (min(scheduled, deadline)); `'scheduled'` resolves
+ * the scheduled value (precise or fuzzy-aged); `'deadline'` snaps the
+ * `dueDate` to its midnight. Returns `null` for missing values — caller sorts
+ * those last.
+ */
+export function pickTodoDate(
+  t: PersistedTodoItem,
+  field: 'date' | 'scheduled' | 'deadline',
+  today: Date,
+  weekStartsOn: WeekStart,
+): Date | null {
+  switch (field) {
+    case 'date': return effectiveDate(t, today, weekStartsOn)
+    case 'scheduled': return t.scheduledDate ? resolveScheduled(t.scheduledDate, today, weekStartsOn) : null
+    case 'deadline': return t.dueDate ? startOfDay(new Date(t.dueDate)) : null
+  }
+}
+
+/**
+ * Build an ascending comparator over `field` for `PersistedTodoItem`. Nulls
+ * sort last; ties fall through to `bySortOrder` (sortOrder, then id) so the
+ * order is fully stable. Used by ListView's `itemSortComparator` and
+ * dashboard-lists' per-field comparators — both surfaces sort the same set
+ * the same way.
+ */
+export function compareTodosByDate(
+  field: 'date' | 'scheduled' | 'deadline',
+  today: Date,
+  weekStartsOn: WeekStart,
+): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+  return (a, b) => {
+    const ad = pickTodoDate(a, field, today, weekStartsOn)
+    const bd = pickTodoDate(b, field, today, weekStartsOn)
+    if (ad === null && bd === null) return bySortOrder(a, b)
+    if (ad === null) return 1
+    if (bd === null) return -1
+    return (ad.getTime() - bd.getTime()) || bySortOrder(a, b)
+  }
+}

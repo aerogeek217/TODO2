@@ -339,15 +339,24 @@ function checkNote(v: unknown): CheckResult {
   ])
 }
 
-function checkFloatingNote(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
+/**
+ * Shared `canvasId / x / y / width / height` fields carried by every floating
+ * widget row. Returned as the prefix of the `checkFields` array so per-kind
+ * validators can append their own optional fields after.
+ */
+function checkFloatPlacementFields(v: Record<string, unknown>): Array<[string, boolean]> {
+  return [
     ['canvasId', isFiniteNum(v.canvasId)],
     ['x', isFiniteNum(v.x)],
     ['y', isFiniteNum(v.y)],
     ['width', isFiniteNum(v.width)],
     ['height', isFiniteNum(v.height)],
-  ])
+  ]
+}
+
+function checkFloatingNote(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, checkFloatPlacementFields(v))
 }
 
 function isOptCalendarOrientation(v: unknown): boolean {
@@ -357,11 +366,7 @@ function isOptCalendarOrientation(v: unknown): boolean {
 function checkFloatingCalendar(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['canvasId', isFiniteNum(v.canvasId)],
-    ['x', isFiniteNum(v.x)],
-    ['y', isFiniteNum(v.y)],
-    ['width', isFiniteNum(v.width)],
-    ['height', isFiniteNum(v.height)],
+    ...checkFloatPlacementFields(v),
     ['orientation', isOptCalendarOrientation(v.orientation)],
     ['weekOffset', isOptNum(v.weekOffset)],
   ])
@@ -370,11 +375,7 @@ function checkFloatingCalendar(v: unknown): CheckResult {
 function checkFloatingHorizons(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['canvasId', isFiniteNum(v.canvasId)],
-    ['x', isFiniteNum(v.x)],
-    ['y', isFiniteNum(v.y)],
-    ['width', isFiniteNum(v.width)],
-    ['height', isFiniteNum(v.height)],
+    ...checkFloatPlacementFields(v),
     ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
   ])
 }
@@ -382,11 +383,7 @@ function checkFloatingHorizons(v: unknown): CheckResult {
 function checkFloatingStatus(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['canvasId', isFiniteNum(v.canvasId)],
-    ['x', isFiniteNum(v.x)],
-    ['y', isFiniteNum(v.y)],
-    ['width', isFiniteNum(v.width)],
-    ['height', isFiniteNum(v.height)],
+    ...checkFloatPlacementFields(v),
     ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
   ])
 }
@@ -394,11 +391,7 @@ function checkFloatingStatus(v: unknown): CheckResult {
 function checkFloatingScoreboard(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['canvasId', isFiniteNum(v.canvasId)],
-    ['x', isFiniteNum(v.x)],
-    ['y', isFiniteNum(v.y)],
-    ['width', isFiniteNum(v.width)],
-    ['height', isFiniteNum(v.height)],
+    ...checkFloatPlacementFields(v),
     ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
   ])
 }
@@ -406,11 +399,7 @@ function checkFloatingScoreboard(v: unknown): CheckResult {
 function checkFloatingSnoozeGraveyard(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
-    ['canvasId', isFiniteNum(v.canvasId)],
-    ['x', isFiniteNum(v.x)],
-    ['y', isFiniteNum(v.y)],
-    ['width', isFiniteNum(v.width)],
-    ['height', isFiniteNum(v.height)],
+    ...checkFloatPlacementFields(v),
     ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
   ])
 }
@@ -459,13 +448,7 @@ function checkTaskboard(v: unknown): CheckResult {
 
 function checkFloatingTaskboard(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ['canvasId', isFiniteNum(v.canvasId)],
-    ['x', isFiniteNum(v.x)],
-    ['y', isFiniteNum(v.y)],
-    ['width', isFiniteNum(v.width)],
-    ['height', isFiniteNum(v.height)],
-  ])
+  return checkFields(v, checkFloatPlacementFields(v))
 }
 
 const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS

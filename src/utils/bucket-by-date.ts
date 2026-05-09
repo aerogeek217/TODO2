@@ -1,7 +1,7 @@
 import type { PersistedTodoItem } from '../models'
 import type { WeekStart } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
-import { startOfWeek } from '../services/horizons'
+import { startOfWeek } from './effective-date'
 
 /**
  * Vocabulary for relative-date bucket windows. The bucketer walks the

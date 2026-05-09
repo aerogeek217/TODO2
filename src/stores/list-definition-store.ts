@@ -10,6 +10,7 @@ import type {
 import type { TodoPredicate } from '../models'
 import { loadWithState, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
+import { bySortOrder } from '../utils/sort-order'
 
 interface AddInput {
   name: string
@@ -178,7 +179,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
 
   async reorder(fromIndex, toIndex) {
     const prev = get().listDefinitions
-    const sorted = [...prev].sort((a, b) => a.sortOrder - b.sortOrder)
+    const sorted = [...prev].sort(bySortOrder)
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= sorted.length || toIndex >= sorted.length) return
     const [moved] = sorted.splice(fromIndex, 1)
     if (!moved) return

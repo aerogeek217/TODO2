@@ -23,6 +23,7 @@ import { useSettingsStore } from '../stores/settings-store'
 import { encodeGroupSort } from '../utils/list-view-encoding'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
+import { bySortOrder } from '../utils/sort-order'
 import { TaskList } from '../components/task/TaskList'
 import { TaskRow } from '../components/task/TaskRow'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
@@ -408,12 +409,12 @@ export function ListView() {
   // --- Lists: Save / Load / Favorites (unified Phase 3 flow) ---
 
   const favoritedDefs = useMemo(
-    () => allListDefinitions.filter((d) => d.favorited).sort((a, b) => a.sortOrder - b.sortOrder),
+    () => allListDefinitions.filter((d) => d.favorited).sort(bySortOrder),
     [allListDefinitions],
   )
 
   const allDefsSorted = useMemo(
-    () => [...allListDefinitions].sort((a, b) => a.sortOrder - b.sortOrder),
+    () => [...allListDefinitions].sort(bySortOrder),
     [allListDefinitions],
   )
 

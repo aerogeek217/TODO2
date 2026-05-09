@@ -15,6 +15,7 @@ import type {
   RuntimeFilterSpec,
 } from '../models/list-definition'
 import {
+  compareTodosByDate,
   effectiveDate,
   isScheduledExpired,
   resolveScheduled,
@@ -27,6 +28,7 @@ import {
 } from '../utils/bucket-by-tag'
 import { bucketByDate, type DateBucketKey } from '../utils/bucket-by-date'
 import { partitionByGroup, type GroupingContext } from '../utils/task-grouping'
+import { bySortOrder } from '../utils/sort-order'
 
 export interface DashboardListsContext {
   today: Date
@@ -178,7 +180,7 @@ export function buildDashboardLists(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
 ): DashboardList[] {
-  const ordered = [...definitions].sort((a, b) => a.sortOrder - b.sortOrder)
+  const ordered = [...definitions].sort(bySortOrder)
   const result: DashboardList[] = []
   for (const def of ordered) {
     let effectiveDef = def
@@ -232,47 +234,23 @@ export function interpretMembership(m: ListMembership, t: PersistedTodoItem, ctx
 }
 
 export function interpretSort(s: ListSort, a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
+  const today = startOfDay(ctx.today)
+  const ws = ctx.weekStartsOn
   switch (s) {
-    case 'date':      return compareEffectiveDateAsc(a, b, ctx)
-    case 'scheduled': return compareScheduledAsc(a, b, ctx)
-    case 'deadline':  return compareDeadlineAsc(a, b)
+    case 'date': {
+      // Dashboard-only: fuzzy-expired tasks bubble to the top so the user sees
+      // "this is past its window" before in-window dates.
+      const aExp = isScheduledExpired(a, today, ws)
+      const bExp = isScheduledExpired(b, today, ws)
+      if (aExp !== bExp) return aExp ? -1 : 1
+      return compareTodosByDate('date', today, ws)(a, b)
+    }
+    case 'scheduled': return compareTodosByDate('scheduled', today, ws)(a, b)
+    case 'deadline':  return compareTodosByDate('deadline', today, ws)(a, b)
     case 'manual': case 'name': case 'created': case 'people':
     case 'project': case 'org': case 'status':
-      return compareSortOrder(a, b)
+      return bySortOrder(a, b)
   }
-}
-
-const compareSortOrder = (a: PersistedTodoItem, b: PersistedTodoItem): number =>
-  ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-
-function compareNullableDates(ad: Date | null, bd: Date | null, a: PersistedTodoItem, b: PersistedTodoItem): number {
-  if (ad === null && bd === null) return compareSortOrder(a, b)
-  if (ad === null) return 1
-  if (bd === null) return -1
-  return (ad.getTime() - bd.getTime()) || compareSortOrder(a, b)
-}
-
-function compareEffectiveDateAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
-  const today = startOfDay(ctx.today)
-  const ws = ctx.weekStartsOn
-  const aExp = isScheduledExpired(a, today, ws)
-  const bExp = isScheduledExpired(b, today, ws)
-  if (aExp !== bExp) return aExp ? -1 : 1
-  return compareNullableDates(effectiveDate(a, today, ws), effectiveDate(b, today, ws), a, b)
-}
-
-function compareScheduledAsc(a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
-  const today = startOfDay(ctx.today)
-  const ws = ctx.weekStartsOn
-  const as = a.scheduledDate ? resolveScheduled(a.scheduledDate, today, ws) : null
-  const bs = b.scheduledDate ? resolveScheduled(b.scheduledDate, today, ws) : null
-  return compareNullableDates(as, bs, a, b)
-}
-
-function compareDeadlineAsc(a: PersistedTodoItem, b: PersistedTodoItem): number {
-  const ad = a.dueDate ? startOfDay(new Date(a.dueDate)) : null
-  const bd = b.dueDate ? startOfDay(new Date(b.dueDate)) : null
-  return compareNullableDates(ad, bd, a, b)
 }
 
 export function interpretGrouping(

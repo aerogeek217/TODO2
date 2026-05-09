@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import type { ListDefinition } from '../../models'
+import { bySortOrder } from '../../utils/sort-order'
 import styles from './ListDefinitionPickerPopup.module.css'
 
 export interface ListDefinitionPickerBodyProps {
@@ -32,7 +33,7 @@ export function ListDefinitionPickerBody({
   const { listDefinitions } = useListDefinitionStore()
 
   const items = useMemo(() => {
-    const all = [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
+    const all = [...listDefinitions].sort(bySortOrder)
     let filtered: ListDefinition[]
     if (excludeIds != null) {
       const excluded = new Set(excludeIds)

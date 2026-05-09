@@ -2,6 +2,7 @@ import type { PersistedTodoItem, Person, Org, Status, Tag, Project, ProjectGroup
 import { effectiveDate, resolveScheduled, type WeekStart } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
 import { resolvePersonColor } from './person-color'
+import { bySortOrder } from './sort-order'
 import { UNAFFILIATED_PERSON_COLOR } from '../constants'
 
 export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
@@ -65,6 +66,13 @@ const DATE_BUCKET_LABELS: Record<string, string> = {
   later: 'Later',
 }
 
+/**
+ * 4-bucket date keyer for canvas / project-grouped surfaces. Diverges from
+ * `bucketByDate`'s `'thisWeek'` (calendar-week-aligned via `startOfWeek`) by
+ * design: this one uses a rolling 7-day window so the 'week' bucket reads
+ * "everything in the next 7 days" regardless of which weekday today is — the
+ * canvas grouping UX preferred for in-project triage.
+ */
 function bucketDateKey(d: Date | null, today: Date): string | null {
   if (!d) return null
   const tomorrow = new Date(today.getTime() + MS_PER_DAY)
@@ -284,9 +292,7 @@ function orderGroupKeys(
     switch (groupBy) {
       case 'status': {
         const order = new Map<number, number>()
-        const statusSorted = [...ctx.statuses].sort(
-          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
-        )
+        const statusSorted = [...ctx.statuses].sort(bySortOrder)
         statusSorted.forEach((s, i) => {
           if (s.id != null) order.set(s.id, i)
         })
@@ -318,7 +324,7 @@ function orderGroupKeys(
         const projects = ctx.projects
         if (projects && projects.length > 0) {
           const order = new Map<number, number>()
-          const sorted = [...projects].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+          const sorted = [...projects].sort(bySortOrder)
           sorted.forEach((p, i) => {
             if (p.id != null) order.set(p.id, i)
           })

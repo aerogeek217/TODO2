@@ -23,6 +23,7 @@ import { ConfirmDialog } from '../shared/Dialog'
 import { ListEditorDialog } from '../shared/ListEditorDialog'
 import { ListEditorBody } from '../shared/ListEditorBody'
 import { defsEqual } from '../../utils/list-def-equal'
+import { bySortOrder } from '../../utils/sort-order'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
@@ -105,7 +106,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   useEffect(() => { load() }, [load])
 
   const sorted = useMemo(() => {
-    const all = [...listDefinitions].sort((a, b) => a.sortOrder - b.sortOrder)
+    const all = [...listDefinitions].sort(bySortOrder)
     if (!filterIds) return all
     const set = new Set(filterIds)
     return all.filter((d) => set.has(d.id))

@@ -25,6 +25,7 @@ import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
 import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import { bySortOrder } from '../../utils/sort-order'
 import styles from './EntityEditor.module.css'
 
 interface EditState {
@@ -190,7 +191,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   }
 
   const sorted = useMemo(
-    () => [...statuses].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+    () => [...statuses].sort(bySortOrder),
     [statuses],
   )
   const visible = useMemo(() => {

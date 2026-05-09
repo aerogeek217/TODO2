@@ -1,6 +1,5 @@
-import type { WeekStart } from '../../utils/effective-date'
+import { type WeekStart, startOfWeek } from '../../utils/effective-date'
 import { MS_PER_DAY } from '../../utils/date'
-import { startOfWeek } from '../horizons'
 
 export interface WeekBucket {
   /** Inclusive start of the week (midnight local). */

@@ -1,9 +1,10 @@
 import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListItemSortBy } from '../models'
 import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { bucketByDate, type DateBucketKey } from '../utils/bucket-by-date'
-import { startOfToday, startOfDay } from '../utils/date'
-import { effectiveDate, resolveScheduled, type WeekStart } from '../utils/effective-date'
+import { startOfToday } from '../utils/date'
+import { compareTodosByDate, pickTodoDate, type WeekStart } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
+import { bySortOrder } from '../utils/sort-order'
 import { UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
 
 export interface Section {
@@ -14,14 +15,6 @@ export interface Section {
 }
 
 type DateBucketField = 'date' | 'scheduled' | 'deadline'
-
-function pickBucketDate(todo: PersistedTodoItem, field: DateBucketField, today: Date, weekStartsOn: WeekStart): Date | null {
-  switch (field) {
-    case 'date': return effectiveDate(todo, today, weekStartsOn)
-    case 'scheduled': return todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today, weekStartsOn) : null
-    case 'deadline': return todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null
-  }
-}
 
 const DATE_LIST_WINDOWS: readonly DateBucketKey[] = ['overdue', 'today', 'thisWeek', 'later']
 
@@ -42,7 +35,7 @@ function buildBucketSections(
   weekStartsOn: WeekStart,
   noDateLabel: string,
 ): Section[] {
-  const getDate = (t: PersistedTodoItem): Date | null => pickBucketDate(t, field, today, weekStartsOn)
+  const getDate = (t: PersistedTodoItem): Date | null => pickTodoDate(t, field, today, weekStartsOn)
   const { buckets, noDate } = bucketByDate(todos, getDate, today, weekStartsOn, DATE_LIST_WINDOWS)
   const sections: Section[] = []
   for (const b of buckets) {
@@ -443,26 +436,15 @@ export function itemSortComparator(
     return (a, b) => {
       const cmp = a.title.localeCompare(b.title)
       if (cmp !== 0) return cmp
-      return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
+      return bySortOrder(a, b)
     }
   }
-  const pick = (t: PersistedTodoItem): Date | null => {
-    if (sortBy === 'date') return effectiveDate(t, today, weekStartsOn)
-    if (sortBy === 'scheduled') return t.scheduledDate ? resolveScheduled(t.scheduledDate, today, weekStartsOn) : null
-    return t.dueDate ? new Date(t.dueDate) : null
+  if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline') {
+    return compareTodosByDate(sortBy, today, weekStartsOn)
   }
-  return (a, b) => {
-    const ad = pick(a)
-    const bd = pick(b)
-    if (ad === null && bd === null) {
-      return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-    }
-    if (ad === null) return 1
-    if (bd === null) return -1
-    const cmp = ad.getTime() - bd.getTime()
-    if (cmp !== 0) return cmp
-    return ((a.sortOrder ?? 0) - (b.sortOrder ?? 0)) || (a.id - b.id)
-  }
+  // Categorical sort fields (created / people / project / org / status) aren't
+  // exposed in `LIST_SORT_VALUES`; fall back to manual order if they leak in.
+  return undefined
 }
 
 /**
