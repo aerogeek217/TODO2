@@ -530,13 +530,18 @@ export function isKnownSettingKey(key: string): boolean {
   return VALID_SETTING_KEYS.includes(key) || key.startsWith('color.')
 }
 
+/** `checkSetting` result for a well-formed row whose key this build doesn't know. */
+const UNRECOGNIZED_SETTING_KEY = 'key (unrecognized)'
+
 function checkSetting(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   if (!isStr(v.key, 100)) return 'key'
   if (typeof v.value !== 'string') return 'value'
+  // Checked before the length cap so an unrecognized key is always reported
+  // as such — `validateImportData` drops those rows instead of failing.
+  if (!isKnownSettingKey(v.key as string)) return UNRECOGNIZED_SETTING_KEY
   const maxLen = SETTING_VALUE_MAX_LEN_BY_KEY[v.key as string] ?? SETTING_VALUE_MAX_LEN_DEFAULT
   if ((v.value as string).length > maxLen) return 'value'
-  if (!isKnownSettingKey(v.key as string)) return 'key (unrecognized)'
   if (typeof v.key === 'string' && v.key.startsWith('color.')) {
     return isValidCssColor(v.value) ? true : 'value (invalid color)'
   }
@@ -951,7 +956,24 @@ export function validateRow(table: keyof ImportData, row: unknown): true | strin
   return check(row)
 }
 
-export function validateImportData(data: unknown): { ok: true; data: ImportData } | { ok: false; error: string } {
+/** Max individual row errors spelled out in a validation failure message. */
+export const MAX_REPORTED_ROW_ERRORS = 10
+
+export type ValidateImportResult =
+  | { ok: true; data: ImportData; warnings: string[] }
+  | { ok: false; error: string }
+
+/**
+ * Validates a whole current-shape dataset (run *after* the schema-upgrade
+ * pipeline — see `data/import-pipeline.ts` `prepareImport`) and reconstructs
+ * typed rows via the `pick*` whitelist.
+ *
+ * Strict, with one leniency: a well-formed `settings` row whose key this
+ * build doesn't recognize is dropped and reported in `warnings` instead of
+ * failing the import. Every other bad row fails it; the error message lists
+ * all failing rows (the first `MAX_REPORTED_ROW_ERRORS`, then a count).
+ */
+export function validateImportData(data: unknown): ValidateImportResult {
   if (!isObj(data)) {
     return { ok: false, error: 'Import data is not an object' }
   }
@@ -961,6 +983,10 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
   if (!Array.isArray(raw.canvases) || raw.canvases.length === 0) {
     return { ok: false, error: 'File is not a valid TODO2 database (missing canvases)' }
   }
+
+  const rowErrors: string[] = []
+  const droppedSettingKeys: string[] = []
+  const droppedSettingIdx = new Set<number>()
 
   for (const { key, check } of TABLE_VALIDATORS) {
     const arr = raw[key]
@@ -972,17 +998,42 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       return { ok: false, error: `"${key}" has too many records (${arr.length}). Maximum is ${MAX_RECORDS_PER_TABLE}.` }
     }
     for (let i = 0; i < arr.length; i++) {
-      const result = check(arr[i])
-      if (result !== true) {
-        const label = isObj(arr[i]) && 'title' in arr[i] ? ` ("${arr[i].title}")` :
-                      isObj(arr[i]) && 'name' in arr[i] ? ` ("${arr[i].name}")` : ''
-        return { ok: false, error: `Invalid "${key}" record at index ${i}${label}: bad field "${result}"` }
+      const row: unknown = arr[i]
+      const result = check(row)
+      if (result === true) continue
+      if (key === 'settings' && result === UNRECOGNIZED_SETTING_KEY && isObj(row)) {
+        droppedSettingIdx.add(i)
+        droppedSettingKeys.push(String(row.key))
+        continue
       }
+      const label = isObj(row) && 'title' in row ? ` ("${String(row.title)}")` :
+                    isObj(row) && 'name' in row ? ` ("${String(row.name)}")` : ''
+      rowErrors.push(`Invalid "${key}" record at index ${i}${label}: bad field "${result}"`)
     }
   }
 
+  const [firstError] = rowErrors
+  if (firstError !== undefined) {
+    if (rowErrors.length === 1) return { ok: false, error: firstError }
+    const shown = rowErrors.slice(0, MAX_REPORTED_ROW_ERRORS)
+    const more = rowErrors.length - shown.length
+    return {
+      ok: false,
+      error: `${rowErrors.length} invalid records: ${shown.join('; ')}${more > 0 ? `; …and ${more} more` : ''}`,
+    }
+  }
+
+  const warnings: string[] = []
+  if (droppedSettingKeys.length > 0) {
+    const n = droppedSettingKeys.length
+    warnings.push(`Ignored ${n} unrecognized setting${n === 1 ? '' : 's'}: ${droppedSettingKeys.join(', ')}`)
+  }
+  const settingRows = ((raw.settings ?? []) as Record<string, unknown>[])
+    .filter((_, i) => !droppedSettingIdx.has(i))
+
   return {
     ok: true,
+    warnings,
     data: {
       canvases: (raw.canvases as Record<string, unknown>[]).map(pickCanvas),
       projects: ((raw.projects ?? []) as Record<string, unknown>[]).map(pickProject),
@@ -998,7 +1049,7 @@ export function validateImportData(data: unknown): { ok: true; data: ImportData 
       todoPeople: ((raw.todoPeople ?? []) as Record<string, unknown>[]).map(pickTodoPerson),
       todoOrgs: ((raw.todoOrgs ?? []) as Record<string, unknown>[]).map(pickTodoOrg),
       personOrgs: ((raw.personOrgs ?? []) as Record<string, unknown>[]).map(pickPersonOrg),
-      settings: ((raw.settings ?? []) as Record<string, unknown>[]).map(pickSetting),
+      settings: settingRows.map(pickSetting),
       orgs: ((raw.orgs ?? []) as Record<string, unknown>[]).map(pickOrg),
       taskboards: ((raw.taskboards ?? []) as Record<string, unknown>[]).map(pickTaskboard),
       floatingTaskboards: ((raw.floatingTaskboards ?? []) as Record<string, unknown>[]).map(pickFloatingTaskboard),

@@ -160,11 +160,57 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  it('rejects settings with unrecognized keys', () => {
+  it('drops settings with unrecognized keys and reports them as warnings', () => {
     const result = validateImportData(validData({
-      settings: [{ key: 'some.key', value: 'some-value' }],
+      settings: [
+        { key: 'themeMode', value: 'dark' },
+        { key: 'some.key', value: 'some-value' },
+        // Over the default value cap — still reported as unrecognized, not "bad value".
+        { key: 'retired.key', value: 'x'.repeat(5000) },
+      ],
+    }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([{ key: 'themeMode', value: 'dark' }])
+    expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: some.key, retired.key'])
+  })
+
+  it('still rejects a malformed settings row (missing key)', () => {
+    const result = validateImportData(validData({ settings: [{ value: 'x' }] }))
+    expect(result.ok).toBe(false)
+  })
+
+  it('returns no warnings for a clean import', () => {
+    const result = validateImportData(validData({ settings: [{ key: 'themeMode', value: 'dark' }] }))
+    expect(result.ok && result.warnings).toEqual([])
+  })
+
+  it('lists every failing row, not just the first', () => {
+    const result = validateImportData(validData({
+      todos: [makeTodo({ id: 1, title: '' }), makeTodo({ id: 2 }), makeTodo({ id: 3, isCompleted: 'no' })],
+      people: [makePerson({ initials: '' })],
     }))
     expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/^3 invalid records: /)
+    expect(result.error).toContain('Invalid "todos" record at index 0')
+    expect(result.error).toContain('Invalid "todos" record at index 2 ("Task"): bad field "isCompleted"')
+    expect(result.error).toContain('Invalid "people" record at index 0 ("Alice"): bad field "initials"')
+  })
+
+  it('caps the listed rows and counts the rest', () => {
+    const todos = Array.from({ length: 13 }, (_, i) => makeTodo({ id: i + 1, sortOrder: 'bad' }))
+    const result = validateImportData(validData({ todos }))
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/^13 invalid records: /)
+    expect(result.error.match(/Invalid "todos" record/g)).toHaveLength(10)
+    expect(result.error).toMatch(/…and 3 more$/)
+  })
+
+  it('keeps the single-row error message unchanged', () => {
+    const result = validateImportData(validData({ todos: [makeTodo({ isCompleted: 'no' })] }))
+    expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "isCompleted"' })
   })
 
   it('accepts valid setting keys', () => {
