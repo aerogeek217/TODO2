@@ -42,8 +42,12 @@ class BackupScheduler {
    * overwritten with browser data (Settings → Backups can restore it).
    */
   async snapshotFileBeforeOverwrite(fileText: string): Promise<void> {
+    // Throws if the backup can't be stored — callers must not overwrite then.
     await backupRepository.createSnapshotFromJson(fileText, 'pre-destructive')
-    await backupRepository.pruneSnapshots(MAX_BACKUPS)
+    // Pruning is housekeeping; the backup already exists, so don't fail on it.
+    await backupRepository.pruneSnapshots(MAX_BACKUPS).catch((err) => {
+      console.warn('[backup] prune after file snapshot failed', err)
+    })
   }
 
   private async autoSnapshot(): Promise<void> {

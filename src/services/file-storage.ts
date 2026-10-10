@@ -25,6 +25,7 @@ export type SyncPauseReason =
   | 'conflict-cancelled'
   | 'upgrade-cancelled'
   | 'legacy-cancelled'
+  | 'backup-failed'
 
 export interface SyncPause {
   reason: SyncPauseReason
@@ -279,12 +280,15 @@ class FileStorageService {
    */
   async overwriteFileWithBrowser(): Promise<void> {
     if (!this.handle || this._needsPermission) return
+    let text: string
     try {
-      const text = await (await this.handle.getFile()).text()
-      if (text.trim()) await backupScheduler.snapshotFileBeforeOverwrite(text)
+      text = await (await this.handle.getFile()).text()
     } catch (err) {
-      console.warn('[file-storage] could not back up the file before overwriting it', err)
+      console.warn('[file-storage] could not read the file to back it up', err)
+      this.pause('backup-failed', `${PAUSED_PREFIX} — ${this.handle.name} could not be read, so it could not be backed up and was left untouched. Disconnect and create a new file to keep syncing.`)
+      return
     }
+    if (!(await this.backupFileText(text))) return
     if (await this.saveToFile({ force: true })) {
       this._paused = null
       this.syncEnabled = true
@@ -416,9 +420,7 @@ class FileStorageService {
         return
       }
       if (choice === 'browser') {
-        await backupScheduler.snapshotFileBeforeOverwrite(text).catch((err) => {
-          console.warn('[file-storage] could not back up the file before overwriting it', err)
-        })
+        if (!(await this.backupFileText(text))) return
         if (await this.saveToFile({ force: true })) this.syncEnabled = true
         this.notify()
         return
@@ -439,6 +441,11 @@ class FileStorageService {
       }
     }
 
+    // Every path that rewrites the file at a newer schema (confirmed upgrade,
+    // below-floor confirm, conflict "Use file" with an older file) lands
+    // here: back up the raw text BEFORE anything changes on either side.
+    if (prepared.upgraded && !(await this.backupFileText(text))) return
+
     await this.applyFileData(prepared.data, fileId)
     if (prepared.upgraded) {
       // Older file, upgrade confirmed: write it back at CURRENT_DB_VERSION.
@@ -446,6 +453,24 @@ class FileStorageService {
     }
     this.syncEnabled = true
     this.notify()
+  }
+
+  /**
+   * Back up the sync file's raw text (Settings → Backups) before it is
+   * overwritten or rewritten at another schema version. On failure nothing is
+   * written: sync pauses and this returns false. Empty text needs no backup.
+   */
+  private async backupFileText(text: string): Promise<boolean> {
+    if (!text.trim()) return true
+    try {
+      await backupScheduler.snapshotFileBeforeOverwrite(text)
+      return true
+    } catch (err) {
+      console.warn('[file-storage] could not back up the file before rewriting it', err)
+      const name = this.handle?.name ?? 'the sync file'
+      this.pause('backup-failed', `${PAUSED_PREFIX} — ${name} could not be backed up before being rewritten, so it was left untouched. Retry, or free up browser storage first.`)
+      return false
+    }
   }
 
   /** Replace the browser data with the file's (browser snapshot first). */

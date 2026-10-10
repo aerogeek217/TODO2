@@ -522,6 +522,116 @@ describe('FileStorageService — older sync files', () => {
   })
 })
 
+// ─── Raw-file backup before every rewrite ─────────────────────────────
+// Rule: the sync file's raw text is backed up before it is rewritten at a
+// newer schema (or overwritten with browser data). Backup failure → paused,
+// nothing written, browser untouched.
+
+describe('FileStorageService — file backup before rewrite', () => {
+  function expectBackupFirst(text: string, writable: ReturnType<typeof makeWritable>) {
+    expect(mockSnapshotFileBeforeOverwrite).toHaveBeenCalledWith(text)
+    const backupAt = mockSnapshotFileBeforeOverwrite.mock.invocationCallOrder[0]!
+    expect(backupAt).toBeLessThan(writable.write.mock.invocationCallOrder[0]!)
+    const restoreAt = mockRestoreFromImportData.mock.invocationCallOrder[0]
+    if (restoreAt !== undefined) expect(backupAt).toBeLessThan(restoreAt)
+  }
+
+  function expectBackupFailurePaused(svc: { status: { paused: { reason: string; message: string } | null } }, writable: ReturnType<typeof makeWritable>) {
+    expect(svc.status.paused?.reason).toBe('backup-failed')
+    expect(svc.status.paused?.message).toContain('could not be backed up')
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(writable.write).not.toHaveBeenCalled()
+  }
+
+  const older = fileBody({ __schemaVersion: 47 })
+  const belowFloor = fileBody({ __schemaVersion: 10 })
+
+  it('confirmed upgrade: backs up the raw text before restoring and restamping', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    const { svc, writable } = await startWith(older)
+    svc.onConfirmFileUpgrade(async () => true)
+    await svc.initialize()
+    expectBackupFirst(JSON.stringify(older), writable)
+  })
+
+  it('confirmed upgrade: backup failure leaves file and browser untouched and pauses', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: null })
+    mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
+    const { svc, writable } = await startWith(older)
+    svc.onConfirmFileUpgrade(async () => true)
+    await svc.initialize()
+    expectBackupFailurePaused(svc, writable)
+    await expectNoWriteAfterChange(writable)
+  })
+
+  it('below-floor confirm: backs up first; failure pauses untouched', async () => {
+    const ok = await startWith(belowFloor)
+    ok.svc.onConfirmMigration(async () => true)
+    await ok.svc.initialize()
+    expectBackupFirst(JSON.stringify(belowFloor), ok.writable)
+
+    vi.resetModules()
+    mockRestoreFromImportData.mockClear()
+    mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
+    const bad = await startWith(belowFloor)
+    bad.svc.onConfirmMigration(async () => true)
+    await bad.svc.initialize()
+    expectBackupFailurePaused(bad.svc, bad.writable)
+  })
+
+  it('conflict "Use file" with an older file: backs up first; failure pauses untouched', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const ok = await startWith(older)
+    ok.svc.onConflict(async () => 'file')
+    await ok.svc.initialize()
+    expectBackupFirst(JSON.stringify(older), ok.writable)
+
+    vi.resetModules()
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockRestoreFromImportData.mockClear()
+    mockSnapshotFileBeforeOverwrite.mockReset().mockRejectedValue(new Error('quota'))
+    const bad = await startWith(older)
+    bad.svc.onConflict(async () => 'file')
+    await bad.svc.initialize()
+    expectBackupFailurePaused(bad.svc, bad.writable)
+  })
+
+  it('conflict "Use file" at the current version: no rewrite, so no file backup needed', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    const { svc, writable } = await startWith()
+    svc.onConflict(async () => 'file')
+    await svc.initialize()
+    expect(mockSnapshotFileBeforeOverwrite).not.toHaveBeenCalled()
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+
+  it('conflict "Use browser data": backup failure leaves the file untouched and pauses', async () => {
+    setSyncState({ fileSavedAt: FILE_SAVED_AT, dirtySince: '2026-10-02T09:00:00.000Z' })
+    mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
+    const { svc, writable } = await startWith(older)
+    svc.onConflict(async () => 'browser')
+    await svc.initialize()
+    expectBackupFailurePaused(svc, writable)
+  })
+
+  it('"Keep browser data": backup failure keeps the file untouched and stays paused', async () => {
+    const { svc, writable } = await startWith(fileBody({ __schemaVersion: 49 }))
+    await svc.initialize()
+    mockSnapshotFileBeforeOverwrite.mockRejectedValue(new Error('quota'))
+    await svc.overwriteFileWithBrowser()
+    expectBackupFailurePaused(svc, writable)
+  })
+
+  it('"Keep browser data": an unreadable file cannot be backed up, so it is not overwritten', async () => {
+    const getFile = vi.fn().mockRejectedValue(new Error('locked'))
+    const { svc, writable } = await startWith(fileBody(), { getFile })
+    await svc.initialize()
+    await svc.overwriteFileWithBrowser()
+    expect(svc.status.paused?.reason).toBe('backup-failed')
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+})
+
 // ─── Change tracking ──────────────────────────────────────────────────
 
 describe('FileStorageService — change tracking', () => {

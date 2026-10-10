@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('../../data/backup-repository', () => ({
   backupRepository: {
     createSnapshot: vi.fn().mockResolvedValue(1),
+    createSnapshotFromJson: vi.fn().mockResolvedValue(2),
     pruneSnapshots: vi.fn().mockResolvedValue(0),
   },
 }))
@@ -24,6 +25,20 @@ afterEach(() => {
 })
 
 describe('BackupScheduler', () => {
+  describe('snapshotFileBeforeOverwrite', () => {
+    it('stores the raw text and tolerates a prune failure', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      mockPruneSnapshots.mockRejectedValueOnce(new Error('prune'))
+      await expect(backupScheduler.snapshotFileBeforeOverwrite('{raw')).resolves.toBeUndefined()
+      expect(vi.mocked(backupRepository.createSnapshotFromJson)).toHaveBeenCalledWith('{raw', 'pre-destructive')
+    })
+
+    it('rejects when the backup itself cannot be stored', async () => {
+      vi.mocked(backupRepository.createSnapshotFromJson).mockRejectedValueOnce(new Error('quota'))
+      await expect(backupScheduler.snapshotFileBeforeOverwrite('{raw')).rejects.toThrow('quota')
+    })
+  })
+
   describe('start', () => {
     it('start_called_setsUpIntervalTimer', () => {
       const setIntervalSpy = vi.spyOn(globalThis, 'setInterval')
