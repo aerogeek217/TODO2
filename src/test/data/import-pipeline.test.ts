@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { prepareImport, prepareImportText } from '../../data/import-pipeline'
+import { prepareImport, prepareImportText, TASK_ARCHIVE_KIND } from '../../data/import-pipeline'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
 import { SCHEMA_VERSION_KEY } from '../../services/migration-check'
 
@@ -113,5 +113,50 @@ describe('prepareImportText', () => {
 
   it('parses and prepares valid JSON', () => {
     expect(prepareImportText(JSON.stringify(file())).ok).toBe(true)
+  })
+})
+
+describe('prepareImport — task archives and the append purpose (cr1 P5)', () => {
+  function archive(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    const raw = file({ kind: TASK_ARCHIVE_KIND, ...overrides })
+    delete raw.canvases
+    return raw
+  }
+
+  it('rejects a task archive for a full restore with a pointer to the append import', () => {
+    const result = prepareImport(archive())
+    expect(result).toMatchObject({ ok: false, reason: 'task-archive' })
+    if (result.ok) return
+    expect(result.error).toContain('Import tasks (append)')
+  })
+
+  it('accepts a task archive (no canvases) for append and reports its kind', () => {
+    const result = prepareImport(archive(), { purpose: 'append' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.kind).toBe('task-archive')
+    expect(result.data.todos).toHaveLength(1)
+    expect(result.data.canvases).toEqual([])
+  })
+
+  it('accepts a full export for append (kind "full")', () => {
+    const result = prepareImport(file(), { purpose: 'append' })
+    expect(result).toMatchObject({ ok: true, kind: 'full' })
+  })
+
+  it('still validates rows strictly for append', () => {
+    const result = prepareImport(archive({ todos: [{ uid: 'u1', title: '', isCompleted: false }] }), { purpose: 'append' })
+    expect(result).toMatchObject({ ok: false, reason: 'invalid' })
+  })
+
+  it('still requires canvases for a full restore', () => {
+    const raw = file()
+    delete raw.canvases
+    expect(prepareImport(raw)).toMatchObject({ ok: false, reason: 'invalid' })
+  })
+
+  it('prepareImportText passes the purpose through', () => {
+    expect(prepareImportText(JSON.stringify(archive()), { purpose: 'append' }).ok).toBe(true)
+    expect(prepareImportText(JSON.stringify(archive())).ok).toBe(false)
   })
 })

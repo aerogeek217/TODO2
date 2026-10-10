@@ -999,6 +999,15 @@ export type ValidateImportResult =
   | { ok: true; data: ImportData; warnings: string[] }
   | { ok: false; error: string }
 
+export interface ValidateImportOptions {
+  /**
+   * Require a non-empty `canvases` table (default true) — the "is this a
+   * whole TODO2 database" check for restores. Appending tasks (cr1 P5 task
+   * archives) passes false: an archive carries only task tables.
+   */
+  requireCanvases?: boolean
+}
+
 /**
  * Validates a whole current-shape dataset (run *after* the schema-upgrade
  * pipeline — see `data/import-pipeline.ts` `prepareImport`) and reconstructs
@@ -1009,14 +1018,14 @@ export type ValidateImportResult =
  * failing the import. Every other bad row fails it; the error message lists
  * all failing rows (the first `MAX_REPORTED_ROW_ERRORS`, then a count).
  */
-export function validateImportData(data: unknown): ValidateImportResult {
+export function validateImportData(data: unknown, options: ValidateImportOptions = {}): ValidateImportResult {
   if (!isObj(data)) {
     return { ok: false, error: 'Import data is not an object' }
   }
 
   const raw = data as Record<string, unknown>
 
-  if (!Array.isArray(raw.canvases) || raw.canvases.length === 0) {
+  if ((options.requireCanvases ?? true) && (!Array.isArray(raw.canvases) || raw.canvases.length === 0)) {
     return { ok: false, error: 'File is not a valid TODO2 database (missing canvases)' }
   }
 
