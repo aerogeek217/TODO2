@@ -1,4 +1,5 @@
 import type { Transaction } from 'dexie'
+import { upgradeV50 } from './upgrades/v50-revive-dates'
 
 /**
  * Permanent schema-upgrade pipeline (cr1 P2).
@@ -50,10 +51,12 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * Registry of data transforms keyed by the target schema version. A version
  * with no entry is an identity step (index-only bumps, empty-table additions).
  *
- * Empty as of v49: v49 is the floor, and its own Dexie upgrade (fuzzy
- * `setAt` backfill) predates this pipeline.
+ * v49 is the floor; its own Dexie upgrade (fuzzy `setAt` backfill) predates
+ * this pipeline, so the first entry is v50. Each transform lives in
+ * `data/upgrades/v<N>-*.ts`.
  */
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
+  [50, upgradeV50],
 ])
 
 /**

@@ -137,3 +137,46 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(rails.collapsed).toEqual({ right: true })
   })
 })
+
+// ── v50 (cr1 P3): Date fields revived ────────────────────────────────────
+
+describe('v49 fixture → v50: Date fields arrive as Dates', () => {
+  function expectDate(value: unknown, label: string, iso?: string) {
+    expect(value instanceof Date, `${label} is a Date`).toBe(true)
+    expect(Number.isNaN((value as Date).getTime()), `${label} is a valid Date`).toBe(false)
+    if (iso) expect((value as Date).toISOString(), label).toBe(iso)
+  }
+
+  it('todos: createdAt / modifiedAt / dueDate / scheduledDate value + setAt', async () => {
+    await importFixture()
+    const todos = await db.todos.orderBy('id').toArray()
+    for (const t of todos) {
+      expectDate(t.createdAt, `todo ${t.id} createdAt`)
+      expectDate(t.modifiedAt, `todo ${t.id} modifiedAt`)
+      if (t.dueDate !== undefined) expectDate(t.dueDate, `todo ${t.id} dueDate`)
+      if (t.scheduledDate?.kind === 'date') expectDate(t.scheduledDate.value, `todo ${t.id} scheduledDate.value`)
+      if (t.scheduledDate?.kind === 'fuzzy') expectDate(t.scheduledDate.setAt, `todo ${t.id} scheduledDate.setAt`)
+    }
+    const report = todos.find((t) => t.title === 'Send quarterly report')!
+    expectDate(report.dueDate, 'report dueDate', '2026-10-16T00:00:00.000Z')
+    expectDate(report.createdAt, 'report createdAt', '2026-09-02T10:00:00.000Z')
+    expect(report.scheduledDate).toEqual({ kind: 'date', value: new Date('2026-10-12T00:00:00.000Z') })
+    const dentist = todos.find((t) => t.title === 'Book dentist')!
+    expect(dentist.scheduledDate).toEqual({ kind: 'fuzzy', token: 'next-week', setAt: new Date('2026-09-10T09:30:00.000Z') })
+  })
+
+  it('canvases, projects, notes, taskboards carry Dates; todoEvents.timestamp stays a string', async () => {
+    await importFixture()
+    for (const c of await db.canvases.toArray()) expectDate(c.createdAt, `canvas ${c.id} createdAt`)
+    for (const p of await db.projects.toArray()) expectDate(p.createdAt, `project ${p.id} createdAt`)
+    for (const n of await db.notes.toArray()) {
+      expectDate(n.createdAt, `note ${n.id} createdAt`)
+      expectDate(n.modifiedAt, `note ${n.id} modifiedAt`, '2026-09-15T08:00:00.000Z')
+    }
+    for (const b of await db.taskboards.toArray()) {
+      expectDate(b.createdAt, `taskboard ${b.id} createdAt`)
+      expectDate(b.updatedAt, `taskboard ${b.id} updatedAt`)
+    }
+    for (const e of await db.todoEvents.toArray()) expect(typeof e.timestamp).toBe('string')
+  })
+})

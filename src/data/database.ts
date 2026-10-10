@@ -5,6 +5,7 @@ import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
+import { applySchemaUpgradeInTx } from './schema-upgrades'
 
 export interface SettingRow {
   key: string
@@ -23,7 +24,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 49
+export const CURRENT_DB_VERSION = 50
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -355,10 +356,7 @@ export class Todo2Database extends Dexie {
     // `todo.createdAt`. `modifiedAt` is the wrong fallback — it advances on
     // unrelated edits (title rename, status change). Idempotent: only rows
     // with `kind === 'fuzzy'` and missing `setAt` are rewritten.
-    // The version literal is the same as `CURRENT_DB_VERSION`; using the
-    // constant here is what enforces the single-source-of-truth invariant
-    // (see the constant's docblock above).
-    this.version(CURRENT_DB_VERSION).stores({}).upgrade(async (tx) => {
+    this.version(49).stores({}).upgrade(async (tx) => {
       const scheduledEvents = await tx.table('todoEvents')
         .where('type').equals('scheduled')
         .toArray()
@@ -378,6 +376,15 @@ export class Todo2Database extends Dexie {
         todo.scheduledDate = { ...sd, setAt }
       })
     })
+
+    // v50: normalize every Date field to a real `Date` (cr1 P3). Imports and
+    // sync-file loads used to write JSON's ISO strings straight into the DB.
+    // First registry-driven version — the transform (`upgrades/v50-revive-dates.ts`)
+    // also runs on imported v49 files via `prepareImport`.
+    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
+    // what enforces the single-source-of-truth invariant (see the constant's
+    // docblock above). When bumping, turn this into a literal `50` first.
+    this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }
 
