@@ -25,7 +25,8 @@ import {
   TASKBOARD_SINGLETON_DROP_ID,
   taskDragId,
 } from '../../utils/task-dnd'
-import { DropIndicator, dropCellClassName } from '../shared/DropIndicator'
+import { DropIndicator } from '../shared/DropIndicator'
+import { dropCellClassName } from '../shared/drop-indicator-class'
 import styles from './TaskboardPanel.module.css'
 
 interface SortableEntryProps {

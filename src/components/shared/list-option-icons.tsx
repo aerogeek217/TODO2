@@ -1,4 +1,6 @@
-import type { ListGroupBy, ListItemSortBy } from '../../models'
+// Icon components for the list sort / group-by option menus. The option →
+// icon maps live in `list-option-icon-maps.ts` (kept out of this file so it
+// only exports components — react-refresh/only-export-components).
 import { StatusIcon } from './StatusIcon'
 
 const svgBase = {
@@ -13,7 +15,7 @@ const svgBase = {
   strokeLinejoin: 'round' as const,
 }
 
-function FlatIcon() {
+export function FlatIcon() {
   return (
     <svg {...svgBase}>
       <line x1="3" y1="5" x2="13" y2="5" />
@@ -23,7 +25,7 @@ function FlatIcon() {
   )
 }
 
-function ManualIcon() {
+export function ManualIcon() {
   return (
     <svg {...svgBase}>
       <line x1="3" y1="5" x2="13" y2="5" />
@@ -33,24 +35,24 @@ function ManualIcon() {
   )
 }
 
-function DateIcon() {
+export function DateIcon() {
   return <StatusIcon icon="calendar" />
 }
 
-function ScheduledIcon() {
+export function ScheduledIcon() {
   // calendar with clock overlay hint — use clock (scheduled = plan date)
   return <StatusIcon icon="clock" />
 }
 
-function DeadlineIcon() {
+export function DeadlineIcon() {
   return <StatusIcon icon="flag" />
 }
 
-function PeopleIcon() {
+export function PeopleIcon() {
   return <StatusIcon icon="person" />
 }
 
-function OrgIcon() {
+export function OrgIcon() {
   return (
     <svg {...svgBase}>
       <rect x="2.5" y="3" width="5" height="10" rx="0.5" />
@@ -64,7 +66,7 @@ function OrgIcon() {
   )
 }
 
-function ProjectIcon() {
+export function ProjectIcon() {
   return (
     <svg {...svgBase}>
       <path d="M2.5 5.5V12.5A1 1 0 003.5 13.5H12.5A1 1 0 0013.5 12.5V6A0.5 0.5 0 0013 5.5H8L6.5 4H3A0.5 0.5 0 002.5 4.5V5.5Z" />
@@ -72,11 +74,11 @@ function ProjectIcon() {
   )
 }
 
-function StatusIconGlyph() {
+export function StatusIconGlyph() {
   return <StatusIcon icon="circle" />
 }
 
-function TagIcon() {
+export function TagIcon() {
   return (
     <svg {...svgBase}>
       <line x1="6" y1="3" x2="4" y2="13" />
@@ -87,7 +89,7 @@ function TagIcon() {
   )
 }
 
-function NameIcon() {
+export function NameIcon() {
   return (
     <svg {...svgBase}>
       <text
@@ -104,28 +106,4 @@ function NameIcon() {
       </text>
     </svg>
   )
-}
-
-// Post ui-consistency-2026-04-25 P4 the keys widen to the full unified union.
-// Surfaces consume only the icons they need (via their per-surface subset
-// constants) — the maps stay `Partial<…>` so the dictionary lookup gracefully
-// returns `undefined` for sort/group dimensions a surface doesn't expose.
-export const groupByIcons: Partial<Record<ListGroupBy, React.ReactNode>> = {
-  none: <FlatIcon />,
-  date: <DateIcon />,
-  scheduled: <ScheduledIcon />,
-  deadline: <DeadlineIcon />,
-  people: <PeopleIcon />,
-  org: <OrgIcon />,
-  project: <ProjectIcon />,
-  status: <StatusIconGlyph />,
-  tag: <TagIcon />,
-}
-
-export const itemSortByIcons: Partial<Record<ListItemSortBy, React.ReactNode>> = {
-  manual: <ManualIcon />,
-  name: <NameIcon />,
-  date: <DateIcon />,
-  scheduled: <ScheduledIcon />,
-  deadline: <DeadlineIcon />,
 }

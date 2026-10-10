@@ -37,7 +37,7 @@ import {
 } from '../utils/task-dnd'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { StatusIcon } from '../components/shared/StatusIcon'
-import { dropCellClassName } from '../components/shared/DropIndicator'
+import { dropCellClassName } from '../components/shared/drop-indicator-class'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { TaskRow } from '../components/task/TaskRow'
 import overlayStyles from '../components/canvas/DragOverlayTask.module.css'

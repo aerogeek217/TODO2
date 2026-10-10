@@ -21,7 +21,8 @@ import {
   taskDragId,
   taskboardFloatDropId,
 } from '../../utils/task-dnd'
-import { DropIndicator, dropCellClassName } from '../shared/DropIndicator'
+import { DropIndicator } from '../shared/DropIndicator'
+import { dropCellClassName } from '../shared/drop-indicator-class'
 import styles from './TaskboardNode.module.css'
 
 export interface TaskboardNodeData {

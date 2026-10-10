@@ -55,7 +55,7 @@ import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { SortGroupToolbar, type SortGroupOption } from '../components/shared/SortGroupToolbar'
-import { groupByIcons, itemSortByIcons } from '../components/shared/list-option-icons'
+import { groupByIcons, itemSortByIcons } from '../components/shared/list-option-icon-maps'
 import styles from './ListView.module.css'
 
 const groupByOptions: readonly SortGroupOption<ListGroupBy>[] = [

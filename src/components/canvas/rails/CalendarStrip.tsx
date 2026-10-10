@@ -8,7 +8,7 @@ import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { buildEntries, dayKey } from './calendar/calendar-events'
 import { EventRow } from './calendar/EventRow'
-import { dropCellClassName } from '../../shared/DropIndicator'
+import { dropCellClassName } from '../../shared/drop-indicator-class'
 import styles from './CalendarStrip.module.css'
 
 export const STRIP_DAY_COUNT = 7
