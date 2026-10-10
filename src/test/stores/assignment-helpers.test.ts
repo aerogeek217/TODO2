@@ -33,11 +33,11 @@ function makeActions(initialEntities: E[] = []) {
   const assignGate = defer<void>()
   let map = new Map<number, E[]>()
   const repo = {
-    async assign(_todoId: number, _entityId: number) {
+    async assign() {
       await assignGate.promise
     },
     async unassign() { /* unused */ },
-    async getForTodos(_todoIds: number[]) {
+    async getForTodos() {
       return fetchGate.promise
     },
   }

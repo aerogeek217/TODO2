@@ -32,7 +32,6 @@ export function ScoreboardSlotContent() {
       to: buckets[buckets.length - 1]?.end ?? now,
       now,
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStartsOn])
 
   useEffect(() => {

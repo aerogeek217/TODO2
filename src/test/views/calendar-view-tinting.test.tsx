@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { CalendarView } from '../../views/CalendarView'
 import { useTodoStore } from '../../stores/todo-store'
-import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { makeTodo, resetEntityStores, clearFilterStore } from '../helpers'
 

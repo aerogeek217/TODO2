@@ -722,7 +722,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     // Back-compat: a predicate missing the `tags` key reads back as null.
     const pre = { ...serialized }
     delete (pre as { tags?: unknown }).tags
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const backCompat = predicateToCriteria(pre as any)
     expect(backCompat.tags).toBeNull()
   })
@@ -745,7 +744,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       hasScheduled: null,
       hasDeadline: null,
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const runtime = predicateToCriteria(legacy as any)
     expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01' })
   })

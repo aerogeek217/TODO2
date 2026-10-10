@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useTagStore } from '../../stores/tag-store'
+import { useTagStore, countTodosByTag } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import type { Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
@@ -18,7 +18,7 @@ interface TagEditorProps {
 }
 
 export function TagEditor({ onClose }: TagEditorProps) {
-  const { tags, load, add, update, remove, loadAssignments, selectTodoCountByTagId, selectTodoCountsByTag, assignedTagsMap } = useTagStore()
+  const { tags, load, add, update, remove, loadAssignments, selectTodoCountByTagId, assignedTagsMap } = useTagStore()
   const ensureTodosLoaded = useTodoStore((s) => s.ensureAllLoaded)
   const todos = useTodoStore((s) => s.todos)
 
@@ -40,7 +40,7 @@ export function TagEditor({ onClose }: TagEditorProps) {
     if (todos.length > 0) loadAssignments(todos.map((t) => t.id))
   }, [todos, loadAssignments])
 
-  const counts = useMemo(() => selectTodoCountsByTag(), [selectTodoCountsByTag, assignedTagsMap])
+  const counts = useMemo(() => countTodosByTag(assignedTagsMap), [assignedTagsMap])
 
   const clearState = () => {
     setEditing(null)

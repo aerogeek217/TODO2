@@ -32,6 +32,5 @@ export const DEBUG_DND: boolean = readFlag('debug-dnd')
  */
 export function dndLog(label: string, payload?: Record<string, unknown>): void {
   if (!DEBUG_DND) return
-  // eslint-disable-next-line no-console
   console.warn('[debug-dnd]', label, payload ?? {})
 }

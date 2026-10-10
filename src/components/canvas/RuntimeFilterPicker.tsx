@@ -58,6 +58,8 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
  * stores normalize an empty array down to "no pick yet" so the placeholder
  * re-appears.
  */
+const NO_IDS: readonly number[] = []
+
 export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPickerProps) {
   const people = usePersonStore((s) => s.people)
   const orgs = useOrgStore((s) => s.orgs)
@@ -87,7 +89,7 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
     return base.sort((a, b) => a.name.localeCompare(b.name))
   }, [spec.field, people, orgs, projects, statuses, tags])
 
-  const ids = value ?? []
+  const ids = value ?? NO_IDS
   const idSet = useMemo(() => new Set(ids), [ids])
   const optionsById = useMemo(() => {
     const map = new Map<number, Option>()

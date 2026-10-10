@@ -19,11 +19,8 @@ export async function pasteTasksAt(target: PlacementTarget): Promise<void> {
   const { todos, applyMutations } = useTodoStore.getState()
   const mutations = placeMultipleAt(todos, new Set(clipboardTodoIds), target)
   if (mutations.length === 0) return
-  try {
-    await applyMutations(mutations)
-    useUIStore.getState().clearClipboard()
-  } catch (e) {
-    // Don't clear clipboard if paste failed — tasks would be lost
-    throw e
-  }
+  // Clear only after a successful paste — if applyMutations throws, the
+  // clipboard survives so the tasks aren't lost.
+  await applyMutations(mutations)
+  useUIStore.getState().clearClipboard()
 }

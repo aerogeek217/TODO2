@@ -50,6 +50,21 @@ function escapeHtmlAttr(s: string): string {
     .replace(/>/g, '&gt;')
 }
 
+/**
+ * Drops C0 control chars (U+0000–U+001F), DEL (U+007F), and whitespace.
+ * A code-point loop rather than a `[\u0000-\u001f]` regex class, which
+ * `no-control-regex` rejects.
+ */
+function stripControlAndWhitespace(s: string): string {
+  let out = ''
+  for (const ch of s) {
+    const code = ch.charCodeAt(0)
+    if (code <= 0x1f || code === 0x7f || /\s/.test(ch)) continue
+    out += ch
+  }
+  return out
+}
+
 const SAFE_URL_SCHEMES = ['http:', 'https:', 'mailto:', 'tel:']
 
 /**
@@ -74,7 +89,7 @@ export function sanitizeHref(raw: string): string {
     return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : ''
   })
   // Strip ASCII whitespace + control chars (incl. \t, \n, \r, \0).
-  s = s.replace(/[\u0000-\u001f\u007f\s]/g, '')
+  s = stripControlAndWhitespace(s)
   const lower = s.toLowerCase()
   const colonIdx = lower.indexOf(':')
   const slashIdx = lower.indexOf('/')

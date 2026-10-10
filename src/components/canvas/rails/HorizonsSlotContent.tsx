@@ -15,7 +15,7 @@ import {
 } from '../../../stores/filter-store'
 import { buildDashboardLists, type DashboardList } from '../../../services/dashboard-lists'
 import { classifyByDateSource } from '../../../services/horizons'
-import { startOfToday } from '../../../utils/date'
+import { useToday } from '../../../hooks/use-today'
 import { HorizonRibbon, type HorizonRow } from '../../dashboard/HorizonRibbon'
 import { DraggableTaskRow } from '../shared/DraggableTaskRow'
 import { DashboardListsEditor } from '../../settings/DashboardListsEditor'
@@ -68,21 +68,8 @@ export function HorizonsSlotContent() {
   const [showHorizonEditor, setShowHorizonEditor] = useState(false)
   const [rowContextMenu, setRowContextMenu] = useState<RowContextMenu | null>(null)
 
-  // Date-sensitive predicates roll at midnight; re-key `today` on day change.
-  const [dayKey, setDayKey] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-  })
-  useEffect(() => {
-    const now = new Date()
-    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
-    const timer = setTimeout(() => {
-      const d = new Date()
-      setDayKey(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
-    }, Math.max(1000, nextMidnight - now.getTime() + 50))
-    return () => clearTimeout(timer)
-  }, [dayKey])
-  const today = useMemo(() => startOfToday(), [dayKey])
+  // Date-sensitive predicates roll at midnight.
+  const today = useToday()
 
   // Reload tag assignments only when the id-set changes — see horizons P5
   // commit: gating on `${length}:${todosVersion}` keeps both ends stable
@@ -141,7 +128,7 @@ export function HorizonsSlotContent() {
       const scheduled: PersistedTodoItem[] = []
       const due: PersistedTodoItem[] = []
       for (const todo of list.todos) {
-        if (classifyByDateSource(todo, today, weekStartsOn) === 'scheduled') scheduled.push(todo)
+        if (classifyByDateSource(todo) === 'scheduled') scheduled.push(todo)
         else due.push(todo)
       }
       out.push({
@@ -153,7 +140,7 @@ export function HorizonsSlotContent() {
       })
     }
     return out
-  }, [lists, horizonDefs, today, weekStartsOn])
+  }, [lists, horizonDefs])
 
   const selectedRow = useMemo(() => {
     if (selectedHorizonDefId == null) return null

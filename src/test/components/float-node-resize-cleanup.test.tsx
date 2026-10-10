@@ -79,7 +79,6 @@ function renderInset() {
     onToggleCollapse: vi.fn(),
     onResize: vi.fn(),
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const NodeComp = ListInsetNode as any
   return render(
     <Wrapper>

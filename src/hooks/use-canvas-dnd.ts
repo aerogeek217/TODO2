@@ -333,13 +333,13 @@ export function useCanvasDnD({
         activeTodo.id,
       )
 
-      const preview = resolveDropPreview(activeTodo, overType, overTodo, overProjectId, delta, todosByProject)
+      const preview = resolveDropPreview(activeTodo, overType, overTodo, overProjectId, delta)
 
       setInsertTodoId(preview.insertTodoId)
       setInsertAtEnd(preview.insertAtEnd)
       setInsertProjectId(preview.insertProjectId)
     },
-    [todosByProject, expandTargetArea]
+    [expandTargetArea]
   )
 
   const handleDragOver = useCallback(

@@ -130,14 +130,16 @@ export const InsertTrigger = forwardRef<InsertTriggerHandle, InsertTriggerProps>
   // Phase 2 also showed the in-component reclaim chain (rAF / t0 / t50 /
   // t150 / t300 / focusout-reclaim) was 0/40 effective on Enter-chain —
   // removed accordingly when Phase 3 landed.
+  // `ac` is a fresh object each render; `ac.dismiss` is a stable useCallback.
+  const { dismiss: dismissAutocomplete } = ac
   useLayoutEffect(() => {
     if (!editing) {
-      ac.dismiss()
+      dismissAutocomplete()
       return
     }
     titleRef.current = ''
     committedRef.current = false
-  }, [editing])
+  }, [editing, dismissAutocomplete])
 
   const handleCommit = () => {
     ac.dismiss()

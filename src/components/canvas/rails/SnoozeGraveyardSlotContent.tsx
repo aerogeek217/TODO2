@@ -31,7 +31,6 @@ export function SnoozeGraveyardSlotContent() {
 
   useEffect(() => {
     void useTodoEventStore.getState().loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [todos, todosVersion])
 
   const rows = useMemo<SnoozedTask[]>(

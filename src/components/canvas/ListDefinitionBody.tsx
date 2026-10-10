@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { PersistedTodoItem, Person, TodoPredicate } from '../../models'
 import {
   matchesFilter,
@@ -16,7 +16,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { applyRuntimeFilter, buildDashboardLists, type DashboardList } from '../../services/dashboard-lists'
 import { predicateToFilterDefaults } from '../../utils/filter-defaults'
-import { startOfToday } from '../../utils/date'
+import { useToday } from '../../hooks/use-today'
 import { TaskRow } from '../task/TaskRow'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
 import groupStyles from './ListDefinitionBody.module.css'
@@ -105,27 +105,14 @@ export function ListDefinitionBody({
     loadTagAssignments(todos.map((t) => t.id))
   }, [todos, loadTagAssignments])
 
-  // Date-sensitive predicates roll at midnight; re-key the memo on day change.
-  const [dayKey, setDayKey] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-  })
-  useEffect(() => {
-    const now = new Date()
-    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
-    const timer = setTimeout(() => {
-      const d = new Date()
-      setDayKey(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)
-    }, Math.max(1000, nextMidnight - now.getTime() + 50))
-    return () => clearTimeout(timer)
-  }, [dayKey])
+  // Date-sensitive predicates roll at midnight.
+  const today = useToday()
 
   const runtimeFilterPending = definition?.runtimeFilter != null && runtimeFilterValue == null
 
   const builtList = useMemo<DashboardList | null>(() => {
     if (!definition) return null
     if (runtimeFilterPending) return null
-    const today = startOfToday()
     const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
       const criteria = predicateToCriteria(predicate)
       const assignedPeople = assignedPeopleMap.get(todo.id) ?? []
@@ -161,7 +148,7 @@ export function ListDefinitionBody({
   }, [
     definition, todos, people, assignedPeopleMap,
     orgs, assignedOrgsMap, personOrgMap, projects,
-    assignedTagsMap, statuses, dayKey, weekStartsOn,
+    assignedTagsMap, statuses, today, weekStartsOn,
     runtimeFilterValue, runtimeFilterPending,
   ])
 

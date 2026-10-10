@@ -54,6 +54,18 @@ interface TagState {
   selectTodoCountsByTag: () => Map<number, number>
 }
 
+/** Tag id → number of loaded todos carrying it, from an `assignedTagsMap`. */
+export function countTodosByTag(assignedTagsMap: ReadonlyMap<number, readonly Tag[]>): Map<number, number> {
+  const counts = new Map<number, number>()
+  for (const tags of assignedTagsMap.values()) {
+    for (const tag of tags) {
+      if (tag.id == null) continue
+      counts.set(tag.id, (counts.get(tag.id) ?? 0) + 1)
+    }
+  }
+  return counts
+}
+
 export const useTagStore = create<TagState>((set, get) => {
   const tagEnsure = makeEnsureLoaded(() => get().load())
   const assignment = createAssignmentActions(
@@ -168,14 +180,7 @@ export const useTagStore = create<TagState>((set, get) => {
     },
 
     selectTodoCountsByTag() {
-      const counts = new Map<number, number>()
-      for (const tags of get().assignedTagsMap.values()) {
-        for (const tag of tags) {
-          if (tag.id == null) continue
-          counts.set(tag.id, (counts.get(tag.id) ?? 0) + 1)
-        }
-      }
-      return counts
+      return countTodosByTag(get().assignedTagsMap)
     },
   }
 })

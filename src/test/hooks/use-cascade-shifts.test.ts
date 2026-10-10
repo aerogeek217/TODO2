@@ -20,7 +20,7 @@ function makeRfInstanceRef(): MutableRefObject<ReactFlowInstance | null> {
 }
 
 function makeGetRect() {
-  return (node: Node, _all: Node[], _isDragging: boolean) => ({
+  return (node: Node) => ({
     nodeId: node.id,
     x: node.position.x,
     y: node.position.y,

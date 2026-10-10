@@ -129,8 +129,9 @@ export function SettingsPage() {
     loadStatuses()
     loadListDefinitions()
     loadBackups()
+    const timers = timerRefs.current
     return () => {
-      timerRefs.current.forEach(clearTimeout)
+      timers.forEach(clearTimeout)
     }
   }, [load, loadProjects, loadPeople, loadOrgs, loadTags, loadStatuses, loadListDefinitions, loadBackups])
 

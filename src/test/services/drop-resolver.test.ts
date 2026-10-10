@@ -228,7 +228,6 @@ describe('resolveDropPreview', () => {
       null,
       null,
       { x: 0, y: 0 },
-      new Map(),
     )
     expect(result).toEqual({
       insertTodoId: null,
@@ -245,7 +244,6 @@ describe('resolveDropPreview', () => {
       null,
       20,
       { x: 0, y: 0 },
-      new Map(),
     )
     expect(result).toEqual({
       insertTodoId: null,
@@ -264,7 +262,6 @@ describe('resolveDropPreview', () => {
       target,
       null,
       { x: 0, y: 50 },
-      new Map(),
     )
     expect(result).toEqual({
       insertTodoId: 2,
@@ -283,7 +280,6 @@ describe('resolveDropPreview', () => {
       overTodo,
       null,
       { x: 0, y: 50 },
-      new Map(),
     )
     expect(result).toEqual({
       insertTodoId: 5,
@@ -301,7 +297,6 @@ describe('resolveDropPreview', () => {
       null,
       null,
       { x: 50, y: 50 },
-      new Map(),
     )
     expect(result).toEqual({
       insertTodoId: null,
@@ -319,7 +314,6 @@ describe('resolveDropPreview', () => {
       null,
       null,
       { x: 200, y: 200 },
-      new Map(),
     )
     expect(result).toEqual({
       insertTodoId: null,

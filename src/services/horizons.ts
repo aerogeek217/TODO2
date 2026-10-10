@@ -1,5 +1,4 @@
 import type { PersistedTodoItem } from '../models'
-import type { WeekStart } from '../utils/effective-date'
 
 /**
  * Which date drove a todo's horizon placement. Mirrors `effectiveDate`'s
@@ -11,8 +10,6 @@ import type { WeekStart } from '../utils/effective-date'
  */
 export function classifyByDateSource(
   todo: Pick<PersistedTodoItem, 'scheduledDate' | 'dueDate'>,
-  _today: Date,
-  _weekStartsOn: WeekStart,
 ): 'scheduled' | 'due' {
   if (todo.scheduledDate != null) return 'scheduled'
   if (todo.dueDate != null) return 'due'

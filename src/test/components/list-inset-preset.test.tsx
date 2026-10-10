@@ -90,7 +90,6 @@ function renderInset(data: Partial<ListInsetNodeData>) {
   }
   // ListDefinitionBody reads todos from the store; seed it from the fixture.
   useTodoStore.setState({ todos: merged.allTodos })
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const NodeComp = ListInsetNode as any
   return render(
     <Wrapper>

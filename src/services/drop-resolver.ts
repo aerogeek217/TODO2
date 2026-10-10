@@ -135,7 +135,6 @@ export function resolveDropPreview(
   overTodo: PersistedTodoItem | null,
   overProjectId: number | null,
   delta: { x: number; y: number },
-  _todosByProject: Map<number, PersistedTodoItem[]>,
 ): Omit<PreviewResult, 'dragExpandedProjectId'> {
   if (!activeTodo) {
     return { insertTodoId: null, insertAtEnd: false, insertProjectId: null }

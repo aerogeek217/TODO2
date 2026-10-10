@@ -43,6 +43,8 @@ interface MobileTaskRowProps {
 // surface that's intentionally desktop-only is the inline avatar context
 // menu (right-click on a person/org chip to show a filtered list) — that
 // gesture has no touch analogue.
+const NO_PEOPLE: Person[] = []
+
 export const MobileTaskRow = memo(function MobileTaskRow({
   todo, assignedPeople, isSelected, ghost,
   onSelect, onOpenDetail, cut,
@@ -141,7 +143,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   })
   const quickStatusId = useSettingsStore((s) => s.quickStatusId)
 
-  const people = assignedPeople ?? []
+  const people = assignedPeople ?? NO_PEOPLE
   const assignedPeopleIds = useMemo(() => new Set(people.map(p => p.id!)), [people])
   const hasPeople = people.length > 0 || assignedOrgs.length > 0
   const hasMetadata =

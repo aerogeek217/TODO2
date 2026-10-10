@@ -64,7 +64,6 @@ function renderProjectNode(data?: Partial<ProjectNodeData>) {
     onToggleCollapse: vi.fn(),
     ...data,
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const NodeComp = ProjectNode as any
   return render(
     <Wrapper>

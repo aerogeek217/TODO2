@@ -9,15 +9,12 @@ import { ResizeHandle } from '../../../components/shared/ResizeHandle'
 // runs without throwing.
 beforeEach(() => {
   if (!Element.prototype.setPointerCapture) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(Element.prototype as any).setPointerCapture = function () { /* noop */ }
   }
   if (!Element.prototype.hasPointerCapture) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(Element.prototype as any).hasPointerCapture = function () { return false }
   }
   if (!Element.prototype.releasePointerCapture) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(Element.prototype as any).releasePointerCapture = function () { /* noop */ }
   }
 })
