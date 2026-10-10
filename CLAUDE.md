@@ -36,7 +36,7 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 - CSS custom properties for design tokens in `src/styles/tokens.css`
 - No class components — functional components with hooks only
 - **TypeScript strictness**: `noUncheckedIndexedAccess` is on for production code. Prefer `array.at(idx)` or explicit `?? fallback` over `!`. Index access on tuples / known-shape Records is type-safe; runtime arrays return `T | undefined`.
-- **ESLint**: typed parsing on (`parserOptions.project: ['./tsconfig.app.json', './tsconfig.node.json']`; `src/test/**` overrides to `project: null`); `@typescript-eslint/no-explicit-any: 'error'` outside `src/test/**`. Hand-edit casts route through typed helpers (`utils/file-picker.ts`, `restore.ts`'s `LegacyTodoRow`).
+- **ESLint**: typed parsing on (`parserOptions.project: ['./tsconfig.app.json', './tsconfig.node.json', './tsconfig.e2e.json']` — `tsconfig.e2e.json` covers `e2e/**` + `playwright.config.ts` and is lint-only, not referenced by `tsc -b`; `src/test/**` overrides to `project: null`); `@typescript-eslint/no-explicit-any: 'error'` outside `src/test/**`. Hand-edit casts route through typed helpers (`utils/file-picker.ts`, `restore.ts`'s `LegacyTodoRow`).
 
 ## Constraints
 - Local-first, offline — all data in IndexedDB, no backend
