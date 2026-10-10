@@ -42,6 +42,11 @@ export async function checkUnsupportedOldDB(): Promise<UnsupportedDBInfo | null>
   }
 }
 
+/**
+ * "Too old" detection only (missing marker or below the floor). Files from a
+ * *newer* schema return `null` here; `data/import-pipeline.ts` `prepareImport`
+ * (the single import entry point) rejects those before calling this.
+ */
 export function detectUnsupportedImport(raw: unknown): UnsupportedImportInfo | null {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>

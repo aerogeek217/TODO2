@@ -100,7 +100,7 @@ beforeEach(() => {
   mockLoadFileHandle.mockReset().mockResolvedValue(null)
   mockSaveFileHandle.mockReset().mockResolvedValue(undefined)
   mockClearFileHandle.mockReset().mockResolvedValue(undefined)
-  mockValidateImportData.mockReset().mockReturnValue({ ok: true, data: validImportData })
+  mockValidateImportData.mockReset().mockReturnValue({ ok: true, data: validImportData, warnings: [] })
   mockRestoreFromImportData.mockReset().mockResolvedValue(undefined)
   mockBuildExportData.mockReset().mockResolvedValue({ todos: [], projects: [] })
   mockSnapshotBeforeDestructive.mockReset().mockResolvedValue(undefined)
@@ -375,6 +375,81 @@ describe('FileStorageService — loadFromFile errors', () => {
     expect(mockRestoreFromImportData).not.toHaveBeenCalled()
     expect(writable.write).toHaveBeenCalled()
     expect(svc.status.isConnected).toBe(true)
+  })
+})
+
+// ─── loadFromFile schema-version routing (unified import pipeline) ────
+// The database mock pins CURRENT_DB_VERSION = 48 / floor = 16.
+
+describe('FileStorageService — loadFromFile version routing', () => {
+  function handleWithJson(obj: unknown, writable = {
+    write: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn().mockResolvedValue(undefined),
+    abort: vi.fn().mockResolvedValue(undefined),
+  }) {
+    const f = new File([JSON.stringify(obj)], 'todo2-data.json', { type: 'application/json' })
+    return {
+      handle: createMockHandle({
+        getFile: vi.fn().mockResolvedValue(f),
+        createWritable: vi.fn().mockResolvedValue(writable),
+      }),
+      writable,
+    }
+  }
+
+  it('rejects a file from a newer schema: no restore, no sync hooks, no write-back', async () => {
+    const { handle, writable } = handleWithJson({ __schemaVersion: 49, canvases: [{ id: 1 }] })
+    mockLoadFileHandle.mockResolvedValue(handle)
+
+    const svc = await getService()
+    await svc.initialize()
+
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(svc.status.error).toMatch(/^File sync paused — .*newer version of TODO2/)
+    expect(svc.status.isConnected).toBe(false)
+    for (const table of mockTables) {
+      expect(table.hook('creating').subscribe).not.toHaveBeenCalled()
+    }
+    expect(writable.write).not.toHaveBeenCalled()
+    // The persisted handle is kept so an updated build reconnects.
+    expect(mockClearFileHandle).not.toHaveBeenCalled()
+  })
+
+  it('restamps the file after loading an older-but-supported version', async () => {
+    const { handle, writable } = handleWithJson({ __schemaVersion: 47, canvases: [{ id: 1 }] })
+    mockLoadFileHandle.mockResolvedValue(handle)
+
+    const svc = await getService()
+    await svc.initialize()
+
+    expect(mockRestoreFromImportData).toHaveBeenCalled()
+    expect(writable.write).toHaveBeenCalledTimes(1)
+    expect(svc.status.isConnected).toBe(true)
+  })
+
+  it('does not rewrite a file already at the current version', async () => {
+    const { handle, writable } = handleWithJson({ __schemaVersion: 48, canvases: [{ id: 1 }] })
+    mockLoadFileHandle.mockResolvedValue(handle)
+
+    const svc = await getService()
+    await svc.initialize()
+
+    expect(mockRestoreFromImportData).toHaveBeenCalled()
+    expect(writable.write).not.toHaveBeenCalled()
+  })
+
+  it('asks before loading a below-floor file and disconnects on cancel', async () => {
+    const { handle } = handleWithJson({ __schemaVersion: 10, canvases: [{ id: 1 }] })
+    mockLoadFileHandle.mockResolvedValue(handle)
+
+    const svc = await getService()
+    const confirm = vi.fn().mockResolvedValue(false)
+    svc.onConfirmMigration(confirm)
+    await svc.initialize()
+
+    expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ sourceVersion: 10, targetVersion: 48 }))
+    expect(mockRestoreFromImportData).not.toHaveBeenCalled()
+    expect(mockClearFileHandle).toHaveBeenCalled()
   })
 })
 

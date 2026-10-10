@@ -6,7 +6,7 @@ import {
   persistHorizonSlots,
 } from './database'
 import type { ImportData } from './import-validation'
-import { validateImportData } from './import-validation'
+import { prepareImportText } from './import-pipeline'
 import type { Taskboard } from '../models'
 
 /**
@@ -116,16 +116,17 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
   })
 }
 
-/** Parse a JSON string, validate it, and restore all data tables. Returns error string on failure. */
+/**
+ * Parse a JSON string, run it through the unified import pipeline
+ * (`prepareImport`: version check → schema upgrade → validation), and restore
+ * all data tables. Returns an error string on failure.
+ *
+ * Does not prompt for below-floor files — callers that may see one (backup
+ * restore in Settings) check `prepareImportText(...).legacy` and confirm via
+ * `MigrationDialog` first.
+ */
 export async function parseAndRestore(jsonString: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(jsonString)
-  } catch {
-    return { ok: false, error: 'Data is corrupted (invalid JSON)' }
-  }
-
-  const result = validateImportData(parsed)
+  const result = prepareImportText(jsonString)
   if (!result.ok) return { ok: false, error: result.error }
 
   await restoreFromImportData(result.data)

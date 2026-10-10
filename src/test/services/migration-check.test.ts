@@ -136,7 +136,7 @@ describe('detectUnsupportedImport', () => {
     ).toBeNull()
   })
 
-  it('returns null when the embedded marker is a future version (forward-compat)', () => {
+  it('returns null for a future version (too-new is rejected by prepareImport, not here)', () => {
     expect(
       detectUnsupportedImport({ [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION + 1, todos: [] }),
     ).toBeNull()

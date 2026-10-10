@@ -1,10 +1,10 @@
 import { ALL_DATA_TABLES } from '../data/database'
 import { saveFileHandle, loadFileHandle, clearFileHandle } from './file-handle-idb'
-import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
+import { MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
+import { prepareImportText } from '../data/import-pipeline'
 import { restoreFromImportData } from '../data/restore'
 import { buildExportData } from './export-import'
 import { backupScheduler } from './backup-scheduler'
-import { detectUnsupportedImport } from './migration-check'
 import type { UnsupportedImportInfo } from './migration-check'
 
 export type FileStorageStatus = {
@@ -153,10 +153,11 @@ class FileStorageService {
   private async loadFromFile(): Promise<void> {
     if (!this.handle) return
 
-    // True iff the on-disk file lacked `__schemaVersion` (or carried an older
-    // one) and the user confirmed the import. In that case we re-save below to
-    // stamp the marker, so the next `loadFromFile` (which fires every startup
-    // for connected file-storage) doesn't ask the same question again.
+    // True iff the on-disk file lacked `__schemaVersion` / was below the floor
+    // and the user confirmed the import, or was older than CURRENT and went
+    // through the upgrade pipeline. We re-save below to stamp
+    // CURRENT_DB_VERSION, so the next `loadFromFile` (which fires every
+    // startup for connected file-storage) doesn't ask or upgrade again.
     let needsRestamp = false
     this.suppressSync = true
     try {
@@ -178,28 +179,24 @@ class FileStorageService {
         return
       }
 
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(text)
-      } catch (parseErr) {
-        const detail = parseErr instanceof SyntaxError ? `: ${parseErr.message}` : ''
-        this._error = `File contains invalid JSON${detail}`
-        this.suppressSync = false
-        this.notify()
-        return
-      }
-
-      const result = validateImportData(parsed)
+      const result = prepareImportText(text)
       if (!result.ok) {
-        this._error = result.error
+        if (result.reason === 'too-new') {
+          // A newer build wrote this file. Never sync over it — drop the
+          // in-memory handle so no hooks are installed (the persisted handle
+          // stays, so an updated build reconnects on its next startup).
+          this.handle = null
+          this._error = `File sync paused — ${result.error}`
+        } else {
+          this._error = result.error
+        }
         this.suppressSync = false
         this.notify()
         return
       }
 
-      const legacyInfo = detectUnsupportedImport(parsed)
-      if (legacyInfo && this.migrationConfirmListener) {
-        const confirmed = await this.migrationConfirmListener(legacyInfo)
+      if (result.legacy && this.migrationConfirmListener) {
+        const confirmed = await this.migrationConfirmListener(result.legacy)
         if (!confirmed) {
           this.suppressSync = false
           await this.disconnect()
@@ -207,6 +204,9 @@ class FileStorageService {
         }
         needsRestamp = true
       }
+      // An older-but-supported file was upgraded in memory; rewrite it at
+      // CURRENT_DB_VERSION so the sync file matches the live database.
+      if (result.upgraded) needsRestamp = true
 
       let snapshotFailed = false
       await backupScheduler.snapshotBeforeDestructive().catch((err) => {
