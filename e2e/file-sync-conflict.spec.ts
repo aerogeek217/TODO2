@@ -72,7 +72,7 @@ async function addTodo(page: Page, title: string) {
         const idb = req.result
         const tx = idb.transaction(['todos'], 'readwrite')
         const now = new Date()
-        tx.objectStore('todos').add({ title, isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 })
+        tx.objectStore('todos').add({ uid: crypto.randomUUID(), title, isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 })
         tx.oncomplete = () => { idb.close(); resolve() }
         tx.onerror = () => reject(tx.error)
       }

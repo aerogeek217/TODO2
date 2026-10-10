@@ -1,8 +1,35 @@
 import { db } from './database'
-import type { TodoItem, PersistedTodoItem, TodoEvent } from '../models'
+import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../models'
 import { startOfToday } from '../utils/date'
 import { encodeScheduledValue, encodeDateValue } from './todo-event-repository'
 import { hasPreciseRecurrenceAnchor } from './recurrence-anchor'
+import { resolveCompletedAt } from '../utils/completed-at'
+import { newTodoUid } from '../utils/todo-uid'
+
+/**
+ * `completedAt` bookkeeping for a write that may touch `isCompleted`
+ * (cr1 P4): returns `changes` with `completedAt` set (newly completed),
+ * kept (still completed) or `undefined` (reopened — Dexie `update` deletes
+ * the key; `put` callers strip it with `withoutUndefinedCompletedAt`).
+ * Writes that don't mention `isCompleted` pass through untouched.
+ */
+function withCompletedAt<T extends Partial<TodoItem>>(
+  prior: Pick<TodoItem, 'isCompleted' | 'completedAt'> | undefined,
+  changes: T,
+  now: Date,
+): T {
+  if (changes.isCompleted === undefined) return changes
+  const next = { isCompleted: changes.isCompleted, completedAt: changes.completedAt }
+  return { ...changes, completedAt: resolveCompletedAt(prior, next, now) }
+}
+
+/** Drops an `undefined` `completedAt` key so a `put` / `add` doesn't store it. */
+function withoutUndefinedCompletedAt<T extends Partial<TodoItem>>(row: T): T {
+  if (!('completedAt' in row) || row.completedAt !== undefined) return row
+  const rest: Partial<TodoItem> = { ...row }
+  delete rest.completedAt
+  return rest as T
+}
 
 /**
  * Repository-level invariant: a `recurrenceRule` is only meaningful when the
@@ -113,9 +140,19 @@ export const todoRepository = {
     return db.todos.get(id) as Promise<PersistedTodoItem | undefined>
   },
 
-  async insert(todo: Omit<TodoItem, 'id'>): Promise<number> {
+  /**
+   * Inserts a task. Mints a `uid` unless one is passed (only paths that keep
+   * an imported task's identity pass one) and stamps `completedAt` on a row
+   * inserted already completed.
+   */
+  async insert(todo: NewTodoItem): Promise<number> {
+    const row: TodoItem = withoutUndefinedCompletedAt({
+      ...todo,
+      uid: todo.uid ?? newTodoUid(),
+      completedAt: todo.isCompleted ? (todo.completedAt ?? new Date()) : undefined,
+    })
     return db.transaction('rw', [db.todos, db.todoEvents], async () => {
-      const id = await db.todos.add(todo as TodoItem) as number
+      const id = await db.todos.add(row) as number
       const createdAt = todo.createdAt instanceof Date
         ? todo.createdAt.toISOString()
         : new Date().toISOString()
@@ -135,18 +172,23 @@ export const todoRepository = {
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const prior = await db.todos.get(todo.id) as PersistedTodoItem | undefined
       const cleaned = dropOrphanedRule(todo, todo)
-      const next = { ...cleaned, modifiedAt: now }
+      const next = withoutUndefinedCompletedAt(withCompletedAt(prior, { ...cleaned, modifiedAt: now }, now))
       const events = buildFieldChangeEvents(todo.id, prior, next, now.toISOString())
       await db.todos.put(next)
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
     })
   },
 
-  async complete(id: number, completed: boolean): Promise<void> {
+  /**
+   * Completes / reopens a task, keeping `completedAt` in step (set on
+   * completion, cleared on reopen). `completedAt` overrides the completion
+   * time — undo passes the original one back when it re-completes a task.
+   */
+  async complete(id: number, completed: boolean, completedAt?: Date): Promise<void> {
     const now = new Date()
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const prior = await db.todos.get(id) as PersistedTodoItem | undefined
-      await db.todos.update(id, { isCompleted: completed, modifiedAt: now })
+      await db.todos.update(id, withCompletedAt(prior, { isCompleted: completed, completedAt, modifiedAt: now }, now))
       const events = buildFieldChangeEvents(id, prior, { isCompleted: completed }, now.toISOString())
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
     })
@@ -212,7 +254,7 @@ export const todoRepository = {
       for (const { todoId, changes } of mutations) {
         const prior = await db.todos.get(todoId) as PersistedTodoItem | undefined
         const merged = { ...prior, ...changes } as PersistedTodoItem
-        const cleaned = dropOrphanedRule(merged, changes)
+        const cleaned = withCompletedAt(prior, dropOrphanedRule(merged, changes), now)
         await db.todos.update(todoId, { ...cleaned, modifiedAt: now })
         events.push(...buildFieldChangeEvents(todoId, prior, cleaned, ts))
       }

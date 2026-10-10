@@ -7,9 +7,11 @@ function makeCanvas(overrides = {}) {
   return { id: 1, name: 'Canvas', sortOrder: 0, createdAt: now, ...overrides }
 }
 
+let todoUidSeq = 0
+
 function makeTodo(overrides = {}) {
   return {
-    id: 1, title: 'Task',
+    id: 1, uid: `uid-${++todoUidSeq}`, title: 'Task',
     isCompleted: false,
     createdAt: now, modifiedAt: now, sortOrder: 0,
     ...overrides,
@@ -106,6 +108,33 @@ describe('validateImportData', () => {
   it('rejects NaN sortOrder', () => {
     const result = validateImportData(validData({ todos: [makeTodo({ sortOrder: NaN })] }))
     expect(result.ok).toBe(false)
+  })
+
+  // uid + completedAt (cr1 P4)
+  it('rejects a todo without a uid (current-version rows always carry one)', () => {
+    for (const uid of [undefined, '', 42]) {
+      const result = validateImportData(validData({ todos: [makeTodo({ uid })] }))
+      expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "uid"' })
+    }
+  })
+
+  it('rejects duplicate todo uids, naming both rows', () => {
+    const result = validateImportData(validData({
+      todos: [makeTodo({ id: 1, uid: 'same' }), makeTodo({ id: 2 }), makeTodo({ id: 3, uid: 'same', title: 'Dup' })],
+    }))
+    expect(result).toEqual({ ok: false, error: 'Invalid "todos" record at index 2 ("Dup"): duplicate uid (same as index 0)' })
+  })
+
+  it('accepts an optional completedAt and rejects a malformed one', () => {
+    const iso = '2026-10-01T09:30:00.000Z'
+    const ok = validateImportData(validData({ todos: [makeTodo({ isCompleted: true, completedAt: iso })] }))
+    expect(ok.ok).toBe(true)
+    if (ok.ok) {
+      expect(ok.data.todos[0]!.completedAt).toEqual(new Date(iso))
+      expect(ok.data.todos[0]!.uid).toMatch(/^uid-/)
+    }
+    const bad = validateImportData(validData({ todos: [makeTodo({ isCompleted: true, completedAt: 'soon' })] }))
+    expect(bad).toEqual({ ok: false, error: 'Invalid "todos" record at index 0 ("Task"): bad field "completedAt"' })
   })
 
   // Person validation

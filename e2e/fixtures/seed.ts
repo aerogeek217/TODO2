@@ -186,6 +186,7 @@ export async function seedCanvasWithProjects(
             const tasks = seed.tasksByProjectName[p.name] ?? []
             tasks.forEach((title, ti) => {
               todoStore.add({
+                uid: crypto.randomUUID(),
                 title,
                 isCompleted: false,
                 createdAt: now,

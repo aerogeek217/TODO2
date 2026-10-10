@@ -84,6 +84,7 @@ async function seedAssignments(page: Page, opts: AssignmentSeed): Promise<void> 
           }
           for (const task of seed.tasks ?? []) {
             const todoReq = writeTx.objectStore('todos').add({
+              uid: crypto.randomUUID(),
               title: task.title,
               isCompleted: false,
               createdAt: now,

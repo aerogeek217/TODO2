@@ -2,10 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import type { SchemaUpgrade } from '../../data/schema-upgrades'
 
 /**
- * The production registry is empty while CURRENT_DB_VERSION === floor (49),
- * so this file simulates a future build (CURRENT = 51, with v50 + v51
- * transforms) to prove `prepareImport` routes floor ≤ v < CURRENT files
- * through `upgradeDataSet` before validating.
+ * Written when the production registry was empty (CURRENT === floor, 49):
+ * simulates a build at CURRENT = 51 with *test* v50 + v51 transforms to prove
+ * `prepareImport` routes floor ≤ v < CURRENT files through `upgradeDataSet`
+ * before validating. The real transforms are tested in `v50-*.test.ts` /
+ * `v51-*.test.ts`; rows here carry a `uid` because the current validator
+ * requires one and the test registry doesn't mint it.
  */
 vi.mock('../../data/database', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../data/database')>()),
@@ -43,7 +45,7 @@ describe('prepareImport — upgrade path (simulated CURRENT = 51)', () => {
     const result = prepareImport({
       __schemaVersion: 49,
       ...base,
-      todos: [{ id: 1, name: 'Legacy title', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
+      todos: [{ id: 1, uid: 'u1', name: 'Legacy title', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
       people: [{ id: 1, name: 'Ann' }],
     })
     expect(result.ok).toBe(true)
@@ -59,7 +61,7 @@ describe('prepareImport — upgrade path (simulated CURRENT = 51)', () => {
       __schemaVersion: 50,
       ...base,
       // A v50 file is already renamed; an un-renamed row proves v50 did not run.
-      todos: [{ id: 1, name: 'x', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
+      todos: [{ id: 1, uid: 'u1', name: 'x', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
     })
     expect(result).toMatchObject({ ok: false, reason: 'invalid' })
   })
@@ -73,7 +75,7 @@ describe('prepareImport — upgrade path (simulated CURRENT = 51)', () => {
     const result = prepareImport({
       __schemaVersion: 40,
       ...base,
-      todos: [{ id: 1, name: 'Old', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
+      todos: [{ id: 1, uid: 'u1', name: 'Old', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return

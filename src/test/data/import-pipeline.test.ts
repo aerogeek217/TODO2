@@ -10,7 +10,7 @@ function file(overrides: Record<string, unknown> = {}): Record<string, unknown> 
     [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
     exportedAt: now,
     canvases: [{ id: 1, name: 'Main', sortOrder: 0, createdAt: now }],
-    todos: [{ id: 1, title: 'Task', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
+    todos: [{ id: 1, uid: 'u1', title: 'Task', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
     ...overrides,
   }
 }

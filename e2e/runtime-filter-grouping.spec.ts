@@ -89,6 +89,7 @@ async function seedAssignments(page: Page, opts: PostSeedOptions): Promise<void>
           const now = new Date()
           for (const task of seed.tasks ?? []) {
             const todoReq = writeTx.objectStore('todos').add({
+              uid: crypto.randomUUID(),
               title: task.title,
               isCompleted: false,
               createdAt: now,

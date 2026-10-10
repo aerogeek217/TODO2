@@ -180,3 +180,31 @@ describe('v49 fixture → v50: Date fields arrive as Dates', () => {
     for (const e of await db.todoEvents.toArray()) expect(typeof e.timestamp).toBe('string')
   })
 })
+
+// ── v51 (cr1 P4): uid + completedAt ──────────────────────────────────────
+
+describe('v49 fixture → v51: every todo has a unique uid; completedAt backfilled', () => {
+  it('assigns a unique uid to every todo, the same on every import', async () => {
+    await importFixture()
+    const todos = await db.todos.orderBy('id').toArray()
+    const uids = todos.map((t) => t.uid)
+    for (const uid of uids) expect(uid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(new Set(uids).size).toBe(todos.length)
+
+    // Deterministic backfill: a second import of the same file yields the same uids.
+    await resetDb()
+    await importFixture()
+    expect((await db.todos.orderBy('id').toArray()).map((t) => t.uid)).toEqual(uids)
+  })
+
+  it('backfills completedAt from the completed event; open tasks (incl. reopened) have none', async () => {
+    await importFixture()
+    const todos = await db.todos.orderBy('id').toArray()
+    const passport = todos.find((t) => t.title === 'Renew passport')!
+    expect(passport.completedAt).toEqual(new Date('2026-09-12T09:30:00.000Z'))
+    // "Call Ann…" was completed then reopened: no completedAt.
+    for (const t of todos.filter((x) => !x.isCompleted)) {
+      expect('completedAt' in t, `todo ${t.id} has no completedAt`).toBe(false)
+    }
+  })
+})

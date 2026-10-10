@@ -7,7 +7,7 @@ import { prepareImport } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { todoRepository } from '../../data/todo-repository'
 import { startOfToday } from '../../utils/date'
-import { resetDb } from '../helpers'
+import { resetDb, v50StoreSpecs } from '../helpers'
 
 const ISO = '2026-09-01T09:00:00.000Z'
 
@@ -85,13 +85,8 @@ describe('upgradeV50 (pure transform)', () => {
  * the Dexie v50 upgrade revives them in place.
  */
 describe('v50 Dexie upgrade repairs a string-dated v49 database', () => {
-  /** The real schema's store specs (v50 changed no stores, so this is v49's too). */
-  function currentStoreSpecs(): Record<string, string> {
-    return Object.fromEntries(db.tables.map((t) => [
-      t.name,
-      [t.schema.primKey.src, ...t.schema.indexes.map((i) => i.src)].join(', '),
-    ]))
-  }
+  /** v49's store specs (v50 changed no stores). */
+  const currentStoreSpecs = v50StoreSpecs
 
   afterEach(async () => {
     await resetDb()
@@ -166,7 +161,8 @@ describe('restored tasks are visible to dueDate range queries', () => {
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
     const file = JSON.parse(JSON.stringify({
-      __schemaVersion: CURRENT_DB_VERSION,
+      // A v50 file: the v51 upgrade mints the uids current rows need.
+      __schemaVersion: 50,
       canvases: [{ id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(ISO) }],
       todos: [
         { id: 1, title: 'Due today', isCompleted: false, sortOrder: 0, createdAt: new Date(ISO), modifiedAt: new Date(ISO), dueDate: today },

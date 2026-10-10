@@ -24,7 +24,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 50
+export const CURRENT_DB_VERSION = 51
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -381,10 +381,21 @@ export class Todo2Database extends Dexie {
     // sync-file loads used to write JSON's ISO strings straight into the DB.
     // First registry-driven version — the transform (`upgrades/v50-revive-dates.ts`)
     // also runs on imported v49 files via `prepareImport`.
+    this.version(50).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 50))
+
+    // v51: `TodoItem.uid` (stable identity, unique index) + `completedAt`
+    // (the retention purge's clock — cr1 P4). The transform
+    // (`upgrades/v51-uid-completed-at.ts`) backfills both. IndexedDB builds
+    // the unique index before the upgrade callback runs; rows without a
+    // `uid` are simply not indexed, so creation can't fail on old rows.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `50` first.
-    this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
+    // docblock above). When bumping, turn this into a literal `51` first.
+    this.version(CURRENT_DB_VERSION)
+      .stores({
+        todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId, &uid',
+      })
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }
 

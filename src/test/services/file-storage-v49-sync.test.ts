@@ -8,15 +8,16 @@ import type { SyncConflictInfo } from '../../services/file-storage'
 import { resetDb } from '../helpers'
 
 /**
- * cr1 P3 bumps CURRENT_DB_VERSION to 50, so the user's existing v49 sync file
- * is now an *older* file. This drives the real pipeline end-to-end (real
- * Dexie, real `prepareImport` + v50 transform, real restore, real backup
+ * cr1 P3 bumped CURRENT_DB_VERSION past 49 (v50 Dates, v51 uid + completedAt),
+ * so the user's existing v49 sync file is now an *older* file. This drives
+ * the real pipeline end-to-end (real Dexie, real `prepareImport` +
+ * v50…CURRENT transforms, real restore, real backup
  * snapshots) with only the file handle faked, and checks the "user decides
  * before anything changes" rules for that file:
  *
- * - clean + synced browser → upgrade prompt (49 → 50); cancel touches nothing;
+ * - clean + synced browser → upgrade prompt (49 → CURRENT); cancel touches nothing;
  * - accept → the raw v49 text is backed up first, the browser gets the file's
- *   data with real `Date`s, and the file is rewritten at v50;
+ *   data with real `Date`s, and the file is rewritten at CURRENT;
  * - unsynced browser changes → conflict prompt; "Use file" backs up first too.
  */
 
@@ -78,14 +79,14 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-describe('v49 sync file opened by the v50 build', () => {
+describe('v49 sync file opened by a post-v49 build (CURRENT ≥ 50)', () => {
   it('the build is past v49 and the fixture prepares as an upgrade', () => {
-    expect(CURRENT_DB_VERSION).toBe(50)
+    expect(CURRENT_DB_VERSION).toBeGreaterThan(49)
     const prepared = prepareImportText(FILE_TEXT)
     expect(prepared).toMatchObject({ ok: true, sourceVersion: 49, upgraded: true, legacy: null })
   })
 
-  it('clean + synced browser: asks 49 → 50; cancel leaves file, browser and backups untouched', async () => {
+  it('clean + synced browser: asks 49 → CURRENT; cancel leaves file, browser and backups untouched', async () => {
     setSyncState({ fileSavedAt: SAVED_AT, dirtySince: null })
     const { handle, write } = makeHandle(FILE_TEXT)
     mockLoadFileHandle.mockResolvedValue(handle)
@@ -94,14 +95,14 @@ describe('v49 sync file opened by the v50 build', () => {
 
     await svc.initialize()
 
-    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 49, toVersion: 50 })
+    expect(ask).toHaveBeenCalledWith({ fileName: 'todo2-data.json', fromVersion: 49, toVersion: CURRENT_DB_VERSION })
     expect(svc.status.paused?.reason).toBe('upgrade-cancelled')
     expect(write).not.toHaveBeenCalled()
     expect(await fileBackups()).toHaveLength(0)
     expect((await db.todos.toArray()).map((t) => t.title)).toEqual([BROWSER_TASK])
   })
 
-  it('accepting backs up the raw v49 text, loads the file with real Dates, and rewrites it at v50', async () => {
+  it('accepting backs up the raw v49 text, loads the file with real Dates, and rewrites it at CURRENT', async () => {
     setSyncState({ fileSavedAt: SAVED_AT, dirtySince: null })
     const { handle, write } = makeHandle(FILE_TEXT)
     mockLoadFileHandle.mockResolvedValue(handle)
@@ -121,12 +122,15 @@ describe('v49 sync file opened by the v50 build', () => {
 
     expect(write).toHaveBeenCalledTimes(1)
     const written = JSON.parse(write.mock.calls[0]![0]) as Record<string, unknown>
-    expect(written.__schemaVersion).toBe(50)
+    expect(written.__schemaVersion).toBe(CURRENT_DB_VERSION)
     // The rewritten file imports at the current version without any upgrade.
     const reloaded = prepareImportText(write.mock.calls[0]![0])
-    expect(reloaded).toMatchObject({ ok: true, sourceVersion: 50, upgraded: false })
+    expect(reloaded).toMatchObject({ ok: true, sourceVersion: CURRENT_DB_VERSION, upgraded: false })
     if (!reloaded.ok) return
     expect(reloaded.data.todos.map((t) => t.title)).toEqual(todos.map((t) => t.title))
+    // v51: the rewritten file carries the same uids / completedAt as the browser.
+    expect(reloaded.data.todos.map((t) => t.uid)).toEqual(todos.map((t) => t.uid))
+    expect(reloaded.data.todos.map((t) => t.completedAt)).toEqual(todos.map((t) => t.completedAt))
   })
 
   it('unsynced browser changes: conflict names v49 as the file schema; "Use file" backs up before restoring', async () => {
@@ -142,13 +146,13 @@ describe('v49 sync file opened by the v50 build', () => {
 
     expect(info).toMatchObject({
       reason: 'browser-changes',
-      browser: { taskCount: 1, schemaVersion: 50 },
+      browser: { taskCount: 1, schemaVersion: CURRENT_DB_VERSION },
       file: { taskCount: fixture.todos.length, schemaVersion: 49 },
     })
     expect(ask).not.toHaveBeenCalled()
     expect(await fileBackups()).toHaveLength(1)
     expect(await db.todos.count()).toBe(fixture.todos.length)
     expect(write).toHaveBeenCalledTimes(1)
-    expect((JSON.parse(write.mock.calls[0]![0]) as Record<string, unknown>).__schemaVersion).toBe(50)
+    expect((JSON.parse(write.mock.calls[0]![0]) as Record<string, unknown>).__schemaVersion).toBe(CURRENT_DB_VERSION)
   })
 })

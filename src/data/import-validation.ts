@@ -140,10 +140,12 @@ function isOptScheduledValue(v: unknown): boolean {
 function checkTodo(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
+    ['uid', isStr(v.uid, 200)],
     ['title', isStr(v.title, 500)],
     ['notes', isOptStr(v.notes, 50000)],
     ['progress', isOptStr(v.progress, 500)],
     ['isCompleted', isBool(v.isCompleted)],
+    ['completedAt', isOptDateLike(v.completedAt)],
     ['scheduledDate', isOptScheduledValue(v.scheduledDate)],
     ['dueDate', isOptDateLike(v.dueDate)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
@@ -675,8 +677,9 @@ function pickScheduledValue(v: Raw): ScheduledValue {
 
 function pickTodo(v: Raw): AllFields<TodoItem> {
   return {
-    id: optNum(v.id), title: v.title as string,
+    id: optNum(v.id), uid: v.uid as string, title: v.title as string,
     isCompleted: v.isCompleted as boolean,
+    completedAt: toOptDate(v.completedAt),
     createdAt: toDate(v.createdAt), modifiedAt: toDate(v.modifiedAt), sortOrder: v.sortOrder as number,
     notes: optStr(v.notes),
     progress: optStr(v.progress),
@@ -1043,6 +1046,21 @@ export function validateImportData(data: unknown): ValidateImportResult {
                     isObj(row) && 'name' in row ? ` ("${String(row.name)}")` : ''
       rowErrors.push(`Invalid "${key}" record at index ${i}${label}: bad field "${result}"`)
     }
+  }
+
+  // Cross-row: todo uids are unique (Dexie index `&uid` — a duplicate would
+  // abort the restore transaction instead of failing validation cleanly).
+  if (Array.isArray(raw.todos)) {
+    const firstIndexByUid = new Map<string, number>()
+    raw.todos.forEach((row: unknown, i) => {
+      if (!isObj(row) || typeof row.uid !== 'string') return
+      const first = firstIndexByUid.get(row.uid)
+      if (first === undefined) {
+        firstIndexByUid.set(row.uid, i)
+        return
+      }
+      rowErrors.push(`Invalid "todos" record at index ${i} ("${String(row.title)}"): duplicate uid (same as index ${first})`)
+    })
   }
 
   const [firstError] = rowErrors

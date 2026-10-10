@@ -19,10 +19,13 @@ import { useFloatingScoreboardStore } from '../stores/floating-scoreboard-store'
 import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-graveyard-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 
+let makeTodoUidSeq = 0
+
 export function makeTodo(
   overrides: Partial<PersistedTodoItem> & { id?: number; scheduledDate?: ScheduledValue } = {},
 ): PersistedTodoItem {
   return {
+    uid: `test-uid-${++makeTodoUidSeq}`,
     title: overrides.id != null ? `Task ${overrides.id}` : 'Task',
     isCompleted: false,
     createdAt: new Date(),
@@ -140,4 +143,17 @@ export function resetFloatingStores(): void {
   useFloatingScoreboardStore.setState({ scoreboards: [], loading: false, error: null })
   useFloatingSnoozeGraveyardStore.setState({ graveyards: [], loading: false, error: null })
   useListInsetStore.setState({ insets: [], loading: false, error: null })
+}
+
+/**
+ * Dexie store specs of the v49 / v50 schema, for tests that build an old
+ * database by hand and then open it with the real `Todo2Database`. Derived
+ * from the current schema minus the indexes later versions added (v51:
+ * `todos.&uid`). Update when a later version changes a store spec.
+ */
+export function v50StoreSpecs(): Record<string, string> {
+  return Object.fromEntries(db.tables.map((t) => {
+    const indexes = t.schema.indexes.map((i) => i.src).filter((src) => !(t.name === 'todos' && src === '&uid'))
+    return [t.name, [t.schema.primKey.src, ...indexes].join(', ')]
+  }))
 }

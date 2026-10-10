@@ -68,7 +68,7 @@ function buildSeed(): Seed {
     ],
     todos: [
       {
-        id: 1, title: 'Send quarterly report', notes: 'Include **charts**', progress: 'draft done',
+        id: 1, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e01', title: 'Send quarterly report', notes: 'Include **charts**', progress: 'draft done',
         isCompleted: false,
         scheduledDate: { kind: 'date', value: at('2026-10-12T00:00:00.000Z') },
         dueDate: at('2026-10-16T00:00:00.000Z'),
@@ -77,7 +77,8 @@ function buildSeed(): Seed {
         projectId: 1, canvasId: 1, statusId: 2, sortOrder: 0,
       },
       {
-        id: 2, title: 'Book dentist', isCompleted: true,
+        id: 2, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e02', title: 'Book dentist', isCompleted: true,
+        completedAt: at('2026-09-10T09:30:00.000Z'),
         scheduledDate: { kind: 'fuzzy', token: 'next-week', setAt: at('2026-09-10T09:30:00.000Z') },
         createdAt: at('2026-09-03T11:00:00.000Z'), modifiedAt: at('2026-09-10T09:30:00.000Z'),
         sortOrder: 1,
