@@ -19,6 +19,8 @@ import { saveLastPickerHandle } from '../services/file-handle-idb'
 import { getOpenFilePicker } from '../utils/file-picker'
 import { getPickerStartIn, saveTextFile } from '../services/save-file'
 import { exportAndPurgeCompleted } from '../services/purge-completed'
+import { findAppendDuplicatesInDb, runAppendImport, type AppendCandidate, type AppendChoice } from '../services/append-import'
+import { AppendImportDialog } from '../components/overlays/AppendImportDialog'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { FileSyncPausedControls } from '../components/layout/FileSyncPausedControls'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
@@ -52,6 +54,14 @@ function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
+/** Pending append import: the prepared file waiting in the duplicate picker. */
+interface PendingAppend {
+  fileName: string
+  data: ImportData
+  candidates: AppendCandidate[]
+  warnings: string[]
+}
+
 export function SettingsPage() {
   const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn, defaultProjectGroupBy, setDefaultProjectGroupBy, canvasMaxExtent, setCanvasMaxExtent } = useSettingsStore()
   const [canvasMaxExtentDraft, setCanvasMaxExtentDraft] = useState<string>(String(canvasMaxExtent))
@@ -78,6 +88,10 @@ export function SettingsPage() {
   /** Persistent: set when the last JSON export failed its re-import self-check. */
   const [exportWarning, setExportWarning] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
+  const appendImportRef = useRef<HTMLInputElement>(null)
+  const [pendingAppend, setPendingAppend] = useState<PendingAppend | null>(null)
+  const [appendBusy, setAppendBusy] = useState(false)
+  const [appendError, setAppendError] = useState<string | null>(null)
   const [showPeopleEditor, setShowPeopleEditor] = useState(false)
   const [showOrgEditor, setShowOrgEditor] = useState(false)
   const [showTagEditor, setShowTagEditor] = useState(false)
@@ -259,6 +273,72 @@ export function SettingsPage() {
     if (!file) return
     await doImport(file)
     if (importRef.current) importRef.current.value = ''
+  }
+
+  const showAppendPicker = async (fileName: string, data: ImportData, warnings: string[]) => {
+    const candidates = await findAppendDuplicatesInDb(data.todos)
+    setAppendError(null)
+    setPendingAppend({ fileName, data, candidates, warnings })
+  }
+
+  /** Settings → "Import tasks (append)…" (cr1 P5): prepare, then open the duplicate picker. */
+  const doAppendImport = async (file: File) => {
+    try {
+      if (file.size > MAX_IMPORT_SIZE_BYTES) {
+        setExportMsg('Import failed — file too large (50 MB max).')
+        track(() => setExportMsg(''), 3000)
+        return
+      }
+      const result = prepareImportText(await file.text(), { purpose: 'append' })
+      if (!result.ok) {
+        setExportMsg(`Import failed — ${result.error}`)
+        track(() => setExportMsg(''), result.reason === 'invalid' ? 10000 : 5000)
+        return
+      }
+      if (result.data.todos.length === 0) {
+        setExportMsg('Nothing to import — the file has no tasks.')
+        track(() => setExportMsg(''), 4000)
+        return
+      }
+      if (result.legacy) {
+        setPendingMigration({
+          info: result.legacy,
+          action: () => showAppendPicker(file.name, result.data, result.warnings),
+        })
+        return
+      }
+      await showAppendPicker(file.name, result.data, result.warnings)
+    } catch (err) {
+      setExportMsg(`Import failed — ${err instanceof Error ? err.message : 'could not read the file'}`)
+      track(() => setExportMsg(''), 5000)
+    }
+  }
+
+  const handleAppendImportClick = () => pickJsonFile(appendImportRef.current, doAppendImport)
+
+  const handleAppendImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await doAppendImport(file)
+    if (appendImportRef.current) appendImportRef.current.value = ''
+  }
+
+  const confirmAppendImport = async (choices: Map<string, AppendChoice>) => {
+    if (!pendingAppend) return
+    setAppendBusy(true)
+    setAppendError(null)
+    try {
+      const result = await runAppendImport(pendingAppend.data, choices)
+      const { warnings } = pendingAppend
+      setPendingAppend(null)
+      const skipped = result.skipped > 0 ? ` Skipped ${plural(result.skipped, 'duplicate')}.` : ''
+      setExportMsg(`Imported ${plural(result.imported, 'task')}.${skipped}${warnings.length > 0 ? ` ${warnings.join(' ')}` : ''}`)
+      track(() => setExportMsg(''), 6000)
+    } catch (err) {
+      setAppendError(`Import failed — ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setAppendBusy(false)
+    }
   }
 
   const executeImport = async (data: ImportData, warnings: string[]) => {
@@ -607,6 +687,13 @@ export function SettingsPage() {
             >
               Import JSON
             </button>
+            <button
+              className={`${styles.button} ${styles.buttonSecondary}`}
+              onClick={handleAppendImportClick}
+              title="Add the tasks from a task archive or backup to your current data"
+            >
+              Import tasks (append)…
+            </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={handleExportMarkdown}>
               Export Markdown
             </button>
@@ -616,6 +703,14 @@ export function SettingsPage() {
               accept=".json"
               style={{ display: 'none' }}
               onChange={handleImport}
+            />
+            <input
+              ref={appendImportRef}
+              type="file"
+              accept=".json"
+              style={{ display: 'none' }}
+              onChange={handleAppendImport}
+              data-testid="append-import-input"
             />
           </div>
           {exportMsg && <div className={styles.successMsg}>{exportMsg}</div>}
@@ -860,7 +955,7 @@ export function SettingsPage() {
             </div>
             <div className={styles.cleanupCount}>
               {cleanupMatchCount > 0
-                ? `${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''} will be deleted. A backup will be created. Export & delete also saves them to a file first.`
+                ? `${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''} will be deleted. A backup will be created. Export & delete also saves them to a file you can add back with "Import tasks (append)…".`
                 : 'No matching tasks.'}
             </div>
             {cleanupError && <div className={styles.errorMsg} role="alert">{cleanupError}</div>}
@@ -887,6 +982,17 @@ export function SettingsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingAppend && (
+        <AppendImportDialog
+          fileName={pendingAppend.fileName}
+          candidates={pendingAppend.candidates}
+          busy={appendBusy}
+          error={appendError}
+          onConfirm={(choices) => { void confirmAppendImport(choices) }}
+          onCancel={() => setPendingAppend(null)}
+        />
       )}
 
       {pendingMigration && (
