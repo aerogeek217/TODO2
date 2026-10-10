@@ -1,21 +1,37 @@
 import { create } from 'zustand'
-import { fileStorageService, type FileStorageStatus } from '../services/file-storage'
+import {
+  fileStorageService,
+  type FileStorageStatus,
+  type SyncConflictInfo,
+  type SyncConflictChoice,
+  type FileUpgradeInfo,
+} from '../services/file-storage'
 import { refreshAllStores } from './refresh-all'
 import type { UnsupportedImportInfo } from '../services/migration-check'
 
 let legacyImportResolve: ((confirmed: boolean) => void) | null = null
+let conflictResolve: ((choice: SyncConflictChoice) => void) | null = null
+let fileUpgradeResolve: ((confirmed: boolean) => void) | null = null
 
 interface FileStorageState extends FileStorageStatus {
   isSupported: boolean
   isLoading: boolean
   pendingLegacyImport: UnsupportedImportInfo | null
+  /** Set while the service waits for the user to pick a side (SyncConflictDialog). */
+  pendingConflict: SyncConflictInfo | null
+  /** Set while the service waits for consent to upgrade an older sync file. */
+  pendingFileUpgrade: FileUpgradeInfo | null
   initialize: () => Promise<void>
   openFile: () => Promise<void>
   createFile: () => Promise<void>
   disconnect: () => Promise<void>
   reconnect: () => Promise<void>
+  retry: () => Promise<void>
+  overwriteFileWithBrowser: () => Promise<void>
   confirmLegacyImport: () => void
   cancelLegacyImport: () => void
+  resolveConflict: (choice: SyncConflictChoice) => void
+  resolveFileUpgrade: (confirmed: boolean) => void
 }
 
 export const useFileStorageStore = create<FileStorageState>((set) => {
@@ -30,6 +46,29 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
       set({ pendingLegacyImport: info })
     })
   })
+  fileStorageService.onConflict((info) => {
+    return new Promise<SyncConflictChoice>((resolve) => {
+      conflictResolve = resolve
+      set({ pendingConflict: info })
+    })
+  })
+  fileStorageService.onConfirmFileUpgrade((info) => {
+    return new Promise<boolean>((resolve) => {
+      fileUpgradeResolve = resolve
+      set({ pendingFileUpgrade: info })
+    })
+  })
+
+  const withLoading = async (fn: () => Promise<void>, errorMessage: string) => {
+    set({ isLoading: true })
+    try {
+      await fn()
+    } catch {
+      set({ error: errorMessage })
+    } finally {
+      set({ isLoading: false })
+    }
+  }
 
   return {
     // Initial state
@@ -38,57 +77,35 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
     lastSavedAt: null,
     needsPermission: false,
     error: null,
+    paused: null,
     isSupported: fileStorageService.isSupported,
     isLoading: false,
     pendingLegacyImport: null,
+    pendingConflict: null,
+    pendingFileUpgrade: null,
 
-    initialize: async () => {
-      set({ isLoading: true })
-      try {
-        await fileStorageService.initialize()
-      } catch {
-        set({ error: 'Failed to initialize file storage' })
-      } finally {
-        set({ isLoading: false })
-      }
-    },
+    initialize: () => withLoading(() => fileStorageService.initialize(), 'Failed to initialize file storage'),
 
     openFile: async () => {
-      set({ isLoading: true, error: null })
-      try {
-        await fileStorageService.openFile()
-      } catch {
-        set({ error: 'Failed to open file' })
-      } finally {
-        set({ isLoading: false })
-      }
+      set({ error: null })
+      await withLoading(() => fileStorageService.openFile(), 'Failed to open file')
     },
 
     createFile: async () => {
-      set({ isLoading: true, error: null })
-      try {
-        await fileStorageService.createFile()
-      } catch {
-        set({ error: 'Failed to create file' })
-      } finally {
-        set({ isLoading: false })
-      }
+      set({ error: null })
+      await withLoading(() => fileStorageService.createFile(), 'Failed to create file')
     },
 
     disconnect: async () => {
       await fileStorageService.disconnect()
     },
 
-    reconnect: async () => {
-      set({ isLoading: true })
-      try {
-        await fileStorageService.reconnect()
-      } catch {
-        set({ error: 'Failed to reconnect to file' })
-      } finally {
-        set({ isLoading: false })
-      }
-    },
+    reconnect: () => withLoading(() => fileStorageService.reconnect(), 'Failed to reconnect to file'),
+
+    retry: () => withLoading(() => fileStorageService.retry(), 'Failed to read file'),
+
+    overwriteFileWithBrowser: () =>
+      withLoading(() => fileStorageService.overwriteFileWithBrowser(), 'Failed to save to file'),
 
     confirmLegacyImport: () => {
       legacyImportResolve?.(true)
@@ -100,6 +117,18 @@ export const useFileStorageStore = create<FileStorageState>((set) => {
       legacyImportResolve?.(false)
       legacyImportResolve = null
       set({ pendingLegacyImport: null })
+    },
+
+    resolveConflict: (choice) => {
+      conflictResolve?.(choice)
+      conflictResolve = null
+      set({ pendingConflict: null })
+    },
+
+    resolveFileUpgrade: (confirmed) => {
+      fileUpgradeResolve?.(confirmed)
+      fileUpgradeResolve = null
+      set({ pendingFileUpgrade: null })
     },
   }
 })

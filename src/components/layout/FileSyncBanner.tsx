@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { useFileOpsStore } from '../../stores/file-ops-store'
+import { FileSyncPausedControls } from './FileSyncPausedControls'
 import styles from './FileSyncBanner.module.css'
 
 const DISMISSED_KEY = 'todo2-file-sync-banner-dismissed'
 
 export function FileSyncBanner() {
-  const { isConnected, isSupported, needsPermission, reconnect, fileName, error } = useFileStorageStore()
+  const { isConnected, isSupported, needsPermission, reconnect, fileName, error, paused } = useFileStorageStore()
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISSED_KEY) === '1',
   )
@@ -29,6 +30,17 @@ export function FileSyncBanner() {
         <button className={styles.grantAccess} onClick={reconnect}>
           Grant Access
         </button>
+      </div>
+    )
+  }
+
+  // Sync paused (unreadable / newer / older file, or a cancelled conflict):
+  // nothing has been written either way until the user picks a way forward.
+  if (paused) {
+    return (
+      <div className={`${styles.banner} ${styles.bannerWarning}`} role="alert" data-testid="file-sync-paused">
+        <span className={styles.message}>{paused.message}</span>
+        <FileSyncPausedControls buttonClassName={styles.dismissText} primaryButtonClassName={styles.grantAccess} />
       </div>
     )
   }

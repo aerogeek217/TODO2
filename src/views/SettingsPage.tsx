@@ -18,6 +18,7 @@ import { buildExportData, buildMarkdownExport, selfCheckExportJson } from '../se
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
 import { getSaveFilePicker, getOpenFilePicker } from '../utils/file-picker'
 import { useIsMobile } from '../hooks/use-is-mobile'
+import { FileSyncPausedControls } from '../components/layout/FileSyncPausedControls'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
 import { OrgEditor } from '../components/settings/OrgEditor'
 import { TagEditor } from '../components/settings/TagEditor'
@@ -549,6 +550,24 @@ export function SettingsPage() {
                   disabled={fileStorage.isLoading}
                 >
                   Grant Access
+                </button>
+              </div>
+            </div>
+          ) : fileStorage.paused ? (
+            <div className={styles.fileInfo}>
+              <span className={styles.fileName}>{fileStorage.fileName}</span>
+              <span className={styles.fileStatus}>{fileStorage.paused.message}</span>
+              <div className={styles.buttonRow}>
+                <FileSyncPausedControls
+                  buttonClassName={`${styles.button} ${styles.buttonSecondary}`}
+                  primaryButtonClassName={`${styles.button} ${styles.buttonPrimary}`}
+                />
+                <button
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  onClick={fileStorage.disconnect}
+                  disabled={fileStorage.isLoading}
+                >
+                  Disconnect
                 </button>
               </div>
             </div>

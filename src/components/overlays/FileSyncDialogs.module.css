@@ -1,0 +1,100 @@
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.side {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sideTitle {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.sideLine {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.note {
+  margin-top: 12px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.cancelButton {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.cancelButton:hover {
+  border-color: var(--color-text-muted);
+}
+
+.secondaryButton {
+  background: none;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-card);
+  color: var(--color-accent);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-card);
+  color: var(--color-surface);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.dangerButton {
+  background: var(--color-danger);
+  border: none;
+  border-radius: var(--radius-card);
+  color: var(--color-surface);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.primaryButton:hover,
+.secondaryButton:hover,
+.dangerButton:hover {
+  opacity: 0.9;
+}
+
+@media (max-width: 640px) {
+  .sides {
+    grid-template-columns: 1fr;
+  }
+
+  .cancelButton,
+  .secondaryButton,
+  .primaryButton,
+  .dangerButton {
+    min-height: var(--touch-target-min);
+    padding: 10px 18px;
+  }
+}

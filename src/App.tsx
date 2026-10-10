@@ -35,6 +35,8 @@ import { ensureDefaultProject } from './services/ensure-default-project'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
+import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
+import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
@@ -457,19 +459,39 @@ export default function App() {
   )
 }
 
+/**
+ * Sync-file prompts raised by `fileStorageService` while it waits for the user
+ * (below-floor file, browser/file conflict, older-file upgrade). Rendered
+ * outside AppShell so they show even while startup is still pending.
+ */
 function FileMigrationOverlay() {
   const pending = useFileStorageStore((s) => s.pendingLegacyImport)
   const confirm = useFileStorageStore((s) => s.confirmLegacyImport)
   const cancel = useFileStorageStore((s) => s.cancelLegacyImport)
+  const conflict = useFileStorageStore((s) => s.pendingConflict)
+  const resolveConflict = useFileStorageStore((s) => s.resolveConflict)
+  const upgrade = useFileStorageStore((s) => s.pendingFileUpgrade)
+  const resolveFileUpgrade = useFileStorageStore((s) => s.resolveFileUpgrade)
 
-  if (!pending) return null
-
-  return (
-    <MigrationDialog
-      mode="legacy-import"
-      info={pending}
-      onProceed={confirm}
-      onCancel={cancel}
-    />
-  )
+  if (pending) {
+    return (
+      <MigrationDialog
+        mode="legacy-import"
+        info={pending}
+        onProceed={confirm}
+        onCancel={cancel}
+      />
+    )
+  }
+  if (conflict) return <SyncConflictDialog info={conflict} onChoose={resolveConflict} />
+  if (upgrade) {
+    return (
+      <FileUpgradeDialog
+        info={upgrade}
+        onConfirm={() => resolveFileUpgrade(true)}
+        onCancel={() => resolveFileUpgrade(false)}
+      />
+    )
+  }
+  return null
 }
