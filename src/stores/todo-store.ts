@@ -134,14 +134,15 @@ export const useTodoStore = create<TodoState>((set, get) => {
     if (!prev) return
     const snapshot = { ...prev }
     const now = new Date()
+    // Resolve completedAt once and hand the same value to the repository, so
+    // the store and the DB never hold two independently minted timestamps.
+    const resolved = { ...todo, completedAt: resolveCompletedAt(prev, todo, now) }
     return optimistic(
       set,
       () => set({
-        todos: get().todos.map((t) => (t.id === todo.id
-          ? { ...todo, completedAt: resolveCompletedAt(prev, todo, now), modifiedAt: now }
-          : t)),
+        todos: get().todos.map((t) => (t.id === todo.id ? { ...resolved, modifiedAt: now } : t)),
       }),
-      () => todoRepository.update(todo),
+      () => todoRepository.update(resolved),
       () => set({
         todos: get().todos.map((t) => (t.id === todo.id ? snapshot : t)),
       }),
@@ -210,19 +211,17 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
     const completed = !todo.isCompleted
     const label = completed ? 'Complete' : 'Uncomplete'
+    // One completion timestamp, shared by the optimistic state and the DB write.
+    const now = new Date()
+    const completedAt = resolveCompletedAt(todo, { isCompleted: completed }, now)
     return optimistic(
       set,
-      () => {
-        const now = new Date()
-        set({
-          todos: get().todos.map((t) =>
-            t.id === id
-              ? { ...t, isCompleted: completed, completedAt: resolveCompletedAt(t, { isCompleted: completed }, now), modifiedAt: now }
-              : t
-          ),
-        })
-      },
-      () => todoRepository.complete(id, completed),
+      () => set({
+        todos: get().todos.map((t) =>
+          t.id === id ? { ...t, isCompleted: completed, completedAt, modifiedAt: now } : t
+        ),
+      }),
+      () => todoRepository.complete(id, completed, completedAt),
       () => set({
         todos: get().todos.map((t) =>
           t.id === id ? { ...t, isCompleted: !completed, completedAt: todo.completedAt } : t
@@ -289,17 +288,24 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const recurringNextMap = new Map(recurringAdvances.map((r) => [r.id, r.nextChanges]))
     const recurringPrevMap = new Map(recurringAdvances.map((r) => [r.id, r]))
 
+    // One completedAt per task, shared by the optimistic state and the DB write.
+    const now = new Date()
+    const completedAtById = new Map(
+      allTodos
+        .filter((t) => normalIdSet.has(t.id))
+        .map((t) => [t.id, resolveCompletedAt(t, { isCompleted: completed }, now)]),
+    )
+
     const label = completed ? 'Complete' : 'Uncomplete'
     return optimistic(
       set,
       () => {
-        const now = new Date()
         set({
           todos: get().todos.map((t) => {
             const next = recurringNextMap.get(t.id)
             if (next) return { ...t, ...next, modifiedAt: now }
             if (normalIdSet.has(t.id)) {
-              return { ...t, isCompleted: completed, completedAt: resolveCompletedAt(t, { isCompleted: completed }, now), modifiedAt: now }
+              return { ...t, isCompleted: completed, completedAt: completedAtById.get(t.id), modifiedAt: now }
             }
             return t
           }),
@@ -309,7 +315,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         if (recurringMutations.length > 0) {
           await todoRepository.bulkUpdate(recurringMutations)
         }
-        await Promise.all(normalIds.map((id) => todoRepository.complete(id, completed)))
+        await Promise.all(normalIds.map((id) => todoRepository.complete(id, completed, completedAtById.get(id))))
       },
       () => {
         const prevCompletedMap = new Map(prevStates.map(s => [s.id, s]))
@@ -355,19 +361,24 @@ export const useTodoStore = create<TodoState>((set, get) => {
           }
           // Revert normal completions
           // (re-completing restores the original completion time)
-          const reverts = prevStates.filter(s => s.wasCompleted !== completed)
-          for (const { id, wasCompleted, prevCompletedAt } of reverts) {
-            await todoRepository.complete(id, wasCompleted, prevCompletedAt)
+          // Resolved once per task and written to both store and DB.
+          const undoNow = new Date()
+          const reverts = prevStates
+            .filter(s => s.wasCompleted !== completed)
+            .map(s => {
+              const current = get().todos.find(t => t.id === s.id)
+              const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
+              return { id: s.id, isCompleted: s.wasCompleted, completedAt: resolveCompletedAt(current, next, undoNow) }
+            })
+          for (const r of reverts) {
+            await todoRepository.complete(r.id, r.isCompleted, r.completedAt)
           }
           if (reverts.length > 0) {
-            const stateMap = new Map(reverts.map(s => [s.id, s]))
-            const now = new Date()
+            const revertMap = new Map(reverts.map(r => [r.id, r]))
             set({
               todos: get().todos.map((t) => {
-                const s = stateMap.get(t.id)
-                if (!s) return t
-                const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
-                return { ...t, ...next, completedAt: resolveCompletedAt(t, next, now), modifiedAt: now }
+                const r = revertMap.get(t.id)
+                return r ? { ...t, isCompleted: r.isCompleted, completedAt: r.completedAt, modifiedAt: undoNow } : t
               }),
             })
           }
