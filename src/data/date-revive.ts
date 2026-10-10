@@ -1,5 +1,5 @@
 /**
- * Date revival for rows that crossed a JSON boundary (cr1 P3).
+ * Date revival for rows that crossed a JSON boundary.
  *
  * `JSON.stringify` writes a `Date` as an ISO string and `JSON.parse` never
  * turns it back, so every export / backup / sync file carries its Date fields

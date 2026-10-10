@@ -5,7 +5,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { todoRepository } from '../../data/todo-repository'
 import { selectExpiredCompleted } from '../../utils/completed-at'
-/** What the launch prompt / Settings cleanup delete once the user confirms (cr1 P5). */
+/** What the launch prompt / Settings cleanup delete once the user confirms. */
 const purgeExpired = (days: number) =>
   useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
 
@@ -184,7 +184,7 @@ describe('todoStore', () => {
     await useTodoStore.getState().toggleComplete(id1)
     await useTodoStore.getState().toggleComplete(id2)
 
-    // Backdate id1's completion (the purge clock is completedAt — cr1 P4)
+    // Backdate id1's completion (the purge clock is completedAt)
     const oldDate = new Date()
     oldDate.setDate(oldDate.getDate() - 40)
     await db.todos.update(id1, { completedAt: oldDate })

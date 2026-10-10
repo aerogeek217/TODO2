@@ -4,7 +4,7 @@ import type { ScheduledValue } from './scheduled-value'
 export interface TodoItem {
   id?: number
   /**
-   * Stable identity that survives export / import (cr1 P4). Unique across
+   * Stable identity that survives export / import. Unique across
    * the database (Dexie index `&uid`). Minted on insert (`newTodoUid`);
    * `id` is never reused across databases, so duplicate detection between
    * a file and the live DB keys on `uid`, not `id`.

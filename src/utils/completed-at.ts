@@ -3,7 +3,7 @@ import type { TodoItem } from '../models'
 type CompletionFields = Pick<TodoItem, 'isCompleted' | 'completedAt'>
 
 /**
- * The `completedAt` a todo should carry after a write (cr1 P4). Shared by
+ * The `completedAt` a todo should carry after a write. Shared by
  * `todoRepository` (persisted value) and `useTodoStore` (optimistic state) so
  * both converge:
  *
@@ -47,7 +47,7 @@ export function retentionCutoff(days: number, now: Date = new Date()): Date {
 }
 
 /**
- * The completed todos past `retentionDays` (cr1 P5) — what the launch prompt
+ * The completed todos past `retentionDays` — what the launch prompt
  * and Settings cleanup offer to delete. Order is preserved.
  */
 export function selectExpiredCompleted<T extends Pick<TodoItem, 'isCompleted' | 'completedAt' | 'modifiedAt'>>(

@@ -28,7 +28,7 @@ function matchLabel(c: AppendCandidate): string {
 }
 
 /**
- * Append-import confirmation + duplicate picker (cr1 P5). Every incoming task
+ * Append-import confirmation + duplicate picker. Every incoming task
  * is listed; a duplicate (same `uid`, or same title as an active task) shows
  * its matched task and a per-row **Skip** / **Import as new** choice (default
  * Skip), with apply-to-all. Non-duplicates are always imported.

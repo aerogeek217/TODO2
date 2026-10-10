@@ -19,8 +19,8 @@ function tasks(n: number): string {
 
 /**
  * Asked before ANY change when the browser database and the sync file
- * disagree (roadmap decision "Sync file vs. browser conflicts"). Nothing has
- * been read into or written out of either side yet; Cancel leaves sync paused.
+ * disagree — the user picks which version to keep. Nothing has been read
+ * into or written out of either side yet; Cancel leaves sync paused.
  */
 export function SyncConflictDialog({ info, onChoose }: SyncConflictDialogProps) {
   const { browser, file } = info

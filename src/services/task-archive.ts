@@ -6,7 +6,7 @@ import type {
 } from '../models'
 
 /**
- * A task archive (cr1 P5): the file "Export & delete" writes before purging
+ * A task archive: the file "Export & delete" writes before purging
  * old completed tasks. Same envelope as a full export (`__schemaVersion`,
  * `exportedAt`) plus `kind: 'task-archive'`, carrying only the archived
  * tasks and what is needed to re-attach them on an append import:

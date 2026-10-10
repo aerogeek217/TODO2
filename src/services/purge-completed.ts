@@ -24,7 +24,7 @@ export type ExportAndPurgeResult =
   | { status: 'error'; message: string }
 
 /**
- * "Export & delete" (cr1 P5): writes the given completed tasks to a task
+ * "Export & delete": writes the given completed tasks to a task
  * archive file, then deletes exactly the archived tasks.
  *
  * Nothing is deleted unless the archive passes the append-import self-check

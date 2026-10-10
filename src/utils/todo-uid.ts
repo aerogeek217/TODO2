@@ -1,5 +1,5 @@
 /**
- * Mint a fresh task `uid` (cr1 P4): an RFC 4122 v4 UUID.
+ * Mint a fresh task `uid`: an RFC 4122 v4 UUID.
  *
  * `crypto.randomUUID` needs a secure context; the offline single-file build
  * can be opened from origins where it is missing, so fall back to

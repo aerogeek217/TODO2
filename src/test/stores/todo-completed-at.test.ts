@@ -6,12 +6,12 @@ import { useUndoStore } from '../../stores/undo-store'
 import { isExpiredCompleted, resolveCompletedAt, retentionCutoff, selectExpiredCompleted } from '../../utils/completed-at'
 import { newTodoUid } from '../../utils/todo-uid'
 
-/** What the launch prompt / Settings cleanup delete once the user confirms (cr1 P5). */
+/** What the launch prompt / Settings cleanup delete once the user confirms. */
 const purgeExpired = (days: number) =>
   useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
 
 /**
- * cr1 P4 — `completedAt` (set on completion, cleared on reopen; the purge
+ * `completedAt` (set on completion, cleared on reopen; the purge
  * clock) and `uid` (minted on every insert).
  */
 

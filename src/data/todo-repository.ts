@@ -7,8 +7,8 @@ import { resolveCompletedAt } from '../utils/completed-at'
 import { newTodoUid } from '../utils/todo-uid'
 
 /**
- * `completedAt` bookkeeping for a write that may touch `isCompleted`
- * (cr1 P4): returns `changes` with `completedAt` set (newly completed),
+ * `completedAt` bookkeeping for a write that may touch `isCompleted`:
+ * returns `changes` with `completedAt` set (newly completed),
  * kept (still completed) or `undefined` (reopened — Dexie `update` deletes
  * the key; `put` callers strip it with `withoutUndefinedCompletedAt`).
  * Writes that don't mention `isCompleted` pass through untouched.

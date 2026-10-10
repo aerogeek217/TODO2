@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * Safe purge (cr1 P5): the launch prompt for completed tasks past the
+ * Safe purge: the launch prompt for completed tasks past the
  * retention setting, "Export & delete" to a task archive, and the append
  * import's duplicate picker — dialogs + focus + real file pickers, so a real
  * browser.

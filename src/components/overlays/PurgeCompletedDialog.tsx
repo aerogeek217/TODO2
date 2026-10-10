@@ -27,8 +27,8 @@ function completedLabel(t: PersistedTodoItem): string {
 }
 
 /**
- * Launch prompt for the completed-task retention setting (cr1 P5) — replaces
- * the old silent startup purge. Nothing is deleted until the user picks
+ * Launch prompt for the completed-task retention setting — completed tasks
+ * past retention are never deleted silently. Nothing is deleted until the user picks
  * **Export & delete** (archive file first; cancelling the file picker
  * deletes nothing) or **Delete**; **Not now** skips this launch only.
  */

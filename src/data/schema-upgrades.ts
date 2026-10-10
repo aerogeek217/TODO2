@@ -4,7 +4,7 @@ import { upgradeV51 } from './upgrades/v51-uid-completed-at'
 import { upgradeV52 } from './upgrades/v52-drop-date-stat-widgets'
 
 /**
- * Permanent schema-upgrade pipeline (cr1 P2).
+ * Permanent schema-upgrade pipeline.
  *
  * Every schema version `N` whose bump changes the *shape of stored data*
  * registers one pure transform here that converts a whole v(N-1) dataset into

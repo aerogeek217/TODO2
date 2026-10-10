@@ -43,7 +43,7 @@ interface TodoState {
   applyMutations: (mutations: TaskMutation[]) => Promise<void>
   /**
    * Deletes the given completed tasks (snapshot first). Never called without
-   * the user's say-so (cr1 P5): the launch prompt and Settings cleanup pick
+   * the user's say-so: the launch prompt and Settings cleanup pick
    * the ids (`selectExpiredCompleted`) and ask before calling this. Ids that
    * are no longer completed are skipped. Returns the number deleted.
    */

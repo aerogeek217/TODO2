@@ -51,8 +51,8 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
 
 /**
  * Appends tasks from a validated import (task archive or full export —
- * `prepareImport(…, { purpose: 'append' })`) to the current database
- * (cr1 P5). One read-write transaction:
+ * `prepareImport(…, { purpose: 'append' })`) to the current database.
+ * One read-write transaction:
  *
  * - **New ids** for every task (ids are never reused); the incoming `uid` is
  *   kept unless a task in the database already has it, then a fresh one is

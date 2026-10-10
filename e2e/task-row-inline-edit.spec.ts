@@ -6,7 +6,7 @@ import { seedCanvasWithProjects, selectTaskRowByTitle, taskRowByTitle } from './
  * edit box and blur-to-save are real-browser behaviors (JSDOM isn't
  * authoritative for focus), so the commit/cancel paths are locked in here.
  *
- * Since cr1 P1 the edit box's value is derived (`draft ?? title`): while the
+ * The edit box's value is derived (`draft ?? title`): while the
  * box is open but untouched it tracks the live title, so an external rename
  * followed by blur must not write the stale title back.
  */

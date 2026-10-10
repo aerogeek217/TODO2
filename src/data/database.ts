@@ -373,14 +373,14 @@ export class Todo2Database extends Dexie {
       })
     })
 
-    // v50: normalize every Date field to a real `Date` (cr1 P3). Imports and
+    // v50: normalize every Date field to a real `Date`. Imports and
     // sync-file loads used to write JSON's ISO strings straight into the DB.
     // First registry-driven version — the transform (`upgrades/v50-revive-dates.ts`)
     // also runs on imported v49 files via `prepareImport`.
     this.version(50).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 50))
 
     // v51: `TodoItem.uid` (stable identity, unique index) + `completedAt`
-    // (the retention purge's clock — cr1 P4). The transform
+    // (the retention purge's clock). The transform
     // (`upgrades/v51-uid-completed-at.ts`) backfills both. IndexedDB builds
     // the unique index before the upgrade callback runs; rows without a
     // `uid` are simply not indexed, so creation can't fail on old rows.

@@ -8,8 +8,8 @@ import type { SyncConflictInfo } from '../../services/file-storage'
 import { resetDb } from '../helpers'
 
 /**
- * cr1 P3 bumped CURRENT_DB_VERSION past 49 (v50 Dates, v51 uid + completedAt),
- * so the user's existing v49 sync file is now an *older* file. This drives
+ * CURRENT_DB_VERSION is past 49 (v50 Dates, v51 uid + completedAt, …), so a
+ * v49 sync file is an *older* file. This drives
  * the real pipeline end-to-end (real Dexie, real `prepareImport` +
  * v50…CURRENT transforms, real restore, real backup
  * snapshots) with only the file handle faked, and checks the "user decides

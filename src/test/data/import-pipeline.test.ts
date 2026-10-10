@@ -116,7 +116,7 @@ describe('prepareImportText', () => {
   })
 })
 
-describe('prepareImport — task archives and the append purpose (cr1 P5)', () => {
+describe('prepareImport — task archives and the append purpose', () => {
   function archive(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     const raw = file({ kind: TASK_ARCHIVE_KIND, ...overrides })
     delete raw.canvases

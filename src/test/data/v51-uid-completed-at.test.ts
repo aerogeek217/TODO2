@@ -7,7 +7,7 @@ import { prepareImport } from '../../data/import-pipeline'
 import { useTodoStore } from '../../stores/todo-store'
 import { resetDb, v50StoreSpecs } from '../helpers'
 import { selectExpiredCompleted } from '../../utils/completed-at'
-/** What the launch prompt / Settings cleanup delete once the user confirms (cr1 P5). */
+/** What the launch prompt / Settings cleanup delete once the user confirms. */
 const purgeExpired = (days: number) =>
   useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
 

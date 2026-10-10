@@ -578,7 +578,7 @@ function checkSetting(v: unknown): CheckResult {
  * Every key of `T`, optional ones included. Each `pick*` builds its row as an
  * object literal that `satisfies AllFields<Model>`, so adding a field to a
  * model without carrying it through restore is a **compile error** (and an
- * unknown key is one too) — the field-coverage guard from cr1 P3. Optional
+ * unknown key is one too) — the field-coverage guard. Optional
  * fields the source row lacks are set to `undefined` and dropped by
  * `compactRow`; `null` is kept where the model allows it (`Project.groupBy`).
  */
@@ -935,7 +935,7 @@ export type ValidateImportResult =
 export interface ValidateImportOptions {
   /**
    * Require a non-empty `canvases` table (default true) — the "is this a
-   * whole TODO2 database" check for restores. Appending tasks (cr1 P5 task
+   * whole TODO2 database" check for restores. Appending tasks (task
    * archives) passes false: an archive carries only task tables.
    */
   requireCanvases?: boolean

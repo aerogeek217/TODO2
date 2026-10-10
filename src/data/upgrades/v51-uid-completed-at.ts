@@ -70,7 +70,7 @@ function lastCompletedByTodo(events: DataRow[] | undefined): Map<unknown, number
 }
 
 /**
- * v51 — `TodoItem.uid` + `completedAt` (cr1 P4).
+ * v51 — `TodoItem.uid` + `completedAt`.
  *
  * - **uid**: every todo gets one. An existing non-empty string uid is kept
  *   unless an earlier row already holds it; otherwise `backfillTodoUid`

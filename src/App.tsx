@@ -217,7 +217,7 @@ function AppQuickAddBar() {
 }
 
 /**
- * Launch prompt for completed tasks past the retention setting (cr1 P5).
+ * Launch prompt for completed tasks past the retention setting.
  * Lists the tasks that were expired at launch (`launchUids` — uids survive a
  * sync-file restore, ids don't) and are still expired now. Read from the
  * database, not `useTodoStore.todos` (which may hold one canvas's tasks), and
@@ -255,7 +255,7 @@ function AppShell() {
   const [initError, setInitError] = useState<string | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
-  /** uids of the completed tasks past retention at launch (cr1 P5 prompt). */
+  /** uids of the completed tasks past retention at launch (for the purge prompt). */
   const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
@@ -281,7 +281,7 @@ function AppShell() {
       .then(() => navigator.storage?.persist?.().catch(() => {}))
       .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().ensureAllLoaded(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
       .then(async () => {
-        // Completed tasks past retention: never purged silently (cr1 P5) —
+        // Completed tasks past retention are never purged silently —
         // remember which ones were expired at launch and ask
         // (`StartupPurgePrompt`). Runs after the sync file was loaded (or its
         // prompts answered), so the list reflects the data the user kept.

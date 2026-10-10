@@ -1,5 +1,5 @@
 /**
- * Persistent bookkeeping for the attached sync file (cr1 P2 follow-up).
+ * Persistent bookkeeping for the attached sync file.
  *
  * Lives in `localStorage`, deliberately **outside** the Dexie database:
  * `restoreFromImportData` clears every data table (including `settings`), and

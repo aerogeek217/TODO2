@@ -198,7 +198,7 @@ export function SettingsPage() {
     showCleanupMsg(`Deleted ${plural(deleted, 'completed task')}.`)
   }
 
-  /** Settings cleanup's "Export & delete": archive file first, then delete (cr1 P5). */
+  /** Settings cleanup's "Export & delete": archive file first, then delete. */
   const handleCleanupExport = async () => {
     if (cleanupMatchCount === 0) return
     setCleanupBusy(true)
@@ -281,7 +281,7 @@ export function SettingsPage() {
     setPendingAppend({ fileName, data, candidates, warnings })
   }
 
-  /** Settings → "Import tasks (append)…" (cr1 P5): prepare, then open the duplicate picker. */
+  /** Settings → "Import tasks (append)…": prepare, then open the duplicate picker. */
   const doAppendImport = async (file: File) => {
     try {
       if (file.size > MAX_IMPORT_SIZE_BYTES) {

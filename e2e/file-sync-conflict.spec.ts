@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * Sync-file conflict flow in a real browser (cr1 P2 follow-up).
+ * Sync-file conflict flow in a real browser.
  *
  * `showOpenFilePicker` opens a native dialog Playwright can't drive, so an
  * init script replaces it with a picker that returns a REAL

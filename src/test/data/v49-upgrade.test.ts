@@ -138,7 +138,7 @@ describe('v49 fixture → prepareImport → restore', () => {
   })
 })
 
-// ── v50 (cr1 P3): Date fields revived ────────────────────────────────────
+// ── v50: Date fields revived ─────────────────────────────────────────────
 
 describe('v49 fixture → v50: Date fields arrive as Dates', () => {
   function expectDate(value: unknown, label: string, iso?: string) {
@@ -181,7 +181,7 @@ describe('v49 fixture → v50: Date fields arrive as Dates', () => {
   })
 })
 
-// ── v51 (cr1 P4): uid + completedAt ──────────────────────────────────────
+// ── v51: uid + completedAt ───────────────────────────────────────────────
 
 describe('v49 fixture → v51: every todo has a unique uid; completedAt backfilled', () => {
   it('assigns a unique uid to every todo, the same on every import', async () => {

@@ -12,7 +12,7 @@ export type PrepareImportFailure =
   | 'task-archive'
 
 /**
- * `kind` marker of a task archive (cr1 P5): the purged-task file written by
+ * `kind` marker of a task archive: the purged-task file written by
  * "Export & delete". Same envelope as a full export (`__schemaVersion`,
  * `exportedAt`) but only the task tables — see `services/task-archive.ts`.
  * A file without `kind` is a full export.
@@ -69,7 +69,7 @@ function readSchemaVersion(raw: Record<string, unknown>): number | null {
 }
 
 /**
- * The single import entry point (cr1 P2). Every path that turns an export /
+ * The single import entry point. Every path that turns an export /
  * backup snapshot / sync file into database rows goes through here:
  * Settings → Import JSON, backup restore (`parseAndRestore`), and
  * file-storage `loadFromFile`.
@@ -84,7 +84,7 @@ function readSchemaVersion(raw: Record<string, unknown>): number | null {
  * 2. Validates the upgraded dataset (`validateImportData`, strict except for
  *    unrecognized setting keys, which become `warnings`).
  *
- * Task archives (`kind: 'task-archive'`, cr1 P5) take the same path — the
+ * Task archives (`kind: 'task-archive'`) take the same path — the
  * registry transforms tolerate their missing tables — but are only accepted
  * for `purpose: 'append'`; `append` validates without the full-database
  * requirement (a canvas).

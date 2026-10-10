@@ -9,7 +9,7 @@ import type { TodoPredicate } from '../../models/filter-predicate'
 import { resetDb } from '../helpers'
 
 /**
- * Export → JSON → import round-trip guarantee (cr1 P3).
+ * Export → JSON → import round-trip guarantee.
  *
  * Seeds every data table with rows that populate **every model field** (incl.
  * nested shapes), exports with `buildExportData`, serializes to JSON, runs the

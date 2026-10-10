@@ -5,7 +5,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 
 /**
- * cr1 P4 regression: the store's optimistic `completedAt` and the stored one
+ * Regression: the store's optimistic `completedAt` and the stored one
  * must be the *same* instant. The repository write runs after the optimistic
  * update, so a clock tick in between exposed two independently minted
  * timestamps (and the next save spread the store's value over the DB's).

@@ -27,7 +27,7 @@ export interface AppendCandidate {
 }
 
 /**
- * Duplicate detection for an append import (cr1 P5 / roadmap "Purge"): an
+ * Duplicate detection for an append import: an
  * incoming task is a duplicate when a task in the database has the same
  * `uid` (any task, completed or not), or else when an **active**
  * (not completed) task has the same title — trimmed, case-insensitive.

@@ -2,7 +2,7 @@ import type { DataRow, DataSet } from '../schema-upgrades'
 import { reviveDate } from '../date-revive'
 
 /**
- * Date-typed fields of the v49 schema, per table (cr1 P3 audit of
+ * Date-typed fields of the v49 schema, per table (from an audit of
  * `src/models/`). Frozen with this transform: a field added by a later
  * version is revived by that version's own transform / `pick*`, not here.
  * `todoEvents.timestamp` and `backups.createdAt` are ISO strings by design.
@@ -43,7 +43,7 @@ function reviveRow(row: DataRow, fields: readonly string[], table: string): Data
 }
 
 /**
- * v50 — normalize every Date field to a real `Date` (cr1 P3).
+ * v50 — normalize every Date field to a real `Date`.
  *
  * Before v50, import / restore / sync-file loads wrote JSON's ISO strings
  * straight into IndexedDB, so a live database that was ever loaded from a

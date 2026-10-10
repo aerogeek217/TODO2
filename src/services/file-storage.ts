@@ -92,8 +92,8 @@ function pauseMessageFor(reason: PrepareImportFailure, error: string): string {
 }
 
 /**
- * File System Access sync (cr1 P2 follow-up: "the user decides before
- * anything changes").
+ * File System Access sync. Rule: when the browser data and the sync file
+ * disagree, the user decides before anything changes.
  *
  * Load (startup / Grant Access / attach / Retry) reads and prepares the file
  * WITHOUT touching anything, then:

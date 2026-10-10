@@ -110,7 +110,7 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  // uid + completedAt (cr1 P4)
+  // uid + completedAt
   it('rejects a todo without a uid (current-version rows always carry one)', () => {
     for (const uid of [undefined, '', 42]) {
       const result = validateImportData(validData({ todos: [makeTodo({ uid })] }))
@@ -663,7 +663,7 @@ describe('validateImportData', () => {
   })
 })
 
-describe('validateImportData — Date revival (cr1 P3)', () => {
+describe('validateImportData — Date revival', () => {
   const iso = '2026-10-01T09:30:00.000Z'
 
   it('turns every ISO-string Date field into a real Date', () => {
