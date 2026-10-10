@@ -431,3 +431,61 @@ describe('usePopoverAnchor — reposition mode', () => {
     expect(panel.style.top).toBe(initialTop)
   })
 })
+
+describe('usePopoverAnchor — anchor changes (refs synced in layout effects)', () => {
+  it('re-positions when a point anchor moves while open', () => {
+    const { getByTestId, rerender } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 100, y: 200 }}
+        open={true}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    rerender(
+      <Harness
+        anchor={{ kind: 'point', x: 300, y: 100 }}
+        open={true}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.style.left).toBe('300px')
+    expect(panel.style.top).toBe('104px')
+  })
+
+  it('opens at the new point when the anchor changes in the same render as open', () => {
+    const { getByTestId, rerender } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 10, y: 10 }}
+        open={false}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    rerender(
+      <Harness
+        anchor={{ kind: 'point', x: 400, y: 300 }}
+        open={true}
+        onClose={vi.fn()}
+        panelRect={{ width: 200, height: 150 }}
+      />,
+    )
+    const panel = getByTestId('panel')
+    expect(panel.style.left).toBe('400px')
+    expect(panel.style.top).toBe('304px')
+  })
+
+  it('calls the latest onClose after a re-render swaps the callback', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const { rerender } = render(
+      <Harness anchor={{ kind: 'point', x: 0, y: 0 }} open={true} onClose={first} />,
+    )
+    rerender(<Harness anchor={{ kind: 'point', x: 0, y: 0 }} open={true} onClose={second} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+})

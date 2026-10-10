@@ -1,3 +1,4 @@
+import { useLatestRef } from './use-latest-ref'
 import {
   useCallback,
   useEffect,
@@ -137,6 +138,84 @@ function styleEqual(a: PopoverStyle, b: PopoverStyle): boolean {
 }
 
 /**
+ * Pure placement math: anchor rect + measured panel size → fixed-position
+ * style with viewport flip + clamp. Returns null when a `ref` anchor has no
+ * element yet.
+ */
+function computePopoverPosition(
+  anchor: PopoverAnchor,
+  panel: HTMLElement | null,
+  place: PopoverPlacement,
+  off: number,
+): { style: PopoverStyle; placement: PopoverPlacement } | null {
+  const a = readAnchorRect(anchor)
+  if (!a) return null
+  const panelRect = panel?.getBoundingClientRect()
+  const panelWidth = panelRect?.width ?? 0
+  const panelHeight = panelRect?.height ?? 0
+  const { vw, vh } = viewportSize()
+
+  // ---- Y axis (bottom-* / top-*) ----
+  const wantsBottom = place.startsWith('bottom')
+  let placementY: 'top' | 'bottom' = wantsBottom ? 'bottom' : 'top'
+  let top = wantsBottom ? a.bottom + off : a.top - panelHeight - off
+  if (panelHeight > 0) {
+    if (wantsBottom && top + panelHeight > vh - VIEWPORT_MARGIN_PX) {
+      const flipped = a.top - panelHeight - off
+      if (flipped >= VIEWPORT_MARGIN_PX) {
+        top = flipped
+        placementY = 'top'
+      }
+    } else if (!wantsBottom && top < VIEWPORT_MARGIN_PX) {
+      const flipped = a.bottom + off
+      if (flipped + panelHeight <= vh - VIEWPORT_MARGIN_PX) {
+        top = flipped
+        placementY = 'bottom'
+      }
+    }
+    // Final clamp keeps a too-tall panel inside the viewport.
+    const maxTop = vh - VIEWPORT_MARGIN_PX - panelHeight
+    if (top > maxTop) top = Math.max(VIEWPORT_MARGIN_PX, maxTop)
+    if (top < VIEWPORT_MARGIN_PX) top = VIEWPORT_MARGIN_PX
+  }
+
+  // ---- X axis (*-start / *-end) ----
+  const wantsStart = place.endsWith('start')
+  let placementX: 'start' | 'end' = wantsStart ? 'start' : 'end'
+  let left = wantsStart ? a.left : a.right - panelWidth
+  if (panelWidth > 0) {
+    if (wantsStart && left + panelWidth > vw - VIEWPORT_MARGIN_PX) {
+      const flipped = a.right - panelWidth
+      if (flipped >= VIEWPORT_MARGIN_PX) {
+        left = flipped
+        placementX = 'end'
+      }
+    } else if (!wantsStart && left < VIEWPORT_MARGIN_PX) {
+      const flipped = a.left
+      if (flipped + panelWidth <= vw - VIEWPORT_MARGIN_PX) {
+        left = flipped
+        placementX = 'start'
+      }
+    }
+    const maxLeft = vw - VIEWPORT_MARGIN_PX - panelWidth
+    if (left > maxLeft) left = Math.max(VIEWPORT_MARGIN_PX, maxLeft)
+    if (left < VIEWPORT_MARGIN_PX) left = VIEWPORT_MARGIN_PX
+  }
+
+  const next: PopoverStyle = {
+    position: 'fixed',
+    left,
+    top,
+    maxWidth: vw - VIEWPORT_MARGIN_PX * 2,
+    maxHeight: vh - VIEWPORT_MARGIN_PX * 2,
+  }
+  return {
+    style: next,
+    placement: `${placementY}-${placementX}` as PopoverPlacement,
+  }
+}
+
+/**
  * Shared lifecycle hook for popover panels: anchor positioning + flip +
  * clamp + scroll/resize/Escape/outside-click dismissal.
  *
@@ -181,112 +260,53 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   // (empty-deps useCallback). Without this, every render produces a new
   // `anchor` object literal, which changes the compute / panelRef identity,
   // which in turn re-runs the layout effect and the callback ref — feeding
-  // back into setState and looping. The trade-off is that compute reads
-  // *current* refs, so any prop change is picked up on the next compute
-  // call (driven by useLayoutEffect's `open`/`placement` deps).
-  const anchorRef = useRef(anchor)
-  anchorRef.current = anchor
-  const placementRef = useRef(placement)
-  placementRef.current = placement
-  const offsetRef = useRef(offset)
-  offsetRef.current = offset
-  const onCloseRef = useRef(onClose)
-  onCloseRef.current = onClose
-  const closeOnScrollRef = useRef(closeOnScroll)
-  closeOnScrollRef.current = closeOnScroll
-  const closeOnResizeRef = useRef(closeOnResize)
-  closeOnResizeRef.current = closeOnResize
-  const extraInsideRefsRef = useRef(extraInsideRefs)
-  extraInsideRefsRef.current = extraInsideRefs
+  // back into setState and looping. The refs are synced in layout effects
+  // (declared here, before the compute effect below, so they run first);
+  // the compute effect's deps carry the anchor's primitive identity so any
+  // anchor / placement / offset change re-runs compute against fresh refs.
+  const anchorRef = useLatestRef(anchor)
+  const placementRef = useLatestRef(placement)
+  const offsetRef = useLatestRef(offset)
+  const onCloseRef = useLatestRef(onClose)
+  const closeOnScrollRef = useLatestRef(closeOnScroll)
+  const closeOnResizeRef = useLatestRef(closeOnResize)
+  const extraInsideRefsRef = useLatestRef(extraInsideRefs)
+  const anchorElRef = anchor.kind === 'ref' ? anchor.ref : null
+  const anchorX = anchor.kind === 'point' ? anchor.x : null
+  const anchorY = anchor.kind === 'point' ? anchor.y : null
 
   const compute = useCallback(() => {
-    const a = readAnchorRect(anchorRef.current)
-    if (!a) return
-    const panel = panelElRef.current
-    const panelRect = panel?.getBoundingClientRect()
-    const panelWidth = panelRect?.width ?? 0
-    const panelHeight = panelRect?.height ?? 0
-    const { vw, vh } = viewportSize()
-    const place = placementRef.current
-    const off = offsetRef.current
-
-    // ---- Y axis (bottom-* / top-*) ----
-    const wantsBottom = place.startsWith('bottom')
-    let placementY: 'top' | 'bottom' = wantsBottom ? 'bottom' : 'top'
-    let top = wantsBottom ? a.bottom + off : a.top - panelHeight - off
-    if (panelHeight > 0) {
-      if (wantsBottom && top + panelHeight > vh - VIEWPORT_MARGIN_PX) {
-        const flipped = a.top - panelHeight - off
-        if (flipped >= VIEWPORT_MARGIN_PX) {
-          top = flipped
-          placementY = 'top'
-        }
-      } else if (!wantsBottom && top < VIEWPORT_MARGIN_PX) {
-        const flipped = a.bottom + off
-        if (flipped + panelHeight <= vh - VIEWPORT_MARGIN_PX) {
-          top = flipped
-          placementY = 'bottom'
-        }
-      }
-      // Final clamp keeps a too-tall panel inside the viewport.
-      const maxTop = vh - VIEWPORT_MARGIN_PX - panelHeight
-      if (top > maxTop) top = Math.max(VIEWPORT_MARGIN_PX, maxTop)
-      if (top < VIEWPORT_MARGIN_PX) top = VIEWPORT_MARGIN_PX
-    }
-
-    // ---- X axis (*-start / *-end) ----
-    const wantsStart = place.endsWith('start')
-    let placementX: 'start' | 'end' = wantsStart ? 'start' : 'end'
-    let left = wantsStart ? a.left : a.right - panelWidth
-    if (panelWidth > 0) {
-      if (wantsStart && left + panelWidth > vw - VIEWPORT_MARGIN_PX) {
-        const flipped = a.right - panelWidth
-        if (flipped >= VIEWPORT_MARGIN_PX) {
-          left = flipped
-          placementX = 'end'
-        }
-      } else if (!wantsStart && left < VIEWPORT_MARGIN_PX) {
-        const flipped = a.left
-        if (flipped + panelWidth <= vw - VIEWPORT_MARGIN_PX) {
-          left = flipped
-          placementX = 'start'
-        }
-      }
-      const maxLeft = vw - VIEWPORT_MARGIN_PX - panelWidth
-      if (left > maxLeft) left = Math.max(VIEWPORT_MARGIN_PX, maxLeft)
-      if (left < VIEWPORT_MARGIN_PX) left = VIEWPORT_MARGIN_PX
-    }
-
-    const next: PopoverStyle = {
-      position: 'fixed',
-      left,
-      top,
-      maxWidth: vw - VIEWPORT_MARGIN_PX * 2,
-      maxHeight: vh - VIEWPORT_MARGIN_PX * 2,
-    }
+    const pos = computePopoverPosition(
+      anchorRef.current,
+      panelElRef.current,
+      placementRef.current,
+      offsetRef.current,
+    )
+    if (!pos) return
     // Bail out when the position didn't actually change. Without this guard,
     // a fresh callback-ref attach (which fires `compute()` immediately) can
     // commit an identical-but-not-`Object.is` style and trigger another
     // render, which re-creates the callback ref and loops.
-    setStyle((prev) => (styleEqual(prev, next) ? prev : next))
-    const nextPlacement = `${placementY}-${placementX}` as PopoverPlacement
-    setPlacementUsed((prev) => (prev === nextPlacement ? prev : nextPlacement))
-  }, [])
+    setStyle((prev) => (styleEqual(prev, pos.style) ? prev : pos.style))
+    setPlacementUsed((prev) => (prev === pos.placement ? prev : pos.placement))
+  }, [anchorRef, placementRef, offsetRef])
 
   // Stable callback ref. Calls compute *only* on attach (el !== null) so we
   // pick up the panel's measured size; React calls this with `null` on
-  // detach, which we ignore for compute purposes.
+  // detach, which we ignore for compute purposes. A ref attach runs before
+  // this hook's layout effects, so the input refs may still hold the previous
+  // render's values here — the layout effect below recomputes before paint.
   const panelRef = useCallback((el: HTMLElement | null) => {
     panelElRef.current = el
     if (el) compute()
   }, [compute])
 
   // useLayoutEffect runs synchronously after the commit that mounts the
-  // panel, so the flip lands before paint. Re-runs when placement / open
-  // changes (the props watch is via the ref reads inside compute).
+  // panel, so the flip lands before paint. Re-runs when open / placement /
+  // offset / anchor identity changes (compute itself reads the synced refs).
   useLayoutEffect(() => {
     if (open) compute()
-  }, [open, placement, compute])
+  }, [open, placement, offset, anchorElRef, anchorX, anchorY, compute])
 
   // Scroll/resize listeners. Capture-phase scroll catches ancestors.
   useEffect(() => {
@@ -318,7 +338,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', handleResize)
     }
-  }, [open, compute])
+  }, [open, compute, anchorRef, onCloseRef, closeOnScrollRef, closeOnResizeRef])
 
   // Escape close (document-level so it works even if focus has left the panel).
   useEffect(() => {
@@ -328,7 +348,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     }
     document.addEventListener('keydown', handler, true)
     return () => document.removeEventListener('keydown', handler, true)
-  }, [open, closeOnEscape])
+  }, [open, closeOnEscape, onCloseRef])
 
   // Outside-click (capture phase to beat descendant stopPropagation).
   useEffect(() => {
@@ -354,7 +374,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     }
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
-  }, [open, closeOnOutsideClick])
+  }, [open, closeOnOutsideClick, anchorRef, onCloseRef, extraInsideRefsRef])
 
   return { panelRef, style, placementUsed }
 }

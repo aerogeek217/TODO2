@@ -9,6 +9,7 @@ import {
   type ShortcutCtx,
 } from '../services/keyboard-shortcuts'
 import { useUIStore } from '../stores/ui-store'
+import { useLatestRef } from './use-latest-ref'
 
 interface KeyboardShortcutOptions extends ShortcutCallbacks {
   enabled?: boolean
@@ -18,10 +19,9 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
   const { enabled = true, ...callbacks } = options
   const pendingChordRef = useRef<{ key: string; timestamp: number } | null>(null)
 
-  // Refresh on every render so handlers see the latest callbacks without
+  // Refresh on every commit so handlers see the latest callbacks without
   // re-registering the keydown listener.
-  const cbRef = useRef<ShortcutCallbacks>(callbacks)
-  cbRef.current = callbacks
+  const cbRef = useLatestRef<ShortcutCallbacks>(callbacks)
 
   useEffect(() => {
     if (!enabled) return
@@ -74,7 +74,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [enabled])
+  }, [enabled, cbRef])
 }
 
 function isTextField(el: HTMLElement | null): boolean {

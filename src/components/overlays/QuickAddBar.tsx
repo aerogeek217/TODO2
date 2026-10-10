@@ -31,6 +31,7 @@ import type {
   Status,
 } from '../../models'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useOrgStore } from '../../stores/org-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
@@ -269,6 +270,37 @@ function runParse(
   }
 }
 
+/**
+ * Viewport position for the autocomplete popup: below the input at the caret
+ * column, flipped above when it would clip the bottom edge, clamped to the
+ * right edge. Reads live DOM rects; null until the input is mounted.
+ */
+function measurePopupPosition(
+  input: HTMLInputElement | null,
+  popup: HTMLDivElement | null,
+  caretLeft: number,
+): { top: number; left: number; width: number } | null {
+  if (!input) return null
+  const inputRect = input.getBoundingClientRect()
+  const popupRect = popup?.getBoundingClientRect()
+  const popupHeight = popupRect?.height ?? 0
+  const width = POPUP_WIDTH_PX
+
+  let top = inputRect.bottom + POPUP_GAP_PX
+  if (popupHeight > 0 && top + popupHeight > window.innerHeight - POPUP_VIEWPORT_MARGIN_PX) {
+    const flipped = inputRect.top - popupHeight - POPUP_GAP_PX
+    if (flipped >= POPUP_VIEWPORT_MARGIN_PX) top = flipped
+  }
+
+  let left = inputRect.left + caretLeft
+  if (left + width > window.innerWidth - POPUP_VIEWPORT_MARGIN_PX) {
+    left = Math.max(POPUP_VIEWPORT_MARGIN_PX, window.innerWidth - POPUP_VIEWPORT_MARGIN_PX - width)
+  }
+  if (left < POPUP_VIEWPORT_MARGIN_PX) left = POPUP_VIEWPORT_MARGIN_PX
+
+  return { top, left, width }
+}
+
 // ─── Component ────────────────────────────────────────────────────
 
 export function QuickAddBar({
@@ -373,8 +405,7 @@ export function QuickAddBar({
   // don't re-seed (e.g. when the parent stashes a handoff draft to ui-store
   // while the bar is closed, that draft feeds the popup, not the bar).
   const { dismiss: dismissAutocomplete } = ac
-  const initialDraftRef = useRef(initialDraft)
-  initialDraftRef.current = initialDraft
+  const initialDraftRef = useLatestRef(initialDraft)
   useEffect(() => {
     if (open) {
       const seed = initialDraftRef.current
@@ -387,7 +418,7 @@ export function QuickAddBar({
       setRaw('')
       dismissAutocomplete()
     }
-  }, [open, dismissAutocomplete])
+  }, [open, dismissAutocomplete, initialDraftRef])
 
   // Popup placement state — anchored to the input rect + caret offset,
   // portal'd to body. Mirrors RuntimeFilterPicker's flip-above-when-clipping +
@@ -416,26 +447,8 @@ export function QuickAddBar({
   }, [open, onClose])
 
   const computePopupPosition = useCallback(() => {
-    const input = inputRef.current
-    if (!input) return
-    const inputRect = input.getBoundingClientRect()
-    const popupRect = popupRef.current?.getBoundingClientRect()
-    const popupHeight = popupRect?.height ?? 0
-    const width = POPUP_WIDTH_PX
-
-    let top = inputRect.bottom + POPUP_GAP_PX
-    if (popupHeight > 0 && top + popupHeight > window.innerHeight - POPUP_VIEWPORT_MARGIN_PX) {
-      const flipped = inputRect.top - popupHeight - POPUP_GAP_PX
-      if (flipped >= POPUP_VIEWPORT_MARGIN_PX) top = flipped
-    }
-
-    let left = inputRect.left + ac.state.caretLeft
-    if (left + width > window.innerWidth - POPUP_VIEWPORT_MARGIN_PX) {
-      left = Math.max(POPUP_VIEWPORT_MARGIN_PX, window.innerWidth - POPUP_VIEWPORT_MARGIN_PX - width)
-    }
-    if (left < POPUP_VIEWPORT_MARGIN_PX) left = POPUP_VIEWPORT_MARGIN_PX
-
-    setPopupPos({ top, left, width })
+    const pos = measurePopupPosition(inputRef.current, popupRef.current, ac.state.caretLeft)
+    if (pos) setPopupPos(pos)
   }, [ac.state.caretLeft])
 
   useLayoutEffect(() => {

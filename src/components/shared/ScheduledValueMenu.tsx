@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { type ScheduledValue, type FuzzyToken, makeFuzzy } from '../../models/scheduled-value'
 import { StatusIcon } from './StatusIcon'
 import { toDateInputValue } from '../../utils/date'
@@ -42,14 +42,21 @@ export function ScheduledValueMenu({ value, onChange, onClose, onAddDeadline }: 
   // while the picker is still visible. See also commitAndClose below.
   const initialRef = useRef<ScheduledValue | null>(value ?? null)
   const [staged, setStaged] = useState<ScheduledValue | null>(value ?? null)
+  // Written only by `stage()` alongside `setStaged`, so it always mirrors
+  // `staged` and the unmount cleanup can read the final value.
   const stagedRef = useRef<ScheduledValue | null>(staged)
-  stagedRef.current = staged
+  // Latest `onChange` for the unmount commit. Synced in a layout effect (not
+  // `useLatestRef`) so exhaustive-deps sees the `.current` assignment and
+  // knows the cleanup's read of it is intentional.
   const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange
+  })
 
   useEffect(() => {
+    const initial = initialRef.current
     return () => {
-      if (!scheduledValuesEqual(stagedRef.current ?? undefined, initialRef.current ?? undefined)) {
+      if (!scheduledValuesEqual(stagedRef.current ?? undefined, initial ?? undefined)) {
         onChangeRef.current(stagedRef.current)
       }
     }

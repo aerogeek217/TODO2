@@ -1,8 +1,9 @@
-import { useMemo, useCallback, useRef } from 'react'
+import { useMemo, useCallback } from 'react'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { bySortOrder } from '../../utils/sort-order'
 import { useIsMobile } from '../../hooks/use-is-mobile'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { TaskRow } from './TaskRow'
 import { MobileTaskRow } from './MobileTaskRow'
 import { TaskDraggable } from './dnd/TaskDraggable'
@@ -62,8 +63,7 @@ export function TaskList({
   )
 
   const orderedIds = sortedTodos.map(t => t.id)
-  const orderedIdsRef = useRef(orderedIds)
-  orderedIdsRef.current = orderedIds
+  const orderedIdsRef = useLatestRef(orderedIds)
 
   // Stable callbacks — identity doesn't change between renders
   const handleSelect = useCallback((todoId: number, mods: { shift: boolean; ctrl: boolean }) => {
@@ -74,7 +74,7 @@ export function TaskList({
     } else {
       selectOneTodo(todoId)
     }
-  }, [rangeSelectTodo, toggleSelectTodo, selectOneTodo])
+  }, [rangeSelectTodo, toggleSelectTodo, selectOneTodo, orderedIdsRef])
 
   return (
     <>

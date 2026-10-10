@@ -1,4 +1,5 @@
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, type RefObject } from 'react'
+import { useLatestRef } from './use-latest-ref'
 
 /**
  * Calls `callback` when a mousedown occurs outside the referenced element.
@@ -9,8 +10,7 @@ export function useClickOutside(
   callback: () => void,
   active: boolean,
 ) {
-  const callbackRef = useRef(callback)
-  callbackRef.current = callback
+  const callbackRef = useLatestRef(callback)
 
   useEffect(() => {
     if (!active) return
@@ -21,5 +21,5 @@ export function useClickOutside(
     }
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
-  }, [ref, active])
+  }, [ref, active, callbackRef])
 }
