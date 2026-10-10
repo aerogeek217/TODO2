@@ -37,6 +37,15 @@ class BackupScheduler {
     }
   }
 
+  /**
+   * Saves a sync file's current text as a backup snapshot before the file is
+   * overwritten with browser data (Settings → Backups can restore it).
+   */
+  async snapshotFileBeforeOverwrite(fileText: string): Promise<void> {
+    await backupRepository.createSnapshotFromJson(fileText, 'pre-destructive')
+    await backupRepository.pruneSnapshots(MAX_BACKUPS)
+  }
+
   private async autoSnapshot(): Promise<void> {
     if (this.autoRunning) return
     this.autoRunning = true

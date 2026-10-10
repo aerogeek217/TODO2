@@ -42,6 +42,22 @@ async function createSnapshot(trigger: BackupTrigger): Promise<number> {
   return await db.backups.add(backup) as number
 }
 
+/**
+ * Stores arbitrary already-serialized data (e.g. a sync file's raw text,
+ * about to be overwritten with browser data) as a snapshot. No self-check —
+ * the content may be unreadable by this build; preserving it is the point.
+ * Restoring it later goes through the normal import pipeline.
+ */
+async function createSnapshotFromJson(data: string, trigger: BackupTrigger): Promise<number> {
+  const backup: Backup = {
+    createdAt: new Date().toISOString(),
+    trigger,
+    sizeBytes: new Blob([data]).size,
+    data,
+  }
+  return await db.backups.add(backup) as number
+}
+
 async function listSnapshots(): Promise<BackupSummary[]> {
   const summaries: BackupSummary[] = []
   await db.backups.orderBy('createdAt').reverse().each(({ id, createdAt, trigger, sizeBytes }) => {
@@ -80,6 +96,7 @@ async function pruneSnapshots(keepCount: number): Promise<number> {
 export const backupRepository = {
   onSnapshotWarning,
   createSnapshot,
+  createSnapshotFromJson,
   listSnapshots,
   getSnapshot,
   restoreSnapshot,

@@ -89,6 +89,19 @@ describe('backupRepository', () => {
     })
   })
 
+  describe('createSnapshotFromJson', () => {
+    it('createSnapshotFromJson_storesRawTextVerbatim_evenIfUnreadable', async () => {
+      const listener = vi.fn()
+      backupRepository.onSnapshotWarning(listener)
+      const id = await backupRepository.createSnapshotFromJson('{ not json', 'pre-destructive')
+      const backup = await db.backups.get(id)
+      expect(backup?.data).toBe('{ not json')
+      expect(backup?.trigger).toBe('pre-destructive')
+      expect(listener).not.toHaveBeenCalled()
+      backupRepository.onSnapshotWarning(null)
+    })
+  })
+
   describe('listSnapshots', () => {
     it('listSnapshots_noBackups_returnsEmptyArray', async () => {
       const list = await backupRepository.listSnapshots()
