@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useFileStorageStore } from '../../stores/file-storage-store'
+import { useFileOpsStore } from '../../stores/file-ops-store'
 import styles from './FileSyncBanner.module.css'
 
 const DISMISSED_KEY = 'todo2-file-sync-banner-dismissed'
@@ -10,6 +11,8 @@ export function FileSyncBanner() {
     () => localStorage.getItem(DISMISSED_KEY) === '1',
   )
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null)
+  const snapshotWarning = useFileOpsStore((s) => s.snapshotWarning)
+  const dismissSnapshotWarning = useFileOpsStore((s) => s.dismissSnapshotWarning)
 
   const handleDismiss = useCallback(() => {
     localStorage.setItem(DISMISSED_KEY, '1')
@@ -37,6 +40,18 @@ export function FileSyncBanner() {
       <div className={`${styles.banner} ${styles.bannerWarning}`}>
         <span className={styles.message}>{error}</span>
         <button className={styles.dismiss} onClick={() => setErrorDismissed(error)} title="Dismiss">
+          &times;
+        </button>
+      </div>
+    )
+  }
+
+  // A backup snapshot that failed its import self-check (it was still saved).
+  if (snapshotWarning) {
+    return (
+      <div className={`${styles.banner} ${styles.bannerWarning}`} role="alert">
+        <span className={styles.message}>{snapshotWarning}</span>
+        <button className={styles.dismiss} onClick={dismissSnapshotWarning} title="Dismiss">
           &times;
         </button>
       </div>

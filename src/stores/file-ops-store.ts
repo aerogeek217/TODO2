@@ -25,11 +25,21 @@ interface FileOpsState {
   cleanupCurrentAudit: () => Promise<number>
 
   restoreFromImport: (data: ImportData) => Promise<void>
+
+  /**
+   * Set when a backup snapshot fails its import self-check (the snapshot is
+   * still saved). Surfaced by `FileSyncBanner` until dismissed.
+   */
+  snapshotWarning: string | null
+  dismissSnapshotWarning: () => void
 }
 
 export const useFileOpsStore = create<FileOpsState>((set, get) => ({
   backups: [],
   auditReport: null,
+  snapshotWarning: null,
+
+  dismissSnapshotWarning: () => set({ snapshotWarning: null }),
 
   loadBackups: async () => {
     set({ backups: await backupRepository.listSnapshots() })
@@ -77,3 +87,7 @@ export const useFileOpsStore = create<FileOpsState>((set, get) => ({
     await refreshAllStores()
   },
 }))
+
+// Snapshot self-check failures (see `backupRepository.createSnapshot`) land in
+// the store so `FileSyncBanner` can surface them.
+backupRepository.onSnapshotWarning((message) => useFileOpsStore.setState({ snapshotWarning: message }))

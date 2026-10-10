@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { backupRepository } from '../../data/backup-repository'
 import { makeTodo } from '../helpers'
@@ -52,6 +52,40 @@ describe('backupRepository', () => {
       const backup = await db.backups.get(id)
       expect(backup!.createdAt >= before).toBe(true)
       expect(backup!.createdAt <= after).toBe(true)
+    })
+  })
+
+  describe('createSnapshot self-check', () => {
+    afterEach(() => {
+      backupRepository.onSnapshotWarning(null)
+      vi.restoreAllMocks()
+    })
+
+    it('createSnapshot_validData_doesNotWarn', async () => {
+      await seedDb()
+      const listener = vi.fn()
+      backupRepository.onSnapshotWarning(listener)
+      await backupRepository.createSnapshot('auto')
+      expect(listener).not.toHaveBeenCalled()
+    })
+
+    it('createSnapshot_rowThatWouldNotRestore_savesSnapshotAndWarnsNamingTheRow', async () => {
+      const canvasId = await seedDb()
+      // Empty title passes Dexie but fails import validation.
+      await db.todos.add(makeTodo({ id: 2, canvasId, title: '' }))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const listener = vi.fn()
+      backupRepository.onSnapshotWarning(listener)
+
+      const id = await backupRepository.createSnapshot('pre-destructive')
+
+      expect(await db.backups.get(id)).toBeDefined()
+      expect(listener).toHaveBeenCalledTimes(1)
+      const message = listener.mock.calls[0]![0] as string
+      expect(message).toContain('Backup snapshot (pre-destructive) would not restore')
+      expect(message).toContain('Invalid "todos" record at index 1')
+      expect(message).toContain('bad field "title"')
+      expect(warn).toHaveBeenCalled()
     })
   })
 

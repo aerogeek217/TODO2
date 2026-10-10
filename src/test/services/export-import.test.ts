@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { buildExportData } from '../../services/export-import'
+import { buildExportData, selfCheckExportJson } from '../../services/export-import'
 import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
 import { resetDb, makeTodo, makePerson, makeProject, makeOrg } from '../helpers'
@@ -95,6 +95,23 @@ describe('buildExportData', () => {
     const expected = ALL_DATA_TABLES.map((t) => t.name).sort()
     const got = Object.keys(data).filter((k) => k !== '__schemaVersion').sort()
     expect(got).toEqual(expected)
+  })
+})
+
+describe('selfCheckExportJson', () => {
+  it('returns null for an export that re-imports cleanly', async () => {
+    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1, createdAt: new Date() } as any) as number
+    await db.todos.add(makeTodo({ id: 1, canvasId }))
+    const json = JSON.stringify(await buildExportData())
+    expect(selfCheckExportJson(json)).toBeNull()
+  })
+
+  it('names the failing table / row / field for a row that would not re-import', async () => {
+    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1, createdAt: new Date() } as any) as number
+    await db.todos.add(makeTodo({ id: 1, canvasId }))
+    await db.people.add({ id: 7, name: 'Ann', initials: 'TOOLONG' } as any)
+    const json = JSON.stringify(await buildExportData())
+    expect(selfCheckExportJson(json)).toBe('Invalid "people" record at index 0 ("Ann"): bad field "initials"')
   })
 })
 

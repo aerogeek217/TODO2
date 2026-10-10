@@ -1,6 +1,6 @@
 import { db } from './database'
 import { parseAndRestore } from './restore'
-import { buildExportData } from '../services/export-import'
+import { buildExportData, selfCheckExportJson } from '../services/export-import'
 import type { Backup, BackupTrigger } from '../models'
 
 export interface BackupSummary {
@@ -10,9 +10,29 @@ export interface BackupSummary {
   sizeBytes: number
 }
 
+type SnapshotWarningListener = (message: string) => void
+let snapshotWarningListener: SnapshotWarningListener | null = null
+
+/**
+ * Registers the (single) listener told when a snapshot fails its import
+ * self-check. `file-ops-store` subscribes and `FileSyncBanner` surfaces it —
+ * same listener pattern as `fileStorageService.onStatusChange`.
+ */
+function onSnapshotWarning(listener: SnapshotWarningListener | null): void {
+  snapshotWarningListener = listener
+}
+
 async function createSnapshot(trigger: BackupTrigger): Promise<number> {
   const tables = await buildExportData()
   const data = JSON.stringify(tables)
+  // The snapshot is still saved — a partially-restorable backup beats none —
+  // but a backup that would fail to restore must not fail silently.
+  const problem = selfCheckExportJson(data)
+  if (problem) {
+    const message = `Backup snapshot (${trigger}) would not restore: ${problem}`
+    console.warn(`[backup] ${message}`)
+    snapshotWarningListener?.(message)
+  }
   const backup: Backup = {
     createdAt: new Date().toISOString(),
     trigger,
@@ -58,6 +78,7 @@ async function pruneSnapshots(keepCount: number): Promise<number> {
 }
 
 export const backupRepository = {
+  onSnapshotWarning,
   createSnapshot,
   listSnapshots,
   getSnapshot,

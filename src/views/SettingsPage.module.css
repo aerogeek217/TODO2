@@ -182,6 +182,17 @@
   padding: 4px 0;
 }
 
+.exportWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+
+.exportWarning > button {
+  flex-shrink: 0;
+}
+
 .backupList {
   display: flex;
   flex-direction: column;

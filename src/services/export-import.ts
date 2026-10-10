@@ -1,5 +1,6 @@
 import { ALL_DATA_TABLES, CURRENT_DB_VERSION, db } from '../data/database'
 import type { SettingRow } from '../data/database'
+import { prepareImportText } from '../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from './migration-check'
 import type {
   TodoItem, Project, Canvas, Person, Org, ListInset,
@@ -76,6 +77,19 @@ export async function buildExportData(): Promise<ExportData> {
   } as ExportData
 }
 
+/**
+ * Export self-check: runs the serialized export back through the real import
+ * pipeline (`prepareImportText` — version check, upgrade, validation). Returns
+ * `null` when the file would import, or the validator's message naming the
+ * failing table / row / field when it would not.
+ *
+ * Takes the JSON string (not the object) so it checks exactly what is written
+ * — `Date`s already serialized, `undefined`s already dropped.
+ */
+export function selfCheckExportJson(json: string): string | null {
+  const result = prepareImportText(json)
+  return result.ok ? null : result.error
+}
 
 /**
  * Builds a markdown representation of all tasks, grouped by project.

@@ -14,7 +14,7 @@ import type { UnsupportedImportInfo } from '../services/migration-check'
 import { MigrationDialog } from '../components/overlays/MigrationDialog'
 import { AuditIssueDetailDialog } from '../components/overlays/AuditIssueDetailDialog'
 import type { AuditIssue } from '../data/audit'
-import { buildExportData, buildMarkdownExport } from '../services/export-import'
+import { buildExportData, buildMarkdownExport, selfCheckExportJson } from '../services/export-import'
 import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
 import { getSaveFilePicker, getOpenFilePicker } from '../utils/file-picker'
 import { useIsMobile } from '../hooks/use-is-mobile'
@@ -75,6 +75,8 @@ export function SettingsPage() {
   const statuses = useStatusStore((s) => s.statuses)
   const loadStatuses = useStatusStore((s) => s.load)
   const [exportMsg, setExportMsg] = useState('')
+  /** Persistent: set when the last JSON export failed its re-import self-check. */
+  const [exportWarning, setExportWarning] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
   const [showPeopleEditor, setShowPeopleEditor] = useState(false)
   const [showOrgEditor, setShowOrgEditor] = useState(false)
@@ -186,6 +188,12 @@ export function SettingsPage() {
     const data = { ...tables, exportedAt: now.toISOString() }
     const json = JSON.stringify(data, null, 2)
     const timestamp = now.toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
+
+    // Self-check: the file is saved regardless, but if it would not import
+    // back, say so persistently (until dismissed / the next export).
+    const problem = selfCheckExportJson(json)
+    if (problem) console.warn(`[export] export would not re-import: ${problem}`)
+    setExportWarning(problem)
 
     const showSaveFilePicker = getSaveFilePicker()
     if (showSaveFilePicker) {
@@ -611,6 +619,19 @@ export function SettingsPage() {
             />
           </div>
           {exportMsg && <div className={styles.successMsg}>{exportMsg}</div>}
+          {exportWarning && (
+            <div className={`${styles.errorMsg} ${styles.exportWarning}`} role="alert" data-testid="export-self-check-warning">
+              <span>
+                The file was saved, but it would not import back: {exportWarning}
+              </span>
+              <button
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                onClick={() => setExportWarning(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Data Audit — desktop only */}
