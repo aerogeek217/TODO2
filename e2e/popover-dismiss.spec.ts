@@ -35,6 +35,12 @@ async function rightClickRowCenter(page: Page, title: string): Promise<void> {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' })
 }
 
+async function titleCenter(page: Page, title: string): Promise<{ x: number; y: number }> {
+  const box = await taskRowByTitle(page, title).locator(`span[title="${title}"]`).boundingBox()
+  if (!box) throw new Error(`"${title}" has no bounding box`)
+  return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
+}
+
 test.describe('CanvasContextMenu — portalized dismissal contract', () => {
   test('right-click opens a portalized menu; outside-click closes it', async ({ page }) => {
     await seedCanvasWithProjects(page, {
@@ -100,6 +106,43 @@ test.describe('CanvasContextMenu — portalized dismissal contract', () => {
     // assertions don't drift if the helper is reused.
     await page.setViewportSize({ width: 1180, height: 760 })
     await expect(menu).toHaveCount(0)
+  })
+})
+
+test.describe('CanvasContextMenu — re-anchor', () => {
+  test('right-clicking task B while the menu for A is open re-positions the menu at B', async ({ page }) => {
+    await seedCanvasWithProjects(page, {
+      projects: [
+        { name: 'Left', positionX: 80, positionY: 80, tasks: ['task A'] },
+        { name: 'Right', positionX: 640, positionY: 360, tasks: ['task B'] },
+      ],
+    })
+    const menu = page.getByRole('menu')
+    const viewport = page.viewportSize()
+    if (!viewport) throw new Error('no viewport size')
+
+    const pointA = await titleCenter(page, 'task A')
+    await page.mouse.click(pointA.x, pointA.y, { button: 'right' })
+    await expect(menu).toHaveCount(1)
+    const boxA = await menu.boundingBox()
+    if (!boxA) throw new Error('menu A has no bounding box')
+
+    const pointB = await titleCenter(page, 'task B')
+    await page.mouse.click(pointB.x, pointB.y, { button: 'right' })
+    // Exactly one menu, now anchored at B's click point (bottom-start + 4px
+    // gap unless a viewport flip/clamp applies — B sits well inside).
+    await expect(menu).toHaveCount(1)
+    await expect.poll(async () => (await menu.boundingBox())?.x).toBeCloseTo(pointB.x, 0)
+    const boxB = await menu.boundingBox()
+    if (!boxB) throw new Error('menu B has no bounding box')
+    expect(boxB.y).toBeCloseTo(pointB.y + 4, 0)
+    expect(Math.abs(boxB.x - boxA.x) + Math.abs(boxB.y - boxA.y)).toBeGreaterThan(200)
+
+    // Stays inside the viewport (8px margin).
+    expect(boxB.x).toBeGreaterThanOrEqual(8)
+    expect(boxB.y).toBeGreaterThanOrEqual(8)
+    expect(boxB.x + boxB.width).toBeLessThanOrEqual(viewport.width - 8)
+    expect(boxB.y + boxB.height).toBeLessThanOrEqual(viewport.height - 8)
   })
 })
 
