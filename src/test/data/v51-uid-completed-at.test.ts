@@ -6,6 +6,10 @@ import { SCHEMA_UPGRADES, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { useTodoStore } from '../../stores/todo-store'
 import { resetDb, v50StoreSpecs } from '../helpers'
+import { selectExpiredCompleted } from '../../utils/completed-at'
+/** What the launch prompt / Settings cleanup delete once the user confirms (cr1 P5). */
+const purgeExpired = (days: number) =>
+  useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
 
 const T0 = '2026-08-01T09:00:00.000Z'
 const MOD = '2026-10-01T09:00:00.000Z'
@@ -159,7 +163,7 @@ describe('v51 Dexie upgrade', () => {
     // A cutoff a day after DONE: todo 1 (completed at DONE, per its event)
     // expires; todo 2 (backfilled from the later modifiedAt) stays.
     const days = Math.floor((Date.now() - new Date(DONE).getTime()) / 86_400_000) - 1
-    const purged = await useTodoStore.getState().purgeExpiredCompleted(days)
+    const purged = await purgeExpired(days)
     expect(purged).toBe(1)
     expect((await db.todos.orderBy('id').toArray()).map((t) => t.id)).toEqual([2, 3])
   })

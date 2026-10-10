@@ -37,6 +37,9 @@ import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
+import { PurgeCompletedDialog } from './components/overlays/PurgeCompletedDialog'
+import { listExpiredCompleted } from './services/purge-completed'
+import type { PersistedTodoItem } from './models'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
@@ -213,6 +216,34 @@ function AppQuickAddBar() {
   )
 }
 
+/**
+ * Launch prompt for completed tasks past the retention setting (cr1 P5).
+ * Lists the tasks that were expired at launch (`launchUids` — uids survive a
+ * sync-file restore, ids don't) and are still expired now. Read from the
+ * database, not `useTodoStore.todos` (which may hold one canvas's tasks), and
+ * re-read whenever the store reloads. Waits while a sync-file prompt is
+ * open. Closing it in any way ("Not now" included) skips it until the next
+ * launch.
+ */
+function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<string>; onClose: () => void }) {
+  const todosVersion = useTodoStore((s) => s.todosVersion)
+  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
+  const fileSyncPrompt = useFileStorageStore(
+    (s) => s.pendingLegacyImport != null || s.pendingConflict != null || s.pendingFileUpgrade != null,
+  )
+  const [tasks, setTasks] = useState<PersistedTodoItem[]>([])
+  useEffect(() => {
+    if (fileSyncPrompt || retentionDays == null) return
+    let cancelled = false
+    listExpiredCompleted(retentionDays, launchUids)
+      .then((rows) => { if (!cancelled) setTasks(rows) })
+      .catch((err) => console.warn('[purge] could not read expired tasks', err))
+    return () => { cancelled = true }
+  }, [launchUids, retentionDays, fileSyncPrompt, todosVersion])
+  if (fileSyncPrompt || retentionDays == null || tasks.length === 0) return null
+  return <PurgeCompletedDialog tasks={tasks} retentionDays={retentionDays} onDone={onClose} onDismiss={onClose} />
+}
+
 function AppShell() {
   const { ensureDefault } = useCanvasStore()
   const { ensureLoaded: loadPeople } = usePersonStore()
@@ -224,6 +255,8 @@ function AppShell() {
   const [initError, setInitError] = useState<string | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  /** uids of the completed tasks past retention at launch (cr1 P5 prompt). */
+  const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const showFab = location.pathname !== ROUTE_SETTINGS && location.pathname !== ROUTE_CALENDAR
@@ -248,11 +281,14 @@ function AppShell() {
       .then(() => navigator.storage?.persist?.().catch(() => {}))
       .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().ensureAllLoaded(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
       .then(async () => {
-        // Purge expired completed tasks on startup
+        // Completed tasks past retention: never purged silently (cr1 P5) —
+        // remember which ones were expired at launch and ask
+        // (`StartupPurgePrompt`). Runs after the sync file was loaded (or its
+        // prompts answered), so the list reflects the data the user kept.
         const { completedRetentionDays } = useSettingsStore.getState()
         if (completedRetentionDays != null) {
-          await useTodoStore.getState().ensureAllLoaded()
-          await useTodoStore.getState().purgeExpiredCompleted(completedRetentionDays)
+          const expired = await listExpiredCompleted(completedRetentionDays)
+          if (expired.length > 0) setPurgeLaunchUids(new Set(expired.map((t) => t.uid)))
         }
       })
       .then(() => {
@@ -414,6 +450,9 @@ function AppShell() {
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
 
       <AppBulkConfirmDialog />
+      {purgeLaunchUids && (
+        <StartupPurgePrompt launchUids={purgeLaunchUids} onClose={() => setPurgeLaunchUids(null)} />
+      )}
       <AppQuickAddBar />
       <RecentTaskPill />
       <UndoSnackbar />

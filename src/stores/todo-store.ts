@@ -7,7 +7,7 @@ import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded } from './store-helpers'
 import { useSettingsStore } from './settings-store'
-import { resolveCompletedAt, isExpiredCompleted, retentionCutoff } from '../utils/completed-at'
+import { resolveCompletedAt } from '../utils/completed-at'
 
 interface TodoState {
   todos: PersistedTodoItem[]
@@ -41,7 +41,13 @@ interface TodoState {
   bulkRemove: (ids: number[]) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
   applyMutations: (mutations: TaskMutation[]) => Promise<void>
-  purgeExpiredCompleted: (retentionDays: number) => Promise<number>
+  /**
+   * Deletes the given completed tasks (snapshot first). Never called without
+   * the user's say-so (cr1 P5): the launch prompt and Settings cleanup pick
+   * the ids (`selectExpiredCompleted`) and ask before calling this. Ids that
+   * are no longer completed are skipped. Returns the number deleted.
+   */
+  purgeCompleted: (ids: number[]) => Promise<number>
   duplicate: (id: number) => Promise<number | undefined>
   /** Internal: restore a deleted todo (for undo). */
   _restore: (todo: PersistedTodoItem, personIds: number[], orgIds: number[]) => Promise<void>
@@ -576,20 +582,20 @@ export const useTodoStore = create<TodoState>((set, get) => {
     set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
   },
 
-  async purgeExpiredCompleted(retentionDays: number) {
-    // Keyed on `completedAt` (cr1 P4) — `modifiedAt` advances on reorders /
-    // sort normalization / bulk edits, so completed tasks never aged out.
-    const cutoff = retentionCutoff(retentionDays)
-    const expired = get().todos.filter((t) => isExpiredCompleted(t, cutoff))
-    if (expired.length === 0) return 0
+  async purgeCompleted(ids: number[]) {
+    // Only rows that are still completed — the caller's list came from a
+    // prompt the user answered, and a task reopened meanwhile must survive.
+    // Checked against the database, not `todos`: the store may hold only one
+    // canvas's tasks (`loadByCanvas`).
+    const doomed = (await todoRepository.getByIds(ids)).filter((t) => t.isCompleted).map((t) => t.id)
+    if (doomed.length === 0) return 0
     // Snapshot before destructive purge
     const { backupScheduler } = await import('../services/backup-scheduler')
     await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
-    const ids = expired.map((t) => t.id)
-    await todoRepository.bulkDelete(ids)
-    const idSet = new Set(ids)
-    set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
-    return ids.length
+    await todoRepository.bulkDelete(doomed)
+    const doomedSet = new Set(doomed)
+    set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
+    return doomed.length
   },
 
   }

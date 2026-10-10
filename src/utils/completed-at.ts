@@ -45,3 +45,16 @@ export function retentionCutoff(days: number, now: Date = new Date()): Date {
   cutoff.setDate(cutoff.getDate() - days)
   return cutoff
 }
+
+/**
+ * The completed todos past `retentionDays` (cr1 P5) — what the launch prompt
+ * and Settings cleanup offer to delete. Order is preserved.
+ */
+export function selectExpiredCompleted<T extends Pick<TodoItem, 'isCompleted' | 'completedAt' | 'modifiedAt'>>(
+  todos: readonly T[],
+  retentionDays: number,
+  now: Date = new Date(),
+): T[] {
+  const cutoff = retentionCutoff(retentionDays, now)
+  return todos.filter((t) => isExpiredCompleted(t, cutoff))
+}

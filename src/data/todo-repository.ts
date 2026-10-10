@@ -140,6 +140,18 @@ export const todoRepository = {
     return db.todos.get(id) as Promise<PersistedTodoItem | undefined>
   },
 
+  /** The rows that exist among `ids` (missing ids are skipped). */
+  async getByIds(ids: readonly number[]): Promise<PersistedTodoItem[]> {
+    const rows = await db.todos.bulkGet([...ids])
+    return rows.filter((t): t is PersistedTodoItem => t != null)
+  },
+
+  /** The rows whose `uid` is among `uids` (unique index — at most one each). */
+  async getByUids(uids: readonly string[]): Promise<PersistedTodoItem[]> {
+    if (uids.length === 0) return []
+    return db.todos.where('uid').anyOf([...uids]).toArray() as Promise<PersistedTodoItem[]>
+  },
+
   /**
    * Inserts a task. Mints a `uid` unless one is passed (only paths that keep
    * an imported task's identity pass one) and stamps `completedAt` on a row

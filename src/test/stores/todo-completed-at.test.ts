@@ -3,8 +3,12 @@ import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
-import { isExpiredCompleted, resolveCompletedAt, retentionCutoff } from '../../utils/completed-at'
+import { isExpiredCompleted, resolveCompletedAt, retentionCutoff, selectExpiredCompleted } from '../../utils/completed-at'
 import { newTodoUid } from '../../utils/todo-uid'
+
+/** What the launch prompt / Settings cleanup delete once the user confirms (cr1 P5). */
+const purgeExpired = (days: number) =>
+  useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
 
 /**
  * cr1 P4 — `completedAt` (set on completion, cleared on reopen; the purge
@@ -149,7 +153,7 @@ describe('completedAt on every completion path', () => {
   })
 })
 
-describe('purgeExpiredCompleted keys on completedAt', () => {
+describe('purgeCompleted (expired selection) keys on completedAt', () => {
   it('purges a task completed long ago even if modifiedAt is fresh (reorders / sort normalization)', async () => {
     const id = await useTodoStore.getState().add('Done in summer')
     await todoRepository.complete(id, true, daysAgo(60))
@@ -158,7 +162,7 @@ describe('purgeExpiredCompleted keys on completedAt', () => {
     await useTodoStore.getState().loadAll()
     expect(Date.now() - new Date(inStore(id).modifiedAt).getTime()).toBeLessThan(60_000)
 
-    expect(await useTodoStore.getState().purgeExpiredCompleted(30)).toBe(1)
+    expect(await purgeExpired(30)).toBe(1)
     expect(await db.todos.get(id)).toBeUndefined()
   })
 
@@ -168,7 +172,7 @@ describe('purgeExpiredCompleted keys on completedAt', () => {
     await db.todos.update(id, { modifiedAt: daysAgo(400) })
     await useTodoStore.getState().loadAll()
 
-    expect(await useTodoStore.getState().purgeExpiredCompleted(30)).toBe(0)
+    expect(await purgeExpired(30)).toBe(0)
     expect(await db.todos.get(id)).toBeDefined()
   })
 })

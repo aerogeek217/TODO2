@@ -15,8 +15,10 @@ import { MigrationDialog } from '../components/overlays/MigrationDialog'
 import { AuditIssueDetailDialog } from '../components/overlays/AuditIssueDetailDialog'
 import type { AuditIssue } from '../data/audit'
 import { buildExportData, buildMarkdownExport, selfCheckExportJson } from '../services/export-import'
-import { loadLastPickerHandle, saveLastPickerHandle } from '../services/file-handle-idb'
-import { getSaveFilePicker, getOpenFilePicker } from '../utils/file-picker'
+import { saveLastPickerHandle } from '../services/file-handle-idb'
+import { getOpenFilePicker } from '../utils/file-picker'
+import { getPickerStartIn, saveTextFile } from '../services/save-file'
+import { exportAndPurgeCompleted } from '../services/purge-completed'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { FileSyncPausedControls } from '../components/layout/FileSyncPausedControls'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
@@ -33,8 +35,8 @@ import { useUIStore } from '../stores/ui-store'
 import { GROUP_OPTIONS } from '../utils/task-grouping'
 import type { ProjectGroupBy } from '../models'
 import { MIN_CANVAS_MAX_EXTENT, MAX_CANVAS_MAX_EXTENT } from '../utils/canvas-bounds'
-import { BYTES_PER_KB, OBJECT_URL_REVOKE_MS } from '../constants'
-import { isExpiredCompleted, retentionCutoff } from '../utils/completed-at'
+import { BYTES_PER_KB } from '../constants'
+import { isExpiredCompleted, retentionCutoff, selectExpiredCompleted } from '../utils/completed-at'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -46,12 +48,8 @@ const retentionOptions: { value: string; label: string }[] = [
   { value: '90', label: '90 days' },
 ]
 
-async function getStartIn(): Promise<FileSystemHandle | 'documents'> {
-  try {
-    const saved = await loadLastPickerHandle()
-    if (saved) return saved
-  } catch { /* ignore */ }
-  return 'documents'
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
 export function SettingsPage() {
@@ -69,7 +67,7 @@ export function SettingsPage() {
   const fileStorage = useFileStorageStore()
   const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
-  const purgeExpiredCompleted = useTodoStore((s) => s.purgeExpiredCompleted)
+  const purgeCompleted = useTodoStore((s) => s.purgeCompleted)
   const peopleCount = usePersonStore((s) => s.people.length)
   const orgCount = useOrgStore((s) => s.orgs.length)
   const tagCount = useTagStore((s) => s.tags.length)
@@ -113,6 +111,9 @@ export function SettingsPage() {
   const [showCleanupPopup, setShowCleanupPopup] = useState(false)
   const [cleanupDays, setCleanupDays] = useState(30)
   const [confirmingCleanup, setConfirmingCleanup] = useState(false)
+  const [cleanupBusy, setCleanupBusy] = useState(false)
+  const [cleanupError, setCleanupError] = useState<string | null>(null)
+  const [cleanupMsg, setCleanupMsg] = useState('')
   const [pendingMigration, setPendingMigration] = useState<{ info: UnsupportedImportInfo; action: () => Promise<void> } | null>(null)
   const timerRefs = useRef<number[]>([])
   const track = (fn: () => void, ms: number) => {
@@ -157,26 +158,52 @@ export function SettingsPage() {
 
   const completedCount = useMemo(() => todos.filter((t) => t.isCompleted).length, [todos])
 
-  const cleanupMatchCount = useMemo(() => {
-    const cutoff = retentionCutoff(cleanupDays)
-    return todos.filter((t) => isExpiredCompleted(t, cutoff)).length
-  }, [todos, cleanupDays])
+  const cleanupMatches = useMemo(() => selectExpiredCompleted(todos, cleanupDays), [todos, cleanupDays])
+  const cleanupMatchCount = cleanupMatches.length
 
   const closeCleanupPopup = useCallback(() => {
     setShowCleanupPopup(false)
     setCleanupDays(30)
     setConfirmingCleanup(false)
+    setCleanupError(null)
   }, [])
 
-  const handleCleanup = useCallback(async () => {
+  const showCleanupMsg = (msg: string) => {
+    setCleanupMsg(msg)
+    track(() => setCleanupMsg(''), 5000)
+  }
+
+  const handleCleanup = async () => {
     if (cleanupMatchCount === 0) return
     if (!confirmingCleanup) {
       setConfirmingCleanup(true)
       return
     }
-    await purgeExpiredCompleted(cleanupDays)
+    const deleted = await purgeCompleted(cleanupMatches.map((t) => t.id))
     closeCleanupPopup()
-  }, [cleanupDays, cleanupMatchCount, confirmingCleanup, purgeExpiredCompleted, closeCleanupPopup])
+    showCleanupMsg(`Deleted ${plural(deleted, 'completed task')}.`)
+  }
+
+  /** Settings cleanup's "Export & delete": archive file first, then delete (cr1 P5). */
+  const handleCleanupExport = async () => {
+    if (cleanupMatchCount === 0) return
+    setCleanupBusy(true)
+    setCleanupError(null)
+    try {
+      const result = await exportAndPurgeCompleted(cleanupMatches.map((t) => t.id))
+      if (result.status === 'cancelled') return
+      if (result.status === 'error') {
+        setCleanupError(result.message)
+        return
+      }
+      closeCleanupPopup()
+      showCleanupMsg(`Saved ${plural(result.deleted, 'task')} to ${result.fileName} and deleted them.`)
+    } catch (err) {
+      setCleanupError(`Nothing was deleted — ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setCleanupBusy(false)
+    }
+  }
 
   const handleExport = async () => {
     const tables = await buildExportData()
@@ -191,46 +218,24 @@ export function SettingsPage() {
     if (problem) console.warn(`[export] export would not re-import: ${problem}`)
     setExportWarning(problem)
 
-    const showSaveFilePicker = getSaveFilePicker()
-    if (showSaveFilePicker) {
-      try {
-        const startIn = await getStartIn()
-        const handle = await showSaveFilePicker({
-          suggestedName: `todo2-backup-${timestamp}.json`,
-          types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-          startIn,
-        })
-        const writable = await handle.createWritable()
-        await writable.write(json)
-        await writable.close()
-        saveLastPickerHandle(handle).catch(() => {})
-        setExportMsg('Exported!')
-        track(() => setExportMsg(''), 2000)
-        return
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') return // user cancelled
-      }
-    }
-
-    // Fallback for browsers without File System Access API
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `todo2-backup-${timestamp}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_MS)
+    const saved = await saveTextFile({
+      text: json,
+      suggestedName: `todo2-backup-${timestamp}.json`,
+      description: 'JSON',
+      mimeType: 'application/json',
+      extension: '.json',
+    })
+    if (saved === 'cancelled') return
     setExportMsg('Exported!')
     track(() => setExportMsg(''), 2000)
   }
 
-  const handleImportClick = async () => {
+  /** Open a JSON file via the picker, or the hidden `<input>` fallback. */
+  const pickJsonFile = async (fallbackInput: HTMLInputElement | null, onFile: (file: File) => Promise<void>) => {
     const showOpenFilePicker = getOpenFilePicker()
     if (showOpenFilePicker) {
       try {
-        const startIn = await getStartIn()
+        const startIn = await getPickerStartIn()
         const [handle] = await showOpenFilePicker({
           types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
           startIn,
@@ -238,14 +243,16 @@ export function SettingsPage() {
         if (!handle) return
         saveLastPickerHandle(handle).catch(() => {})
         const file = await handle.getFile()
-        await doImport(file)
+        await onFile(file)
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return // user cancelled
       }
     } else {
-      importRef.current?.click()
+      fallbackInput?.click()
     }
   }
+
+  const handleImportClick = () => pickJsonFile(importRef.current, doImport)
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -296,37 +303,14 @@ export function SettingsPage() {
 
   const handleExportMarkdown = async () => {
     const md = await buildMarkdownExport()
-
-    const showSaveFilePicker = getSaveFilePicker()
-    if (showSaveFilePicker) {
-      try {
-        const startIn = await getStartIn()
-        const handle = await showSaveFilePicker({
-          suggestedName: `todos-${new Date().toISOString().split('T')[0]}.md`,
-          types: [{ description: 'Markdown', accept: { 'text/markdown': ['.md'] } }],
-          startIn,
-        })
-        const writable = await handle.createWritable()
-        await writable.write(md)
-        await writable.close()
-        saveLastPickerHandle(handle).catch(() => {})
-        setExportMsg('Markdown exported!')
-        track(() => setExportMsg(''), 2000)
-        return
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') return
-      }
-    }
-
-    const blob = new Blob([md], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `todos-${new Date().toISOString().split('T')[0]}.md`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_MS)
+    const saved = await saveTextFile({
+      text: md,
+      suggestedName: `todos-${new Date().toISOString().split('T')[0]}.md`,
+      description: 'Markdown',
+      mimeType: 'text/markdown',
+      extension: '.md',
+    })
+    if (saved === 'cancelled') return
     setExportMsg('Markdown exported!')
     track(() => setExportMsg(''), 2000)
   }
@@ -477,7 +461,7 @@ export function SettingsPage() {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Completed Tasks</div>
           <div className={styles.settingRow}>
-            <span className={styles.settingLabel}>Auto-delete completed tasks after</span>
+            <span className={styles.settingLabel}>Offer to delete completed tasks after</span>
             <select
               className={styles.settingSelect}
               value={completedRetentionDays ?? ''}
@@ -492,7 +476,7 @@ export function SettingsPage() {
             <div className={styles.retentionInfo}>
               {retentionStats.expired > 0 && (
                 <span className={styles.retentionWarning}>
-                  {retentionStats.expired} completed task{retentionStats.expired !== 1 ? 's' : ''} past retention (will be purged on next startup)
+                  {retentionStats.expired} completed task{retentionStats.expired !== 1 ? 's' : ''} past retention (you'll be asked on next launch)
                 </span>
               )}
               {retentionStats.expiringThisWeek > 0 && (
@@ -515,6 +499,7 @@ export function SettingsPage() {
           >
             Delete Completed Tasks
           </button>
+          {cleanupMsg && <div className={styles.successMsg}>{cleanupMsg}</div>}
         </div>
         )}
 
@@ -618,6 +603,7 @@ export function SettingsPage() {
             <button
               className={`${styles.button} ${styles.buttonSecondary}`}
               onClick={handleImportClick}
+              title="Replace all data with a full backup"
             >
               Import JSON
             </button>
@@ -854,7 +840,7 @@ export function SettingsPage() {
       )}
 
       {showCleanupPopup && (
-        <div className={styles.cleanupOverlay} onClick={() => setShowCleanupPopup(false)}>
+        <div className={styles.cleanupOverlay} onClick={() => { if (!cleanupBusy) closeCleanupPopup() }}>
           <div className={styles.cleanupPopup} onClick={(e) => e.stopPropagation()}>
             <div className={styles.cleanupTitle}>Delete Completed Tasks</div>
             <div className={styles.settingRow}>
@@ -874,20 +860,28 @@ export function SettingsPage() {
             </div>
             <div className={styles.cleanupCount}>
               {cleanupMatchCount > 0
-                ? `${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''} will be deleted. A backup will be created.`
+                ? `${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''} will be deleted. A backup will be created. Export & delete also saves them to a file first.`
                 : 'No matching tasks.'}
             </div>
+            {cleanupError && <div className={styles.errorMsg} role="alert">{cleanupError}</div>}
             <div className={styles.buttonRow}>
               <button
+                className={`${styles.button} ${styles.buttonPrimary}`}
+                disabled={cleanupMatchCount === 0 || cleanupBusy}
+                onClick={handleCleanupExport}
+              >
+                {`Export & delete ${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''}`}
+              </button>
+              <button
                 className={`${styles.button} ${styles.buttonDanger}`}
-                disabled={cleanupMatchCount === 0}
+                disabled={cleanupMatchCount === 0 || cleanupBusy}
                 onClick={handleCleanup}
               >
                 {confirmingCleanup
                   ? `Confirm — permanently delete ${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''}`
                   : `Delete ${cleanupMatchCount} task${cleanupMatchCount !== 1 ? 's' : ''}`}
               </button>
-              <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={closeCleanupPopup}>
+              <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={closeCleanupPopup} disabled={cleanupBusy}>
                 Cancel
               </button>
             </div>

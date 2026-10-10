@@ -4,6 +4,10 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { todoRepository } from '../../data/todo-repository'
+import { selectExpiredCompleted } from '../../utils/completed-at'
+/** What the launch prompt / Settings cleanup delete once the user confirms (cr1 P5). */
+const purgeExpired = (days: number) =>
+  useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
 
 beforeEach(async () => {
   await db.delete()
@@ -171,7 +175,7 @@ describe('todoStore', () => {
     expect(after.sortOrder).toBe(before.sortOrder)
   })
 
-  it('purgeExpiredCompleted removes old completed todos', async () => {
+  it('purgeCompleted (expired selection) removes old completed todos', async () => {
     const id1 = await useTodoStore.getState().add('Old done')
     const id2 = await useTodoStore.getState().add('Recent done')
     const id3 = await useTodoStore.getState().add('Not done')
@@ -190,16 +194,16 @@ describe('todoStore', () => {
       ),
     })
 
-    const count = await useTodoStore.getState().purgeExpiredCompleted(30)
+    const count = await purgeExpired(30)
     expect(count).toBe(1)
     expect(useTodoStore.getState().todos.find(t => t.id === id1)).toBeUndefined()
     expect(useTodoStore.getState().todos.find(t => t.id === id2)).toBeDefined()
     expect(useTodoStore.getState().todos.find(t => t.id === id3)).toBeDefined()
   })
 
-  it('purgeExpiredCompleted returns 0 when nothing to purge', async () => {
+  it('purgeCompleted (expired selection) returns 0 when nothing to purge', async () => {
     await useTodoStore.getState().add('Active task')
-    const count = await useTodoStore.getState().purgeExpiredCompleted(30)
+    const count = await purgeExpired(30)
     expect(count).toBe(0)
   })
 
