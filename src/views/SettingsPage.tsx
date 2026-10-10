@@ -7,9 +7,9 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
-import { validateImportData, MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
+import { MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 import type { ImportData } from '../data/import-validation'
-import { detectUnsupportedImport } from '../services/migration-check'
+import { prepareImportText } from '../data/import-pipeline'
 import type { UnsupportedImportInfo } from '../services/migration-check'
 import { MigrationDialog } from '../components/overlays/MigrationDialog'
 import { AuditIssueDetailDialog } from '../components/overlays/AuditIssueDetailDialog'
@@ -250,10 +250,12 @@ export function SettingsPage() {
     if (importRef.current) importRef.current.value = ''
   }
 
-  const executeImport = async (data: ImportData) => {
+  const executeImport = async (data: ImportData, warnings: string[]) => {
     await restoreFromImport(data)
-    setExportMsg('Imported successfully!')
-    track(() => setExportMsg(''), 4000)
+    setExportMsg(warnings.length > 0
+      ? `Imported successfully. ${warnings.join(' ')}`
+      : 'Imported successfully!')
+    track(() => setExportMsg(''), warnings.length > 0 ? 8000 : 4000)
   }
 
   const doImport = async (file: File) => {
@@ -265,28 +267,25 @@ export function SettingsPage() {
       }
 
       const text = await file.text()
-      const parsed = JSON.parse(text)
-      const result = validateImportData(parsed)
+      const result = prepareImportText(text)
 
       if (!result.ok) {
         setExportMsg(`Import failed — ${result.error}`)
-        track(() => setExportMsg(''), 4000)
+        track(() => setExportMsg(''), result.reason === 'invalid' ? 10000 : 5000)
         return
       }
 
-      const legacyInfo = detectUnsupportedImport(parsed)
-      if (legacyInfo) {
+      if (result.legacy) {
         setPendingMigration({
-          info: legacyInfo,
-          action: () => executeImport(result.data),
+          info: result.legacy,
+          action: () => executeImport(result.data, result.warnings),
         })
         return
       }
 
-      await executeImport(result.data)
+      await executeImport(result.data, result.warnings)
     } catch (err) {
-      const detail = err instanceof SyntaxError ? err.message : 'invalid file'
-      setExportMsg(`Import failed — ${detail}`)
+      setExportMsg(`Import failed — ${err instanceof Error ? err.message : 'could not read the file'}`)
       track(() => setExportMsg(''), 5000)
     }
   }
@@ -736,25 +735,20 @@ export function SettingsPage() {
                             setConfirmRestoreId(null)
                             const data = await peekBackupData(b.id)
                             if (!data) { setBackupMsg('Backup not found'); track(() => setBackupMsg(''), 3000); return }
-                            let parsed: unknown
-                            try { parsed = JSON.parse(data) } catch { parsed = null }
-                            const legacyInfo = parsed ? detectUnsupportedImport(parsed) : null
-                            if (legacyInfo) {
-                              setPendingMigration({
-                                info: legacyInfo,
-                                action: async () => {
-                                  const result = await restoreBackup(b.id)
-                                  if (result.ok) setBackupMsg('Restored successfully!')
-                                  else setBackupMsg(`Restore failed: ${result.error}`)
-                                  track(() => setBackupMsg(''), 3000)
-                                },
-                              })
+                            const runRestore = async () => {
+                              const result = await restoreBackup(b.id)
+                              if (result.ok) setBackupMsg('Restored successfully!')
+                              else setBackupMsg(`Restore failed: ${result.error}`)
+                              track(() => setBackupMsg(''), 3000)
+                            }
+                            // Same pipeline as the restore itself; checked up
+                            // front so a below-floor snapshot prompts first.
+                            const prepared = prepareImportText(data)
+                            if (prepared.ok && prepared.legacy) {
+                              setPendingMigration({ info: prepared.legacy, action: runRestore })
                               return
                             }
-                            const result = await restoreBackup(b.id)
-                            if (result.ok) setBackupMsg('Restored successfully!')
-                            else setBackupMsg(`Restore failed: ${result.error}`)
-                            track(() => setBackupMsg(''), 3000)
+                            await runRestore()
                           }}
                         >
                           Confirm
