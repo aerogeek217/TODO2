@@ -334,6 +334,11 @@ export function TopBar() {
     debounceRef.current = setTimeout(() => setSearchText(value), SEARCH_DEBOUNCE_MS)
   }, [setSearchText])
 
+  // A pending debounce must not outlive the bar: it would write a stale query
+  // into the global filter store after unmount (and a remounted bar would
+  // pick it up, replacing what the user typed since).
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
+
   // Sync local state when store is cleared externally
   const storeSearchText = filters.searchText
   useEffect(() => {

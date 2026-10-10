@@ -11,6 +11,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useProjectStore } from '../../stores/project-store'
 import type { Tag } from '../../models'
 import { makePerson, makeOrg, makeProject, makeTodo } from '../helpers'
+import { SEARCH_DEBOUNCE_MS } from '../../constants'
 
 function renderBar() {
   return render(
@@ -167,6 +168,22 @@ describe('TopBar grouped search', () => {
     const listbox = await screen.findByRole('listbox', { name: /search results/i })
     const tagGroup = within(listbox).getByRole('group', { name: 'Tags' })
     expect(within(tagGroup).getAllByRole('option')).toHaveLength(2)
+  })
+
+  // Regression: the previous test's pending 150 ms debounce fired during the
+  // next test (after unmount) and wrote its stale query into the filter
+  // store, which re-synced the new bar's input and unmounted the focused
+  // option — the intermittent "roving focus" failure under full-suite load.
+  it('an unmounted bar does not write its pending search into the filter store', async () => {
+    const view = renderBar()
+    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'zzz' } })
+    })
+    view.unmount()
+    await act(async () => { await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 100)) })
+    expect(useFilterStore.getState().filters.searchText).toBe('')
   })
 
   it('keyboard roving focus steps into the Tags group', async () => {
