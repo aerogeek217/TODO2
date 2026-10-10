@@ -13,7 +13,8 @@ export interface ImportTodoTag {
 }
 
 import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
-import { FUZZY_TOKENS } from '../models/scheduled-value'
+import { FUZZY_TOKENS, type FuzzyToken, type ScheduledValue } from '../models/scheduled-value'
+import { toDate } from './date-revive'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { SLOT_KINDS } from '../models/canvas-rails'
@@ -626,14 +627,14 @@ function checkSetting(v: unknown): CheckResult {
 // --- Record reconstruction (strip unknown keys from parsed JSON) ---
 
 function pickCanvas(v: Record<string, unknown>): Canvas {
-  return { id: v.id as number | undefined, name: v.name as string, sortOrder: v.sortOrder as number, createdAt: v.createdAt as Date }
+  return { id: v.id as number | undefined, name: v.name as string, sortOrder: v.sortOrder as number, createdAt: toDate(v.createdAt) }
 }
 
 function pickProject(v: Record<string, unknown>): Project {
   return {
     id: v.id as number | undefined, name: v.name as string, canvasId: v.canvasId as number,
     positionX: v.positionX as number, positionY: v.positionY as number, isCollapsed: v.isCollapsed as boolean,
-    sortOrder: v.sortOrder as number, createdAt: v.createdAt as Date,
+    sortOrder: v.sortOrder as number, createdAt: toDate(v.createdAt),
     ...(v.color != null ? { color: v.color as string } : {}),
     ...(v.width != null ? { width: v.width as number } : {}),
     ...(v.groupBy !== undefined ? { groupBy: v.groupBy as ProjectGroupBy | null } : {}),
@@ -641,15 +642,25 @@ function pickProject(v: Record<string, unknown>): Project {
   }
 }
 
+/** Validated by `isOptScheduledValue`; revives `value` / `setAt` to `Date`. */
+function pickScheduledValue(v: Record<string, unknown>): ScheduledValue {
+  if (v.kind === 'date') return { kind: 'date', value: toDate(v.value) }
+  // `setAt` is optional on import (pre-v49 rows); keep it absent rather than invent one.
+  return {
+    kind: 'fuzzy', token: v.token as FuzzyToken,
+    ...(v.setAt != null ? { setAt: toDate(v.setAt) } : {}),
+  } as ScheduledValue
+}
+
 function pickTodo(v: Record<string, unknown>): TodoItem {
   return {
     id: v.id as number | undefined, title: v.title as string,
     isCompleted: v.isCompleted as boolean,
-    createdAt: v.createdAt as Date, modifiedAt: v.modifiedAt as Date, sortOrder: v.sortOrder as number,
+    createdAt: toDate(v.createdAt), modifiedAt: toDate(v.modifiedAt), sortOrder: v.sortOrder as number,
     ...(v.notes != null ? { notes: v.notes as string } : {}),
     ...(v.progress != null ? { progress: v.progress as string } : {}),
-    ...(v.scheduledDate != null ? { scheduledDate: v.scheduledDate as TodoItem['scheduledDate'] } : {}),
-    ...(v.dueDate != null ? { dueDate: v.dueDate as Date } : {}),
+    ...(v.scheduledDate != null ? { scheduledDate: pickScheduledValue(v.scheduledDate as Record<string, unknown>) } : {}),
+    ...(v.dueDate != null ? { dueDate: toDate(v.dueDate) } : {}),
     ...(v.recurrenceRule != null ? { recurrenceRule: v.recurrenceRule as RecurrenceRule } : {}),
     ...(v.projectId != null ? { projectId: v.projectId as number } : {}),
     ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
@@ -719,8 +730,8 @@ function pickTaskboard(v: Record<string, unknown>): import('../models').Taskboar
   return {
     id: v.id as number | undefined,
     entries: ((v.entries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
-    createdAt: v.createdAt as Date,
-    updatedAt: v.updatedAt as Date,
+    createdAt: toDate(v.createdAt),
+    updatedAt: toDate(v.updatedAt),
   }
 }
 
@@ -744,8 +755,8 @@ function pickNote(v: Record<string, unknown>): Note {
   return {
     id: v.id as number | undefined,
     content: v.content as string,
-    createdAt: v.createdAt as Date,
-    modifiedAt: v.modifiedAt as Date,
+    createdAt: toDate(v.createdAt),
+    modifiedAt: toDate(v.modifiedAt),
   }
 }
 

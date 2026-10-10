@@ -663,3 +663,57 @@ describe('validateImportData', () => {
     })
   })
 })
+
+describe('validateImportData — Date revival (cr1 P3)', () => {
+  const iso = '2026-10-01T09:30:00.000Z'
+
+  it('turns every ISO-string Date field into a real Date', () => {
+    const result = validateImportData({
+      canvases: [makeCanvas({ createdAt: iso })],
+      projects: [makeProject({ createdAt: iso })],
+      todos: [
+        makeTodo({
+          id: 1, createdAt: iso, modifiedAt: iso, dueDate: iso,
+          scheduledDate: { kind: 'date', value: iso },
+        }),
+        makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'next-week', setAt: iso } }),
+      ],
+      notes: [{ id: 1, content: 'x', createdAt: iso, modifiedAt: iso }],
+      taskboards: [{ id: 1, entries: [], createdAt: iso, updatedAt: iso }],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const d = result.data
+    const t1 = d.todos[0]!
+    const t2 = d.todos[1]!
+    const dates: Array<[string, unknown]> = [
+      ['canvases.createdAt', d.canvases[0]!.createdAt],
+      ['projects.createdAt', d.projects[0]!.createdAt],
+      ['todos.createdAt', t1.createdAt],
+      ['todos.modifiedAt', t1.modifiedAt],
+      ['todos.dueDate', t1.dueDate],
+      ['todos.scheduledDate.value', t1.scheduledDate?.kind === 'date' ? t1.scheduledDate.value : null],
+      ['todos.scheduledDate.setAt', t2.scheduledDate?.kind === 'fuzzy' ? t2.scheduledDate.setAt : null],
+      ['notes.createdAt', d.notes[0]!.createdAt],
+      ['notes.modifiedAt', d.notes[0]!.modifiedAt],
+      ['taskboards.createdAt', d.taskboards[0]!.createdAt],
+      ['taskboards.updatedAt', d.taskboards[0]!.updatedAt],
+    ]
+    for (const [field, value] of dates) {
+      expect(value instanceof Date, `${field} is a Date`).toBe(true)
+      expect((value as Date).toISOString(), field).toBe(iso)
+    }
+  })
+
+  it('keeps an absent fuzzy setAt absent (pre-v49 rows) and leaves todoEvents.timestamp a string', () => {
+    const result = validateImportData({
+      canvases: [makeCanvas()],
+      todos: [makeTodo({ scheduledDate: { kind: 'fuzzy', token: 'today' } })],
+      todoEvents: [{ id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: iso }],
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.todos[0]!.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
+    expect(result.data.todoEvents[0]!.timestamp).toBe(iso)
+  })
+})
