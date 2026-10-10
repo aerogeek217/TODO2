@@ -54,7 +54,7 @@ main.tsx (entry point)
 Two layers, picked by what's being verified:
 
 - **vitest (`npm test`)** — unit + JSDOM under `src/test/**`. Authoritative for pure logic, models, repositories, store reducers, services, utilities, and rendering / event-handler dispatch that doesn't depend on real layout, focus, or async DOM timing. `e2e/**` is excluded from the vitest sweep.
-- **Playwright (`npm run test:e2e`)** — Chromium-only real-browser flows under `e2e/**`. Fixed port 5173, `reuseExistingServer`, `trace: 'retain-on-failure'`. Runs against `npm run dev`. Fixtures + CDP-trusted gestures live in `e2e/fixtures/seed.ts`. `/list` specs must use `page.goto('/#/list')` (HashRouter). CI is out of scope.
+- **Playwright (`npm run test:e2e`)** — Chromium-only real-browser flows under `e2e/**`. Starts its own `npm run dev` on fixed port 5173 (the everyday dev server is 5180), `reuseExistingServer`, `trace: 'retain-on-failure'`. Fixtures + CDP-trusted gestures live in `e2e/fixtures/seed.ts`. `/list` specs must use `page.goto('/#/list')` (HashRouter). CI is out of scope.
 
 **JSDOM is not authoritative** for: focus handoffs, `ResizeObserver`-driven layout, drag-and-drop hit-testing (rails / floats / taskboard / `data-rails-drop-id` / `data-tbp-entry` geometry), popover anchor placement and viewport flips, async-store-driven re-render timing, and canvas positional behavior. Those categories require a Playwright spec — JSDOM passing is not enough signal.
 
