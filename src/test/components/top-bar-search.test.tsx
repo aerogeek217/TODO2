@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, act, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../components/layout/TopBar'
 import { useFilterStore } from '../../stores/filter-store'
@@ -67,6 +67,32 @@ describe('TopBar grouped search', () => {
 
     const notesGroup = groups.find(g => g.getAttribute('aria-label') === 'Notes')!
     expect(within(notesGroup).getAllByRole('option')).toHaveLength(1)
+  })
+
+  it('"Show all" expansion resets when the query changes', async () => {
+    useTodoStore.setState({
+      todos: Array.from({ length: 7 }, (_, i) => makeTodo({ id: i + 1, title: `task ${i + 1}`, notes: '' })),
+      loading: false,
+      error: null,
+    })
+    renderBar()
+    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'task' } })
+    })
+    fireEvent.mouseDown(await screen.findByText('Show all 7'))
+    const listbox = screen.getByRole('listbox', { name: /search results/i })
+    expect(within(listbox).getAllByRole('option')).toHaveLength(7)
+    expect(screen.queryByText('Show all 7')).toBeNull()
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'tas' } })
+    })
+    await waitFor(() => {
+      expect(within(screen.getByRole('listbox', { name: /search results/i })).getAllByRole('option')).toHaveLength(5)
+    })
+    expect(screen.getByText('Show all 7')).toBeInTheDocument()
   })
 
   it('groups by project name when assigned', async () => {

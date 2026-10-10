@@ -11,14 +11,12 @@ export function useInlineEdit(
   onSave: (newTitle: string) => void,
 ) {
   const [isEditing, setIsEditing] = useState(false)
-  const [editTitle, setEditTitle] = useState(title)
+  // `null` = untouched: the field shows the live `title`, so external title
+  // changes flow through until the user types. Reset to null when editing ends.
+  const [draft, setDraft] = useState<string | null>(null)
+  const editTitle = draft ?? title
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<number | null>(null)
-
-  // Sync external title changes when not editing
-  useEffect(() => {
-    if (!isEditing) setEditTitle(title)
-  }, [title, isEditing])
 
   // Auto-focus and select on edit start
   useEffect(() => {
@@ -34,6 +32,7 @@ export function useInlineEdit(
       onSave(trimmed)
     }
     setIsEditing(false)
+    setDraft(null)
   }, [editTitle, title, onSave])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -41,10 +40,10 @@ export function useInlineEdit(
     if (e.key === 'Enter') {
       save()
     } else if (e.key === 'Escape') {
-      setEditTitle(title)
+      setDraft(null)
       setIsEditing(false)
     }
-  }, [save, title])
+  }, [save])
 
   // Clear timer on unmount
   useEffect(() => {
@@ -69,7 +68,7 @@ export function useInlineEdit(
   return {
     isEditing,
     editTitle,
-    setEditTitle,
+    setEditTitle: setDraft,
     inputRef,
     save,
     handleKeyDown,

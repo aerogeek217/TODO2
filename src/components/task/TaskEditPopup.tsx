@@ -211,20 +211,30 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (openDropdown === 'project') projectSearchRef.current?.focus()
   }, [openDropdown])
 
-  // Sync state when todo changes externally (edit mode)
+  // Sync state when todo changes externally (edit mode). Keyed on the synced
+  // fields (not the `todo` object) so an unrelated field change — e.g. a
+  // `modifiedAt` bump — doesn't clobber in-progress edits.
+  const todoId = todo?.id
+  const todoTitle = todo?.title
+  const todoNotes = todo?.notes
+  const todoProgress = todo?.progress
+  const todoStatusId = todo?.statusId
+  const todoProjectId = todo?.projectId
+  const todoScheduledDate = todo?.scheduledDate
+  const todoDueDate = todo?.dueDate
+  const todoRecurrenceType = todo?.recurrenceRule?.type
   useEffect(() => {
-    if (todo) {
-      setTitle(todo.title)
-      setNotes(todo.notes ?? '')
-      notesRef.current = todo.notes ?? ''
-      setProgress(todo.progress ?? '')
-      setStatusId(todo.statusId ?? undefined)
-      setProjectId(todo.projectId)
-      setScheduledDate(todo.scheduledDate ?? null)
-      setDeadline(todo.dueDate ?? null)
-      setRecurrenceType(todo.recurrenceRule?.type ?? '')
-    }
-  }, [todo?.id, todo?.title, todo?.notes, todo?.progress, todo?.statusId, todo?.projectId, todo?.scheduledDate, todo?.dueDate, todo?.recurrenceRule?.type])
+    if (todoId === undefined) return
+    setTitle(todoTitle ?? '')
+    setNotes(todoNotes ?? '')
+    notesRef.current = todoNotes ?? ''
+    setProgress(todoProgress ?? '')
+    setStatusId(todoStatusId ?? undefined)
+    setProjectId(todoProjectId)
+    setScheduledDate(todoScheduledDate ?? null)
+    setDeadline(todoDueDate ?? null)
+    setRecurrenceType(todoRecurrenceType ?? '')
+  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoProjectId, todoScheduledDate, todoDueDate, todoRecurrenceType])
 
   // Track whether mousedown started on the backdrop itself.
   // Prevents closing when user selects text inside and drags outside.

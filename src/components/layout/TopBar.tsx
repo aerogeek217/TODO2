@@ -178,6 +178,32 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
   )
 }
 
+/**
+ * Right-click menu for a search result. Its own component so TopBar hands the
+ * ref-touching `handleOpenTodo` over as a JSX prop instead of passing it into
+ * a render-time `buildSearchContextMenuItems` call (`react-hooks/refs`).
+ */
+function SearchResultContextMenu({ x, y, todo, onBoard, onOpen, onMoveToProject, onClose }: {
+  x: number
+  y: number
+  todo: PersistedTodoItem
+  onBoard: boolean
+  onOpen: (todoId: number) => void
+  onMoveToProject: () => void
+  onClose: () => void
+}) {
+  return (
+    <CanvasContextMenu
+      x={x}
+      y={y}
+      items={buildSearchContextMenuItems({ todo, onBoard, onOpen, onMoveToProject })}
+      onClose={onClose}
+    />
+  )
+}
+
+const NO_EXPANDED_FIELDS: ReadonlySet<TextMatchField> = new Set()
+
 const SearchResultsGroups = forwardRef<HTMLDivElement, {
   groups: Record<TextMatchField, PersistedTodoItem[]>
   query: string
@@ -187,12 +213,14 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
   onBlur: (e: React.FocusEvent<HTMLDivElement>) => void
   onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
 }>(function SearchResultsGroups({ groups, query, pillCtx, searchInputRef, onOpen, onBlur, onOpenContextMenu }, ref) {
-  const [expanded, setExpanded] = useState<Set<TextMatchField>>(() => new Set())
+  // "Show all" expansions belong to the query they were made under; a new
+  // query starts collapsed. Derived from the stored query instead of reset in
+  // an effect.
+  const [expansion, setExpansion] = useState<{ query: string; fields: ReadonlySet<TextMatchField> }>(
+    () => ({ query, fields: new Set() }),
+  )
+  const expanded = expansion.query === query ? expansion.fields : NO_EXPANDED_FIELDS
   const containerRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    setExpanded(new Set())
-  }, [query])
 
   const setRefs = (el: HTMLDivElement | null) => {
     containerRef.current = el
@@ -250,7 +278,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
             {items.length > MAX_GROUP_PREVIEW && !expanded.has(field) && (
               <button
                 className={styles.miniListShowAll}
-                onMouseDown={(e) => { e.preventDefault(); setExpanded(prev => new Set(prev).add(field)) }}
+                onMouseDown={(e) => { e.preventDefault(); setExpansion({ query, fields: new Set(expanded).add(field) }) }}
               >
                 Show all {items.length}
               </button>
@@ -532,18 +560,16 @@ export function TopBar() {
       )}
 
       {searchContextMenu && menuTodo && (
-        <CanvasContextMenu
+        <SearchResultContextMenu
           x={searchContextMenu.x}
           y={searchContextMenu.y}
-          items={buildSearchContextMenuItems({
-            todo: menuTodo,
-            onBoard: searchContextMenu.onBoard,
-            onOpen: handleOpenTodo,
-            onMoveToProject: () => setSearchProjectPicker({
-              todoId: menuTodo.id,
-              x: searchContextMenu.x,
-              y: searchContextMenu.y,
-            }),
+          todo={menuTodo}
+          onBoard={searchContextMenu.onBoard}
+          onOpen={handleOpenTodo}
+          onMoveToProject={() => setSearchProjectPicker({
+            todoId: menuTodo.id,
+            x: searchContextMenu.x,
+            y: searchContextMenu.y,
           })}
           onClose={() => {
             setSearchContextMenu(null)

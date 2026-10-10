@@ -23,6 +23,7 @@ import { defsEqual } from '../../utils/list-def-equal'
 import { bySortOrder } from '../../utils/sort-order'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
+import { useListDefDraft } from '../../hooks/use-list-def-draft'
 import styles from './EntityEditor.module.css'
 import local from './DashboardListsEditor.module.css'
 
@@ -98,7 +99,6 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [editingListId, setEditingListId] = useState<number | null>(initialSelectedId ?? null)
-  const [draft, setDraft] = useState<PersistedListDefinition | null>(null)
 
   useEffect(() => { load() }, [load])
 
@@ -115,28 +115,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
     return sorted.find(d => d.id === editingListId) ?? null
   }, [editingListId, sorted])
 
-  // Sync the draft when the editor opens or the upstream def changes. When
-  // the draft is clean (no pending edits), adopt the new def. When dirty,
-  // preserve the user's in-flight edits but forward externally-managed
-  // fields (favorited toggle from the dialog header, pin, sortOrder) so a
-  // header-fired favorite or a reorder doesn't get reverted on Save.
-  useEffect(() => {
-    if (!editingList) {
-      setDraft(null)
-      return
-    }
-    setDraft(prev => {
-      if (!prev || prev.id !== editingList.id) return editingList
-      const dirty = !defsEqual(prev, editingList)
-      if (!dirty) return editingList
-      return {
-        ...prev,
-        favorited: editingList.favorited,
-        pinnedToDashboard: editingList.pinnedToDashboard,
-        sortOrder: editingList.sortOrder,
-      }
-    })
-  }, [editingList])
+  const [draft, setDraft] = useListDefDraft(editingList)
 
   const dirty = useMemo(() => {
     if (!draft || !editingList) return false

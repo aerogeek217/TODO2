@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUIStore } from '../../stores/ui-store'
-import type { PersistedListDefinition } from '../../models/list-definition'
 import { defsEqual } from '../../utils/list-def-equal'
 import { ListEditorBody } from './ListEditorBody'
 import { ListEditorDialog } from './ListEditorDialog'
+import { useListDefDraft } from '../../hooks/use-list-def-draft'
 
 /**
  * Direct list-editor dialog mounted by `CanvasPage` (triage-2026-04-26 P5 /
@@ -25,25 +25,8 @@ export function StandaloneListEditor() {
   const update = useListDefinitionStore((s) => s.update)
   const setFavorited = useListDefinitionStore((s) => s.setFavorited)
 
-  const [draft, setDraft] = useState<PersistedListDefinition | null>(null)
 
-  useEffect(() => {
-    if (!editingList) {
-      setDraft(null)
-      return
-    }
-    setDraft((prev) => {
-      if (!prev || prev.id !== editingList.id) return editingList
-      const dirty = !defsEqual(prev, editingList)
-      if (!dirty) return editingList
-      return {
-        ...prev,
-        favorited: editingList.favorited,
-        pinnedToDashboard: editingList.pinnedToDashboard,
-        sortOrder: editingList.sortOrder,
-      }
-    })
-  }, [editingList])
+  const [draft, setDraft] = useListDefDraft(editingList)
 
   const dirty = useMemo(() => {
     if (!draft || !editingList) return false

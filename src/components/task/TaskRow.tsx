@@ -89,7 +89,10 @@ export const TaskRow = memo(function TaskRow({
   const handleSaveTitle = useCallback((newTitle: string) => {
     useTodoStore.getState().update({ ...todo, title: newTitle, modifiedAt: new Date() })
   }, [todo])
-  const edit = useInlineEdit(todo.title, handleSaveTitle)
+  const {
+    isEditing, editTitle, setEditTitle, inputRef: titleInputRef,
+    save: saveTitle, handleKeyDown: handleTitleKeyDown, scheduleEdit, cancelScheduledEdit,
+  } = useInlineEdit(todo.title, handleSaveTitle)
 
   const today = startOfToday()
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
@@ -157,8 +160,8 @@ export const TaskRow = memo(function TaskRow({
       onClick={(e) => { e.stopPropagation(); onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }) }}
       onDoubleClick={(e) => {
         e.stopPropagation()
-        edit.cancelScheduledEdit()
-        if (!edit.isEditing) onOpenDetail?.(todo.id)
+        cancelScheduledEdit()
+        if (!isEditing) onOpenDetail?.(todo.id)
       }}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -180,15 +183,15 @@ export const TaskRow = memo(function TaskRow({
         aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
       />
 
-      {edit.isEditing ? (
+      {isEditing ? (
         <input
-          ref={edit.inputRef}
+          ref={titleInputRef}
           className={styles.titleInput}
-          value={edit.editTitle}
+          value={editTitle}
           maxLength={500}
-          onChange={(e) => edit.setEditTitle(e.target.value)}
-          onBlur={edit.save}
-          onKeyDown={edit.handleKeyDown}
+          onChange={(e) => setEditTitle(e.target.value)}
+          onBlur={saveTitle}
+          onKeyDown={handleTitleKeyDown}
           onClick={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         />
@@ -202,7 +205,7 @@ export const TaskRow = memo(function TaskRow({
               if (e.shiftKey || e.ctrlKey || e.metaKey) {
                 onSelect?.(todo.id, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey })
               } else if (isSelected) {
-                edit.scheduleEdit()
+                scheduleEdit()
               } else {
                 onSelect?.(todo.id, { shift: false, ctrl: false })
               }

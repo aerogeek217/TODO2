@@ -154,9 +154,14 @@ export function FilteredListPopup() {
     window.addEventListener('mouseup', onMouseUp)
   }, [style.left, style.top, activeView, selectedCanvasId, popup, addListDef, addInset, hideFilteredList])
 
-  // Reset drag state when popup changes
-  useEffect(() => {
+  // Reset drag state when popup changes: the offset during render (derived
+  // from the previous popup), the imperative drag refs in an effect.
+  const [offsetPopup, setOffsetPopup] = useState(popup)
+  if (offsetPopup !== popup) {
+    setOffsetPopup(popup)
     setDragOffset(null)
+  }
+  useEffect(() => {
     dragStartRef.current = null
     isDraggingRef.current = false
   }, [popup])
