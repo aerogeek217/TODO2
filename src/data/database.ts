@@ -32,13 +32,17 @@ export const CURRENT_DB_VERSION = 49
  * legacy translators have been removed for older shapes and proceeding may
  * permanently lose data.
  *
- * Policy: this constant rises over time. After each progressive strip it
- * jumps back up to CURRENT_DB_VERSION; in the rare case a release wants to
- * keep one prior version readable it may sit at CURRENT_DB_VERSION - N
- * temporarily. Never raise this without auditing import-validation.ts +
- * restore.ts to confirm the dropped versions truly have no consumers.
+ * Files at or above the floor import through the permanent upgrade pipeline
+ * (`data/schema-upgrades.ts` → `upgradeDataSet`), which runs the same
+ * per-version transforms as the Dexie `.upgrade()` callbacks.
+ *
+ * Policy: PINNED as a literal. Never raise it automatically (and never derive
+ * it from CURRENT_DB_VERSION) — raising it is a deliberate, user-approved
+ * decision, because it stops older backups / sync files from importing.
+ * Raising it also permits deleting the registry entries at or below the new
+ * floor.
  */
-export const OLDEST_SUPPORTED_DB_VERSION = CURRENT_DB_VERSION
+export const OLDEST_SUPPORTED_DB_VERSION = 49
 
 export class Todo2Database extends Dexie {
   todos!: Table<TodoItem, number>
