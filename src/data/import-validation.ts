@@ -1,20 +1,12 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, RecurrenceRule, TaskboardEntry, Status, Note, FloatingCalendar, FloatingNote, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, TodoEvent, TodoEventType } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent, TodoEventType } from '../models'
 import { isTodoSortBy, isTodoGroupBy } from '../models'
 
-export interface ImportTag {
-  id?: number
-  name: string
-  color: string
-}
-export interface ImportTodoTag {
-  id?: number
-  todoId: number
-  tagId: number
-}
+export type ImportTag = Tag
+export type ImportTodoTag = TodoTag
 
 import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { FUZZY_TOKENS, type FuzzyToken, type ScheduledValue } from '../models/scheduled-value'
-import { toDate } from './date-revive'
+import { toDate, toOptDate } from './date-revive'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { SLOT_KINDS } from '../models/canvas-rails'
@@ -626,24 +618,53 @@ function checkSetting(v: unknown): CheckResult {
 
 // --- Record reconstruction (strip unknown keys from parsed JSON) ---
 
-function pickCanvas(v: Record<string, unknown>): Canvas {
-  return { id: v.id as number | undefined, name: v.name as string, sortOrder: v.sortOrder as number, createdAt: toDate(v.createdAt) }
+/**
+ * Every key of `T`, optional ones included. Each `pick*` builds its row as an
+ * object literal that `satisfies AllFields<Model>`, so adding a field to a
+ * model without carrying it through restore is a **compile error** (and an
+ * unknown key is one too) — the field-coverage guard from cr1 P3. Optional
+ * fields the source row lacks are set to `undefined` and dropped by
+ * `compactRow`; `null` is kept where the model allows it (`Project.groupBy`).
+ */
+type AllFields<T> = { [K in keyof Required<T>]: T[K] }
+
+/** Drops `undefined`-valued keys, so absent optional fields stay absent. */
+function compactRow<T>(row: AllFields<T>): T {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(row)) {
+    if (v !== undefined) out[k] = v
+  }
+  return out as T
 }
 
-function pickProject(v: Record<string, unknown>): Project {
+type Raw = Record<string, unknown>
+
+const optNum = (v: unknown): number | undefined => (v != null ? v as number : undefined)
+const optStr = (v: unknown): string | undefined => (v != null ? v as string : undefined)
+const optBool = (v: unknown): boolean | undefined => (typeof v === 'boolean' ? v : undefined)
+
+function pickCanvas(v: Raw): AllFields<Canvas> {
   return {
-    id: v.id as number | undefined, name: v.name as string, canvasId: v.canvasId as number,
+    id: optNum(v.id), name: v.name as string, sortOrder: v.sortOrder as number,
+    createdAt: toDate(v.createdAt),
+  } satisfies AllFields<Canvas>
+}
+
+function pickProject(v: Raw): AllFields<Project> {
+  return {
+    id: optNum(v.id), name: v.name as string, canvasId: v.canvasId as number,
     positionX: v.positionX as number, positionY: v.positionY as number, isCollapsed: v.isCollapsed as boolean,
     sortOrder: v.sortOrder as number, createdAt: toDate(v.createdAt),
-    ...(v.color != null ? { color: v.color as string } : {}),
-    ...(v.width != null ? { width: v.width as number } : {}),
-    ...(v.groupBy !== undefined ? { groupBy: v.groupBy as ProjectGroupBy | null } : {}),
-    ...(Array.isArray(v.groupOrder) ? { groupOrder: v.groupOrder as string[] } : {}),
-  }
+    color: optStr(v.color),
+    width: optNum(v.width),
+    // `null` is the canonical "no grouping" sentinel — keep it.
+    groupBy: v.groupBy !== undefined ? v.groupBy as ProjectGroupBy | null : undefined,
+    groupOrder: Array.isArray(v.groupOrder) ? v.groupOrder as string[] : undefined,
+  } satisfies AllFields<Project>
 }
 
 /** Validated by `isOptScheduledValue`; revives `value` / `setAt` to `Date`. */
-function pickScheduledValue(v: Record<string, unknown>): ScheduledValue {
+function pickScheduledValue(v: Raw): ScheduledValue {
   if (v.kind === 'date') return { kind: 'date', value: toDate(v.value) }
   // `setAt` is optional on import (pre-v49 rows); keep it absent rather than invent one.
   return {
@@ -652,215 +673,174 @@ function pickScheduledValue(v: Record<string, unknown>): ScheduledValue {
   } as ScheduledValue
 }
 
-function pickTodo(v: Record<string, unknown>): TodoItem {
+function pickTodo(v: Raw): AllFields<TodoItem> {
   return {
-    id: v.id as number | undefined, title: v.title as string,
+    id: optNum(v.id), title: v.title as string,
     isCompleted: v.isCompleted as boolean,
     createdAt: toDate(v.createdAt), modifiedAt: toDate(v.modifiedAt), sortOrder: v.sortOrder as number,
-    ...(v.notes != null ? { notes: v.notes as string } : {}),
-    ...(v.progress != null ? { progress: v.progress as string } : {}),
-    ...(v.scheduledDate != null ? { scheduledDate: pickScheduledValue(v.scheduledDate as Record<string, unknown>) } : {}),
-    ...(v.dueDate != null ? { dueDate: toDate(v.dueDate) } : {}),
-    ...(v.recurrenceRule != null ? { recurrenceRule: v.recurrenceRule as RecurrenceRule } : {}),
-    ...(v.projectId != null ? { projectId: v.projectId as number } : {}),
-    ...(v.canvasId != null ? { canvasId: v.canvasId as number } : {}),
-    ...(v.statusId != null ? { statusId: v.statusId as number } : {}),
-  }
+    notes: optStr(v.notes),
+    progress: optStr(v.progress),
+    scheduledDate: v.scheduledDate != null ? pickScheduledValue(v.scheduledDate as Raw) : undefined,
+    dueDate: toOptDate(v.dueDate),
+    recurrenceRule: v.recurrenceRule != null ? v.recurrenceRule as RecurrenceRule : undefined,
+    projectId: optNum(v.projectId),
+    canvasId: optNum(v.canvasId),
+    statusId: optNum(v.statusId),
+  } satisfies AllFields<TodoItem>
 }
 
-function pickStatus(v: Record<string, unknown>): Status {
+function pickStatus(v: Raw): AllFields<Status> {
   // `icon` already validated by `checkStatus` -> `isOptStatusIcon`; the cast
   // narrows the validated string to the StatusIconKey union.
   return {
-    id: v.id as number | undefined, name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
-    ...(v.icon != null ? { icon: v.icon as StatusIconKey } : {}),
-    ...(v.hideByDefault != null ? { hideByDefault: v.hideByDefault as boolean } : {}),
-  }
+    id: optNum(v.id), name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
+    icon: v.icon != null ? v.icon as StatusIconKey : undefined,
+    hideByDefault: v.hideByDefault != null ? v.hideByDefault as boolean : undefined,
+  } satisfies AllFields<Status>
 }
 
-function pickPerson(v: Record<string, unknown>): Person {
-  return { id: v.id as number | undefined, name: v.name as string, initials: v.initials as string }
+function pickPerson(v: Raw): AllFields<Person> {
+  return { id: optNum(v.id), name: v.name as string, initials: v.initials as string } satisfies AllFields<Person>
 }
 
-function pickOrg(v: Record<string, unknown>): Org {
+function pickOrg(v: Raw): AllFields<Org> {
   return {
-    id: v.id as number | undefined, name: v.name as string,
-    ...(v.initials != null ? { initials: v.initials as string } : {}),
-    ...(v.color != null ? { color: v.color as string } : {}),
-  }
+    id: optNum(v.id), name: v.name as string,
+    initials: optStr(v.initials),
+    color: optStr(v.color),
+  } satisfies AllFields<Org>
 }
 
-function pickTag(v: Record<string, unknown>): ImportTag {
-  return { id: v.id as number | undefined, name: v.name as string, color: v.color as string }
+function pickTag(v: Raw): AllFields<Tag> {
+  return { id: optNum(v.id), name: v.name as string, color: v.color as string } satisfies AllFields<Tag>
 }
 
-function pickListInset(v: Record<string, unknown>): ListInset {
+function pickListInset(v: Raw): AllFields<ListInset> {
   return {
-    id: v.id as number | undefined,
+    id: optNum(v.id),
     listDefinitionId: v.listDefinitionId as number,
     canvasId: v.canvasId as number, x: v.x as number, y: v.y as number,
     width: v.width as number, height: v.height as number, isCollapsed: v.isCollapsed as boolean,
-    ...(Array.isArray(v.runtimeFilterValue) && v.runtimeFilterValue.length > 0
-      ? { runtimeFilterValue: v.runtimeFilterValue as number[] }
-      : {}),
-  }
+    runtimeFilterValue: Array.isArray(v.runtimeFilterValue) && v.runtimeFilterValue.length > 0
+      ? v.runtimeFilterValue as number[]
+      : undefined,
+  } satisfies AllFields<ListInset>
 }
 
-function pickTodoTag(v: Record<string, unknown>): ImportTodoTag {
-  return { id: v.id as number | undefined, todoId: v.todoId as number, tagId: v.tagId as number }
+function pickTodoTag(v: Raw): AllFields<TodoTag> {
+  return { id: optNum(v.id), todoId: v.todoId as number, tagId: v.tagId as number } satisfies AllFields<TodoTag>
 }
 
-function pickTodoPerson(v: Record<string, unknown>): TodoPerson {
-  return { id: v.id as number | undefined, todoId: v.todoId as number, personId: v.personId as number }
+function pickTodoPerson(v: Raw): AllFields<TodoPerson> {
+  return { id: optNum(v.id), todoId: v.todoId as number, personId: v.personId as number } satisfies AllFields<TodoPerson>
 }
 
-function pickTodoOrg(v: Record<string, unknown>): TodoOrg {
-  return { id: v.id as number | undefined, todoId: v.todoId as number, orgId: v.orgId as number }
+function pickTodoOrg(v: Raw): AllFields<TodoOrg> {
+  return { id: optNum(v.id), todoId: v.todoId as number, orgId: v.orgId as number } satisfies AllFields<TodoOrg>
 }
 
-function pickPersonOrg(v: Record<string, unknown>): PersonOrg {
-  return { id: v.id as number | undefined, personId: v.personId as number, orgId: v.orgId as number }
+function pickPersonOrg(v: Raw): AllFields<PersonOrg> {
+  return { id: optNum(v.id), personId: v.personId as number, orgId: v.orgId as number } satisfies AllFields<PersonOrg>
 }
 
-function pickTaskboardEntry(v: Record<string, unknown>): TaskboardEntry {
-  return { todoId: v.todoId as number, sortOrder: v.sortOrder as number }
+function pickTaskboardEntry(v: Raw): TaskboardEntry {
+  return { todoId: v.todoId as number, sortOrder: v.sortOrder as number } satisfies AllFields<TaskboardEntry>
 }
 
-function pickTaskboard(v: Record<string, unknown>): import('../models').Taskboard {
+function pickTaskboard(v: Raw): AllFields<Taskboard> {
   return {
-    id: v.id as number | undefined,
-    entries: ((v.entries ?? []) as Record<string, unknown>[]).map(pickTaskboardEntry),
+    id: optNum(v.id),
+    entries: ((v.entries ?? []) as Raw[]).map(pickTaskboardEntry),
     createdAt: toDate(v.createdAt),
     updatedAt: toDate(v.updatedAt),
-  }
+  } satisfies AllFields<Taskboard>
 }
 
-function pickFloatingTaskboard(v: Record<string, unknown>): import('../models').FloatingTaskboard {
+/** `id / canvasId / x / y / width / height` — shared by every floating widget row. */
+function pickFloatPlacement(v: Raw) {
   return {
-    id: v.id as number | undefined,
+    id: optNum(v.id),
     canvasId: v.canvasId as number,
     x: v.x as number,
     y: v.y as number,
     width: v.width as number,
     height: v.height as number,
-    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
   }
 }
 
-function pickSetting(v: Record<string, unknown>): SettingRow {
-  return { key: v.key as string, value: v.value as string }
+function pickFloatingTaskboard(v: Raw): AllFields<FloatingTaskboard> {
+  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingTaskboard>
 }
 
-function pickNote(v: Record<string, unknown>): Note {
+function pickSetting(v: Raw): AllFields<SettingRow> {
+  return { key: v.key as string, value: v.value as string } satisfies AllFields<SettingRow>
+}
+
+function pickNote(v: Raw): AllFields<Note> {
   return {
-    id: v.id as number | undefined,
+    id: optNum(v.id),
     content: v.content as string,
     createdAt: toDate(v.createdAt),
     modifiedAt: toDate(v.modifiedAt),
-  }
+  } satisfies AllFields<Note>
 }
 
-function pickFloatingNote(v: Record<string, unknown>): FloatingNote {
-  return {
-    id: v.id as number | undefined,
-    canvasId: v.canvasId as number,
-    x: v.x as number,
-    y: v.y as number,
-    width: v.width as number,
-    height: v.height as number,
-  }
+function pickFloatingNote(v: Raw): AllFields<FloatingNote> {
+  return { ...pickFloatPlacement(v) } satisfies AllFields<FloatingNote>
 }
 
-function pickFloatingCalendar(v: Record<string, unknown>): FloatingCalendar {
+function pickFloatingCalendar(v: Raw): AllFields<FloatingCalendar> {
   return {
-    id: v.id as number | undefined,
-    canvasId: v.canvasId as number,
-    x: v.x as number,
-    y: v.y as number,
-    width: v.width as number,
-    height: v.height as number,
-    ...(v.orientation === 'vertical' || v.orientation === 'horizontal'
-      ? { orientation: v.orientation as FloatingCalendar['orientation'] }
-      : {}),
-    ...(typeof v.weekOffset === 'number' && Number.isFinite(v.weekOffset)
-      ? { weekOffset: v.weekOffset as number }
-      : {}),
-  }
+    ...pickFloatPlacement(v),
+    orientation: v.orientation === 'vertical' || v.orientation === 'horizontal'
+      ? v.orientation as FloatingCalendar['orientation']
+      : undefined,
+    weekOffset: typeof v.weekOffset === 'number' && Number.isFinite(v.weekOffset)
+      ? v.weekOffset
+      : undefined,
+  } satisfies AllFields<FloatingCalendar>
 }
 
-function pickFloatingHorizons(v: Record<string, unknown>): FloatingHorizons {
-  return {
-    id: v.id as number | undefined,
-    canvasId: v.canvasId as number,
-    x: v.x as number,
-    y: v.y as number,
-    width: v.width as number,
-    height: v.height as number,
-    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
-  }
+function pickFloatingHorizons(v: Raw): AllFields<FloatingHorizons> {
+  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingHorizons>
 }
 
-function pickFloatingStatus(v: Record<string, unknown>): FloatingStatus {
-  return {
-    id: v.id as number | undefined,
-    canvasId: v.canvasId as number,
-    x: v.x as number,
-    y: v.y as number,
-    width: v.width as number,
-    height: v.height as number,
-    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
-  }
+function pickFloatingStatus(v: Raw): AllFields<FloatingStatus> {
+  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingStatus>
 }
 
-function pickFloatingScoreboard(v: Record<string, unknown>): FloatingScoreboard {
-  return {
-    id: v.id as number | undefined,
-    canvasId: v.canvasId as number,
-    x: v.x as number,
-    y: v.y as number,
-    width: v.width as number,
-    height: v.height as number,
-    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
-  }
+function pickFloatingScoreboard(v: Raw): AllFields<FloatingScoreboard> {
+  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingScoreboard>
 }
 
-function pickFloatingSnoozeGraveyard(v: Record<string, unknown>): FloatingSnoozeGraveyard {
-  return {
-    id: v.id as number | undefined,
-    canvasId: v.canvasId as number,
-    x: v.x as number,
-    y: v.y as number,
-    width: v.width as number,
-    height: v.height as number,
-    ...(typeof v.collapsed === 'boolean' ? { collapsed: v.collapsed } : {}),
-  }
+function pickFloatingSnoozeGraveyard(v: Raw): AllFields<FloatingSnoozeGraveyard> {
+  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingSnoozeGraveyard>
 }
 
-function pickTodoEvent(v: Record<string, unknown>): TodoEvent {
+function pickTodoEvent(v: Raw): AllFields<TodoEvent> {
   return {
-    id: v.id as number | undefined,
+    id: optNum(v.id),
     todoId: v.todoId as number,
     type: v.type as TodoEventType,
     fromValue: (v.fromValue ?? null) as string | number | null,
     toValue: (v.toValue ?? null) as string | number | null,
     timestamp: v.timestamp as string,
-  }
+  } satisfies AllFields<TodoEvent>
 }
 
 function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
   if (!isObj(v)) return undefined
   const field = v.field
   if (typeof field !== 'string' || !(VALID_RUNTIME_FILTER_FIELDS as readonly string[]).includes(field)) return undefined
-  return {
+  return compactRow<RuntimeFilterSpec>({
     field: field as RuntimeFilterField,
-    ...(typeof v.label === 'string' ? { label: v.label } : {}),
-  }
+    label: typeof v.label === 'string' ? v.label : undefined,
+  } satisfies AllFields<RuntimeFilterSpec>)
 }
 
-function pickListDefinition(v: Record<string, unknown>): ListDefinition {
-  const runtimeFilter = pickRuntimeFilter(v.runtimeFilter)
+function pickListDefinition(v: Raw): AllFields<ListDefinition> {
   return {
-    id: v.id as number | undefined,
+    id: optNum(v.id),
     name: v.name as string,
     sortOrder: v.sortOrder as number,
     membership: v.membership as ListMembership,
@@ -868,10 +848,52 @@ function pickListDefinition(v: Record<string, unknown>): ListDefinition {
     grouping: v.grouping as ListGrouping,
     pinnedToDashboard: typeof v.pinnedToDashboard === 'boolean' ? v.pinnedToDashboard : true,
     favorited: typeof v.favorited === 'boolean' ? v.favorited : false,
-    ...(typeof v.maxTasks === 'number' ? { maxTasks: v.maxTasks } : {}),
-    ...(v.limitMode === 'hard' || v.limitMode === 'scroll' ? { limitMode: v.limitMode } : {}),
-    ...(runtimeFilter ? { runtimeFilter } : {}),
-  }
+    maxTasks: typeof v.maxTasks === 'number' ? v.maxTasks : undefined,
+    limitMode: v.limitMode === 'hard' || v.limitMode === 'scroll' ? v.limitMode : undefined,
+    runtimeFilter: pickRuntimeFilter(v.runtimeFilter),
+  } satisfies AllFields<ListDefinition>
+}
+
+type ImportRow<K extends keyof ImportData> = NonNullable<ImportData[K]>[number]
+
+/**
+ * Table → row picker. Each returns the row with **every** model field as a
+ * key (absent optional fields as `undefined`, compacted away by
+ * `validateImportData`), so `Object.keys(IMPORT_ROW_PICKERS[t](row))` is the
+ * model's full field list — the round-trip test uses it to prove its seed
+ * populates every field.
+ */
+export const IMPORT_ROW_PICKERS: { readonly [K in keyof ImportData]-?: (v: Raw) => AllFields<ImportRow<K>> } = {
+  canvases: pickCanvas,
+  projects: pickProject,
+  todos: pickTodo,
+  people: pickPerson,
+  tags: pickTag,
+  listInsets: pickListInset,
+  todoTags: pickTodoTag,
+  todoPeople: pickTodoPerson,
+  todoOrgs: pickTodoOrg,
+  personOrgs: pickPersonOrg,
+  settings: pickSetting,
+  orgs: pickOrg,
+  taskboards: pickTaskboard,
+  floatingTaskboards: pickFloatingTaskboard,
+  statuses: pickStatus,
+  listDefinitions: pickListDefinition,
+  notes: pickNote,
+  floatingCalendars: pickFloatingCalendar,
+  floatingNotes: pickFloatingNote,
+  floatingHorizons: pickFloatingHorizons,
+  floatingStatus: pickFloatingStatus,
+  floatingScoreboard: pickFloatingScoreboard,
+  floatingSnoozeGraveyard: pickFloatingSnoozeGraveyard,
+  todoEvents: pickTodoEvent,
+}
+
+/** Picks + compacts every row of `rows` for table `key`. */
+function pickRows<K extends keyof ImportData>(key: K, rows: unknown): Array<ImportRow<K>> {
+  const pick = IMPORT_ROW_PICKERS[key] as (v: Raw) => AllFields<ImportRow<K>>
+  return ((rows ?? []) as Raw[]).map((r) => compactRow<ImportRow<K>>(pick(r)))
 }
 
 // --- Main validation ---
@@ -924,8 +946,8 @@ export interface ImportData {
   personOrgs: PersonOrg[]
   settings: SettingRow[]
   orgs: Org[]
-  taskboards: import('../models').Taskboard[]
-  floatingTaskboards: import('../models').FloatingTaskboard[]
+  taskboards: Taskboard[]
+  floatingTaskboards: FloatingTaskboard[]
   statuses: Status[]
   listDefinitions: ListDefinition[]
   notes: Note[]
@@ -1046,34 +1068,30 @@ export function validateImportData(data: unknown): ValidateImportResult {
     ok: true,
     warnings,
     data: {
-      canvases: (raw.canvases as Record<string, unknown>[]).map(pickCanvas),
-      projects: ((raw.projects ?? []) as Record<string, unknown>[]).map(pickProject),
-      todos: ((raw.todos ?? []) as Record<string, unknown>[]).map(pickTodo),
-      people: ((raw.people ?? []) as Record<string, unknown>[]).map(pickPerson),
-      ...(Array.isArray(raw.tags) && raw.tags.length > 0
-        ? { tags: (raw.tags as Record<string, unknown>[]).map(pickTag) }
-        : {}),
-      listInsets: ((raw.listInsets ?? []) as Record<string, unknown>[]).map(pickListInset),
-      ...(Array.isArray(raw.todoTags) && raw.todoTags.length > 0
-        ? { todoTags: (raw.todoTags as Record<string, unknown>[]).map(pickTodoTag) }
-        : {}),
-      todoPeople: ((raw.todoPeople ?? []) as Record<string, unknown>[]).map(pickTodoPerson),
-      todoOrgs: ((raw.todoOrgs ?? []) as Record<string, unknown>[]).map(pickTodoOrg),
-      personOrgs: ((raw.personOrgs ?? []) as Record<string, unknown>[]).map(pickPersonOrg),
-      settings: settingRows.map(pickSetting),
-      orgs: ((raw.orgs ?? []) as Record<string, unknown>[]).map(pickOrg),
-      taskboards: ((raw.taskboards ?? []) as Record<string, unknown>[]).map(pickTaskboard),
-      floatingTaskboards: ((raw.floatingTaskboards ?? []) as Record<string, unknown>[]).map(pickFloatingTaskboard),
-      statuses: ((raw.statuses ?? []) as Record<string, unknown>[]).map(pickStatus),
-      listDefinitions: ((raw.listDefinitions ?? []) as Record<string, unknown>[]).map(pickListDefinition),
-      notes: ((raw.notes ?? []) as Record<string, unknown>[]).map(pickNote),
-      floatingCalendars: ((raw.floatingCalendars ?? []) as Record<string, unknown>[]).map(pickFloatingCalendar),
-      floatingNotes: ((raw.floatingNotes ?? []) as Record<string, unknown>[]).map(pickFloatingNote),
-      floatingHorizons: ((raw.floatingHorizons ?? []) as Record<string, unknown>[]).map(pickFloatingHorizons),
-      floatingStatus: ((raw.floatingStatus ?? []) as Record<string, unknown>[]).map(pickFloatingStatus),
-      floatingScoreboard: ((raw.floatingScoreboard ?? []) as Record<string, unknown>[]).map(pickFloatingScoreboard),
-      floatingSnoozeGraveyard: ((raw.floatingSnoozeGraveyard ?? []) as Record<string, unknown>[]).map(pickFloatingSnoozeGraveyard),
-      todoEvents: ((raw.todoEvents ?? []) as Record<string, unknown>[]).map(pickTodoEvent),
+      canvases: pickRows('canvases', raw.canvases),
+      projects: pickRows('projects', raw.projects),
+      todos: pickRows('todos', raw.todos),
+      people: pickRows('people', raw.people),
+      ...(Array.isArray(raw.tags) && raw.tags.length > 0 ? { tags: pickRows('tags', raw.tags) } : {}),
+      listInsets: pickRows('listInsets', raw.listInsets),
+      ...(Array.isArray(raw.todoTags) && raw.todoTags.length > 0 ? { todoTags: pickRows('todoTags', raw.todoTags) } : {}),
+      todoPeople: pickRows('todoPeople', raw.todoPeople),
+      todoOrgs: pickRows('todoOrgs', raw.todoOrgs),
+      personOrgs: pickRows('personOrgs', raw.personOrgs),
+      settings: pickRows('settings', settingRows),
+      orgs: pickRows('orgs', raw.orgs),
+      taskboards: pickRows('taskboards', raw.taskboards),
+      floatingTaskboards: pickRows('floatingTaskboards', raw.floatingTaskboards),
+      statuses: pickRows('statuses', raw.statuses),
+      listDefinitions: pickRows('listDefinitions', raw.listDefinitions),
+      notes: pickRows('notes', raw.notes),
+      floatingCalendars: pickRows('floatingCalendars', raw.floatingCalendars),
+      floatingNotes: pickRows('floatingNotes', raw.floatingNotes),
+      floatingHorizons: pickRows('floatingHorizons', raw.floatingHorizons),
+      floatingStatus: pickRows('floatingStatus', raw.floatingStatus),
+      floatingScoreboard: pickRows('floatingScoreboard', raw.floatingScoreboard),
+      floatingSnoozeGraveyard: pickRows('floatingSnoozeGraveyard', raw.floatingSnoozeGraveyard),
+      todoEvents: pickRows('todoEvents', raw.todoEvents),
     },
   }
 }
