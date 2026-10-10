@@ -1,4 +1,4 @@
-import { ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../data/database'
+import { ALL_DATA_TABLES, CURRENT_DB_VERSION, db } from '../data/database'
 import type { SettingRow } from '../data/database'
 import { SCHEMA_VERSION_KEY } from './migration-check'
 import type {
@@ -59,16 +59,23 @@ export interface ExportData {
  *
  * Iterates `ALL_DATA_TABLES` from `data/database.ts` so the export covers every
  * data table — round-trips through `parseAndRestore` without silent loss.
+ *
+ * All reads run inside one read-only Dexie transaction over `ALL_DATA_TABLES`,
+ * so the export is a consistent snapshot (a concurrent write can't land
+ * between two table reads and leave e.g. a join row without its todo).
  */
 export async function buildExportData(): Promise<ExportData> {
-  const entries = await Promise.all(
-    ALL_DATA_TABLES.map(async (table) => [table.name, await table.toArray()] as const),
+  const entries = await db.transaction('r', [...ALL_DATA_TABLES], () =>
+    Promise.all(
+      ALL_DATA_TABLES.map(async (table) => [table.name, await table.toArray()] as const),
+    ),
   )
   return {
     [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
     ...Object.fromEntries(entries),
   } as ExportData
 }
+
 
 /**
  * Builds a markdown representation of all tasks, grouped by project.

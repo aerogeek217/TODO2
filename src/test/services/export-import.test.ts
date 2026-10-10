@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { buildExportData } from '../../services/export-import'
 import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
@@ -75,6 +75,19 @@ describe('buildExportData', () => {
 
     expect(parsed.todos).toHaveLength(1)
     expect(parsed.todos[0].title).toBe('Task 1')
+  })
+
+  it('reads every table inside one read-only transaction (consistent snapshot)', async () => {
+    const spy = vi.spyOn(db, 'transaction')
+    try {
+      await buildExportData()
+      expect(spy).toHaveBeenCalledTimes(1)
+      const [mode, tables] = spy.mock.calls[0]! as unknown as [string, Array<{ name: string }>]
+      expect(mode).toBe('r')
+      expect(tables.map((t) => t.name).sort()).toEqual(ALL_DATA_TABLES.map((t) => t.name).sort())
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('emits a key for every ALL_DATA_TABLES entry', async () => {
