@@ -34,6 +34,7 @@ import { GROUP_OPTIONS } from '../utils/task-grouping'
 import type { ProjectGroupBy } from '../models'
 import { MIN_CANVAS_MAX_EXTENT, MAX_CANVAS_MAX_EXTENT } from '../utils/canvas-bounds'
 import { BYTES_PER_KB, OBJECT_URL_REVOKE_MS } from '../constants'
+import { isExpiredCompleted, retentionCutoff } from '../utils/completed-at'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -141,20 +142,15 @@ export function SettingsPage() {
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
     const now = new Date()
-    const cutoff = new Date(now)
-    cutoff.setDate(cutoff.getDate() - completedRetentionDays)
+    const cutoff = retentionCutoff(completedRetentionDays, now)
     const weekFromNow = new Date(now)
     weekFromNow.setDate(weekFromNow.getDate() + 7)
-    const expiringCutoff = new Date(weekFromNow)
-    expiringCutoff.setDate(expiringCutoff.getDate() - completedRetentionDays)
+    const expiringCutoff = retentionCutoff(completedRetentionDays, weekFromNow)
 
     const completed = todos.filter((t) => t.isCompleted)
-    const expired = completed.filter((t) => new Date(t.modifiedAt) < cutoff)
+    const expired = completed.filter((t) => isExpiredCompleted(t, cutoff))
     const expiringThisWeek = completed.filter(
-      (t) => {
-        const mod = new Date(t.modifiedAt)
-        return mod >= cutoff && mod < expiringCutoff
-      }
+      (t) => !isExpiredCompleted(t, cutoff) && isExpiredCompleted(t, expiringCutoff),
     )
     return { expired: expired.length, expiringThisWeek: expiringThisWeek.length, total: completed.length }
   }, [todos, completedRetentionDays])
@@ -162,9 +158,8 @@ export function SettingsPage() {
   const completedCount = useMemo(() => todos.filter((t) => t.isCompleted).length, [todos])
 
   const cleanupMatchCount = useMemo(() => {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - cleanupDays)
-    return todos.filter((t) => t.isCompleted && new Date(t.modifiedAt) < cutoff).length
+    const cutoff = retentionCutoff(cleanupDays)
+    return todos.filter((t) => isExpiredCompleted(t, cutoff)).length
   }, [todos, cleanupDays])
 
   const closeCleanupPopup = useCallback(() => {

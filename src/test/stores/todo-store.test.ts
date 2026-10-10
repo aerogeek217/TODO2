@@ -180,13 +180,13 @@ describe('todoStore', () => {
     await useTodoStore.getState().toggleComplete(id1)
     await useTodoStore.getState().toggleComplete(id2)
 
-    // Backdate id1's modifiedAt
+    // Backdate id1's completion (the purge clock is completedAt — cr1 P4)
     const oldDate = new Date()
     oldDate.setDate(oldDate.getDate() - 40)
-    await db.todos.update(id1, { modifiedAt: oldDate })
+    await db.todos.update(id1, { completedAt: oldDate })
     useTodoStore.setState({
       todos: useTodoStore.getState().todos.map(t =>
-        t.id === id1 ? { ...t, modifiedAt: oldDate } : t
+        t.id === id1 ? { ...t, completedAt: oldDate } : t
       ),
     })
 

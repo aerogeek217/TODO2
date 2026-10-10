@@ -7,6 +7,7 @@ import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded } from './store-helpers'
 import { useSettingsStore } from './settings-store'
+import { resolveCompletedAt, isExpiredCompleted, retentionCutoff } from '../utils/completed-at'
 
 interface TodoState {
   todos: PersistedTodoItem[]
@@ -136,7 +137,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
     return optimistic(
       set,
       () => set({
-        todos: get().todos.map((t) => (t.id === todo.id ? { ...todo, modifiedAt: now } : t)),
+        todos: get().todos.map((t) => (t.id === todo.id
+          ? { ...todo, completedAt: resolveCompletedAt(prev, todo, now), modifiedAt: now }
+          : t)),
       }),
       () => todoRepository.update(todo),
       () => set({
@@ -209,15 +212,20 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const label = completed ? 'Complete' : 'Uncomplete'
     return optimistic(
       set,
-      () => set({
-        todos: get().todos.map((t) =>
-          t.id === id ? { ...t, isCompleted: completed, modifiedAt: new Date() } : t
-        ),
-      }),
+      () => {
+        const now = new Date()
+        set({
+          todos: get().todos.map((t) =>
+            t.id === id
+              ? { ...t, isCompleted: completed, completedAt: resolveCompletedAt(t, { isCompleted: completed }, now), modifiedAt: now }
+              : t
+          ),
+        })
+      },
       () => todoRepository.complete(id, completed),
       () => set({
         todos: get().todos.map((t) =>
-          t.id === id ? { ...t, isCompleted: !completed } : t
+          t.id === id ? { ...t, isCompleted: !completed, completedAt: todo.completedAt } : t
         ),
       }),
       'Failed to toggle task completion',
@@ -276,7 +284,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const recurringMutations = recurringAdvances.map((r) => ({ todoId: r.id, changes: r.nextChanges }))
     const prevStates = get().todos
       .filter((t) => normalIds.includes(t.id))
-      .map((t) => ({ id: t.id, wasCompleted: t.isCompleted }))
+      .map((t) => ({ id: t.id, wasCompleted: t.isCompleted, prevCompletedAt: t.completedAt }))
     const normalIdSet = new Set(normalIds)
     const recurringNextMap = new Map(recurringAdvances.map((r) => [r.id, r.nextChanges]))
     const recurringPrevMap = new Map(recurringAdvances.map((r) => [r.id, r]))
@@ -291,7 +299,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
             const next = recurringNextMap.get(t.id)
             if (next) return { ...t, ...next, modifiedAt: now }
             if (normalIdSet.has(t.id)) {
-              return { ...t, isCompleted: completed, modifiedAt: now }
+              return { ...t, isCompleted: completed, completedAt: resolveCompletedAt(t, { isCompleted: completed }, now), modifiedAt: now }
             }
             return t
           }),
@@ -304,7 +312,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         await Promise.all(normalIds.map((id) => todoRepository.complete(id, completed)))
       },
       () => {
-        const prevCompletedMap = new Map(prevStates.map(s => [s.id, s.wasCompleted]))
+        const prevCompletedMap = new Map(prevStates.map(s => [s.id, s]))
         set({
           todos: get().todos.map((t) => {
             const r = recurringPrevMap.get(t.id)
@@ -313,8 +321,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
                 ? { ...t, dueDate: r.prev as Date }
                 : { ...t, scheduledDate: r.prev as ScheduledValue }
             }
-            if (prevCompletedMap.has(t.id)) {
-              return { ...t, isCompleted: prevCompletedMap.get(t.id)! }
+            const prevState = prevCompletedMap.get(t.id)
+            if (prevState) {
+              return { ...t, isCompleted: prevState.wasCompleted, completedAt: prevState.prevCompletedAt }
             }
             return t
           }),
@@ -345,19 +354,21 @@ export const useTodoStore = create<TodoState>((set, get) => {
             })
           }
           // Revert normal completions
-          for (const { id, wasCompleted } of prevStates) {
-            if (wasCompleted !== completed) {
-              await todoRepository.complete(id, wasCompleted)
-            }
+          // (re-completing restores the original completion time)
+          const reverts = prevStates.filter(s => s.wasCompleted !== completed)
+          for (const { id, wasCompleted, prevCompletedAt } of reverts) {
+            await todoRepository.complete(id, wasCompleted, prevCompletedAt)
           }
-          const revertIds = prevStates.filter(s => s.wasCompleted !== completed).map(s => s.id)
-          if (revertIds.length > 0) {
-            const revertSet = new Set(revertIds)
-            const stateMap = new Map(prevStates.map(s => [s.id, s.wasCompleted]))
+          if (reverts.length > 0) {
+            const stateMap = new Map(reverts.map(s => [s.id, s]))
+            const now = new Date()
             set({
-              todos: get().todos.map((t) =>
-                revertSet.has(t.id) ? { ...t, isCompleted: stateMap.get(t.id)!, modifiedAt: new Date() } : t
-              ),
+              todos: get().todos.map((t) => {
+                const s = stateMap.get(t.id)
+                if (!s) return t
+                const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
+                return { ...t, ...next, completedAt: resolveCompletedAt(t, next, now), modifiedAt: now }
+              }),
             })
           }
         },
@@ -555,11 +566,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
 
   async purgeExpiredCompleted(retentionDays: number) {
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - retentionDays)
-    const expired = get().todos.filter(
-      (t) => t.isCompleted && new Date(t.modifiedAt) < cutoff
-    )
+    // Keyed on `completedAt` (cr1 P4) — `modifiedAt` advances on reorders /
+    // sort normalization / bulk edits, so completed tasks never aged out.
+    const cutoff = retentionCutoff(retentionDays)
+    const expired = get().todos.filter((t) => isExpiredCompleted(t, cutoff))
     if (expired.length === 0) return 0
     // Snapshot before destructive purge
     const { backupScheduler } = await import('../services/backup-scheduler')

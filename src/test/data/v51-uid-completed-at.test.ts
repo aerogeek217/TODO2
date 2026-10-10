@@ -4,6 +4,7 @@ import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { upgradeV51, backfillTodoUid } from '../../data/upgrades/v51-uid-completed-at'
 import { SCHEMA_UPGRADES, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
+import { useTodoStore } from '../../stores/todo-store'
 import { resetDb, v50StoreSpecs } from '../helpers'
 
 const T0 = '2026-08-01T09:00:00.000Z'
@@ -148,5 +149,18 @@ describe('v51 Dexie upgrade', () => {
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.data.todos.map((t) => t.uid)).toEqual(todos.map((t) => t.uid))
     expect(prepared.data.todos.map((t) => t.completedAt)).toEqual(todos.map((t) => t.completedAt))
+  })
+
+  it('the purge then uses the backfilled completion time', async () => {
+    await buildV50Db()
+    await db.open()
+    useTodoStore.setState({ todos: [], todosVersion: 0, loading: false })
+    await useTodoStore.getState().loadAll()
+    // A cutoff a day after DONE: todo 1 (completed at DONE, per its event)
+    // expires; todo 2 (backfilled from the later modifiedAt) stays.
+    const days = Math.floor((Date.now() - new Date(DONE).getTime()) / 86_400_000) - 1
+    const purged = await useTodoStore.getState().purgeExpiredCompleted(days)
+    expect(purged).toBe(1)
+    expect((await db.todos.orderBy('id').toArray()).map((t) => t.id)).toEqual([2, 3])
   })
 })
