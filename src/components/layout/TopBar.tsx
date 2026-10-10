@@ -24,7 +24,7 @@ import { useFileStorageStore } from '../../stores/file-storage-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { startOfToday } from '../../utils/date'
-import { matchTodoText, type TextMatchField } from '../../utils/filter'
+import { groupTodosByTextMatch, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
@@ -332,24 +332,14 @@ export function TopBar() {
 
   const miniListGroups = useMemo(() => {
     if (!localSearch || !searchFocused) return null
-    const groups: Record<TextMatchField, PersistedTodoItem[]> = {
-      title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
-    }
-    for (const t of todos) {
-      const people = assignedPeopleMap.get(t.id) ?? []
-      const orgs = assignedOrgsMap.get(t.id) ?? []
-      const tags = assignedTagsMap.get(t.id) ?? []
-      const { fields } = matchTodoText(t, localSearch, {
-        projectName: t.projectId != null ? projectsById.get(t.projectId)?.name : undefined,
-        personNames: people.map(p => p.name),
-        orgNames: orgs.map(o => o.name),
-        statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
-        tagNames: tags.map(tg => tg.name),
-      })
-      for (const f of fields) groups[f].push(t)
-    }
-    return groups
-  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, projectsById, statusesById])
+    return groupTodosByTextMatch(todos, localSearch, (t) => ({
+      projectName: t.projectId != null ? projectsById.get(t.projectId)?.name : undefined,
+      personNames: (assignedPeopleMap.get(t.id) ?? []).map(p => p.name),
+      orgNames: (assignedOrgsMap.get(t.id) ?? []).map(o => o.name),
+      statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
+      tagNames: (assignedTagsMap.get(t.id) ?? []).map(tg => tg.name),
+    }))
+  },[localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, projectsById, statusesById])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)

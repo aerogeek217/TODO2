@@ -67,3 +67,30 @@ export function matchTodoText(
   if (ctx?.tagNames && ctx.tagNames.some(n => n.toLowerCase().includes(q))) fields.push('tag')
   return { matched: fields.length > 0, fields }
 }
+
+/**
+ * Buckets todos by every text field the query hits (a todo matching several
+ * fields appears in each of those groups). Within each group, incomplete todos
+ * come first and completed todos sink to the bottom; relative order inside
+ * each half follows the input order (stable partition). Drives the TopBar
+ * grouped search dropdown.
+ */
+export function groupTodosByTextMatch<T extends { title?: string; notes?: string; isCompleted: boolean }>(
+  todos: readonly T[],
+  query: string,
+  ctxFor: (todo: T) => TextMatchContext | undefined,
+): Record<TextMatchField, T[]> {
+  const groups: Record<TextMatchField, T[]> = {
+    title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
+  }
+  const completed: Record<TextMatchField, T[]> = {
+    title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
+  }
+  for (const t of todos) {
+    const { fields } = matchTodoText(t, query, ctxFor(t))
+    const target = t.isCompleted ? completed : groups
+    for (const f of fields) target[f].push(t)
+  }
+  for (const f of TEXT_MATCH_FIELDS) groups[f].push(...completed[f])
+  return groups
+}
