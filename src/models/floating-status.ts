@@ -1,6 +1,6 @@
 /**
  * A canvas-pinned placement that renders the open-tasks-by-status stat widget.
- * Parallels `FloatingHorizons` / `FloatingCalendar` / `FloatingTaskboard`:
+ * Parallels `FloatingCalendar` / `FloatingTaskboard`:
  * widget stores position/size only; content is derived from todo + status state.
  */
 export interface FloatingStatus {

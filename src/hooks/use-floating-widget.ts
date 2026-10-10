@@ -5,8 +5,8 @@ import { useCanvasStore } from '../stores/canvas-store'
 import { convertFloatingKind } from '../services/float-kind-switch'
 
 /**
- * Shared plumbing for the five floating canvas widgets (note / calendar /
- * horizons / taskboard / list-inset). Collapses the ~50 LOC of
+ * Shared plumbing for the floating canvas widgets (note / calendar /
+ * status / taskboard / list-inset). Collapses the ~50 LOC of
  * `handleClose` / `handleDock` / `handleChangeKind` + `kindAnchor` state that
  * each node previously duplicated.
  *

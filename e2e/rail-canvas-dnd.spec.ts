@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   dragTabTo,
   floatingCalendarByIndex,
-  floatingHorizonsByIndex,
+  floatingStatusByIndex,
   floatingNoteByIndex,
   floatingTaskboardByIndex,
   listInsetByIndex,
@@ -131,18 +131,18 @@ test.describe('rail tab → canvas pop-out (T1A inverse path)', () => {
     await expect(tabPillByDataId(page, 'tab-notes')).toBeVisible()
   })
 
-  test('horizons tab pops out as a floatingHorizons', async ({ page }) => {
+  test('status tab pops out as a floatingStatus', async ({ page }) => {
     await seedCanvas(page, {
       canvasRails: {
         left: {
           orientation: 'vertical',
           slots: [{
-            id: 'slot-hz',
+            id: 'slot-st',
             tabs: [
-              { id: 'tab-hz', type: 'horizons' },
+              { id: 'tab-st', type: 'status' },
               { id: 'tab-notes', type: 'notes' },
             ],
-            activeTabId: 'tab-hz',
+            activeTabId: 'tab-st',
           }],
         },
         right: null,
@@ -152,11 +152,11 @@ test.describe('rail tab → canvas pop-out (T1A inverse path)', () => {
     })
 
     await waitForRailHydration(page)
-    await expect(floatingHorizonsByIndex(page)).toHaveCount(0)
-    await dragTabTo(page, tabPillByDataId(page, 'tab-hz'), { x: CANVAS_DROP_X, y: CANVAS_DROP_Y })
+    await expect(floatingStatusByIndex(page)).toHaveCount(0)
+    await dragTabTo(page, tabPillByDataId(page, 'tab-st'), { x: CANVAS_DROP_X, y: CANVAS_DROP_Y })
 
-    await expect(floatingHorizonsByIndex(page)).toBeVisible()
-    await expect(tabPillByDataId(page, 'tab-hz')).toHaveCount(0)
+    await expect(floatingStatusByIndex(page)).toBeVisible()
+    await expect(tabPillByDataId(page, 'tab-st')).toHaveCount(0)
     await expect(tabPillByDataId(page, 'tab-notes')).toBeVisible()
   })
 

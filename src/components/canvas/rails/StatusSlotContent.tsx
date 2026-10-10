@@ -22,7 +22,7 @@ interface RowContextMenu { x: number; y: number; key: SelectedStatusKey }
  * row per status (icon · label · count · percent). Driven by
  * `selectStatusBreakdown` over the live todo + status stores.
  *
- * Click parity with HorizonsSlotContent: clicking a legend row (or hero
+ * Clicking a legend row (or hero
  * segment) selects that status and reveals its open tasks below the legend;
  * clicking the same row again deselects. Right-click opens a
  * `CanvasContextMenu` with row-relevant items.

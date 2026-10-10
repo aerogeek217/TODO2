@@ -13,10 +13,7 @@ import { useListInsetStore } from './list-inset-store'
 import { useFloatingNoteStore } from './floating-note-store'
 import { useFloatingCalendarStore } from './floating-calendar-store'
 import { useFloatingTaskboardStore } from './floating-taskboard-store'
-import { useFloatingHorizonsStore } from './floating-horizons-store'
 import { useFloatingStatusStore } from './floating-status-store'
-import { useFloatingScoreboardStore } from './floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from './floating-snooze-graveyard-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
 
@@ -56,10 +53,7 @@ export async function refreshAllStores() {
       useFloatingNoteStore.getState().loadByCanvas(canvasId),
       useFloatingCalendarStore.getState().loadByCanvas(canvasId),
       useFloatingTaskboardStore.getState().loadByCanvas(canvasId),
-      useFloatingHorizonsStore.getState().loadByCanvas(canvasId),
       useFloatingStatusStore.getState().loadByCanvas(canvasId),
-      useFloatingScoreboardStore.getState().loadByCanvas(canvasId),
-      useFloatingSnoozeGraveyardStore.getState().loadByCanvas(canvasId),
     ] : []),
   ])
   // Reload assignment maps after entities and todos are loaded

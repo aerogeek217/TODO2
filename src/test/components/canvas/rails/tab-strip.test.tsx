@@ -205,18 +205,16 @@ describe('TabStrip', () => {
     expect(screen.queryByText('▾')).toBeNull()
   })
 
-  it('renders title-cased labels for every SlotKind (no Calendar fallthrough on stats kinds)', () => {
-    // Item 5: KIND_LABEL extended to Status / Discipline / Snooze graveyard /
-    // Horizons / Taskboard / Notes / Calendar / List; tabLabel reads from it.
+  it('renders title-cased labels for every SlotKind (no Calendar fallthrough)', () => {
+    // tabLabel reads KIND_LABEL for every non-lens kind.
     const slot: Slot = {
       id: 's',
       activeTabId: 's-t0',
       tabs: [
         { id: 's-t0', type: 'status' },
-        { id: 's-t1', type: 'scoreboard' },
-        { id: 's-t2', type: 'snoozeGraveyard' },
-        { id: 's-t3', type: 'horizons' },
-        { id: 's-t4', type: 'taskboard' },
+        { id: 's-t1', type: 'notes' },
+        { id: 's-t2', type: 'calendar' },
+        { id: 's-t3', type: 'taskboard' },
       ],
     }
     render(
@@ -229,9 +227,8 @@ describe('TabStrip', () => {
       />,
     )
     expect(screen.getByText('Status')).toBeInTheDocument()
-    expect(screen.getByText('Discipline')).toBeInTheDocument()
-    expect(screen.getByText('Snooze graveyard')).toBeInTheDocument()
-    expect(screen.getByText('Horizons')).toBeInTheDocument()
+    expect(screen.getByText('Notes')).toBeInTheDocument()
+    expect(screen.getByText('Calendar')).toBeInTheDocument()
     expect(screen.getByText('Taskboard')).toBeInTheDocument()
   })
 

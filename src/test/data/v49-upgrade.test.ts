@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import fixture from '../fixtures/v49-export.json'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
+import { parseRailsState } from '../../models/canvas-rails'
 import { prepareImport } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { resetDb } from '../helpers'
@@ -47,7 +48,9 @@ describe('v49 fixture → prepareImport → restore', () => {
   it('restores every table with the fixture row counts', async () => {
     await importFixture()
     for (const table of ALL_DATA_TABLES) {
-      const expected = (fixture[table.name as FixtureTable] as unknown[]).length
+      let expected = (fixture[table.name as FixtureTable] as unknown[]).length
+      // v52 deletes the two horizons settings rows.
+      if (table.name === 'settings') expected -= 2
       expect(await table.count(), `${table.name} count`).toBe(expected)
     }
   })
@@ -109,26 +112,23 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(insets.find((i) => i.listDefinitionId === 3)?.runtimeFilterValue).toEqual([1, 2])
   })
 
-  it('preserves floating widgets of every kind, notes, and todoEvents of every type', async () => {
+  it('preserves floating widgets of every surviving kind, notes, and todoEvents of every type', async () => {
     await importFixture()
     const cal = (await db.floatingCalendars.toArray()).find((c) => c.orientation === 'horizontal')
     expect(cal?.weekOffset).toBe(-1)
     expect((await db.floatingTaskboards.toArray())[0]?.collapsed).toBe(true)
     expect((await db.floatingStatus.toArray())[0]?.collapsed).toBe(true)
     expect(await db.floatingNotes.count()).toBe(1)
-    expect(await db.floatingHorizons.count()).toBe(1)
-    expect(await db.floatingScoreboard.count()).toBe(1)
-    expect(await db.floatingSnoozeGraveyard.count()).toBe(1)
     expect((await db.notes.toArray())[0]?.content).toContain('# Inbox')
 
     const types = new Set((await db.todoEvents.toArray()).map((e) => e.type))
     expect([...types].sort()).toEqual(['completed', 'created', 'deadline', 'reopened', 'scheduled', 'status'])
   })
 
-  it('preserves every settings row, including rails JSON and theme colors', async () => {
+  it('preserves every surviving settings row, including rails JSON and theme colors', async () => {
     await importFixture()
     const settings = new Map((await db.settings.toArray()).map((s) => [s.key, s.value]))
-    expect(settings.size).toBe(fixture.settings.length)
+    expect(settings.size).toBe(fixture.settings.length - 2)
     expect(settings.get('weekStartsOn')).toBe('1')
     expect(settings.get('color.dark.accent')).toBe('#4f8cff')
     expect(settings.get('color.light.accent')).toBe('#1a5fd0')
@@ -206,5 +206,54 @@ describe('v49 fixture → v51: every todo has a unique uid; completedAt backfill
     for (const t of todos.filter((x) => !x.isCompleted)) {
       expect('completedAt' in t, `todo ${t.id} has no completedAt`).toBe(false)
     }
+  })
+})
+
+// ── v52: horizons / scoreboard / snooze-graveyard widgets removed ─────────
+
+describe('v49 fixture → v52: removed widgets are gone, everything else intact', () => {
+  it('drops the three placement tables; their rows do not reappear anywhere', async () => {
+    await importFixture()
+    const tableNames = db.tables.map((t) => t.name)
+    for (const dropped of ['floatingHorizons', 'floatingScoreboard', 'floatingSnoozeGraveyard']) {
+      expect(tableNames, `${dropped} table`).not.toContain(dropped)
+    }
+    // Surviving placement tables keep exactly the fixture's rows.
+    expect(await db.floatingStatus.count()).toBe(fixture.floatingStatus.length)
+    expect(await db.floatingTaskboards.count()).toBe(fixture.floatingTaskboards.length)
+  })
+
+  it('deletes the horizonSlots / selectedHorizonDefId settings rows', async () => {
+    await importFixture()
+    expect(await db.settings.get('horizonSlots')).toBeUndefined()
+    expect(await db.settings.get('selectedHorizonDefId')).toBeUndefined()
+  })
+
+  it('keeps the list definitions the horizons widget showed (ordinary lists now)', async () => {
+    await importFixture()
+    const names = (await db.listDefinitions.orderBy('sortOrder').toArray()).map((d) => d.name)
+    expect(names).toEqual(fixture.listDefinitions.map((d) => d.name))
+  })
+
+  it('strips removed-kind tabs from the rails setting and leaves it valid', async () => {
+    await importFixture()
+    const raw = (await db.settings.get('canvasRails'))!.value
+    const parsed = parseRailsState(raw)
+    expect(parsed).not.toBeNull()
+    // Parsing drops unknown tab kinds — nothing may be lost to that anymore.
+    expect(JSON.parse(raw)).toEqual(JSON.parse(JSON.stringify(parsed)))
+
+    const rails = JSON.parse(raw)
+    // Right slot: taskboard + horizons → taskboard only.
+    expect(rails.right.slots).toHaveLength(1)
+    expect(rails.right.slots[0]).toMatchObject({ id: 's-tb', activeTabId: 't-tb', tabs: [{ id: 't-tb', type: 'taskboard' }] })
+    // Bottom slot: status + scoreboard + snooze graveyard → status only.
+    expect(rails.bottom.slots[0]).toMatchObject({ id: 's-stats', activeTabId: 't-st', tabs: [{ id: 't-st', type: 'status' }] })
+    // Untouched parts survive verbatim.
+    const original = JSON.parse(fixture.settings.find((s) => s.key === 'canvasRails')!.value)
+    expect(rails.left).toEqual(original.left)
+    expect(rails.top).toBeNull()
+    expect({ widths: rails.widths, heights: rails.heights, corners: rails.corners, collapsed: rails.collapsed })
+      .toEqual({ widths: original.widths, heights: original.heights, corners: original.corners, collapsed: original.collapsed })
   })
 })

@@ -296,17 +296,17 @@ describe('createAndDockSlot', () => {
     expect(getActiveTab(slot!).type).toBe('taskboard')
   })
 
-  it('docks a horizons slot — backs FloatingHorizonsNode.handleDock', () => {
-    // FloatingHorizonsNode.handleDock calls
-    // `useCanvasRailsStore.getState().createAndDockSlot('horizons')` then
+  it('docks a status slot — backs FloatingStatusNode.handleDock', () => {
+    // The floating status widget's dock calls
+    // `useCanvasRailsStore.getState().createAndDockSlot('status')` then
     // deletes the source float row. Pin the rails-store side here so a
     // rename of the slot kind or a regression in the empty-rail dock path
     // surfaces independently of the React component.
-    const id = useCanvasRailsStore.getState().createAndDockSlot('horizons')
+    const id = useCanvasRailsStore.getState().createAndDockSlot('status')
     const { rails } = useCanvasRailsStore.getState()
     const slot = rails.right?.slots.find((s) => s.id === id)
     expect(slot).toBeDefined()
-    expect(getActiveTab(slot!).type).toBe('horizons')
+    expect(getActiveTab(slot!).type).toBe('status')
   })
 })
 

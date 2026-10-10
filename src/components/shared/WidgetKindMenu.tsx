@@ -11,13 +11,7 @@ const PRIMARY_KINDS: { kind: SlotKind; label: string }[] = [
   { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
   { kind: 'taskboard', label: 'Taskboard' },
-]
-
-const STATS_KINDS: { kind: SlotKind; label: string }[] = [
-  { kind: 'horizons', label: 'Horizons' },
   { kind: 'status', label: 'Open by status' },
-  { kind: 'scoreboard', label: 'Discipline' },
-  { kind: 'snoozeGraveyard', label: 'Snooze graveyard' },
 ]
 
 export interface WidgetKindMenuProps {
@@ -49,8 +43,6 @@ const FLYOUT_WIDTH_PX = 240
 const FLYOUT_MAX_HEIGHT_PX = 320
 const VIEWPORT_MARGIN_PX = 8
 
-/** Which secondary row currently has its flyout open (D8: only one at a time). */
-type FlyoutKind = 'list' | 'stats'
 
 export function WidgetKindMenu({
   anchor,
@@ -64,9 +56,8 @@ export function WidgetKindMenu({
 }: WidgetKindMenuProps) {
   const flyoutRef = useRef<HTMLDivElement | null>(null)
   const listRowRef = useRef<HTMLButtonElement | null>(null)
-  const statsRowRef = useRef<HTMLButtonElement | null>(null)
   const leaveTimerRef = useRef<number | null>(null)
-  const [flyout, setFlyout] = useState<{ kind: FlyoutKind; x: number; y: number } | null>(null)
+  const [flyout, setFlyout] = useState<{ x: number; y: number } | null>(null)
 
   // Parent menu — point-anchored at the click coords; the panelRef returned
   // here is the menu div. The flyout is special-cased (right-of-row anchor
@@ -123,8 +114,7 @@ export function WidgetKindMenu({
     const rect = el.getBoundingClientRect()
     if (rect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
       // Flip to the left side of the row.
-      const rowRef = flyout.kind === 'list' ? listRowRef : statsRowRef
-      const row = rowRef.current?.getBoundingClientRect()
+      const row = listRowRef.current?.getBoundingClientRect()
       const flipLeft = row ? Math.max(VIEWPORT_MARGIN_PX, row.left - rect.width - 2) : VIEWPORT_MARGIN_PX
       el.style.left = `${flipLeft}px`
     }
@@ -150,19 +140,17 @@ export function WidgetKindMenu({
 
   useEffect(() => () => cancelLeaveTimer(), [])
 
-  const openFlyoutFromRow = (kind: FlyoutKind) => {
+  const openListFlyout = () => {
     cancelLeaveTimer()
-    const rowRef = kind === 'list' ? listRowRef : statsRowRef
-    const row = rowRef.current
+    const row = listRowRef.current
     if (!row) return
     const rect = row.getBoundingClientRect()
-    setFlyout({ kind, x: rect.right + 2, y: rect.top })
+    setFlyout({ x: rect.right + 2, y: rect.top })
   }
 
-  const focusActiveSecondaryRow = () => {
+  const focusListRow = () => {
     if (!flyout) return
-    const rowRef = flyout.kind === 'list' ? listRowRef : statsRowRef
-    queueMicrotask(() => rowRef.current?.focus())
+    queueMicrotask(() => listRowRef.current?.focus())
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -170,7 +158,7 @@ export function WidgetKindMenu({
       e.preventDefault()
       e.stopPropagation()
       if (flyout) {
-        focusActiveSecondaryRow()
+        focusListRow()
         setFlyout(null)
         return
       }
@@ -183,15 +171,11 @@ export function WidgetKindMenu({
     else if (e.key === 'End') { e.preventDefault(); moveFocus('last') }
     else if (e.key === 'ArrowRight' && document.activeElement === listRowRef.current) {
       e.preventDefault()
-      openFlyoutFromRow('list')
-    }
-    else if (e.key === 'ArrowRight' && document.activeElement === statsRowRef.current) {
-      e.preventDefault()
-      openFlyoutFromRow('stats')
+      openListFlyout()
     }
     else if (e.key === 'ArrowLeft' && flyout) {
       e.preventDefault()
-      focusActiveSecondaryRow()
+      focusListRow()
       setFlyout(null)
     }
     else if (e.key === 'Tab') onClose()
@@ -200,8 +184,6 @@ export function WidgetKindMenu({
   const showSecondaryList = currentKind === 'lens' && pickListForLens != null
   const secondaryListLabel = showSecondaryList ? 'Change list…' : null
   const showEditList = currentKind === 'lens' && onEditList != null
-  // Stats kinds need to surface their "active" check when currentKind matches one of them.
-  const currentIsStatsKind = currentKind != null && STATS_KINDS.some((k) => k.kind === currentKind)
 
   return createPortal(
     <div
@@ -252,34 +234,18 @@ export function WidgetKindMenu({
             type="button"
             role="menuitem"
             className={styles.item}
-            onPointerEnter={() => openFlyoutFromRow('list')}
+            onPointerEnter={() => openListFlyout()}
             onPointerLeave={scheduleClose}
-            onClick={() => openFlyoutFromRow('list')}
+            onClick={() => openListFlyout()}
             aria-haspopup="menu"
-            aria-expanded={flyout?.kind === 'list'}
+            aria-expanded={flyout != null}
           >
             <span className={styles.label}>{secondaryLabel ?? secondaryListLabel}</span>
             <span className={styles.caret} aria-hidden="true">▸</span>
           </button>
         </>
       )}
-      <div className={styles.separator} />
-      <button
-        ref={statsRowRef}
-        type="button"
-        role="menuitem"
-        className={`${styles.item} ${currentIsStatsKind ? styles.active : ''}`}
-        onPointerEnter={() => openFlyoutFromRow('stats')}
-        onPointerLeave={scheduleClose}
-        onClick={() => openFlyoutFromRow('stats')}
-        aria-haspopup="menu"
-        aria-expanded={flyout?.kind === 'stats'}
-      >
-        <span className={styles.icon} aria-hidden="true">{KIND_ICON.scoreboard}</span>
-        <span className={styles.label}>Stats</span>
-        <span className={styles.caret} aria-hidden="true">▸</span>
-      </button>
-      {flyout?.kind === 'list' && pickListForLens && createPortal(
+      {flyout && pickListForLens && createPortal(
         <div
           ref={flyoutRef}
           className={styles.flyout}
@@ -298,41 +264,6 @@ export function WidgetKindMenu({
             emptyLabel="No lists yet."
             onPick={(id) => { pickListForLens(id); onClose() }}
           />
-        </div>,
-        document.body
-      )}
-      {flyout?.kind === 'stats' && createPortal(
-        <div
-          ref={flyoutRef}
-          className={styles.flyout}
-          style={{
-            left: flyout.x,
-            top: flyout.y,
-            width: FLYOUT_WIDTH_PX,
-            maxHeight: FLYOUT_MAX_HEIGHT_PX,
-          }}
-          role="menu"
-          aria-label="Stats widgets"
-          onPointerEnter={cancelLeaveTimer}
-          onPointerLeave={scheduleClose}
-        >
-          {STATS_KINDS.map((k) => {
-            const active = k.kind === currentKind
-            return (
-              <button
-                type="button"
-                key={k.kind}
-                role="menuitem"
-                className={`${styles.item} ${active ? styles.active : ''}`}
-                onClick={() => { onChangeKind(k.kind); onClose() }}
-                aria-checked={active}
-              >
-                <span className={styles.icon} aria-hidden="true">{KIND_ICON[k.kind]}</span>
-                <span className={styles.label}>{k.label}</span>
-                {active && <span className={styles.check} aria-hidden="true">✓</span>}
-              </button>
-            )
-          })}
         </div>,
         document.body
       )}

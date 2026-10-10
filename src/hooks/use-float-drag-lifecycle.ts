@@ -16,10 +16,7 @@ export interface FloatDragLifecycleCallbacks {
   onInsetDragStop?: (id: number, x: number, y: number) => void
   onNoteDragStop?: (id: number, x: number, y: number) => void
   onCalendarDragStop?: (id: number, x: number, y: number) => void
-  onHorizonsDragStop?: (id: number, x: number, y: number) => void
   onStatusDragStop?: (id: number, x: number, y: number) => void
-  onScoreboardDragStop?: (id: number, x: number, y: number) => void
-  onSnoozeGraveyardDragStop?: (id: number, x: number, y: number) => void
   onNodeDragStop: (projectId: number, x: number, y: number) => void
 }
 
@@ -45,7 +42,7 @@ export interface FloatDragLifecycleResult {
 
 /**
  * Owns drag-session lifecycle for canvas float widgets (note / calendar /
- * lens / taskboard / horizons) and project nodes alike. Tracks which nodes
+ * lens / taskboard / status) and project nodes alike. Tracks which nodes
  * are mid-drag, fires position-persist callbacks on release, runs the float-
  * dock hit-test (Phase 4 float-dock), and toggles the window-level pointer
  * listener around the leading/trailing edges of a float drag.
@@ -92,10 +89,7 @@ export function useFloatDragLifecycle(
     onInsetDragStop,
     onNoteDragStop,
     onCalendarDragStop,
-    onHorizonsDragStop,
     onStatusDragStop,
-    onScoreboardDragStop,
-    onSnoozeGraveyardDragStop,
     onNodeDragStop,
   } = callbacks
 
@@ -179,10 +173,7 @@ export function useFloatDragLifecycle(
             case 'lens':            onInsetDragStop?.(floatKind.floatId, x, y); break
             case 'note':            onNoteDragStop?.(floatKind.floatId, x, y); break
             case 'calendar':        onCalendarDragStop?.(floatKind.floatId, x, y); break
-            case 'horizons':        onHorizonsDragStop?.(floatKind.floatId, x, y); break
             case 'status':          onStatusDragStop?.(floatKind.floatId, x, y); break
-            case 'scoreboard':      onScoreboardDragStop?.(floatKind.floatId, x, y); break
-            case 'snoozeGraveyard': onSnoozeGraveyardDragStop?.(floatKind.floatId, x, y); break
           }
         } else {
           onNodeDragStop(Number(id), change.position.x, change.position.y)
@@ -286,10 +277,7 @@ export function useFloatDragLifecycle(
     onInsetDragStop,
     onNoteDragStop,
     onCalendarDragStop,
-    onHorizonsDragStop,
     onStatusDragStop,
-    onScoreboardDragStop,
-    onSnoozeGraveyardDragStop,
     onNodeDragStop,
   ])
 

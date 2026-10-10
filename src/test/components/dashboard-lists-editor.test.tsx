@@ -23,7 +23,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
   }
 }
 
-describe('DashboardListsEditor — filterIds mode', () => {
+describe('DashboardListsEditor — list rows', () => {
   beforeEach(() => {
     useListDefinitionStore.setState({
       listDefinitions: [
@@ -35,34 +35,7 @@ describe('DashboardListsEditor — filterIds mode', () => {
   })
   afterEach(() => { cleanup() })
 
-  it('renders only the filtered rows and uses the supplied title', () => {
-    const { getByText, queryByText } = render(
-      <MemoryRouter>
-        <DashboardListsEditor
-          onClose={() => {}}
-          filterIds={[1, 2]}
-          title="Edit Horizons"
-        />
-      </MemoryRouter>,
-    )
-    expect(getByText('Edit Horizons')).toBeInTheDocument()
-    expect(getByText('This week')).toBeInTheDocument()
-    expect(getByText('Next week')).toBeInTheDocument()
-    expect(queryByText('Unpinned extra')).toBeNull()
-  })
-
-  it('hides the "+ Add List" button and per-row delete when filtered', () => {
-    const { container, queryByText } = render(
-      <MemoryRouter>
-        <DashboardListsEditor onClose={() => {}} filterIds={[1, 2]} />
-      </MemoryRouter>,
-    )
-    expect(queryByText(/\+ Add List/i)).toBeNull()
-    // Each SortableRow's delete × sits in a .actions wrapper; there should be none.
-    expect(container.querySelector('[class*="actions"]')).toBeNull()
-  })
-
-  it('without filterIds shows all defs, the add button, and per-row delete', () => {
+  it('shows all defs, the add button, and per-row delete', () => {
     const { getByText, container } = render(
       <MemoryRouter>
         <DashboardListsEditor onClose={() => {}} />
@@ -78,7 +51,7 @@ describe('DashboardListsEditor — filterIds mode', () => {
     const onClose = vi.fn()
     const { container } = render(
       <MemoryRouter>
-        <DashboardListsEditor onClose={onClose} filterIds={[1]} />
+        <DashboardListsEditor onClose={onClose} />
       </MemoryRouter>,
     )
     const backdrop = container.querySelector('[class*="backdrop"]')!

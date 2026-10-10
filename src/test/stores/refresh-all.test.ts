@@ -16,10 +16,7 @@ import { useListInsetStore } from '../../stores/list-inset-store'
 import { useFloatingNoteStore } from '../../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
-import { useFloatingHorizonsStore } from '../../stores/floating-horizons-store'
 import { useFloatingStatusStore } from '../../stores/floating-status-store'
-import { useFloatingScoreboardStore } from '../../stores/floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from '../../stores/floating-snooze-graveyard-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
 
@@ -57,10 +54,7 @@ describe('refreshAllStores', () => {
       floatingNoteLoadByCanvas: vi.spyOn(useFloatingNoteStore.getState(), 'loadByCanvas'),
       floatingCalendarLoadByCanvas: vi.spyOn(useFloatingCalendarStore.getState(), 'loadByCanvas'),
       floatingTaskboardLoadByCanvas: vi.spyOn(useFloatingTaskboardStore.getState(), 'loadByCanvas'),
-      floatingHorizonsLoadByCanvas: vi.spyOn(useFloatingHorizonsStore.getState(), 'loadByCanvas'),
       floatingStatusLoadByCanvas: vi.spyOn(useFloatingStatusStore.getState(), 'loadByCanvas'),
-      floatingScoreboardLoadByCanvas: vi.spyOn(useFloatingScoreboardStore.getState(), 'loadByCanvas'),
-      floatingSnoozeGraveyardLoadByCanvas: vi.spyOn(useFloatingSnoozeGraveyardStore.getState(), 'loadByCanvas'),
       // Post-todos assignment loaders
       personLoadAssignments: vi.spyOn(usePersonStore.getState(), 'loadAssignments'),
       orgLoadAssignments: vi.spyOn(useOrgStore.getState(), 'loadAssignments'),

@@ -58,7 +58,7 @@ describe('StatusSlotContent — empty', () => {
   })
 })
 
-describe('StatusSlotContent — click parity with Horizons', () => {
+describe('StatusSlotContent — legend rows and selection', () => {
   it('renders one legend row per configured status plus a No-status bucket when needed', () => {
     useStatusStore.setState({ statuses: [STATUS_RED, STATUS_BLUE] })
     useTodoStore.setState({

@@ -30,10 +30,7 @@ import {
   useFloatingNoteController,
   useFloatingCalendarController,
   useFloatingTaskboardController,
-  useFloatingHorizonsController,
   useFloatingStatusController,
-  useFloatingScoreboardController,
-  useFloatingSnoozeGraveyardController,
 } from '../hooks/use-floating-widget-controller'
 import { CanvasView } from '../components/canvas/CanvasView'
 import { ProjectNavigator } from '../components/canvas/ProjectNavigator'
@@ -84,10 +81,7 @@ export function CanvasPage() {
   const noteController = useFloatingNoteController(selectedCanvasId)
   const calendarController = useFloatingCalendarController(selectedCanvasId)
   const taskboardController = useFloatingTaskboardController(selectedCanvasId)
-  const horizonsController = useFloatingHorizonsController(selectedCanvasId)
   const statusController = useFloatingStatusController(selectedCanvasId)
-  const scoreboardController = useFloatingScoreboardController(selectedCanvasId)
-  const snoozeGraveyardController = useFloatingSnoozeGraveyardController(selectedCanvasId)
 
   // Taskboard collapse is taskboard-only and lives outside the standard
   // controller surface.
@@ -623,22 +617,10 @@ export function CanvasPage() {
           onCloseTaskboard={taskboardController.handlers.onClose}
           onTaskboardDragStop={taskboardController.handlers.onDragStop}
           onResizeTaskboard={taskboardController.handlers.onResize}
-          floatingHorizons={horizonsController.items}
-          onHorizonsDragStop={horizonsController.handlers.onDragStop}
-          onCloseHorizons={horizonsController.handlers.onClose}
-          onResizeHorizons={horizonsController.handlers.onResize}
           floatingStatus={statusController.items}
           onStatusDragStop={statusController.handlers.onDragStop}
           onCloseStatus={statusController.handlers.onClose}
           onResizeStatus={statusController.handlers.onResize}
-          floatingScoreboard={scoreboardController.items}
-          onScoreboardDragStop={scoreboardController.handlers.onDragStop}
-          onCloseScoreboard={scoreboardController.handlers.onClose}
-          onResizeScoreboard={scoreboardController.handlers.onResize}
-          floatingSnoozeGraveyard={snoozeGraveyardController.items}
-          onSnoozeGraveyardDragStop={snoozeGraveyardController.handlers.onDragStop}
-          onCloseSnoozeGraveyard={snoozeGraveyardController.handlers.onClose}
-          onResizeSnoozeGraveyard={snoozeGraveyardController.handlers.onResize}
           onCascadeShift={handleCascadeShift}
           showCompleted={filters.showCompleted}
           showHiddenStatuses={filters.showHiddenStatuses}

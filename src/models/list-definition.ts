@@ -4,8 +4,7 @@ import type { TodoSortBy, TodoGroupBy } from './todo-sort-group'
 /**
  * Serializable predicate DSL for list membership. Post-v24, the only kind is
  * `custom` — the former `today` / `upcoming` / `deadlines` / `someday` kinds
- * were retired when the 5 horizon seeds landed (each horizon is now a custom
- * predicate authored via `TodoPredicate`). The `kind` discriminator is kept
+ * were retired in favor of custom predicates authored via `TodoPredicate`. The `kind` discriminator is kept
  * for forward-compat (future kinds like `saved-search` remain cheap to add).
  */
 export type ListMembership =

@@ -1,10 +1,5 @@
 import type { Table } from 'dexie'
-import {
-  db,
-  ensureSeededStatuses,
-  ensureSeededListDefinitions,
-  persistHorizonSlots,
-} from './database'
+import { db, ensureSeededStatuses } from './database'
 import type { ImportData } from './import-validation'
 import { prepareImportText } from './import-pipeline'
 import type { Taskboard } from '../models'
@@ -62,10 +57,7 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
   bulkAddPair('listDefinitions', db.listDefinitions),
   bulkAddPair('floatingCalendars', db.floatingCalendars),
   bulkAddPair('floatingNotes', db.floatingNotes),
-  bulkAddPair('floatingHorizons', db.floatingHorizons),
   bulkAddPair('floatingStatus', db.floatingStatus),
-  bulkAddPair('floatingScoreboard', db.floatingScoreboard),
-  bulkAddPair('floatingSnoozeGraveyard', db.floatingSnoozeGraveyard),
   bulkAddPair('tags', db.tags),
   bulkAddPair('todoTags', db.todoTags),
   bulkAddPair('todoEvents', db.todoEvents),
@@ -74,8 +66,9 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
 /**
  * Clear all data tables and bulk-add validated rows verbatim. The taskboards
  * table is a singleton — if no row is imported, seed an empty one. After the
- * bulk pass, `ensureSeededListDefinitions` + `ensureSeededStatuses` fill in
- * defaults for any tables that came in empty.
+ * bulk pass, `ensureSeededStatuses` fills in the seeded statuses if the
+ * imported data lacks them. List definitions are not seeded — an import with
+ * none restores with none.
  */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
   const tables = TABLE_KEY_PAIRS.map((p) => p.table).concat([db.listInsets, db.notes, db.taskboards])
@@ -108,10 +101,6 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
       } as Taskboard)
     }
 
-    const seededSlots = await ensureSeededListDefinitions(db.listDefinitions)
-    if (seededSlots.length > 0) {
-      await persistHorizonSlots(db.settings, seededSlots)
-    }
     await ensureSeededStatuses(db.statuses, db.settings)
   })
 }

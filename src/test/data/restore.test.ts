@@ -25,10 +25,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     notes: [],
     floatingCalendars: [],
     floatingNotes: [],
-    floatingHorizons: [],
     floatingStatus: [],
-    floatingScoreboard: [],
-    floatingSnoozeGraveyard: [],
     todoEvents: [],
     ...overrides,
   }
@@ -147,16 +144,16 @@ describe('restoreFromImportData', () => {
       expect(tags[0]!.name).toBe('fresh')
     })
 
-    it('round-trips floatingHorizons placements', async () => {
+    it('round-trips floatingStatus placements', async () => {
       const data = makeImportData({
-        floatingHorizons: [
+        floatingStatus: [
           { id: 1, canvasId: 1, x: 100, y: 200, width: 520, height: 360, collapsed: true },
         ],
       })
 
       await restoreFromImportData(data)
 
-      const placements = await db.floatingHorizons.toArray()
+      const placements = await db.floatingStatus.toArray()
       expect(placements).toHaveLength(1)
       expect(placements[0]).toMatchObject({
         canvasId: 1,
@@ -168,16 +165,16 @@ describe('restoreFromImportData', () => {
       })
     })
 
-    it('clears existing floatingHorizons before restore', async () => {
-      await db.floatingHorizons.add({ canvasId: 1, x: 0, y: 0, width: 520, height: 360 })
+    it('clears existing floatingStatus before restore', async () => {
+      await db.floatingStatus.add({ canvasId: 1, x: 0, y: 0, width: 520, height: 360 })
 
       await restoreFromImportData(makeImportData({
-        floatingHorizons: [
+        floatingStatus: [
           { id: 7, canvasId: 1, x: 50, y: 60, width: 520, height: 360 },
         ],
       }))
 
-      const placements = await db.floatingHorizons.toArray()
+      const placements = await db.floatingStatus.toArray()
       expect(placements).toHaveLength(1)
       expect(placements[0]!.id).toBe(7)
       expect(placements[0]!.x).toBe(50)
@@ -270,6 +267,13 @@ describe('restoreFromImportData', () => {
 
       const todo = await db.todos.get(1)
       expect(todo!.statusId).toBe(50)
+    })
+
+    it('does not seed list definitions when the import has none', async () => {
+      await restoreFromImportData(makeImportData({ listDefinitions: [] }))
+
+      expect(await db.listDefinitions.count()).toBe(0)
+      expect(await db.settings.get('horizonSlots')).toBeUndefined()
     })
 
     it('auto-seeds Assigned + Follow-up when import has no statuses', async () => {

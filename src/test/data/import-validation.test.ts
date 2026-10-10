@@ -318,49 +318,19 @@ describe('validateImportData', () => {
     }
   })
 
-  // horizonSlots — ordered-array shape only (legacy map shape removed in P4).
-  it('accepts horizonSlots in the ordered-array shape', () => {
+  // The horizons widget's settings are gone; validation treats them like any
+  // retired key (the schema upgrade deletes them before validation runs).
+  it('drops horizonSlots / selectedHorizonDefId as unrecognized settings', () => {
     const result = validateImportData(validData({
-      settings: [{ key: 'horizonSlots', value: JSON.stringify([1, 2, 3, 4, 5]) }],
+      settings: [
+        { key: 'horizonSlots', value: '[1,2]' },
+        { key: 'selectedHorizonDefId', value: '1' },
+      ],
     }))
     expect(result.ok).toBe(true)
-  })
-
-  it('rejects horizonSlots with non-integer entries or non-array', () => {
-    const bad = [
-      JSON.stringify({ thisweek: 1 }),       // legacy map shape no longer accepted
-      JSON.stringify([1, 'two', 3]),
-      JSON.stringify([1, 2.5, 3]),
-      'not-json',
-    ]
-    for (const value of bad) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'horizonSlots', value }],
-      }))
-      expect(result.ok).toBe(false)
-    }
-  })
-
-  // selectedHorizonDefId — numeric or empty-string sentinel.
-  it('accepts selectedHorizonDefId with a numeric id', () => {
-    const result = validateImportData(validData({
-      settings: [{ key: 'selectedHorizonDefId', value: '42' }],
-    }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('accepts selectedHorizonDefId with empty string (null sentinel)', () => {
-    const result = validateImportData(validData({
-      settings: [{ key: 'selectedHorizonDefId', value: '' }],
-    }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('rejects selectedHorizonDefId when the value is not numeric', () => {
-    const result = validateImportData(validData({
-      settings: [{ key: 'selectedHorizonDefId', value: 'thisweek' }],
-    }))
-    expect(result.ok).toBe(false)
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([])
+    expect(result.warnings).toEqual(['Ignored 2 unrecognized settings: horizonSlots, selectedHorizonDefId'])
   })
 
   // maxTags accepted as a known setting key.

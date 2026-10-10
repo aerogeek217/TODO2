@@ -2,7 +2,6 @@ import { create } from 'zustand'
 import { settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
-import { parseHorizonSlots } from '../utils/horizon-slots'
 import type { WeekStart } from '../utils/effective-date'
 import type { CanvasViewport } from './ui-store'
 import type { RailsState } from '../models/canvas-rails'
@@ -38,11 +37,6 @@ interface SettingsState {
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
   canvasViewport: CanvasViewport | null
-  /** Ordered list of `ListDefinition.id`s the horizons widget renders as rows.
-   * Position in the array is the row's order; the defId is the row's identity. */
-  horizonSlots: number[]
-  /** Which horizon row is currently selected (drives the task list below the bars). */
-  selectedHorizonDefId: number | null
   /** Persisted canvas rails layout (null = no persisted state). */
   canvasRails: RailsState | null
   /** Ceiling for tag registry size. `tag-store.add` throws when `tags.length`
@@ -67,14 +61,6 @@ interface SettingsState {
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setCanvasViewport: (vp: CanvasViewport) => void
-  /** Append a list-def id (or insert at `atIndex` when provided). */
-  addHorizon: (defId: number, atIndex?: number) => Promise<void>
-  /** Remove the row at `atIndex`. Selected def falls back to the new first entry (or null when empty). */
-  removeHorizon: (atIndex: number) => Promise<void>
-  reorderHorizons: (fromIndex: number, toIndex: number) => Promise<void>
-  /** Replace the def at `atIndex`. No-op when out of range. */
-  setHorizonAt: (atIndex: number, defId: number) => Promise<void>
-  setSelectedHorizonDefId: (defId: number | null) => Promise<void>
   setCanvasRails: (rails: RailsState) => void
   setDefaultProjectGroupBy: (groupBy: ProjectGroupBy | null) => Promise<void>
   setCanvasMaxExtent: (n: number) => Promise<void>
@@ -239,8 +225,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
   canvasViewport: null,
-  horizonSlots: [] as number[],
-  selectedHorizonDefId: null as number | null,
   canvasRails: null,
   maxTags: DEFAULT_MAX_TAGS,
   defaultProjectGroupBy: 'tag' as ProjectGroupBy,
@@ -263,8 +247,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
       let canvasViewport: CanvasViewport | null = null
-      let horizonSlots: number[] = []
-      let selectedHorizonDefId: number | null = null
       let canvasRails: RailsState | null = null
       let maxTags: number = DEFAULT_MAX_TAGS
       let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
@@ -305,14 +287,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
               canvasViewport = { x: parsed.x, y: parsed.y, zoom: parsed.zoom }
             }
           } catch { /* ignore invalid JSON */ }
-        } else if (row.key === SETTING_KEYS.horizonSlots) {
-          horizonSlots = parseHorizonSlots(row.value)
-        } else if (row.key === SETTING_KEYS.selectedHorizonDefId) {
-          if (row.value === '' || row.value == null) selectedHorizonDefId = null
-          else {
-            const n = Number(row.value)
-            if (Number.isFinite(n)) selectedHorizonDefId = n
-          }
         } else if (row.key === SETTING_KEYS.canvasRails) {
           canvasRails = parseRailsState(row.value)
         } else if (row.key === SETTING_KEYS.maxTags) {
@@ -328,10 +302,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      if (selectedHorizonDefId == null && horizonSlots.length > 0) {
-        selectedHorizonDefId = horizonSlots[0] ?? null
-      }
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, horizonSlots, selectedHorizonDefId, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -421,69 +392,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       await settingsRepository.put(SETTING_KEYS.completedRetentionDays, String(days))
     }
     set({ completedRetentionDays: days })
-  },
-
-  async addHorizon(defId: number, atIndex?: number) {
-    if (!Number.isFinite(defId)) return
-    const current = get().horizonSlots
-    const insertAt = atIndex == null ? current.length : Math.max(0, Math.min(atIndex, current.length))
-    const next = [...current.slice(0, insertAt), defId, ...current.slice(insertAt)]
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    let nextSelected = get().selectedHorizonDefId
-    if (nextSelected == null) {
-      nextSelected = next[0] ?? null
-      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, nextSelected == null ? '' : String(nextSelected))
-    }
-    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
-  },
-
-  async removeHorizon(atIndex: number) {
-    const current = get().horizonSlots
-    if (atIndex < 0 || atIndex >= current.length) return
-    const removed = current[atIndex]
-    const next = [...current.slice(0, atIndex), ...current.slice(atIndex + 1)]
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    let nextSelected = get().selectedHorizonDefId
-    if (removed != null && nextSelected === removed) {
-      nextSelected = next[0] ?? null
-      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, nextSelected == null ? '' : String(nextSelected))
-    }
-    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
-  },
-
-  async reorderHorizons(fromIndex: number, toIndex: number) {
-    const current = get().horizonSlots
-    if (fromIndex < 0 || fromIndex >= current.length) return
-    if (toIndex < 0 || toIndex >= current.length) return
-    if (fromIndex === toIndex) return
-    const next = [...current]
-    const [moved] = next.splice(fromIndex, 1)
-    if (moved == null) return
-    next.splice(toIndex, 0, moved)
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    set({ horizonSlots: next })
-  },
-
-  async setHorizonAt(atIndex: number, defId: number) {
-    const current = get().horizonSlots
-    if (atIndex < 0 || atIndex >= current.length) return
-    if (!Number.isFinite(defId)) return
-    const prev = current[atIndex]
-    const next = [...current]
-    next[atIndex] = defId
-    await settingsRepository.put(SETTING_KEYS.horizonSlots, JSON.stringify(next))
-    let nextSelected = get().selectedHorizonDefId
-    if (prev != null && nextSelected === prev) {
-      nextSelected = defId
-      await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, String(nextSelected))
-    }
-    set({ horizonSlots: next, selectedHorizonDefId: nextSelected })
-  },
-
-  async setSelectedHorizonDefId(defId: number | null) {
-    if (defId != null && !Number.isFinite(defId)) return
-    await settingsRepository.put(SETTING_KEYS.selectedHorizonDefId, defId == null ? '' : String(defId))
-    set({ selectedHorizonDefId: defId })
   },
 
   async setDefaultProjectGroupBy(groupBy: ProjectGroupBy | null) {

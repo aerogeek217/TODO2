@@ -99,7 +99,6 @@ function buildSeed(): Seed {
       { key: 'seededFollowupStatusId', value: '2' },
       { key: 'weekStartsOn', value: '1' },
       { key: 'themeMode', value: 'dark' },
-      { key: 'horizonSlots', value: '[1]' },
       { key: 'canvasRails', value: RAILS },
       { key: 'color.dark.accent', value: '#4f8cff' },
     ],
@@ -122,10 +121,7 @@ function buildSeed(): Seed {
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],
     floatingCalendars: [{ id: 1, canvasId: 1, x: 5, y: 6, width: 400, height: 300, orientation: 'horizontal', weekOffset: -1 }],
     floatingNotes: [{ id: 1, canvasId: 1, x: 7, y: 8, width: 240, height: 200 }],
-    floatingHorizons: [{ id: 1, canvasId: 1, x: 9, y: 10, width: 500, height: 200, collapsed: true }],
     floatingStatus: [{ id: 1, canvasId: 1, x: 11, y: 12, width: 260, height: 180, collapsed: true }],
-    floatingScoreboard: [{ id: 1, canvasId: 1, x: 13, y: 14, width: 260, height: 180, collapsed: true }],
-    floatingSnoozeGraveyard: [{ id: 1, canvasId: 1, x: 15, y: 16, width: 260, height: 180, collapsed: true }],
     todoEvents: [
       { id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-09-02T10:00:00.000Z' },
       { id: 2, todoId: 1, type: 'deadline', fromValue: null, toValue: '2026-10-16T00:00:00.000Z', timestamp: '2026-09-11T09:30:00.000Z' },

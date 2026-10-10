@@ -3,10 +3,7 @@ import type { FloatDragKind } from '../stores/ui-store'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
-import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
 import { useFloatingStatusStore } from '../stores/floating-status-store'
-import { useFloatingScoreboardStore } from '../stores/floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-graveyard-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useTaskboardStore } from '../stores/taskboard-store'
 import { listInsetRepository } from '../data'
@@ -14,8 +11,8 @@ import { FLOAT_DEFAULT_RECTS } from './float-default-rects'
 import type { FloatDescriptor } from '../utils/rail-dnd'
 
 /**
- * Single source of truth for every floating canvas widget kind. Five entries
- * keyed by `slotKind` (the persisted `SlotKind`, with `'notes'` plural for the
+ * Single source of truth for every floating canvas widget kind. One entry per
+ * kind, keyed by `slotKind` (the persisted `SlotKind`, with `'notes'` plural for the
  * note kind to match the rails Tab type). Consumers:
  *
  *   - `CanvasView.tsx` — prefix → kind decoding for `handleNodesChange`'s
@@ -25,7 +22,7 @@ import type { FloatDescriptor } from '../utils/rail-dnd'
  *   - `services/float-kind-switch.ts` — `convertFloatingKind` removes the
  *     source row via `remove`.
  *
- * Adding a sixth widget kind: append a new entry here, define the matching
+ * Adding a widget kind: append a new entry here, define the matching
  * floating-* store, and wire the corresponding pop-in / dock paths. Every
  * other consumer iterates this list (no per-kind branches).
  */
@@ -137,17 +134,6 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     },
   },
   {
-    slotKind: 'horizons',
-    floatDragKind: 'horizons',
-    domPrefix: 'horizons-',
-    label: 'horizons',
-    defaultRect: FLOAT_DEFAULT_RECTS.horizons,
-    remove: (id) => useFloatingHorizonsStore.getState().remove(id),
-    addFloat: ({ canvasId, x, y }) => useFloatingHorizonsStore.getState().add(canvasId, x, y),
-    setSize: (id, width, height) => useFloatingHorizonsStore.getState().updateSize(id, width, height),
-    buildDescriptor: async (floatId) => ({ kind: 'horizons', id: floatId }),
-  },
-  {
     slotKind: 'status',
     floatDragKind: 'status',
     domPrefix: 'status-',
@@ -157,28 +143,6 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
     addFloat: ({ canvasId, x, y }) => useFloatingStatusStore.getState().add(canvasId, x, y),
     setSize: (id, width, height) => useFloatingStatusStore.getState().updateSize(id, width, height),
     buildDescriptor: async (floatId) => ({ kind: 'status', id: floatId }),
-  },
-  {
-    slotKind: 'scoreboard',
-    floatDragKind: 'scoreboard',
-    domPrefix: 'scoreboard-',
-    label: 'discipline scoreboard',
-    defaultRect: FLOAT_DEFAULT_RECTS.scoreboard,
-    remove: (id) => useFloatingScoreboardStore.getState().remove(id),
-    addFloat: ({ canvasId, x, y }) => useFloatingScoreboardStore.getState().add(canvasId, x, y),
-    setSize: (id, width, height) => useFloatingScoreboardStore.getState().updateSize(id, width, height),
-    buildDescriptor: async (floatId) => ({ kind: 'scoreboard', id: floatId }),
-  },
-  {
-    slotKind: 'snoozeGraveyard',
-    floatDragKind: 'snoozeGraveyard',
-    domPrefix: 'snooze-graveyard-',
-    label: 'snooze graveyard',
-    defaultRect: FLOAT_DEFAULT_RECTS.snoozeGraveyard,
-    remove: (id) => useFloatingSnoozeGraveyardStore.getState().remove(id),
-    addFloat: ({ canvasId, x, y }) => useFloatingSnoozeGraveyardStore.getState().add(canvasId, x, y),
-    setSize: (id, width, height) => useFloatingSnoozeGraveyardStore.getState().updateSize(id, width, height),
-    buildDescriptor: async (floatId) => ({ kind: 'snoozeGraveyard', id: floatId }),
   },
 ] as const
 

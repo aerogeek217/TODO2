@@ -1,4 +1,4 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent, TodoEventType } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType } from '../models'
 import { isTodoSortBy, isTodoGroupBy } from '../models'
 
 export type ImportTag = Tag
@@ -367,31 +367,7 @@ function checkFloatingCalendar(v: unknown): CheckResult {
   ])
 }
 
-function checkFloatingHorizons(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ...checkFloatPlacementFields(v),
-    ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
-  ])
-}
-
 function checkFloatingStatus(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ...checkFloatPlacementFields(v),
-    ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
-  ])
-}
-
-function checkFloatingScoreboard(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ...checkFloatPlacementFields(v),
-    ['collapsed', v.collapsed === undefined || isBool(v.collapsed)],
-  ])
-}
-
-function checkFloatingSnoozeGraveyard(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
     ...checkFloatPlacementFields(v),
@@ -457,10 +433,8 @@ const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
   [SETTING_KEYS.canvasRails]: MAX_CANVAS_RAILS_SETTING_BYTES,
   [SETTING_KEYS.canvasViewport]: 200,
-  [SETTING_KEYS.horizonSlots]: 500,
 }
 
-const MAX_HORIZON_ENTRIES = 16
 const SLOT_KINDS_SET = new Set<string>(SLOT_KINDS as readonly string[])
 const MAX_SLOTS_PER_RAIL = 16
 const RAIL_SIDES = ['left', 'right', 'top', 'bottom'] as const
@@ -583,26 +557,6 @@ function checkSetting(v: unknown): CheckResult {
     } catch {
       return 'value (canvasViewport must be valid JSON)'
     }
-  }
-  if (v.key === SETTING_KEYS.horizonSlots) {
-    try {
-      const parsed = JSON.parse(v.value as string) as unknown
-      if (!Array.isArray(parsed)) return 'value (horizonSlots must be an array)'
-      if (parsed.length > MAX_HORIZON_ENTRIES) return 'value (horizonSlots has too many entries)'
-      for (const val of parsed) {
-        if (typeof val !== 'number' || !Number.isInteger(val)) {
-          return 'value (horizonSlots entries must be integer ids)'
-        }
-      }
-      return true
-    } catch {
-      return 'value (horizonSlots must be valid JSON)'
-    }
-  }
-  if (v.key === SETTING_KEYS.selectedHorizonDefId) {
-    if (v.value === '' || v.value == null) return true
-    const n = Number(v.value)
-    return Number.isFinite(n) ? true : 'value (selectedHorizonDefId must be numeric or empty)'
   }
   if (v.key === SETTING_KEYS.defaultProjectGroupBy) {
     return (VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).includes(v.value as string)
@@ -804,20 +758,8 @@ function pickFloatingCalendar(v: Raw): AllFields<FloatingCalendar> {
   } satisfies AllFields<FloatingCalendar>
 }
 
-function pickFloatingHorizons(v: Raw): AllFields<FloatingHorizons> {
-  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingHorizons>
-}
-
 function pickFloatingStatus(v: Raw): AllFields<FloatingStatus> {
   return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingStatus>
-}
-
-function pickFloatingScoreboard(v: Raw): AllFields<FloatingScoreboard> {
-  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingScoreboard>
-}
-
-function pickFloatingSnoozeGraveyard(v: Raw): AllFields<FloatingSnoozeGraveyard> {
-  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingSnoozeGraveyard>
 }
 
 function pickTodoEvent(v: Raw): AllFields<TodoEvent> {
@@ -886,10 +828,7 @@ export const IMPORT_ROW_PICKERS: { readonly [K in keyof ImportData]-?: (v: Raw) 
   notes: pickNote,
   floatingCalendars: pickFloatingCalendar,
   floatingNotes: pickFloatingNote,
-  floatingHorizons: pickFloatingHorizons,
   floatingStatus: pickFloatingStatus,
-  floatingScoreboard: pickFloatingScoreboard,
-  floatingSnoozeGraveyard: pickFloatingSnoozeGraveyard,
   todoEvents: pickTodoEvent,
 }
 
@@ -926,10 +865,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'notes', check: checkNote },
   { key: 'floatingCalendars', check: checkFloatingCalendar },
   { key: 'floatingNotes', check: checkFloatingNote },
-  { key: 'floatingHorizons', check: checkFloatingHorizons },
   { key: 'floatingStatus', check: checkFloatingStatus },
-  { key: 'floatingScoreboard', check: checkFloatingScoreboard },
-  { key: 'floatingSnoozeGraveyard', check: checkFloatingSnoozeGraveyard },
   { key: 'todoEvents', check: checkTodoEvent },
 ]
 
@@ -956,10 +892,7 @@ export interface ImportData {
   notes: Note[]
   floatingCalendars: FloatingCalendar[]
   floatingNotes: FloatingNote[]
-  floatingHorizons: FloatingHorizons[]
   floatingStatus: FloatingStatus[]
-  floatingScoreboard: FloatingScoreboard[]
-  floatingSnoozeGraveyard: FloatingSnoozeGraveyard[]
   todoEvents: TodoEvent[]
 }
 
@@ -1114,10 +1047,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       notes: pickRows('notes', raw.notes),
       floatingCalendars: pickRows('floatingCalendars', raw.floatingCalendars),
       floatingNotes: pickRows('floatingNotes', raw.floatingNotes),
-      floatingHorizons: pickRows('floatingHorizons', raw.floatingHorizons),
       floatingStatus: pickRows('floatingStatus', raw.floatingStatus),
-      floatingScoreboard: pickRows('floatingScoreboard', raw.floatingScoreboard),
-      floatingSnoozeGraveyard: pickRows('floatingSnoozeGraveyard', raw.floatingSnoozeGraveyard),
       todoEvents: pickRows('todoEvents', raw.todoEvents),
     },
   }

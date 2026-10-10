@@ -11,7 +11,7 @@ import type { FloatDragKind } from '../../stores/ui-store'
 
 describe('float-kind-registry', () => {
   it('keys an entry for every SlotKind', () => {
-    const allSlotKinds: SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard', 'horizons']
+    const allSlotKinds: SlotKind[] = ['lens', 'notes', 'calendar', 'taskboard', 'status']
     for (const kind of allSlotKinds) {
       expect(() => floatKindBySlotKind(kind)).not.toThrow()
       expect(floatKindBySlotKind(kind).slotKind).toBe(kind)
@@ -19,7 +19,7 @@ describe('float-kind-registry', () => {
   })
 
   it('keys an entry for every FloatDragKind', () => {
-    const allDragKinds: FloatDragKind[] = ['note', 'calendar', 'lens', 'taskboard', 'horizons']
+    const allDragKinds: FloatDragKind[] = ['note', 'calendar', 'lens', 'taskboard', 'status']
     for (const kind of allDragKinds) {
       expect(() => floatKindByDragKind(kind)).not.toThrow()
       expect(floatKindByDragKind(kind).floatDragKind).toBe(kind)
@@ -48,14 +48,18 @@ describe('float-kind-registry', () => {
     expect(floatKindForNodeId('taskboard-99')).toEqual(
       expect.objectContaining({ kind: 'taskboard', floatId: 99 }),
     )
-    expect(floatKindForNodeId('horizons-1')).toEqual(
-      expect.objectContaining({ kind: 'horizons', floatId: 1 }),
+    expect(floatKindForNodeId('status-1')).toEqual(
+      expect.objectContaining({ kind: 'status', floatId: 1 }),
     )
   })
 
   it('floatKindForNodeId returns null for non-float ids', () => {
     expect(floatKindForNodeId('5')).toBeNull()
     expect(floatKindForNodeId('project-1')).toBeNull()
+    // Prefixes of removed widget kinds are no longer floats.
+    expect(floatKindForNodeId('horizons-1')).toBeNull()
+    expect(floatKindForNodeId('scoreboard-1')).toBeNull()
+    expect(floatKindForNodeId('snooze-graveyard-1')).toBeNull()
     expect(floatKindForNodeId('')).toBeNull()
   })
 
@@ -64,7 +68,7 @@ describe('float-kind-registry', () => {
     expect(isFloatNodeId('inset-2')).toBe(true)
     expect(isFloatNodeId('calendar-3')).toBe(true)
     expect(isFloatNodeId('taskboard-4')).toBe(true)
-    expect(isFloatNodeId('horizons-5')).toBe(true)
+    expect(isFloatNodeId('status-5')).toBe(true)
     expect(isFloatNodeId('1')).toBe(false)
     expect(isFloatNodeId('foo-1')).toBe(false)
   })

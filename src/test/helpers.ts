@@ -13,10 +13,7 @@ import { EMPTY_RAILS } from '../models/canvas-rails'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
-import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
 import { useFloatingStatusStore } from '../stores/floating-status-store'
-import { useFloatingScoreboardStore } from '../stores/floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-graveyard-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 
 let makeTodoUidSeq = 0
@@ -138,22 +135,33 @@ export function resetFloatingStores(): void {
   useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
   useFloatingCalendarStore.setState({ calendars: [], loading: false, error: null })
   useFloatingTaskboardStore.setState({ taskboards: [], loading: false, error: null })
-  useFloatingHorizonsStore.setState({ horizons: [], loading: false, error: null })
   useFloatingStatusStore.setState({ statuses: [], loading: false, error: null })
-  useFloatingScoreboardStore.setState({ scoreboards: [], loading: false, error: null })
-  useFloatingSnoozeGraveyardStore.setState({ graveyards: [], loading: false, error: null })
   useListInsetStore.setState({ insets: [], loading: false, error: null })
 }
 
 /**
- * Dexie store specs of the v49 / v50 schema, for tests that build an old
- * database by hand and then open it with the real `Todo2Database`. Derived
- * from the current schema minus the indexes later versions added (v51:
- * `todos.&uid`). Update when a later version changes a store spec.
+ * Dexie store specs of the v51 schema, for tests that build an old database
+ * by hand and then open it with the real `Todo2Database`. Derived from the
+ * current schema plus the stores later versions dropped (v52: the horizons /
+ * scoreboard / snooze-graveyard placement tables). Update when a later
+ * version changes a store spec.
  */
-export function v50StoreSpecs(): Record<string, string> {
-  return Object.fromEntries(db.tables.map((t) => {
-    const indexes = t.schema.indexes.map((i) => i.src).filter((src) => !(t.name === 'todos' && src === '&uid'))
+export function v51StoreSpecs(): Record<string, string> {
+  const current = Object.fromEntries(db.tables.map((t) => {
+    const indexes = t.schema.indexes.map((i) => i.src)
     return [t.name, [t.schema.primKey.src, ...indexes].join(', ')]
   }))
+  return {
+    ...current,
+    floatingHorizons: '++id, canvasId',
+    floatingScoreboard: '++id, canvasId',
+    floatingSnoozeGraveyard: '++id, canvasId',
+  }
+}
+
+/** Store specs of the v49 / v50 schema: v51's minus the `todos.&uid` index. */
+export function v50StoreSpecs(): Record<string, string> {
+  const specs = v51StoreSpecs()
+  specs.todos = (specs.todos ?? '').split(', ').filter((src) => src !== '&uid').join(', ')
+  return specs
 }

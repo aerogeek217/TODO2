@@ -3,12 +3,12 @@ import { renderHook, act } from '@testing-library/react'
 import { db } from '../../data/database'
 import { useCanvasStore } from '../../stores/canvas-store'
 import { useFloatingNoteStore } from '../../stores/floating-note-store'
-import { useFloatingHorizonsStore } from '../../stores/floating-horizons-store'
-import { useFloatingScoreboardStore } from '../../stores/floating-scoreboard-store'
+import { useFloatingStatusStore } from '../../stores/floating-status-store'
+import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
 import {
   useFloatingNoteController,
-  useFloatingHorizonsController,
-  useFloatingScoreboardController,
+  useFloatingStatusController,
+  useFloatingCalendarController,
 } from '../../hooks/use-floating-widget-controller'
 import { resetFloatingStores } from '../helpers'
 
@@ -83,29 +83,29 @@ describe('useFloatingNoteController', () => {
 })
 
 describe('per-kind controllers wire their store correctly', () => {
-  it('useFloatingHorizonsController writes to the horizons slice on add', async () => {
+  it('useFloatingStatusController writes to the statuses slice on add', async () => {
     const canvasId = await seedCanvas()
-    const { result } = renderHook(() => useFloatingHorizonsController(canvasId))
+    const { result } = renderHook(() => useFloatingStatusController(canvasId))
     await act(async () => { await Promise.resolve() })
 
     await act(async () => {
       await result.current.addAtPosition(canvasId, 7, 8)
     })
 
-    expect(useFloatingHorizonsStore.getState().horizons.length).toBe(1)
-    expect(useFloatingHorizonsStore.getState().horizons[0]!.x).toBe(7)
+    expect(useFloatingStatusStore.getState().statuses.length).toBe(1)
+    expect(useFloatingStatusStore.getState().statuses[0]!.x).toBe(7)
   })
 
-  it('useFloatingScoreboardController writes to the scoreboards slice on add', async () => {
+  it('useFloatingCalendarController writes to the calendars slice on add', async () => {
     const canvasId = await seedCanvas()
-    const { result } = renderHook(() => useFloatingScoreboardController(canvasId))
+    const { result } = renderHook(() => useFloatingCalendarController(canvasId))
     await act(async () => { await Promise.resolve() })
 
     await act(async () => {
       await result.current.addAtPosition(canvasId, 9, 10)
     })
 
-    expect(useFloatingScoreboardStore.getState().scoreboards.length).toBe(1)
-    expect(useFloatingScoreboardStore.getState().scoreboards[0]!.x).toBe(9)
+    expect(useFloatingCalendarStore.getState().calendars.length).toBe(1)
+    expect(useFloatingCalendarStore.getState().calendars[0]!.x).toBe(9)
   })
 })

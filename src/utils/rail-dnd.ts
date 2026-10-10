@@ -803,10 +803,7 @@ export type FloatDescriptor =
   | { kind: 'calendar'; id: number; orientation?: CalendarOrientation; weekOffset?: number }
   | { kind: 'taskboard'; id: number }
   | { kind: 'lens'; id: number; listDefinitionId: number }
-  | { kind: 'horizons'; id: number }
   | { kind: 'status'; id: number }
-  | { kind: 'scoreboard'; id: number }
-  | { kind: 'snoozeGraveyard'; id: number }
 
 /**
  * Build a `Tab` payload from a float descriptor. Caller supplies `tabId` so
@@ -821,10 +818,7 @@ export function tabFromFloat(descriptor: FloatDescriptor, tabId: string): Tab {
     case 'calendar':        return { id: tabId, type: 'calendar' }
     case 'taskboard':       return { id: tabId, type: 'taskboard' }
     case 'lens':            return { id: tabId, type: 'lens', listDefinitionId: descriptor.listDefinitionId }
-    case 'horizons':        return { id: tabId, type: 'horizons' }
     case 'status':          return { id: tabId, type: 'status' }
-    case 'scoreboard':      return { id: tabId, type: 'scoreboard' }
-    case 'snoozeGraveyard': return { id: tabId, type: 'snoozeGraveyard' }
   }
 }
 

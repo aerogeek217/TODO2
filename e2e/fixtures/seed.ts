@@ -42,7 +42,7 @@ export interface FloatingTaskboardSeed {
   height: number
 }
 
-export interface FloatingHorizonsSeed {
+export interface FloatingStatusSeed {
   x: number
   y: number
   width: number
@@ -88,20 +88,13 @@ export interface CanvasSeedOptions {
   floatingNotes?: FloatingNoteSeed[]
   floatingCalendars?: FloatingCalendarSeed[]
   floatingTaskboards?: FloatingTaskboardSeed[]
-  floatingHorizons?: FloatingHorizonsSeed[]
+  floatingStatus?: FloatingStatusSeed[]
   listDefinitions?: ListDefinitionSeed[]
   listInsets?: ListInsetSeed[]
   people?: PersonSeed[]
   orgs?: OrgSeed[]
   /** Serialized `RailsState` JSON value persisted under `settings.canvasRails`. */
   canvasRails?: unknown
-  /** Indexes into `listDefinitions` to use as ordered `horizonSlots`. The
-   *  helper resolves indexes to ids inside the seed transaction and writes
-   *  `settings.horizonSlots` as a JSON-stringified `number[]`. Required when a
-   *  horizons widget needs ribbon rows on first paint — fresh DBs have no
-   *  seeded horizons (the v24 reseed migration body was emptied by the
-   *  `strip-backcompat-pre-v46` pass). */
-  horizonSlotIndexes?: number[]
 }
 
 /**
@@ -299,13 +292,12 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
     floatingNotes: opts.floatingNotes ?? [],
     floatingCalendars: opts.floatingCalendars ?? [],
     floatingTaskboards: opts.floatingTaskboards ?? [],
-    floatingHorizons: opts.floatingHorizons ?? [],
+    floatingStatus: opts.floatingStatus ?? [],
     listDefinitions: opts.listDefinitions ?? [],
     listInsets: opts.listInsets ?? [],
     people: opts.people ?? [],
     orgs: opts.orgs ?? [],
     canvasRails: opts.canvasRails ?? null,
-    horizonSlotIndexes: opts.horizonSlotIndexes ?? null,
   }
 
   await page.evaluate(async ({ db, seed }) => {
@@ -314,7 +306,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
       req.onsuccess = () => {
         const idb = req.result
         const tables = [
-          'floatingNotes', 'floatingCalendars', 'floatingTaskboards', 'floatingHorizons',
+          'floatingNotes', 'floatingCalendars', 'floatingTaskboards', 'floatingStatus',
           'listDefinitions', 'listInsets', 'people', 'orgs', 'settings',
         ]
         const tx = idb.transaction(tables, 'readwrite')
@@ -328,8 +320,8 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
         for (const tb of seed.floatingTaskboards) {
           tx.objectStore('floatingTaskboards').add({ ...tb, canvasId: seed.canvasId })
         }
-        for (const hz of seed.floatingHorizons) {
-          tx.objectStore('floatingHorizons').add({ ...hz, canvasId: seed.canvasId })
+        for (const st of seed.floatingStatus) {
+          tx.objectStore('floatingStatus').add({ ...st, canvasId: seed.canvasId })
         }
         for (const person of seed.people) {
           tx.objectStore('people').add({
@@ -416,21 +408,6 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
               value: JSON.stringify(rails),
             })
           }
-          if (seed.horizonSlotIndexes != null) {
-            const resolved: number[] = []
-            for (const idx of seed.horizonSlotIndexes) {
-              const id = defIds[idx]
-              if (id == null) {
-                reject(new Error(`seed: horizonSlotIndexes references missing listDefIdx ${idx}`))
-                return
-              }
-              resolved.push(id)
-            }
-            tx.objectStore('settings').put({
-              key: 'horizonSlots',
-              value: JSON.stringify(resolved),
-            })
-          }
         }
         addNextDef()
 
@@ -453,8 +430,8 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
   if (opts.floatingTaskboards && opts.floatingTaskboards.length > 0) {
     await page.locator('.react-flow__node-taskboard').first().waitFor({ state: 'visible' })
   }
-  if (opts.floatingHorizons && opts.floatingHorizons.length > 0) {
-    await page.locator('.react-flow__node-floatingHorizons').first().waitFor({ state: 'visible' })
+  if (opts.floatingStatus && opts.floatingStatus.length > 0) {
+    await page.locator('.react-flow__node-floatingStatus').first().waitFor({ state: 'visible' })
   }
   if (opts.listInsets && opts.listInsets.length > 0) {
     await page.locator('.react-flow__node-listInset').first().waitFor({ state: 'visible' })
@@ -558,9 +535,9 @@ export function floatingTaskboardByIndex(page: Page, idx = 0): Locator {
   return page.locator('.react-flow__node-taskboard').nth(idx)
 }
 
-/** Locator for a floating horizons widget on the canvas. */
-export function floatingHorizonsByIndex(page: Page, idx = 0): Locator {
-  return page.locator('.react-flow__node-floatingHorizons').nth(idx)
+/** Locator for a floating "open by status" widget on the canvas. */
+export function floatingStatusByIndex(page: Page, idx = 0): Locator {
+  return page.locator('.react-flow__node-floatingStatus').nth(idx)
 }
 
 /** Locator for a tab pill within a slot (TabStrip pill carries `data-tab-id`). */

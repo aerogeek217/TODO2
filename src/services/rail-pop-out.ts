@@ -1,11 +1,8 @@
 import { useCanvasStore } from '../stores/canvas-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
-import { useFloatingHorizonsStore } from '../stores/floating-horizons-store'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useFloatingStatusStore } from '../stores/floating-status-store'
-import { useFloatingScoreboardStore } from '../stores/floating-scoreboard-store'
-import { useFloatingSnoozeGraveyardStore } from '../stores/floating-snooze-graveyard-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useSettingsStore } from '../stores/settings-store'
 import type { CalendarOrientation, Slot, Tab } from '../models/canvas-rails'
@@ -68,20 +65,8 @@ export async function popTabAtPosition(
     await useFloatingTaskboardStore.getState().add(canvasId, x, y)
     return true
   }
-  if (tab.type === 'horizons') {
-    await useFloatingHorizonsStore.getState().add(canvasId, x, y)
-    return true
-  }
   if (tab.type === 'status') {
     await useFloatingStatusStore.getState().add(canvasId, x, y)
-    return true
-  }
-  if (tab.type === 'scoreboard') {
-    await useFloatingScoreboardStore.getState().add(canvasId, x, y)
-    return true
-  }
-  if (tab.type === 'snoozeGraveyard') {
-    await useFloatingSnoozeGraveyardStore.getState().add(canvasId, x, y)
     return true
   }
   return false

@@ -158,8 +158,8 @@ export async function auditData(): Promise<AuditReport> {
   const [
     todos, projects, canvases, people, orgs, statuses, tags,
     todoPeople, todoOrgs, todoTags, personOrgs, taskboards,
-    listInsets, floatingNotes, floatingCalendars, floatingTaskboards, floatingHorizons,
-    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard, todoEvents,
+    listInsets, floatingNotes, floatingCalendars, floatingTaskboards,
+    floatingStatus, todoEvents,
     settingsRows, listDefinitions, notes,
   ] = await Promise.all([
     db.todos.toArray(),
@@ -178,10 +178,7 @@ export async function auditData(): Promise<AuditReport> {
     db.floatingNotes.toArray(),
     db.floatingCalendars.toArray(),
     db.floatingTaskboards.toArray(),
-    db.floatingHorizons.toArray(),
     db.floatingStatus.toArray(),
-    db.floatingScoreboard.toArray(),
-    db.floatingSnoozeGraveyard.toArray(),
     db.todoEvents.toArray(),
     db.settings.toArray(),
     db.listDefinitions.toArray(),
@@ -200,8 +197,7 @@ export async function auditData(): Promise<AuditReport> {
     canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
     todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards,
     statuses, listDefinitions, notes,
-    floatingCalendars, floatingNotes, floatingHorizons,
-    floatingStatus, floatingScoreboard, floatingSnoozeGraveyard, todoEvents,
+    floatingCalendars, floatingNotes, floatingStatus, todoEvents,
   }
   for (const tableKey of KNOWN_TABLE_KEYS) {
     if (tableKey === 'settings') continue
@@ -260,8 +256,8 @@ export async function auditData(): Promise<AuditReport> {
 
   // --- Settings rows with recognized keys but invalid values ---
   // The store-load code silently falls back to defaults for a row whose value
-  // fails to parse (e.g. a pre-strip legacy-map-shape `horizonSlots`), so the
-  // user sees missing state — empty horizon ribbon, lost canvas viewport —
+  // fails to parse (e.g. a malformed `canvasRails` blob), so the user sees
+  // missing state — empty rails, lost canvas viewport —
   // and exporting the DB round-trips the bad row into a backup that
   // `validateImportData` then refuses to re-import. Surface it here so the
   // audit cleanup can drop the row and let the next save re-seed.
@@ -576,20 +572,6 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  const floatingHorizonsWithBadCanvas = floatingHorizons.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingHorizonsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingHorizons',
-      description: 'Floating horizons referencing deleted canvases',
-      count: floatingHorizonsWithBadCanvas.length,
-      ids: floatingHorizonsWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingHorizonsWithBadCanvas, 'canvasId'),
-    })
-  }
-
   const floatingStatusWithBadCanvas = floatingStatus.filter(
     (h) => !canvasIds.has(h.canvasId),
   )
@@ -601,34 +583,6 @@ export async function auditData(): Promise<AuditReport> {
       ids: floatingStatusWithBadCanvas.map((h) => h.id!),
       fix: 'delete',
       samples: fkSample(floatingStatusWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingScoreboardWithBadCanvas = floatingScoreboard.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingScoreboardWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingScoreboard',
-      description: 'Floating scoreboard widgets referencing deleted canvases',
-      count: floatingScoreboardWithBadCanvas.length,
-      ids: floatingScoreboardWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingScoreboardWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingSnoozeGraveyardWithBadCanvas = floatingSnoozeGraveyard.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingSnoozeGraveyardWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingSnoozeGraveyard',
-      description: 'Floating snooze graveyard widgets referencing deleted canvases',
-      count: floatingSnoozeGraveyardWithBadCanvas.length,
-      ids: floatingSnoozeGraveyardWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingSnoozeGraveyardWithBadCanvas, 'canvasId'),
     })
   }
 

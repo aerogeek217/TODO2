@@ -118,8 +118,7 @@ describe('selfCheckExportJson', () => {
 describe('export → restore round-trip', () => {
   /**
    * Seeds one row in every `ALL_DATA_TABLES` table — the previously-dropped
-   * tables (tags, todoTags, todoEvents, floatingHorizons, floatingStatus,
-   * floatingScoreboard, floatingSnoozeGraveyard) get explicit fixtures here
+   * tables (tags, todoTags, todoEvents, floatingStatus) get explicit fixtures here
    * so a regression in `buildExportData` (e.g. reverting to the manual
    * 17-table list) fails this test.
    */
@@ -169,10 +168,7 @@ describe('export → restore round-trip', () => {
     await db.floatingCalendars.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     await db.floatingNotes.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     await db.floatingTaskboards.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
-    await db.floatingHorizons.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     await db.floatingStatus.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
-    await db.floatingScoreboard.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
-    await db.floatingSnoozeGraveyard.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     const tagId = await db.tags.add({ name: 'urgent', color: '#f00' }) as number
     await db.todoTags.add({ todoId, tagId } as any)
     await db.todoEvents.add({
@@ -207,14 +203,8 @@ describe('export → restore round-trip', () => {
     expect(tagsAfter.find((t) => t.name === 'urgent')?.color).toBe('#f00')
     const eventsAfter = await db.todoEvents.toArray()
     expect(eventsAfter.find((e) => e.type === 'created')).toBeDefined()
-    const horizonsAfter = await db.floatingHorizons.toArray()
-    expect(horizonsAfter).toHaveLength(1)
     const statusFloatAfter = await db.floatingStatus.toArray()
     expect(statusFloatAfter).toHaveLength(1)
-    const scoreboardAfter = await db.floatingScoreboard.toArray()
-    expect(scoreboardAfter).toHaveLength(1)
-    const graveyardAfter = await db.floatingSnoozeGraveyard.toArray()
-    expect(graveyardAfter).toHaveLength(1)
     const todoTagsAfter = await db.todoTags.toArray()
     expect(todoTagsAfter).toHaveLength(1)
   })

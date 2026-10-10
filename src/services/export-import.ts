@@ -5,8 +5,7 @@ import { SCHEMA_VERSION_KEY } from './migration-check'
 import type {
   TodoItem, Project, Canvas, Person, Org, ListInset,
   TodoPerson, TodoOrg, PersonOrg, Taskboard, Status, Note,
-  FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons,
-  FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard,
+  FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus,
   Tag, TodoTag, TodoEvent, PersistedTodoItem,
 } from '../models'
 import type { ListDefinition } from '../models/list-definition'
@@ -41,10 +40,7 @@ export interface ExportData {
   floatingCalendars: FloatingCalendar[]
   floatingNotes: FloatingNote[]
   floatingTaskboards: FloatingTaskboard[]
-  floatingHorizons: FloatingHorizons[]
   floatingStatus: FloatingStatus[]
-  floatingScoreboard: FloatingScoreboard[]
-  floatingSnoozeGraveyard: FloatingSnoozeGraveyard[]
   tags: Tag[]
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]

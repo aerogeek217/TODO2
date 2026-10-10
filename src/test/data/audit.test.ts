@@ -94,11 +94,11 @@ describe('auditData', () => {
     expect(report.issues.find((i) => i.table === 'todoTags')!.count).toBe(1)
   })
 
-  it('detects floating horizons with deleted canvasId', async () => {
-    await db.floatingHorizons.add({ canvasId: 999, x: 0, y: 0, width: 520, height: 360 } as any)
+  it('detects floating status widgets with deleted canvasId', async () => {
+    await db.floatingStatus.add({ canvasId: 999, x: 0, y: 0, width: 380, height: 240 })
 
     const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'floatingHorizons')!
+    const issue = report.issues.find((i) => i.table === 'floatingStatus')!
     expect(issue.count).toBe(1)
     expect(issue.fix).toBe('delete')
   })
@@ -289,16 +289,16 @@ describe('cleanupIssues', () => {
     expect(await db.floatingNotes.count()).toBe(0)
   })
 
-  it('deletes orphaned todoTags and floating horizons', async () => {
+  it('deletes orphaned todoTags and floating status widgets', async () => {
     await db.todoTags.add({ todoId: 999, tagId: 888 })
-    await db.floatingHorizons.add({ canvasId: 999, x: 0, y: 0, width: 520, height: 360 } as any)
+    await db.floatingStatus.add({ canvasId: 999, x: 0, y: 0, width: 380, height: 240 })
 
     const report = await auditData()
     const cleaned = await cleanupIssues(report.issues)
     expect(cleaned).toBe(2)
 
     expect(await db.todoTags.count()).toBe(0)
-    expect(await db.floatingHorizons.count()).toBe(0)
+    expect(await db.floatingStatus.count()).toBe(0)
   })
 
   it('preserves valid data while cleaning orphans', async () => {
@@ -493,14 +493,14 @@ describe('unknown-setting audit', () => {
 
 // --- Invalid-setting-value detection: rows in `settings` whose `key` is in
 // the build's recognised set but whose `value` fails the per-key validator
-// (e.g. a legacy-map-shape `horizonSlots` carried over from a pre-strip DB).
+// (e.g. a malformed `canvasViewport` carried over from an older DB).
 // These slip through both the unknown-row pass (skips settings entirely) and
 // the unknown-key pass (key is recognised) — this dedicated pass closes the
 // gap so the user can drop them via audit cleanup.
 describe('invalid-setting-value audit', () => {
   it('flags a recognised settings key whose value fails the per-key validator', async () => {
-    // Legacy map shape — `horizonSlots` validator now requires an array.
-    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1 }) })
+    // `canvasViewport` validator requires finite x / y / zoom.
+    await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 'a' }) })
 
     const report = await auditData()
     const issue = report.issues.find((i) =>
@@ -508,15 +508,15 @@ describe('invalid-setting-value audit', () => {
     )!
     expect(issue).toBeDefined()
     expect(issue.fix).toBe('delete')
-    expect(issue.keys).toEqual(['horizonSlots'])
+    expect(issue.keys).toEqual(['canvasViewport'])
     expect(issue.count).toBe(1)
     expect(issue.samples).toHaveLength(1)
     expect(issue.samples![0]!.badFields).toEqual(['value'])
-    expect(issue.samples![0]!.note).toMatch(/horizonSlots must be an array/)
+    expect(issue.samples![0]!.note).toMatch(/canvasViewport x\/y\/zoom must be finite numbers/)
   })
 
   it('does not flag valid settings rows', async () => {
-    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify([1, 2, 3]) })
+    await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 1, y: 2, zoom: 1 }) })
     await db.settings.put({ key: 'themeMode', value: 'dark' })
 
     const report = await auditData()
@@ -541,14 +541,14 @@ describe('invalid-setting-value audit', () => {
   })
 
   it('cleanup deletes invalid-value rows by key, leaving valid ones intact', async () => {
-    await db.settings.put({ key: 'horizonSlots', value: JSON.stringify({ thisweek: 1 }) })
+    await db.settings.put({ key: 'canvasViewport', value: JSON.stringify({ x: 'a' }) })
     await db.settings.put({ key: 'themeMode', value: 'dark' })
 
     const report = await auditData()
     const cleaned = await cleanupIssues(report.issues)
     expect(cleaned).toBeGreaterThanOrEqual(1)
 
-    expect(await db.settings.get('horizonSlots')).toBeUndefined()
+    expect(await db.settings.get('canvasViewport')).toBeUndefined()
     expect(await db.settings.get('themeMode')).toBeDefined()
   })
 })

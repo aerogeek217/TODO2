@@ -20,9 +20,8 @@ export interface SimpleFloatingWidgetProps {
 
 /**
  * Shared chrome (header + body + resize-handle + kind-switch menu) for the
- * five "thin" floating canvas widgets — note, horizons, status, scoreboard,
- * snooze-graveyard. Each ships only its kind-specific body (`<NotesBody>`,
- * `<HorizonsSlotContent>`, …). Calendar + Taskboard stay bespoke (calendar
+ * "thin" floating canvas widgets — note and status. Each ships only its
+ * kind-specific body (`<NotesBody>`, `<StatusSlotContent>`). Calendar + Taskboard stay bespoke (calendar
  * threads orientation/weekOffset header meta; taskboard owns drop hit-testing
  * + collapse semantics).
  *

@@ -4,7 +4,8 @@ import type { TodoEvent, TodoEventType, ScheduledValue } from '../models'
 /**
  * Append-only `todoEvents` repository. Writes flow exclusively through
  * `todo-repository` (which composes events into the same transaction as the
- * todo write); reads power the scoreboard + snooze-graveyard widgets.
+ * todo write). The rows are an append-only history that travels with exports
+ * and task archives.
  */
 export const todoEventRepository = {
   async add(event: Omit<TodoEvent, 'id'>): Promise<number> {

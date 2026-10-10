@@ -29,14 +29,6 @@ import local from './DashboardListsEditor.module.css'
 
 interface Props {
   onClose: () => void
-  /**
-   * When set, only definitions with these ids are shown and the "+ Add List" /
-   * per-row delete affordances are hidden. Used by the ribbon's "Edit horizons…"
-   * entry point so users can't delete a horizon's mapped list-def from here.
-   */
-  filterIds?: number[]
-  /** Override modal title (default "Lists"). */
-  title?: string
   /** When provided, mount with this definition's editor dialog already open. */
   initialSelectedId?: number
 }
@@ -46,13 +38,11 @@ function SortableRow({
   onEdit,
   onToggleFavorite,
   onDelete,
-  hideDelete,
 }: {
   def: PersistedListDefinition
   onEdit: (id: number) => void
   onToggleFavorite: (id: number, next: boolean) => void
   onDelete: (id: number) => void
-  hideDelete?: boolean
 }) {
   const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(def.id)
   return (
@@ -78,20 +68,18 @@ function SortableRow({
         />
         Favorite
       </label>
-      {!hideDelete && (
-        <div className={styles.actions}>
-          <button
-            className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-            onClick={() => onDelete(def.id)}
-            title="Delete"
-          >&times;</button>
-        </div>
-      )}
+      <div className={styles.actions}>
+        <button
+          className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+          onClick={() => onDelete(def.id)}
+          title="Delete"
+        >&times;</button>
+      </div>
     </div>
   )
 }
 
-export function DashboardListsEditor({ onClose, filterIds, title, initialSelectedId }: Props) {
+export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
   const { listDefinitions, load, add, update, setFavorited, remove, reorder } = useListDefinitionStore()
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const [adding, setAdding] = useState(false)
@@ -102,12 +90,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
 
   useEffect(() => { load() }, [load])
 
-  const sorted = useMemo(() => {
-    const all = [...listDefinitions].sort(bySortOrder)
-    if (!filterIds) return all
-    const set = new Set(filterIds)
-    return all.filter((d) => set.has(d.id))
-  }, [listDefinitions, filterIds])
+  const sorted = useMemo(() => [...listDefinitions].sort(bySortOrder), [listDefinitions])
   const sortedIds = useMemo(() => sorted.map(d => d.id), [sorted])
 
   const editingList = useMemo(() => {
@@ -219,7 +202,7 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
       <div className={styles.backdrop} onClick={handleModalClose} />
       <div className={`${styles.modal} ${local.modalWide}`}>
         <div className={styles.header}>
-          <div className={styles.title}>{title ?? 'Lists'}</div>
+          <div className={styles.title}>Lists</div>
           <button className={styles.closeBtn} onClick={handleModalClose}>&times;</button>
         </div>
 
@@ -236,14 +219,13 @@ export function DashboardListsEditor({ onClose, filterIds, title, initialSelecte
                   onEdit={handleEdit}
                   onToggleFavorite={(id, next) => { void setFavorited(id, next) }}
                   onDelete={(id) => { setDeleteId(id); setAdding(false) }}
-                  hideDelete={!!filterIds}
                 />
               ))}
             </SortableContext>
           </DndContext>
         </div>
 
-        {filterIds ? null : adding ? (
+        {adding ? (
           <div>
             <div className={styles.editRow} style={{ marginTop: 8 }} onKeyDown={handleAddKeyDown}>
               <input

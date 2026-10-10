@@ -1,7 +1,6 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingHorizons, FloatingStatus, FloatingScoreboard, FloatingSnoozeGraveyard, Tag, TodoTag, TodoEvent } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent } from '../models'
 import type { ListDefinition } from '../models/list-definition'
-import type { TodoPredicate, DateAnchor } from '../models/filter-predicate'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
@@ -24,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 51
+export const CURRENT_DB_VERSION = 52
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -64,10 +63,7 @@ export class Todo2Database extends Dexie {
   floatingCalendars!: Table<FloatingCalendar, number>
   floatingNotes!: Table<FloatingNote, number>
   floatingTaskboards!: Table<FloatingTaskboard, number>
-  floatingHorizons!: Table<FloatingHorizons, number>
   floatingStatus!: Table<FloatingStatus, number>
-  floatingScoreboard!: Table<FloatingScoreboard, number>
-  floatingSnoozeGraveyard!: Table<FloatingSnoozeGraveyard, number>
   tags!: Table<Tag, number>
   todoTags!: Table<TodoTag, number>
   todoEvents!: Table<TodoEvent, number>
@@ -388,12 +384,24 @@ export class Todo2Database extends Dexie {
     // (`upgrades/v51-uid-completed-at.ts`) backfills both. IndexedDB builds
     // the unique index before the upgrade callback runs; rows without a
     // `uid` are simply not indexed, so creation can't fail on old rows.
-    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
-    // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `51` first.
-    this.version(CURRENT_DB_VERSION)
+    this.version(51)
       .stores({
         todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId, &uid',
+      })
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, 51))
+
+    // v52: remove the horizons, discipline-scoreboard and snooze-graveyard
+    // widgets. Drops their placement tables; the transform
+    // (`upgrades/v52-drop-date-stat-widgets.ts`) deletes the horizons settings
+    // rows and strips those widget tabs from `settings.canvasRails`.
+    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
+    // what enforces the single-source-of-truth invariant (see the constant's
+    // docblock above). When bumping, turn this into a literal `52` first.
+    this.version(CURRENT_DB_VERSION)
+      .stores({
+        floatingHorizons: null,
+        floatingScoreboard: null,
+        floatingSnoozeGraveyard: null,
       })
       .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
@@ -450,177 +458,6 @@ export async function ensureSeededStatuses(
   return { assignedId, followupId }
 }
 
-/** Base predicate for horizon seeds — inherits standard completed/hidden gates. */
-function basePredicate(): TodoPredicate {
-  return {
-    showCompleted: false,
-    showHiddenStatuses: false,
-    personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
-    projectIds: null,
-    statusIds: null,
-    searchText: '',
-    dateField: 'date',
-    dateRangeStart: null,
-    dateRangeEnd: null,
-    dateRangeIncludeNoDate: false,
-    hasScheduled: null,
-    hasDeadline: null,
-    tags: null,
-  }
-}
-
-function relAnchor(token: Extract<DateAnchor, { kind: 'relative' }>['token']): DateAnchor {
-  return { kind: 'relative', token }
-}
-
-/**
- * Seed configuration for the 5 horizon list-definitions. Rendered as the
- * default rows of the horizons widget; each becomes one entry in the
- * `settings.horizonSlots` ordered array. P6 retired the per-row
- * `HorizonKey` identity — order is now the only seed-vs-seed identity.
- */
-interface HorizonSeed {
-  def: Omit<ListDefinition, 'id'>
-}
-
-function horizonSeeds(): HorizonSeed[] {
-  return [
-    {
-      def: {
-        name: 'This week',
-        sortOrder: 0,
-        pinnedToDashboard: true,
-        favorited: false,
-        membership: {
-          kind: 'custom',
-          predicate: {
-            ...basePredicate(),
-            dateField: 'date',
-            dateRangeStart: relAnchor('start-of-week'),
-            dateRangeEnd: relAnchor('end-of-week'),
-          },
-        },
-        sort: 'date',
-        grouping: 'none',
-      },
-    },
-    {
-      def: {
-        name: 'Next week',
-        sortOrder: 1,
-        pinnedToDashboard: true,
-        favorited: false,
-        membership: {
-          kind: 'custom',
-          predicate: {
-            ...basePredicate(),
-            dateField: 'date',
-            dateRangeStart: relAnchor('start-of-next-week'),
-            dateRangeEnd: relAnchor('end-of-next-week'),
-          },
-        },
-        sort: 'date',
-        grouping: 'none',
-      },
-    },
-    {
-      def: {
-        name: 'Rest of month',
-        sortOrder: 2,
-        pinnedToDashboard: true,
-        favorited: false,
-        membership: {
-          kind: 'custom',
-          predicate: {
-            ...basePredicate(),
-            dateField: 'date',
-            dateRangeStart: relAnchor('tomorrow'),
-            dateRangeEnd: relAnchor('end-of-month'),
-          },
-        },
-        sort: 'date',
-        grouping: 'none',
-      },
-    },
-    {
-      def: {
-        name: 'Later',
-        sortOrder: 3,
-        pinnedToDashboard: true,
-        favorited: false,
-        membership: {
-          kind: 'custom',
-          predicate: {
-            ...basePredicate(),
-            dateField: 'date',
-            dateRangeStart: relAnchor('start-of-next-month'),
-            dateRangeEnd: relAnchor('end-of-month-plus-3'),
-          },
-        },
-        sort: 'date',
-        grouping: 'date',
-      },
-    },
-    {
-      def: {
-        name: 'Someday',
-        sortOrder: 4,
-        pinnedToDashboard: true,
-        favorited: false,
-        membership: {
-          kind: 'custom',
-          predicate: {
-            ...basePredicate(),
-            hasScheduled: false,
-            hasDeadline: false,
-          },
-        },
-        sort: 'manual',
-        grouping: 'none',
-      },
-    },
-  ]
-}
-
-/**
- * Seeds the 5 horizon list definitions iff the `listDefinitions` table is
- * empty. Returns the new ids in seed order (matching `horizonSeeds()`'s
- * iteration order — This week / Next week / Rest of month / Later /
- * Someday) when seeding happens; returns an empty array when the table is
- * non-empty (caller should load existing `horizonSlots` from settings).
- *
- * Used by `restoreFromImportData` (after clear) — the seeds are just normal
- * rows; if the user deletes them they stay deleted, if they rename them the
- * rename persists.
- */
-export async function ensureSeededListDefinitions(
-  table: Table<ListDefinition, number>,
-): Promise<number[]> {
-  const count = await table.count()
-  if (count > 0) return []
-
-  const ids: number[] = []
-  for (const { def } of horizonSeeds()) {
-    const id = (await table.add(def as ListDefinition)) as number
-    ids.push(id)
-  }
-  return ids
-}
-
-/**
- * Writes `settings.horizonSlots` as JSON (one row): a plain `number[]` of
- * `ListDefinition.id`s in the order users see on the horizons widget.
- */
-export async function persistHorizonSlots(
-  settingsTable: Table<SettingRow, string>,
-  slots: number[],
-): Promise<void> {
-  await settingsTable.put({ key: SETTING_KEYS.horizonSlots, value: JSON.stringify(slots) })
-}
-
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingHorizons, db.floatingStatus, db.floatingScoreboard, db.floatingSnoozeGraveyard, db.tags, db.todoTags, db.todoEvents] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingStatus, db.tags, db.todoTags, db.todoEvents] as const
 

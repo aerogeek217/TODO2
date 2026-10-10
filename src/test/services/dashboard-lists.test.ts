@@ -864,7 +864,7 @@ describe('interpretGrouping — by-tag', () => {
 })
 
 // Postmortem follow-up to triage-2026-04-28 P7 (commit caa4de7): the canvas
-// list-widget / lens / horizon ribbon ride `dashboard-lists` rather than the
+// list-widget / lens ride `dashboard-lists` rather than the
 // ListView pipeline, so the visible-groups intersection rule that fixed
 // ListView in P7 has to land here too. A multi-assignee task surviving the
 // membership filter must NOT emit groups for non-picked assignees just

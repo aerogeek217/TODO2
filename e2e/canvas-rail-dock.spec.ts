@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   dragWidgetTo,
   floatingCalendarByIndex,
-  floatingHorizonsByIndex,
+  floatingStatusByIndex,
   floatingNoteByIndex,
   floatingTaskboardByIndex,
   listInsetByIndex,
@@ -214,7 +214,7 @@ test.describe('canvas float → rail dock (P6)', () => {
  * Phase 6 per-kind dock coverage: the existing tests above exercise the
  * forward path (float → empty rail) for the `note` kind only. These extend
  * coverage to the other floating kinds — dragging a floating calendar /
- * taskboard / horizons / list-inset onto the empty left-side strip should
+ * taskboard / status / list-inset onto the empty left-side strip should
  * dock as a new slot containing one tab of the matching type. Each test
  * mirrors the "drops a floating note onto an empty-side strip" structure;
  * we deliberately only re-cover the empty-side path because slot-body and
@@ -262,16 +262,16 @@ test.describe('canvas float → rail empty-side dock per kind (P6)', () => {
     await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)
   })
 
-  test('floating horizons docks as a new horizons slot', async ({ page }) => {
+  test('floating status widget docks as a new status slot', async ({ page }) => {
     await seedCanvas(page, {
-      floatingHorizons: [{ x: 320, y: 280, width: 280, height: 240 }],
+      floatingStatus: [{ x: 320, y: 280, width: 280, height: 240 }],
     })
-    await expect(floatingHorizonsByIndex(page)).toBeVisible()
+    await expect(floatingStatusByIndex(page)).toBeVisible()
     await expect(railBySide(page, 'left')).toHaveCount(0)
 
-    await dragWidgetTo(page, floatingHorizonsByIndex(page), { x: 100, y: 400 })
+    await dragWidgetTo(page, floatingStatusByIndex(page), { x: 100, y: 400 })
 
-    await expect(floatingHorizonsByIndex(page)).toHaveCount(0)
+    await expect(floatingStatusByIndex(page)).toHaveCount(0)
     const leftRail = railBySide(page, 'left')
     await expect(leftRail).toBeVisible()
     await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)

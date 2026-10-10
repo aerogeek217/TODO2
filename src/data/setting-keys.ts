@@ -20,8 +20,6 @@ export const SETTING_KEYS = {
   completedRetentionDays: 'completedRetentionDays',
   weekStartsOn: 'weekStartsOn',
   canvasViewport: 'canvasViewport',
-  horizonSlots: 'horizonSlots',
-  selectedHorizonDefId: 'selectedHorizonDefId',
   canvasRails: 'canvasRails',
   maxTags: 'maxTags',
   defaultProjectGroupBy: 'defaultProjectGroupBy',

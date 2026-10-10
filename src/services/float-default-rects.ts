@@ -16,8 +16,5 @@ export const FLOAT_DEFAULT_RECTS: Record<SlotKind, { width: number; height: numb
   notes: { width: 240, height: 200 },
   calendar: { width: 380, height: 320 },
   taskboard: { width: 320, height: 400 },
-  horizons: { width: 520, height: 360 },
   status: { width: 380, height: 240 },
-  scoreboard: { width: 720, height: 280 },
-  snoozeGraveyard: { width: 380, height: 240 },
 }

@@ -18,11 +18,11 @@ function hasPersistedRails(rails: RailsState | null | undefined): rails is Rails
  *    references, so a slow IDB read on `listDefinitions` cannot block the
  *    user's saved layout from rendering.
  * 2. **Default seed** (second effect) only fires when there's no persisted
- *    layout. It needs `listDefinitionsLoaded` because the seed lens picks the
- *    canonical thisweek horizon def, and that lookup wants a real id.
+ *    layout and at least one list definition exists (a database without list
+ *    definitions shows no default rail). The seed is a right-rail lens slot
+ *    with no list picked — the slot shows its "pick a list" placeholder.
  */
 export function useDefaultRails(): RailsState {
-  const horizonSlots = useSettingsStore((s) => s.horizonSlots)
   const persistedRails = useSettingsStore((s) => s.canvasRails)
   const setCanvasRails = useSettingsStore((s) => s.setCanvasRails)
   const listDefinitionsLoaded = useListDefinitionStore((s) => s.listDefinitions.length > 0)
@@ -38,18 +38,14 @@ export function useDefaultRails(): RailsState {
     if (hydrated) return
     if (hasPersistedRails(persistedRails)) return
     if (!listDefinitionsLoaded) return
-    // First seeded horizon (post-P6: index 0 of the `horizonSlots` ordered
-    // array; pre-P6: the `thisweek` map entry — flattened to index 0 by the
-    // legacy iteration order).
-    const firstHorizonId = horizonSlots[0]
-    const slot = createLensSlot(firstHorizonId)
+    const slot = createLensSlot()
     hydrate({
       left: null,
       right: { orientation: 'vertical', slots: [slot] },
       top: null,
       bottom: null,
     })
-  }, [hydrated, hydrate, horizonSlots, listDefinitionsLoaded, persistedRails])
+  }, [hydrated, hydrate, listDefinitionsLoaded, persistedRails])
 
   useEffect(() => {
     if (!hydrated) return

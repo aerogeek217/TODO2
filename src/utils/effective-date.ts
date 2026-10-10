@@ -12,9 +12,8 @@ export type WeekStart = 0 | 1
 
 /**
  * Resolve a fuzzy token to a concrete Date: the end-of-window (inclusive last day),
- * anchored on `today`. Used by the *event*-side resolution path in `discipline.ts`,
- * where each event carries its own as-of (`event.timestamp`). Todo-side fuzzy
- * resolution should anchor on the value's `setAt` — see `resolveFuzzyOrigin`.
+ * anchored on `today`. Todo-side fuzzy resolution should anchor on the value's
+ * `setAt` — see `resolveFuzzyOrigin`.
  */
 export function resolveFuzzy(token: FuzzyToken, today: Date, weekStartsOn: WeekStart): Date {
   const base = startOfDay(today)

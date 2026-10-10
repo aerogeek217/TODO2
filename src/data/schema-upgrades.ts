@@ -1,6 +1,7 @@
 import type { Transaction } from 'dexie'
 import { upgradeV50 } from './upgrades/v50-revive-dates'
 import { upgradeV51 } from './upgrades/v51-uid-completed-at'
+import { upgradeV52 } from './upgrades/v52-drop-date-stat-widgets'
 
 /**
  * Permanent schema-upgrade pipeline (cr1 P2).
@@ -59,6 +60,7 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
   [50, upgradeV50],
   [51, upgradeV51],
+  [52, upgradeV52],
 ])
 
 /**

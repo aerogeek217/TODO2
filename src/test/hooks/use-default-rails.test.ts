@@ -14,9 +14,8 @@ import type { PersistedListDefinition } from '../../models/list-definition'
  *   1. **persisted** — runs as soon as `settings.canvasRails` carries a
  *      non-empty rail. Must NOT depend on the list-definition store, because
  *      saved slots already carry their `listDefinitionId` references.
- *   2. **default seed** — only fires when no persisted layout exists. Needs
- *      `listDefinitionsLoaded` because the seed lens picks the canonical
- *      thisweek horizon def.
+ *   2. **default seed** — only fires when no persisted layout exists and at
+ *      least one list definition is loaded; seeds an unpicked lens slot.
  *
  * 6.5.1 (real-browser-testing plan) split the original combined effect so
  * a slow IDB read on `listDefinitions` cannot delay persisted hydration —
@@ -47,7 +46,7 @@ const persistedSeed: RailsState = {
 
 beforeEach(() => {
   resetRailsStore()
-  useSettingsStore.setState({ canvasRails: null, horizonSlots: [] })
+  useSettingsStore.setState({ canvasRails: null })
   useListDefinitionStore.setState({ listDefinitions: [] })
 })
 
@@ -65,7 +64,7 @@ describe('useDefaultRails', () => {
 
   it('seeds the default right-side lens once list-defs load and there is no persisted layout', () => {
     const lenseDef = makeDef({ id: 42, name: 'This week' })
-    useSettingsStore.setState({ canvasRails: null, horizonSlots: [42] })
+    useSettingsStore.setState({ canvasRails: null })
     useListDefinitionStore.setState({ listDefinitions: [lenseDef] })
 
     renderHook(() => useDefaultRails())
@@ -74,7 +73,8 @@ describe('useDefaultRails', () => {
     expect(after.hydrated).toBe(true)
     expect(after.rails.right?.slots).toHaveLength(1)
     expect(after.rails.right?.slots[0]?.tabs[0]?.type).toBe('lens')
-    expect(after.rails.right?.slots[0]?.tabs[0]?.listDefinitionId).toBe(42)
+    // No list is picked — the slot shows its picker placeholder.
+    expect(after.rails.right?.slots[0]?.tabs[0]?.listDefinitionId).toBeUndefined()
   })
 
   it('does not hydrate when there is no persisted layout and list-defs are still loading', () => {
@@ -89,14 +89,14 @@ describe('useDefaultRails', () => {
   it('treats a persisted layout with all sides null as not-persisted (falls through to default seed)', () => {
     const emptyPersisted: RailsState = { left: null, right: null, top: null, bottom: null }
     const lenseDef = makeDef({ id: 7, name: 'This week' })
-    useSettingsStore.setState({ canvasRails: emptyPersisted, horizonSlots: [7] })
+    useSettingsStore.setState({ canvasRails: emptyPersisted })
     useListDefinitionStore.setState({ listDefinitions: [lenseDef] })
 
     renderHook(() => useDefaultRails())
 
     const after = useCanvasRailsStore.getState()
     expect(after.hydrated).toBe(true)
-    // Default seed fired (right rail with thisweek lens), not the all-null persisted layout.
-    expect(after.rails.right?.slots[0]?.tabs[0]?.listDefinitionId).toBe(7)
+    // Default seed fired (right rail with a lens slot), not the all-null persisted layout.
+    expect(after.rails.right?.slots[0]?.tabs[0]?.type).toBe('lens')
   })
 })

@@ -2,19 +2,17 @@ import type { SlotKind } from '../../models/canvas-rails'
 import { useFloatingNoteStore } from '../../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
 import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
-import { useFloatingHorizonsStore } from '../../stores/floating-horizons-store'
+import { useFloatingStatusStore } from '../../stores/floating-status-store'
 
 /**
  * Kinds whose float stores share a per-canvas `add(canvasId, x, y)` factory.
- * `lens` needs a `listDefinitionId` resolver and stats kinds (`status` /
- * `scoreboard` / `snoozeGraveyard`) follow the same pattern but live in
- * separate stores; both branches have their own regression specs.
+ * `lens` needs a `listDefinitionId` resolver and has its own regression specs.
  */
 export const FLOAT_SWITCHABLE_KINDS = [
   'notes',
   'calendar',
   'taskboard',
-  'horizons',
+  'status',
 ] as const
 export type FloatSwitchableKind = (typeof FLOAT_SWITCHABLE_KINDS)[number]
 
@@ -34,7 +32,7 @@ export async function seedFloat(
     case 'notes':     return useFloatingNoteStore.getState().add(canvasId, x, y)
     case 'calendar':  return useFloatingCalendarStore.getState().add(canvasId, x, y)
     case 'taskboard': return useFloatingTaskboardStore.getState().add(canvasId, x, y)
-    case 'horizons':  return useFloatingHorizonsStore.getState().add(canvasId, x, y)
+    case 'status':    return useFloatingStatusStore.getState().add(canvasId, x, y)
   }
 }
 
@@ -47,14 +45,14 @@ interface FloatRow {
 }
 
 /** Reads the live row list for a float kind. Each kind's store names its
- * collection differently (`notes` / `calendars` / `taskboards` / `horizons`);
+ * collection differently (`notes` / `calendars` / `taskboards` / `statuses`);
  * this hides the difference behind one accessor. */
 export function getFloatRows(kind: FloatSwitchableKind): FloatRow[] {
   switch (kind) {
     case 'notes':     return useFloatingNoteStore.getState().notes
     case 'calendar':  return useFloatingCalendarStore.getState().calendars
     case 'taskboard': return useFloatingTaskboardStore.getState().taskboards
-    case 'horizons':  return useFloatingHorizonsStore.getState().horizons
+    case 'status':    return useFloatingStatusStore.getState().statuses
   }
 }
 
