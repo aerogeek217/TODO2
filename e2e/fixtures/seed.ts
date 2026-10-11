@@ -36,13 +36,6 @@ export interface FloatingCalendarSeed {
   weekOffset?: number
 }
 
-export interface FloatingTaskboardSeed {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
 export interface FloatingStatusSeed {
   x: number
   y: number
@@ -83,7 +76,6 @@ export interface ListInsetSeed {
 export interface CanvasSeedOptions {
   floatingNotes?: FloatingNoteSeed[]
   floatingCalendars?: FloatingCalendarSeed[]
-  floatingTaskboards?: FloatingTaskboardSeed[]
   floatingStatus?: FloatingStatusSeed[]
   listDefinitions?: ListDefinitionSeed[]
   listInsets?: ListInsetSeed[]
@@ -291,7 +283,6 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
     canvasId,
     floatingNotes: opts.floatingNotes ?? [],
     floatingCalendars: opts.floatingCalendars ?? [],
-    floatingTaskboards: opts.floatingTaskboards ?? [],
     floatingStatus: opts.floatingStatus ?? [],
     listDefinitions: (opts.listDefinitions ?? []).map((d) => ({
       ...d,
@@ -308,7 +299,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
       req.onsuccess = () => {
         const idb = req.result
         const tables = [
-          'floatingNotes', 'floatingCalendars', 'floatingTaskboards', 'floatingStatus',
+          'floatingNotes', 'floatingCalendars', 'floatingStatus',
           'listDefinitions', 'listInsets', 'people', 'settings',
         ]
         const tx = idb.transaction(tables, 'readwrite')
@@ -318,9 +309,6 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
         }
         for (const cal of seed.floatingCalendars) {
           tx.objectStore('floatingCalendars').add({ ...cal, canvasId: seed.canvasId })
-        }
-        for (const tb of seed.floatingTaskboards) {
-          tx.objectStore('floatingTaskboards').add({ ...tb, canvasId: seed.canvasId })
         }
         for (const st of seed.floatingStatus) {
           tx.objectStore('floatingStatus').add({ ...st, canvasId: seed.canvasId })
@@ -423,9 +411,6 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
   if (opts.floatingCalendars && opts.floatingCalendars.length > 0) {
     await page.locator('.react-flow__node-floatingCalendar').first().waitFor({ state: 'visible' })
   }
-  if (opts.floatingTaskboards && opts.floatingTaskboards.length > 0) {
-    await page.locator('.react-flow__node-taskboard').first().waitFor({ state: 'visible' })
-  }
   if (opts.floatingStatus && opts.floatingStatus.length > 0) {
     await page.locator('.react-flow__node-floatingStatus').first().waitFor({ state: 'visible' })
   }
@@ -526,10 +511,6 @@ export function floatingCalendarByIndex(page: Page, idx = 0): Locator {
   return page.locator('.react-flow__node-floatingCalendar').nth(idx)
 }
 
-/** Locator for a floating taskboard widget on the canvas (RF nodeType key is `taskboard`). */
-export function floatingTaskboardByIndex(page: Page, idx = 0): Locator {
-  return page.locator('.react-flow__node-taskboard').nth(idx)
-}
 
 /** Locator for a floating "open by status" widget on the canvas. */
 export function floatingStatusByIndex(page: Page, idx = 0): Locator {

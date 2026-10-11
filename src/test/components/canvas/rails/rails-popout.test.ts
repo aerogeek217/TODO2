@@ -6,8 +6,6 @@ import { useNoteStore } from '../../../../stores/note-store'
 import { useFloatingNoteStore } from '../../../../stores/floating-note-store'
 import { useListInsetStore } from '../../../../stores/list-inset-store'
 import { useFloatingCalendarStore } from '../../../../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../../../../stores/floating-taskboard-store'
-import { useTaskboardStore } from '../../../../stores/taskboard-store'
 import { useListDefinitionStore } from '../../../../stores/list-definition-store'
 import { useCanvasRailsStore } from '../../../../stores/canvas-rails-store'
 import { getActiveTab } from '../../../../models/canvas-rails'
@@ -25,7 +23,6 @@ beforeEach(async () => {
   useCanvasStore.setState({ selectedCanvasId: null })
   useNoteStore.setState({ notes: new Map(), activeId: null, lastSavedAt: null })
   resetFloatingStores()
-  useTaskboardStore.setState({ board: null, loading: false, error: null })
   useListDefinitionStore.setState({ listDefinitions: [], loading: false, error: null })
   resetRailsStore({ hydrated: true })
 })
@@ -99,17 +96,6 @@ describe('popSlotToCanvas', () => {
     const moved = await popSlotToCanvas(slot)
     expect(moved).toBe(false)
     expect(useListInsetStore.getState().insets.length).toBe(0)
-  })
-
-  it('pops a taskboard slot into a floating taskboard (singleton board)', async () => {
-    const canvasId = await seedCanvas()
-
-    const slot = makeSlot('slot-tb', 'taskboard')
-    const moved = await popSlotToCanvas(slot)
-    expect(moved).toBe(true)
-
-    const floating = useFloatingTaskboardStore.getState().taskboards.filter((t) => t.canvasId === canvasId)
-    expect(floating.length).toBe(1)
   })
 
   it('pops a calendar slot into a floating calendar node', async () => {
@@ -285,14 +271,6 @@ describe('createAndDockSlot', () => {
     expect(tab.listDefinitionId).toBe(42)
   })
 
-  it('docks a taskboard slot like any other kind', () => {
-    const id = useCanvasRailsStore.getState().createAndDockSlot('taskboard')
-    const { rails } = useCanvasRailsStore.getState()
-    const slot = rails.right?.slots.find((s) => s.id === id)
-    expect(slot).toBeDefined()
-    expect(getActiveTab(slot!).type).toBe('taskboard')
-  })
-
   it('docks a status slot — backs FloatingStatusNode.handleDock', () => {
     // The floating status widget's dock calls
     // `useCanvasRailsStore.getState().createAndDockSlot('status')` then
@@ -367,17 +345,6 @@ describe('popTabAtPosition', () => {
     const moved = await popTabAtPosition(tab, canvasId, 0, 0)
     expect(moved).toBe(false)
     expect(useListInsetStore.getState().insets.length).toBe(0)
-  })
-
-  it('routes a taskboard tab to the floating-taskboard store (singleton board, no id arg)', async () => {
-    const canvasId = await seedCanvas()
-    const tab: Tab = { id: 't-t', type: 'taskboard' }
-    const moved = await popTabAtPosition(tab, canvasId, 50, 60)
-    expect(moved).toBe(true)
-    const floats = useFloatingTaskboardStore.getState().taskboards.filter((t) => t.canvasId === canvasId)
-    expect(floats.length).toBe(1)
-    expect(floats[0]!.x).toBe(50)
-    expect(floats[0]!.y).toBe(60)
   })
 
   it('routes a calendar tab and threads orientation + weekOffset from init opts', async () => {

@@ -6,8 +6,8 @@ import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the single global note on a canvas.
- * Parallels `useFloatingCalendarStore` / `useFloatingTaskboardStore` /
- * `useFloatingHorizonsStore`: content lives elsewhere (the `notes` global
+ * Parallels `useFloatingCalendarStore` / `useFloatingStatusStore`: content
+ * lives elsewhere (the `notes` global
  * row); this store only tracks x/y/w/h. Built on the
  * `createFloatPlacementMethods` factory.
  */

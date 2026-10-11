@@ -33,7 +33,8 @@ describe('v58 Dexie upgrade', () => {
     expect(db.verno).toBe(CURRENT_DB_VERSION)
     expect(await db.listOrders.count()).toBe(0)
     expect(await db.todos.count()).toBe(1)
-    expect(await db.listDefinitions.count()).toBe(1)
+    // Plus the Focus list v59 adds.
+    expect((await db.listDefinitions.orderBy('id').toArray()).map((d) => d.name)).toEqual(['L', 'Focus'])
   })
 })
 

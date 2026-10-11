@@ -1,16 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
 import { useLocation } from 'react-router'
 import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../../routes'
-import { DRAG_ACTIVATION_DISTANCE_PX, SEARCH_DEBOUNCE_MS } from '../../constants'
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core'
+import { SEARCH_DEBOUNCE_MS } from '../../constants'
 import { useFilterStore, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
 import type { Person, PersistedTodoItem, Status, TodoPredicate } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
@@ -20,16 +11,13 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { startOfToday } from '../../utils/date'
 import { groupTodosByTextMatch, textMatchContextFor, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
-import { TaskDraggable } from '../task/dnd/TaskDraggable'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
-import { computeSearchDropIndex } from '../../utils/task-dnd'
 import { buildSearchContextMenuItems } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
 import styles from './TopBar.module.css'
@@ -95,20 +83,14 @@ function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: Search
 }
 
 /**
- * One search-result row. Draggable via the shared `TaskDraggable` primitive
- * (surface `'search'`, kind `'task'`) so the same taskboard drop handlers that
- * accept canvas/dashboard task drags pick these up too — see
- * P3 of `docs/plans/features/features-batch-2026-04`.
+ * One search-result row: a complete checkbox, then the title / snippet /
+ * pills as an option button (click or Enter opens the task).
  *
  * Right-clicking surfaces the same context menu as `TaskRow`. The menu lives
  * on the parent `TopBar` (not on each row) so it survives re-renders and so
  * the dropdown stays mounted underneath the menu (P2 of
  * `search-and-notes-bugs` — keep the result list visible while the menu is
  * open so the user can pick another row).
- *
- * Click-to-open uses `onClick` (not `onMouseDown`): dnd-kit's PointerSensor
- * has a 5-px activation distance, so a short press still fires click; a press
- * + drag activates the drag and suppresses the click.
  */
 function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContextMenu }: {
   todo: PersistedTodoItem
@@ -120,47 +102,38 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
 }) {
   const { handleToggleComplete } = useTaskRowActions({ todo })
   return (
-    <TaskDraggable todo={todo} surface="search">
-      {({ attributes, listeners, setNodeRef, isDragging }) => (
-        <div
-          className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}
-          style={{ opacity: isDragging ? 0 : undefined }}
-        >
-          <input
-            type="checkbox"
-            className={styles.miniListCheckbox}
-            checked={todo.isCompleted}
-            onChange={handleToggleComplete}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-          />
-          <button
-            ref={setNodeRef}
-            {...attributes}
-            {...listeners}
-            role="option"
-            aria-selected={false}
-            className={styles.miniListItemContent}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onOpen(todo.id)}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onOpenContextMenu(todo, e.clientX, e.clientY)
-            }}
-            onKeyDown={(e) => onKeyDown(e, todo.id)}
-            style={{ cursor: 'pointer' }}
-          >
-            <span className={styles.miniListTitle}>{todo.title}</span>
-            {field === 'notes' && todo.notes && (
-              <span className={styles.miniListMatchSnippet}>{todo.notes.replace(/\s+/g, ' ').trim()}</span>
-            )}
-            <SearchResultPills todo={todo} ctx={pillCtx} />
-          </button>
-        </div>
-      )}
-    </TaskDraggable>
+    <div className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}>
+      <input
+        type="checkbox"
+        className={styles.miniListCheckbox}
+        checked={todo.isCompleted}
+        onChange={handleToggleComplete}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+      />
+      <button
+        type="button"
+        role="option"
+        aria-selected={false}
+        className={styles.miniListItemContent}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => onOpen(todo.id)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onOpenContextMenu(todo, e.clientX, e.clientY)
+        }}
+        onKeyDown={(e) => onKeyDown(e, todo.id)}
+        style={{ cursor: 'pointer' }}
+      >
+        <span className={styles.miniListTitle}>{todo.title}</span>
+        {field === 'notes' && todo.notes && (
+          <span className={styles.miniListMatchSnippet}>{todo.notes.replace(/\s+/g, ' ').trim()}</span>
+        )}
+        <SearchResultPills todo={todo} ctx={pillCtx} />
+      </button>
+    </div>
   )
 }
 
@@ -284,18 +257,6 @@ export function TopBar() {
   const [localSearch, setLocalSearch] = useState(filters.searchText)
   const [searchFocused, setSearchFocused] = useState(false)
   const miniListRef = useRef<HTMLDivElement>(null)
-  const [searchDragTodo, setSearchDragTodo] = useState<PersistedTodoItem | null>(null)
-  // The dropdown unmounts on drag start, which deletes the SearchResultRow's
-  // `useDraggable` entry from dnd-kit's `draggableNodes` map; after that
-  // `event.active.data.current` falls back to `defaultData` (`{}`), so the
-  // drag-end handler can't recover the todo from there. Mirror `searchPointerRef`
-  // with a dedicated ref that outlives the source component.
-  const searchDragTodoRef = useRef<PersistedTodoItem | null>(null)
-  const searchPointerRef = useRef<{ x: number; y: number } | null>(null)
-  const searchMoveListenerRef = useRef<((e: PointerEvent) => void) | null>(null)
-  const searchSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
-  )
   // P4: right-click menu state is kept on TopBar (not SearchResultRow) so the
   // menu + project picker outlive the search dropdown closing when the menu
   // opens — the row would otherwise unmount along with its portals.
@@ -358,63 +319,6 @@ export function TopBar() {
   const isSettingsPage = location.pathname === ROUTE_SETTINGS
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
 
-  const handleSearchDragStart = useCallback((event: DragStartEvent) => {
-    const activator = event.activatorEvent as PointerEvent
-    searchPointerRef.current = { x: activator.clientX, y: activator.clientY }
-    const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
-    if (todo) {
-      searchDragTodoRef.current = todo
-      setSearchDragTodo(todo)
-    }
-    const onMove = (e: PointerEvent) => {
-      searchPointerRef.current = { x: e.clientX, y: e.clientY }
-    }
-    window.addEventListener('pointermove', onMove)
-    searchMoveListenerRef.current = onMove
-    // Close the dropdown so the ghost + drop targets are not occluded.
-    setSearchFocused(false)
-    searchInputRef.current?.blur()
-  }, [])
-
-  const cleanupSearchDrag = useCallback(() => {
-    if (searchMoveListenerRef.current) {
-      window.removeEventListener('pointermove', searchMoveListenerRef.current)
-      searchMoveListenerRef.current = null
-    }
-    setSearchDragTodo(null)
-    searchDragTodoRef.current = null
-    searchPointerRef.current = null
-  }, [])
-
-  const handleSearchDragEnd = useCallback(async (event: DragEndEvent) => {
-    // Pull from the local ref, not `event.active.data.current`: the source row
-    // has already unmounted, so dnd-kit's `active.data` is the `{}` fallback.
-    const todo = searchDragTodoRef.current ?? (event.active.data.current?.todo as PersistedTodoItem | undefined)
-    const p = searchPointerRef.current
-    cleanupSearchDrag()
-    if (!todo || !p) return
-    // Hit-test: find a taskboard panel/node under the release point. Both
-    // `TaskboardPanel` (dashboard / rail slot) and `TaskboardNode` (floating)
-    // mark their outer DIV with `data-taskboard-panel-id`; entries inside
-    // carry `data-tbp-entry`.
-    const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null
-    const panel = el?.closest<HTMLElement>('[data-taskboard-panel-id]')
-    if (!panel) {
-      // Restore focus so the user can keep searching.
-      searchInputRef.current?.focus()
-      return
-    }
-    const entryNodes = Array.from(panel.querySelectorAll<HTMLElement>('[data-tbp-entry]'))
-    const rects = entryNodes.map((n) => {
-      const r = n.getBoundingClientRect()
-      return { top: r.top, height: r.height }
-    })
-    const idx = computeSearchDropIndex(p.y, rects)
-    await useTaskboardStore.getState().ensureLoaded()
-    await useTaskboardStore.getState().addAt(todo.id, idx)
-    searchInputRef.current?.focus()
-  }, [cleanupSearchDrag])
-
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
     handleSearchChange('')
@@ -445,12 +349,6 @@ export function TopBar() {
   return (
     <header className={`${styles.topBar} ${isActive ? styles.topBarFiltered : ''} ${isWorkspace ? styles.topBarWorkspace : ''}`} data-filter-row>
       {isWorkspace && <LayoutControls />}
-      <DndContext
-        sensors={searchSensors}
-        onDragStart={handleSearchDragStart}
-        onDragEnd={handleSearchDragEnd}
-        onDragCancel={cleanupSearchDrag}
-      >
       <div className={styles.searchWrapper}>
         <svg className={styles.searchIcon} width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <circle cx="7" cy="7" r="4.5" />
@@ -513,21 +411,6 @@ export function TopBar() {
           />
         )}
       </div>
-      <DragOverlay dropAnimation={null}>
-        {searchDragTodo && (
-          <div className={styles.miniListItem} style={{
-            minWidth: 200,
-            maxWidth: 360,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            boxShadow: 'var(--shadow-dropdown)',
-            cursor: 'grabbing',
-          }}>
-            <span className={styles.miniListTitle}>{searchDragTodo.title}</span>
-          </div>
-        )}
-      </DragOverlay>
-      </DndContext>
 
       <FilterChipBar
         predicate={filterPredicate}

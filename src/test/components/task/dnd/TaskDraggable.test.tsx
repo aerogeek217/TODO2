@@ -29,11 +29,9 @@ describe('TaskDraggable — per-surface id + payload', () => {
     { surface: 'inset' as const, extras: {}, expectedId: 'inset-todo-42' },
     { surface: 'lens' as const, extras: {}, expectedId: 'lens-todo-42' },
     { surface: 'list' as const, extras: {}, expectedId: 'list-todo-42' },
-    { surface: 'taskboard-panel' as const, extras: {}, expectedId: 'tbp-42' },
-    { surface: 'taskboard-float' as const, extras: { floatingId: 7 }, expectedId: 'tb-7-42' },
     { surface: 'calendar-view' as const, extras: {}, expectedId: 'calview-todo-42' },
     { surface: 'calendar-strip' as const, extras: {}, expectedId: 'calstrip-todo-42' },
-    { surface: 'search' as const, extras: {}, expectedId: 'search-todo-42' },
+    { surface: 'list-widget' as const, extras: { scope: 't1', sectionKey: 'all' }, expectedId: 'lw|t1|all|42' },
   ])('$surface emits id $expectedId', ({ surface, extras, expectedId }) => {
     const todo = makeTodo({ id: 42 })
     let capturedAttrs: Record<string, unknown> | null = null
@@ -42,7 +40,8 @@ describe('TaskDraggable — per-surface id + payload', () => {
         <TaskDraggable
           todo={todo}
           surface={surface}
-          floatingId={(extras as { floatingId?: number }).floatingId}
+          scope={(extras as { scope?: string }).scope}
+          sectionKey={(extras as { sectionKey?: string }).sectionKey}
         >
           {({ attributes, setNodeRef }) => {
             capturedAttrs = attributes as unknown as Record<string, unknown>
@@ -61,18 +60,18 @@ describe('TaskDraggable — per-surface id + payload', () => {
     expect(wrapper).not.toBeNull()
   })
 
-  it('throws when taskboard-float surface is missing floatingId', () => {
+  it('throws when a list-widget row is missing its scope / section', () => {
     const todo = makeTodo({ id: 1 })
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() =>
       render(
         <DndContext>
-          <TaskDraggable todo={todo} surface="taskboard-float">
+          <TaskDraggable todo={todo} surface="list-widget">
             {() => <div />}
           </TaskDraggable>
         </DndContext>,
       ),
-    ).toThrow(/floatingId/)
+    ).toThrow(/scope/)
     spy.mockRestore()
   })
 })
@@ -128,9 +127,6 @@ describe('TaskDraggable — drag payload contents', () => {
 
   it('defaults drag kind to TASK_DRAG_KIND.task when `kind` is omitted', () => {
     // Smoke check: render with both explicit and implicit kind, both mount.
-    // Dispatch behavior for explicit `taskboardTask` kind is covered by
-    // dispatch-matrix tests — here we only verify the component doesn't
-    // fail compile or render under either value.
     const todo = makeTodo({ id: 5 })
     const r1 = render(
       <DndContext>
@@ -143,28 +139,26 @@ describe('TaskDraggable — drag payload contents', () => {
     cleanup()
     const r2 = render(
       <DndContext>
-        <TaskDraggable todo={todo} surface="taskboard-panel" kind={TASK_DRAG_KIND.taskboardTask}>
-          {({ setNodeRef }) => <div ref={setNodeRef} data-id="explicit-tb-kind" />}
+        <TaskDraggable todo={todo} surface="lens" kind={TASK_DRAG_KIND.task}>
+          {({ setNodeRef }) => <div ref={setNodeRef} data-id="explicit-kind" />}
         </TaskDraggable>
       </DndContext>,
     )
-    expect(r2.container.querySelector('[data-id="explicit-tb-kind"]')).not.toBeNull()
+    expect(r2.container.querySelector('[data-id="explicit-kind"]')).not.toBeNull()
   })
 })
 
 describe('SortableTaskDraggable — sortable wiring', () => {
   it.each([
-    { surface: 'canvas-project' as const, extras: {}, expectedId: 'todo-42' },
-    { surface: 'taskboard-panel' as const, extras: {}, expectedId: 'tbp-42' },
-    { surface: 'taskboard-float' as const, extras: { floatingId: 3 }, expectedId: 'tb-3-42' },
-  ])('$surface emits sortable id $expectedId', ({ surface, extras, expectedId }) => {
+    { surface: 'canvas-project' as const, expectedId: 'todo-42' },
+    { surface: 'inset' as const, expectedId: 'inset-todo-42' },
+  ])('$surface emits sortable id $expectedId', ({ surface, expectedId }) => {
     const todo = makeTodo({ id: 42 })
     render(
       <DndContext>
         <SortableTaskDraggable
           todo={todo}
           surface={surface}
-          floatingId={(extras as { floatingId?: number }).floatingId}
         >
           {({ setNodeRef, transform, transition }) => (
             <div

@@ -1,15 +1,12 @@
 import { useCallback } from 'react'
 import type { PersistedTodoItem } from '../models'
 import { useBulkActions } from './use-bulk-actions'
-import { useTaskboardStore } from '../stores/taskboard-store'
 import type { ContextMenuItem } from '../models/context-menu'
 
 interface BuildMenuItemsOpts {
   todo: PersistedTodoItem
   /** Adds the task (or the selection) to Focus / removes it, per `todo.focus`. */
   onToggleFocus: () => void
-  /** When true, the row is rendered inside a Taskboard surface — terminal "Delete" becomes "Remove from Taskboard". */
-  onTaskboard?: boolean
   onOpenDetail?: (todoId: number) => void
   onMoveToProject?: () => void
   /** Opens the follow-up popover ("Set follow-up…"). Omitted on surfaces without one. */
@@ -27,7 +24,7 @@ interface BuildMenuItemsOpts {
  * tests cover the menu shape without mounting a row.
  */
 export function buildTaskRowMenuItems({
-  todo, onToggleFocus, onTaskboard,
+  todo, onToggleFocus,
   onOpenDetail, onMoveToProject, onSetFollowup, onFollowedUp,
   onComplete, onDelete,
 }: BuildMenuItemsOpts): ContextMenuItem[] {
@@ -58,7 +55,7 @@ export function buildTaskRowMenuItems({
     }] : []),
     { label: '', action: () => {}, separator: true },
     {
-      label: onTaskboard ? 'Remove from Taskboard' : 'Delete',
+      label: 'Delete',
       action: onDelete,
       danger: true,
     },
@@ -67,22 +64,19 @@ export function buildTaskRowMenuItems({
 
 interface UseTaskRowActionsOpts {
   todo: PersistedTodoItem
-  /** When true, "Delete" on this surface removes the todo from the Taskboard instead of deleting it. */
-  onTaskboard?: boolean
 }
 
 /**
  * Bulk-aware row actions shared by `TaskRow` + `MobileTaskRow`. Routes single
  * vs multi-select through `useBulkActions` (which expands to the current
- * selection when relevant); on a Taskboard surface, delete becomes
- * `removeEntry` instead of a destructive delete confirmation.
+ * selection when relevant).
  *
  * Ghost rows (filtered-out tasks still rendered for context) are NOT gated
  * here — same right-click menu / same actions as a non-ghost row, per the
  * triage-2026-04-27-batch2 P1 decision. A ghosted task is still a real task
  * the user can complete or delete.
  */
-export function useTaskRowActions({ todo, onTaskboard }: UseTaskRowActionsOpts) {
+export function useTaskRowActions({ todo }: UseTaskRowActionsOpts) {
   const bulk = useBulkActions()
 
   const handleToggleComplete = useCallback(() => {
@@ -94,12 +88,8 @@ export function useTaskRowActions({ todo, onTaskboard }: UseTaskRowActionsOpts) 
   }, [bulk, todo.id, todo.focus])
 
   const handleDelete = useCallback(() => {
-    if (onTaskboard) {
-      void useTaskboardStore.getState().removeEntry(todo.id)
-      return
-    }
     bulk.remove(todo.id)
-  }, [bulk, todo.id, onTaskboard])
+  }, [bulk, todo.id])
 
   return { bulk, handleToggleComplete, handleToggleFocus, handleDelete }
 }

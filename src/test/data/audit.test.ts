@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import Dexie from 'dexie'
 import { db } from '../../data/database'
 import { auditData, cleanupIssues, MAX_SAMPLES_PER_ISSUE } from '../../data/audit'
+import { emptyPredicate } from '../../stores/list-definition-store'
 import { makeTodo } from '../helpers'
 
 beforeEach(async () => {
@@ -24,7 +25,11 @@ describe('auditData', () => {
     const { todoId } = await seedBase()
     const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
     await db.todoPeople.add({ todoId, personId })
-    await db.taskboards.add({ entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    const listDefinitionId = await db.listDefinitions.add({
+      name: 'Focus', sortOrder: 0, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), focus: true } },
+    })
+    await db.listOrders.add({ listDefinitionId, todoId, rank: 1 })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(0)
@@ -85,21 +90,6 @@ describe('auditData', () => {
     expect(issue.fix).toBe('delete')
   })
 
-  it('detects orphaned taskboard entries referencing deleted todos', async () => {
-    await db.taskboards.add({
-      entries: [
-        { todoId: 999, sortOrder: 0 },
-        { todoId: 888, sortOrder: 1 },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'taskboards')!
-    expect(issue.count).toBe(2)
-    expect(issue.fix).toBe('clear-field')
-  })
 
   // --- Dangling foreign keys ---
 
@@ -189,7 +179,7 @@ describe('auditData', () => {
   it('detects multiple issue types in one scan', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoTags.add({ todoId: 999, tagId: 888 })
-    await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    await db.listOrders.add({ listDefinitionId: 555, todoId: 999, rank: 1 })
     await db.todos.add(makeTodo({ projectId: 777 }) as any)
 
     const report = await auditData()
@@ -218,10 +208,10 @@ describe('auditData', () => {
 })
 
 describe('cleanupIssues', () => {
-  it('deletes orphaned join rows and strips orphaned taskboard entries', async () => {
+  it('deletes orphaned join rows and list ranks', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoTags.add({ todoId: 999, tagId: 888 })
-    const boardId = await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    await db.listOrders.add({ listDefinitionId: 555, todoId: 999, rank: 1 })
 
     const report = await auditData()
     expect(report.totalOrphans).toBe(3)
@@ -231,8 +221,7 @@ describe('cleanupIssues', () => {
 
     expect(await db.todoPeople.count()).toBe(0)
     expect(await db.todoTags.count()).toBe(0)
-    const board = await db.taskboards.get(boardId)
-    expect(board?.entries).toEqual([])
+    expect(await db.listOrders.count()).toBe(0)
   })
 
   it('clears dangling projectId on todos', async () => {
@@ -305,7 +294,7 @@ describe('cleanupIssues', () => {
     // Seed multiple types of orphans
     await db.todoPeople.add({ todoId: 999, personId: 888 })
     await db.todoTags.add({ todoId: 999, tagId: 888 })
-    await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
+    await db.listOrders.add({ listDefinitionId: 555, todoId: 999, rank: 1 })
     // No canvasId so clearing dangling projectId won't create a new unplaced-task issue
     await db.todos.add(makeTodo({ projectId: 777 }) as any)
 
@@ -352,22 +341,6 @@ describe('audit samples', () => {
     expect(issue.samples).toHaveLength(1)
     expect(issue.samples![0]!.badFields).toEqual(['projectId'])
     expect(issue.samples![0]!.row.projectId).toBe(999)
-  })
-
-  it('returns one sample per offending taskboard entry, not per board', async () => {
-    await db.taskboards.add({
-      entries: [
-        { todoId: 999, sortOrder: 0 },
-        { todoId: 888, sortOrder: 1 },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    const report = await auditData()
-    const issue = report.issues.find((i) => i.table === 'taskboards')!
-    expect(issue.samples).toHaveLength(2)
-    expect(issue.samples!.map((s) => s.row.todoId).sort()).toEqual([888, 999])
   })
 
   it('caps samples at MAX_SAMPLES_PER_ISSUE while ids covers every offender', async () => {

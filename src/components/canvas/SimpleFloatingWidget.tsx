@@ -21,9 +21,8 @@ export interface SimpleFloatingWidgetProps {
 /**
  * Shared chrome (header + body + resize-handle + kind-switch menu) for the
  * "thin" floating canvas widgets — note and status. Each ships only its
- * kind-specific body (`<NotesBody>`, `<StatusSlotContent>`). Calendar + Taskboard stay bespoke (calendar
- * threads orientation/weekOffset header meta; taskboard owns drop hit-testing
- * + collapse semantics).
+ * kind-specific body (`<NotesBody>`, `<StatusSlotContent>`). Calendar stays
+ * bespoke (it threads orientation/weekOffset header meta).
  *
  * `useFloatingWidget` is unchanged — same kind-switch / dock / close
  * plumbing the bespoke nodes already used. The shell preserves the original

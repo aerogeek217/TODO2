@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, ListInset, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, ListOrder } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, ListInset, Backup, Status, Note, FloatingCalendar, FloatingNote, FloatingStatus, Tag, TodoTag, TodoEvent, ListOrder } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
@@ -23,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 58
+export const CURRENT_DB_VERSION = 59
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -53,13 +53,11 @@ export class Todo2Database extends Dexie {
   todoPeople!: Table<TodoPerson, number>
   listInsets!: Table<ListInset, number>
   backups!: Table<Backup, number>
-  taskboards!: Table<Taskboard, number>
   statuses!: Table<Status, number>
   listDefinitions!: Table<ListDefinition, number>
   notes!: Table<Note, number>
   floatingCalendars!: Table<FloatingCalendar, number>
   floatingNotes!: Table<FloatingNote, number>
-  floatingTaskboards!: Table<FloatingTaskboard, number>
   floatingStatus!: Table<FloatingStatus, number>
   tags!: Table<Tag, number>
   todoTags!: Table<TodoTag, number>
@@ -444,12 +442,23 @@ export class Todo2Database extends Dexie {
     // v58: per-list manual order. Adds the `listOrders` table — one rank per
     // (list, task) pair, unique on the pair; nothing to transform (an empty
     // table means every task is unranked).
-    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
-    // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `58` first.
-    this.version(CURRENT_DB_VERSION)
+    this.version(58)
       .stores({
         listOrders: '++id, listDefinitionId, todoId, &[listDefinitionId+todoId]',
+      })
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, 58))
+
+    // v59: the taskboard becomes Focus. Drops the taskboard tables; the
+    // transform (`upgrades/v59-taskboard-to-focus.ts`) marks taskboard tasks
+    // `focus`, creates the "Focus" list with their order, and turns taskboard
+    // widgets into widgets of that list.
+    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
+    // what enforces the single-source-of-truth invariant (see the constant's
+    // docblock above). When bumping, turn this into a literal `59` first.
+    this.version(CURRENT_DB_VERSION)
+      .stores({
+        taskboards: null,
+        floatingTaskboards: null,
       })
       .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
@@ -488,5 +497,5 @@ export async function ensureSeededStatuses(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingStatus, db.tags, db.todoTags, db.todoEvents, db.layouts, db.listOrders] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingStatus, db.tags, db.todoTags, db.todoEvents, db.layouts, db.listOrders] as const
 

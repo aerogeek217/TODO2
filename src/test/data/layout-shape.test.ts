@@ -19,7 +19,6 @@ describe('layouts row validation', () => {
           { id: 't1', kind: 'lens', config: { listDefinitionId: 3 } },
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
           { id: 't3', kind: 'notes', config: {} },
-          { id: 't4', kind: 'taskboard', config: {} },
           { id: 't5', kind: 'status', config: {} },
         ] },
         { id: 'k2', weight: 0.5, tabs: [] },

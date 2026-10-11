@@ -32,7 +32,7 @@ function positionChange(id: string, dragging: boolean, position?: XYPosition): N
 function makeCallbacks() {
   return {
     onFloatDock: vi.fn(),
-    onTaskboardDragStop: vi.fn(),
+    onStatusDragStop: vi.fn(),
     onInsetDragStop: vi.fn(),
     onNoteDragStop: vi.fn(),
     onCalendarDragStop: vi.fn(),
@@ -95,16 +95,16 @@ describe('useFloatDragLifecycle', () => {
     expect(callbacks.onNodeDragStop).not.toHaveBeenCalled()
   })
 
-  it('routes a floating taskboard drag-end to onTaskboardDragStop', () => {
+  it('routes a floating status widget drag-end to onStatusDragStop', () => {
     const callbacks = makeCallbacks()
     const { result } = renderHook(() => useFloatDragLifecycle(callbacks))
     act(() => {
-      result.current.processBatch([positionChange('taskboard-3', true)])
+      result.current.processBatch([positionChange('status-3', true)])
     })
     act(() => {
-      result.current.processBatch([positionChange('taskboard-3', false, { x: 10, y: 20 })])
+      result.current.processBatch([positionChange('status-3', false, { x: 10, y: 20 })])
     })
-    expect(callbacks.onTaskboardDragStop).toHaveBeenCalledWith(3, 10, 20)
+    expect(callbacks.onStatusDragStop).toHaveBeenCalledWith(3, 10, 20)
   })
 
   it('publishes ui-store.floatDrag while a float is being dragged, clears on release', () => {

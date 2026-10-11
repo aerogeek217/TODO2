@@ -1,18 +1,16 @@
 import { useEffect, useMemo } from 'react'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useFloatingStatusStore } from '../stores/floating-status-store'
 import type {
   FloatingCalendar,
   FloatingNote,
   FloatingStatus,
-  FloatingTaskboard,
 } from '../models'
 
 /**
- * Per-canvas placement controller for the four placement-only floating
- * widget kinds (note / calendar / taskboard / status). Bundles
+ * Per-canvas placement controller for the three placement-only floating
+ * widget kinds (note / calendar / status). Bundles
  * `loadByCanvas` (auto-fired when `selectedCanvasId` changes), `items`,
  * the three standard handlers (drag-stop / resize / close), and `addAtPosition`
  * so `CanvasPage` doesn't repeat the 5-store-pull + 3-callback wrapper block
@@ -24,7 +22,7 @@ import type {
  *   - List inset (lens) — its `add()` takes a `listDefinitionId` and follows a
  *     different placement contract; consumers continue to pull from
  *     `useListInsetStore` directly.
- *   - Per-kind extras (taskboard `setCollapsed`, calendar `updateOrientation`/
+ *   - Per-kind extras (status `setCollapsed`, calendar `updateOrientation`/
  *     `updateWeekOffset`) — kind-specific; consumers pull from the store
  *     directly when they need them.
  */
@@ -85,20 +83,6 @@ export function useFloatingCalendarController(
     useFloatingCalendarStore((s) => s.updateSize),
     useFloatingCalendarStore((s) => s.remove),
     useFloatingCalendarStore((s) => s.add),
-    selectedCanvasId,
-  )
-}
-
-export function useFloatingTaskboardController(
-  selectedCanvasId: number | null,
-): FloatingWidgetController<FloatingTaskboard> {
-  return useController<FloatingTaskboard>(
-    useFloatingTaskboardStore((s) => s.taskboards),
-    useFloatingTaskboardStore((s) => s.loadByCanvas),
-    useFloatingTaskboardStore((s) => s.updatePosition),
-    useFloatingTaskboardStore((s) => s.updateSize),
-    useFloatingTaskboardStore((s) => s.remove),
-    useFloatingTaskboardStore((s) => s.add),
     selectedCanvasId,
   )
 }

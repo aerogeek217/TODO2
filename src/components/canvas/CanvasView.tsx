@@ -18,11 +18,10 @@ import { ProjectNode, type ProjectNodeData } from './ProjectNode'
 import { ListInsetNode, type ListInsetNodeData } from './ListInsetNode'
 import { FloatingNoteNode, type FloatingNoteNodeData } from './FloatingNoteNode'
 import { FloatingCalendarNode, type FloatingCalendarNodeData } from './FloatingCalendarNode'
-import { TaskboardNode, type TaskboardNodeData } from './TaskboardNode'
 import { FloatingStatusNode, type FloatingStatusNodeData } from './FloatingStatusNode'
 import { DragInsertContext } from './DragInsertContext'
 import { findResizeSnap, type AlignmentLine, type ScopedRect } from '../../utils/canvas/alignment'
-import type { Project, PersistedTodoItem, Person, ListInset, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Taskboard } from '../../models'
+import type { Project, PersistedTodoItem, Person, ListInset, FloatingCalendar, FloatingNote, FloatingStatus } from '../../models'
 import { useUIStore, type CanvasViewport, type FloatDragKind } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { encodeRailsDropId, RAILS_DRAG_KIND, RAILS_DRAG_TYPE, type FloatDockTarget, type RailsDragData } from '../../utils/rail-dnd'
@@ -116,7 +115,6 @@ const BoundsOverlay = memo(function BoundsOverlay({ maxExtent }: { maxExtent: nu
 const INSET_PREFIX = 'inset-'
 const NOTE_PREFIX = 'note-'
 const CALENDAR_PREFIX = 'calendar-'
-const TASKBOARD_PREFIX = 'taskboard-'
 const STATUS_PREFIX = 'status-'
 
 /** Stable no-op used as a fallback for optional callback props so that omitted
@@ -155,7 +153,6 @@ const nodeTypes: NodeTypes = {
   listInset: asNodeType(ListInsetNode),
   floatingNote: asNodeType(FloatingNoteNode),
   floatingCalendar: asNodeType(FloatingCalendarNode),
-  taskboard: asNodeType(TaskboardNode),
   floatingStatus: asNodeType(FloatingStatusNode),
 }
 
@@ -174,7 +171,7 @@ export interface InsetHandlers {
   onDeleteInset?: (id: number) => void
   onToggleCollapseInset?: (id: number) => void
   onInsetDragStop?: (id: number, x: number, y: number) => void
-  /** Opens the widget-kind picker (notes / calendar / list / taskboard). `screenX`/`screenY` anchor the menu; `flowX`/`flowY` are the canvas-space coords where the widget will be placed. */
+  /** Opens the widget-kind picker (notes / calendar / list / status). `screenX`/`screenY` anchor the menu; `flowX`/`flowY` are the canvas-space coords where the widget will be placed. */
   onRequestAddWidget?: (screenX: number, screenY: number, flowX: number, flowY: number) => void
   onResizeInset?: (id: number, width: number, height: number) => void
 }
@@ -208,12 +205,6 @@ interface CanvasViewProps {
   floatingCalendars?: FloatingCalendar[]
   floatingCalendarHandlers?: FloatingCalendarHandlers
   allPeople?: Person[]
-  floatingTaskboards?: FloatingTaskboard[]
-  taskboard?: Taskboard | null
-  onTaskboardDragStop?: (id: number, x: number, y: number) => void
-  onToggleTaskboardCollapse?: (id: number) => void
-  onCloseTaskboard?: (id: number) => void
-  onResizeTaskboard?: (id: number, width: number, height: number) => void
   floatingStatus?: FloatingStatus[]
   onStatusDragStop?: (id: number, x: number, y: number) => void
   onCloseStatus?: (id: number) => void
@@ -222,7 +213,7 @@ interface CanvasViewProps {
   showCompleted?: boolean
   /**
    * Float-dock dispatch (Phase 2 of float-dock). Invoked when a floating
-   * widget (note/calendar/inset/taskboard) is released over a rail drop zone.
+   * widget (note/calendar/inset/status) is released over a rail drop zone.
    * When present and a drop-zone is resolved, the usual position-persist path
    * is suppressed — the callback is the sole effect of the release. When
    * absent or when the pointer misses every rail hotspot, the float persists
@@ -252,12 +243,6 @@ export function CanvasView({
   floatingCalendars,
   floatingCalendarHandlers,
   allPeople,
-  floatingTaskboards,
-  taskboard,
-  onTaskboardDragStop,
-  onToggleTaskboardCollapse,
-  onCloseTaskboard,
-  onResizeTaskboard,
   floatingStatus,
   onStatusDragStop,
   onCloseStatus,
@@ -315,7 +300,6 @@ export function CanvasView({
   // calls both. Decomposed in code-review-2026-04-25 P5.
   const { draggingIds, droppedPositions, processBatch: processFloatDragBatch } = useFloatDragLifecycle({
     onFloatDock,
-    onTaskboardDragStop,
     onInsetDragStop,
     onNoteDragStop,
     onCalendarDragStop,
@@ -411,7 +395,7 @@ export function CanvasView({
 
   // Per-node data reference cache. When a node's newly-built data object is
   // shallow-equal to its prior build, we reuse the prior reference so React.memo
-  // on ProjectNode/ListInsetNode/FloatingNoteNode/TaskboardNode can short-circuit.
+  // on ProjectNode/ListInsetNode/FloatingNoteNode can short-circuit.
   // Without this, any single-project change (new `todosByProject` Map reference)
   // produces fresh `data` objects for *every* node, forcing all nodes to re-render.
   // Cache stores `unknown` because each id maps to a kind-specific data shape; the
@@ -522,33 +506,6 @@ export function CanvasView({
       }
     })
 
-    const tbNodes: Node[] = (floatingTaskboards ?? []).map((ft) => {
-      const id = `${TASKBOARD_PREFIX}${ft.id}`
-      const entries = taskboard?.entries ?? []
-      const data: TaskboardNodeData = {
-        floatingId: ft.id!,
-        entries,
-        allTodos: allTodos ?? [],
-        assignedPeopleMap,
-        ghostTodoIds,
-        showCompleted,
-        onOpenDetail,
-        isCollapsed: ft.collapsed ?? false,
-        onToggleCollapse: onToggleTaskboardCollapse ? () => onToggleTaskboardCollapse(ft.id!) : NOOP,
-        onClose: onCloseTaskboard ? () => onCloseTaskboard(ft.id!) : NOOP,
-        width: ft.width,
-        height: ft.height,
-        onResize: onResizeTaskboard ? (w, h) => onResizeTaskboard(ft.id!, w, h) : undefined,
-      }
-      return {
-        id,
-        type: 'taskboard',
-        position: { x: ft.x, y: ft.y },
-        data: stabilize(id, data),
-      }
-    })
-
-
     const statusNodes: Node[] = (floatingStatus ?? []).map((fs) => {
       const id = `${STATUS_PREFIX}${fs.id}`
       const data: FloatingStatusNodeData = {
@@ -568,7 +525,7 @@ export function CanvasView({
 
 
     nodeDataCacheRef.current = nextCache
-    return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...tbNodes, ...statusNodes]
+    return [...projectNodes, ...insetNodes, ...noteNodes, ...calendarNodes, ...statusNodes]
   }, [
     projects, todosByProject, assignedPeopleMap, ghostTodoIds,
     onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onOpenDetail,
@@ -577,7 +534,6 @@ export function CanvasView({
     floatingNotes, onDeleteNote, onResizeNote,
     floatingCalendars, onDeleteCalendar, onResizeCalendar,
     allPeople,
-    floatingTaskboards, taskboard, onToggleTaskboardCollapse, onCloseTaskboard, onResizeTaskboard,
     floatingStatus, onCloseStatus, onResizeStatus,
     showCompleted,
   ])

@@ -9,12 +9,9 @@ export {
 export {
   taskDragId,
   isTaskDragId,
-  parseTaskboardEntryId,
   projectDropId,
-  taskboardFloatDropId,
   calendarDayDropId,
   CALENDAR_VIEW_SCOPE,
-  TASKBOARD_SINGLETON_DROP_ID,
   type TaskSurfaceKey,
   type TaskDragIdExtras,
 } from './ids'
@@ -29,8 +26,5 @@ export {
 export {
   dispatchTaskDrop,
   type TaskDropDispatchDeps,
-  type TaskboardOps,
   type CalendarOps,
 } from './dispatch'
-
-export { computeSearchDropIndex } from './search-drop'

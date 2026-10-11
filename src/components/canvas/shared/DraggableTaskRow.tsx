@@ -17,8 +17,8 @@ interface DraggableTaskRowProps {
 
 /**
  * Wraps `TaskRow` with the shared `TaskDraggable` primitive so the row rides
- * the surrounding canvas `DndContext`. Extracted from `ListInsetNode` in
- * widget-taskboard-dnd P3 so the rail lens (`LensSlotContent`) can share the
+ * the surrounding canvas `DndContext`. Extracted from `ListInsetNode` so the
+ * rail lens (`LensSlotContent`) can share the
  * same draggable behavior via `ListDefinitionBody.renderRow`; Phase 4 of the
  * DnD unification moved the underlying `useDraggable` call into the shared
  * primitive.

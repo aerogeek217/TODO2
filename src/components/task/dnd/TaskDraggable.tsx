@@ -18,17 +18,11 @@ interface SharedProps {
   todo: PersistedTodoItem
   /** Which surface is rendering the row. Determines the emitted drag id. */
   surface: TaskSurfaceKey
-  /** Required when `surface === 'taskboard-float'`. Differentiates a todo
-   * rendered in multiple floating taskboard widgets on the same canvas. */
-  floatingId?: number
   /** Required when `surface === 'list-widget'`: the widget's tab id and the
    * group the row shows in (see `taskDragId`). */
   scope?: string
   sectionKey?: string
-  /** Drag data `type`. Defaults to `TASK_DRAG_KIND.task`; taskboard entries
-   * pass `TASK_DRAG_KIND.taskboardTask` so the canvas handlers can
-   * distinguish "reorder within board / remove on drop-off" from plain task
-   * drops. */
+  /** Drag data `type`. Defaults to `TASK_DRAG_KIND.task`. */
   kind?: TaskDragKind
   /** Extra fields merged into the drag data payload. `type` and `todo` are
    * always set by this component and override any same-named keys here. */
@@ -56,9 +50,8 @@ export interface TaskDraggableProps extends SharedProps {
  * Shared `useDraggable` wrapper. Owns the id + data payload shape so every
  * surface that renders a draggable task row emits identical ids (per
  * `taskDragId`) and identical `data.type` values. Extracted in Phase 4 of the
- * DnD unification — replaces the four hand-rolled per-surface wrappers
- * (`DraggableTaskRow`, `TaskList.DraggableRow`, `DashboardDraggableRow`, and
- * the taskboard sortable entries).
+ * DnD unification — replaces the hand-rolled per-surface wrappers
+ * (`DraggableTaskRow`, `TaskList.DraggableRow`, `DashboardDraggableRow`).
  *
  * Render-prop API: the caller keeps control over the wrapper DOM (classNames,
  * placeholder variants, opacity, data-* attrs) — this component only owns id
@@ -67,7 +60,6 @@ export interface TaskDraggableProps extends SharedProps {
 export function TaskDraggable({
   todo,
   surface,
-  floatingId,
   scope,
   sectionKey,
   kind,
@@ -76,7 +68,7 @@ export function TaskDraggable({
   children,
 }: TaskDraggableProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: taskDragId(surface, todo.id, { floatingId, scope, sectionKey }),
+    id: taskDragId(surface, todo.id, { scope, sectionKey }),
     data: { ...extraData, type: kind ?? TASK_DRAG_KIND.task, todo },
     disabled,
   })
@@ -90,14 +82,11 @@ export interface SortableTaskDraggableProps extends SharedProps {
 /**
  * Sortable variant of {@link TaskDraggable}. Same payload contract, wrapping
  * `useSortable` instead of `useDraggable` so the caller's surface ends up
- * inside a `SortableContext`'s reorder flow. Used by canvas project rows and
- * taskboard entries; Phase 6 extends this to the main taskboard drop path so
- * insertion index comes from dnd-kit rather than a DOM query.
+ * inside a `SortableContext`'s reorder flow. Used by canvas project rows.
  */
 export function SortableTaskDraggable({
   todo,
   surface,
-  floatingId,
   kind,
   extraData,
   disabled,
@@ -111,7 +100,7 @@ export function SortableTaskDraggable({
     transform,
     transition,
   } = useSortable({
-    id: taskDragId(surface, todo.id, { floatingId }),
+    id: taskDragId(surface, todo.id),
     data: { ...extraData, type: kind ?? TASK_DRAG_KIND.task, todo },
     disabled,
   })

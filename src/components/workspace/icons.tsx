@@ -44,12 +44,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6 8h4.5M6 10.5h4.5" />
     </>
   ),
-  taskboard: (
-    <>
-      <circle cx="8" cy="8" r="5.5" />
-      <circle cx="8" cy="8" r="1.6" fill="currentColor" />
-    </>
-  ),
   status: <path d="M3.5 13.5V10M8 13.5V6.5M12.5 13.5V3" />,
 }
 

@@ -11,7 +11,6 @@ import { useCanvasRailsStore } from '../stores/canvas-rails-store'
 import { EMPTY_RAILS } from '../models/canvas-rails'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useFloatingStatusStore } from '../stores/floating-status-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 
@@ -119,7 +118,6 @@ export function resetRailsStore(opts: { hydrated?: boolean } = {}): void {
 export function resetFloatingStores(): void {
   useFloatingNoteStore.setState({ notes: [], loading: false, error: null })
   useFloatingCalendarStore.setState({ calendars: [], loading: false, error: null })
-  useFloatingTaskboardStore.setState({ taskboards: [], loading: false, error: null })
   useFloatingStatusStore.setState({ statuses: [], loading: false, error: null })
   useListInsetStore.setState({ insets: [], loading: false, error: null })
 }
@@ -136,12 +134,21 @@ function currentStoreSpecs(): Record<string, string> {
 }
 
 /**
- * Store specs of the v57 schema: the current specs minus the `listOrders`
- * store v58 added. Update when a later version changes a store spec (add
- * back what it drops / alters, remove what it adds).
+ * Store specs of the v58 schema: the current specs plus the taskboard stores
+ * v59 dropped. Update when a later version changes a store spec (add back
+ * what it drops / alters, remove what it adds).
  */
+export function v58StoreSpecs(): Record<string, string> {
+  return {
+    ...currentStoreSpecs(),
+    taskboards: '++id',
+    floatingTaskboards: '++id, canvasId',
+  }
+}
+
+/** Store specs of the v57 schema: v58's minus the `listOrders` store v58 added. */
 export function v57StoreSpecs(): Record<string, string> {
-  const specs = currentStoreSpecs()
+  const specs = v58StoreSpecs()
   delete specs.listOrders
   return specs
 }

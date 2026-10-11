@@ -1,6 +1,6 @@
 /**
- * Permanent diagnostic infrastructure for the rail / float / taskboard /
- * calendar DnD subsystem. `?debug-dnd=1` traces the full drop path on every
+ * Permanent diagnostic infrastructure for the rail / float / calendar DnD
+ * subsystem. `?debug-dnd=1` traces the full drop path on every
  * pointer-up — source slot/tab → collision rule chosen → resolved `over.id`
  * → guard outcomes → final dispatch — so the next silent failure (the kind
  * triage P5 had to forensically diagnose) shows its mechanics in the console

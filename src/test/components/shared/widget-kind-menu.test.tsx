@@ -20,8 +20,8 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitem', { name: /List/ })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('menuitem', { name: /Calendar/ })).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /Taskboard/ })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /Open by status/ })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Taskboard/ })).toBeNull()
   })
 
   it('fires onChangeKind with the selected kind and closes', () => {
@@ -35,8 +35,8 @@ describe('WidgetKindMenu', () => {
         onClose={onClose}
       />,
     )
-    fireEvent.click(screen.getByRole('menuitem', { name: /Taskboard/ }))
-    expect(onChangeKind).toHaveBeenCalledWith('taskboard')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Calendar/ }))
+    expect(onChangeKind).toHaveBeenCalledWith('calendar')
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -64,17 +64,17 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitem', { name: /Change list/ })).toBeInTheDocument()
   })
 
-  it('does NOT show a secondary row for taskboard (singleton — nothing to pick)', () => {
+  it('does NOT show a secondary row for a kind with nothing to pick', () => {
     render(
       <WidgetKindMenu
         anchor={ANCHOR}
-        currentKind="taskboard"
+        currentKind="status"
         onChangeKind={() => {}}
         pickListForLens={() => {}}
         onClose={() => {}}
       />,
     )
-    expect(screen.queryByRole('menuitem', { name: /Change taskboard/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Change/ })).toBeNull()
   })
 
   it('closes on Escape', () => {

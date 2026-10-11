@@ -12,7 +12,6 @@ export interface FloatDragLifecycleCallbacks {
     descriptor: { kind: FloatDragKind; floatId: number },
     target: FloatDockTarget,
   ) => void
-  onTaskboardDragStop?: (id: number, x: number, y: number) => void
   onInsetDragStop?: (id: number, x: number, y: number) => void
   onNoteDragStop?: (id: number, x: number, y: number) => void
   onCalendarDragStop?: (id: number, x: number, y: number) => void
@@ -42,7 +41,7 @@ export interface FloatDragLifecycleResult {
 
 /**
  * Owns drag-session lifecycle for canvas float widgets (note / calendar /
- * lens / taskboard / status) and project nodes alike. Tracks which nodes
+ * lens / status) and project nodes alike. Tracks which nodes
  * are mid-drag, fires position-persist callbacks on release, runs the float-
  * dock hit-test (Phase 4 float-dock), and toggles the window-level pointer
  * listener around the leading/trailing edges of a float drag.
@@ -85,7 +84,6 @@ export function useFloatDragLifecycle(
 
   const {
     onFloatDock,
-    onTaskboardDragStop,
     onInsetDragStop,
     onNoteDragStop,
     onCalendarDragStop,
@@ -169,7 +167,6 @@ export function useFloatDragLifecycle(
         if (floatKind) {
           const { x, y } = change.position
           switch (floatKind.kind) {
-            case 'taskboard':       onTaskboardDragStop?.(floatKind.floatId, x, y); break
             case 'lens':            onInsetDragStop?.(floatKind.floatId, x, y); break
             case 'note':            onNoteDragStop?.(floatKind.floatId, x, y); break
             case 'calendar':        onCalendarDragStop?.(floatKind.floatId, x, y); break
@@ -273,7 +270,6 @@ export function useFloatDragLifecycle(
     return { hasActiveDrag }
   }, [
     onFloatDock,
-    onTaskboardDragStop,
     onInsetDragStop,
     onNoteDragStop,
     onCalendarDragStop,

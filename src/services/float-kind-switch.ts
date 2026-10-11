@@ -24,8 +24,7 @@ export interface FloatConversionArgs {
  * clean.
  *
  * For lens targets, resolves `listDefinitionId` from `seed` or falls back to
- * the first available list definition. Taskboard targets require no resolver
- * — the board is a singleton. Same-kind conversions are a no-op and return
+ * the first available list definition. Same-kind conversions are a no-op and return
  * the source id.
  *
  * Returns the new float's id, or `null` if conversion was aborted (e.g. no

@@ -23,12 +23,11 @@ export type DropIndicatorProps =
  * Unified drop-target feedback used by every surface that accepts task
  * drags. Three modes:
  *
- *  - **line**: thin accent bar inserted between rows (SortableTaskList,
- *    TaskboardPanel, TaskboardNode).
+ *  - **line**: thin accent bar inserted between rows (SortableTaskList).
  *  - **group**: dashed-border block sized to a multi-row drag selection
  *    (SortableTaskList's multi-select preview).
  *  - **cell**: whole-container tint + inset accent ring
- *    (CalendarView / CalendarStrip day cells, taskboard containers — applied
+ *    (CalendarView / CalendarStrip day cells — applied
  *    via {@link dropCellClassName} on an existing element so it composes
  *    with layout classes instead of wrapping the child).
  *

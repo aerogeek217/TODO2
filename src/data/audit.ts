@@ -32,7 +32,7 @@ export interface AuditIssue {
   table: string
   description: string
   count: number
-  /** IDs of rows to delete (join/taskboard orphans) or update (dangling FK) */
+  /** IDs of rows to delete (join orphans) or update (dangling FK) */
   ids: number[]
   /**
    * String keys for delete-by-key tables. Used by the unknown-setting check —
@@ -157,8 +157,8 @@ export async function auditData(): Promise<AuditReport> {
 
   const [
     todos, projects, canvases, people, statuses, tags,
-    todoPeople, todoTags, taskboards,
-    listInsets, floatingNotes, floatingCalendars, floatingTaskboards,
+    todoPeople, todoTags,
+    listInsets, floatingNotes, floatingCalendars,
     floatingStatus, todoEvents,
     settingsRows, listDefinitions, notes, listOrders,
   ] = await Promise.all([
@@ -170,11 +170,9 @@ export async function auditData(): Promise<AuditReport> {
     db.tags.toArray(),
     db.todoPeople.toArray(),
     db.todoTags.toArray(),
-    db.taskboards.toArray(),
     db.listInsets.toArray(),
     db.floatingNotes.toArray(),
     db.floatingCalendars.toArray(),
-    db.floatingTaskboards.toArray(),
     db.floatingStatus.toArray(),
     db.todoEvents.toArray(),
     db.settings.toArray(),
@@ -193,7 +191,6 @@ export async function auditData(): Promise<AuditReport> {
   // fails the per-key value validator (legacy shapes, stale formats).
   const knownTableRows: Partial<Record<string, unknown[]>> = {
     canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
-    taskboards, floatingTaskboards,
     statuses, listDefinitions, notes,
     floatingCalendars, floatingNotes, floatingStatus, todoEvents, listOrders,
   }
@@ -381,42 +378,6 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  // Entries inside each taskboard pointing at deleted todos are reported per-board
-  // (fix: 'clear-field' writes back a filtered entries list).
-  const taskboardsWithOrphanedEntries = taskboards.filter((t) =>
-    t.entries.some((e) => !todoIds.has(e.todoId)),
-  )
-  if (taskboardsWithOrphanedEntries.length > 0) {
-    // Sample shape is one row per offending entry (not per board) so the popup
-    // can show the actual stale `todoId` rather than the surrounding board.
-    const taskboardSamples: AuditSample[] = []
-    for (const board of taskboardsWithOrphanedEntries) {
-      for (const entry of board.entries) {
-        if (todoIds.has(entry.todoId)) continue
-        if (taskboardSamples.length >= MAX_SAMPLES_PER_ISSUE) break
-        taskboardSamples.push({
-          row: { taskboardId: board.id, ...toSampleRow(entry) },
-          id: board.id,
-          badFields: ['todoId'],
-          note: `todoId ${entry.todoId} not in todos (board #${board.id})`,
-        })
-      }
-      if (taskboardSamples.length >= MAX_SAMPLES_PER_ISSUE) break
-    }
-    issues.push({
-      table: 'taskboards',
-      description: 'Taskboard entries referencing deleted todos',
-      count: taskboardsWithOrphanedEntries.reduce(
-        (n, t) => n + t.entries.filter((e) => !todoIds.has(e.todoId)).length,
-        0,
-      ),
-      ids: taskboardsWithOrphanedEntries.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'entries',
-      samples: taskboardSamples,
-    })
-  }
-
   // Helper: sample a row whose single FK column points at a deleted entity.
   // The popup highlights the dangling field and notes the missing target.
   const fkSample = (
@@ -432,20 +393,6 @@ export async function auditData(): Promise<AuditReport> {
         note: `${field} ${String(obj[field])} not in ${joinTargetTable(field)}`,
       }
     })
-
-  const floatingTaskboardsWithBadCanvas = floatingTaskboards.filter(
-    (t) => !canvasIds.has(t.canvasId),
-  )
-  if (floatingTaskboardsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingTaskboards',
-      description: 'Floating taskboards referencing deleted canvases',
-      count: floatingTaskboardsWithBadCanvas.length,
-      ids: floatingTaskboardsWithBadCanvas.map((t) => t.id!),
-      fix: 'delete',
-      samples: fkSample(floatingTaskboardsWithBadCanvas, 'canvasId'),
-    })
-  }
 
   // --- Dangling foreign keys on entities ---
 
@@ -636,8 +583,6 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
   }
 
   await db.transaction('rw', db.tables, async () => {
-    // Taskboards need a special per-row entry filter rather than a blind field-clear.
-    const todoIds = new Set((await db.todos.toArray()).map((t) => t.id!))
     for (const issue of issues) {
       if (issue.fix === 'drop-store') continue
       if (issue.fix === 'delete') {
@@ -646,14 +591,6 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
           await table.bulkDelete(issue.keys)
         } else {
           await table.bulkDelete(issue.ids)
-        }
-        cleaned += issue.count
-      } else if (issue.table === 'taskboards' && issue.field === 'entries') {
-        for (const id of issue.ids) {
-          const row = await db.taskboards.get(id)
-          if (!row) continue
-          const filtered = row.entries.filter((e) => todoIds.has(e.todoId))
-          await db.taskboards.update(id, { entries: filtered, updatedAt: new Date() })
         }
         cleaned += issue.count
       } else if (issue.fix === 'clear-field' && issue.field) {

@@ -631,7 +631,6 @@ describe('validateImportData — Date revival', () => {
         }),
       ],
       notes: [{ id: 1, content: 'x', createdAt: iso, modifiedAt: iso }],
-      taskboards: [{ id: 1, entries: [], createdAt: iso, updatedAt: iso }],
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
@@ -648,8 +647,6 @@ describe('validateImportData — Date revival', () => {
       ['todos.completedAt', t1.completedAt],
       ['notes.createdAt', d.notes[0]!.createdAt],
       ['notes.modifiedAt', d.notes[0]!.modifiedAt],
-      ['taskboards.createdAt', d.taskboards[0]!.createdAt],
-      ['taskboards.updatedAt', d.taskboards[0]!.updatedAt],
     ]
     for (const [field, value] of dates) {
       expect(value instanceof Date, `${field} is a Date`).toBe(true)

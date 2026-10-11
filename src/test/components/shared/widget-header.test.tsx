@@ -6,7 +6,7 @@ import { KIND_ICON } from '../../../utils/slot-kind'
 afterEach(() => cleanup())
 
 describe('WidgetHeader', () => {
-  it.each(['lens', 'notes', 'calendar', 'taskboard'] as const)(
+  it.each(['lens', 'notes', 'calendar', 'status'] as const)(
     'renders the kind icon for %s',
     (kind) => {
       render(<WidgetHeader kind={kind} title="Title" />)

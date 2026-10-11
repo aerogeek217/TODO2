@@ -58,7 +58,7 @@ test.describe('canvas task-row context menu — ghost parity', () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' })
 
     await expect(page.getByRole('menuitem', { name: 'Mark complete' })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Add to Focus' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Move to project…' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
   })

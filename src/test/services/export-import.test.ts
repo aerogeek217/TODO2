@@ -121,7 +121,6 @@ describe('export → restore round-trip', () => {
     const personId = await db.people.add(makePerson({ id: 1 })) as number
     await db.todoPeople.add({ todoId, personId } as any)
     await db.settings.add({ key: 'themeMode', value: 'dark' })
-    await db.taskboards.add({ entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now } as any)
     await db.statuses.add({ name: 'Done', color: '#0a0', sortOrder: 0, icon: 'check' } as any)
     await db.listDefinitions.add({
       name: 'Today',
@@ -149,7 +148,6 @@ describe('export → restore round-trip', () => {
     await db.listInsets.add({ canvasId, listDefinitionId: 1, x: 0, y: 0, width: 200, height: 200, isCollapsed: false } as any)
     await db.floatingCalendars.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     await db.floatingNotes.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
-    await db.floatingTaskboards.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     await db.floatingStatus.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     const tagId = await db.tags.add({ name: 'urgent', color: '#f00' }) as number
     await db.todoTags.add({ todoId, tagId } as any)

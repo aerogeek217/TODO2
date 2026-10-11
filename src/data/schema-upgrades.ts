@@ -7,6 +7,7 @@ import { upgradeV54 } from './upgrades/v54-remove-hidden-statuses'
 import { upgradeV55 } from './upgrades/v55-merge-orgs-into-people'
 import { upgradeV56 } from './upgrades/v56-seed-workspace-layout'
 import { upgradeV57 } from './upgrades/v57-drop-list-favorites'
+import { upgradeV59 } from './upgrades/v59-taskboard-to-focus'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -71,6 +72,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [55, upgradeV55],
   [56, upgradeV56],
   [57, upgradeV57],
+  [59, upgradeV59],
 ])
 
 /**

@@ -70,9 +70,6 @@ function describeFix(issue: AuditIssue): string {
     return 'Cleanup will delete these rows.'
   }
   if (issue.fix === 'clear-field') {
-    if (issue.table === 'taskboards') {
-      return 'Cleanup will remove the dangling entries from each taskboard, leaving the rest of the board intact.'
-    }
     if (issue.field) {
       return `Cleanup will null out the "${issue.field}" field on these rows.`
     }

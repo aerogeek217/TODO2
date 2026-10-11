@@ -15,8 +15,6 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     listInsets: [],
     todoPeople: [],
     settings: [],
-    taskboards: [],
-    floatingTaskboards: [],
     statuses: [],
     listDefinitions: [],
     notes: [],
@@ -219,13 +217,6 @@ describe('restoreFromImportData', () => {
       expect(await db.people.count()).toBe(0)
     })
 
-    it('seeds an empty taskboard singleton when none imported', async () => {
-      await restoreFromImportData(makeImportData())
-
-      const boards = await db.taskboards.toArray()
-      expect(boards).toHaveLength(1)
-      expect(boards[0]!.entries).toEqual([])
-    })
   })
 
   describe('atomicity', () => {

@@ -14,7 +14,6 @@ import type { ReactFlowInstance } from '@xyflow/react'
 import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
-import { useTaskboardStore } from '../stores/taskboard-store'
 import { resolveDropTarget, resolveDropPreview, type DropContext } from '../services/drop-resolver'
 import { placeTaskAt, placeMultipleAt, shouldNormalize, normalizeSortOrders } from '../services/task-placement'
 import { bySortOrder } from '../utils/sort-order'
@@ -309,12 +308,9 @@ export function useCanvasDnD({
 
       const overData = over?.data.current
 
-      // Hovering over taskboard / calendar day — clear insert preview (those
-      // surfaces render their own drop feedback).
-      if (overData?.type === TASK_DROP_KIND.taskboard
-        || overData?.type === TASK_DROP_KIND.taskboardTask
-        || overData?.type === TASK_DROP_KIND.calendarDay
-      ) {
+      // Hovering over a calendar day — clear insert preview (the day
+      // renders its own drop feedback).
+      if (overData?.type === TASK_DROP_KIND.calendarDay) {
         setInsertTodoId(null)
         setInsertAtEnd(false)
         setInsertProjectId(null)
@@ -415,13 +411,10 @@ export function useCanvasDnD({
       const activeTodo = active.data.current?.todo as PersistedTodoItem | undefined
       if (!activeTodo) return
 
-      // Shared taskboard + calendar-day branches. Returns true when the drop
-      // was consumed (taskboard reorder/add/remove or calendar reschedule);
-      // false when no shared branch fired and we should continue into the
-      // project-placement resolver below.
+      // Shared calendar-day branch. Returns true when the drop was consumed
+      // (calendar reschedule); false when it didn't fire and we should
+      // continue into the project-placement resolver below.
       const handled = await dispatchTaskDrop(event, {
-        taskboard: useTaskboardStore.getState(),
-        multiDragIds: dragIds,
         calendar: {
           reschedule: async (todoId, date) => {
             const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)

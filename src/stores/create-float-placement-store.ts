@@ -4,9 +4,8 @@ import { clampCanvasPosition } from '../utils/canvas-bounds'
 
 /**
  * Shared shape for the floating placement-only widgets (note, calendar,
- * taskboard, status). Each row carries x/y/w/h on a canvas; widget content
- * lives elsewhere (a global note, the singleton taskboard, todo + status
- * state). list-inset has a sufficiently different shape (`add` takes
+ * status). Each row carries x/y/w/h on a canvas; widget content lives
+ * elsewhere (a global note, todo + status state). list-inset has a sufficiently different shape (`add` takes
  * `listDefinitionId` + bespoke `update`) that it's NOT factory-built — see
  * `list-inset-store.ts` directly.
  */
@@ -54,7 +53,7 @@ export interface FloatPlacementFactoryOpts<T extends FloatPlacement> {
  * Each store wires `set` + `get` from its `create<T>(...)` callback and
  * spreads the returned methods alongside its initial state, layering kind-
  * specific extension methods (calendar's `updateOrientation` /
- * `updateWeekOffset`; taskboard / status `setCollapsed`) on top.
+ * `updateWeekOffset`; status `setCollapsed`) on top.
  *
  * The `slice` opt picks the state property that holds the row list. Methods
  * read/write that property via untyped lookup against the partial-state shape
@@ -151,7 +150,7 @@ export function createFloatPlacementMethods<T extends FloatPlacement>(
 
 /**
  * Build a `setCollapsed(id, collapsed)` extension method. Used by the
- * floating-taskboard and floating-status stores; not in the base factory
+ * floating-status store; not in the base factory
  * because note + calendar don't have a collapsed flag.
  */
 export function createSetCollapsed<T extends FloatPlacement & { collapsed?: boolean }>(

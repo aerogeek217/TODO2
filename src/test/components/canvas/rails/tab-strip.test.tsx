@@ -214,7 +214,6 @@ describe('TabStrip', () => {
         { id: 's-t0', type: 'status' },
         { id: 's-t1', type: 'notes' },
         { id: 's-t2', type: 'calendar' },
-        { id: 's-t3', type: 'taskboard' },
       ],
     }
     render(
@@ -229,7 +228,6 @@ describe('TabStrip', () => {
     expect(screen.getByText('Status')).toBeInTheDocument()
     expect(screen.getByText('Notes')).toBeInTheDocument()
     expect(screen.getByText('Calendar')).toBeInTheDocument()
-    expect(screen.getByText('Taskboard')).toBeInTheDocument()
   })
 
   it('sets role=tab + id on each pill so aria-labelledby can link a tabpanel', () => {

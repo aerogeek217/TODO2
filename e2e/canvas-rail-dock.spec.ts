@@ -4,7 +4,6 @@ import {
   floatingCalendarByIndex,
   floatingStatusByIndex,
   floatingNoteByIndex,
-  floatingTaskboardByIndex,
   listInsetByIndex,
   railBySide,
   seedCanvas,
@@ -214,7 +213,7 @@ test.describe('canvas float → rail dock (P6)', () => {
  * Phase 6 per-kind dock coverage: the existing tests above exercise the
  * forward path (float → empty rail) for the `note` kind only. These extend
  * coverage to the other floating kinds — dragging a floating calendar /
- * taskboard / status / list-inset onto the empty left-side strip should
+ * status / list-inset onto the empty left-side strip should
  * dock as a new slot containing one tab of the matching type. Each test
  * mirrors the "drops a floating note onto an empty-side strip" structure;
  * we deliberately only re-cover the empty-side path because slot-body and
@@ -245,21 +244,6 @@ test.describe('canvas float → rail empty-side dock per kind (P6)', () => {
     await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)
     // Calendar-specific signal: the docked slot renders calendar-strip chrome.
     await expect(leftRail.getByRole('button', { name: 'Previous week' })).toBeVisible()
-  })
-
-  test('floating taskboard docks as a new taskboard slot', async ({ page }) => {
-    await seedCanvas(page, {
-      floatingTaskboards: [{ x: 320, y: 280, width: 280, height: 240 }],
-    })
-    await expect(floatingTaskboardByIndex(page)).toBeVisible()
-    await expect(railBySide(page, 'left')).toHaveCount(0)
-
-    await dragWidgetTo(page, floatingTaskboardByIndex(page), { x: 100, y: 400 })
-
-    await expect(floatingTaskboardByIndex(page)).toHaveCount(0)
-    const leftRail = railBySide(page, 'left')
-    await expect(leftRail).toBeVisible()
-    await expect(leftRail.locator('[data-rails-drop-id^="rails:slot:"]')).toHaveCount(1)
   })
 
   test('floating status widget docks as a new status slot', async ({ page }) => {

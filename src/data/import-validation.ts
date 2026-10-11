@@ -1,4 +1,4 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, ListInset, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, ListInset, RecurrenceRule, Status, Note, FloatingCalendar, FloatingNote, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
 import { isTodoSortBy, isTodoGroupBy, DATE_FIELD_VALUES } from '../models'
 
 export type ImportTag = Tag
@@ -366,34 +366,6 @@ function checkTodoEvent(v: unknown): CheckResult {
   ])
 }
 
-function checkTaskboardEntry(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ['todoId', isFiniteNum(v.todoId)],
-    ['sortOrder', isFiniteNum(v.sortOrder)],
-  ])
-}
-
-function checkTaskboard(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  const basic = checkFields(v, [
-    ['entries', Array.isArray(v.entries)],
-    ['createdAt', isDateLike(v.createdAt)],
-    ['updatedAt', isDateLike(v.updatedAt)],
-  ])
-  if (basic !== true) return basic
-  for (const entry of v.entries as unknown[]) {
-    const res = checkTaskboardEntry(entry)
-    if (res !== true) return `entries: ${res}`
-  }
-  return true
-}
-
-function checkFloatingTaskboard(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, checkFloatPlacementFields(v))
-}
-
 function checkLayout(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   const fields = checkFields(v, [
@@ -452,7 +424,6 @@ function validateRailsShape(parsed: unknown): true | string {
         if (typeof t.id !== 'string' || t.id.length === 0 || t.id.length > 100) return `${side}.slot.tab.id`
         if (typeof t.type !== 'string' || !SLOT_KINDS_SET.has(t.type)) return `${side}.slot.tab.type`
         if (t.listDefinitionId !== undefined && !Number.isFinite(t.listDefinitionId)) return `${side}.slot.tab.listDefinitionId`
-        if (t.taskboardId !== undefined && !Number.isFinite(t.taskboardId)) return `${side}.slot.tab.taskboardId`
       }
       if (s.flex !== undefined && !Number.isFinite(s.flex)) return `${side}.slot.flex`
       if (s.orientation !== undefined && s.orientation !== 'vertical' && s.orientation !== 'horizontal') {
@@ -678,19 +649,6 @@ function pickTodoPerson(v: Raw): AllFields<TodoPerson> {
   return { id: optNum(v.id), todoId: v.todoId as number, personId: v.personId as number } satisfies AllFields<TodoPerson>
 }
 
-function pickTaskboardEntry(v: Raw): TaskboardEntry {
-  return { todoId: v.todoId as number, sortOrder: v.sortOrder as number } satisfies AllFields<TaskboardEntry>
-}
-
-function pickTaskboard(v: Raw): AllFields<Taskboard> {
-  return {
-    id: optNum(v.id),
-    entries: ((v.entries ?? []) as Raw[]).map(pickTaskboardEntry),
-    createdAt: toDate(v.createdAt),
-    updatedAt: toDate(v.updatedAt),
-  } satisfies AllFields<Taskboard>
-}
-
 /** `id / canvasId / x / y / width / height` — shared by every floating widget row. */
 function pickFloatPlacement(v: Raw) {
   return {
@@ -701,10 +659,6 @@ function pickFloatPlacement(v: Raw) {
     width: v.width as number,
     height: v.height as number,
   }
-}
-
-function pickFloatingTaskboard(v: Raw): AllFields<FloatingTaskboard> {
-  return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingTaskboard>
 }
 
 function pickSetting(v: Raw): AllFields<SettingRow> {
@@ -806,8 +760,6 @@ export const IMPORT_ROW_PICKERS: { readonly [K in keyof ImportData]-?: (v: Raw) 
   todoTags: pickTodoTag,
   todoPeople: pickTodoPerson,
   settings: pickSetting,
-  taskboards: pickTaskboard,
-  floatingTaskboards: pickFloatingTaskboard,
   statuses: pickStatus,
   listDefinitions: pickListDefinition,
   notes: pickNote,
@@ -842,8 +794,6 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'todoTags', check: checkTodoTag },
   { key: 'todoPeople', check: checkTodoPerson },
   { key: 'settings', check: checkSetting },
-  { key: 'taskboards', check: checkTaskboard },
-  { key: 'floatingTaskboards', check: checkFloatingTaskboard },
   { key: 'statuses', check: checkStatus },
   { key: 'listDefinitions', check: checkListDefinition },
   { key: 'notes', check: checkNote },
@@ -868,8 +818,6 @@ export interface ImportData {
   todoTags?: ImportTodoTag[]
   todoPeople: TodoPerson[]
   settings: SettingRow[]
-  taskboards: Taskboard[]
-  floatingTaskboards: FloatingTaskboard[]
   statuses: Status[]
   listDefinitions: ListDefinition[]
   notes: Note[]
@@ -1038,8 +986,6 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       ...(Array.isArray(raw.todoTags) && raw.todoTags.length > 0 ? { todoTags: pickRows('todoTags', raw.todoTags) } : {}),
       todoPeople: pickRows('todoPeople', raw.todoPeople),
       settings: pickRows('settings', settingRows),
-      taskboards: pickRows('taskboards', raw.taskboards),
-      floatingTaskboards: pickRows('floatingTaskboards', raw.floatingTaskboards),
       statuses: pickRows('statuses', raw.statuses),
       listDefinitions: pickRows('listDefinitions', raw.listDefinitions),
       notes: pickRows('notes', raw.notes),

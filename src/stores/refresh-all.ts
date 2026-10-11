@@ -5,7 +5,6 @@ import { useProjectStore } from './project-store'
 import { usePersonStore } from './person-store'
 import { useStatusStore } from './status-store'
 import { useTagStore } from './tag-store'
-import { useTaskboardStore } from './taskboard-store'
 import { useNoteStore } from './note-store'
 import { useListDraftStore } from './list-draft-store'
 import { useListWidgetStore } from './list-widget-store'
@@ -14,7 +13,6 @@ import { useListOrderStore } from './list-order-store'
 import { useListInsetStore } from './list-inset-store'
 import { useFloatingNoteStore } from './floating-note-store'
 import { useFloatingCalendarStore } from './floating-calendar-store'
-import { useFloatingTaskboardStore } from './floating-taskboard-store'
 import { useFloatingStatusStore } from './floating-status-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
@@ -50,7 +48,6 @@ export async function refreshAllStores() {
     usePersonStore.getState().load(),
     useStatusStore.getState().load(),
     useTagStore.getState().load(),
-    useTaskboardStore.getState().load(),
     useNoteStore.getState().load(),
     useListDefinitionStore.getState().load(),
     useListOrderStore.getState().load(),
@@ -61,7 +58,6 @@ export async function refreshAllStores() {
       useListInsetStore.getState().loadByCanvas(canvasId),
       useFloatingNoteStore.getState().loadByCanvas(canvasId),
       useFloatingCalendarStore.getState().loadByCanvas(canvasId),
-      useFloatingTaskboardStore.getState().loadByCanvas(canvasId),
       useFloatingStatusStore.getState().loadByCanvas(canvasId),
     ] : []),
   ])

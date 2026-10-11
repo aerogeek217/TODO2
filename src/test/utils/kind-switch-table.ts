@@ -1,7 +1,6 @@
 import type { SlotKind } from '../../models/canvas-rails'
 import { useFloatingNoteStore } from '../../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
 import { useFloatingStatusStore } from '../../stores/floating-status-store'
 
 /**
@@ -11,7 +10,6 @@ import { useFloatingStatusStore } from '../../stores/floating-status-store'
 export const FLOAT_SWITCHABLE_KINDS = [
   'notes',
   'calendar',
-  'taskboard',
   'status',
 ] as const
 export type FloatSwitchableKind = (typeof FLOAT_SWITCHABLE_KINDS)[number]
@@ -31,7 +29,6 @@ export async function seedFloat(
   switch (kind) {
     case 'notes':     return useFloatingNoteStore.getState().add(canvasId, x, y)
     case 'calendar':  return useFloatingCalendarStore.getState().add(canvasId, x, y)
-    case 'taskboard': return useFloatingTaskboardStore.getState().add(canvasId, x, y)
     case 'status':    return useFloatingStatusStore.getState().add(canvasId, x, y)
   }
 }
@@ -45,13 +42,12 @@ interface FloatRow {
 }
 
 /** Reads the live row list for a float kind. Each kind's store names its
- * collection differently (`notes` / `calendars` / `taskboards` / `statuses`);
+ * collection differently (`notes` / `calendars` / `statuses`);
  * this hides the difference behind one accessor. */
 export function getFloatRows(kind: FloatSwitchableKind): FloatRow[] {
   switch (kind) {
     case 'notes':     return useFloatingNoteStore.getState().notes
     case 'calendar':  return useFloatingCalendarStore.getState().calendars
-    case 'taskboard': return useFloatingTaskboardStore.getState().taskboards
     case 'status':    return useFloatingStatusStore.getState().statuses
   }
 }
@@ -68,6 +64,6 @@ export interface SlotKindSwitchCase {
 
 export const SLOT_KIND_SWITCH_CASES: readonly SlotKindSwitchCase[] = [
   { from: 'lens', to: 'notes', expectClearListDef: true },
-  { from: 'lens', to: 'taskboard', expectClearListDef: true },
-  { from: 'notes', to: 'taskboard', expectClearListDef: false },
+  { from: 'lens', to: 'status', expectClearListDef: true },
+  { from: 'notes', to: 'status', expectClearListDef: false },
 ]

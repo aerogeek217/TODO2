@@ -6,7 +6,6 @@ import { SortableTaskList } from '../../../components/canvas/SortableTaskList'
 import { DragInsertContext, DragPreviewContext } from '../../../components/canvas/DragInsertContext'
 import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { useTaskboardStore } from '../../../stores/taskboard-store'
 import type { Status, PersistedTodoItem } from '../../../models'
 import { makeTodo, resetEntityStores } from '../../helpers'
 
@@ -35,7 +34,6 @@ const STATUSES: Status[] = [
 function resetStores() {
   resetEntityStores({ statuses: false, tags: false })
   useStatusStore.setState({ statuses: STATUSES })
-  useTaskboardStore.setState({ board: null })
   useUIStore.setState({
     selectedTodoIds: new Set(),
     focusedTodoId: null,

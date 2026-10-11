@@ -38,7 +38,7 @@ interface MobileTaskRowProps {
 // open the same popovers/pickers as `TaskRow`, and a long-press on the row
 // fires `onContextMenu` (browser-emulated on touch) to open the shared task-
 // row action menu via `buildTaskRowMenuItems`. The action menu mirrors
-// desktop including taskboard add/remove + move-to-project, so the only
+// desktop including Add to / Remove from Focus + move-to-project, so the only
 // surface that's intentionally desktop-only is the inline avatar context
 // menu (right-click on a person chip to show a filtered list) — that
 // gesture has no touch analogue.

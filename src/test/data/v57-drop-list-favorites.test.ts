@@ -151,7 +151,8 @@ describe('v57 Dexie upgrade', () => {
     expect(JSON.stringify(layouts)).not.toContain('runtimeFilterValue')
     expect((await db.listInsets.get(1))?.runtimeFilterValue).toEqual([3])
 
-    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 56, ...v56DataSet() })) as unknown)
+    // An export of the same data carries the empty taskboards table.
+    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 56, taskboards: [], ...v56DataSet() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
     expect(prepared.data.layouts).toEqual(layouts)

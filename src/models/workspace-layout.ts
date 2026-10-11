@@ -16,9 +16,9 @@
  */
 
 /** Widget kinds a tab can hold. */
-export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'taskboard' | 'status'
+export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'status'
 
-export const WIDGET_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'taskboard', 'status']
+export const WIDGET_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'status']
 
 export function isWidgetKind(v: unknown): v is WidgetKind {
   return typeof v === 'string' && (WIDGET_KINDS as readonly string[]).includes(v)
@@ -70,10 +70,9 @@ interface TabOf<K extends WidgetKind, C, V> {
 export type LensTab = TabOf<'lens', LensTabConfig, NoTabSettings>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
-export type TaskboardTab = TabOf<'taskboard', NoTabSettings, NoTabSettings>
 export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | TaskboardTab | StatusTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | StatusTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -141,7 +140,6 @@ export function createTab(kind: WidgetKind, id: string, seed: TabSeed = {}): Lay
     case 'calendar':
       return { id, kind, config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }
     case 'notes':
-    case 'taskboard':
     case 'status':
       return { id, kind, config: {} }
   }

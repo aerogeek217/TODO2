@@ -79,19 +79,6 @@ describe('buildTaskRowMenuItems — task-row + mobile parity', () => {
     expect(items.find((i) => i.label === 'Add to Focus')).toBeFalsy()
   })
 
-  it('renames terminal Delete to Remove from Taskboard when onTaskboard surface', () => {
-    const items = buildTaskRowMenuItems({
-      todo: makeTodo({ id: 1 }),
-      onToggleFocus: vi.fn(),
-      onTaskboard: true,
-      onComplete: vi.fn(),
-      onDelete: vi.fn(),
-    })
-    const last = items[items.length - 1]!
-    expect(last.label).toBe('Remove from Taskboard')
-    expect(last.danger).toBe(true)
-  })
-
   it('the Focus item invokes the supplied onToggleFocus callback', () => {
     const onToggleFocus = vi.fn()
     const items = buildTaskRowMenuItems({

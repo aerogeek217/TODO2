@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useCanvasRailsStore, createLensSlot, createSlot, createTaskboardSlot } from '../../stores/canvas-rails-store'
+import { useCanvasRailsStore, createLensSlot, createSlot } from '../../stores/canvas-rails-store'
 import { EMPTY_RAILS, getActiveTab } from '../../models/canvas-rails'
 import type { SlotKind } from '../../models/canvas-rails'
 import { SLOT_KIND_SWITCH_CASES } from '../utils/kind-switch-table'
@@ -7,7 +7,6 @@ import { resetRailsStore } from '../helpers'
 
 function seedSlot(kind: SlotKind) {
   if (kind === 'lens') return createLensSlot(42)
-  if (kind === 'taskboard') return createTaskboardSlot()
   return createSlot(kind)
 }
 
@@ -30,7 +29,7 @@ describe('canvas-rails-store.setSlotKind', () => {
   it('preserves slot id and rail position across a 3-slot rail', () => {
     const slotA = createSlot('notes')
     slotA.id = 'a'
-    const slotB = createTaskboardSlot()
+    const slotB = createSlot('status')
     slotB.id = 'b'
     const slotC = createLensSlot(99)
     slotC.id = 'c'

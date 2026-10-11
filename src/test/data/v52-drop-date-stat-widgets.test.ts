@@ -134,7 +134,8 @@ describe('v52 Dexie upgrade', () => {
       expect(backendStores).not.toContain(dropped)
     }
     expect(await db.floatingStatus.count()).toBe(1)
-    expect(await db.floatingTaskboards.count()).toBe(1)
+    // The floating taskboard is a list inset of the Focus list after v59.
+    expect(await db.listInsets.count()).toBe(1)
 
     const settings = await db.settings.orderBy('key').toArray()
     // `activeLayoutId` comes from the later v56 layout seed.

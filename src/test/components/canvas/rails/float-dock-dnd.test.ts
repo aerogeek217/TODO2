@@ -37,9 +37,9 @@ describe('tabFromFloat', () => {
     expect(t).not.toHaveProperty('weekOffset')
   })
 
-  it('maps a taskboard descriptor to a taskboard-type tab', () => {
-    const t = tabFromFloat({ kind: 'taskboard', id: 3 }, 'tab-3')
-    expect(t).toEqual({ id: 'tab-3', type: 'taskboard' })
+  it('maps a status descriptor to a status-type tab', () => {
+    const t = tabFromFloat({ kind: 'status', id: 3 }, 'tab-3')
+    expect(t).toEqual({ id: 'tab-3', type: 'status' })
   })
 
   it('maps a lens descriptor to a lens-type tab threading listDefinitionId', () => {
@@ -77,8 +77,8 @@ describe('slotFromFloat', () => {
   it('never sets orientation/weekOffset for non-calendar kinds', () => {
     const note = slotFromFloat({ kind: 'note', id: 1 }, 'slot-a', 'tab-a')
     const lens = slotFromFloat({ kind: 'lens', id: 2, listDefinitionId: 99 }, 'slot-b', 'tab-b')
-    const tb = slotFromFloat({ kind: 'taskboard', id: 3 }, 'slot-c', 'tab-c')
-    for (const s of [note, lens, tb]) {
+    const status = slotFromFloat({ kind: 'status', id: 3 }, 'slot-c', 'tab-c')
+    for (const s of [note, lens, status]) {
       expect(s.orientation).toBeUndefined()
       expect(s.weekOffset).toBeUndefined()
     }

@@ -261,11 +261,13 @@ describe('v53 Dexie upgrade', () => {
     expect(todos.find((t) => t.id === 1)!.nextFollowupAt).toEqual(new Date(2026, 9, 12))
     expect(todos.find((t) => t.id === 4)!.dueDate).toEqual(new Date(2026, 9, 5))
     const defs = await db.listDefinitions.orderBy('id').toArray()
-    expect(defs.map((d) => d.sort)).toEqual(['deadline', 'deadline', 'deadline', 'followup'])
+    // The last list is the Focus list v59 adds.
+    expect(defs.map((d) => d.sort)).toEqual(['deadline', 'deadline', 'deadline', 'followup', 'manual'])
     expect(await db.settings.get('seededFollowupStatusId')).toBeUndefined()
 
-    // A JSON copy of the same v52 data upgrades to the same rows.
-    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 52, ...v52DataSet() })) as unknown)
+    // A JSON copy of the same v52 data (an export carries the empty
+    // taskboards table) upgrades to the same rows.
+    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 52, taskboards: [], ...v52DataSet() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
     expect([...prepared.data.todos].sort((a, b) => a.id! - b.id!)).toEqual(todos)

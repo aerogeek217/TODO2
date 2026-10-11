@@ -17,8 +17,6 @@ export default defineConfig([
     'src/components/canvas/CanvasView.tsx',
     'src/components/canvas/ProjectNode.tsx',
     'src/components/canvas/SortableTaskList.tsx',
-    'src/components/canvas/TaskboardNode.tsx',
-    'src/components/taskboard/TaskboardPanel.tsx',
     'src/views/ListView.tsx',
   ]),
   {

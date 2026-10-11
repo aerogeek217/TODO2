@@ -80,9 +80,9 @@ test.describe('canvas WidgetKindMenu hover flyout (P6)', () => {
 
     // Roving tabindex: focus lands on the first menuitem; ArrowDown to the
     // secondary "Change list…" row.
-    // Item order: Edit list, lens, notes, calendar, taskboard, status,
-    // Change list… — 6 ArrowDown presses land on the Change list row.
-    for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowDown')
+    // Item order: Edit list, lens, notes, calendar, status, Change list… —
+    // 5 ArrowDown presses land on the Change list row.
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown')
     const secondary = menu.getByRole('menuitem', { name: /^Change list/ })
     await expect(secondary).toBeFocused()
 

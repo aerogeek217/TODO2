@@ -23,6 +23,14 @@ type FixtureTable = keyof typeof fixture
 /** Tables a later schema version created — the frozen v49 fixture can't have them. */
 const TABLES_ADDED_AFTER_V49: ReadonlySet<string> = new Set(['layouts', 'listOrders'])
 
+/** Id of the "Focus" list v59 creates: after the fixture's four lists. */
+const FOCUS_LIST_ID = 5
+
+/** The stored lists that came from the fixture (v59 adds the Focus list). */
+async function fixtureListDefinitions() {
+  return (await db.listDefinitions.orderBy('sortOrder').toArray()).filter((d) => d.id !== FOCUS_LIST_ID)
+}
+
 async function importFixture(): Promise<void> {
   // Deep copy so a mutating bug in the pipeline can't leak between tests.
   const raw: unknown = JSON.parse(JSON.stringify(fixture))
@@ -61,6 +69,10 @@ describe('v49 fixture → prepareImport → restore', () => {
       if (table.name === 'layouts') expected = 1
       // v55 turns the two orgs into people and their two assignments into person assignments.
       if (table.name === 'people' || table.name === 'todoPeople') expected += 2
+      // v59 adds the Focus list, ranks its two tasks, and turns the floating
+      // taskboard into a list inset.
+      if (table.name === 'listDefinitions' || table.name === 'listInsets') expected += 1
+      if (table.name === 'listOrders') expected = 2
       expect(await table.count(), `${table.name} count`).toBe(expected)
     }
   })
@@ -100,12 +112,9 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(statuses[0]).toMatchObject({ icon: 'person', color: '#8a8a8a' })
   })
 
-  it('preserves taskboard entries, list definitions with runtime filters, and list insets', async () => {
+  it('preserves list definitions with runtime filters, and list insets', async () => {
     await importFixture()
-    const [board] = await db.taskboards.toArray()
-    expect(board!.entries).toEqual([{ todoId: 6, sortOrder: 0 }, { todoId: 1, sortOrder: 1 }])
-
-    const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
+    const defs = await fixtureListDefinitions()
     expect(defs.map((d) => d.name)).toEqual(['This week', 'Someday', 'By person', 'Acme next 30 days'])
     // v57 drops the favorites flag.
     expect(defs.every((d) => !('favorited' in d))).toBe(true)
@@ -124,7 +133,6 @@ describe('v49 fixture → prepareImport → restore', () => {
     await importFixture()
     const cal = (await db.floatingCalendars.toArray()).find((c) => c.orientation === 'horizontal')
     expect(cal?.weekOffset).toBe(-1)
-    expect((await db.floatingTaskboards.toArray())[0]?.collapsed).toBe(true)
     expect((await db.floatingStatus.toArray())[0]?.collapsed).toBe(true)
     expect(await db.floatingNotes.count()).toBe(1)
     expect((await db.notes.toArray())[0]?.content).toContain('# Inbox')
@@ -169,17 +177,13 @@ describe('v49 fixture → v50: Date fields arrive as Dates', () => {
     expectDate(report.createdAt, 'report createdAt', '2026-09-02T10:00:00.000Z')
   })
 
-  it('canvases, projects, notes, taskboards carry Dates; todoEvents.timestamp stays a string', async () => {
+  it('canvases, projects, notes carry Dates; todoEvents.timestamp stays a string', async () => {
     await importFixture()
     for (const c of await db.canvases.toArray()) expectDate(c.createdAt, `canvas ${c.id} createdAt`)
     for (const p of await db.projects.toArray()) expectDate(p.createdAt, `project ${p.id} createdAt`)
     for (const n of await db.notes.toArray()) {
       expectDate(n.createdAt, `note ${n.id} createdAt`)
       expectDate(n.modifiedAt, `note ${n.id} modifiedAt`, '2026-09-15T08:00:00.000Z')
-    }
-    for (const b of await db.taskboards.toArray()) {
-      expectDate(b.createdAt, `taskboard ${b.id} createdAt`)
-      expectDate(b.updatedAt, `taskboard ${b.id} updatedAt`)
     }
     for (const e of await db.todoEvents.toArray()) expect(typeof e.timestamp).toBe('string')
   })
@@ -224,7 +228,6 @@ describe('v49 fixture → v52: removed widgets are gone, everything else intact'
     }
     // Surviving placement tables keep exactly the fixture's rows.
     expect(await db.floatingStatus.count()).toBe(fixture.floatingStatus.length)
-    expect(await db.floatingTaskboards.count()).toBe(fixture.floatingTaskboards.length)
   })
 
   it('deletes the horizonSlots / selectedHorizonDefId settings rows', async () => {
@@ -235,7 +238,7 @@ describe('v49 fixture → v52: removed widgets are gone, everything else intact'
 
   it('keeps the list definitions the horizons widget showed (ordinary lists now)', async () => {
     await importFixture()
-    const names = (await db.listDefinitions.orderBy('sortOrder').toArray()).map((d) => d.name)
+    const names = (await fixtureListDefinitions()).map((d) => d.name)
     expect(names).toEqual(fixture.listDefinitions.map((d) => d.name))
   })
 
@@ -248,9 +251,9 @@ describe('v49 fixture → v52: removed widgets are gone, everything else intact'
     expect(JSON.parse(raw)).toEqual(JSON.parse(JSON.stringify(parsed)))
 
     const rails = JSON.parse(raw)
-    // Right slot: taskboard + horizons → taskboard only.
+    // Right slot: taskboard + horizons → taskboard only (a tab of the Focus list since v59).
     expect(rails.right.slots).toHaveLength(1)
-    expect(rails.right.slots[0]).toMatchObject({ id: 's-tb', activeTabId: 't-tb', tabs: [{ id: 't-tb', type: 'taskboard' }] })
+    expect(rails.right.slots[0]).toMatchObject({ id: 's-tb', activeTabId: 't-tb', tabs: [{ id: 't-tb', type: 'lens', listDefinitionId: FOCUS_LIST_ID }] })
     // Bottom slot: status + scoreboard + snooze graveyard → status only.
     expect(rails.bottom.slots[0]).toMatchObject({ id: 's-stats', activeTabId: 't-st', tabs: [{ id: 't-st', type: 'status' }] })
     // Untouched parts survive verbatim.
@@ -276,7 +279,7 @@ describe('v49 fixture → follow-up fields: no backfill beyond the scheduled dat
 
   it('stored predicates without hasFollowup still load, and no default-interval row is invented', async () => {
     await importFixture()
-    for (const def of await db.listDefinitions.toArray()) {
+    for (const def of await fixtureListDefinitions()) {
       expect('hasFollowup' in def.membership.predicate, `${def.name} predicate`).toBe(false)
     }
     expect(await db.settings.get('followupDefaultInterval')).toBeUndefined()
@@ -399,7 +402,7 @@ describe('v49 fixture → v54: hidden statuses removed', () => {
 
   it('no status filter is invented: lists keep their own status filters, showCompleted untouched', async () => {
     await importFixture()
-    const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
+    const defs = await fixtureListDefinitions()
     expect(defs.map((d) => d.membership.predicate.statusIds)).toEqual(
       fixture.listDefinitions.map((d) => d.membership.predicate.statusIds),
     )
@@ -450,7 +453,7 @@ describe('v49 fixture → v55: orgs become Org: people', () => {
 
   it('stored predicates fold the org filter into the person filter and lose the filter modes', async () => {
     await importFixture()
-    const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
+    const defs = await fixtureListDefinitions()
     for (const d of defs) {
       const p = d.membership.predicate as unknown as Record<string, unknown>
       for (const key of ['orgIds', 'orgFilterMode', 'personFilterMode']) {
@@ -461,7 +464,7 @@ describe('v49 fixture → v55: orgs become Org: people', () => {
   })
 })
 
-// ── v56: workspace layouts (v57: list tabs save no prompt picks) ─────────
+// ── v56: workspace layouts (v57: no saved prompt picks; v59: taskboard tabs show the Focus list) ──
 
 describe('v49 fixture → v57: rails + floating widgets become the Default layout', () => {
   const canvasCreatedAt = new Date('2026-09-01T09:00:00.000Z')
@@ -495,7 +498,7 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
         // Bottom rail (no top rail); horizons / stats tabs were already removed by v52.
         { id: 'col-2', weight: 1, cells: [{ id: 's-stats', weight: 1, activeTabId: 't-st', tabs: [{ id: 't-st', kind: 'status', config: {} }] }] },
         // Right rail — collapsed on the canvas; the rail's collapse is not carried over.
-        { id: 'col-3', weight: 1, cells: [{ id: 's-tb', weight: 1, activeTabId: 't-tb', tabs: [{ id: 't-tb', kind: 'taskboard', config: {} }] }] },
+        { id: 'col-3', weight: 1, cells: [{ id: 's-tb', weight: 1, activeTabId: 't-tb', tabs: [{ id: 't-tb', kind: 'lens', config: { listDefinitionId: FOCUS_LIST_ID } }] }] },
         // Floats in canvas reading order (y, then x).
         {
           id: 'col-4', weight: 1, cells: [
@@ -510,7 +513,7 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
                 { id: 'tab-floatingCalendars-2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 0 } },
               ],
             },
-            { id: 'cell-floatingTaskboards-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingTaskboards-1', tabs: [{ id: 'tab-floatingTaskboards-1', kind: 'taskboard', config: {} }] },
+            { id: 'cell-floatingTaskboards-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingTaskboards-1', tabs: [{ id: 'tab-floatingTaskboards-1', kind: 'lens', config: { listDefinitionId: FOCUS_LIST_ID } }] },
             { id: 'cell-floatingStatus-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingStatus-1', tabs: [{ id: 'tab-floatingStatus-1', kind: 'status', config: {} }] },
             {
               id: 'cell-listInsets-1', weight: 1, activeTabId: 'tab-listInsets-1', tabs: [
@@ -531,7 +534,8 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
   it('leaves the canvas, rails and floating widgets in place', async () => {
     await importFixture()
     expect(await db.settings.get('canvasRails')).toBeDefined()
-    expect(await db.listInsets.count()).toBe(fixture.listInsets.length)
+    // Plus the inset the floating taskboard became (v59).
+    expect(await db.listInsets.count()).toBe(fixture.listInsets.length + 1)
     expect(await db.floatingCalendars.count()).toBe(fixture.floatingCalendars.length)
     expect(await db.floatingNotes.count()).toBe(fixture.floatingNotes.length)
   })
@@ -539,10 +543,62 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
 
 // ── v58: per-list manual order ───────────────────────────────────────────
 describe('v49 fixture → v58: manual lists start unranked', () => {
-  it('creates no ranks; manual lists keep their manual sort', async () => {
+  it('ranks no fixture list; manual lists keep their manual sort', async () => {
     await importFixture()
-    expect(await db.listOrders.count()).toBe(0)
-    const manual = (await db.listDefinitions.toArray()).filter((d) => d.sort === 'manual')
+    // The only ranks are the Focus list's (v59).
+    expect((await db.listOrders.toArray()).every((r) => r.listDefinitionId === FOCUS_LIST_ID)).toBe(true)
+    const manual = (await fixtureListDefinitions()).filter((d) => d.sort === 'manual')
     expect(manual.length).toBe(fixture.listDefinitions.filter((d) => (d as { sort?: unknown }).sort === 'manual').length)
+  })
+})
+
+// ── v59: the taskboard becomes Focus ─────────────────────────────────────
+describe('v49 fixture → v59: taskboard tasks are in focus, in a manually ordered Focus list', () => {
+  it('the fixture has a taskboard with two entries, a floating taskboard and a rail taskboard tab', () => {
+    expect(fixture.taskboards).toHaveLength(1)
+    expect(fixture.taskboards[0]!.entries).toEqual([{ todoId: 6, sortOrder: 0 }, { todoId: 1, sortOrder: 1 }])
+    expect(fixture.floatingTaskboards).toHaveLength(1)
+    expect(fixture.settings.find((s) => s.key === 'canvasRails')!.value).toContain('"type":"taskboard"')
+  })
+
+  it('marks exactly the taskboard tasks as in focus', async () => {
+    await importFixture()
+    const todos = await db.todos.orderBy('id').toArray()
+    expect(todos.filter((t) => t.focus === true).map((t) => t.id)).toEqual([1, 6])
+    for (const t of todos.filter((x) => x.id !== 1 && x.id !== 6)) expect('focus' in t, `todo ${t.id}`).toBe(false)
+  })
+
+  it('creates the Focus list (focus = true, manual, ungrouped) last, with ranks in taskboard order', async () => {
+    await importFixture()
+    const focus = await db.listDefinitions.get(FOCUS_LIST_ID)
+    expect(focus).toMatchObject({
+      id: FOCUS_LIST_ID, name: 'Focus', sortOrder: 4, pinnedToDashboard: true, sort: 'manual', grouping: 'none',
+    })
+    expect(focus!.membership.predicate).toMatchObject({ focus: true, showCompleted: false, personIds: null, tags: null, hasFollowup: null })
+    const ranks = (await db.listOrders.toArray()).map((r) => [r.listDefinitionId, r.todoId, r.rank])
+    expect(ranks).toEqual([[FOCUS_LIST_ID, 6, 1], [FOCUS_LIST_ID, 1, 2]])
+  })
+
+  it('drops the taskboard tables; the floating taskboard is a list inset of the Focus list', async () => {
+    await importFixture()
+    const names = db.tables.map((t) => t.name)
+    expect(names).not.toContain('taskboards')
+    expect(names).not.toContain('floatingTaskboards')
+    const inset = (await db.listInsets.toArray()).find((i) => i.listDefinitionId === FOCUS_LIST_ID)
+    expect(inset).toMatchObject({ canvasId: 1, x: 1250, y: 340, width: 300, height: 260, isCollapsed: true })
+  })
+
+  it('the upgraded data has no taskboard left anywhere and upgrading again changes nothing', () => {
+    const raw = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+    const tables: DataSet = {}
+    for (const [key, value] of Object.entries(raw)) if (Array.isArray(value)) tables[key] = value as DataSet[string]
+    const upgraded = upgradeDataSet(tables, 49, CURRENT_DB_VERSION)
+    expect('taskboards' in upgraded || 'floatingTaskboards' in upgraded).toBe(false)
+    // Ids made from the old widgets (e.g. `tab-floatingTaskboards-1`) stay; no tab is a taskboard
+    // (rail tabs sit in a JSON string, so their quotes are escaped).
+    const taskboardTab = /(kind|type)\\*":\\*"taskboard\\*"/
+    expect(JSON.stringify(tables)).toMatch(taskboardTab)
+    expect(JSON.stringify(upgraded)).not.toMatch(taskboardTab)
+    expect(upgradeDataSet(upgraded, 58, CURRENT_DB_VERSION)).toBe(upgraded)
   })
 })

@@ -4,7 +4,6 @@ import {
   floatingCalendarByIndex,
   floatingStatusByIndex,
   floatingNoteByIndex,
-  floatingTaskboardByIndex,
   listInsetByIndex,
   railBySide,
   seedCanvas,
@@ -99,35 +98,6 @@ test.describe('rail tab → canvas pop-out (T1A inverse path)', () => {
 
     await expect(floatingCalendarByIndex(page)).toBeVisible()
     await expect(tabPillByDataId(page, 'tab-cal')).toHaveCount(0)
-    await expect(tabPillByDataId(page, 'tab-notes')).toBeVisible()
-  })
-
-  test('taskboard tab pops out as a floating taskboard', async ({ page }) => {
-    await seedCanvas(page, {
-      canvasRails: {
-        left: {
-          orientation: 'vertical',
-          slots: [{
-            id: 'slot-tb',
-            tabs: [
-              { id: 'tab-tb', type: 'taskboard' },
-              { id: 'tab-notes', type: 'notes' },
-            ],
-            activeTabId: 'tab-tb',
-          }],
-        },
-        right: null,
-        top: null,
-        bottom: null,
-      },
-    })
-
-    await waitForRailHydration(page)
-    await expect(floatingTaskboardByIndex(page)).toHaveCount(0)
-    await dragTabTo(page, tabPillByDataId(page, 'tab-tb'), { x: CANVAS_DROP_X, y: CANVAS_DROP_Y })
-
-    await expect(floatingTaskboardByIndex(page)).toBeVisible()
-    await expect(tabPillByDataId(page, 'tab-tb')).toHaveCount(0)
     await expect(tabPillByDataId(page, 'tab-notes')).toBeVisible()
   })
 

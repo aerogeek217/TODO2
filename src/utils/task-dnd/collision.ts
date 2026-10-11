@@ -11,8 +11,8 @@ import { dndLog } from '../debug-flags'
  * dnd-kit collision algorithms exposed by {@link buildTaskCollision}. The
  * choice between `pointerWithin` vs. `closestCenter` matters in rails-style
  * layouts — `pointerWithin` requires the pointer to be inside the droppable,
- * which is what the canvas + dashboard-taskboard handlers rely on for the
- * "dropped outside → remove" branch. `closestCenter` always returns a hit for
+ * which drops that must land on a target (calendar days, rail zones) rely
+ * on. `closestCenter` always returns a hit for
  * row/card sortables as long as any eligible droppable exists.
  */
 export type TaskCollisionAlgorithm = 'pointerWithin' | 'closestCenter' | 'rectIntersection'
@@ -29,7 +29,7 @@ const ALGORITHMS: Record<TaskCollisionAlgorithm, CollisionDetection> = {
  * The first matching rule wins; rules are evaluated top-to-bottom.
  *
  * Each rule names its own dnd-kit algorithm so one collision function can
- * host both pointer-based drops (taskboard remove-on-drop-off) and
+ * host both pointer-based drops (calendar days, rail zones) and
  * center-based drops (card reorder) without the caller threading context.
  */
 export interface TaskCollisionRule {

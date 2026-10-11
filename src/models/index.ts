@@ -32,9 +32,6 @@ export {
   RELATIVE_DATE_TOKENS,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'
-export { type Taskboard, type PersistedTaskboard } from './taskboard'
-export { type TaskboardEntry } from './taskboard-entry'
-export { type FloatingTaskboard } from './floating-taskboard'
 export { type FloatingStatus } from './floating-status'
 export { type TodoEvent, type PersistedTodoEvent, type TodoEventType } from './todo-event'
 export { type Status, type PersistedStatus, type StatusIconKey, STATUS_ICON_KEYS, DEFAULT_STATUS_ICON } from './status'

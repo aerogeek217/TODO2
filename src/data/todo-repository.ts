@@ -216,19 +216,18 @@ export const todoRepository = {
   },
 
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.taskboards, db.listOrders], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders], async () => {
       await db.todoPeople.where('todoId').equals(id).delete()
       await db.todoTags.where('todoId').equals(id).delete()
       await db.todoEvents.where('todoId').equals(id).delete()
       await db.listOrders.where('todoId').equals(id).delete()
-      await stripTodoFromTaskboards([id])
       await db.todos.delete(id)
     })
   },
 
   async bulkDelete(ids: number[]): Promise<void> {
     if (ids.length === 0) return
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.taskboards, db.listOrders], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders], async () => {
       for (const id of ids) {
         await db.todoPeople.where('todoId').equals(id).delete()
         await db.todoTags.where('todoId').equals(id).delete()
@@ -236,7 +235,6 @@ export const todoRepository = {
         await db.listOrders.where('todoId').equals(id).delete()
         await db.todos.delete(id)
       }
-      await stripTodoFromTaskboards(ids)
     })
   },
 
@@ -275,20 +273,3 @@ export async function runNlpMetadataTransaction<T>(fn: () => Promise<T>): Promis
   return db.transaction('rw', [db.todos, db.todoPeople, db.todoEvents], fn)
 }
 
-// Full-scan is intentional: taskboards are inherently few (users rarely exceed
-// a handful) and `entries` is an array of objects, which Dexie can't index
-// directly. Adding a parallel scalar `entryTodoIds[]` index would require a
-// migration + keep-in-sync discipline on every entry mutation — cost/benefit
-// not worth it at current scale.
-export async function stripTodoFromTaskboards(todoIds: number[]): Promise<void> {
-  if (todoIds.length === 0) return
-  const remove = new Set(todoIds)
-  const boards = await db.taskboards.toArray()
-  const now = new Date()
-  for (const b of boards) {
-    const filtered = b.entries.filter((e) => !remove.has(e.todoId))
-    if (filtered.length !== b.entries.length) {
-      await db.taskboards.update(b.id!, { entries: filtered, updatedAt: now })
-    }
-  }
-}

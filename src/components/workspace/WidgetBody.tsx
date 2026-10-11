@@ -2,7 +2,6 @@ import { clampCalendarOffset, type LayoutTab } from '../../models/workspace-layo
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { CalendarSlotContent } from '../canvas/rails/CalendarSlotContent'
 import { NotesSlotContent } from '../canvas/rails/NotesSlotContent'
-import { TaskboardSlotContent } from '../canvas/rails/TaskboardSlotContent'
 import { StatusSlotContent } from '../canvas/rails/StatusSlotContent'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 
@@ -30,8 +29,6 @@ export function WidgetBody({ tab, onLensResult }: WidgetBodyProps) {
       )
     case 'notes':
       return <NotesSlotContent />
-    case 'taskboard':
-      return <TaskboardSlotContent />
     case 'status':
       return <StatusSlotContent />
   }

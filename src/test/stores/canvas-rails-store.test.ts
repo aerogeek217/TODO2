@@ -258,11 +258,11 @@ describe('canvas-rails-store', () => {
       expect(updated.tabs[1]!.listDefinitionId).toBe(42)
     })
 
-    it('addTab appends a taskboard tab (no per-tab seed — singleton board)', () => {
+    it('addTab appends a status tab (no per-tab seed)', () => {
       const slot = seedOneSlot()
-      useCanvasRailsStore.getState().addTab(slot.id, 'taskboard')
+      useCanvasRailsStore.getState().addTab(slot.id, 'status')
       const updated = useCanvasRailsStore.getState().rails.right!.slots[0]!
-      expect(updated.tabs[1]!.type).toBe('taskboard')
+      expect(updated.tabs[1]!.type).toBe('status')
     })
 
     it('activateTab switches active tab when the id exists', () => {

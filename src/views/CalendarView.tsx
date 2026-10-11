@@ -32,7 +32,6 @@ import {
   calendarDayDropId,
   dispatchTaskDrop,
 } from '../utils/task-dnd'
-import { useTaskboardStore } from '../stores/taskboard-store'
 import { StatusIcon } from '../components/shared/StatusIcon'
 import { dropCellClassName } from '../components/shared/drop-indicator-class'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
@@ -235,7 +234,6 @@ export function CalendarView() {
     // `dispatchTaskDrop` consumes calendar-day drops via the `calendar` op —
     // rescheduling runs through `buildRescheduleUpdate` in one place.
     await dispatchTaskDrop(event, {
-      taskboard: useTaskboardStore.getState(),
       calendar: {
         reschedule: async (todoId, date) => {
           const t = useTodoStore.getState().todos.find((x) => x.id === todoId)

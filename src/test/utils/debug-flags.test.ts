@@ -89,18 +89,6 @@ describe('debug-dnd wrap sites — production silence', () => {
     const kindsMod = await import('../../utils/task-dnd/kinds')
 
     const reschedule = vi.fn(async () => {})
-    const fakeTaskboard: import('../../utils/task-dnd/dispatch').TaskboardOps = {
-      board: null,
-      getEntries: () => [],
-      ensureLoaded: async () => ({
-        id: 1, entries: [], createdAt: new Date(), updatedAt: new Date(),
-      }),
-      has: () => false,
-      reorder: async () => {},
-      removeEntry: async () => {},
-      addAt: async () => {},
-      addMultipleAt: async () => {},
-    }
     // Built inline, not via `../helpers`: after `vi.resetModules()` importing
     // the helpers re-evaluates the whole store + Dexie graph, which took this
     // test to the 5 s timeout under a loaded full-suite run.
@@ -117,7 +105,7 @@ describe('debug-dnd wrap sites — production silence', () => {
       delta: { x: 0, y: 0 },
     } as unknown as import('@dnd-kit/core').DragEndEvent
 
-    await dispatchMod.dispatchTaskDrop(event, { taskboard: fakeTaskboard, calendar: { reschedule } })
+    await dispatchMod.dispatchTaskDrop(event, { calendar: { reschedule } })
 
     const debugCalls = warn.mock.calls.filter((c) => c[0] === '[debug-dnd]')
     expect(debugCalls).toHaveLength(0)

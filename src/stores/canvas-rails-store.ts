@@ -61,10 +61,6 @@ export function createSlot(kind: SlotKind, listDefinitionId?: number): Slot {
   return buildSingleTabSlot(kind, listDefinitionId)
 }
 
-export function createTaskboardSlot(): Slot {
-  return buildSingleTabSlot('taskboard')
-}
-
 /**
  * Patch applied to `updateSlot`. Slot-level fields (`flex`, `orientation`,
  * `weekOffset`) apply to the slot; tab-level fields (`listDefinitionId`)
@@ -89,8 +85,7 @@ interface CanvasRailsState {
   /**
    * Patch a slot. Slot-level fields (`flex`, `orientation`, `weekOffset`)
    * apply to the slot; tab-level fields (`listDefinitionId`) apply to the
-   * active tab. Taskboard `taskboardId` was dropped in v33 (singleton
-   * collapse) — taskboard tabs need no per-tab seed.
+   * active tab.
    */
   updateSlot: (slotId: string, patch: SlotPatch) => void
   /**

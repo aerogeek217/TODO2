@@ -133,8 +133,9 @@ describe('v54 Dexie upgrade', () => {
     const defs = await db.listDefinitions.orderBy('id').toArray()
     for (const d of defs) expect('showHiddenStatuses' in d.membership.predicate, `list ${d.id}`).toBe(false)
 
-    // A JSON copy of the same v53 data upgrades to the same rows.
-    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 53, ...v53DataSet() })) as unknown)
+    // A JSON copy of the same v53 data (an export carries the empty
+    // taskboards table) upgrades to the same rows.
+    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 53, taskboards: [], ...v53DataSet() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
     expect([...prepared.data.statuses].sort((a, b) => a.id! - b.id!)).toEqual(statuses)

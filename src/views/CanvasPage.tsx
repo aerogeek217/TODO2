@@ -19,15 +19,12 @@ import { useStatusStore } from '../stores/status-store'
 import { useFilterStore, matchesFilterWithLookups } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
-import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
-import { useTaskboardStore } from '../stores/taskboard-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import {
   useFloatingNoteController,
   useFloatingCalendarController,
-  useFloatingTaskboardController,
   useFloatingStatusController,
 } from '../hooks/use-floating-widget-controller'
 import { CanvasView } from '../components/canvas/CanvasView'
@@ -76,24 +73,16 @@ export function CanvasPage() {
   // store-pull + drag/resize/close wrappers landed here pre-P8.
   const noteController = useFloatingNoteController(selectedCanvasId)
   const calendarController = useFloatingCalendarController(selectedCanvasId)
-  const taskboardController = useFloatingTaskboardController(selectedCanvasId)
   const statusController = useFloatingStatusController(selectedCanvasId)
 
-  // Taskboard collapse is taskboard-only and lives outside the standard
-  // controller surface.
-  const setFloatingTaskboardCollapsed = useFloatingTaskboardStore((s) => s.setCollapsed)
-
-  const taskboard = useTaskboardStore((s) => s.board)
-  const loadTaskboard = useTaskboardStore((s) => s.ensureLoaded)
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
   const isProjectNavigatorOpen = useUIStore((s) => s.isProjectNavigatorOpen)
 
   useEffect(() => {
     loadPeople()
     loadTags()
-    loadTaskboard()
     loadDefinitions()
-  }, [loadPeople, loadTags, loadTaskboard, loadDefinitions])
+  }, [loadPeople, loadTags, loadDefinitions])
 
   useEffect(() => {
     if (selectedCanvasId) {
@@ -377,12 +366,6 @@ export function CanvasPage() {
         return
       }
       setAddWidgetMenuPos(null)
-      // Taskboard's body reads from the singleton `Taskboard` row — make sure
-      // it's loaded so the just-spawned float renders entries on first paint
-      // instead of flashing the empty-state.
-      if (kind === 'taskboard') {
-        await useTaskboardStore.getState().ensureLoaded()
-      }
       await floatKindBySlotKind(kind).addFloat({ canvasId: selectedCanvasId, x: flowX, y: flowY })
     },
     [selectedCanvasId, addWidgetMenuPos],
@@ -467,12 +450,6 @@ export function CanvasPage() {
     onResizeCalendar: calendarController.handlers.onResize,
   }), [calendarController.handlers])
 
-  const handleToggleTaskboardCollapse = useCallback((id: number) => {
-    const current = useFloatingTaskboardStore.getState().taskboards.find((n) => n.id === id)
-    if (!current) return
-    setFloatingTaskboardCollapsed(id, !current.collapsed)
-  }, [setFloatingTaskboardCollapsed])
-
   // showBulkConfirmation kept available for future clear-entries affordance.
   void showBulkConfirmation
 
@@ -532,7 +509,7 @@ export function CanvasPage() {
 
   // F12: rails drags and task drags share the canvas `DndContext` but route to
   // disjoint droppable sets. Rails drags match against `rails:*` zones;
-  // everything else (task / taskboard-task) matches non-rails zones.
+  // everything else (task drags) matches non-rails zones.
   const collisionDetection = useMemo(() => buildTaskCollision([
     {
       when: (active) => active.data.current?.type === RAILS_DRAG_TYPE,
@@ -577,12 +554,6 @@ export function CanvasPage() {
           floatingCalendars={calendarController.items}
           floatingCalendarHandlers={floatingCalendarHandlers}
           allPeople={people}
-          floatingTaskboards={taskboardController.items}
-          taskboard={taskboard}
-          onToggleTaskboardCollapse={handleToggleTaskboardCollapse}
-          onCloseTaskboard={taskboardController.handlers.onClose}
-          onTaskboardDragStop={taskboardController.handlers.onDragStop}
-          onResizeTaskboard={taskboardController.handlers.onResize}
           floatingStatus={statusController.items}
           onStatusDragStop={statusController.handlers.onDragStop}
           onCloseStatus={statusController.handlers.onClose}

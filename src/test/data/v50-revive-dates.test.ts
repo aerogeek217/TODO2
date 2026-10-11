@@ -142,8 +142,6 @@ describe('v50 Dexie upgrade repairs a string-dated v49 database', () => {
     expect(isDate((await db.projects.get(1))!.createdAt)).toBe(true)
     const note = (await db.notes.get(1))!
     expect(isDate(note.createdAt) && isDate(note.modifiedAt)).toBe(true)
-    const board = (await db.taskboards.get(1))!
-    expect(isDate(board.createdAt) && isDate(board.updatedAt)).toBe(true)
     expect((await db.todoEvents.get(1))!.timestamp).toBe(ISO)
 
     expect((await todoRepository.getDueToday()).map((t) => t.id)).toEqual([1])

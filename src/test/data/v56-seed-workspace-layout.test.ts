@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import Dexie from 'dexie'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { upgradeV56 } from '../../data/upgrades/v56-seed-workspace-layout'
-import { SCHEMA_UPGRADES, type DataRow, type DataSet } from '../../data/schema-upgrades'
+import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { validateImportData } from '../../data/import-validation'
 import { resetDb, v55StoreSpecs } from '../helpers'
@@ -87,13 +87,16 @@ describe('upgradeV56 (pure)', () => {
     expect(again.settings!.find((s) => s.key === 'canvasRails')).toBe(input.settings!.find((s) => s.key === 'canvasRails'))
   })
 
-  it('passes import validation', () => {
+  it('passes import validation once the later upgrades ran', () => {
     const out = upgradeV56(v55DataSet())
-    const res = validateImportData({ ...out, canvases: out.canvases })
+    // v57 drops the saved prompt picks; v59 turns the taskboard tab into a
+    // tab of the Focus list.
+    const current = upgradeDataSet({ ...out, taskboards: [] }, 56, CURRENT_DB_VERSION)
+    const res = validateImportData(current)
     if (!res.ok) throw new Error(res.error)
-    // The current model saves no prompt picks on list tabs (v57 drops them).
-    const withoutPicks = JSON.parse(JSON.stringify(out.layouts![0]!.columns).replace(',"viewState":{"runtimeFilterValue":[3]}', ''))
-    expect(res.data.layouts[0]!.columns).toEqual(withoutPicks)
+    expect(res.data.layouts[0]!.columns).toEqual(current.layouts![0]!.columns)
+    expect(JSON.stringify(res.data.layouts)).not.toContain('runtimeFilterValue')
+    expect(JSON.stringify(res.data.layouts)).not.toContain('taskboard')
   })
 
   it('no rails and no floats → an empty Default layout', () => {

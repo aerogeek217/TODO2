@@ -10,7 +10,6 @@ const PRIMARY_KINDS: { kind: SlotKind; label: string }[] = [
   { kind: 'lens', label: 'List' },
   { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
-  { kind: 'taskboard', label: 'Taskboard' },
   { kind: 'status', label: 'Open by status' },
 ]
 

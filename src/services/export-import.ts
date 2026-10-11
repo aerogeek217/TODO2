@@ -4,8 +4,8 @@ import { prepareImportText } from '../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from './migration-check'
 import type {
   TodoItem, Project, Canvas, Person, ListInset,
-  TodoPerson, Taskboard, Status, Note,
-  FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus,
+  TodoPerson, Status, Note,
+  FloatingCalendar, FloatingNote, FloatingStatus,
   Tag, TodoTag, TodoEvent, PersistedTodoItem, ListOrder,
 } from '../models'
 import type { ListDefinition } from '../models/list-definition'
@@ -30,13 +30,11 @@ export interface ExportData {
   people: Person[]
   settings: SettingRow[]
   todoPeople: TodoPerson[]
-  taskboards: Taskboard[]
   statuses: Status[]
   listDefinitions: ListDefinition[]
   notes: Note[]
   floatingCalendars: FloatingCalendar[]
   floatingNotes: FloatingNote[]
-  floatingTaskboards: FloatingTaskboard[]
   floatingStatus: FloatingStatus[]
   tags: Tag[]
   todoTags: TodoTag[]

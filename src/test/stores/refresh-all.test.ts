@@ -8,13 +8,11 @@ import { useProjectStore } from '../../stores/project-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useNoteStore } from '../../stores/note-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { useFloatingNoteStore } from '../../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
 import { useFloatingStatusStore } from '../../stores/floating-status-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
@@ -49,14 +47,12 @@ describe('refreshAllStores', () => {
       personLoad: vi.spyOn(usePersonStore.getState(), 'load'),
       statusLoad: vi.spyOn(useStatusStore.getState(), 'load'),
       tagLoad: vi.spyOn(useTagStore.getState(), 'load'),
-      taskboardLoad: vi.spyOn(useTaskboardStore.getState(), 'load'),
       noteLoad: vi.spyOn(useNoteStore.getState(), 'load'),
       listDefinitionLoad: vi.spyOn(useListDefinitionStore.getState(), 'load'),
       // Promise.all — per-canvas stores
       listInsetLoadByCanvas: vi.spyOn(useListInsetStore.getState(), 'loadByCanvas'),
       floatingNoteLoadByCanvas: vi.spyOn(useFloatingNoteStore.getState(), 'loadByCanvas'),
       floatingCalendarLoadByCanvas: vi.spyOn(useFloatingCalendarStore.getState(), 'loadByCanvas'),
-      floatingTaskboardLoadByCanvas: vi.spyOn(useFloatingTaskboardStore.getState(), 'loadByCanvas'),
       floatingStatusLoadByCanvas: vi.spyOn(useFloatingStatusStore.getState(), 'loadByCanvas'),
       // Post-todos assignment loaders
       personLoadAssignments: vi.spyOn(usePersonStore.getState(), 'loadAssignments'),

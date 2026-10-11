@@ -152,7 +152,6 @@ const KIND_DISPLAY: Record<SlotKind, string> = {
   lens: 'List',
   notes: 'Notes',
   calendar: 'Calendar',
-  taskboard: 'Taskboard',
   status: 'Status',
 }
 

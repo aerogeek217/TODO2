@@ -15,7 +15,6 @@ import { LensSlotContent } from './LensSlotContent'
 import { CalendarSlotContent } from './CalendarSlotContent'
 import { CalendarOrientationToggle } from './calendar/CalendarOrientationToggle'
 import { NotesSlotContent } from './NotesSlotContent'
-import { TaskboardSlotContent } from './TaskboardSlotContent'
 import { StatusSlotContent } from './StatusSlotContent'
 import { SlotMenu } from './SlotMenu'
 import { WidgetKindMenu } from '../../shared/WidgetKindMenu'
@@ -204,8 +203,6 @@ export function SlotRenderer({ slot, fromSide, isFirstSlot = false }: SlotRender
     )
   } else if (activeTab.type === 'notes') {
     body = <NotesSlotContent />
-  } else if (activeTab.type === 'taskboard') {
-    body = <TaskboardSlotContent />
   } else if (activeTab.type === 'status') {
     body = <StatusSlotContent />
   } else {

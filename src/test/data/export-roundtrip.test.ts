@@ -99,18 +99,13 @@ function buildSeed(): Seed {
       { key: 'color.dark.accent', value: '#4f8cff' },
       { key: 'activeLayoutId', value: '2' },
     ],
-    taskboards: [{
-      id: 1, entries: [{ todoId: 2, sortOrder: 0 }, { todoId: 1, sortOrder: 1 }],
-      createdAt: at('2026-09-01T09:00:00.000Z'), updatedAt: at('2026-09-15T08:00:00.000Z'),
-    }],
-    floatingTaskboards: [{ id: 1, canvasId: 1, x: 1, y: 2, width: 300, height: 400, collapsed: true }],
     statuses: [
       { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person' },
       { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble' },
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true, focus: true } },
       sort: 'followup', grouping: 'followup', pinnedToDashboard: false,
     }, {
       id: 1, name: 'By person', sortOrder: 0,
@@ -141,7 +136,7 @@ function buildSeed(): Seed {
                   { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'month', offset: -2 } },
                 ],
               },
-              { id: 'k2', weight: 1, collapsed: true, tabs: [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'taskboard', config: {} }] },
+              { id: 'k2', weight: 1, collapsed: true, tabs: [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }] },
             ],
           },
           {
@@ -219,13 +214,12 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
-    expect(seed.taskboards.some((b) => b.entries.length > 0)).toBe(true)
     const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))
     const tabs = cells.flatMap((c) => c.tabs)
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)
     expect(cells.some((c) => c.collapsed === true)).toBe(true)
     expect(cells.some((c) => c.tabs.length === 0)).toBe(true)
-    expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(['lens', 'calendar', 'notes', 'taskboard', 'status']))
+    expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(['lens', 'calendar', 'notes', 'status']))
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
   })

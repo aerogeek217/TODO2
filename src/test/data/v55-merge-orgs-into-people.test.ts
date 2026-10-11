@@ -268,8 +268,9 @@ describe('v55 Dexie upgrade', () => {
     const defs = await db.listDefinitions.orderBy('id').toArray()
     const insets = await db.listInsets.orderBy('id').toArray()
 
-    // A JSON copy of the same v54 data upgrades to the same rows.
-    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 54, ...v54DataSet() })) as unknown)
+    // A JSON copy of the same v54 data (an export carries the empty
+    // taskboards table) upgrades to the same rows.
+    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 54, taskboards: [], ...v54DataSet() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
     expect([...prepared.data.people].sort((a, b) => a.id! - b.id!)).toEqual(people)

@@ -2,7 +2,6 @@ import type { Table } from 'dexie'
 import { db, ensureSeededStatuses } from './database'
 import type { ImportData } from './import-validation'
 import { prepareImportText } from './import-pipeline'
-import type { Taskboard } from '../models'
 
 /**
  * Restricts to keys whose value type is an array. The bulk-add dispatch only
@@ -49,7 +48,6 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
   bulkAddPair('people', db.people),
   bulkAddPair('settings', db.settings),
   bulkAddPair('todoPeople', db.todoPeople),
-  bulkAddPair('floatingTaskboards', db.floatingTaskboards),
   bulkAddPair('statuses', db.statuses),
   bulkAddPair('listDefinitions', db.listDefinitions),
   bulkAddPair('floatingCalendars', db.floatingCalendars),
@@ -63,19 +61,17 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
 ]
 
 /**
- * Clear all data tables and bulk-add validated rows verbatim. The taskboards
- * table is a singleton — if no row is imported, seed an empty one. After the
+ * Clear all data tables and bulk-add validated rows verbatim. After the
  * bulk pass, `ensureSeededStatuses` fills in the seeded statuses if the
  * imported data lacks them. List definitions are not seeded — an import with
  * none restores with none.
  */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
-  const tables = TABLE_KEY_PAIRS.map((p) => p.table).concat([db.listInsets, db.notes, db.taskboards])
+  const tables = TABLE_KEY_PAIRS.map((p) => p.table).concat([db.listInsets, db.notes])
   await db.transaction('rw', tables, async () => {
     for (const p of TABLE_KEY_PAIRS) await p.table.clear()
     await db.listInsets.clear()
     await db.notes.clear()
-    await db.taskboards.clear()
 
     for (const p of TABLE_KEY_PAIRS) {
       await p.bulkAddIfPresent(v)
@@ -87,17 +83,6 @@ export async function restoreFromImportData(v: ImportData): Promise<void> {
 
     if (v.notes.length > 0) {
       await db.notes.bulkAdd(v.notes)
-    }
-
-    if (v.taskboards.length > 0) {
-      await db.taskboards.bulkAdd(v.taskboards)
-    } else {
-      const now = new Date()
-      await db.taskboards.add({
-        entries: [],
-        createdAt: now,
-        updatedAt: now,
-      } as Taskboard)
     }
 
     await ensureSeededStatuses(db.statuses, db.settings)

@@ -128,8 +128,6 @@ function pickTab(raw: Obj): LayoutTab {
     }
     case 'notes':
       return { id, kind: 'notes', config: {} }
-    case 'taskboard':
-      return { id, kind: 'taskboard', config: {} }
     default:
       return { id, kind: 'status', config: {} }
   }

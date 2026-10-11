@@ -99,27 +99,27 @@ describe('dev seed → prepareImport → restore', () => {
       todos: count('todos'),
       projects: 5,
       canvases: 1,
-      listInsets: count('listInsets'),
+      // v59: the floating taskboard becomes a list inset of the Focus list.
+      listInsets: count('listInsets') + count('floatingTaskboards'),
       // v55: each org becomes a person; org assignments become person assignments.
       people: count('people') + count('orgs'),
       todoPeople: count('todoPeople') + count('todoOrgs'),
       // v52 drops the two horizons rows, v53 the follow-up pointer and the scheduled color;
       // v53 adds an explicit quickStatusId, v56 activeLayoutId.
       settings: count('settings') - 4 + 2,
-      taskboards: 1,
       statuses: count('statuses'),
-      listDefinitions: count('listDefinitions'),
+      // v59 adds the Focus list.
+      listDefinitions: count('listDefinitions') + 1,
       notes: 1,
       floatingCalendars: count('floatingCalendars'),
       floatingNotes: count('floatingNotes'),
-      floatingTaskboards: count('floatingTaskboards'),
       floatingStatus: count('floatingStatus'),
       tags: count('tags'),
       todoTags: count('todoTags'),
       todoEvents: count('todoEvents'),
       layouts: 1,
-      // v58: no list has a manual order yet.
-      listOrders: 0,
+      // v59: the Focus list is ordered like the taskboard was.
+      listOrders: rows(seed, 'taskboards').flatMap((b) => b.entries as unknown[]).length,
     }
     for (const table of ALL_DATA_TABLES) {
       expect(await table.count(), `${table.name} count`).toBe(expected[table.name])
@@ -162,6 +162,24 @@ describe('dev seed → prepareImport → restore', () => {
       .toEqual(seed.orgs.map((o) => `Org: ${String(o.name)}`).sort())
     const lists = await db.listDefinitions.toArray()
     expect(lists.find((l) => l.name === 'By client')?.runtimeFilter).toEqual({ field: 'person', label: 'Client' })
+  })
+
+  it('turns the taskboard into in-focus tasks in the Focus list, in board order', async () => {
+    const seed = seedFor()
+    await importSeed(seed)
+    const boardIds = rows(seed, 'taskboards').flatMap((b) => (b.entries as Array<{ todoId: number }>).map((e) => e.todoId))
+    expect(boardIds.length).toBeGreaterThan(0)
+    const todos = await db.todos.toArray()
+    expect(todos.filter((t) => t.focus).map((t) => t.id).sort((a, b) => a - b)).toEqual([...boardIds].sort((a, b) => a - b))
+    const focus = (await db.listDefinitions.toArray()).find((l) => l.name === 'Focus')!
+    expect(focus).toMatchObject({ sort: 'manual', grouping: 'none' })
+    expect(focus.membership.predicate.focus).toBe(true)
+    const ranks = (await db.listOrders.where('listDefinitionId').equals(focus.id!).toArray()).sort((a, b) => a.rank - b.rank)
+    expect(ranks.map((r) => r.todoId)).toEqual(boardIds)
+    // The rail taskboard tab shows the Focus list now.
+    const layout = (await db.layouts.toArray())[0]!
+    const boardCell = layout.columns.flatMap((c) => c.cells).find((c) => c.id === 's-board')!
+    expect(boardCell.tabs[0]).toEqual({ id: 't-board', kind: 'lens', config: { listDefinitionId: focus.id } })
   })
 
   it('produces the Default workspace layout from the rails and floating widgets', async () => {

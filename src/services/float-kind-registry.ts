@@ -2,10 +2,8 @@ import type { SlotKind } from '../models/canvas-rails'
 import type { FloatDragKind } from '../stores/ui-store'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
-import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useFloatingStatusStore } from '../stores/floating-status-store'
 import { useListInsetStore } from '../stores/list-inset-store'
-import { useTaskboardStore } from '../stores/taskboard-store'
 import { listInsetRepository } from '../data'
 import { FLOAT_DEFAULT_RECTS } from './float-default-rects'
 import type { FloatDescriptor } from '../utils/rail-dnd'
@@ -47,8 +45,8 @@ export interface FloatKindEntry {
   /**
    * Build a `FloatDescriptor` for `handleFloatDock`. Reads kind-specific fields
    * from the appropriate store (calendar threads `orientation` / `weekOffset`;
-   * lens threads `listDefinitionId`; taskboard awaits `ensureLoaded`). Returns
-   * `null` when the source row can't be resolved (e.g. taskboard load failed).
+   * lens threads `listDefinitionId`). Returns `null` when the source row can't
+   * be resolved.
    */
   buildDescriptor: (floatId: number) => Promise<FloatDescriptor | null>
 }
@@ -112,25 +110,6 @@ export const FLOAT_KIND_REGISTRY: readonly FloatKindEntry[] = [
         orientation: cal.orientation,
         weekOffset: cal.weekOffset,
       }
-    },
-  },
-  {
-    slotKind: 'taskboard',
-    floatDragKind: 'taskboard',
-    domPrefix: 'taskboard-',
-    label: 'taskboard',
-    defaultRect: FLOAT_DEFAULT_RECTS.taskboard,
-    remove: (id) => useFloatingTaskboardStore.getState().remove(id),
-    addFloat: ({ canvasId, x, y }) => useFloatingTaskboardStore.getState().add(canvasId, x, y),
-    setSize: (id, width, height) => useFloatingTaskboardStore.getState().updateSize(id, width, height),
-    buildDescriptor: async (floatId) => {
-      await useTaskboardStore.getState().ensureLoaded()
-      const board = useTaskboardStore.getState().board
-      if (!board?.id) {
-        console.warn('floatKindRegistry: taskboard still unavailable after ensureLoaded')
-        return null
-      }
-      return { kind: 'taskboard', id: floatId }
     },
   },
   {

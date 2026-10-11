@@ -161,8 +161,8 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
     'rails:tab-strip:s-2',
     'rails:empty-side:left',
     'project-drop-1',
-    'dashboard-taskboard-drop',
-    'taskboard-drop-77',
+    'calday-view-0',
+    'calday-strip-77',
   ]
 
   it('rails drag sees only rails droppables', () => {
@@ -191,7 +191,7 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
       'rails:tab-strip:s-2',
       'rails:empty-side:left',
     ]
-    const mixedWithTaskZones = [...railsOnly, 'project-drop-1', 'taskboard-drop-77']
+    const mixedWithTaskZones = [...railsOnly, 'project-drop-1', 'calday-strip-77']
     railsFirstThenTasks(callArgs(mixedWithTaskZones, {
       id: 'rails-active',
       data: { current: { type: RAILS_DRAG_TYPE, kind: 'tab', slotId: 's-1', tabId: 't-1' } },
@@ -211,17 +211,8 @@ describe('buildTaskCollision — F12 rails / task isolation', () => {
     const seen = pointerWithinSpy.mock.calls[0]![0].droppableContainers.map((c: DroppableContainer) => c.id)
     expect(seen).toEqual([
       'project-drop-1',
-      'dashboard-taskboard-drop',
-      'taskboard-drop-77',
+      'calday-view-0',
+      'calday-strip-77',
     ])
-  })
-
-  it('taskboard-task drag is routed like a task drag (never into rails zones)', () => {
-    railsFirstThenTasks(callArgs(mixed, {
-      id: 'tbp-1',
-      data: { current: { type: TASK_DRAG_KIND.taskboardTask } },
-    }))
-    const seen = pointerWithinSpy.mock.calls[0]![0].droppableContainers.map((c: DroppableContainer) => c.id)
-    expect(seen.every((id: string) => !isRailsDropId(String(id)))).toBe(true)
   })
 })

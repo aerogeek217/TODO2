@@ -10,7 +10,7 @@ import { FLOAT_DEFAULT_RECTS } from '../services/float-default-rects'
 
 /**
  * Placement-only widgets that render the open-tasks-by-status stat widget.
- * Parallels `useFloatingHorizonsStore` / `useFloatingTaskboardStore`: widget
+ * Parallels `useFloatingNoteStore` / `useFloatingCalendarStore`: widget
  * content is derived from todo + status state; this store only tracks
  * x/y/w/h + collapse.
  */

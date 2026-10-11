@@ -46,7 +46,7 @@ export interface CanvasViewport {
  * distinguish the floating list row's drag id from a rail-docked list row's
  * — those are distinct surfaces and live in `utils/task-dnd/ids.ts`.
  */
-export type FloatDragKind = 'note' | 'calendar' | 'lens' | 'taskboard' | 'status'
+export type FloatDragKind = 'note' | 'calendar' | 'lens' | 'status'
 
 export interface FloatDragState {
   kind: FloatDragKind
@@ -89,8 +89,6 @@ interface UIState {
   filterSheetFocusSearch: boolean
   /** Project navigator panel open state */
   isProjectNavigatorOpen: boolean
-  /** Taskboard panel open state */
-  isTaskboardOpen: boolean
   /**
    * Lists editor (`DashboardListsEditor`) open state. Owned here so any
    * component (canvas list widget's kind menu, rail lens slot, etc.) can
@@ -147,7 +145,7 @@ interface UIState {
   /**
    * Most recently created task — drives the transient `RecentTaskPill`
    * overlay. The pill renders for ~5s after creation so the user can click
-   * to open the editor or one-click add it to the taskboard before it fades.
+   * to open the editor or one-click put it in focus before it fades.
    * `key` is a fresh value (Date.now) so React can remount the pill — and
    * restart its CSS animation — when a new task is created while the
    * previous pill is still visible.
@@ -184,7 +182,6 @@ interface UIState {
   /** Opens the mobile filter sheet with its search box focused. */
   openFilterSheetSearch: () => void
   toggleProjectNavigator: () => void
-  toggleTaskboard: () => void
   setFloatDrag: (next: FloatDragState | null) => void
   setFloatAnnouncement: (text: string) => void
   openListsEditor: (initialId?: number | null) => void
@@ -221,7 +218,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
   isProjectNavigatorOpen: false,
-  isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
   listsEditorOpen: false,
   listsEditorInitialId: null,
   listEditorDialogId: null,
@@ -375,12 +371,6 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   toggleProjectNavigator() {
     set({ isProjectNavigatorOpen: !get().isProjectNavigatorOpen })
-  },
-
-  toggleTaskboard() {
-    const next = !get().isTaskboardOpen
-    localStorage.setItem('taskboardOpen', String(next))
-    set({ isTaskboardOpen: next })
   },
 
   setFloatDrag(next) {

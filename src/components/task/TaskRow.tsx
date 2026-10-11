@@ -38,13 +38,11 @@ interface TaskRowProps {
   cut?: boolean
   /** Render an `in <project>` sub-line under the title (rail lens / search). */
   showContext?: boolean
-  /** When true, the row is rendered inside a Taskboard surface. Delete removes the task from the board instead of deleting it. */
-  onTaskboard?: boolean
 }
 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
-  onSelect, onOpenDetail, cut, showContext, onTaskboard,
+  onSelect, onOpenDetail, cut, showContext,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
@@ -82,7 +80,7 @@ export const TaskRow = memo(function TaskRow({
 
 
   // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
-  const { bulk, handleToggleComplete, handleToggleFocus, handleDelete } = useTaskRowActions({ todo, onTaskboard })
+  const { bulk, handleToggleComplete, handleToggleFocus, handleDelete } = useTaskRowActions({ todo })
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
@@ -454,7 +452,6 @@ export const TaskRow = memo(function TaskRow({
           items={buildTaskRowMenuItems({
             todo,
             onToggleFocus: handleToggleFocus,
-            onTaskboard,
             onOpenDetail,
             onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
             onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),

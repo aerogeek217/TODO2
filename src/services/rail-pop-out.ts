@@ -1,7 +1,6 @@
 import { useCanvasStore } from '../stores/canvas-store'
 import { useFloatingCalendarStore } from '../stores/floating-calendar-store'
 import { useFloatingNoteStore } from '../stores/floating-note-store'
-import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
 import { useFloatingStatusStore } from '../stores/floating-status-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useSettingsStore } from '../stores/settings-store'
@@ -59,10 +58,6 @@ export async function popTabAtPosition(
       orientation: init?.orientation,
       weekOffset: init?.weekOffset,
     })
-    return true
-  }
-  if (tab.type === 'taskboard') {
-    await useFloatingTaskboardStore.getState().add(canvasId, x, y)
     return true
   }
   if (tab.type === 'status') {

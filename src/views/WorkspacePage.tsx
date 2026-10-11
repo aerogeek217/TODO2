@@ -18,7 +18,6 @@ import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useProjectStore } from '../stores/project-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useTaskboardStore } from '../stores/taskboard-store'
 import { useUIStore } from '../stores/ui-store'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import { buildTaskCollision, dispatchTaskDrop } from '../utils/task-dnd'
@@ -65,7 +64,7 @@ const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, transform, 
 /**
  * Loads everything the workspace's widgets read, whatever route the app was
  * opened on: all tasks (not one canvas's), people, tags, statuses, projects,
- * saved lists, the taskboard — and the people / tag assignments of the
+ * saved lists — and the people / tag assignments of the
  * loaded tasks, so chips and person / tag groups render on a cold load.
  */
 function useWorkspaceData(): void {
@@ -77,7 +76,6 @@ function useWorkspaceData(): void {
     void useTagStore.getState().ensureLoaded()
     void useStatusStore.getState().ensureLoaded()
     void useListDefinitionStore.getState().ensureLoaded()
-    void useTaskboardStore.getState().ensureLoaded()
   }, [])
   useEntityAssignmentsForTodos(todos)
 }
@@ -211,8 +209,8 @@ export function WorkspacePage() {
   const sensors = isMobile ? NO_SENSORS : pointerSensors
 
   // Tab drags find their target from pointer geometry, not dnd-kit
-  // droppables; task drags match the widgets' droppables (calendar days,
-  // the taskboard) under the pointer.
+  // droppables; task drags match the widgets' droppables (calendar days)
+  // under the pointer.
   const collisionDetection = useMemo(() => buildTaskCollision([
     { when: (active) => active.data.current?.type === WORKSPACE_TAB_DRAG, accept: () => false, algorithm: 'pointerWithin' },
     { when: () => true, accept: () => true, algorithm: 'pointerWithin' },
@@ -231,7 +229,6 @@ export function WorkspacePage() {
     }
     setActiveDragTodo(null)
     await dispatchTaskDrop(event, {
-      taskboard: useTaskboardStore.getState(),
       calendar: {
         reschedule: async (todoId, date) => {
           const t = useTodoStore.getState().todos.find((x) => x.id === todoId)
