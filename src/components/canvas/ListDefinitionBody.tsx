@@ -1,17 +1,10 @@
-import { Fragment, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, type ReactNode } from 'react'
 import type { PersistedTodoItem, Person } from '../../models'
-import { createPredicateEvaluator } from '../../stores/filter-store'
-import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useProjectStore } from '../../stores/project-store'
-import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
-import { useSettingsStore } from '../../stores/settings-store'
-import { applyRuntimeFilter, buildDashboardLists, type DashboardList } from '../../services/dashboard-lists'
 import { predicateToFilterDefaults } from '../../utils/filter-defaults'
-import { useToday } from '../../hooks/use-today'
+import { useBuiltList } from '../../hooks/use-built-list'
 import { TaskRow } from '../task/TaskRow'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
 import groupStyles from './ListDefinitionBody.module.css'
@@ -59,10 +52,9 @@ interface ListDefinitionBodyProps {
 
 /**
  * Shared body for `ListInsetNode` (canvas) and `LensSlotContent` (rails).
- * Reads the membership stores, runs the definition through
- * `buildDashboardLists` (sections from the shared `buildListSections`), and
- * renders its sections — or a flat list when ungrouped — via `renderRow` (or a
- * plain `<TaskRow>` by default). `onResult` reports `{name, count}` so callers can
+ * Runs the definition through `useBuiltList` (sections from the shared
+ * `buildListSections`) and renders its sections — or a flat list when
+ * ungrouped — via `renderRow` (or a plain `<TaskRow>` by default). `onResult` reports `{name, count}` so callers can
  * drive their title chrome without rebuilding the pipeline.
  */
 export function ListDefinitionBody({
@@ -77,63 +69,12 @@ export function ListDefinitionBody({
   onRuntimeFilterChange,
   showAddTask,
 }: ListDefinitionBodyProps) {
-  const statuses = useStatusStore((s) => s.statuses)
   const definition = useListDefinitionStore((s) =>
     listDefinitionId != null ? s.listDefinitions.find((d) => d.id === listDefinitionId) : undefined,
   )
-  const todos = useTodoStore((s) => s.todos)
-  const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const projects = useProjectStore((s) => s.projects)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-
-  // Tag filter predicate clauses read via `assignedTagsMap`; make sure the
-  // map is populated for the current todo corpus. Mirrors people loads
-  // in `CanvasPage` for the filter-store path.
-  useEffect(() => {
-    if (todos.length === 0) return
-    loadTagAssignments(todos.map((t) => t.id))
-  }, [todos, loadTagAssignments])
-
-  // Date-sensitive predicates roll at midnight.
-  const today = useToday()
-
-  const runtimeFilterPending = definition?.runtimeFilter != null && runtimeFilterValue == null
-
-  const builtList = useMemo<DashboardList | null>(() => {
-    if (!definition) return null
-    if (runtimeFilterPending) return null
-    // Same lookups as the list page, so a predicate's search text also hits
-    // person / status / tag / project names.
-    const evalPredicate = createPredicateEvaluator({
-      assignedPeopleMap,
-      assignedTagsMap,
-      statusesById: new Map(statuses.map((st) => [st.id!, st])),
-      projectsById: new Map(projects.map((p) => [p.id!, p])),
-    }, today)
-    const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
-      ? new Map<number, number[]>([[definition.id, runtimeFilterValue]])
-      : undefined
-    const [list] = buildDashboardLists([definition], todos, {
-      today,
-      weekStartsOn,
-      evalPredicate,
-      assignedTagsMap,
-      assignedPeopleMap,
-      people,
-      projects,
-      statuses,
-      runtimeFilterValues,
-    })
-    return list ?? null
-  }, [
-    definition, todos, people, assignedPeopleMap, projects,
-    assignedTagsMap, statuses, today, weekStartsOn,
-    runtimeFilterValue, runtimeFilterPending,
-  ])
+  const { list: builtList, runtimeFilterPending, mergedPredicate } = useBuiltList(definition, runtimeFilterValue)
 
   const filteredTodos = builtList?.todos ?? EMPTY_TODOS
   const groups = definition?.grouping !== 'none' ? builtList?.sections : undefined
@@ -164,11 +105,6 @@ export function ListDefinitionBody({
   //   → the seed would be empty, and the global FAB does the same thing.
   //   Surface the button only when the predicate filters by at least one of
   //   project / people / status / tag.
-  const mergedPredicate = (definition?.membership.kind === 'custom' && !runtimeFilterPending)
-    ? ((definition.runtimeFilter && runtimeFilterValue && runtimeFilterValue.length > 0)
-        ? applyRuntimeFilter(definition.membership.predicate, definition.runtimeFilter, runtimeFilterValue)
-        : definition.membership.predicate)
-    : null
   const hasSeedableFilter = mergedPredicate != null && (
     mergedPredicate.projectIds != null
     || mergedPredicate.personIds != null

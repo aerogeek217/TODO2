@@ -7,6 +7,8 @@ import type { PersistedListDefinition, RuntimeFilterSpec } from '../../models/li
 import {
   applyFilter,
   createPredicateEvaluator,
+  createScreenComposedEvaluator,
+  type FilterCriteria,
   criteriaToPredicate,
   predicateToCriteria,
 } from '../../stores/filter-store'
@@ -75,13 +77,14 @@ function def(over: Partial<PersistedListDefinition>): PersistedListDefinition {
   }
 }
 
-function widgetSections(d: PersistedListDefinition, pick: number[] | undefined): Section[] {
-  const evalPredicate = createPredicateEvaluator({
+function widgetSections(d: PersistedListDefinition, pick: number[] | undefined, screen?: FilterCriteria): Section[] {
+  const lookups = {
     assignedPeopleMap,
     assignedTagsMap,
     statusesById: new Map(statuses.map((s) => [s.id!, s])),
     projectsById: new Map(projects.map((p) => [p.id!, p])),
-  }, today)
+  }
+  const evalPredicate = screen ? createScreenComposedEvaluator(screen, lookups, today) : createPredicateEvaluator(lookups, today)
   const [list] = buildDashboardLists([d], todos, {
     ...ctx,
     people: [...people],
@@ -170,6 +173,36 @@ describe('list page and list widgets build the same sections', () => {
     expect(ids('waiting')).toEqual([6, 3])
     expect(ids('home')).toEqual([4, 3, 9, 10])
     expect(ids('alpha')).toEqual([4, 1])
+  })
+})
+
+describe('list widgets with the screen filter composed in', () => {
+  it('an empty screen filter changes nothing, for every group × sort × prompt × predicate', () => {
+    const neutral = predicateToCriteria(emptyPredicate())
+    for (const groupBy of TODO_GROUP_BY_VALUES) {
+      for (const sortBy of TODO_SORT_BY_VALUES) {
+        for (const [runtimeName, runtimeFilter, pick] of runtimeCases) {
+          for (const [predicateName, predicate] of predicates) {
+            const d = def({ grouping: groupBy, sort: sortBy, runtimeFilter, membership: { kind: 'custom', predicate } })
+            expect(shape(widgetSections(d, pick, neutral)), `${groupBy} ${sortBy} ${runtimeName}, ${predicateName}`)
+              .toEqual(shape(widgetSections(d, pick)))
+          }
+        }
+      }
+    }
+  })
+
+  it('a screen filter keeps only tasks that pass both, in the list’s sections', () => {
+    const screen = predicateToCriteria({ ...emptyPredicate(), tags: [1] })
+    const d = def({ grouping: 'people', membership: { kind: 'custom', predicate: { ...emptyPredicate(), personIds: [1] } } })
+    // Alice's tasks (1, 2, 6) that are tagged work (1, 6).
+    expect(shape(widgetSections(d, undefined, screen))).toEqual([
+      { key: 'person-1', label: 'Alice', accentColor: '#c33', ids: [6, 1] },
+    ])
+    // Completed tasks come back when the screen shows them.
+    const done = def({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), personIds: [1] } } })
+    const all = widgetSections(done, undefined, predicateToCriteria({ ...emptyPredicate(), showCompleted: true }))
+    expect(all.flatMap((s) => s.todos.map((t) => t.id))).toContain(8)
   })
 })
 

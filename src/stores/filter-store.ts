@@ -280,6 +280,57 @@ export function createPredicateEvaluator(
   }
 }
 
+/**
+ * The screen (top-bar) filter composed with a list's own filter, as the two
+ * stages a task must both pass:
+ *
+ * - Narrowing clauses (people, status, tags, project, search, dates) AND
+ *   together — strictly, even on the same field: screen `@Alice` + list
+ *   `@Bob` keeps only tasks assigned to both.
+ * - `showCompleted` ORs: completed tasks show when either side shows them.
+ */
+export function composeScreenFilter(
+  screen: FilterCriteria,
+  list: FilterCriteria,
+): readonly [FilterCriteria, FilterCriteria] {
+  const showCompleted = screen.showCompleted || list.showCompleted
+  return [{ ...screen, showCompleted }, { ...list, showCompleted }]
+}
+
+/** Whether `todo` passes `list` composed with the `screen` filter (see `composeScreenFilter`). */
+export function matchesComposedFilter(
+  screen: FilterCriteria,
+  list: FilterCriteria,
+  todo: PersistedTodoItem,
+  lookups: TodoNameLookups,
+  today: Date = startOfToday(),
+): boolean {
+  const [screenStage, listStage] = composeScreenFilter(screen, list)
+  return matchesFilterWithLookups(listStage, todo, lookups, today)
+    && matchesFilterWithLookups(screenStage, todo, lookups, today)
+}
+
+/**
+ * `createPredicateEvaluator` with the screen filter composed in: a stored list
+ * predicate matches a task only when the task also passes `screen` (see
+ * `composeScreenFilter`).
+ */
+export function createScreenComposedEvaluator(
+  screen: FilterCriteria,
+  lookups: TodoNameLookups,
+  today: Date,
+): (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean {
+  const criteriaByPredicate = new WeakMap<TodoPredicate, FilterCriteria>()
+  return (predicate, todo) => {
+    let criteria = criteriaByPredicate.get(predicate)
+    if (!criteria) {
+      criteria = predicateToCriteria(predicate)
+      criteriaByPredicate.set(predicate, criteria)
+    }
+    return matchesComposedFilter(screen, criteria, todo, lookups, today)
+  }
+}
+
 /** Runtime (Sets) → serializable (arrays) for saved views / list definitions. */
 export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
   return {
