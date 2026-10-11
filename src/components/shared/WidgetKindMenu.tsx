@@ -41,6 +41,13 @@ export interface WidgetKindMenuProps {
    * switcher. Each closes the menu after running.
    */
   widgetActions?: ReadonlyArray<{ label: string; icon?: string; onSelect: () => void }>
+  /**
+   * Lens-only, workspace order: when given, the menu opens with the list's
+   * own items — "List options…", "Edit list…", "Change list ›" (showing
+   * `currentListName`) — then the widget actions, then "Change widget".
+   */
+  onListOptions?: () => void
+  currentListName?: string
 }
 
 const FLYOUT_LEAVE_DELAY_MS = 120
@@ -59,6 +66,8 @@ export function WidgetKindMenu({
   secondaryLabel,
   heading = 'Change widget',
   widgetActions,
+  onListOptions,
+  currentListName,
 }: WidgetKindMenuProps) {
   const flyoutRef = useRef<HTMLDivElement | null>(null)
   const listRowRef = useRef<HTMLButtonElement | null>(null)
@@ -190,6 +199,65 @@ export function WidgetKindMenu({
   const showSecondaryList = currentKind === 'lens' && pickListForLens != null
   const secondaryListLabel = showSecondaryList ? 'Change list…' : null
   const showEditList = currentKind === 'lens' && onEditList != null
+  const listFirst = currentKind === 'lens' && onListOptions != null
+
+  const editListItem = showEditList && (
+    <button
+      type="button"
+      role="menuitem"
+      className={styles.item}
+      onClick={() => { onEditList!(); onClose() }}
+    >
+      {!listFirst && <span className={styles.icon} aria-hidden="true">✎</span>}
+      <span className={styles.label}>{listFirst ? 'Edit list…' : 'Edit list'}</span>
+    </button>
+  )
+  const changeListItem = showSecondaryList && (
+    <button
+      ref={listRowRef}
+      type="button"
+      role="menuitem"
+      className={styles.item}
+      onPointerEnter={() => openListFlyout()}
+      onPointerLeave={scheduleClose}
+      onClick={() => openListFlyout()}
+      aria-haspopup="menu"
+      aria-expanded={flyout != null}
+    >
+      <span className={styles.label}>{listFirst ? 'Change list' : (secondaryLabel ?? secondaryListLabel)}</span>
+      {listFirst && currentListName && <span className={styles.note}>{currentListName}</span>}
+      <span className={styles.caret} aria-hidden="true">▸</span>
+    </button>
+  )
+  const actionItems = widgetActions?.map((a) => (
+    <button
+      type="button"
+      key={a.label}
+      role="menuitem"
+      className={styles.item}
+      onClick={() => { a.onSelect(); onClose() }}
+    >
+      {!listFirst && <span className={styles.icon} aria-hidden="true">{a.icon ?? ''}</span>}
+      <span className={styles.label}>{a.label}</span>
+    </button>
+  ))
+  const kindItems = PRIMARY_KINDS.map((k) => {
+    const active = k.kind === currentKind
+    return (
+      <button
+        type="button"
+        key={k.kind}
+        role="menuitem"
+        className={`${styles.item} ${active ? styles.active : ''}`}
+        onClick={() => { onChangeKind(k.kind); onClose() }}
+        aria-checked={active}
+      >
+        <span className={styles.icon} aria-hidden="true">{KIND_ICON[k.kind]}</span>
+        <span className={styles.label}>{k.label}</span>
+        {active && <span className={styles.check} aria-hidden="true">✓</span>}
+      </button>
+    )
+  })
 
   return createPortal(
     <div
@@ -200,72 +268,50 @@ export function WidgetKindMenu({
       aria-label={heading}
       onKeyDown={onKeyDown}
     >
-      {showEditList && (
+      {listFirst ? (
         <>
           <button
             type="button"
             role="menuitem"
             className={styles.item}
-            onClick={() => { onEditList!(); onClose() }}
+            onClick={() => { onListOptions!(); onClose() }}
           >
-            <span className={styles.icon} aria-hidden="true">✎</span>
-            <span className={styles.label}>Edit list</span>
+            <span className={styles.label}>List options…</span>
           </button>
-          {!widgetActions?.length && <div className={styles.separator} />}
-        </>
-      )}
-      {widgetActions && widgetActions.length > 0 && (
-        <>
-          {widgetActions.map((a) => (
-            <button
-              type="button"
-              key={a.label}
-              role="menuitem"
-              className={styles.item}
-              onClick={() => { a.onSelect(); onClose() }}
-            >
-              <span className={styles.icon} aria-hidden="true">{a.icon ?? ''}</span>
-              <span className={styles.label}>{a.label}</span>
-            </button>
-          ))}
+          {editListItem}
+          {changeListItem}
           <div className={styles.separator} />
+          {actionItems && actionItems.length > 0 && (
+            <>
+              {actionItems}
+              <div className={styles.separator} />
+            </>
+          )}
+          <div className={styles.groupLabel}>{heading}</div>
+          {kindItems}
         </>
-      )}
-      <div className={styles.groupLabel}>{heading}</div>
-      {PRIMARY_KINDS.map((k) => {
-        const active = k.kind === currentKind
-        return (
-          <button
-            type="button"
-            key={k.kind}
-            role="menuitem"
-            className={`${styles.item} ${active ? styles.active : ''}`}
-            onClick={() => { onChangeKind(k.kind); onClose() }}
-            aria-checked={active}
-          >
-            <span className={styles.icon} aria-hidden="true">{KIND_ICON[k.kind]}</span>
-            <span className={styles.label}>{k.label}</span>
-            {active && <span className={styles.check} aria-hidden="true">✓</span>}
-          </button>
-        )
-      })}
-      {showSecondaryList && (
+      ) : (
         <>
-          <div className={styles.separator} />
-          <button
-            ref={listRowRef}
-            type="button"
-            role="menuitem"
-            className={styles.item}
-            onPointerEnter={() => openListFlyout()}
-            onPointerLeave={scheduleClose}
-            onClick={() => openListFlyout()}
-            aria-haspopup="menu"
-            aria-expanded={flyout != null}
-          >
-            <span className={styles.label}>{secondaryLabel ?? secondaryListLabel}</span>
-            <span className={styles.caret} aria-hidden="true">▸</span>
-          </button>
+          {showEditList && (
+            <>
+              {editListItem}
+              {!widgetActions?.length && <div className={styles.separator} />}
+            </>
+          )}
+          {actionItems && actionItems.length > 0 && (
+            <>
+              {actionItems}
+              <div className={styles.separator} />
+            </>
+          )}
+          <div className={styles.groupLabel}>{heading}</div>
+          {kindItems}
+          {showSecondaryList && (
+            <>
+              <div className={styles.separator} />
+              {changeListItem}
+            </>
+          )}
         </>
       )}
       {flyout && pickListForLens && createPortal(

@@ -7,6 +7,8 @@ import { useStatusStore } from './status-store'
 import { useTagStore } from './tag-store'
 import { useTaskboardStore } from './taskboard-store'
 import { useNoteStore } from './note-store'
+import { useListDraftStore } from './list-draft-store'
+import { useListWidgetStore } from './list-widget-store'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListInsetStore } from './list-inset-store'
 import { useFloatingNoteStore } from './floating-note-store'
@@ -34,6 +36,10 @@ import { useWorkspaceStore } from './workspace-store'
 export async function refreshAllStores() {
   useUndoStore.getState().clear()
   useFilterStore.getState().clearAll()
+  // Unsaved list edits, prompt picks and collapsed groups are keyed by ids
+  // the replaced data may reuse for other lists / tabs.
+  useListDraftStore.setState({ drafts: {} })
+  useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
   await useCanvasStore.getState().ensureDefault()
   await useSettingsStore.getState().load()
   const canvasId = useCanvasStore.getState().selectedCanvasId

@@ -1,53 +1,56 @@
+/* Prompt row: a labelled multi-value field above the list. */
 .row {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-high);
+  gap: 8px;
+  min-height: var(--list-prompt-row-height);
+  padding: 0 8px 0 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-muted);
 }
 
 .label {
-  font-size: 10px;
+  font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
-/* Chip + input shell — reads as a single multi-value field. */
+/* Pills + input — reads as a single D0 input. */
 .field {
   flex: 1;
   min-width: 0;
+  min-height: 28px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  background: var(--color-surface);
+  padding: 3px 6px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 2px 4px;
+  border-radius: 6px;
+  background: var(--color-inset);
   cursor: text;
 }
 
 .field:focus-within {
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-focus);
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: var(--color-surface-high);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  padding: 1px 4px 1px 8px;
+  gap: 2px;
+  height: 20px;
+  max-width: 100%;
+  padding: 0 2px 0 6px;
+  border-radius: 4px;
+  background: var(--color-tint-12);
   font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   white-space: nowrap;
-  max-width: 100%;
 }
 
 .chipName {
@@ -56,17 +59,21 @@
 }
 
 .chipRemove {
-  background: none;
-  border: none;
-  padding: 0 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
   margin: 0;
-  font-size: 14px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  font-size: 13px;
   line-height: 1;
   color: var(--color-text-muted);
   cursor: pointer;
 }
 
 .chipRemove:hover {
+  background: var(--color-tint-12);
   color: var(--color-text-primary);
 }
 
@@ -78,8 +85,8 @@
   outline: none;
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: var(--font-size-meta);
-  padding: 2px 4px;
+  font-size: var(--font-size-body);
+  padding: 0 2px;
 }
 
 .input::placeholder {
@@ -91,12 +98,10 @@
  * scroll/resize (the picker recomputes on those events). */
 .panel {
   position: fixed;
-  min-width: 180px;
-  max-width: 320px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-float);
+  width: 240px;
+  background: var(--color-surface-high);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
   z-index: var(--z-canvas-draw);
   padding: 4px;
 }
@@ -171,4 +176,16 @@
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-on-accent);
 }

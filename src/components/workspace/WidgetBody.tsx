@@ -1,35 +1,24 @@
-import type { PersistedTodoItem } from '../../models'
 import { clampCalendarOffset, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { useListWidgetStore } from '../../stores/list-widget-store'
-import { LensSlotContent } from '../canvas/rails/LensSlotContent'
 import { CalendarSlotContent } from '../canvas/rails/CalendarSlotContent'
 import { NotesSlotContent } from '../canvas/rails/NotesSlotContent'
 import { TaskboardSlotContent } from '../canvas/rails/TaskboardSlotContent'
 import { StatusSlotContent } from '../canvas/rails/StatusSlotContent'
+import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 
 interface WidgetBodyProps {
   tab: LayoutTab
-  /** Lens tabs report their list's name, task count and tasks (for the tab title and "Copy tasks"). */
-  onLensResult?: (count: number, todos: PersistedTodoItem[]) => void
+  /** List tabs report their count label and shown sections (for the tab and "Copy tasks"). */
+  onLensResult?: (result: ListWidgetResult) => void
 }
 
 /** The body of a cell's active tab, by widget kind. */
 export function WidgetBody({ tab, onLensResult }: WidgetBodyProps) {
   const patchTabViewState = useWorkspaceStore((s) => s.patchTabViewState)
-  const picks = useListWidgetStore((s) => s.picks[tab.id])
-  const setPicks = useListWidgetStore((s) => s.setPicks)
 
   switch (tab.kind) {
     case 'lens':
-      return (
-        <LensSlotContent
-          listDefinitionId={tab.config.listDefinitionId}
-          onTitleChange={(_name, count, todos) => onLensResult?.(count, todos)}
-          runtimeFilterValue={picks}
-          onRuntimeFilterChange={(v) => setPicks(tab.id, v ?? [])}
-        />
-      )
+      return <ListWidget tab={tab} onResult={onLensResult} />
     case 'calendar':
       return (
         <CalendarSlotContent

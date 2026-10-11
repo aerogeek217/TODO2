@@ -6,6 +6,7 @@ import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import styles from './RuntimeFilterPicker.module.css'
 
 // All option lookups for this picker go through cached Zustand stores
@@ -19,6 +20,8 @@ import styles from './RuntimeFilterPicker.module.css'
 interface Option {
   id: number
   name: string
+  /** People: their avatar (initials, colour). */
+  avatar?: { initials: string; color?: string }
 }
 
 interface RuntimeFilterPickerProps {
@@ -68,7 +71,9 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
     const base: Option[] = []
     switch (spec.field) {
       case 'person':
-        for (const p of people) if (p.id != null) base.push({ id: p.id, name: p.name })
+        for (const p of people) {
+          if (p.id != null) base.push({ id: p.id, name: p.name, avatar: { initials: p.initials || p.name.slice(0, 2).toUpperCase(), color: p.color } })
+        }
         break
       case 'project':
         for (const p of projects) if (p.id != null) base.push({ id: p.id, name: p.name })
@@ -220,6 +225,11 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
                     onClick={() => toggleOption(opt.id)}
                   >
                     <span className={`${styles.check} ${checked ? styles.checked : ''}`} />
+                    {opt.avatar && (
+                      <span className={styles.avatar} style={{ background: opt.avatar.color || NEUTRAL_PERSON_COLOR }} aria-hidden="true">
+                        {opt.avatar.initials}
+                      </span>
+                    )}
                     <span className={styles.optionName}>{opt.name}</span>
                   </button>
                 )

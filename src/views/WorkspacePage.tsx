@@ -29,7 +29,9 @@ import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
-import { UnsavedChangesDialog } from '../components/workspace/LayoutDialogs'
+import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
+import { ListOptionsHost } from '../components/workspace/list/ListOptionsHost'
+import { getUnsavedListIds, useUnsavedListIds } from '../stores/list-draft-store'
 import { PlusIcon, WidgetKindIcon } from '../components/workspace/icons'
 import {
   isWorkspaceTabDragData,
@@ -146,35 +148,40 @@ function useTabDragState() {
   return { drag, start, end }
 }
 
-/** Blocks in-app navigation away from a layout with unsaved changes until the user answers. */
+/**
+ * Blocks in-app navigation away from unsaved work — the layout or a list
+ * definition — until the user answers; asks the browser to confirm an unload.
+ */
 function UnsavedNavigationGuard() {
   const isDirty = useWorkspaceStore((s) => s.isDirty)
-  const name = useWorkspaceStore((s) => s.working?.name ?? '')
+  const unsavedLists = useUnsavedListIds()
   const blocker = useBlocker(
     useCallback(
       ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
-        useWorkspaceStore.getState().isDirty && currentLocation.pathname !== nextLocation.pathname,
+        (useWorkspaceStore.getState().isDirty || getUnsavedListIds().length > 0)
+        && currentLocation.pathname !== nextLocation.pathname,
       [],
     ),
   )
 
+  const unsaved = isDirty || unsavedLists.length > 0
   useEffect(() => {
-    if (!isDirty) return
+    if (!unsaved) return
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [isDirty])
+  }, [unsaved])
 
   if (blocker.state !== 'blocked') return null
   return (
-    <UnsavedChangesDialog
-      layoutName={name}
+    <UnsavedPrompt
       lead="You’re leaving the workspace."
-      onSave={() => { void useWorkspaceStore.getState().save().then(() => blocker.proceed()) }}
-      onDiscard={() => { useWorkspaceStore.getState().discard(); blocker.proceed() }}
+      layout={isDirty}
+      listIds={unsavedLists}
+      onDone={() => blocker.proceed()}
       onCancel={() => blocker.reset()}
     />
   )
@@ -282,6 +289,7 @@ export function WorkspacePage() {
         <DashboardListsEditor onClose={closeListsEditor} initialSelectedId={listsEditorInitialId ?? undefined} />
       )}
       <StandaloneListEditor />
+      <ListOptionsHost />
       <UnsavedNavigationGuard />
     </DndContext>
   )

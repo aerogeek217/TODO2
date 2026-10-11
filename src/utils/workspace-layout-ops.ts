@@ -70,6 +70,26 @@ export function findTab(layout: WorkspaceLayout, tabId: string): TabLocation | n
   return null
 }
 
+/**
+ * How many list tabs in `layout` show list `listDefinitionId`, not counting
+ * the tabs in `exceptTabIds` (e.g. the ones about to be closed).
+ */
+export function countListTabs(
+  layout: WorkspaceLayout,
+  listDefinitionId: number,
+  exceptTabIds: ReadonlySet<string> = new Set(),
+): number {
+  let n = 0
+  for (const col of layout.columns) {
+    for (const cell of col.cells) {
+      for (const tab of cell.tabs) {
+        if (tab.kind === 'lens' && tab.config.listDefinitionId === listDefinitionId && !exceptTabIds.has(tab.id)) n++
+      }
+    }
+  }
+  return n
+}
+
 /** Every column / cell / tab id in the layout. */
 export function layoutIds(layout: WorkspaceLayout): Set<string> {
   const ids = new Set<string>()

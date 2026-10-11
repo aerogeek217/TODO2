@@ -1,17 +1,23 @@
 import { useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
-import type { PersistedTodoItem } from '../../models'
 import { getActiveTab, type LayoutCell } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { getUnsavedListIds, useIsListDirty } from '../../stores/list-draft-store'
+import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasksRich } from '../../services/task-copy'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { ListDefinitionPickerPopup } from '../overlays/ListDefinitionPickerPopup'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
-import { ADDABLE_KINDS, kindLabel, useAddWidget, useTabTitle } from './widget-hooks'
+import { ADDABLE_KINDS, countListWidgets, kindLabel, useAddWidget, useTabTitle } from './widget-hooks'
+import { SaveListButton } from './list/SaveListButton'
+import type { ListWidgetResult } from './list/ListWidget'
+import { pointBelow } from './list/popover-point'
+import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
 import {
   ChevronDownIcon,
@@ -112,6 +118,29 @@ function ChangeToListPicker({ tabId, anchor, onClose }: { tabId: string; anchor:
   )
 }
 
+/**
+ * Lists with unsaved edits whose last widget (in any layout) is among
+ * `tabIds` of the open layout — closing or re-pointing those tabs would leave
+ * the edits nowhere to be saved from.
+ */
+function listsLosingLastWidget(tabIds: readonly string[]): number[] {
+  const state = useWorkspaceStore.getState()
+  const unsaved = new Set(getUnsavedListIds())
+  if (!state.working || unsaved.size === 0) return []
+  const except = new Set(tabIds)
+  const out = new Set<number>()
+  for (const col of state.working.columns) {
+    for (const c of col.cells) {
+      for (const tab of c.tabs) {
+        if (!except.has(tab.id) || tab.kind !== 'lens') continue
+        const id = tab.config.listDefinitionId
+        if (id != null && unsaved.has(id) && countListWidgets(state, id, except) === 0) out.add(id)
+      }
+    }
+  }
+  return [...out]
+}
+
 export function WorkspaceCell({ cell, style }: WorkspaceCellProps) {
   if (cell.tabs.length === 0) return <EmptyCell cell={cell} style={style} />
   return <FilledCell cell={cell} style={style} />
@@ -132,14 +161,26 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const collapsed = cell.collapsed === true
-  const [lens, setLens] = useState<{ tabId: string; count: number; todos: PersistedTodoItem[] } | null>(null)
+  const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
+  const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
   const [changeToList, setChangeToList] = useState<{ tabId: string; anchor: { x: number; y: number } } | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
-  const activeCount = lens && lens.tabId === active?.id ? lens.count : undefined
+  const activeCount = lens && lens.tabId === active?.id ? lens.result.countLabel : undefined
+  const activeListId = active?.kind === 'lens' ? active.config.listDefinitionId : undefined
+  const activeListUnsaved = useIsListDirty(activeListId)
+
+  /** Runs `run`, first asking about unsaved lists that would lose their last widget with `tabIds`. */
+  const guarded = (tabIds: readonly string[], lead: string, run: () => void) => {
+    const listIds = listsLosingLastWidget(tabIds)
+    if (listIds.length === 0) run()
+    else setGuard({ listIds, lead, run })
+  }
+  const closeTabGuarded = (tabId: string) => guarded([tabId], 'You’re closing the last widget that shows it.', () => closeTab(tabId))
+  const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
   const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
 
   const hit = drag?.hit
@@ -148,6 +189,9 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const ghost = bodyHit && bodyHit.zone === 'middle' && drag?.accepts ? { kind: drag.kind, title: drag.title } : null
 
   const menuTab = tabMenu ? cell.tabs.find((t) => t.id === tabMenu.tabId) : undefined
+  const menuListName = useListDefinitionStore((s) =>
+    menuTab?.kind === 'lens' ? s.listDefinitions.find((d) => d.id === menuTab.config.listDefinitionId)?.name : undefined,
+  )
 
   const cellMenuEntries: MenuEntry[] = [
     {
@@ -166,12 +210,12 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
       onSelect: () => { void setCellCollapsed(cell.id, !collapsed) },
     },
     { kind: 'separator' },
-    ...(active ? [{ kind: 'item' as const, label: `Close tab “${activeTitle}”`, icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => closeTab(active.id) }] : []),
+    ...(active ? [{ kind: 'item' as const, label: `Close tab “${activeTitle}”`, icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => closeTabGuarded(active.id) }] : []),
     {
       kind: 'item',
       label: `Close cell (${cell.tabs.length} ${cell.tabs.length === 1 ? 'tab' : 'tabs'})`,
       icon: <CloseCellIcon />,
-      onSelect: () => closeCell(cell.id),
+      onSelect: closeCellGuarded,
     },
   ]
 
@@ -195,13 +239,14 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
             void setActiveTab(tabId)
             if (collapsed) void setCellCollapsed(cell.id, false)
           }}
-          onClose={(tabId) => closeTab(tabId)}
+          onClose={closeTabGuarded}
           onOpenTabMenu={(tabId, p) => setTabMenu({ tabId, ...p })}
           onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref) })}
         />
         {stripHit && drag?.insertLeft != null && (
           <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
         )}
+        {activeListUnsaved && activeListId != null && <SaveListButton listDefinitionId={activeListId} className={styles.saveList} />}
         {collapsed ? (
           <button
             type="button"
@@ -250,7 +295,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
           <WidgetBody
             key={active.id}
             tab={active}
-            onLensResult={(count, todos) => setLens({ tabId: active.id, count, todos })}
+            onLensResult={(result) => setLens({ tabId: active.id, result })}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} />}
         </div>
@@ -283,22 +328,50 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
               setChangeToList({ tabId: menuTab.id, anchor: { x: tabMenu.x, y: tabMenu.y } })
               return
             }
-            changeTabKind(menuTab.id, kind)
+            guarded([menuTab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(menuTab.id, kind))
           }}
           pickListForLens={menuTab.kind === 'lens'
-            ? (id) => patchTabConfig(menuTab.id, 'lens', { listDefinitionId: id })
+            ? (id) => {
+                if (id === menuTab.config.listDefinitionId) return
+                guarded([menuTab.id], 'You’re changing the last widget that shows it.', () => patchTabConfig(menuTab.id, 'lens', { listDefinitionId: id }))
+              }
             : undefined}
           onEditList={menuTab.kind === 'lens' && menuTab.config.listDefinitionId != null
             ? () => useUIStore.getState().openListEditorDialog(menuTab.config.listDefinitionId!)
             : undefined}
+          onListOptions={menuTab.kind === 'lens' && menuTab.config.listDefinitionId != null
+            ? () => {
+                const listDefinitionId = menuTab.config.listDefinitionId!
+                const tabEl = document.querySelector(`[data-ws-tab="${menuTab.id}"]`)
+                const at = tabEl ? pointBelow(tabEl) : { x: tabMenu.x, y: tabMenu.y, align: 'start' as const }
+                useListWidgetStore.getState().openPopover({ kind: 'options', listDefinitionId, at })
+              }
+            : undefined}
+          currentListName={menuListName}
           widgetActions={menuTab.kind === 'lens' && lens && lens.tabId === menuTab.id
             ? [{
                 label: 'Copy tasks',
                 icon: '⧉',
-                onSelect: () => { void copyTasksRich([{ todos: lens.todos }], { assignedPeopleMap, statusMap }) },
+                onSelect: () => {
+                  const sections = lens.result.sections
+                  const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
+                  void copyTasksRich(
+                    sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })),
+                    { assignedPeopleMap, statusMap },
+                  )
+                },
               }]
             : undefined}
           onClose={() => setTabMenu(null)}
+        />
+      )}
+      {guard && (
+        <UnsavedPrompt
+          lead={guard.lead}
+          layout={false}
+          listIds={guard.listIds}
+          onDone={() => { guard.run(); setGuard(null) }}
+          onCancel={() => setGuard(null)}
         />
       )}
       {changeToList && (

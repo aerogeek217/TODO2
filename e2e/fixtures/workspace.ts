@@ -33,8 +33,27 @@ export interface WorkspaceSeed {
   layouts: WsLayoutSeed[]
   people?: string[]
   tags?: string[]
-  listDefinitions?: Array<{ name: string; grouping?: string; sort?: string }>
-  tasks?: Array<{ title: string; people?: string[]; tags?: string[] }>
+  listDefinitions?: Array<{
+    name: string
+    grouping?: string
+    sort?: string
+    /** Merged over the empty predicate; `personIds` by name via `people`. */
+    predicate?: Record<string, unknown>
+    /** Names of people for the predicate's `personIds`. */
+    people?: string[]
+    runtimeFilter?: { field: 'person' | 'status' | 'tag' }
+    maxTasks?: number
+    limitMode?: 'hard' | 'scroll'
+  }>
+  tasks?: Array<{
+    title: string
+    people?: string[]
+    tags?: string[]
+    isCompleted?: boolean
+    /** Days from today. */
+    dueInDays?: number
+    followupInDays?: number
+  }>
 }
 
 /** Mirrors `emptyPredicate()` in the list-definition store. */
@@ -93,21 +112,30 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     const defIds: number[] = []
     let defOrder = 0
     for (const def of seed.listDefinitions ?? []) {
+      const predicate: Record<string, unknown> = { ...seed.predicate, ...(def.predicate ?? {}) }
+      if (def.people) predicate.personIds = def.people.map((n) => personIds.get(n))
       defIds.push(await add(tx.objectStore('listDefinitions'), {
         name: def.name,
         sortOrder: ++defOrder,
-        membership: { kind: 'custom', predicate: seed.predicate },
+        membership: { kind: 'custom', predicate },
         sort: def.sort ?? 'manual',
         grouping: def.grouping ?? 'none',
         pinnedToDashboard: false,
+        ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
+        ...(def.maxTasks != null ? { maxTasks: def.maxTasks } : {}),
+        ...(def.limitMode ? { limitMode: def.limitMode } : {}),
       }))
     }
     let taskOrder = 0
     for (const task of seed.tasks ?? []) {
+      const day = (n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n)
       const todoId = await add(tx.objectStore('todos'), {
         uid: crypto.randomUUID(),
         title: task.title,
-        isCompleted: false,
+        isCompleted: task.isCompleted ?? false,
+        ...(task.isCompleted ? { completedAt: now } : {}),
+        ...(task.dueInDays != null ? { dueDate: day(task.dueInDays) } : {}),
+        ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
         createdAt: now,
         modifiedAt: now,
         sortOrder: ++taskOrder,
@@ -186,4 +214,26 @@ export async function dragTab(
   await page.mouse.move(to.x, to.y, { steps: 12 })
   if (during) await during()
   await page.mouse.up()
+}
+
+export function wsListWidget(page: Page, tabId: string): Locator {
+  return page.locator(`[data-list-widget="${tabId}"]`)
+}
+
+/** The stored list definitions, read straight from IndexedDB. */
+export async function readListDefinitions(page: Page): Promise<Array<Record<string, unknown>>> {
+  return page.evaluate(async (db) => {
+    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(db)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+    const rows = await new Promise<Array<Record<string, unknown>>>((resolve, reject) => {
+      const r = idb.transaction('listDefinitions').objectStore('listDefinitions').getAll()
+      r.onsuccess = () => resolve(r.result as Array<Record<string, unknown>>)
+      r.onerror = () => reject(r.error)
+    })
+    idb.close()
+    return rows
+  }, DB_NAME)
 }

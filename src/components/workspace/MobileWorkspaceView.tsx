@@ -7,7 +7,15 @@ import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-page
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
-import { UnsavedChangesDialog } from './LayoutDialogs'
+import { UnsavedPrompt } from './UnsavedPrompt'
+import { SaveListButton } from './list/SaveListButton'
+import type { ListWidgetResult } from './list/ListWidget'
+import { pointBelow } from './list/popover-point'
+import { useIsListDirty, useUnsavedListIds } from '../../stores/list-draft-store'
+import { useListWidgetStore } from '../../stores/list-widget-store'
+import { usePersonStore } from '../../stores/person-store'
+import { useStatusStore } from '../../stores/status-store'
+import { copyTasksRich } from '../../services/task-copy'
 import { useTabTitle } from './widget-hooks'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from './icons'
 import styles from './MobileWorkspaceView.module.css'
@@ -40,7 +48,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
   const layouts = useWorkspaceStore((s) => s.layouts)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
   const isDirty = useWorkspaceStore((s) => s.isDirty)
-  const workingName = useWorkspaceStore((s) => s.working?.name ?? '')
+  const unsavedLists = useUnsavedListIds()
   const [pending, setPending] = useState<{ id: number; name: string } | null>(null)
   const sheetRef = useRef<HTMLDivElement | null>(null)
 
@@ -51,7 +59,7 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
   const pick = (id: number, name: string) => {
     if (id === activeLayoutId) { onClose(); return }
     // Unsaved changes can only come from a wider screen in this session; still never lose them silently.
-    if (useWorkspaceStore.getState().isDirty) { setPending({ id, name }); return }
+    if (useWorkspaceStore.getState().isDirty || unsavedLists.length > 0) { setPending({ id, name }); return }
     void useWorkspaceStore.getState().load(id)
     onClose()
   }
@@ -95,20 +103,15 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
         <p className={styles.sheetFooter}>{WIDER_SCREEN_HINT}</p>
       </div>
       {pending && (
-        <UnsavedChangesDialog
-          layoutName={workingName}
-          lead={`You’re switching to “${pending.name}”.`}
-          onSave={() => {
+        <UnsavedPrompt
+          lead={`You’re switching to layout “${pending.name}”.`}
+          layoutLead={`You’re switching to “${pending.name}”.`}
+          layout={isDirty}
+          listIds={unsavedLists}
+          onDone={() => {
             const { id } = pending
             setPending(null)
             onClose()
-            void useWorkspaceStore.getState().save().then(() => useWorkspaceStore.getState().load(id))
-          }}
-          onDiscard={() => {
-            const { id } = pending
-            setPending(null)
-            onClose()
-            useWorkspaceStore.getState().discard()
             void useWorkspaceStore.getState().load(id)
           }}
           onCancel={() => setPending(null)}
@@ -150,14 +153,83 @@ function MobileTopBar({ name }: { name: string }) {
   )
 }
 
-/** A cell on mobile: tabs switch, the ⋯ menu only collapses. No editing. */
+/** Long-press on a list tab: the list's items (D2 tab menu) as a bottom sheet. */
+function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
+  tabId: string
+  listDefinitionId: number
+  result: ListWidgetResult | undefined
+  onClose: () => void
+}) {
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const statuses = useStatusStore((s) => s.statuses)
+  const sheetRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    sheetRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+  }, [])
+  const rows: Array<{ label: string; run: () => void }> = [
+    {
+      label: 'List options…',
+      run: () => {
+        const tabEl = document.querySelector(`[data-ws-tab="${tabId}"]`)
+        if (tabEl) useListWidgetStore.getState().openPopover({ kind: 'options', listDefinitionId, at: pointBelow(tabEl) })
+      },
+    },
+    { label: 'Edit list…', run: () => useUIStore.getState().openListEditorDialog(listDefinitionId) },
+    ...(result ? [{
+      label: 'Copy tasks',
+      run: () => {
+        const labelled = !(result.sections.length === 1 && result.sections[0]?.key === 'all')
+        void copyTasksRich(
+          result.sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })),
+          { assignedPeopleMap, statusMap: new Map(statuses.map((st) => [st.id!, st])) },
+        )
+      },
+    }] : []),
+  ]
+  return createPortal(
+    <>
+      <div className={styles.backdrop} onClick={onClose} aria-hidden="true" />
+      <div
+        ref={sheetRef}
+        className={styles.sheet}
+        role="menu"
+        aria-label="List"
+        onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}
+      >
+        <span className={styles.handle} aria-hidden="true" />
+        <div className={styles.sheetRows}>
+          {rows.map((row) => (
+            <button
+              key={row.label}
+              type="button"
+              role="menuitem"
+              className={styles.sheetRow}
+              onClick={() => { onClose(); row.run() }}
+            >
+              <span className={styles.sheetName}>{row.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>,
+    document.body,
+  )
+}
+
+/**
+ * A cell on mobile: tabs switch, the ⋯ menu only collapses, a list tab's
+ * long-press opens its list sheet. No layout editing.
+ */
 function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const collapsed = cell.collapsed === true
-  const [lens, setLens] = useState<{ tabId: string; count: number } | null>(null)
+  const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
+  const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
+  const activeListId = active?.kind === 'lens' ? active.config.listDefinitionId : undefined
+  const activeListUnsaved = useIsListDirty(activeListId)
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
@@ -185,12 +257,19 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
           cell={cell}
           collapsed={collapsed}
           touch
-          activeCount={lens && lens.tabId === active?.id ? lens.count : undefined}
+          activeCount={lens && lens.tabId === active?.id ? lens.result.countLabel : undefined}
+          onOpenTabMenu={(tabId) => {
+            const tab = cell.tabs.find((t) => t.id === tabId)
+            if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
+          }}
           onActivate={(tabId) => {
             void setActiveTab(tabId)
             if (collapsed) void setCellCollapsed(cell.id, false)
           }}
         />
+        {activeListUnsaved && activeListId != null && (
+          <SaveListButton listDefinitionId={activeListId} className={`${styles.cellAction} ${styles.saveList}`} />
+        )}
         {collapsed ? (
           <button
             type="button"
@@ -226,9 +305,17 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
           <WidgetBody
             key={active.id}
             tab={active}
-            onLensResult={(count) => setLens({ tabId: active.id, count })}
+            onLensResult={(result) => setLens({ tabId: active.id, result })}
           />
         </div>
+      )}
+      {tabSheet && (
+        <ListTabSheet
+          tabId={tabSheet.tabId}
+          listDefinitionId={tabSheet.listDefinitionId}
+          result={lens?.tabId === tabSheet.tabId ? lens.result : undefined}
+          onClose={() => setTabSheet(null)}
+        />
       )}
       {menuOpen && (
         <MenuPopover

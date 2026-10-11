@@ -100,3 +100,44 @@
   outline: none;
   border-color: var(--color-accent);
 }
+
+/* Combined unsaved prompt: one checked row per layout / list. */
+.unsavedItems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.unsavedItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--color-tint-4);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.unsavedItem input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.unsavedName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unsavedNote {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

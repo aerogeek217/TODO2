@@ -164,3 +164,63 @@ export function CloseCellIcon({ size = 14 }: { size?: number }) {
     </Svg>
   )
 }
+
+/** Funnel: a screen (top-bar) filter. */
+export function FunnelIcon({ size = 12 }: { size?: number }) {
+  return <Svg size={size}><path d="M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z" /></Svg>
+}
+
+/** Sort lines: list options. */
+export function SortIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M2.5 4.5h11M4.5 8h7M6.5 11.5h3" /></Svg>
+}
+
+/** Two chain links: shared between widgets. */
+export function LinkIcon({ size = 12 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M7 9a2.5 2.5 0 0 0 3.5 0l2-2A2.5 2.5 0 0 0 9 3.5l-.75.75" />
+      <path d="M9 7a2.5 2.5 0 0 0-3.5 0l-2 2A2.5 2.5 0 0 0 7 12.5l.75-.75" />
+    </Svg>
+  )
+}
+
+/** `@`: people. */
+export function AtIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="2.5" />
+      <path d="M10.5 8v1a2 2 0 0 0 3 0V8A5.5 5.5 0 1 0 11 12.6" />
+    </Svg>
+  )
+}
+
+/** `#`: tags. */
+export function HashIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M6 2.5 5 13.5M11 2.5l-1 11M3 6h10.5M2.5 10H13" /></Svg>
+}
+
+/** A flag: follow-up. */
+export function FlagIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M4 14V2.5M4 3h7.5l-1.5 3 1.5 3H4" /></Svg>
+}
+
+/** A half-filled circle: status. */
+export function StatusRingIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor" />
+    </Svg>
+  )
+}
+
+/** A magnifier: text search. */
+export function SearchIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="M10.5 10.5 14 14" />
+    </Svg>
+  )
+}

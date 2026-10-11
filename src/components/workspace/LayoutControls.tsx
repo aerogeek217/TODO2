@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
-import { DeleteLayoutDialog, LayoutNameDialog, UnsavedChangesDialog } from './LayoutDialogs'
+import { useUnsavedListIds } from '../../stores/list-draft-store'
+import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
+import { UnsavedPrompt } from './UnsavedPrompt'
 import { ChevronDownIcon, CopyIcon, LayoutIcon, PencilIcon, RevertIcon, SaveIcon, TrashIcon } from './icons'
 import styles from './LayoutControls.module.css'
 
@@ -14,14 +16,15 @@ type Pending =
 /**
  * Top-bar layout chrome on the workspace: the layout picker (switch, save,
  * save as, discard, rename, delete) and the save button, lit while the open
- * layout has unsaved changes. Switching away from unsaved changes asks
- * Save / Discard / Cancel first.
+ * layout has unsaved changes. Switching away from unsaved changes (to the
+ * layout or to a list) asks Save / Discard / Cancel first.
  */
 export function LayoutControls() {
   const layouts = useWorkspaceStore((s) => s.layouts)
   const working = useWorkspaceStore((s) => s.working)
   const isDirty = useWorkspaceStore((s) => s.isDirty)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
+  const unsavedLists = useUnsavedListIds()
   const [menuOpen, setMenuOpen] = useState(false)
   const [pending, setPending] = useState<Pending | null>(null)
   const pickerRef = useRef<HTMLButtonElement | null>(null)
@@ -32,7 +35,7 @@ export function LayoutControls() {
 
   const switchTo = (id: number, targetName: string) => {
     if (id === activeLayoutId) return
-    if (isDirty) setPending({ kind: 'switch', id, name: targetName })
+    if (isDirty || unsavedLists.length > 0) setPending({ kind: 'switch', id, name: targetName })
     else void store().load(id)
   }
 
@@ -104,11 +107,12 @@ export function LayoutControls() {
         />
       )}
       {pending?.kind === 'switch' && (
-        <UnsavedChangesDialog
-          layoutName={name}
-          lead={`You’re switching to “${pending.name}”.`}
-          onSave={() => { close(); void store().save().then(() => store().load(pending.id)) }}
-          onDiscard={() => { close(); store().discard(); void store().load(pending.id) }}
+        <UnsavedPrompt
+          lead={`You’re switching to layout “${pending.name}”.`}
+          layoutLead={`You’re switching to “${pending.name}”.`}
+          layout={isDirty}
+          listIds={unsavedLists}
+          onDone={() => { close(); void store().load(pending.id) }}
           onCancel={close}
         />
       )}

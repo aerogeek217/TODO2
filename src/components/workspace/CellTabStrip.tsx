@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
 import { getActiveTab } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useIsListDirty } from '../../stores/list-draft-store'
 import { KIND_LABEL } from '../../utils/slot-kind'
 import { useTabTitle } from './widget-hooks'
 import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from './icons'
@@ -14,7 +15,7 @@ interface TabProps {
   tab: LayoutTab
   active: boolean
   collapsed: boolean
-  count?: number
+  count?: string
   /** Touch layout: taller tabs, no close ×, not draggable. */
   touch: boolean
   onActivate: () => void
@@ -26,6 +27,7 @@ interface TabProps {
 
 function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef }: TabProps) {
   const title = useTabTitle(tab)
+  const listUnsaved = useIsListDirty(tab.kind === 'lens' ? tab.config.listDefinitionId : undefined)
   const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title }
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data, disabled: touch })
   const closable = !collapsed && onClose != null
@@ -69,6 +71,7 @@ function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpen
     >
       <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
       <span className={styles.title}>{title}</span>
+      {listUnsaved && <span className={styles.unsavedDot} role="img" aria-label="unsaved list changes" />}
       {count != null && <span className={styles.count}>{count}</span>}
       {closable && (
         <button
@@ -100,8 +103,8 @@ function GhostTab({ kind, title }: { kind: WidgetKind; title: string }) {
 interface CellTabStripProps {
   cell: LayoutCell
   collapsed: boolean
-  /** Task count of the active list tab. */
-  activeCount?: number
+  /** Task count of the active list tab (`N`, `shown of total`, or `—`). */
+  activeCount?: string
   /** While a tab is dragged over this cell's middle zone: the ghost tab. */
   ghost?: { kind: WidgetKind; title: string } | null
   /**

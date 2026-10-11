@@ -412,3 +412,13 @@
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
 }
+
+/* Save button of a list with unsaved edits (before the cell's ⋯). */
+.saveList {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+}
+
+.saveList + .cellAction {
+  margin-left: 0;
+}

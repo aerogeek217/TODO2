@@ -92,3 +92,13 @@
   flex-direction: column;
   overflow: hidden;
 }
+
+.note {
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

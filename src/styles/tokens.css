@@ -57,6 +57,11 @@
   --cell-body-min-height: 80px;
   --divider-hit: 10px;
 
+  /* List widget (narrow rows below 360px of widget width — a container query) */
+  --list-filter-row-height: 36px;
+  --list-prompt-row-height: 40px;
+  --list-group-header-height: 28px;
+
   /* Mobile */
   --mobile-tab-bar-height: 56px;
   --mobile-row-min-height: 48px;
@@ -65,6 +70,8 @@
   --mobile-column-strip-height: 40px;
   --mobile-cell-header-height: 40px;
   --mobile-cell-tab-height: 34px;
+  --mobile-list-filter-row-height: 48px;
+  --mobile-list-group-header-height: 36px;
   --touch-target-min: 44px;
 
   /* Transitions */
