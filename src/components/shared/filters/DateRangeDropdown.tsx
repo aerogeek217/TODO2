@@ -3,37 +3,8 @@ import { createPortal } from 'react-dom'
 import type { DateAnchor } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
-import { fixedAnchor } from '../../../stores/filter-store'
-import { startOfToday } from '../../../utils/date'
-import { DATE_FIELD_LABELS } from '../../../utils/filter-labels'
-import { DateAnchorInput } from '../DateAnchorInput'
 import topBar from '../../layout/TopBar.module.css'
-import { cycleTri, triIcon, triLabel } from './FilterChipBar.shared'
-
-function TriStateRow({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: boolean | null
-  onChange: (v: boolean | null) => void
-}) {
-  const next = cycleTri(value)
-  const icon = triIcon(value)
-  return (
-    <label
-      className={topBar.dropdownItem}
-      onClick={() => onChange(next)}
-      title={triLabel(value)}
-    >
-      <span className={`${topBar.triState} ${value !== null ? topBar.triStateActive : ''}`}>
-        {icon}
-      </span>
-      {label}
-    </label>
-  )
-}
+import { DateRangePanelBody } from './FilterPanels'
 
 interface DateRangeDropdownProps {
   active: boolean
@@ -122,74 +93,21 @@ export function DateRangeDropdown({
           className={topBar.dropdownPanel}
           style={{ position: style.position, left: style.left, top: style.top }}
         >
-          <div className={topBar.dateFieldSelector}>
-            {(['deadline', 'followup', 'created', 'modified'] as const).map((field) => (
-              <button
-                type="button"
-                key={field}
-                className={`${topBar.dateFieldOption} ${dateField === field ? topBar.dateFieldOptionActive : ''}`}
-                onClick={() => {
-                  if (field === dateField) return
-                  onChangeDateField(field)
-                  const todayAnchor = fixedAnchor(startOfToday())
-                  if (field === 'deadline' || field === 'followup') {
-                    onChangeAnchors(todayAnchor, null)
-                  } else {
-                    onChangeAnchors(null, todayAnchor)
-                  }
-                }}
-              >
-                {DATE_FIELD_LABELS[field]}
-              </button>
-            ))}
-          </div>
-          <div className={topBar.dropdownDivider} />
-          <div className={topBar.dateRangeRow}>
-            <label className={topBar.dateLabel}>From</label>
-            <DateAnchorInput
-              value={startAnchor}
-              onChange={(v) => onChangeAnchors(v, endAnchor)}
-              aria-label="Date range start"
-            />
-          </div>
-          <div className={topBar.dateRangeRow}>
-            <label className={topBar.dateLabel}>To</label>
-            <DateAnchorInput
-              value={endAnchor}
-              onChange={(v) => onChangeAnchors(startAnchor, v)}
-              aria-label="Date range end"
-            />
-          </div>
-          {dateField === 'deadline' && (
-            <>
-              <div className={topBar.dropdownDivider} />
-              <label
-                className={topBar.dropdownItem}
-                onClick={() => onChangeIncludeNoDate(!includeNoDate)}
-              >
-                <span className={`${topBar.check} ${includeNoDate ? topBar.checked : ''}`} />
-                Include tasks with no due date
-              </label>
-            </>
-          )}
-          <div className={topBar.dropdownDivider} />
-          <TriStateRow label="Has due date" value={hasDeadline} onChange={onChangeHasDeadline} />
-          <TriStateRow label="Has follow-up" value={hasFollowup} onChange={onChangeHasFollowup} />
-          <div className={topBar.dropdownDivider} />
-          <div className={topBar.dropdownActions}>
-            <button
-              type="button"
-              className={`${topBar.dropdownAction} ${!active ? topBar.dropdownActionDisabled : ''}`}
-              onClick={() => {
-                onChangeAnchors(null, null)
-                onChangeHasDeadline(null)
-                onChangeHasFollowup(null)
-                setOpen(false)
-              }}
-            >
-              Clear
-            </button>
-          </div>
+          <DateRangePanelBody
+            active={active}
+            dateField={dateField}
+            startAnchor={startAnchor}
+            endAnchor={endAnchor}
+            includeNoDate={includeNoDate}
+            hasDeadline={hasDeadline}
+            hasFollowup={hasFollowup}
+            onChangeDateField={onChangeDateField}
+            onChangeAnchors={onChangeAnchors}
+            onChangeIncludeNoDate={onChangeIncludeNoDate}
+            onChangeHasDeadline={onChangeHasDeadline}
+            onChangeHasFollowup={onChangeHasFollowup}
+            onCleared={() => setOpen(false)}
+          />
         </div>,
         document.body,
       )}

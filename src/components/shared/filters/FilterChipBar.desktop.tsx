@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { toggleItem } from '../../../utils/filter'
-import { StatusIcon } from '../StatusIcon'
 import topBar from '../../layout/TopBar.module.css'
 import { DateRangeDropdown } from './DateRangeDropdown'
+import { EntityDropdownItems, SelectionPanelBody } from './FilterPanels'
 import {
   useFilterChipBarState,
   type EntityKey,
@@ -48,7 +48,7 @@ function FilterDropdown({
   }, [onClose])
 
   // Portal + flip + clamp: when this chip-row sits inside the list editor
-  // modal (via ListFilterEditor), the dialog body's `overflow: auto` used to
+  // modal, the dialog body's `overflow: auto` used to
   // clip the panel and force the user to scroll inside the modal. Routing
   // through usePopoverAnchor + createPortal mirrors the IconSelect fix
   // (triage-2026-04-27 batch2 P3 / item 3) for the rest of the editor's
@@ -93,97 +93,20 @@ function FilterDropdown({
           className={topBar.dropdownPanel}
           style={{ position: style.position, left: style.left, top: style.top }}
         >
-          <div className={topBar.dropdownActions}>
-            <button
-              type="button"
-              className={`${topBar.dropdownAction} ${allSelected ? topBar.dropdownActionDisabled : ''}`}
-              onClick={allSelected ? undefined : onSelectAll}
-            >
-              Select all
-            </button>
-            <span className={topBar.dropdownActionSep}>/</span>
-            <button
-              type="button"
-              className={`${topBar.dropdownAction} ${noneSelected ? topBar.dropdownActionDisabled : ''}`}
-              onClick={noneSelected ? undefined : onDeselectAll}
-            >
-              Deselect all
-            </button>
-          </div>
-          <div className={topBar.dropdownDivider} />
-          {searchable && (
-            <div className={topBar.dropdownSearchWrapper}>
-              <input
-                ref={searchRef}
-                className={topBar.dropdownSearchInput}
-                type="text"
-                placeholder="Search..."
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    if (searchText) setSearchText('')
-                    else handleClose()
-                  }
-                }}
-              />
-            </div>
-          )}
-          <div className={searchable ? topBar.dropdownItemsScrollable : undefined}>{rendered}</div>
+          <SelectionPanelBody
+            allSelected={allSelected}
+            noneSelected={noneSelected}
+            onSelectAll={onSelectAll}
+            onDeselectAll={onDeselectAll}
+            search={searchable ? { text: searchText, setText: setSearchText, onEscape: handleClose } : undefined}
+            searchInputRef={searchRef}
+          >
+            {rendered}
+          </SelectionPanelBody>
         </div>,
         document.body,
       )}
     </div>
-  )
-}
-
-interface EntityDropdownItemsProps {
-  searchText: string
-  entities: { id?: number; name: string; color?: string; icon?: string }[]
-  isChecked: (id: number) => boolean
-  onToggle: (id: number) => void
-  namePrefix?: string
-  showDot?: boolean
-}
-
-function EntityDropdownItems({
-  searchText,
-  entities,
-  isChecked,
-  onToggle,
-  namePrefix,
-  showDot = true,
-}: EntityDropdownItemsProps) {
-  const q = searchText.toLowerCase()
-  const showNone = !q || 'none'.includes(q)
-  const filtered = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
-    .toSorted((a, b) => a.name.localeCompare(b.name))
-  return (
-    <>
-      {showNone && (
-        <label className={topBar.dropdownItem} onClick={() => onToggle(0)}>
-          <span className={`${topBar.check} ${isChecked(0) ? topBar.checked : ''}`} />
-          <span className={topBar.noneLabel}>None</span>
-        </label>
-      )}
-      {filtered.map((entity) => (
-        <label key={entity.id} className={topBar.dropdownItem} onClick={() => onToggle(entity.id!)}>
-          <span className={`${topBar.check} ${isChecked(entity.id!) ? topBar.checked : ''}`} />
-          {entity.icon ? (
-            <span className={topBar.dotIcon} style={{ color: entity.color }}>
-              <StatusIcon icon={entity.icon} filled />
-            </span>
-          ) : showDot && entity.color ? (
-            <span className={topBar.dot} style={{ background: entity.color }} />
-          ) : null}
-          {namePrefix}
-          {entity.name}
-        </label>
-      ))}
-      {q && !showNone && filtered.length === 0 && (
-        <div className={topBar.dropdownEmpty}>No matches</div>
-      )}
-    </>
   )
 }
 
