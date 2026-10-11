@@ -8,7 +8,7 @@ This file is the always-loaded orientation. For per-abstraction detail, load the
 - **Database**: Dexie.js over IndexedDB (local-first)
 - **Spatial Canvas**: React Flow
 - **Drag-and-Drop**: dnd-kit
-- **Routing**: React Router v7 (HashRouter)
+- **Routing**: React Router v7 data router (`createHashRouter` + `RouterProvider`; one splat route renders the shell's `<Routes>`, so `useBlocker` is available)
 
 ## Dependency Graph
 
@@ -52,7 +52,7 @@ main.tsx (entry point)
 Two layers, picked by what's being verified:
 
 - **vitest (`npm test`)** — unit + JSDOM under `src/test/**`. Authoritative for pure logic, models, repositories, store reducers, services, utilities, and rendering / event-handler dispatch that doesn't depend on real layout, focus, or async DOM timing. `e2e/**` is excluded from the vitest sweep. `vitest.config.ts` splits two projects: `isolated` — any test file calling `vi.mock` / `vi.doMock` (detected at config load), one fresh worker per file so module fakes can't leak; `shared` — every other file, `isolate: false` (one jsdom + module cache per worker, the bulk of the speed-up), with `src/test/setup-shared.ts` restoring at each file boundary what a fresh worker would give: every zustand store back to `getInitialState()` (a `vi.mock('zustand')` wrapper registers each store as it is created), the Dexie db deleted, Testing Library `cleanup()`, `<body>` / `<html>` attributes / storage / URL cleared, real timers, global + env stubs undone, `vi.spyOn` spies restored.
-- **Playwright (`npm run test:e2e`)** — Chromium-only real-browser flows under `e2e/**`. Starts its own `npm run dev` on fixed port 5173 (the everyday dev server is 5180), `reuseExistingServer`, `trace: 'retain-on-failure'`, `fullyParallel` (each test has its own browser context, so tests within one spec spread across workers). Fixtures + CDP-trusted gestures live in `e2e/fixtures/seed.ts`. `/list` specs must use `page.goto('/#/list')` (HashRouter). CI is out of scope.
+- **Playwright (`npm run test:e2e`)** — Chromium-only real-browser flows under `e2e/**`. Starts its own `npm run dev` on fixed port 5173 (the everyday dev server is 5180), `reuseExistingServer`, `trace: 'retain-on-failure'`, `fullyParallel` (each test has its own browser context, so tests within one spec spread across workers). Fixtures + CDP-trusted gestures live in `e2e/fixtures/seed.ts`. `/list` specs must use `page.goto('/#/list')` (hash routing). CI is out of scope.
 
 **JSDOM is not authoritative** for: focus handoffs, `ResizeObserver`-driven layout, drag-and-drop hit-testing (rails / floats / taskboard / `data-rails-drop-id` / `data-tbp-entry` geometry), popover anchor placement and viewport flips, async-store-driven re-render timing, and canvas positional behavior. Those categories require a Playwright spec — JSDOM passing is not enough signal.
 

@@ -1,5 +1,5 @@
 /**
- * Route paths used by the HashRouter in App.tsx. Centralized so navigation
+ * Route paths used by the hash router in App.tsx. Centralized so navigation
  * call sites (Sidebar, BottomTabBar, command-registry, keyboard-shortcuts)
  * stay in sync with the `<Route>` declarations.
  */

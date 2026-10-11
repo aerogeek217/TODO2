@@ -128,7 +128,7 @@ test.describe('RuntimeFilterPicker — /list mount', () => {
       }],
     })
 
-    // App.tsx mounts a HashRouter, so route paths live under the URL hash.
+    // App.tsx uses a hash router, so route paths live under the URL hash.
     // page.goto('/list') only changes the browser path and leaves the app
     // sitting on `#/` — switch the hash explicitly so ListView mounts.
     await page.goto('/#/list')

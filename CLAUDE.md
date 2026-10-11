@@ -23,7 +23,7 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 - Dexie.js (IndexedDB, local-first persistence)
 - React Flow (spatial canvas — slated for replacement on `feature/canvas-replacement`)
 - dnd-kit (drag-and-drop)
-- React Router v7 (HashRouter)
+- React Router v7 (data router: `createHashRouter` + `RouterProvider`)
 
 ## Working Principles
 - **Verify before acting.** Never assume how code works — read the actual implementation before making changes. Trace the real call chain, check actual types, confirm actual behavior. If you're not sure, read the code; don't guess.

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
-import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
+import { createHashRouter, RouterProvider, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
 import { useCanvasStore } from './stores/canvas-store'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
@@ -459,7 +459,17 @@ function AppShell() {
   )
 }
 
+/**
+ * Data router (hash history) around the whole shell: one splat route whose
+ * element renders the shell's own `<Routes>`. A data router is what makes
+ * `useBlocker` available (navigation prompts for unsaved changes).
+ */
+function createAppRouter() {
+  return createHashRouter([{ path: '*', element: <AppShell /> }])
+}
+
 export default function App() {
+  const [router] = useState(createAppRouter)
   const [unsupportedDBInfo, setUnsupportedDBInfo] = useState<UnsupportedDBInfo | null>(null)
   const [dbVersionChecked, setDbVersionChecked] = useState(false)
 
@@ -487,9 +497,7 @@ export default function App() {
 
   return (
     <ErrorBoundary scope="App">
-      <HashRouter>
-        <AppShell />
-      </HashRouter>
+      <RouterProvider router={router} />
       <FileMigrationOverlay />
     </ErrorBoundary>
   )
