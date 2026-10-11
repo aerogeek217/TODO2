@@ -2,13 +2,18 @@ import { useSyncExternalStore } from 'react'
 
 const MOBILE_QUERY = '(max-width: 640px)'
 
-let mediaQuery: MediaQueryList | null = null
+/**
+ * The media query list, kept for the `window.matchMedia` it came from: a
+ * replaced `matchMedia` (tests stub it) gets a fresh query instead of the
+ * stale list of the previous one.
+ */
+let cached: { matchMedia: typeof window.matchMedia; list: MediaQueryList } | null = null
 
 function getMediaQuery(): MediaQueryList {
-  if (!mediaQuery) {
-    mediaQuery = window.matchMedia(MOBILE_QUERY)
+  if (cached?.matchMedia !== window.matchMedia) {
+    cached = { matchMedia: window.matchMedia, list: window.matchMedia(MOBILE_QUERY) }
   }
-  return mediaQuery
+  return cached.list
 }
 
 function subscribe(callback: () => void): () => void {
