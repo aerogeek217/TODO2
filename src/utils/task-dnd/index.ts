@@ -25,6 +25,8 @@ export {
 
 export {
   dispatchTaskDrop,
+  resolveCalendarDropType,
+  type CalendarDropChoiceRequest,
   type TaskDropDispatchDeps,
   type CalendarOps,
 } from './dispatch'

@@ -15,6 +15,7 @@
  * | calendar-view     | `calview-todo-<id>`     | CalendarView row; drops via dispatchTaskDrop → reschedule |
  * | calendar-strip    | `calstrip-todo-<id>`    | rail/float CalendarStrip row; drops via dispatchTaskDrop → reschedule |
  * | list-widget       | `lw|<tab>|<section>|<id>` | workspace list widget row — one id per occurrence (a task with two people shows in both people's groups) |
+ * | calendar-widget   | `cw|<tab>|<slot>|<id>`  | workspace calendar entry — `slot` = the entry's date type (`due` / `followup`), prefixed `pop-` inside the day popover; drops via dispatchTaskDrop → reschedule |
  */
 
 export type TaskSurfaceKey =
@@ -25,12 +26,16 @@ export type TaskSurfaceKey =
   | 'calendar-view'
   | 'calendar-strip'
   | 'list-widget'
+  | 'calendar-widget'
 
 /**
  * Extras required by some surfaces:
  *  - `list-widget` needs `scope` (the widget's tab id) and `sectionKey` (the
  *    group the row shows in): a task can show in several groups of one
  *    widget, and the same list in several widgets.
+ *  - `calendar-widget` needs `scope` (the widget's tab id) and `sectionKey`
+ *    (the entry's slot): a task shows once per date type, and again in an
+ *    open day popover.
  */
 export interface TaskDragIdExtras {
   scope?: string
@@ -66,6 +71,11 @@ export function taskDragId(
         throw new Error('taskDragId("list-widget") requires extras.scope and extras.sectionKey')
       }
       return `lw|${extras.scope}|${extras.sectionKey}|${todoId}`
+    case 'calendar-widget':
+      if (extras?.scope == null || extras.sectionKey == null) {
+        throw new Error('taskDragId("calendar-widget") requires extras.scope and extras.sectionKey')
+      }
+      return `cw|${extras.scope}|${extras.sectionKey}|${todoId}`
   }
 }
 
@@ -78,6 +88,7 @@ const TASK_DRAG_PREFIXES: readonly string[] = [
   'calview-todo-',
   'calstrip-todo-',
   'lw|',
+  'cw|',
 ]
 
 /**

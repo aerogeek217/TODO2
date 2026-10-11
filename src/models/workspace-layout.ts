@@ -40,6 +40,9 @@ export interface CalendarDateTypes {
   followup: boolean
 }
 
+/** One task date a calendar can show: the due date or the next follow-up. */
+export type CalendarDateType = keyof CalendarDateTypes
+
 export interface LensTabConfig {
   /** The list definition shown; absent = not picked yet. */
   listDefinitionId?: number

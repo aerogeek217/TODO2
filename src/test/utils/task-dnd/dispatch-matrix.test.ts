@@ -3,7 +3,8 @@
  * source surface (it reads `active.data.current.todo` and the drop target's
  * `data.type`), so covering each branch once pins the contract every surface
  * relies on:
- *   - calendar-day target → reschedule
+ *   - calendar-day target → reschedule (which date: the entry's own, the
+ *     one the calendar shows, or the user's pick when it shows both)
  *   - any other target (or none) → not handled; the caller's own route-level
  *     handler runs
  */
@@ -14,6 +15,7 @@ import {
   TASK_DRAG_KIND,
   TASK_DROP_KIND,
   dispatchTaskDrop,
+  resolveCalendarDropType,
   taskDragId,
 } from '../../../utils/task-dnd'
 import { makeTodo } from '../../helpers'
@@ -21,19 +23,25 @@ import { makeTodo } from '../../helpers'
 function makeEvent(opts: {
   activeId?: string
   activeTodoId: number
+  /** Extra drag data (e.g. a calendar entry's `calendarDateType`). */
+  activeExtra?: Record<string, unknown>
+  /** Where the drag started (viewport); the drop point adds `delta`. */
+  start?: { x: number; y: number }
+  delta?: { x: number; y: number }
   over?: { id: string; type: string; extra?: Record<string, unknown> } | null
 }): DragEndEvent {
   const todo = makeTodo({ id: opts.activeTodoId })
   return {
     active: {
       id: opts.activeId ?? 'active',
-      data: { current: { type: TASK_DRAG_KIND.task, todo } },
+      data: { current: { ...opts.activeExtra, type: TASK_DRAG_KIND.task, todo } },
       rect: { current: { initial: null, translated: null } },
     },
+    activatorEvent: opts.start ? { clientX: opts.start.x, clientY: opts.start.y } : null,
     over: opts.over
       ? { id: opts.over.id, data: { current: { type: opts.over.type, ...(opts.over.extra ?? {}) } } }
       : null,
-    delta: { x: 0, y: 0 },
+    delta: opts.delta ?? { x: 0, y: 0 },
   } as unknown as DragEndEvent
 }
 
@@ -50,7 +58,7 @@ describe('dispatchTaskDrop — calendar day drops', () => {
       { calendar: { reschedule } },
     )
     expect(handled).toBe(true)
-    expect(reschedule).toHaveBeenCalledWith(7, date)
+    expect(reschedule).toHaveBeenCalledWith(7, date, 'due')
   })
 
   it('a list widget row dropped on a day is rescheduled', async () => {
@@ -65,7 +73,7 @@ describe('dispatchTaskDrop — calendar day drops', () => {
       { calendar: { reschedule } },
     )
     expect(handled).toBe(true)
-    expect(reschedule).toHaveBeenCalledWith(3, date)
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'due')
   })
 
   it('without a calendar op the day drop falls through to the caller', async () => {
@@ -87,6 +95,78 @@ describe('dispatchTaskDrop — calendar day drops', () => {
     )
     expect(handled).toBe(false)
     expect(reschedule).not.toHaveBeenCalled()
+  })
+})
+
+describe('dispatchTaskDrop — which date a day drop sets', () => {
+  const date = new Date(2026, 9, 13)
+  const day = (dateTypes?: { due: boolean; followup: boolean }) => ({
+    id: 'calday-ws-t-1', type: TASK_DROP_KIND.calendarDay, extra: { date, scope: 'ws-t', ...(dateTypes ? { dateTypes } : {}) },
+  })
+
+  it('a calendar showing only follow-ups sets the follow-up', async () => {
+    const reschedule = vi.fn(async () => {})
+    const chooseType = vi.fn(async () => 'due' as const)
+    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: false, followup: true }) }), { calendar: { reschedule, chooseType } })
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'followup')
+    expect(chooseType).not.toHaveBeenCalled()
+  })
+
+  it('both shown: asks, at the drop point, and sets the pick', async () => {
+    const reschedule = vi.fn(async () => {})
+    const chooseType = vi.fn(async () => 'followup' as const)
+    await dispatchTaskDrop(
+      makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true }), start: { x: 100, y: 50 }, delta: { x: 300, y: 120 } }),
+      { calendar: { reschedule, chooseType } },
+    )
+    expect(chooseType).toHaveBeenCalledWith(expect.objectContaining({ date, scope: 'ws-t', at: { x: 400, y: 170 } }))
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'followup')
+  })
+
+  it('both shown and the choice cancelled: handled, nothing set', async () => {
+    const reschedule = vi.fn(async () => {})
+    const handled = await dispatchTaskDrop(
+      makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true }) }),
+      { calendar: { reschedule, chooseType: async () => null } },
+    )
+    expect(handled).toBe(true)
+    expect(reschedule).not.toHaveBeenCalled()
+  })
+
+  it('both shown but no chooser: the due date', async () => {
+    const reschedule = vi.fn(async () => {})
+    await dispatchTaskDrop(makeEvent({ activeTodoId: 3, over: day({ due: true, followup: true }) }), { calendar: { reschedule } })
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'due')
+  })
+
+  it('a calendar entry moves its own date, whatever the target shows, without asking', async () => {
+    const reschedule = vi.fn(async () => {})
+    const chooseType = vi.fn(async () => 'due' as const)
+    await dispatchTaskDrop(
+      makeEvent({
+        activeId: taskDragId('calendar-widget', 3, { scope: 't', sectionKey: 'followup' }),
+        activeTodoId: 3,
+        activeExtra: { calendarDateType: 'followup' },
+        over: day({ due: true, followup: false }),
+      }),
+      { calendar: { reschedule, chooseType } },
+    )
+    expect(reschedule).toHaveBeenCalledWith(3, date, 'followup')
+    expect(chooseType).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveCalendarDropType', () => {
+  it.each([
+    [{}, { dateTypes: { due: true, followup: true } }, 'choose'],
+    [{}, { dateTypes: { due: true, followup: false } }, 'due'],
+    [{}, { dateTypes: { due: false, followup: true } }, 'followup'],
+    [{}, {}, 'due'],
+    [{ calendarDateType: 'due' }, { dateTypes: { due: false, followup: true } }, 'due'],
+    [{ calendarDateType: 'followup' }, { dateTypes: { due: true, followup: true } }, 'followup'],
+    [{ calendarDateType: 'bogus' }, { dateTypes: { due: true, followup: false } }, 'due'],
+  ] as const)('drag %o on %o → %s', (active, over, expected) => {
+    expect(resolveCalendarDropType(active, over)).toBe(expected)
   })
 })
 
