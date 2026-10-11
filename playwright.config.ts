@@ -2,6 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // Every test gets its own browser context (fresh IndexedDB), so tests
+  // within a spec spread across workers instead of one long spec setting
+  // the suite's wall time.
+  fullyParallel: true,
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',
