@@ -11,9 +11,10 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 - Build (both): `npm run build` → runs `npm run lint` first (hard gate — any lint error or warning fails the build, incl. the GitHub Pages deploy), then `dist/index.html` (online, CDN fonts) + `dist/todo2.html` (offline, single file). Verify with this, not `tsc --noEmit`.
 - Build online only: `npm run build:online` (also lint-gated)
 - Build offline only: `npm run build:offline` (also lint-gated)
-- Test: `npm test` (vitest + JSDOM)
+- Test: `npm test` (vitest + JSDOM). Two projects: `isolated` (files that call `vi.mock`/`vi.doMock`, detected automatically — fresh worker per file) and `shared` (everything else, `isolate: false`; `src/test/setup-shared.ts` resets stores / db / DOM / storage / timers / stubs / spies at each file boundary).
+- Test affected only: `npx vitest related <changed src files> --run` — use while iterating; run the full `npm test` once before committing
 - Test watch: `npm run test:watch`
-- E2E: `npm run test:e2e` (Playwright; starts its own dev server on port 5173 — separate from the 5180 dev server)
+- E2E: `npm run test:e2e` (Playwright, `fullyParallel`; starts its own dev server on port 5173 — separate from the 5180 dev server). Single spec: `npx playwright test e2e/<name>.spec.ts`
 - Lint: `npm run lint` (`eslint . --max-warnings 0`). Temporary per-file ignores for canvas-replacement files live in `eslint.config.js` — each is removed by the phase that deletes/rewrites the file; don't add entries to dodge fixes.
 
 ## Tech Stack
