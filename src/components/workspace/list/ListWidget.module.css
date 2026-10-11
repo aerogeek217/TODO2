@@ -2,6 +2,7 @@
  * widgets (< 360px) are container queries against `.widget`. */
 
 .widget {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -205,6 +206,299 @@
 .groupCount {
   color: var(--color-text-muted);
   font-weight: var(--font-weight-regular);
+}
+
+/* ── Rows: selection, cursor, drag (D0 row states) ──────────────────────── */
+
+.row {
+  position: relative;
+  outline: none;
+}
+
+/* Consecutive selected rows share one fill; the run's ends are rounded. */
+.rowSelected {
+  background: var(--color-accent-bg-medium);
+}
+
+.rowSelFirst {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+}
+
+.rowSelLast {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+/* Keyboard cursor: a ring, no fill (can sit on a selected row). */
+.rowCursor {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.rowCursor:not(.rowSelected) {
+  border-radius: 6px;
+}
+
+.rowFaded {
+  opacity: 0.5;
+}
+
+/* The dragged row while its slot shows elsewhere. */
+.rowGone {
+  height: 0;
+  overflow: hidden;
+}
+
+/* Where the dragged row lands (manual order: rows make room). */
+.dropSlot {
+  height: 32px;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+/* Drop line between rows: a 2px bar with a ring at its start. */
+.dropLine {
+  position: relative;
+  height: 0;
+  z-index: 3;
+}
+
+.dropLine::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+.dropLine::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  box-sizing: border-box;
+  border: 2px solid var(--color-accent);
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+
+/* Sorted list: the row won't land here unless the list switches to manual. */
+.dropLineSorted::before {
+  height: 0;
+  background: none;
+  border-top: 2px dashed var(--color-text-muted);
+}
+
+.dropLineSorted::after {
+  border-color: var(--color-text-muted);
+}
+
+/* Below the lifted row, which follows the pointer over the line. */
+.dropHint {
+  position: absolute;
+  left: 14px;
+  top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--color-surface-high);
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--shadow-dropdown);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Cross-group drop: the target group is outlined and says what changes. */
+.groupDropTarget {
+  border-radius: 6px;
+  background: var(--color-accent-bg-light);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.groupDropPreview {
+  margin-left: auto;
+  padding-right: 4px;
+  color: var(--color-accent);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+/* ── Bulk bar (2+ selected) ─────────────────────────────────────────────── */
+
+.bulkBar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border-radius: 8px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  white-space: nowrap;
+}
+
+:global([data-theme='light']) .bulkBar {
+  background: var(--color-surface);
+}
+
+.bulkCount {
+  margin-right: 6px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.bulkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.bulkButton:hover,
+.bulkButtonOpen {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.bulkDanger {
+  color: var(--color-danger);
+}
+
+.bulkDanger:hover {
+  color: var(--color-danger);
+}
+
+.bulkSep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--color-border);
+}
+
+.bulkDate {
+  position: relative;
+  display: inline-flex;
+}
+
+.bulkDateInput {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.bulkPicker {
+  min-width: 200px;
+  padding: 4px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-dropdown);
+}
+
+/* ── Switch to manual order? (D0 popover, 330 wide) ─────────────────────── */
+
+.switchPopover {
+  z-index: var(--z-dialog-nested);
+  width: 330px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+}
+
+:global([data-theme='light']) .switchPopover {
+  background: var(--color-surface);
+}
+
+.switchTitle {
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-bold);
+}
+
+.switchBody {
+  margin: 6px 0 12px;
+  font-size: var(--font-size-meta);
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+.switchFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.switchCancel,
+.switchConfirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.switchCancel {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.switchCancel:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.switchConfirm {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.switchConfirm:hover {
+  filter: brightness(1.08);
+}
+
+.kbd {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--color-tint-8);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 11px;
 }
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */

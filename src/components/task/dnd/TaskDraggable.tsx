@@ -21,6 +21,10 @@ interface SharedProps {
   /** Required when `surface === 'taskboard-float'`. Differentiates a todo
    * rendered in multiple floating taskboard widgets on the same canvas. */
   floatingId?: number
+  /** Required when `surface === 'list-widget'`: the widget's tab id and the
+   * group the row shows in (see `taskDragId`). */
+  scope?: string
+  sectionKey?: string
   /** Drag data `type`. Defaults to `TASK_DRAG_KIND.task`; taskboard entries
    * pass `TASK_DRAG_KIND.taskboardTask` so the canvas handlers can
    * distinguish "reorder within board / remove on drop-off" from plain task
@@ -64,13 +68,15 @@ export function TaskDraggable({
   todo,
   surface,
   floatingId,
+  scope,
+  sectionKey,
   kind,
   extraData,
   disabled,
   children,
 }: TaskDraggableProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: taskDragId(surface, todo.id, { floatingId }),
+    id: taskDragId(surface, todo.id, { floatingId, scope, sectionKey }),
     data: { ...extraData, type: kind ?? TASK_DRAG_KIND.task, todo },
     disabled,
   })

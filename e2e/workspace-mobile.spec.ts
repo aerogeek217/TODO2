@@ -75,7 +75,7 @@ test('mobile opens the workspace; list widgets use touch rows and tabs are not d
   const rows = wsCell(page, 'a1').locator('[data-todo-id]')
   await expect(rows).toHaveCount(2)
   await expect(wsCell(page, 'a1').getByRole('button', { name: 'Open task details', exact: true })).toHaveCount(2)
-  await expect(wsCell(page, 'a1').locator('[data-task-drag-id]')).toHaveCount(0)
+  await expect(wsCell(page, 'a1').locator('[data-row-key]')).toHaveCount(0)
 
   // Switching only: no close ×, no add-tab +, no drag handle semantics.
   await expect(wsTab(page, 'todayTab')).not.toHaveAttribute('aria-roledescription', 'draggable')

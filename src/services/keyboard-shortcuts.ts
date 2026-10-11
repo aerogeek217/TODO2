@@ -14,6 +14,12 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { pasteTasksAt } from './clipboard'
 import { bySortOrder } from '../utils/sort-order'
+import {
+  findScopeElement,
+  nextScopedSelection,
+  readScopeRows,
+  type ScopedSelectMode,
+} from '../utils/scoped-selection'
 import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
 
 export type ShortcutCategory = 'general' | 'navigation' | 'task' | 'notes'
@@ -94,7 +100,55 @@ export function matchChord(e: KeyboardEvent, c: ChordSpec): boolean {
 
 // ── Shared task-shortcut handlers (selection nav branches on shift) ──
 
+/**
+ * Moves the selection to row `index` of a list widget's rows (`one`, or
+ * `range` from the anchor). Returns false when the scope isn't rendered.
+ */
+function selectScopeRow(scope: string, pick: (count: number, cursorIdx: number) => number | null, mode: ScopedSelectMode): boolean {
+  const el = findScopeElement(scope)
+  if (!el) return false
+  const rows = readScopeRows(el)
+  if (rows.length === 0) return true
+  const ui = useUIStore.getState()
+  const cursorIdx = ui.selectionScope === scope && ui.selectionCursorKey != null
+    ? rows.findIndex((r) => r.key === ui.selectionCursorKey)
+    : -1
+  const idx = pick(rows.length, cursorIdx)
+  const row = idx != null ? rows[idx] : undefined
+  if (!row) return true
+  const next = nextScopedSelection(
+    { scope: ui.selectionScope, ids: ui.selectedTodoIds, anchorKey: ui.selectionAnchorKey },
+    scope, rows, row.key, mode,
+  )
+  if (next) ui.setScopedSelection(scope, next)
+  el.querySelectorAll<HTMLElement>('[data-row-key]')[idx as number]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  return true
+}
+
+/** The list widget a fresh keyboard selection starts in: the one holding `row`, if any. */
+function scopeOf(row: Element | undefined): string | null {
+  return row?.closest<HTMLElement>('[data-selection-scope]')?.dataset.selectionScope ?? null
+}
+
 function arrowKeyHandler({ e }: ShortcutCtx) {
+  const up = e.key === 'ArrowUp'
+  const scope = useUIStore.getState().selectionScope
+  if (scope && useUIStore.getState().selectedTodoIds.size > 0) {
+    const handled = selectScopeRow(
+      scope,
+      (count, cur) => {
+        if (cur === -1) return up ? count - 1 : 0
+        const next = up ? cur - 1 : cur + 1
+        return next < 0 || next >= count ? null : next
+      },
+      e.shiftKey ? 'range' : 'one',
+    )
+    if (handled) {
+      e.preventDefault()
+      return
+    }
+  }
+
   const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
   const todoIds = rows.map(el => Number(el.getAttribute('data-todo-id')))
   if (todoIds.length === 0) return
@@ -121,14 +175,23 @@ function arrowKeyHandler({ e }: ShortcutCtx) {
   }
 
   e.preventDefault()
-  const targetId = e.key === 'ArrowDown' ? todoIds[0] : todoIds[todoIds.length - 1]
+  const targetIdx = e.key === 'ArrowDown' ? 0 : rows.length - 1
+  // A list widget's rows: start a selection in that widget.
+  const startScope = scopeOf(rows[targetIdx])
+  if (startScope && selectScopeRow(startScope, (count) => (up ? count - 1 : 0), 'one')) return
+  const targetId = todoIds[targetIdx]
   if (targetId == null) return
   useUIStore.getState().selectOneTodo(targetId)
-  const targetIdx = e.key === 'ArrowDown' ? 0 : rows.length - 1
   rows[targetIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
 
 function homeEndHandler({ e }: ShortcutCtx) {
+  const home = e.key === 'Home'
+  const scope = useUIStore.getState().selectionScope
+  if (scope && selectScopeRow(scope, (count) => (home ? 0 : count - 1), e.shiftKey ? 'range' : 'one')) {
+    e.preventDefault()
+    return
+  }
   const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
   if (rows.length === 0) return
   e.preventDefault()
@@ -268,6 +331,23 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
     chord: { key: 'a', mod: true },
     modalRow: { category: 'general', label: 'Mod-A', description: 'Select all visible tasks' },
     handler: ({ e }) => {
+      // In a list widget with a selection: that widget's rows.
+      const scope = useUIStore.getState().selectionScope
+      const scopeEl = scope ? findScopeElement(scope) : null
+      if (scope && scopeEl) {
+        const rows = readScopeRows(scopeEl)
+        const first = rows[0]
+        const last = rows[rows.length - 1]
+        if (!first || !last) return
+        e.preventDefault()
+        useUIStore.getState().setScopedSelection(scope, {
+          ids: new Set(rows.map((r) => r.todoId)),
+          anchorKey: first.key,
+          cursorKey: last.key,
+          cursorTodoId: last.todoId,
+        })
+        return
+      }
       const rows = Array.from(document.querySelectorAll('[data-todo-id]'))
       if (rows.length === 0) return
       e.preventDefault()

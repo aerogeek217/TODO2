@@ -28,6 +28,15 @@ describe('taskDragId — per-surface id format', () => {
     expect(taskDragId('taskboard-float', 42, { floatingId: 7 })).toBe('tb-7-42')
   })
 
+  it('list-widget: one id per occurrence (widget + group + task)', () => {
+    const a = taskDragId('list-widget', 3, { scope: 't1', sectionKey: 'person-1' })
+    const b = taskDragId('list-widget', 3, { scope: 't1', sectionKey: 'person-2' })
+    const c = taskDragId('list-widget', 3, { scope: 't2', sectionKey: 'person-1' })
+    expect(new Set([a, b, c]).size).toBe(3)
+    expect(isTaskDragId(a)).toBe(true)
+    expect(() => taskDragId('list-widget', 3, { scope: 't1' })).toThrow()
+  })
+
   it('throws when taskboard-float extras are missing', () => {
     expect(() => taskDragId('taskboard-float', 42)).toThrow(/floatingId/)
   })

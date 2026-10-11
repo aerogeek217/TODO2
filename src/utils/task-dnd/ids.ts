@@ -17,6 +17,7 @@
  * | calendar-view     | `calview-todo-<id>`     | CalendarView row; drops via dispatchTaskDrop → reschedule |
  * | calendar-strip    | `calstrip-todo-<id>`    | rail/float CalendarStrip row; drops via dispatchTaskDrop → reschedule |
  * | search            | `search-todo-<id>`      | TopBar search-result row (P3)  |
+ * | list-widget       | `lw|<tab>|<section>|<id>` | workspace list widget row — one id per occurrence (a task with two people shows in both people's groups) |
  */
 
 export type TaskSurfaceKey =
@@ -29,14 +30,20 @@ export type TaskSurfaceKey =
   | 'calendar-view'
   | 'calendar-strip'
   | 'search'
+  | 'list-widget'
 
 /**
  * Extras required by some surfaces:
  *  - `taskboard-float` needs `floatingId` (one canvas can host multiple
  *    floating taskboard widgets that all view the singleton board).
+ *  - `list-widget` needs `scope` (the widget's tab id) and `sectionKey` (the
+ *    group the row shows in): a task can show in several groups of one
+ *    widget, and the same list in several widgets.
  */
 export interface TaskDragIdExtras {
   floatingId?: number
+  scope?: string
+  sectionKey?: string
 }
 
 /**
@@ -72,6 +79,11 @@ export function taskDragId(
       return `calstrip-todo-${todoId}`
     case 'search':
       return `search-todo-${todoId}`
+    case 'list-widget':
+      if (extras?.scope == null || extras.sectionKey == null) {
+        throw new Error('taskDragId("list-widget") requires extras.scope and extras.sectionKey')
+      }
+      return `lw|${extras.scope}|${extras.sectionKey}|${todoId}`
   }
 }
 
@@ -86,6 +98,7 @@ const TASK_DRAG_PREFIXES: readonly string[] = [
   'calview-todo-',
   'calstrip-todo-',
   'search-todo-',
+  'lw|',
 ]
 
 /**

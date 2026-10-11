@@ -319,7 +319,7 @@ test.describe('task drags inside the workspace', () => {
         ],
       }],
     })
-    const row = wsCell(page, 'a1').locator('[data-task-drag-id]').filter({ hasText: 'Move me' })
+    const row = wsCell(page, 'a1').locator('[data-row-key]').filter({ hasText: 'Move me' })
     const day = wsCell(page, 'b1').locator('[data-day]').nth(2)
     await expect(row).toBeVisible()
     const from = await row.boundingBox()
