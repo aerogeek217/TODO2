@@ -237,3 +237,43 @@ export async function readListDefinitions(page: Page): Promise<Array<Record<stri
     return rows
   }, DB_NAME)
 }
+
+/** The stored manual list order (`listOrders` rows), read straight from IndexedDB. */
+export async function readListOrders(page: Page): Promise<Array<{ listDefinitionId: number; todoId: number; rank: number }>> {
+  return page.evaluate(async (db) => {
+    const idb = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open(db)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    })
+    const rows = await new Promise<Array<{ listDefinitionId: number; todoId: number; rank: number }>>((resolve, reject) => {
+      const r = idb.transaction('listOrders').objectStore('listOrders').getAll()
+      r.onsuccess = () => resolve(r.result as Array<{ listDefinitionId: number; todoId: number; rank: number }>)
+      r.onerror = () => reject(r.error)
+    })
+    idb.close()
+    return rows
+  }, DB_NAME)
+}
+
+/**
+ * Drags a list widget row by its left edge (the grip) with trusted mouse
+ * events to viewport y `toY`, checking `during` (if given) before releasing.
+ */
+export async function dragRow(
+  page: Page,
+  row: Locator,
+  toY: number,
+  during?: () => Promise<void>,
+): Promise<void> {
+  const box = await row.boundingBox()
+  if (!box) throw new Error('dragRow: row has no bounding box')
+  const x = box.x + 10
+  const y0 = box.y + box.height / 2
+  await page.mouse.move(x, y0)
+  await page.mouse.down()
+  await page.mouse.move(x + 2, y0 + 8, { steps: 2 })
+  await page.mouse.move(x + 4, toY, { steps: 12 })
+  if (during) await during()
+  await page.mouse.up()
+}
