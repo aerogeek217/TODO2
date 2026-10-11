@@ -17,6 +17,7 @@ import { PortalDropdown } from '../shared/PortalDropdown'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { TaskNotePopover } from './TaskNotePopover'
+import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { generateInitials } from '../../utils/person'
@@ -71,6 +72,11 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const [showNotesPopover, setShowNotesPopover] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
+  /** Follow-up popover: anchored to the pill, or at the long-press menu's point. */
+  const [followupPopover, setFollowupPopover] = useState<
+    { kind: 'pill' } | { kind: 'point'; x: number; y: number } | null
+  >(null)
+  const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const scheduledAnchorRef = useRef<HTMLButtonElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
@@ -136,6 +142,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
   const closeScheduledMenu = useCallback(() => setShowScheduledMenu(false), [])
+  const closeFollowup = useCallback(() => setFollowupPopover(null), [])
 
   const status = useStatusStore((s) => {
     if (!todo.statusId) return undefined
@@ -147,7 +154,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const assignedPeopleIds = useMemo(() => new Set(people.map(p => p.id!)), [people])
   const hasPeople = people.length > 0 || assignedOrgs.length > 0
   const hasMetadata =
-    !!todo.scheduledDate || !!todo.dueDate ||
+    !!todo.scheduledDate || !!todo.dueDate || !!todo.nextFollowupAt ||
     hasPeople ||
     assignedTags.length > 0 ||
     !!todo.notes || !!todo.progress
@@ -244,10 +251,16 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             deadlineIntensity={deadlineIntensity}
             peopleAnchorRef={peopleRef}
             scheduledAnchorRef={scheduledAnchorRef}
+            followupAnchorRef={followupAnchorRef}
+            followupOpen={followupPopover !== null}
             showStatus={false}
             onPeopleClick={ghost ? undefined : () => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
             onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
             onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+            onFollowupClick={ghost ? undefined : (e) => {
+              e.stopPropagation()
+              setFollowupPopover((v) => (v ? null : { kind: 'pill' }))
+            }}
           />
 
           {todo.progress && (
@@ -335,6 +348,18 @@ export const MobileTaskRow = memo(function MobileTaskRow({
         document.body,
       )}
 
+      {followupPopover && !ghost && (
+        <FollowupPopover
+          todo={todo}
+          anchor={followupPopover.kind === 'point'
+            ? { kind: 'point', x: followupPopover.x, y: followupPopover.y }
+            : { kind: 'ref', ref: followupAnchorRef }}
+          onClose={closeFollowup}
+          onSetNext={(d) => bulk.setFollowup(todo.id, d)}
+          onFollowedUp={() => bulk.markFollowedUp(todo.id)}
+        />
+      )}
+
       {showNotesPopover && !ghost && createPortal(
         <TaskNotePopover
           todoId={todo.id}
@@ -373,6 +398,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             onBoard: contextMenu.onBoard,
             onOpenDetail,
             onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
+            onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),
+            onFollowedUp: () => bulk.markFollowedUp(todo.id),
             onComplete: handleToggleComplete,
             onDelete: handleDelete,
           })}

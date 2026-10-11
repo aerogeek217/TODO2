@@ -8,6 +8,7 @@ import { formatDate, startOfToday } from '../../utils/date'
 import { useOrgStore } from '../../stores/org-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { resolvePersonColor } from '../../utils/person-color'
+import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditMetadataProps {
@@ -55,6 +56,14 @@ interface TaskEditMetadataProps {
   // For project select save in edit mode
   todo?: PersistedTodoItem
   onUpdate?: (todo: PersistedTodoItem) => void
+
+  // Follow-up
+  followupNext: Date | undefined
+  followupLast: Date | undefined
+  followupNextHint?: string
+  onFollowupNextChange: (next: Date | null) => void
+  onFollowupLastChange: (last: Date | null) => void
+  onFollowedUp: () => void
 }
 
 export function TaskEditMetadata({
@@ -69,6 +78,8 @@ export function TaskEditMetadata({
   onCreatePerson, onCreateTag,
   openDropdown, setOpenDropdown,
   todo, onUpdate,
+  followupNext, followupLast, followupNextHint,
+  onFollowupNextChange, onFollowupLastChange, onFollowedUp,
 }: TaskEditMetadataProps) {
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const orgs = useOrgStore((s) => s.orgs)
@@ -259,6 +270,16 @@ export function TaskEditMetadata({
         </div>
       </div>
 
+      <FollowupEditorGroup
+        next={followupNext}
+        last={followupLast}
+        nextHint={followupNextHint}
+        onNextChange={onFollowupNextChange}
+        onLastChange={onFollowupLastChange}
+        onFollowedUp={onFollowedUp}
+        rowClassName={styles.metaRow}
+        labelClassName={styles.metaLabel}
+      />
     </div>
   )
 }

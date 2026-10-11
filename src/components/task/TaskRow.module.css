@@ -443,6 +443,43 @@
 }
 
 /*
+ * Empty follow-up slot: a 20px ghost flag that is hidden (no space) at rest
+ * and appears on row hover / keyboard focus, or while its popover is open.
+ */
+.followupTrigger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.row:hover .followupTrigger,
+.row:focus-within .followupTrigger,
+.followupTriggerOpen {
+  display: inline-flex;
+}
+
+.followupTrigger:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-bright);
+}
+
+.followupTrigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/*
  * Cross-module hover-reveal: TaskPillBar's status-empty dot sits inside
  * `.row` but its class lives in TaskPillBar.module.css under a different
  * hash, so the substring matcher is the simplest cross-module hook. Only

@@ -5,8 +5,7 @@ import { buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import type { ContextMenuItem } from '../../models/context-menu'
 
 /**
- * Build the context-menu items shown when a search result is right-clicked —
- * P4 of `docs/plans/features/features-batch-2026-04`.
+ * Build the context-menu items shown when a search result is right-clicked.
  *
  * Mirrors the items on `TaskRow`'s menu by delegating to the shared
  * `buildTaskRowMenuItems` helper. Search-specific overrides:
@@ -14,6 +13,7 @@ import type { ContextMenuItem } from '../../models/context-menu'
  *    not part of the multi-select), bypassing the bulk-actions expansion.
  *  - Delete: queues a single-id bulk confirmation (same — no selection
  *    expansion).
+ *  - Followed up: stamps just this task (same reason).
  */
 export function buildSearchContextMenuItems(params: {
   todo: PersistedTodoItem
@@ -27,6 +27,7 @@ export function buildSearchContextMenuItems(params: {
     onBoard,
     onOpenDetail: onOpen,
     onMoveToProject,
+    onFollowedUp: () => { void useTodoStore.getState().markFollowedUp([todo.id]) },
     onComplete: () => { void useTodoStore.getState().toggleComplete(todo.id) },
     onDelete: () => useUIStore.getState().showBulkConfirmation('delete', [todo.id]),
   })

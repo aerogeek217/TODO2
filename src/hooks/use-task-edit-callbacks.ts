@@ -49,7 +49,9 @@ export function useTaskEditCallbacks() {
     const id = await addTodo(parsedTitle || partial.title!, selectedCanvasId ?? undefined, pid)
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)
     if (todo) {
+      const followupTouched = 'nextFollowupAt' in partial || partial.lastFollowupAt !== undefined
       const hasMeta =
+        followupTouched ||
         partial.scheduledDate !== undefined || partial.dueDate !== undefined ||
         partial.notes || partial.statusId !== undefined ||
         resolved.scheduledDate !== undefined || resolved.recurrence ||
@@ -63,6 +65,9 @@ export function useTaskEditCallbacks() {
           dueDate: nextDeadline,
           statusId: resolved.statusId ?? partial.statusId ?? todo.statusId,
           notes: partial.notes ?? todo.notes,
+          // The editor's Next field may have been changed or cleared from the default.
+          nextFollowupAt: 'nextFollowupAt' in partial ? partial.nextFollowupAt : todo.nextFollowupAt,
+          lastFollowupAt: partial.lastFollowupAt ?? todo.lastFollowupAt,
           recurrenceRule: partial.recurrenceRule
             ?? (nextDeadline && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, nextDeadline) : undefined),
         })
@@ -102,6 +107,8 @@ export function useTaskEditCallbacks() {
       store.bulkSetDeadline(otherIds, updated.dueDate ?? null)
     if (updated.projectId !== current.projectId)
       store.bulkSetProject(otherIds, updated.projectId)
+    if (updated.nextFollowupAt?.getTime() !== current.nextFollowupAt?.getTime())
+      store.bulkSetFollowup(otherIds, updated.nextFollowupAt ?? null)
   }, [updateTodo])
 
   const editProps = useMemo(() => {
@@ -124,6 +131,9 @@ export function useTaskEditCallbacks() {
       assignedTags: assignedTagsMap.get(selectedTodo.id) ?? [],
       onUpdate: bulkAwareUpdate,
       onToggleComplete: () => useTodoStore.getState().toggleComplete(selectedTodo.id),
+      onFollowedUp: () => {
+        useTodoStore.getState().markFollowedUp([selectedTodo.id, ...getOtherSelectedIds(selectedTodo.id)])
+      },
       onDelete: () => {
         const ids = getOtherSelectedIds(selectedTodo.id)
         useUIStore.getState().showBulkConfirmation('delete', [selectedTodo.id, ...ids])

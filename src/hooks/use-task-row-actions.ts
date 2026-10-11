@@ -11,6 +11,10 @@ interface BuildMenuItemsOpts {
   onTaskboard?: boolean
   onOpenDetail?: (todoId: number) => void
   onMoveToProject?: () => void
+  /** Opens the follow-up popover ("Set follow-up…"). Omitted on surfaces without one. */
+  onSetFollowup?: () => void
+  /** "Followed up": last = now, next = today + the default interval. */
+  onFollowedUp?: () => void
   onComplete: () => void
   onDelete: () => void
 }
@@ -23,7 +27,7 @@ interface BuildMenuItemsOpts {
  */
 export function buildTaskRowMenuItems({
   todo, onBoard, onTaskboard,
-  onOpenDetail, onMoveToProject,
+  onOpenDetail, onMoveToProject, onSetFollowup, onFollowedUp,
   onComplete, onDelete,
 }: BuildMenuItemsOpts): ContextMenuItem[] {
   return [
@@ -35,6 +39,14 @@ export function buildTaskRowMenuItems({
       label: todo.isCompleted ? 'Mark incomplete' : 'Mark complete',
       action: onComplete,
     },
+    ...(onSetFollowup ? [{
+      label: 'Set follow-up…',
+      action: onSetFollowup,
+    }] : []),
+    ...(onFollowedUp ? [{
+      label: 'Followed up',
+      action: onFollowedUp,
+    }] : []),
     onBoard
       ? {
           label: 'Remove from Taskboard',

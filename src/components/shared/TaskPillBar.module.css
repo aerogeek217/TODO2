@@ -282,3 +282,80 @@
   flex-shrink: 0;
   pointer-events: none;
 }
+
+/* ═══ Follow-up pill ═══ */
+
+/*
+ * Next follow-up: yellow flag pill. Today → stronger fill; overdue → stronger
+ * fill + 1px yellow ring + "Nd late" (kept yellow so it never reads as an
+ * overdue due date, which is magenta). The × clears only the follow-up.
+ */
+.followupChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-followup-bg);
+  color: var(--color-followup);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+
+.followupChip svg {
+  font-size: 12px;
+}
+
+.followupChipWithClear {
+  padding-right: 2px;
+}
+
+.followupChipToday,
+.followupChipOverdue {
+  background: var(--color-followup-bg-strong);
+}
+
+.followupChipOverdue {
+  box-shadow: 0 0 0 1px var(--color-followup-glow);
+}
+
+.followupChipOpen {
+  box-shadow: inset 0 0 0 1px var(--color-followup);
+}
+
+.followupChip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.followupClear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  color: currentColor;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.followupClear:hover {
+  opacity: 1;
+  background: var(--color-followup-bg-strong);
+}
+
+.followupChipOverdue .followupClear:hover {
+  background: var(--color-followup-glow);
+}

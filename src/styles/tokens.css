@@ -117,6 +117,11 @@
   --color-danger: #ee7d77;
   --color-warning: #f5a623;
   --color-followup: #f5c842;
+  /* Follow-up pill fills: base, strong (today / overdue / hovered ×), and the
+     1px ring that marks an overdue follow-up (distinct from overdue due dates). */
+  --color-followup-bg: rgba(245, 200, 66, 0.12);
+  --color-followup-bg-strong: rgba(245, 200, 66, 0.24);
+  --color-followup-glow: rgba(245, 200, 66, 0.3);
 
   /* Overdue / special dates */
   --color-overdue: #e86bf0;
@@ -243,7 +248,10 @@
   /* Danger / warning — deepened for readability */
   --color-danger: #d94a43;
   --color-warning: #d08a12;
-  --color-followup: #c09a15;
+  --color-followup: #826600;
+  --color-followup-bg: rgba(245, 200, 66, 0.24);
+  --color-followup-bg-strong: rgba(245, 200, 66, 0.40);
+  --color-followup-glow: rgba(130, 102, 0, 0.3);
 
   /* Overdue */
   --color-overdue: #b838c0;

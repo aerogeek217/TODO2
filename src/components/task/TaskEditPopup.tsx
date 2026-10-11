@@ -6,6 +6,8 @@ import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { addFollowupInterval, describeFollowupInterval } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { useOrgStore } from '../../stores/org-store'
 import { resolvePersonColor } from '../../utils/person-color'
@@ -46,6 +48,8 @@ interface EditModeProps extends TaskEditPopupBaseProps {
   onToggleComplete: () => void
   onDelete: () => void
   onDuplicate?: () => void
+  /** "Followed up" (bulk-aware in the views). Defaults to stamping just this task. */
+  onFollowedUp?: () => void
   onCreate?: never
 }
 
@@ -77,6 +81,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
+  const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
 
   // Compute filter defaults once for create mode (views with filter UI only).
   // List-widget handoff: when the QuickAddBar was opened from a list's
@@ -143,6 +148,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     ?? quickAddSeed?.resolved.projectId
     ?? (mode === 'create' ? (filterDefaults?.projectId ?? defaultProjectId ?? undefined) : undefined),
   )
+  // Follow-up: edit mode reads/writes the task directly (edits apply as you
+  // make them); create mode keeps a draft seeded with the Settings default.
+  const [draftNextFollowup, setDraftNextFollowup] = useState<Date | undefined>(
+    () => (mode === 'create' ? addFollowupInterval(new Date(), followupInterval) : undefined),
+  )
+  const [draftLastFollowup, setDraftLastFollowup] = useState<Date | undefined>(undefined)
+  const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create')
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
     todo?.recurrenceRule?.type ?? quickAddSeed?.resolved.recurrence ?? '',
   )
@@ -439,6 +451,35 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (isEdit) props.onToggleComplete()
   }
 
+  const handleNextFollowupChange = (next: Date | null) => {
+    if (isEdit && todo) {
+      props.onUpdate({ ...todo, nextFollowupAt: next ?? undefined, modifiedAt: new Date() })
+    } else {
+      setDraftNextFollowup(next ?? undefined)
+      setNextFollowupIsDefault(false)
+    }
+  }
+
+  const handleLastFollowupChange = (last: Date | null) => {
+    if (isEdit && todo) {
+      props.onUpdate({ ...todo, lastFollowupAt: last ?? undefined, modifiedAt: new Date() })
+    } else {
+      setDraftLastFollowup(last ?? undefined)
+    }
+  }
+
+  const handleFollowedUp = () => {
+    if (isEdit && todo) {
+      if (props.onFollowedUp) props.onFollowedUp()
+      else void useTodoStore.getState().markFollowedUp([todo.id])
+      return
+    }
+    const now = new Date()
+    setDraftLastFollowup(now)
+    setDraftNextFollowup(addFollowupInterval(now, followupInterval))
+    setNextFollowupIsDefault(false)
+  }
+
   const handleCreate = async () => {
     if (mode !== 'create' || !title.trim()) return
     const newTodoId = await props.onCreate({
@@ -448,6 +489,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       statusId,
       scheduledDate: scheduledDate ?? undefined,
       dueDate: deadline ?? undefined,
+      nextFollowupAt: draftNextFollowup,
+      lastFollowupAt: draftLastFollowup,
       recurrenceRule: buildRule(),
       projectId,
     }, {
@@ -666,6 +709,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             setOpenDropdown={setOpenDropdown}
             todo={todo}
             onUpdate={isEdit ? props.onUpdate : undefined}
+            followupNext={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
+            followupLast={isEdit ? todo?.lastFollowupAt : draftLastFollowup}
+            followupNextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
+              ? `Default · ${describeFollowupInterval(followupInterval)}`
+              : undefined}
+            onFollowupNextChange={handleNextFollowupChange}
+            onFollowupLastChange={handleLastFollowupChange}
+            onFollowedUp={handleFollowedUp}
           />
 
           {/* Status Notes */}

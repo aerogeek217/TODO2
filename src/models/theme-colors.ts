@@ -49,7 +49,7 @@ export const DEFAULT_THEMED_COLORS: ThemedColors = {
     header: '#f7fbfa',
     danger: '#d94a43',
     warning: '#d08a12',
-    star: '#c09a15',
+    star: '#826600',
     scheduled: '#3a9e93',
     deadline: '#b838c0',
   },

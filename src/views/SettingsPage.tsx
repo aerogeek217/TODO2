@@ -39,6 +39,7 @@ import type { ProjectGroupBy } from '../models'
 import { MIN_CANVAS_MAX_EXTENT, MAX_CANVAS_MAX_EXTENT } from '../utils/canvas-bounds'
 import { BYTES_PER_KB } from '../constants'
 import { isExpiredCompleted, retentionCutoff, selectExpiredCompleted } from '../utils/completed-at'
+import { FollowupIntervalSetting } from '../components/settings/FollowupIntervalSetting'
 import styles from './SettingsPage.module.css'
 
 const retentionOptions: { value: string; label: string }[] = [
@@ -484,6 +485,12 @@ export function SettingsPage() {
               ))}
             </select>
           </div>
+          <FollowupIntervalSetting
+            rowClassName={styles.settingRow}
+            labelClassName={styles.settingLabel}
+            inputClassName={styles.settingSelect}
+            hintClassName={styles.retentionMuted}
+          />
           <div className={styles.settingRow}>
             <span className={styles.settingLabel}>Week starts on</span>
             <select

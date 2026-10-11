@@ -18,7 +18,9 @@ import { resolveScheduled, daysUntil, dateIntensity } from '../../utils/effectiv
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
 import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
-import { TaskPillPeople, TaskPillDates, TaskPillStatus } from '../shared/TaskPillBar'
+import { TaskPillPeople, TaskPillDates, TaskPillFollowup, TaskPillStatus } from '../shared/TaskPillBar'
+import { FollowupPopover } from '../shared/followup/FollowupPopover'
+import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { DragHandle } from '../shared/DragHandle'
 import { PortalDropdown } from '../shared/PortalDropdown'
@@ -53,6 +55,11 @@ export const TaskRow = memo(function TaskRow({
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
   const [showScheduledMenu, setShowScheduledMenu] = useState(false)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
+  /** Follow-up popover: anchored to the pill / empty-slot flag, or at the menu's point. */
+  const [followupPopover, setFollowupPopover] = useState<
+    { kind: 'slot' } | { kind: 'point'; x: number; y: number } | null
+  >(null)
+  const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const scheduledAnchorRef = useRef<HTMLButtonElement>(null)
@@ -105,6 +112,11 @@ export const TaskRow = memo(function TaskRow({
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
   const closeScheduledMenu = useCallback(() => setShowScheduledMenu(false), [])
+  const closeFollowup = useCallback(() => setFollowupPopover(null), [])
+  const toggleFollowupFromSlot = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setFollowupPopover((v) => (v ? null : { kind: 'slot' }))
+  }, [])
 
   const openDeadlinePicker = useCallback(() => {
     setTimeout(() => {
@@ -368,7 +380,34 @@ export const TaskRow = memo(function TaskRow({
         </div>
       ))}
 
-      {/* Slot 4 — status. Always rendered; empty dot is hover-revealed via
+      {/* Slot 4 — follow-up. Populated pill (× clears only the follow-up) or
+          a hover-revealed flag that takes no space at rest. Both open the
+          follow-up popover. */}
+      {!ghost && (todo.nextFollowupAt ? (
+        <TaskPillFollowup
+          todo={todo}
+          today={today}
+          anchorRef={followupAnchorRef}
+          open={followupPopover !== null}
+          onFollowupClick={toggleFollowupFromSlot}
+          onFollowupClear={() => bulk.setFollowup(todo.id, null)}
+        />
+      ) : (
+        <button
+          ref={followupAnchorRef}
+          type="button"
+          className={`${styles.followupTrigger} ${followupPopover ? styles.followupTriggerOpen : ''}`}
+          onClick={toggleFollowupFromSlot}
+          aria-label="Set follow-up"
+          title="Set follow-up"
+          aria-haspopup="dialog"
+          aria-expanded={followupPopover !== null}
+        >
+          <FollowupFlagIcon />
+        </button>
+      ))}
+
+      {/* Slot 5 — status. Always rendered; empty dot is hover-revealed via
           the `[class*="statusDotEmpty"]` rule. */}
       {!ghost && (
         <TaskPillStatus
@@ -414,6 +453,18 @@ export const TaskRow = memo(function TaskRow({
         document.body,
       )}
 
+      {followupPopover && !ghost && (
+        <FollowupPopover
+          todo={todo}
+          anchor={followupPopover.kind === 'point'
+            ? { kind: 'point', x: followupPopover.x, y: followupPopover.y }
+            : { kind: 'ref', ref: followupAnchorRef }}
+          onClose={closeFollowup}
+          onSetNext={(d) => bulk.setFollowup(todo.id, d)}
+          onFollowedUp={() => bulk.markFollowedUp(todo.id)}
+        />
+      )}
+
       {/* Portaled status menu — anchored to statusRef (TaskPillBar's status wrapper). */}
       {!ghost && showStatusMenu && createPortal(
         <PortalDropdown anchorRef={statusRef} onClickOutside={closeStatus}>
@@ -450,6 +501,8 @@ export const TaskRow = memo(function TaskRow({
             onTaskboard,
             onOpenDetail,
             onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
+            onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),
+            onFollowedUp: () => bulk.markFollowedUp(todo.id),
             onComplete: handleToggleComplete,
             onDelete: handleDelete,
           })}

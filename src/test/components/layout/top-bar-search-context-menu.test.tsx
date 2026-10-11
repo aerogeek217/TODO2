@@ -15,7 +15,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { makeTodo } from '../../helpers'
 
 /**
- * P4 (features-batch-2026-04) — search-result right-click menu.
+ * Search-result right-click menu.
  *
  * The menu lives on `TopBar` (not `SearchResultRow`) so it outlives the
  * search dropdown closing when the menu opens. The menu's item list is
@@ -24,7 +24,13 @@ import { makeTodo } from '../../helpers'
  * right-click wiring (`onContextMenu` → parent callback) is trivial and
  * covered by manual testing against the exit criteria.
  */
-describe('buildSearchContextMenuItems — P4 search context menu', () => {
+function itemByLabel(items: ReturnType<typeof buildSearchContextMenuItems>, label: string) {
+  const item = items.find((i) => i.label === label)
+  if (!item) throw new Error(`no menu item "${label}" in ${items.map((i) => i.label).join(', ')}`)
+  return item
+}
+
+describe('buildSearchContextMenuItems — search context menu', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -44,6 +50,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
     expect(labels).toEqual([
       'Open',
       'Mark complete',
+      'Followed up',
       'Add to Taskboard',
       'Move to project…',
       '--',
@@ -69,7 +76,8 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    expect(items[2]!.label).toBe('Remove from Taskboard')
+    expect(items.some((i) => i.label === 'Remove from Taskboard')).toBe(true)
+    expect(items.some((i) => i.label === 'Add to Taskboard')).toBe(false)
   })
 
   it('Open action calls the onOpen callback with the todo id', () => {
@@ -106,7 +114,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    items[2]!.action()
+    itemByLabel(items, 'Add to Taskboard').action()
     expect(add).toHaveBeenCalledWith(9)
   })
 
@@ -119,7 +127,7 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    items[2]!.action()
+    itemByLabel(items, 'Remove from Taskboard').action()
     expect(removeEntry).toHaveBeenCalledWith(11)
   })
 
@@ -131,8 +139,21 @@ describe('buildSearchContextMenuItems — P4 search context menu', () => {
       onOpen: vi.fn(),
       onMoveToProject,
     })
-    items[3]!.action()
+    itemByLabel(items, 'Move to project…').action()
     expect(onMoveToProject).toHaveBeenCalled()
+  })
+
+  it('Followed up stamps just this task (search rows are not part of the selection)', () => {
+    const markFollowedUp = vi.fn()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ markFollowedUp } as never)
+    const items = buildSearchContextMenuItems({
+      todo: makeTodo({ id: 5, title: 'Foo' }),
+      onBoard: false,
+      onOpen: vi.fn(),
+      onMoveToProject: vi.fn(),
+    })
+    itemByLabel(items, 'Followed up').action()
+    expect(markFollowedUp).toHaveBeenCalledWith([5])
   })
 
   it('Delete action queues a single-id bulk confirmation', () => {
