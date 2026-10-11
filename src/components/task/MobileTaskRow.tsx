@@ -5,14 +5,12 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
-import { useProjectStore } from '../../stores/project-store'
 import { StatusIcon } from '../shared/StatusIcon'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { ChipSelector } from '../shared/ChipSelector'
 import { PortalDropdown } from '../shared/PortalDropdown'
 import { ContextMenu } from '../overlays/ContextMenu'
-import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { TaskNotePopover } from './TaskNotePopover'
 import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -31,14 +29,13 @@ interface MobileTaskRowProps {
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
-  cut?: boolean
 }
 
 // Mobile feature parity (Phase 6 of code-review-2026-04-25): chip taps now
 // open the same popovers/pickers as `TaskRow`, and a long-press on the row
 // fires `onContextMenu` (browser-emulated on touch) to open the shared task-
 // row action menu via `buildTaskRowMenuItems`. The action menu mirrors
-// desktop including Add to / Remove from Focus + move-to-project, so the only
+// desktop including Add to / Remove from Focus, so the only
 // surface that's intentionally desktop-only is the inline avatar context
 // menu (right-click on a person chip to show a filtered list) — that
 // gesture has no touch analogue.
@@ -46,11 +43,10 @@ const NO_PEOPLE: Person[] = []
 
 export const MobileTaskRow = memo(function MobileTaskRow({
   todo, assignedPeople, isSelected, ghost,
-  onSelect, onOpenDetail, cut,
+  onSelect, onOpenDetail,
 }: MobileTaskRowProps) {
   const allPeople = usePersonStore((s) => s.people)
   const allTags = useTagStore((s) => s.tags)
-  const projects = useProjectStore((s) => s.projects)
   const assignedTagsForTodo = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
@@ -62,7 +58,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
   /** Follow-up popover: anchored to the pill, or at the long-press menu's point. */
   const [followupPopover, setFollowupPopover] = useState<
     { kind: 'pill' } | { kind: 'point'; x: number; y: number } | null
@@ -143,7 +138,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${cut ? styles.cut : ''} ${isSelected ? styles.selected : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${isSelected ? styles.selected : ''}`}
       data-todo-id={todo.id}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
@@ -360,7 +355,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             todo,
             onToggleFocus: handleToggleFocus,
             onOpenDetail,
-            onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
             onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),
             onFollowedUp: () => bulk.markFollowedUp(todo.id),
             onComplete: handleToggleComplete,
@@ -370,16 +364,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
         />
       )}
 
-      {projectPicker && (
-        <ProjectPickerPopup
-          x={projectPicker.x}
-          y={projectPicker.y}
-          projectId={todo.projectId}
-          projects={projects}
-          onSelect={(id) => bulk.setProject(todo.id, id)}
-          onClose={() => setProjectPicker(null)}
-        />
-      )}
     </div>
   )
 })

@@ -37,12 +37,12 @@ describe('ListDefinitionPickerPopup', () => {
     expect(getByText('Unpinned one')).toBeInTheDocument()
   })
 
-  it('shows "Add list to canvas" header and "Add" action label', () => {
+  it('shows the "Add list" header and "Add" action label', () => {
     useListDefinitionStore.setState({ listDefinitions: [makeDef({ id: 1 })] })
     const { getByText } = render(
       <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={vi.fn()} />,
     )
-    expect(getByText(/add list to canvas/i)).toBeInTheDocument()
+    expect(getByText(/^add list$/i)).toBeInTheDocument()
     expect(getByText('Add')).toBeInTheDocument()
   })
 
@@ -153,7 +153,7 @@ describe('ListDefinitionPickerPopup', () => {
         <ListDefinitionPickerPopup x={10} y={10} onSelect={vi.fn()} onCreateNew={vi.fn()} onClose={onClose} />,
       )
       // Header is part of the popup; clicking it should not trigger outside-click.
-      fireEvent.mouseDown(getByText(/add list to canvas/i))
+      fireEvent.mouseDown(getByText(/^add list$/i))
       expect(onClose).not.toHaveBeenCalled()
     })
   })

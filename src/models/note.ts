@@ -1,7 +1,5 @@
 /**
- * The single "outside-tasks" global note. Backs the dashboard Notes tile, the
- * rail Notes slot, and every canvas `FloatingNote` (which is a placement-only
- * widget that views this same content).
+ * The single "outside-tasks" global note, shown by every notes widget.
  */
 export interface Note {
   id?: number

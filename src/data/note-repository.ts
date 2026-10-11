@@ -2,10 +2,8 @@ import { db } from './database'
 import type { Note, PersistedNote } from '../models'
 
 /**
- * Notes table. Stores the single global "outside-tasks" note that backs the
- * dashboard tile, the rail Notes slot, and every canvas `FloatingNote`
- * placement. Canvas floating notes are placement-only rows in a separate
- * `floatingNotes` table.
+ * Notes table. Stores the single global "outside-tasks" note that every
+ * notes widget shows.
  */
 export const noteRepository = {
   async getAll(): Promise<PersistedNote[]> {

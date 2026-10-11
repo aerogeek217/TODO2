@@ -10,9 +10,8 @@ beforeEach(async () => {
 
 describe('backupRepository', () => {
   async function seedDb() {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1, createdAt: new Date('2025-01-01') } as any)
-    await db.todos.add(makeTodo({ id: 1, canvasId }))
-    return canvasId
+    await db.todos.add(makeTodo({ id: 1 }))
+    await db.settings.put({ key: 'themeMode', value: 'dark' })
   }
 
   describe('createSnapshot', () => {
@@ -36,7 +35,7 @@ describe('backupRepository', () => {
       const backup = await db.backups.get(id)
       const parsed = JSON.parse(backup!.data)
       expect(parsed.todos).toHaveLength(1)
-      expect(parsed.canvases).toHaveLength(1)
+      expect(parsed.settings).toEqual([{ key: 'themeMode', value: 'dark' }])
     })
 
     it('createSnapshot_recordsSizeBytes', async () => {
@@ -70,9 +69,9 @@ describe('backupRepository', () => {
     })
 
     it('createSnapshot_rowThatWouldNotRestore_savesSnapshotAndWarnsNamingTheRow', async () => {
-      const canvasId = await seedDb()
+      await seedDb()
       // Empty title passes Dexie but fails import validation.
-      await db.todos.add(makeTodo({ id: 2, canvasId, title: '' }))
+      await db.todos.add(makeTodo({ id: 2, title: '' }))
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const listener = vi.fn()
       backupRepository.onSnapshotWarning(listener)
@@ -165,12 +164,13 @@ describe('backupRepository', () => {
 
       // Clear the DB between snapshot and restore
       await db.todos.clear()
-      await db.canvases.clear()
+      await db.settings.clear()
 
       const result = await backupRepository.restoreSnapshot(id)
       expect(result.ok).toBe(true)
       const todos = await db.todos.toArray()
       expect(todos).toHaveLength(1)
+      expect(await db.settings.get('themeMode')).toEqual({ key: 'themeMode', value: 'dark' })
     })
 
     it('restoreSnapshot_nonExistentId_returnsOkFalseWithError', async () => {

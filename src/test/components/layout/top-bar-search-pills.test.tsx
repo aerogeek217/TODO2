@@ -7,10 +7,9 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useUIStore } from '../../../stores/ui-store'
 import type { Status } from '../../../models'
-import { makePerson, makeProject, makeTodo } from '../../helpers'
+import { makePerson, makeTodo } from '../../helpers'
 
 /**
  * Search-result pill bar.
@@ -27,7 +26,7 @@ import { makePerson, makeProject, makeTodo } from '../../helpers'
  */
 function renderBar() {
   return render(
-    <MemoryRouter initialEntries={['/list']}>
+    <MemoryRouter initialEntries={['/']}>
       <TopBar />
     </MemoryRouter>,
   )
@@ -43,7 +42,6 @@ describe('TopBar search-result pill bar', () => {
     })
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
-    useProjectStore.setState({ projects: [makeProject({ id: 1, canvasId: 1, name: 'Marketing' })], loading: false, error: null })
     useUIStore.setState({ selectedTodoId: null, editPopupMode: null } as never)
   })
 

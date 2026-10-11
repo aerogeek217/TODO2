@@ -12,8 +12,7 @@ beforeEach(async () => {
 })
 
 async function seed() {
-  const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 0, createdAt: new Date() }) as number
-  await db.todos.add(makeTodo({ id: 1, canvasId, notes: 'n', dueDate: new Date('2026-10-15') }))
+  await db.todos.add(makeTodo({ id: 1, notes: 'n', dueDate: new Date('2026-10-15') }))
   await db.settings.add({ key: 'themeMode', value: 'dark' })
 }
 
@@ -40,7 +39,7 @@ describe('browserMatchesFile', () => {
   it('is false when a row was added on one side', async () => {
     await seed()
     const file = await currentFileData()
-    await db.todos.add(makeTodo({ id: 2, canvasId: 1 }))
+    await db.todos.add(makeTodo({ id: 2 }))
     expect(await browserMatchesFile(file)).toBe(false)
   })
 })

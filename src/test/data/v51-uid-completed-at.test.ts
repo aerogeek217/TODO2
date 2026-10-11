@@ -142,7 +142,7 @@ describe('v51 Dexie upgrade', () => {
     // A JSON copy of the same v50 data upgrades to the same uids / completedAt.
     const prepared = prepareImport(JSON.parse(JSON.stringify({
       __schemaVersion: 50,
-      canvases: [{ id: 1, name: 'Main', sortOrder: 0, createdAt: T0 }],
+      settings: [],
       todos: [
         { id: 1, title: 'Done in August', isCompleted: true, sortOrder: 0, createdAt: T0, modifiedAt: MOD },
         { id: 2, title: 'Done, no event', isCompleted: true, sortOrder: 1, createdAt: T0, modifiedAt: MOD },

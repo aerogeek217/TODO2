@@ -40,7 +40,8 @@ const { prepareImport } = await import('../../data/import-pipeline')
 
 const now = new Date().toISOString()
 const base = {
-  canvases: [{ id: 1, name: 'Main', sortOrder: 0, createdAt: now }],
+  todos: [],
+  settings: [],
 }
 
 describe('prepareImport — upgrade path (simulated CURRENT = 51)', () => {
@@ -97,8 +98,12 @@ describe('prepareImport — upgrade path (simulated CURRENT = 51)', () => {
 
   it('a malformed (non-array) table still reaches validation even if a transform defaults it', () => {
     // v50 maps `d.todos ?? []`, i.e. it materializes an absent table as [].
-    const result = prepareImport({ __schemaVersion: 49, ...base, todos: 'boom' })
+    // (Append: a restore would stop earlier, at "missing tasks or settings".)
+    const result = prepareImport({ __schemaVersion: 49, ...base, todos: 'boom' }, { purpose: 'append' })
     expect(result).toEqual({ ok: false, reason: 'invalid', error: '"todos" is not an array' })
+    expect(prepareImport({ __schemaVersion: 49, ...base, todos: 'boom' })).toEqual({
+      ok: false, reason: 'invalid', error: 'File is not a valid TODO2 database (missing tasks or settings)',
+    })
   })
 
   it('surfaces a throwing transform as upgrade-failed', () => {

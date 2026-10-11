@@ -149,10 +149,10 @@ describe('v57 Dexie upgrade', () => {
     expect(defs.every((d) => !('favorited' in d))).toBe(true)
     const layouts = await db.layouts.toArray()
     expect(JSON.stringify(layouts)).not.toContain('runtimeFilterValue')
-    expect((await db.listInsets.get(1))?.runtimeFilterValue).toEqual([3])
+    // (The inset's own picks, which v57 keeps, go with the canvas at v60.)
 
     // An export of the same data carries the empty taskboards table.
-    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 56, taskboards: [], ...v56DataSet() })) as unknown)
+    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 56, taskboards: [], todos: [], ...v56DataSet() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
     expect(prepared.data.layouts).toEqual(layouts)

@@ -43,16 +43,12 @@ function bulkAddPair<K extends ImportArrayKey & keyof ImportData>(
 
 const TABLE_KEY_PAIRS: BulkAddPair[] = [
   bulkAddPair('todos', db.todos),
-  bulkAddPair('projects', db.projects),
-  bulkAddPair('canvases', db.canvases),
   bulkAddPair('people', db.people),
   bulkAddPair('settings', db.settings),
   bulkAddPair('todoPeople', db.todoPeople),
   bulkAddPair('statuses', db.statuses),
   bulkAddPair('listDefinitions', db.listDefinitions),
-  bulkAddPair('floatingCalendars', db.floatingCalendars),
-  bulkAddPair('floatingNotes', db.floatingNotes),
-  bulkAddPair('floatingStatus', db.floatingStatus),
+  bulkAddPair('notes', db.notes),
   bulkAddPair('tags', db.tags),
   bulkAddPair('todoTags', db.todoTags),
   bulkAddPair('todoEvents', db.todoEvents),
@@ -67,22 +63,12 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
  * none restores with none.
  */
 export async function restoreFromImportData(v: ImportData): Promise<void> {
-  const tables = TABLE_KEY_PAIRS.map((p) => p.table).concat([db.listInsets, db.notes])
+  const tables = TABLE_KEY_PAIRS.map((p) => p.table)
   await db.transaction('rw', tables, async () => {
     for (const p of TABLE_KEY_PAIRS) await p.table.clear()
-    await db.listInsets.clear()
-    await db.notes.clear()
 
     for (const p of TABLE_KEY_PAIRS) {
       await p.bulkAddIfPresent(v)
-    }
-
-    if (v.listInsets.length > 0) {
-      await db.listInsets.bulkAdd(v.listInsets)
-    }
-
-    if (v.notes.length > 0) {
-      await db.notes.bulkAdd(v.notes)
     }
 
     await ensureSeededStatuses(db.statuses, db.settings)

@@ -4,9 +4,7 @@ import type { PersistedNote } from '../models'
 
 /**
  * Single-row note store. Holds the one global "outside-tasks" note — shown in
- * the dashboard Notes tile, the rail Notes slot, and every canvas
- * `FloatingNote` placement (placements are in `floating-note-store`; they all
- * view *this* content).
+ * every notes widget.
  *
  * Content edits debounce through `setContent` → `persistPending`. Task notes
  * bypass the store entirely via `NotesBody`'s optional `source` adapter prop.

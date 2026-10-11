@@ -6,9 +6,8 @@ import { useTagStore } from '../stores/tag-store'
 
 /**
  * Load people / tag assignment joins for a visible todo set. Used by
- * surfaces that read `assignedPeopleMap` / `assignedTagsMap` (ListView,
- * CalendarView, CanvasPage) so each isn't repeating the same load
- * `useEffect`.
+ * surfaces that read `assignedPeopleMap` / `assignedTagsMap` (the
+ * workspace) so each isn't repeating the same load `useEffect`.
  *
  * Identity-stable dep: re-running on raw `todos` identity would re-fire on
  * every attribute edit (a single field flip recreates the array reference).

@@ -92,7 +92,7 @@ describe('upgradeV56 (pure)', () => {
     // v57 drops the saved prompt picks; v59 turns the taskboard tab into a
     // tab of the Focus list.
     const current = upgradeDataSet({ ...out, taskboards: [] }, 56, CURRENT_DB_VERSION)
-    const res = validateImportData(current)
+    const res = validateImportData({ todos: [], ...current })
     if (!res.ok) throw new Error(res.error)
     expect(res.data.layouts[0]!.columns).toEqual(current.layouts![0]!.columns)
     expect(JSON.stringify(res.data.layouts)).not.toContain('runtimeFilterValue')
@@ -118,7 +118,7 @@ describe('upgradeV56 (pure)', () => {
     const out = upgradeV56(data)
     expect(shape(out)).toEqual([[['x', 'x-2', 'tab']]])
     expect(columnsOf(out)[0]!.cells[0]!.id).toBe('dup')
-    expect(validateImportData({ canvases: [{ id: 1, name: 'M', sortOrder: 0, createdAt: CREATED }], layouts: out.layouts }).ok).toBe(true)
+    expect(validateImportData({ todos: [], settings: [], layouts: out.layouts }).ok).toBe(true)
 
     const broken = upgradeV56({ settings: [{ key: 'canvasRails', value: '{nope' }], floatingNotes: [{ id: 1, x: 0, y: 0 }] })
     expect(shape(broken)).toEqual([[['tab-floatingNotes-1']]])
@@ -163,7 +163,7 @@ describe('v56 Dexie upgrade', () => {
     expect(layouts).toHaveLength(1)
     expect((await db.settings.get('activeLayoutId'))?.value).toBe('1')
 
-    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 55, ...v55DataSet() })) as unknown)
+    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 55, todos: [], ...v55DataSet() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
     expect(prepared.data.layouts).toEqual(layouts)

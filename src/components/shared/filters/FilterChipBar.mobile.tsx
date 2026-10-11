@@ -134,19 +134,16 @@ export function FilterChipBarMobile({
   const {
     p,
     people,
-    projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    projectIdsSet,
     statusIdsSet,
     tagIdsSet,
     dateActive,
     active,
     update,
     setPersonIds,
-    setProjectIds,
     setStatusIds,
     setTags,
     clearAll,
@@ -160,10 +157,6 @@ export function FilterChipBarMobile({
   const handlePersonToggle = (personId: number) => {
     const allIds = [0, ...people.map((x) => x.id!)]
     setPersonIds(toggleItem(personIdsSet, personId, allIds))
-  }
-  const handleProjectToggle = (projectId: number) => {
-    const allIds = [0, ...projects.map((x) => x.id!)]
-    setProjectIds(toggleItem(projectIdsSet, projectId, allIds))
   }
   const handleStatusToggle = (statusId: number) => {
     const allIds = [0, ...statuses.map((st) => st.id!)]
@@ -293,26 +286,6 @@ export function FilterChipBarMobile({
           </div>
         </div>
       </AccordionSection>
-
-      {/* Projects */}
-      {projects.length > 0 && (
-        <AccordionSection
-          label="Projects"
-          badge={projectIdsSet?.size}
-          open={openSection === 'project'}
-          onToggle={() => handleSection('project')}
-        >
-          <MobileEntityList
-            entities={projects}
-            filterIds={projectIdsSet}
-            onToggle={handleProjectToggle}
-            noneLabel="No project"
-            searchPlaceholder="Search projects..."
-            searchText={entitySearch}
-            onSearchChange={setEntitySearch}
-          />
-        </AccordionSection>
-      )}
 
       {/* People */}
       {people.length > 0 && (

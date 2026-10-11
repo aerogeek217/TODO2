@@ -8,7 +8,6 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useProjectStore } from '../../stores/project-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { startOfToday } from '../../utils/date'
@@ -17,16 +16,14 @@ import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { ContextMenu } from '../overlays/ContextMenu'
-import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { buildSearchContextMenuItems } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
 import styles from './TopBar.module.css'
 
-const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'status', 'tag']
+const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   title: 'Title',
   notes: 'Notes',
-  project: 'Project',
   person: 'Person',
   status: 'Status',
   tag: 'Tags',
@@ -40,8 +37,6 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
       return <svg {...common}><path d="M3 3h10M3 6h10M3 9h7M3 12h10" /></svg>
     case 'notes':
       return <svg {...common}><path d="M4 2h6l2 2v10H4z" /><path d="M6 6h4M6 8h4M6 10h3" /></svg>
-    case 'project':
-      return <svg {...common}><path d="M2 4.5l6-3 6 3v7l-6 3-6-3z" /><path d="M2 4.5l6 3 6-3M8 7.5v7" /></svg>
     case 'person':
       return <span className={styles.miniListGroupIcon} style={{ fontSize: 12 }}>@</span>
     case 'status':
@@ -142,19 +137,18 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
  * ref-touching `handleOpenTodo` over as a JSX prop instead of passing it into
  * a render-time `buildSearchContextMenuItems` call (`react-hooks/refs`).
  */
-function SearchResultContextMenu({ x, y, todo, onOpen, onMoveToProject, onClose }: {
+function SearchResultContextMenu({ x, y, todo, onOpen, onClose }: {
   x: number
   y: number
   todo: PersistedTodoItem
   onOpen: (todoId: number) => void
-  onMoveToProject: () => void
   onClose: () => void
 }) {
   return (
     <ContextMenu
       x={x}
       y={y}
-      items={buildSearchContextMenuItems({ todo, onOpen, onMoveToProject })}
+      items={buildSearchContextMenuItems({ todo, onOpen })}
       onClose={onClose}
     />
   )
@@ -257,17 +251,13 @@ export function TopBar() {
   const [localSearch, setLocalSearch] = useState(filters.searchText)
   const [searchFocused, setSearchFocused] = useState(false)
   const miniListRef = useRef<HTMLDivElement>(null)
-  // P4: right-click menu state is kept on TopBar (not SearchResultRow) so the
-  // menu + project picker outlive the search dropdown closing when the menu
-  // opens — the row would otherwise unmount along with its portals.
+  // Right-click menu state is kept on TopBar (not SearchResultRow) so the
+  // menu outlives the search dropdown closing when the menu opens — the row
+  // would otherwise unmount along with its portals.
   const [searchContextMenu, setSearchContextMenu] = useState<
     { todoId: number; x: number; y: number } | null
   >(null)
-  const [searchProjectPicker, setSearchProjectPicker] = useState<
-    { todoId: number; x: number; y: number } | null
-  >(null)
   const todos = useTodoStore((s) => s.todos)
-  const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
@@ -290,7 +280,6 @@ export function TopBar() {
     setLocalSearch(storeSearchText)
   }, [storeSearchText])
 
-  const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
 
   const filterPredicate = useMemo<TodoPredicate>(() => criteriaToPredicate(filters), [filters])
@@ -305,9 +294,9 @@ export function TopBar() {
 
   const miniListGroups = useMemo(() => {
     if (!localSearch || !searchFocused) return null
-    const lookups = { assignedPeopleMap, assignedTagsMap, statusesById, projectsById }
+    const lookups = { assignedPeopleMap, assignedTagsMap, statusesById }
     return groupTodosByTextMatch(todos, localSearch, (t) => textMatchContextFor(t, lookups))
-  },[localSearch, searchFocused, todos, assignedPeopleMap, assignedTagsMap, projectsById, statusesById])
+  }, [localSearch, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
@@ -339,10 +328,6 @@ export function TopBar() {
     if (!searchContextMenu) return null
     return todos.find((t) => t.id === searchContextMenu.todoId) ?? null
   }, [searchContextMenu, todos])
-  const projectPickerTodo = useMemo(() => {
-    if (!searchProjectPicker) return null
-    return todos.find((t) => t.id === searchProjectPicker.todoId) ?? null
-  }, [searchProjectPicker, todos])
 
   if (isSettingsPage) return null
 
@@ -428,11 +413,6 @@ export function TopBar() {
           y={searchContextMenu.y}
           todo={menuTodo}
           onOpen={handleOpenTodo}
-          onMoveToProject={() => setSearchProjectPicker({
-            todoId: menuTodo.id,
-            x: searchContextMenu.x,
-            y: searchContextMenu.y,
-          })}
           onClose={() => {
             setSearchContextMenu(null)
             // Match the prior onAction-closes-listbox UX: any path that closes
@@ -443,19 +423,6 @@ export function TopBar() {
         />
       )}
 
-      {searchProjectPicker && projectPickerTodo && (
-        <ProjectPickerPopup
-          x={searchProjectPicker.x}
-          y={searchProjectPicker.y}
-          projectId={projectPickerTodo.projectId}
-          projects={projects}
-          onSelect={(id) => {
-            const fresh = useTodoStore.getState().todos.find((t) => t.id === projectPickerTodo.id)
-            if (fresh) useTodoStore.getState().update({ ...fresh, projectId: id })
-          }}
-          onClose={() => setSearchProjectPicker(null)}
-        />
-      )}
     </header>
   )
 }

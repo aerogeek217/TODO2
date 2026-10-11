@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { SlotKind } from '../../models/canvas-rails'
+import type { WidgetKind } from '../../models/workspace-layout'
 import { KIND_ICON } from '../../utils/slot-kind'
 import { ListDefinitionPickerBody } from '../overlays/ListDefinitionPickerBody'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './WidgetKindMenu.module.css'
 
-const PRIMARY_KINDS: { kind: SlotKind; label: string }[] = [
+const PRIMARY_KINDS: { kind: WidgetKind; label: string }[] = [
   { kind: 'lens', label: 'List' },
   { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
@@ -16,8 +16,8 @@ const PRIMARY_KINDS: { kind: SlotKind; label: string }[] = [
 export interface WidgetKindMenuProps {
   anchor: { x: number; y: number }
   /** Current widget kind. Omit in "add" mode — no row is marked active and no secondary row is shown. */
-  currentKind?: SlotKind
-  onChangeKind: (kind: SlotKind) => void
+  currentKind?: WidgetKind
+  onChangeKind: (kind: WidgetKind) => void
   /**
    * Lens-only: fires when the user picks a list from the inline "Change list…" flyout.
    * When provided, the menu renders a hover submenu of list definitions on the

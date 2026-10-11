@@ -1,4 +1,4 @@
-import type { Person, Project, RecurrenceType, Status, Tag } from '../models'
+import type { Person, RecurrenceType, Status, Tag } from '../models'
 import type { ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { TagLimitError } from '../stores/tag-store'
@@ -10,10 +10,6 @@ export interface ResolvedInput {
   personIds: number[]
   /** Person names that didn't match any existing person */
   unmatchedPersons: string[]
-  /** Resolved project ID (first match wins) */
-  projectId?: number
-  /** Project names that didn't match any existing project */
-  unmatchedProjects: string[]
   /** Normalized tag slugs from `#foo` tokens (pass-through from `ParsedInput`). */
   tags: string[]
   /** Resolved status ID (first match wins) from `:foo` tokens */
@@ -123,18 +119,16 @@ export async function resolveTags(
 }
 
 /**
- * Resolve parsed NLP input against known people, projects, and statuses.
+ * Resolve parsed NLP input against known people and statuses.
  * Statuses: `:foo` tokens match against the status registry by case-insensitive
  * exact-then-prefix; first match wins, unmatched names land in `unmatchedStatuses`.
  */
 export function resolveInput(
   parsed: ParsedInput,
   people: Person[],
-  projects: Project[] = [],
   statuses: Status[] = [],
 ): ResolvedInput {
   const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
-  const projectResult = resolveNames(parsed.projects, (name) => matchByName(name, projects, (p) => p.name))
   const statusResult = resolveNames(parsed.statuses, (name) => matchByName(name, statuses, (s) => s.name))
 
   return {
@@ -143,8 +137,6 @@ export function resolveInput(
     recurrence: parsed.recurrence,
     personIds: persons.ids,
     unmatchedPersons: persons.unmatched,
-    projectId: projectResult.ids[0],
-    unmatchedProjects: projectResult.unmatched,
     tags: parsed.tags,
     statusId: statusResult.ids[0],
     unmatchedStatuses: statusResult.unmatched,

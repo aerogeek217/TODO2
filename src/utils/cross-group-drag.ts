@@ -1,51 +1,19 @@
-import type { ProjectGroupBy } from '../models'
+import type { TodoGroupBy } from '../models'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 
 /**
- * Sentinel block key used by `SortableTaskList` for the synthetic
- * ungrouped block (the headerless rows above the named groups). Exported
- * so `resolveCrossGroupMutation` and the SortableContext mounting code
+ * Sentinel group key for the synthetic ungrouped bucket (tasks with no
+ * value on the grouped field), so callers and `resolveCrossGroupMutation`
  * agree on a single string.
  */
 export const UNGROUPED_GROUP_KEY = '__ungrouped'
 
 /**
- * Build the dnd-kit SortableContext id for a grouped block inside a
- * project. The block key alone (e.g. `status-1`, `person-2`,
- * `__ungrouped`) is project-scoped — two ProjectNodes on the same canvas
- * could otherwise emit colliding SortableContext ids. Prefixing with the
- * project id keeps each project's group containers globally unique.
- */
-export function blockContextId(projectId: number, blockKey: string): string {
-  return `p${projectId}:${blockKey}`
-}
-
-/**
- * Inverse of {@link blockContextId}. Returns `null` when the id wasn't
- * emitted by `blockContextId` (e.g. the auto-generated id of the flat
- * non-grouped SortableContext, or any other dnd-kit id from a different
- * surface).
- */
-export function parseBlockContextId(
-  id: string | number | null | undefined,
-): { projectId: number; blockKey: string } | null {
-  if (typeof id !== 'string') return null
-  if (!id.startsWith('p')) return null
-  const colon = id.indexOf(':')
-  if (colon <= 1) return null
-  const projectId = Number(id.slice(1, colon))
-  if (!Number.isFinite(projectId)) return null
-  return { projectId, blockKey: id.slice(colon + 1) }
-}
-
-/**
  * Field-level mutation implied by dragging a row from one visual group
- * to another inside the SAME project. The drag's sortOrder/projectId
- * placement is resolved separately by `drop-resolver` + `task-placement`;
- * this mutation is dispatched in addition, by `useCanvasDnD.handleDragEnd`,
- * once a cross-group hop is detected.
+ * to another in a grouped list widget (`ListWidget` dispatches it once a
+ * cross-group hop is detected; any manual-order rank is written separately).
  *
  * - `status` carries the new statusId, or `undefined` when the target is
  *   the synthetic ungrouped bucket (i.e. clear the status).
@@ -77,9 +45,7 @@ function parseId(key: string, prefix: string): number | null {
  * by the caller — this helper only owns the grouped-field semantics.
  *
  * Returns `null` when:
- *   - Either bucket key is missing — the over target wasn't a sortable
- *     row (e.g. dropped on the project zone), so the target group can't
- *     be resolved.
+ *   - Either bucket key is missing — the target group can't be resolved.
  *   - Source and target are the same group — pure reorder, no field
  *     change.
  *   - `groupBy` is a date dimension (`deadline` / `followup`).
@@ -94,7 +60,7 @@ function parseId(key: string, prefix: string): number | null {
  *     unless one side is `null`/missing).
  */
 export function resolveCrossGroupMutation(
-  groupBy: ProjectGroupBy,
+  groupBy: TodoGroupBy,
   sourceKey: string | null | undefined,
   targetKey: string | null | undefined,
   todoId: number,

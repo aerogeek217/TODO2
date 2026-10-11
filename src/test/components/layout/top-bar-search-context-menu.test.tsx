@@ -8,7 +8,6 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { makeTodo } from '../../helpers'
 
@@ -41,7 +40,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 1, title: 'Foo' }),
       onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
     })
     const labels = items.map((i) => i.separator ? '--' : i.label)
     expect(labels).toEqual([
@@ -49,7 +47,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
       'Mark complete',
       'Followed up',
       'Add to Focus',
-      'Move to project…',
       '--',
       'Delete',
     ])
@@ -60,7 +57,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 1, title: 'Foo', isCompleted: true }),
       onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
     })
     expect(items[1]!.label).toBe('Mark incomplete')
   })
@@ -70,7 +66,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 42, title: 'Foo' }),
       onOpen,
-      onMoveToProject: vi.fn(),
     })
     items[0]!.action()
     expect(onOpen).toHaveBeenCalledWith(42)
@@ -82,7 +77,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 7, title: 'Foo' }),
       onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
     })
     items[1]!.action()
     expect(toggleComplete).toHaveBeenCalledWith(7)
@@ -94,7 +88,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 9, title: 'Foo' }),
       onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
     })
     itemByLabel(items, 'Add to Focus').action()
     expect(bulkSetFocus).toHaveBeenCalledWith([9], true)
@@ -106,21 +99,9 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 11, title: 'Foo', focus: true }),
       onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
     })
     itemByLabel(items, 'Remove from Focus').action()
     expect(bulkSetFocus).toHaveBeenCalledWith([11], false)
-  })
-
-  it('Move to project… action calls the onMoveToProject callback', () => {
-    const onMoveToProject = vi.fn()
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 3, title: 'Foo' }),
-      onOpen: vi.fn(),
-      onMoveToProject,
-    })
-    itemByLabel(items, 'Move to project…').action()
-    expect(onMoveToProject).toHaveBeenCalled()
   })
 
   it('Followed up stamps just this task (search rows are not part of the selection)', () => {
@@ -129,7 +110,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 5, title: 'Foo' }),
       onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
     })
     itemByLabel(items, 'Followed up').action()
     expect(markFollowedUp).toHaveBeenCalledWith([5])
@@ -141,7 +121,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 99, title: 'Foo' }),
       onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
     })
     const deleteItem = items[items.length - 1]!
     deleteItem.action()
@@ -150,15 +129,12 @@ describe('buildSearchContextMenuItems — search context menu', () => {
 })
 
 /**
- * P2 (search-and-notes-bugs) — the search dropdown must stay mounted
- * underneath the context menu on right-click. The previous P4 implementation
- * eagerly blurred the input + flipped `searchFocused` to false when the menu
- * opened; that collapsed the result list out from under the user. The fix in
- * `handleOpenSearchContextMenu` drops those two lines and relies on the row's
- * `onMouseDown preventDefault` to keep the input focused while the menu is
- * visible. When the user picks a menu item, the menu button receives focus
- * on mousedown — the input's natural blur still collapses the dropdown, so
- * actions still clean up both surfaces.
+ * The search dropdown must stay mounted underneath the context menu on
+ * right-click. `handleOpenSearchContextMenu` neither blurs the input nor
+ * flips `searchFocused`; the row's `onMouseDown preventDefault` keeps the
+ * input focused while the menu is visible. When the user picks a menu item,
+ * the menu button receives focus on mousedown — the input's natural blur
+ * still collapses the dropdown, so actions clean up both surfaces.
  */
 describe('TopBar search right-click — dropdown survival', () => {
   beforeEach(() => {
@@ -167,7 +143,6 @@ describe('TopBar search right-click — dropdown survival', () => {
     usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
-    useProjectStore.setState({ projects: [], loading: false, error: null })
   })
 
   afterEach(cleanup)
@@ -179,7 +154,7 @@ describe('TopBar search right-click — dropdown survival', () => {
       error: null,
     })
     render(
-      <MemoryRouter initialEntries={['/list']}>
+      <MemoryRouter initialEntries={['/']}>
         <TopBar />
       </MemoryRouter>,
     )

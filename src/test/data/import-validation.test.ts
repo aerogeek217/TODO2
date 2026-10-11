@@ -3,10 +3,6 @@ import { validateImportData, isValidCssColor } from '../../data/import-validatio
 
 const now = new Date().toISOString()
 
-function makeCanvas(overrides = {}) {
-  return { id: 1, name: 'Canvas', sortOrder: 0, createdAt: now, ...overrides }
-}
-
 let todoUidSeq = 0
 
 function makeTodo(overrides = {}) {
@@ -18,13 +14,6 @@ function makeTodo(overrides = {}) {
   }
 }
 
-function makeProject(overrides = {}) {
-  return {
-    id: 1, name: 'Proj', canvasId: 1, positionX: 0, positionY: 0,
-    isCollapsed: false, sortOrder: 0, createdAt: now, ...overrides,
-  }
-}
-
 function makePerson(overrides = {}) {
   return { id: 1, name: 'Alice', initials: 'AL', ...overrides }
 }
@@ -33,16 +22,9 @@ function makeTag(overrides = {}) {
   return { id: 1, name: 'urgent', color: '#ff0000', ...overrides }
 }
 
-function makeListInset(overrides = {}) {
-  return {
-    id: 1, listDefinitionId: 1, canvasId: 1,
-    x: 0, y: 0, width: 320, height: 300, isCollapsed: false,
-    ...overrides,
-  }
-}
-
+/** The smallest whole database: a restore requires `todos` and `settings`. */
 function validData(overrides: Record<string, unknown> = {}) {
-  return { canvases: [makeCanvas()], ...overrides }
+  return { todos: [], settings: [], ...overrides }
 }
 
 describe('isValidCssColor', () => {
@@ -67,18 +49,49 @@ describe('validateImportData', () => {
     expect(validateImportData(null).ok).toBe(false)
   })
 
-  it('rejects missing canvases', () => {
-    expect(validateImportData({}).ok).toBe(false)
+  it('rejects a database without its tasks or settings', () => {
+    const error = 'File is not a valid TODO2 database (missing tasks or settings)'
+    expect(validateImportData({})).toEqual({ ok: false, error })
+    expect(validateImportData({ todos: [] })).toEqual({ ok: false, error })
+    expect(validateImportData({ settings: [] })).toEqual({ ok: false, error })
+    expect(validateImportData({ todos: 'x', settings: [] })).toEqual({ ok: false, error })
+    // An old export that still carries canvases is not enough on its own.
+    expect(validateImportData({ canvases: [{ id: 1, name: 'Canvas', sortOrder: 0, createdAt: now }] })).toEqual({ ok: false, error })
   })
 
-  it('rejects empty canvases array', () => {
-    expect(validateImportData({ canvases: [] }).ok).toBe(false)
+  it('accepts empty tasks + settings arrays (an empty database)', () => {
+    const result = validateImportData({ todos: [], settings: [] })
+    expect(result).toMatchObject({ ok: true, warnings: [] })
+  })
+
+  it('without requireFullDatabase, accepts task tables alone (append import)', () => {
+    const result = validateImportData({ todos: [makeTodo()] }, { requireFullDatabase: false })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.settings).toEqual([])
+  })
+
+  it('ignores tables this build no longer has (projects, canvases, list insets, floats)', () => {
+    const result = validateImportData(validData({
+      canvases: [{ id: 1 }],
+      projects: [{ id: 1, name: 'Proj' }],
+      listInsets: [{ id: 1 }],
+      floatingNotes: [{ id: 1 }],
+    }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    for (const t of ['canvases', 'projects', 'listInsets', 'floatingNotes']) expect(t in result.data, t).toBe(false)
+  })
+
+  it('drops projectId / canvasId from a todo (fields no longer exist)', () => {
+    const result = validateImportData(validData({ todos: [makeTodo({ projectId: 1, canvasId: 1 })] }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect('projectId' in result.data.todos[0]!).toBe(false)
+    expect('canvasId' in result.data.todos[0]!).toBe(false)
   })
 
   it('accepts a populated valid dataset', () => {
     const result = validateImportData({
-      canvases: [makeCanvas()],
-      projects: [makeProject()],
       todos: [makeTodo()],
       people: [makePerson()],
       tags: [makeTag()],
@@ -249,73 +262,25 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
-  // Project.groupBy field validator (per-record). Must stay in sync with the
-  // settings-store `PROJECT_GROUP_BY_VALUES` source of truth.
-  it('accepts every ProjectGroupBy value on a project record', () => {
-    const valid = ['status', 'people', 'tag', 'deadline', 'followup']
-    for (const groupBy of valid) {
-      const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
-      expect(result.ok, `groupBy=${groupBy}`).toBe(true)
-    }
-  })
-
-  it('accepts a project record with groupBy omitted or null', () => {
-    expect(validateImportData(validData({ projects: [makeProject()] })).ok).toBe(true)
-    expect(validateImportData(validData({ projects: [makeProject({ groupBy: null })] })).ok).toBe(true)
-  })
-
-  it('rejects a project record with an unknown groupBy', () => {
-    const bad = ['priority', 'TAG', 'random', 42, 'date', 'scheduled', 'org']
-    for (const groupBy of bad) {
-      const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
-      expect(result.ok, `groupBy=${groupBy}`).toBe(false)
-    }
-  })
-
-  // defaultProjectGroupBy — accepts every flat TodoGroupBy literal plus the
-  // empty string sentinel.
-  it('accepts defaultProjectGroupBy with every valid TodoGroupBy value plus empty', () => {
-    const valid = ['', 'none', 'status', 'people', 'tag', 'deadline', 'followup']
-    for (const value of valid) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'defaultProjectGroupBy', value }],
-      }))
-      expect(result.ok).toBe(true)
-    }
-  })
-
-  it('rejects defaultProjectGroupBy with unknown values', () => {
-    const bad = ['priority', 'NaN', 'TAG', 'random-string', 'date', 'scheduled']
-    for (const value of bad) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'defaultProjectGroupBy', value }],
-      }))
-      expect(result.ok).toBe(false)
-    }
-  })
-
-  // canvasViewport
-  it('accepts canvasViewport with finite x/y/zoom', () => {
+  // The canvas / project settings are gone; validation treats them like any
+  // retired key (the schema upgrade deletes them before validation runs).
+  it('drops the canvas / project settings as unrecognized', () => {
     const result = validateImportData(validData({
-      settings: [{ key: 'canvasViewport', value: JSON.stringify({ x: 10, y: -20, zoom: 1.5 }) }],
+      settings: [
+        { key: 'themeMode', value: 'dark' },
+        { key: 'defaultProjectId', value: '1' },
+        { key: 'defaultProjectGroupBy', value: 'status' },
+        { key: 'canvasViewport', value: JSON.stringify({ x: 0, y: 0, zoom: 1 }) },
+        { key: 'canvasMaxExtent', value: '20000' },
+        { key: 'canvasRails', value: JSON.stringify({ left: null, right: null, top: null, bottom: null }) },
+      ],
     }))
     expect(result.ok).toBe(true)
-  })
-
-  it('rejects canvasViewport with non-finite numbers', () => {
-    const bad = [
-      JSON.stringify({ x: 'NaN', y: 0, zoom: 1 }),  // string
-      '{"x":1e999,"y":0,"zoom":1}',                   // Infinity after parse
-      JSON.stringify({ x: 0, y: 0 }),                 // missing zoom
-      JSON.stringify([1, 2, 3]),                      // array
-      'not-json',
-    ]
-    for (const value of bad) {
-      const result = validateImportData(validData({
-        settings: [{ key: 'canvasViewport', value }],
-      }))
-      expect(result.ok).toBe(false)
-    }
+    if (!result.ok) return
+    expect(result.data.settings).toEqual([{ key: 'themeMode', value: 'dark' }])
+    expect(result.warnings).toEqual([
+      'Ignored 5 unrecognized settings: defaultProjectId, defaultProjectGroupBy, canvasViewport, canvasMaxExtent, canvasRails',
+    ])
   })
 
   // The horizons widget's settings are gone; validation treats them like any
@@ -339,74 +304,6 @@ describe('validateImportData', () => {
       settings: [{ key: 'maxTags', value: '20' }],
     }))
     expect(result.ok).toBe(true)
-  })
-
-  // canvasRails — slot must have tabs[] + activeTabId.
-  it('accepts structurally valid canvasRails', () => {
-    const rails = {
-      left: {
-        orientation: 'vertical',
-        slots: [{
-          id: 'a',
-          tabs: [{ id: 'a-t0', type: 'lens' }],
-          activeTabId: 'a-t0',
-        }],
-      },
-      right: null, top: null, bottom: null,
-    }
-    const result = validateImportData(validData({
-      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
-    }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('rejects canvasRails with an invalid tab type', () => {
-    const rails = {
-      left: {
-        orientation: 'vertical',
-        slots: [{
-          id: 'a',
-          tabs: [{ id: 'a-t0', type: 'evil' }],
-          activeTabId: 'a-t0',
-        }],
-      },
-      right: null, top: null, bottom: null,
-    }
-    const result = validateImportData(validData({
-      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
-    }))
-    expect(result.ok).toBe(false)
-  })
-
-  it('rejects canvasRails with a slot missing tabs[]', () => {
-    const rails = {
-      left: {
-        orientation: 'vertical',
-        slots: [{ id: 'a', kind: 'lens' }],
-      },
-      right: null, top: null, bottom: null,
-    }
-    const result = validateImportData(validData({
-      settings: [{ key: 'canvasRails', value: JSON.stringify(rails) }],
-    }))
-    expect(result.ok).toBe(false)
-  })
-
-  // ListInset validation — listDefinitionId is required after P4.
-  it('accepts listInset with listDefinitionId', () => {
-    const result = validateImportData(validData({
-      listInsets: [makeListInset()],
-    }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('rejects listInset missing listDefinitionId', () => {
-    const result = validateImportData(validData({
-      listInsets: [{
-        id: 1, name: 'Empty Inset', canvasId: 1, x: 0, y: 0, width: 280, height: 300, isCollapsed: false,
-      }],
-    }))
-    expect(result.ok).toBe(false)
   })
 
   // Person color / RecurrenceRule validation.
@@ -516,6 +413,8 @@ describe('validateImportData', () => {
     ['sort', { sort: 'date' }],
     ['grouping', { grouping: 'scheduled' }],
     ['grouping', { grouping: 'date' }],
+    ['sort', { sort: 'project' }],
+    ['grouping', { grouping: 'project' }],
     ['dateField', { dateField: 'scheduled' }],
     ['dateField', { dateField: 'date' }],
   ])('rejects a listDefinition with a removed %s value %o', (_field, patch) => {
@@ -557,12 +456,19 @@ describe('validateImportData', () => {
     }
 
     it('accepts each known runtimeFilter field', () => {
-      for (const field of ['person', 'project', 'status', 'tag']) {
+      for (const field of ['person', 'status', 'tag']) {
         const result = validateImportData(validData({
           listDefinitions: [makeListDef({ runtimeFilter: { field } })],
         }))
         expect(result.ok, `field=${field}`).toBe(true)
       }
+    })
+
+    it('rejects a runtimeFilter on the removed project field', () => {
+      const result = validateImportData(validData({
+        listDefinitions: [makeListDef({ runtimeFilter: { field: 'project' } })],
+      }))
+      expect(result.ok).toBe(false)
     })
 
     it('accepts runtimeFilter with optional label', () => {
@@ -572,7 +478,7 @@ describe('validateImportData', () => {
       expect(result.ok).toBe(true)
     })
 
-    it('rejects runtimeFilter with unknown field (anchor 3 — was an open door)', () => {
+    it('rejects runtimeFilter with unknown field', () => {
       const result = validateImportData(validData({
         listDefinitions: [makeListDef({ runtimeFilter: { field: 'evil', label: '<img onerror=x>' } })],
       }))
@@ -622,8 +528,7 @@ describe('validateImportData — Date revival', () => {
 
   it('turns every ISO-string Date field into a real Date', () => {
     const result = validateImportData({
-      canvases: [makeCanvas({ createdAt: iso })],
-      projects: [makeProject({ createdAt: iso })],
+      settings: [],
       todos: [
         makeTodo({
           id: 1, createdAt: iso, modifiedAt: iso, dueDate: iso,
@@ -637,8 +542,6 @@ describe('validateImportData — Date revival', () => {
     const d = result.data
     const t1 = d.todos[0]!
     const dates: Array<[string, unknown]> = [
-      ['canvases.createdAt', d.canvases[0]!.createdAt],
-      ['projects.createdAt', d.projects[0]!.createdAt],
       ['todos.createdAt', t1.createdAt],
       ['todos.modifiedAt', t1.modifiedAt],
       ['todos.dueDate', t1.dueDate],
@@ -656,7 +559,7 @@ describe('validateImportData — Date revival', () => {
 
   it('leaves todoEvents.timestamp a string', () => {
     const result = validateImportData({
-      canvases: [makeCanvas()],
+      settings: [],
       todos: [makeTodo()],
       todoEvents: [{ id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: iso }],
     })

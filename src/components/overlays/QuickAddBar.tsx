@@ -1,18 +1,17 @@
 /**
  * QuickAddBar — keyboard-first task capture surface.
  *
- * Live subscriptions to person / project / settings stores feed
+ * Live subscriptions to person / status / tag stores feed
  * `parseInput` → `resolveInput` on every keystroke; chips render for every
- * metadata field the resolver produces (person, project, tag, due date,
+ * metadata field the resolver produces (person, tag, status, due date,
  * recurrence). Tag chips show the parsed slug — the
- * tag-store resolve-or-create runs at submit (P4).
+ * tag-store resolve-or-create runs at submit.
  *
  * Auto-derived chips are read-only feedback (no removable ×). To clear, edit
- * the title — same UX as `InsertTrigger`'s autocomplete preview. Autocomplete
- * popup wires in P3, submit + full-editor handoff in P4, status NLP in P6.
+ * the title.
  *
  * Inline syntax (parsed live, removed from title, surfaced as chips):
- *   @person   /project   #tag   :status (P6)   natural dates ("tomorrow")
+ *   @person   #tag   :status   natural dates ("tomorrow")
  *
  * Title input carries `data-shortcut-scope="none"` so global keyboard
  * shortcuts (`use-keyboard-shortcuts.ts`) don't fire while typing.
@@ -24,14 +23,12 @@ import type {
   PersistedPerson,
   PersistedStatus,
   Person,
-  Project,
   RecurrenceType,
   Status,
 } from '../../models'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { usePersonStore } from '../../stores/person-store'
-import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput } from '../../services/natural-language-parser'
@@ -45,25 +42,21 @@ const POPUP_WIDTH_PX = 280
 // ─── Types ────────────────────────────────────────────────────────
 
 /**
- * Parsed-token shape consumed by the bar's chip renderers. Numeric ids match
- * the codebase. P6 will populate `status` via the `:status` prefix. Tags stay
- * as slug strings — the tag-store resolve-or-create runs at submit (P4) so the
- * registry is the single source of truth for color/id.
+ * Parsed-token shape consumed by the bar's chip renderers. Tags stay as slug
+ * strings — the tag-store resolve-or-create runs at submit so the registry is
+ * the single source of truth for color/id.
  */
 export type ParsedTokens = {
-  /** Title with @/foo /bar #baz tokens stripped. */
+  /** Title with @foo #bar :baz tokens stripped. */
   title: string
   status?: PersistedStatus
   people: PersistedPerson[]
-  project?: Project
   /** Lowercase tag slugs in first-seen order. */
   tags: string[]
   deadlineAt?: Date
   recurrence?: RecurrenceType
   /** Person names from `@` tokens that didn't match any known person. */
   unmatchedPersons: string[]
-  /** Project names from `/` tokens that didn't match any known project. */
-  unmatchedProjects: string[]
   /** Status names from `:` tokens that didn't match any known status. */
   unmatchedStatuses: string[]
 }
@@ -72,7 +65,7 @@ export type QuickAddDraft = ParsedTokens & {
   /** Unparsed input as the user typed it — used by the Details / Tab handoff
    * so `TaskEditPopup` can re-run its own NLP on mount. */
   rawTitle: string
-  /** Resolver output (`personIds` / `projectId` / `tags` / dates /
+  /** Resolver output (`personIds` / `tags` / status / dates /
    * recurrence) — fed straight into `applyNlpMetadata` on submit. */
   resolved: ResolvedInput
 }
@@ -86,14 +79,12 @@ export interface QuickAddBarProps {
    * dispatch `openCreatePopup`). The bar does NOT call `onClose` after this
    * — the parent owns the close-vs-handoff sequencing. */
   onOpenFullEditor?: (draft: QuickAddDraft) => void
-  /** Project to default to (canvas focus, current view, etc) — P4 threads. */
-  defaultProject?: Project
   /** Pre-fill `rawTitle` on open. Read on the closed→open transition;
    * subsequent draft changes don't re-seed. */
   initialDraft?: { rawTitle: string }
   /**
    * Optional override for tests. The default pipeline subscribes to the live
-   * person / project / settings stores and runs `parseInput` →
+   * person / status stores and runs `parseInput` →
    * `resolveInput` over the raw input.
    */
   parse?: (input: string) => ParsedTokens
@@ -119,18 +110,6 @@ function PersonChip({ person }: { person: PersistedPerson }) {
     <span className={styles.chip}>
       <span className={styles.chipAvatar}>{person.initials}</span>
       <span>@{person.name}</span>
-    </span>
-  )
-}
-
-function ProjectChip({ project }: { project: Project }) {
-  return (
-    <span className={styles.chip}>
-      <span
-        className={styles.chipDot}
-        style={{ background: project.color ?? 'var(--color-accent)' }}
-      />
-      <span>/{project.name}</span>
     </span>
   )
 }
@@ -177,7 +156,6 @@ const EMPTY_PARSED: ParsedTokens = {
   people: [],
   tags: [],
   unmatchedPersons: [],
-  unmatchedProjects: [],
   unmatchedStatuses: [],
 }
 
@@ -185,14 +163,13 @@ const EMPTY_RESOLVED: ResolvedInput = {
   title: '',
   personIds: [],
   unmatchedPersons: [],
-  unmatchedProjects: [],
   tags: [],
   unmatchedStatuses: [],
 }
 
 /**
  * Live pipeline: `parseInput` → `resolveInput` → entity lookup against the
- * person / project stores. Pure helper — receives stores as args so the
+ * person / status stores. Pure helper — receives stores as args so the
  * component-level `useMemo` can deps-cache it cleanly. Returns both the chip
  * shape (display) and the underlying `ResolvedInput` (submit feeds it to
  * `applyNlpMetadata`).
@@ -200,20 +177,15 @@ const EMPTY_RESOLVED: ResolvedInput = {
 function runParse(
   raw: string,
   people: Person[],
-  projects: Project[],
   statuses: Status[],
 ): { parsed: ParsedTokens; resolved: ResolvedInput } {
   if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED }
   const parsedInput = parseInput(raw)
-  const resolved = resolveInput(parsedInput, people, projects, statuses)
+  const resolved = resolveInput(parsedInput, people, statuses)
 
   const peopleResolved: PersistedPerson[] = resolved.personIds
     .map((id) => people.find((p) => p.id === id))
     .filter((p): p is PersistedPerson => p?.id !== undefined)
-  const projectResolved =
-    resolved.projectId !== undefined
-      ? projects.find((p) => p.id === resolved.projectId)
-      : undefined
   const statusResolved =
     resolved.statusId !== undefined
       ? statuses.find((s): s is PersistedStatus => s.id === resolved.statusId)
@@ -223,12 +195,10 @@ function runParse(
       title: resolved.title,
       status: statusResolved,
       people: peopleResolved,
-      project: projectResolved,
       tags: resolved.tags,
       deadlineAt: resolved.dueDate,
       recurrence: resolved.recurrence,
       unmatchedPersons: resolved.unmatchedPersons,
-      unmatchedProjects: resolved.unmatchedProjects,
       unmatchedStatuses: resolved.unmatchedStatuses,
     },
     resolved,
@@ -273,7 +243,6 @@ export function QuickAddBar({
   onClose,
   onSubmit,
   onOpenFullEditor,
-  defaultProject,
   initialDraft,
   parse,
 }: QuickAddBarProps) {
@@ -282,30 +251,23 @@ export function QuickAddBar({
   const surfaceRef = useRef<HTMLDivElement>(null)
 
   const people = usePersonStore((s) => s.people)
-  const projects = useProjectStore((s) => s.projects)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
 
   const internalRun = useMemo(
-    () => runParse(raw, people, projects, statuses),
-    [raw, people, projects, statuses],
+    () => runParse(raw, people, statuses),
+    [raw, people, statuses],
   )
   const parsed = parse ? parse(raw) : internalRun.parsed
   // Test override (`parse`) only produces `ParsedTokens`; default to the live
   // resolver output otherwise so submit always has a valid `ResolvedInput`.
   const resolved = internalRun.resolved
 
-  // Autocomplete candidates — mirror InsertTrigger so the popup ranks people,
-  // projects, and tags identically across the two surfaces. Tags sort alphabetically; the others keep store order.
+  // Autocomplete candidates. Tags sort alphabetically; the others keep store order.
   const acPeople = useMemo<AutocompleteItem[]>(
     () =>
       people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })),
     [people],
-  )
-  const acProjects = useMemo<AutocompleteItem[]>(
-    () =>
-      projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })),
-    [projects],
   )
   const acTags = useMemo<AutocompleteItem[]>(
     () =>
@@ -321,14 +283,12 @@ export function QuickAddBar({
   )
   const ac = useNlpAutocomplete({
     people: acPeople,
-    projects: acProjects,
     tags: acTags,
     statuses: acStatuses,
   })
 
   const draft: QuickAddDraft = {
     ...parsed,
-    project: parsed.project ?? defaultProject,
     rawTitle: raw,
     resolved,
   }
@@ -336,14 +296,12 @@ export function QuickAddBar({
   const hasChips =
     !!draft.status ||
     draft.people.length > 0 ||
-    !!draft.project ||
     draft.tags.length > 0 ||
     !!draft.deadlineAt ||
     !!draft.recurrence
 
   const hasUnmatched =
     parsed.unmatchedPersons.length > 0 ||
-    parsed.unmatchedProjects.length > 0 ||
     parsed.unmatchedStatuses.length > 0
 
   // Focus on open; reset (and dismiss any open popup) on close. Destructure
@@ -484,9 +442,7 @@ export function QuickAddBar({
       ? 'Tags'
       : ac.state.trigger === ':'
         ? 'Statuses'
-        : ac.state.trigger === '/'
-          ? 'Projects'
-          : 'People'
+        : 'People'
   const isTagCreateNewVisible =
     ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
 
@@ -529,7 +485,6 @@ export function QuickAddBar({
             {draft.people.map((p) => (
               <PersonChip key={`person-${p.id}`} person={p} />
             ))}
-            {draft.project && <ProjectChip project={draft.project} />}
             {draft.tags.map((t) => (
               <TagChip key={`tag-${t}`} tag={t} />
             ))}
@@ -545,7 +500,6 @@ export function QuickAddBar({
             <span className={styles.unmatchedNames}>
               {[
                 ...parsed.unmatchedPersons.map((n) => `@${n}`),
-                ...parsed.unmatchedProjects.map((n) => `/${n}`),
                 ...parsed.unmatchedStatuses.map((n) => `:${n}`),
               ].join(' ')}
             </span>
@@ -560,10 +514,6 @@ export function QuickAddBar({
           <div className={styles.nlpHints}>
             <span>
               <Kbd>@</Kbd> person
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              <Kbd>/</Kbd> project
             </span>
             <span aria-hidden="true">·</span>
             <span>

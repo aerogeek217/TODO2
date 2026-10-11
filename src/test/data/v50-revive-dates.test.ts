@@ -118,8 +118,6 @@ describe('v50 Dexie upgrade repairs a string-dated v49 database', () => {
       },
       { id: 3, title: 'Already Dates', isCompleted: false, sortOrder: 2, createdAt: already, modifiedAt: already },
     ])
-    await v49.table('canvases').add({ id: 1, name: 'Main', sortOrder: 0, createdAt: ISO })
-    await v49.table('projects').add({ id: 1, name: 'P', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: ISO })
     await v49.table('notes').add({ id: 1, content: 'n', createdAt: ISO, modifiedAt: ISO })
     await v49.table('taskboards').add({ id: 1, entries: [], createdAt: ISO, updatedAt: ISO })
     await v49.table('todoEvents').add({ id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: ISO })
@@ -138,8 +136,8 @@ describe('v50 Dexie upgrade repairs a string-dated v49 database', () => {
     expect(isDate(t1!.nextFollowupAt) && isDate(t2!.nextFollowupAt)).toBe(true)
     expect(t3!.dueDate).toBeUndefined()
 
-    expect(isDate((await db.canvases.get(1))!.createdAt)).toBe(true)
-    expect(isDate((await db.projects.get(1))!.createdAt)).toBe(true)
+    // (Canvases and projects, which v50 also revives, are gone since v60 —
+    // the pure transform test above covers them.)
     const note = (await db.notes.get(1))!
     expect(isDate(note.createdAt) && isDate(note.modifiedAt)).toBe(true)
     expect((await db.todoEvents.get(1))!.timestamp).toBe(ISO)
@@ -161,7 +159,7 @@ describe('restored tasks are visible to dueDate range queries', () => {
     const file = JSON.parse(JSON.stringify({
       // A v50 file: the v51 upgrade mints the uids current rows need.
       __schemaVersion: 50,
-      canvases: [{ id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(ISO) }],
+      settings: [],
       todos: [
         { id: 1, title: 'Due today', isCompleted: false, sortOrder: 0, createdAt: new Date(ISO), modifiedAt: new Date(ISO), dueDate: today },
         { id: 2, title: 'Overdue', isCompleted: false, sortOrder: 1, createdAt: new Date(ISO), modifiedAt: new Date(ISO), dueDate: yesterday },

@@ -1,27 +1,13 @@
-import type { PersistedTodoItem, Person, Status, Tag, Project, ProjectGroupBy } from '../models'
+import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy } from '../models'
 import type { WeekStart } from './effective-date'
 import { bySortOrder } from './sort-order'
 import { DATE_BUCKET_LABELS, DATE_BUCKET_ORDER, dateBucketKey, isDateBucketKey } from './bucket-by-date'
 import { NEUTRAL_PERSON_COLOR } from '../constants'
 
-export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
-  { value: null, label: 'None' },
-  { value: 'deadline', label: 'Due' },
-  { value: 'followup', label: 'Next follow-up' },
-  { value: 'status', label: 'Status' },
-  { value: 'people', label: 'People' },
-  { value: 'tag', label: 'Tag' },
-]
-
 export interface GroupingContext {
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
   statuses: readonly Status[]
-  /** Project registry — used by `orderGroupKeys` to sort project keys by
-   *  registry `sortOrder`. Optional: empty/undefined is fine when not grouping
-   *  by project (caller can also resolve labels at the call site, mirroring
-   *  the people pattern). */
-  projects?: readonly Project[]
   today: Date
   /** Week boundary for the date axes' "This Week" bucket. */
   weekStartsOn: WeekStart
@@ -51,19 +37,16 @@ function parseId(prefix: string, key: string): number | null {
  *   into the `ungrouped` block.
  * - `string` — single group key.
  * - `string[]` — todo belongs to multiple groups (people / tag many-to-many);
- *   it appears once in each group, mirroring the ListView convention.
+ *   it appears once in each group.
  *
  * Bucket keys for `deadline` / `followup` are the shared relative-date keys
  * (`overdue` / `today` / `week` / `later`, see `utils/bucket-by-date`).
  *
  * `'none'` is a no-op at this layer (means "ungrouped"; callers gate on it).
- * `'project'` returns `project-${todo.projectId}` for surfaces that can group
- * by project (the canvas `ProjectNode` is one project at a time and excludes
- * this axis from `PROJECT_GROUP_VALUES`).
  */
 export function getGroupKey(
   todo: PersistedTodoItem,
-  groupBy: ProjectGroupBy,
+  groupBy: TodoGroupBy,
   ctx: GroupingContext,
 ): string | string[] | null {
   switch (groupBy) {
@@ -85,8 +68,6 @@ export function getGroupKey(
       }
       return keys.size === 0 ? null : [...keys]
     }
-    case 'project':
-      return todo.projectId != null ? `project-${todo.projectId}` : null
     case 'deadline':
       return dateBucketKey(todo.dueDate ? new Date(todo.dueDate) : null, ctx.today, ctx.weekStartsOn)
     case 'followup':
@@ -104,7 +85,7 @@ export function getGroupKey(
  */
 export function getGroupLabel(
   key: string,
-  groupBy: ProjectGroupBy,
+  groupBy: TodoGroupBy,
   ctx: GroupingContext,
 ): string {
   switch (groupBy) {
@@ -132,12 +113,6 @@ export function getGroupLabel(
       }
       return ''
     }
-    case 'project': {
-      const id = parseId('project-', key)
-      if (id == null) return ''
-      const project = ctx.projects?.find((p) => p.id === id)
-      return project?.name ?? ''
-    }
     case 'deadline':
     case 'followup':
       return isDateBucketKey(key) ? DATE_BUCKET_LABELS[key] : ''
@@ -157,7 +132,7 @@ export function getGroupLabel(
  */
 export function getGroupColor(
   key: string,
-  groupBy: ProjectGroupBy,
+  groupBy: TodoGroupBy,
   ctx: GroupingContext,
 ): string | undefined {
   switch (groupBy) {
@@ -185,7 +160,6 @@ export function getGroupColor(
       }
       return undefined
     }
-    case 'project':
     case 'deadline':
     case 'followup':
     case 'none':
@@ -207,7 +181,7 @@ export function getGroupColor(
  */
 function orderGroupKeys(
   keys: string[],
-  groupBy: ProjectGroupBy,
+  groupBy: TodoGroupBy,
   ctx: GroupingContext,
   prioritizeGroupKeys?: ReadonlyArray<string>,
 ): string[] {
@@ -235,27 +209,6 @@ function orderGroupKeys(
         return keys.slice().sort((a, b) =>
           getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
         )
-      case 'project': {
-        // Sort by project registry sortOrder when `ctx.projects` is supplied;
-        // otherwise fall through to alphabetical-by-label fallback (mirrors
-        // people/tag behavior when label is empty).
-        const projects = ctx.projects
-        if (projects && projects.length > 0) {
-          const order = new Map<number, number>()
-          const sorted = [...projects].sort(bySortOrder)
-          sorted.forEach((p, i) => {
-            if (p.id != null) order.set(p.id, i)
-          })
-          return keys.slice().sort((a, b) => {
-            const ai = order.get(parseId('project-', a) ?? -1) ?? Number.MAX_SAFE_INTEGER
-            const bi = order.get(parseId('project-', b) ?? -1) ?? Number.MAX_SAFE_INTEGER
-            return ai - bi
-          })
-        }
-        return keys.slice().sort((a, b) =>
-          getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
-        )
-      }
       case 'none':
         return keys.slice()
     }
@@ -300,7 +253,7 @@ function orderGroupKeys(
  */
 export function partitionByGroup<T extends PersistedTodoItem>(
   todos: readonly T[],
-  groupBy: ProjectGroupBy,
+  groupBy: TodoGroupBy,
   ctx: GroupingContext,
   prioritizeGroupKeys?: ReadonlyArray<string>,
   restrictToFilterSet?: ReadonlyArray<string>,

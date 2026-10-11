@@ -266,7 +266,9 @@ describe('v55 Dexie upgrade', () => {
     expect(people.map((p) => p.name)).toEqual(['Ann Lee', 'Bob Stone', 'org: initech', 'Org: Acme', 'Org: Globex'])
     const todoPeople = await db.todoPeople.orderBy('id').toArray()
     const defs = await db.listDefinitions.orderBy('id').toArray()
-    const insets = await db.listInsets.orderBy('id').toArray()
+    // The insets / rails whose org picks v55 rewrites are gone since v60 (the
+    // pure transform tests cover them); the layout v56 made from them stays.
+    const layouts = await db.layouts.orderBy('id').toArray()
 
     // A JSON copy of the same v54 data (an export carries the empty
     // taskboards table) upgrades to the same rows.
@@ -276,7 +278,7 @@ describe('v55 Dexie upgrade', () => {
     expect([...prepared.data.people].sort((a, b) => a.id! - b.id!)).toEqual(people)
     expect([...prepared.data.todoPeople].sort((a, b) => a.id! - b.id!)).toEqual(todoPeople)
     expect([...prepared.data.listDefinitions].sort((a, b) => a.id! - b.id!)).toEqual(defs)
-    expect([...prepared.data.listInsets].sort((a, b) => a.id! - b.id!)).toEqual(insets)
+    expect(prepared.data.layouts.map((l) => l.columns)).toEqual(layouts.map((l) => l.columns))
     expect('orgs' in prepared.data).toBe(false)
   })
 })

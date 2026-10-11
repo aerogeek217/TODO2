@@ -9,7 +9,7 @@ export interface ParsedToken {
    * 5/4, …). Both resolve to `dueDate`; an explicit 'deadline' wins over a
    * bare 'date'. Windows (this week / next month) resolve to their last day.
    */
-  type: 'date' | 'deadline' | 'person' | 'project' | 'recurrence' | 'tag' | 'status'
+  type: 'date' | 'deadline' | 'person' | 'recurrence' | 'tag' | 'status'
   value: string
   raw: string
   start: number
@@ -22,7 +22,6 @@ export interface ParsedInput {
   dueDate?: Date
   recurrence?: RecurrenceType
   persons: string[]
-  projects: string[]
   /** User-supplied tag names in first-seen order (trimmed, original case
    * preserved). Dedup is by case-folded slug so `#Foo` and `#foo` collapse to
    * one entry — the first-seen case wins. Resolver lookup is also
@@ -36,7 +35,6 @@ export interface ParsedInput {
 // `@` mentions name a person. The parser stays store-free and emits
 // `'person'`-typed tokens; `nlp-resolver.ts` looks the names up.
 const MENTION_PATTERN = /@"([^"]+)"|@(\w+)/g
-const PROJECT_PATTERN = /\/([A-Za-z0-9_-]+)/g
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input) and group 2 is the slug. Separator stays in the remaining title
 // after token removal.
@@ -248,24 +246,8 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
-  // Extract projects (/name) — only when preceded by whitespace or at start
-  PROJECT_PATTERN.lastIndex = 0
-  while ((match = PROJECT_PATTERN.exec(text)) !== null) {
-    if (match.index > 0 && !/\s/.test(text[match.index - 1] ?? '')) continue
-    const value = match[1]
-    if (value == null) continue
-    tokens.push({
-      type: 'project',
-      value,
-      raw: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    })
-  }
-
-  // Extract tags (#name) — whitespace-preceded or at start of input. Pushed
-  // after project extraction so `/foo` wins overlap-dedup against any
-  // hypothetical conflict; leading separator in group 1 stays in the title.
+  // Extract tags (#name) — whitespace-preceded or at start of input; the
+  // leading separator in group 1 stays in the title.
   TAG_PATTERN.lastIndex = 0
   while ((match = TAG_PATTERN.exec(text)) !== null) {
     const sep = match[1]
@@ -398,7 +380,7 @@ export function parseInput(text: string): ParsedInput {
     })
   }
 
-  // Remove cross-type overlaps; earlier-pushed tokens win (person/project > deadline > date > recurrence)
+  // Remove cross-type overlaps; earlier-pushed tokens win (person > deadline > date > recurrence)
   const deduped: ParsedToken[] = []
   for (const token of tokens) {
     const overlaps = deduped.some((t) => token.start < t.end && token.end > t.start)
@@ -422,7 +404,6 @@ export function parseInput(text: string): ParsedInput {
   let bareDate: Date | undefined
   let recurrence: RecurrenceType | undefined
   const persons: string[] = []
-  const projects: string[] = []
   const tags: string[] = []
   const statuses: string[] = []
   const seenTags = new Set<string>()
@@ -441,7 +422,6 @@ export function parseInput(text: string): ParsedInput {
       recurrence = RECURRENCE_MAP[token.value]
     }
     if (token.type === 'person') persons.push(token.value)
-    if (token.type === 'project') projects.push(token.value)
     if (token.type === 'tag') {
       // Dedup by case-folded slug (`normalizeTag`), but write the user-supplied
       // case (trimmed) so `#FooBar` round-trips as `FooBar`. The resolver
@@ -456,5 +436,5 @@ export function parseInput(text: string): ParsedInput {
     if (token.type === 'status') statuses.push(token.value)
   }
 
-  return { title, tokens, dueDate: dueDate ?? bareDate, recurrence, persons, projects, tags, statuses }
+  return { title, tokens, dueDate: dueDate ?? bareDate, recurrence, persons, tags, statuses }
 }

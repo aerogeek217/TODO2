@@ -37,7 +37,7 @@ export interface UsePopoverAnchorOptions {
   offset?: number
   /**
    * When `true` (default), an ancestor scroll fires `onClose` (capture phase
-   * — catches scroll on inset bodies / `.runtimeFilterWrap` / etc). When
+   * — catches scroll on widget bodies / `.runtimeFilterWrap` / etc). When
    * `false`, a `ref` anchor repositions the panel to track the element; a
    * `point` anchor is static and the listener becomes a no-op.
    */
@@ -115,7 +115,7 @@ function viewportSize(): { vw: number; vh: number } {
  * it forces the panel to 0×0, `compute()` reads 0, the `panelHeight > 0` gate
  * skips both flip and clamp, and the panel ends up positioned at the raw
  * anchor — clipping the bottom of the viewport for anchors near the bottom
- * (e.g. the bottom rail's "+ Add tab" → list picker).
+ * (e.g. a cell's "+" → list picker near the bottom of the screen).
  */
 function makeInitialStyle(): PopoverStyle {
   const { vw, vh } = viewportSize()
@@ -235,8 +235,7 @@ function computePopoverPosition(
  *
  * Replaces the per-popover positioning useEffects in `RuntimeFilterPicker`
  * (canonical, post-triage P3), `ListDefinitionPickerPopup`,
- * `WidgetKindMenu`, `FilteredListPopup`, `SlotMenu`, `ContextMenu`,
- * and `ProjectPickerPopup` (all migrated in ui-consistency P1).
+ * `WidgetKindMenu`, `FilteredListPopup` and `ContextMenu`.
  */
 export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAnchorResult {
   const {

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useSettingsStore, type ThemeMode } from '../stores/settings-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useFileOpsStore } from '../stores/file-ops-store'
-import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
@@ -32,9 +31,6 @@ import { DashboardListsEditor } from '../components/settings/DashboardListsEdito
 import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useUIStore } from '../stores/ui-store'
-import { GROUP_OPTIONS } from '../utils/task-grouping'
-import type { ProjectGroupBy } from '../models'
-import { MIN_CANVAS_MAX_EXTENT, MAX_CANVAS_MAX_EXTENT } from '../utils/canvas-bounds'
 import { BYTES_PER_KB } from '../constants'
 import { isExpiredCompleted, retentionCutoff, selectExpiredCompleted } from '../utils/completed-at'
 import { FollowupIntervalSetting } from '../components/settings/FollowupIntervalSetting'
@@ -62,19 +58,8 @@ interface PendingAppend {
 }
 
 export function SettingsPage() {
-  const { load, themeMode, setThemeMode, defaultProjectId, setDefaultProjectId, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn, defaultProjectGroupBy, setDefaultProjectGroupBy, canvasMaxExtent, setCanvasMaxExtent } = useSettingsStore()
-  const [canvasMaxExtentDraft, setCanvasMaxExtentDraft] = useState<string>(String(canvasMaxExtent))
-  useEffect(() => { setCanvasMaxExtentDraft(String(canvasMaxExtent)) }, [canvasMaxExtent])
-  const commitCanvasMaxExtent = useCallback(() => {
-    const n = Number(canvasMaxExtentDraft)
-    if (!Number.isFinite(n) || n < MIN_CANVAS_MAX_EXTENT || n > MAX_CANVAS_MAX_EXTENT) {
-      setCanvasMaxExtentDraft(String(canvasMaxExtent))
-      return
-    }
-    if (n !== canvasMaxExtent) setCanvasMaxExtent(n)
-  }, [canvasMaxExtentDraft, canvasMaxExtent, setCanvasMaxExtent])
+  const { load, themeMode, setThemeMode, defaultStatusId, setDefaultStatusId, completedRetentionDays, setCompletedRetentionDays, weekStartsOn, setWeekStartsOn } = useSettingsStore()
   const fileStorage = useFileStorageStore()
-  const { projects, loadAll: loadProjects } = useProjectStore()
   const todos = useTodoStore((s) => s.todos)
   const purgeCompleted = useTodoStore((s) => s.purgeCompleted)
   const peopleCount = usePersonStore((s) => s.people.length)
@@ -137,7 +122,6 @@ export function SettingsPage() {
 
   useEffect(() => {
     load()
-    loadProjects()
     loadPeople()
     loadTags()
     loadStatuses()
@@ -147,7 +131,7 @@ export function SettingsPage() {
     return () => {
       timers.forEach(clearTimeout)
     }
-  }, [load, loadProjects, loadPeople, loadTags, loadStatuses, loadListDefinitions, loadBackups])
+  }, [load, loadPeople, loadTags, loadStatuses, loadListDefinitions, loadBackups])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -451,19 +435,6 @@ export function SettingsPage() {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Task Defaults</div>
           <div className={styles.settingRow}>
-            <span className={styles.settingLabel}>Default project for new tasks</span>
-            <select
-              className={styles.settingSelect}
-              value={defaultProjectId ?? ''}
-              onChange={(e) => setDefaultProjectId(e.target.value ? Number(e.target.value) : null)}
-            >
-              <option value="">None</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.settingRow}>
             <span className={styles.settingLabel}>Default status for new tasks</span>
             <select
               className={styles.settingSelect}
@@ -492,44 +463,6 @@ export function SettingsPage() {
               <option value={1}>Monday</option>
               <option value={0}>Sunday</option>
             </select>
-          </div>
-          <div className={styles.settingRow}>
-            <span className={styles.settingLabel}>Default grouping for new projects</span>
-            <select
-              className={styles.settingSelect}
-              value={defaultProjectGroupBy ?? ''}
-              onChange={(e) => setDefaultProjectGroupBy(e.target.value === '' ? null : (e.target.value as ProjectGroupBy))}
-            >
-              {GROUP_OPTIONS.map(({ value, label }) => (
-                <option key={value ?? 'none'} value={value ?? ''}>{label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        )}
-
-        {/* Canvas — desktop only */}
-        {!isMobile && (
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>Canvas</div>
-          <div
-            className={styles.settingRow}
-            title={`Hard limit on widget coordinates (positions are clamped to ±N on both axes) and the floor for the canvas's minimum zoom (so "Fit all to view" can always cover the full band). Range ${MIN_CANVAS_MAX_EXTENT.toLocaleString()}–${MAX_CANVAS_MAX_EXTENT.toLocaleString()}.`}
-          >
-            <span className={styles.settingLabel}>Canvas extent (±px)</span>
-            <input
-              type="number"
-              className={styles.settingSelect}
-              value={canvasMaxExtentDraft}
-              min={MIN_CANVAS_MAX_EXTENT}
-              max={MAX_CANVAS_MAX_EXTENT}
-              step={1000}
-              onChange={(e) => setCanvasMaxExtentDraft(e.target.value)}
-              onBlur={commitCanvasMaxExtent}
-              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-              aria-label="Canvas extent in pixels"
-              style={{ width: 90, textAlign: 'right' }}
-            />
           </div>
         </div>
         )}

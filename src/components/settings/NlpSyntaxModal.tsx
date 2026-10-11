@@ -14,11 +14,10 @@ interface NlpSyntaxSection {
 
 const SECTIONS: NlpSyntaxSection[] = [
   {
-    label: 'People & Projects',
+    label: 'People',
     rows: [
       { syntax: '@name', description: 'Assign person' },
       { syntax: '@"First Last"', description: 'Quoted form when the name has a space' },
-      { syntax: '/project', description: 'Assign task to a project' },
     ],
   },
   {

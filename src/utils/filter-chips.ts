@@ -1,10 +1,10 @@
-import type { DateAnchor, Person, Project, Status, Tag, TodoPredicate } from '../models'
+import type { DateAnchor, Person, Status, Tag, TodoPredicate } from '../models'
 import type { DateField } from '../models/app-view'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 
 /** The filter fields a chip stands for, in chip order. */
-export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'project' | 'focus' | 'text' | 'completed'
+export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'focus' | 'text' | 'completed'
 
 export interface FilterChip {
   field: FilterChipField
@@ -19,14 +19,12 @@ export interface FilterChipNames {
   people: readonly Person[]
   tags: readonly Tag[]
   statuses: readonly Status[]
-  projects: readonly Project[]
 }
 
 /** Narrowing clauses of a filter, in the shape both predicates and screen criteria share. */
 export interface FilterClauses {
   showCompleted: boolean
   personIds: Iterable<number> | null
-  projectIds: Iterable<number> | null
   statusIds: Iterable<number> | null
   tags?: Iterable<number> | null
   searchText: string
@@ -99,7 +97,7 @@ export function focusValue(focus: boolean): string {
 
 /**
  * Chips for the narrowing clauses of a filter, in chip order (people, tags,
- * dates, status, project, focus, text). `showCompleted` adds a trailing
+ * dates, status, focus, text). `showCompleted` adds a trailing
  * `completed` chip only when `includeCompleted` is set (screen filters show
  * it; a list's own filter keeps it in its options).
  */
@@ -111,7 +109,6 @@ export function filterChips(c: FilterClauses, names: FilterChipNames, includeCom
   const dates = datesChip(c)
   if (dates) chips.push(dates)
   if (c.statusIds != null) chips.push({ field: 'status', label: 'Status', value: namesValue(c.statusIds, byId(names.statuses), 'No status') })
-  if (c.projectIds != null) chips.push({ field: 'project', label: 'Project', value: namesValue(c.projectIds, byId(names.projects), 'No project') })
   if (c.focus != null) chips.push({ field: 'focus', label: 'Focus', value: focusValue(c.focus) })
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
@@ -122,7 +119,6 @@ export function filterChips(c: FilterClauses, names: FilterChipNames, includeCom
 /** Whether a list predicate narrows anything (`showCompleted` doesn't). */
 export function hasNarrowingFilters(p: TodoPredicate): boolean {
   return p.personIds != null
-    || p.projectIds != null
     || p.statusIds != null
     || (p.tags ?? null) != null
     || (p.searchText ?? '').trim() !== ''
@@ -144,7 +140,6 @@ export function clearChipField(p: TodoPredicate, field: FilterChipField): TodoPr
     case 'people': return { ...p, personIds: null }
     case 'tags': return { ...p, tags: null }
     case 'status': return { ...p, statusIds: null }
-    case 'project': return { ...p, projectIds: null }
     case 'focus': return { ...p, focus: null }
     case 'text': return { ...p, searchText: '' }
     case 'dates': return { ...p, dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null, hasFollowup: null }

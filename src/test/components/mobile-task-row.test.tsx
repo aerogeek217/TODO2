@@ -16,7 +16,6 @@ vi.mock('../../hooks/use-bulk-actions', () => ({
     remove: mockRemove,
     setFocus: mockSetFocus,
     setDeadline: vi.fn(),
-    setProject: vi.fn(),
     setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
@@ -220,11 +219,10 @@ describe('MobileTaskRow', () => {
 
   // ── Ghost mode ────────────────────────────────────────────────────
   //
-  // Ghost rows used to be inert (checkbox / right-click no-op'd). Per the
-  // triage-2026-04-27-batch2 P1 decision, a ghosted task is still a real
-  // task — same checkbox + same context menu as a non-ghost row. Visual
-  // dim is the only signal that the task is filtered out (data-ghosted
-  // attribute drives the CSS rule).
+  // Ghost rows used to be inert (checkbox / right-click no-op'd). A ghosted
+  // task is still a real task — same checkbox + same context menu as a
+  // non-ghost row. Visual dim is the only signal that the task is filtered
+  // out (data-ghosted attribute drives the CSS rule).
 
   describe('ghost mode', () => {
     it('marks the row with data-ghosted', () => {
@@ -244,14 +242,14 @@ describe('MobileTaskRow', () => {
     })
   })
 
-  // ── Phase 6 parity ────────────────────────────────────────────────
+  // ── Parity with the desktop row ───────────────────────────────────
   //
   // Mobile gains chip taps, a notes-icon trigger, and an `onContextMenu`
   // handler that mirrors the desktop right-click menu. On real touch devices
   // long-press fires the same `contextmenu` event, so the interactive surface
   // is identical to TaskRow.
 
-  describe('Phase 6 parity', () => {
+  describe('parity with the desktop row', () => {
     it('exposes the due-date chip as a button (tap → opens the date picker)', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
@@ -272,7 +270,7 @@ describe('MobileTaskRow', () => {
       })
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: /project/i })).not.toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 
@@ -311,7 +309,6 @@ describe('MobileTaskRow', () => {
       })
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 

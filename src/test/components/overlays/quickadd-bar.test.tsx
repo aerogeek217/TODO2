@@ -2,24 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QuickAddBar, type QuickAddDraft } from '../../../components/overlays/QuickAddBar'
 import { usePersonStore } from '../../../stores/person-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
-import type { PersistedPerson, PersistedStatus, Project } from '../../../models'
+import type { PersistedPerson, PersistedStatus } from '../../../models'
 
 const anna: PersistedPerson = { id: 1, name: 'Anna', initials: 'AN' }
 const bob: PersistedPerson = { id: 2, name: 'Bob', initials: 'BO' }
-const triage: Project & { id: number } = {
-  id: 10,
-  name: 'Triage',
-  canvasId: 1,
-  positionX: 0,
-  positionY: 0,
-  isCollapsed: false,
-  sortOrder: 0,
-  createdAt: new Date(),
-  color: '#0af',
-}
 const doingStatus: PersistedStatus = { id: 100, name: 'Doing', color: '#0af', sortOrder: 0 }
 
 function seedStores() {
@@ -27,7 +15,6 @@ function seedStores() {
     people: [anna, bob],
     assignedPeopleMap: new Map(),
   })
-  useProjectStore.setState({ projects: [triage] })
   useStatusStore.setState({ statuses: [doingStatus] })
   useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 }
@@ -69,15 +56,13 @@ describe('QuickAddBar', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('renders chips for "@anna /triage #x tomorrow" parsed input', () => {
+  it('renders chips for "@anna #x tomorrow" parsed input', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    changeInput('Fix the build @anna /triage #x tomorrow')
+    changeInput('Fix the build @anna #x tomorrow')
 
     // Person chip — anchored on the @-prefixed display label, not the
     // dropdown items (which match plain "Anna").
     expect(screen.getByText('@Anna')).toBeInTheDocument()
-    // Project chip
-    expect(screen.getByText('/Triage')).toBeInTheDocument()
     // Tag chip — slug as-typed, lowercase
     expect(screen.getByText('#x')).toBeInTheDocument()
     // Schedule chip — exact label depends on locale + today's date, so just
@@ -120,21 +105,39 @@ describe('QuickAddBar', () => {
     const onClose = vi.fn()
     render(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
 
-    // Trailing space detaches the cursor from the `/triage` token so the
+    // Trailing space detaches the cursor from the `@anna` token so the
     // autocomplete popup dismisses; otherwise the input's keydown handler
     // would intercept Enter for the popup.
-    changeInput('Fix the build @anna /triage ')
+    changeInput('Fix the build @anna ')
     fireEvent.keyDown(getInput(), { key: 'Enter' })
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalledTimes(1)
     const draft = submitted[0]!
     expect(draft.title).toBe('Fix the build')
-    expect(draft.rawTitle).toBe('Fix the build @anna /triage ')
+    expect(draft.rawTitle).toBe('Fix the build @anna ')
     expect(draft.people.map((p) => p.id)).toEqual([1])
-    expect(draft.project?.id).toBe(10)
     expect(draft.resolved.personIds).toEqual([1])
-    expect(draft.resolved.projectId).toBe(10)
+  })
+
+  it('keeps a `/word` in the title — no chip, no unknown token, no popup', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+    // Cursor sits right after the `/` token (as with the `@` popup test), so
+    // a `/` trigger would open the autocomplete here.
+    const input = changeInput('Fix the build /')
+    input.setSelectionRange(input.value.length, input.value.length)
+    fireEvent.change(input, { target: { value: 'Fix the build /triage' } })
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Unknown:/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^\/triage$/i)).not.toBeInTheDocument()
+
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+    expect(draft.title).toBe('Fix the build /triage')
+    expect(draft.resolved.title).toBe('Fix the build /triage')
   })
 
   it('blank submit is a no-op (Enter on empty input does not fire onSubmit/onClose)', () => {
@@ -238,9 +241,9 @@ describe('QuickAddBar', () => {
 
   it('shows the unmatched hint when a name does not resolve', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    changeInput('check it @ghost /nope')
+    changeInput('check it @ghost')
     expect(screen.getByText(/Unknown:/)).toBeInTheDocument()
-    expect(screen.getByText('@ghost /nope')).toBeInTheDocument()
+    expect(screen.getByText('@ghost')).toBeInTheDocument()
   })
 
   it('empty hint row covers all NLP prefixes', () => {
@@ -249,13 +252,14 @@ describe('QuickAddBar', () => {
     const text = surface.textContent ?? ''
     // Prefix tokens.
     expect(text).toContain('@')
-    expect(text).toContain('/')
     expect(text).toContain('#')
     expect(text).toContain(':')
     expect(text).toContain('!')
     // Natural-date and recurrence examples.
     expect(text.toLowerCase()).toContain('tomorrow')
     expect(text.toLowerCase()).toContain('every')
+    // No project prefix any more.
+    expect(text.toLowerCase()).not.toContain('project')
   })
 })
 
@@ -271,7 +275,6 @@ describe('QuickAddBar — parse override', () => {
       people: [anna],
       tags: ['debug'],
       unmatchedPersons: [],
-      unmatchedProjects: [],
       unmatchedStatuses: [],
     }))
     render(<QuickAddBar open onClose={noop} onSubmit={noop} parse={parse} />)

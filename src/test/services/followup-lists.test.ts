@@ -80,7 +80,7 @@ describe('filter: hasFollowup + dateField followup', () => {
 describe('sort + group by next follow-up', () => {
   it('sections: Overdue / Today / This Week / Later, then No Follow-up', () => {
     const sections = buildListSections(all, { groupBy: 'followup', sortBy: 'manual' }, {
-      today, weekStartsOn: 1, people: [], statuses: [], projects: [],
+      today, weekStartsOn: 1, people: [], statuses: [],
       assignedPeopleMap: new Map(), assignedTagsMap: new Map(),
     })
     expect(sections.map((s) => [s.label, s.todos.map((t) => t.id)])).toEqual([
@@ -114,7 +114,7 @@ describe('sort + group by next follow-up', () => {
     ])
   })
 
-  it('canvas/project grouping buckets on the next follow-up', () => {
+  it('partitionByGroup buckets on the next follow-up', () => {
     const ctx: GroupingContext = {
       assignedPeopleMap: new Map(), assignedTagsMap: new Map(),
       statuses: [], today, weekStartsOn: 1,

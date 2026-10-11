@@ -11,36 +11,32 @@ import { AvatarStack } from './AvatarStack'
 import styles from './TaskPillBar.module.css'
 
 /**
- * Shared task-pill bar — replaces the parallel due-date /
- * people / status chip implementations that lived inside
- * `TaskRow` / `MobileTaskRow` / `TopBar`'s `SearchResultPills` /
- * canvas calendar `EventRow` (ui-consistency-2026-04-25 P2).
+ * Shared task-pill bar — the one due-date / people / status chip
+ * implementation for `TaskRow` / `MobileTaskRow` / `TopBar`'s
+ * `SearchResultPills`.
  *
  * Tags: this primitive does NOT render tag chips. Tag display is the
  * separate `TagChipSelector` shared component, mounted by `TaskRow` and
  * `MobileTaskRow` adjacent to (not inside) the pill bar — adding tags here
- * would force every consumer of `TaskPillBar` (search dropdown, calendar
- * `EventRow`, etc.) to thread tags they don't render.
+ * would force every consumer of `TaskPillBar` (search dropdown, etc.) to
+ * thread tags they don't render.
  *
  * Perf — the consumer pre-resolves people / status and threads them
  * through; this primitive does NOT subscribe to any store.
  *
  * Composition — `<TaskPillBar>` is the default composed bar (people →
  * dates → follow-up → status, the layout used by `TaskRow` / `MobileTaskRow` /
- * `SearchResultRow`). Surfaces with a different layout (calendar
- * `EventRow` puts dates before the title) compose `<TaskPillPeople>`,
- * `<TaskPillDates>`, `<TaskPillStatus>` directly.
+ * `SearchResultRow`). Surfaces with a different layout compose
+ * `<TaskPillPeople>`, `<TaskPillDates>`, `<TaskPillStatus>` directly.
  */
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
 interface PillCommon {
   /** When false, the part renders as non-interactive `<span>`s — used
-   * inside surfaces whose row IS the click target (`SearchResultRow` and
-   * `EventRow`). */
+   * inside surfaces whose row IS the click target (`SearchResultRow`). */
   interactive?: boolean
-  /** Compact = canvas calendar strip's icon-only date markers + smaller
-   * avatars. */
+  /** Compact = icon-only date markers + smaller avatars. */
   compact?: boolean
   /** Smaller avatars even when `compact` is false (mobile). */
   density?: 'default' | 'small'

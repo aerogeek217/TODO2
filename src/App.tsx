@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { createHashRouter, RouterProvider, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
-import { useCanvasStore } from './stores/canvas-store'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
-import { useProjectStore } from './stores/project-store'
 import { useFileStorageStore } from './stores/file-storage-store'
 import { TopBar } from './components/layout/TopBar'
 import { Sidebar } from './components/layout/Sidebar'
@@ -29,7 +27,6 @@ import { applyNlpMetadata } from './services/nlp-task-creator'
 import { getFilterDefaults, supplementWithFilterDefaults } from './utils/filter-defaults'
 import { applyRuntimeFilter } from './services/dashboard-lists'
 import { criteriaToPredicate, predicateToCriteria } from './stores/filter-store'
-import { ensureDefaultProject } from './services/ensure-default-project'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
@@ -88,11 +85,8 @@ function AppBulkConfirmDialog() {
  * QuickAddBar wrapper — wires the bar to ui-store visibility, the live data
  * stores, and the full-editor handoff path.
  *
- * Submit (P4): mirrors `CanvasPage.handleAddTask` — `addTodo` for the row,
- * then `applyNlpMetadata` for parsed people/due date/
- * recurrence/tags. Default project follows the same setting
- * (`useSettingsStore().defaultProjectId`) the create-popup consults today,
- * so `Ctrl+Space` lands tasks in the same place across both surfaces.
+ * Submit: `addTodo` for the row, then `applyNlpMetadata` for parsed
+ * people / due date / recurrence / tags / status.
  *
  * Details / Tab handoff: stashes `{ rawTitle }` in `ui-store.quickAddDraft`,
  * closes the bar (preserving the draft), and opens the create popup. The
@@ -103,35 +97,16 @@ function AppQuickAddBar() {
   const open = useUIStore((s) => s.quickAddOpen)
   const close = useUIStore((s) => s.closeQuickAdd)
   const draft = useUIStore((s) => s.quickAddDraft)
-  const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
-  const projects = useProjectStore((s) => s.projects)
-  // List-widget handoff: if the draft carries a seeded projectId (the list's
-  // predicate narrowed to a single project), prefer that over the user's
-  // global default — so the chip the bar renders matches the project the
-  // task will actually land in.
-  const seedProjectId = draft?.defaults?.projectId
-  const defaultProject = useMemo(
-    () => {
-      const id = seedProjectId ?? defaultProjectId
-      return id != null ? projects.find((p) => p.id === id) : undefined
-    },
-    [seedProjectId, defaultProjectId, projects],
-  )
-
   const handleSubmit = useCallback(async (submitted: QuickAddDraft) => {
     const { resolved } = submitted
-    const canvasId = useCanvasStore.getState().selectedCanvasId
-    if (canvasId == null) return
     // Filter-default seed: prefer an explicit list-predicate seed stashed on
-    // `quickAddDraft.defaults` (from a list widget's "+ Add task" path) so a
-    // canvas-level FAB invocation in a non-list context still falls through to
-    // the active topbar filter. `supplementWithFilterDefaults` only fills
-    // fields the user didn't type — so an `@person` or `/project` token always
-    // wins over the seed.
+    // `quickAddDraft.defaults` (from a list widget's "+ Add task" path); any
+    // other invocation falls through to the active top-bar filter.
+    // `supplementWithFilterDefaults` only fills fields the user didn't type —
+    // so an `@person` token always wins over the seed.
     //
-    // Runtime filter: ListView's saved-list path keeps the runtime-prompt pick
-    // separate from the manual-criteria predicate (so saving captures only the
-    // baseline). At submit time we want the runtime entity baked into the
+    // Runtime filter: a prompt pick held in the filter store is kept separate
+    // from the predicate. At submit time the picked entity is baked into the
     // defaults too, so a list keyed on `Tasks for {assignee}` adds new tasks
     // assigned to whoever the user picked.
     const draft = useUIStore.getState().quickAddDraft
@@ -147,17 +122,10 @@ function AppQuickAddBar() {
       fd = getFilterDefaults(baseFilters)
     }
     supplementWithFilterDefaults(resolved, fd)
-    // Mirror CanvasPage.handleAddTask: parse-cleaned title fed to addTodo,
-    // then applyNlpMetadata for everything the resolver pulled out. Tags ride
-    // through applyNlpMetadata's resolve-or-create path (`nlp-task-creator.ts`)
-    // so we don't need to call `resolveTags` / `assignTag` ourselves.
-    // QuickAddBar already seeds `submitted.project` from the `defaultProject`
-    // prop when no `/project` token was typed, so we only need to fall back
-    // when no default project exists at all — `ensureDefaultProject` returns
-    // the first project on this canvas (handles the "user removed the default"
-    // edge) or auto-creates an Inbox + persists it.
-    const projectId = resolved.projectId ?? submitted.project?.id ?? (await ensureDefaultProject(canvasId))
-    const id = await useTodoStore.getState().add(resolved.title || submitted.title, canvasId, projectId)
+    // Parse-cleaned title fed to addTodo, then applyNlpMetadata for everything
+    // the resolver pulled out. Tags ride through applyNlpMetadata's
+    // resolve-or-create path (`nlp-task-creator.ts`).
+    const id = await useTodoStore.getState().add(resolved.title || submitted.title)
     await applyNlpMetadata(
       id,
       resolved,
@@ -209,7 +177,6 @@ function AppQuickAddBar() {
     <QuickAddBar
       open={open}
       initialDraft={draft ?? undefined}
-      defaultProject={defaultProject}
       onClose={close}
       onSubmit={handleSubmit}
       onOpenFullEditor={handleOpenFullEditor}
@@ -221,7 +188,7 @@ function AppQuickAddBar() {
  * Launch prompt for completed tasks past the retention setting.
  * Lists the tasks that were expired at launch (`launchUids` — uids survive a
  * sync-file restore, ids don't) and are still expired now. Read from the
- * database, not `useTodoStore.todos` (which may hold one canvas's tasks), and
+ * database, not `useTodoStore.todos` (which may not be loaded yet), and
  * re-read whenever the store reloads. Waits while a sync-file prompt is
  * open. Closing it in any way ("Not now" included) skips it until the next
  * launch.
@@ -246,7 +213,6 @@ function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<s
 }
 
 function AppShell() {
-  const { ensureDefault } = useCanvasStore()
   const { ensureLoaded: loadPeople } = usePersonStore()
   const { load: loadSettings } = useSettingsStore()
   const { initialize: initFileStorage } = useFileStorageStore()
@@ -277,10 +243,10 @@ function AppShell() {
   }, [location.pathname])
 
   useEffect(() => {
-    Promise.all([ensureDefault(), loadSettings()])
+    loadSettings()
       .then(() => initFileStorage())
       .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), useProjectStore.getState().ensureAllLoaded(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
+      .then(() => Promise.all([loadPeople(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
       .then(async () => {
         // Completed tasks past retention are never purged silently —
         // remember which ones were expired at launch and ask
@@ -301,7 +267,7 @@ function AppShell() {
         setInitError(err instanceof Error ? err.message : String(err))
       })
     return () => backupScheduler.stop()
-  }, [ensureDefault, loadSettings, initFileStorage, loadPeople])
+  }, [loadSettings, initFileStorage, loadPeople])
 
   // Global keyboard shortcuts
   useKeyboardShortcuts({

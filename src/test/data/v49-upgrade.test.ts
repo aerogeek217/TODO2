@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import fixture from '../fixtures/v49-export.json'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
-import { parseRailsState } from '../../models/canvas-rails'
 import { prepareImport } from '../../data/import-pipeline'
 import { upgradeDataSet, type DataSet } from '../../data/schema-upgrades'
 import { restoreFromImportData } from '../../data/restore'
@@ -25,6 +24,28 @@ const TABLES_ADDED_AFTER_V49: ReadonlySet<string> = new Set(['layouts', 'listOrd
 
 /** Id of the "Focus" list v59 creates: after the fixture's four lists. */
 const FOCUS_LIST_ID = 5
+
+/** Ids of the tags v60 creates from the fixture's projects (after its two tags). */
+const PROJECT_WORK_TAG_ID = 3
+const PROJECT_HOME_TAG_ID = 4
+
+/**
+ * The fixture's tables run through the registry from v49 to `version` (no
+ * database). Checks what an intermediate version did to data a later
+ * version drops (e.g. the canvas tables v60 removes).
+ */
+function fixtureAt(version: number): DataSet {
+  const raw = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+  const tables: DataSet = {}
+  for (const [key, value] of Object.entries(raw)) if (Array.isArray(value)) tables[key] = value as DataSet[string]
+  return upgradeDataSet(tables, 49, version)
+}
+
+/** The rails setting of the fixture upgraded to `version`, parsed. */
+function railsAt(version: number) {
+  const row = fixtureAt(version).settings!.find((s) => s.key === 'canvasRails')!
+  return JSON.parse(row.value as string)
+}
 
 /** The stored lists that came from the fixture (v59 adds the Focus list). */
 async function fixtureListDefinitions() {
@@ -63,16 +84,18 @@ describe('v49 fixture → prepareImport → restore', () => {
     for (const table of ALL_DATA_TABLES) {
       let expected = TABLES_ADDED_AFTER_V49.has(table.name) ? 0 : (fixture[table.name as FixtureTable] as unknown[]).length
       // v52 deletes the two horizons settings rows, v53 the seeded follow-up status pointer;
-      // v56 adds `activeLayoutId`.
-      if (table.name === 'settings') expected -= 3 - 1
+      // v56 adds `activeLayoutId`; v60 removes the five canvas / project settings.
+      if (table.name === 'settings') expected -= 3 - 1 + 5
       // v56 seeds the Default layout.
       if (table.name === 'layouts') expected = 1
       // v55 turns the two orgs into people and their two assignments into person assignments.
       if (table.name === 'people' || table.name === 'todoPeople') expected += 2
-      // v59 adds the Focus list, ranks its two tasks, and turns the floating
-      // taskboard into a list inset.
-      if (table.name === 'listDefinitions' || table.name === 'listInsets') expected += 1
+      // v59 adds the Focus list and ranks its two tasks.
+      if (table.name === 'listDefinitions') expected += 1
       if (table.name === 'listOrders') expected = 2
+      // v60 turns the two projects into tags and tags their five tasks.
+      if (table.name === 'tags') expected += 2
+      if (table.name === 'todoTags') expected += 5
       expect(await table.count(), `${table.name} count`).toBe(expected)
     }
   })
@@ -86,8 +109,9 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(report.notes).toBe('Include **charts**')
     expect(report.progress).toBe('draft done')
     expect(report.recurrenceRule).toEqual({ type: 'weekly' })
-    expect(report.projectId).toBe(1)
-    expect(report.canvasId).toBe(1)
+    // v60: the project is a tag now; project / canvas fields are gone.
+    expect('projectId' in report).toBe(false)
+    expect('canvasId' in report).toBe(false)
     expect(report.statusId).toBe(2)
     expect(new Date(report.dueDate!).toISOString()).toBe('2026-10-16T00:00:00.000Z')
 
@@ -99,20 +123,22 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(await db.todoPeople.where('todoId').equals(1).count()).toBe(1)
     expect(await db.todoPeople.where('todoId').equals(3).count()).toBe(2)
     expect(await db.todoTags.where('todoId').equals(5).count()).toBe(1)
+    // Its own tag (Q4) plus its project's tag.
+    expect((await db.todoTags.where('todoId').equals(1).toArray()).map((r) => r.tagId).sort()).toEqual([2, PROJECT_WORK_TAG_ID])
   })
 
   it('preserves entities: people (orgs now among them), tags, statuses', async () => {
     await importFixture()
     expect((await db.people.orderBy('id').toArray()).map((p) => p.name))
       .toEqual(['Ann Lee', 'Bob Stone', 'Cat Ng', 'Org: Acme', 'Org: Globex'])
-    expect((await db.tags.toArray()).map((t) => t.name)).toEqual(['urgent', 'Q4'])
+    expect((await db.tags.toArray()).map((t) => t.name)).toEqual(['urgent', 'Q4', 'Project: Work', 'Project: Home'])
 
     const statuses = await db.statuses.orderBy('sortOrder').toArray()
     expect(statuses.map((s) => s.name)).toEqual(['Assigned', 'Follow-up', 'Waiting'])
     expect(statuses[0]).toMatchObject({ icon: 'person', color: '#8a8a8a' })
   })
 
-  it('preserves list definitions with runtime filters, and list insets', async () => {
+  it('preserves list definitions with runtime filters (and, up to v59, list insets)', async () => {
     await importFixture()
     const defs = await fixtureListDefinitions()
     expect(defs.map((d) => d.name)).toEqual(['This week', 'Someday', 'By person', 'Acme next 30 days'])
@@ -125,30 +151,31 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(defs[3]!.membership.predicate.dateRangeEnd).toEqual({ kind: 'offset', days: 30 })
     expect(defs[3]!.membership.predicate.dateRangeStart).toEqual({ kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' })
 
-    const insets = await db.listInsets.toArray()
+    const insets = fixtureAt(59).listInsets!
     expect(insets.find((i) => i.listDefinitionId === 3)?.runtimeFilterValue).toEqual([1, 2])
   })
 
-  it('preserves floating widgets of every surviving kind, notes, and todoEvents of every type', async () => {
-    await importFixture()
-    const cal = (await db.floatingCalendars.toArray()).find((c) => c.orientation === 'horizontal')
+  it('preserves floating widgets (up to v59), notes, and todoEvents of every type', async () => {
+    const at59 = fixtureAt(59)
+    const cal = at59.floatingCalendars!.find((c) => c.orientation === 'horizontal')
     expect(cal?.weekOffset).toBe(-1)
-    expect((await db.floatingStatus.toArray())[0]?.collapsed).toBe(true)
-    expect(await db.floatingNotes.count()).toBe(1)
+    expect(at59.floatingStatus![0]?.collapsed).toBe(true)
+    expect(at59.floatingNotes).toHaveLength(1)
+    await importFixture()
     expect((await db.notes.toArray())[0]?.content).toContain('# Inbox')
 
     const types = new Set((await db.todoEvents.toArray()).map((e) => e.type))
     expect([...types].sort()).toEqual(['completed', 'created', 'deadline', 'reopened', 'scheduled', 'status'])
   })
 
-  it('preserves every surviving settings row, including rails JSON and theme colors', async () => {
+  it('preserves every surviving settings row, including theme colors (and rails JSON up to v59)', async () => {
     await importFixture()
     const settings = new Map((await db.settings.toArray()).map((s) => [s.key, s.value]))
-    expect(settings.size).toBe(fixture.settings.length - 3 + 1)
+    expect(settings.size).toBe(fixture.settings.length - 3 + 1 - 5)
     expect(settings.get('weekStartsOn')).toBe('1')
     expect(settings.get('color.dark.accent')).toBe('#4f8cff')
     expect(settings.get('color.light.accent')).toBe('#1a5fd0')
-    const rails = JSON.parse(settings.get('canvasRails')!)
+    const rails = railsAt(59)
     expect(rails.left.slots[0].tabs[0]).toMatchObject({ type: 'lens', listDefinitionId: 3 })
     expect(rails.collapsed).toEqual({ right: true })
   })
@@ -177,10 +204,11 @@ describe('v49 fixture → v50: Date fields arrive as Dates', () => {
     expectDate(report.createdAt, 'report createdAt', '2026-09-02T10:00:00.000Z')
   })
 
-  it('canvases, projects, notes carry Dates; todoEvents.timestamp stays a string', async () => {
+  it('canvases, projects (up to v59), notes carry Dates; todoEvents.timestamp stays a string', async () => {
+    const at59 = fixtureAt(59)
+    for (const c of at59.canvases!) expectDate(c.createdAt, `canvas ${String(c.id)} createdAt`)
+    for (const p of at59.projects!) expectDate(p.createdAt, `project ${String(p.id)} createdAt`)
     await importFixture()
-    for (const c of await db.canvases.toArray()) expectDate(c.createdAt, `canvas ${c.id} createdAt`)
-    for (const p of await db.projects.toArray()) expectDate(p.createdAt, `project ${p.id} createdAt`)
     for (const n of await db.notes.toArray()) {
       expectDate(n.createdAt, `note ${n.id} createdAt`)
       expectDate(n.modifiedAt, `note ${n.id} modifiedAt`, '2026-09-15T08:00:00.000Z')
@@ -226,8 +254,8 @@ describe('v49 fixture → v52: removed widgets are gone, everything else intact'
     for (const dropped of ['floatingHorizons', 'floatingScoreboard', 'floatingSnoozeGraveyard']) {
       expect(tableNames, `${dropped} table`).not.toContain(dropped)
     }
-    // Surviving placement tables keep exactly the fixture's rows.
-    expect(await db.floatingStatus.count()).toBe(fixture.floatingStatus.length)
+    // Surviving placement tables keep exactly the fixture's rows (until v60).
+    expect(fixtureAt(59).floatingStatus).toHaveLength(fixture.floatingStatus.length)
   })
 
   it('deletes the horizonSlots / selectedHorizonDefId settings rows', async () => {
@@ -242,15 +270,13 @@ describe('v49 fixture → v52: removed widgets are gone, everything else intact'
     expect(names).toEqual(fixture.listDefinitions.map((d) => d.name))
   })
 
-  it('strips removed-kind tabs from the rails setting and leaves it valid', async () => {
-    await importFixture()
-    const raw = (await db.settings.get('canvasRails'))!.value
-    const parsed = parseRailsState(raw)
-    expect(parsed).not.toBeNull()
-    // Parsing drops unknown tab kinds — nothing may be lost to that anymore.
-    expect(JSON.parse(raw)).toEqual(JSON.parse(JSON.stringify(parsed)))
+  it('strips removed-kind tabs from the rails setting (up to v59)', () => {
+    const rails = railsAt(59)
+    const tabTypes = ['left', 'right', 'top', 'bottom']
+      .flatMap((side) => rails[side]?.slots ?? [])
+      .flatMap((slot: { tabs: Array<{ type: string }> }) => slot.tabs.map((t) => t.type))
+    for (const type of tabTypes) expect(['lens', 'notes', 'calendar', 'status']).toContain(type)
 
-    const rails = JSON.parse(raw)
     // Right slot: taskboard + horizons → taskboard only (a tab of the Focus list since v59).
     expect(rails.right.slots).toHaveLength(1)
     expect(rails.right.slots[0]).toMatchObject({ id: 's-tb', activeTabId: 't-tb', tabs: [{ id: 't-tb', type: 'lens', listDefinitionId: FOCUS_LIST_ID }] })
@@ -348,6 +374,8 @@ describe('v49 fixture → v53: scheduled dates become next follow-ups; removed e
     }
     const [thisWeek, someday, byPerson, acme] = defs
     expect(thisWeek).toMatchObject({ sort: 'deadline', grouping: 'none' })
+    // The removed 'date' grouping of "Acme" became 'project' at v53 (and 'tag' at v60).
+    expect(fixtureAt(53).listDefinitions![3]).toMatchObject({ grouping: 'project' })
     expect(thisWeek!.membership.predicate).toMatchObject({
       dateField: 'deadline',
       dateRangeStart: { kind: 'relative', token: 'start-of-week' },
@@ -531,13 +559,13 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
     })
   })
 
-  it('leaves the canvas, rails and floating widgets in place', async () => {
-    await importFixture()
-    expect(await db.settings.get('canvasRails')).toBeDefined()
+  it('leaves the canvas, rails and floating widgets in place (v60 drops them)', () => {
+    const at59 = fixtureAt(59)
+    expect(at59.settings!.some((s) => s.key === 'canvasRails')).toBe(true)
     // Plus the inset the floating taskboard became (v59).
-    expect(await db.listInsets.count()).toBe(fixture.listInsets.length + 1)
-    expect(await db.floatingCalendars.count()).toBe(fixture.floatingCalendars.length)
-    expect(await db.floatingNotes.count()).toBe(fixture.floatingNotes.length)
+    expect(at59.listInsets).toHaveLength(fixture.listInsets.length + 1)
+    expect(at59.floatingCalendars).toHaveLength(fixture.floatingCalendars.length)
+    expect(at59.floatingNotes).toHaveLength(fixture.floatingNotes.length)
   })
 })
 
@@ -579,12 +607,12 @@ describe('v49 fixture → v59: taskboard tasks are in focus, in a manually order
     expect(ranks).toEqual([[FOCUS_LIST_ID, 6, 1], [FOCUS_LIST_ID, 1, 2]])
   })
 
-  it('drops the taskboard tables; the floating taskboard is a list inset of the Focus list', async () => {
+  it('drops the taskboard tables; the floating taskboard is a list inset of the Focus list (until v60)', async () => {
     await importFixture()
     const names = db.tables.map((t) => t.name)
     expect(names).not.toContain('taskboards')
     expect(names).not.toContain('floatingTaskboards')
-    const inset = (await db.listInsets.toArray()).find((i) => i.listDefinitionId === FOCUS_LIST_ID)
+    const inset = fixtureAt(59).listInsets!.find((i) => i.listDefinitionId === FOCUS_LIST_ID)
     expect(inset).toMatchObject({ canvasId: 1, x: 1250, y: 340, width: 300, height: 260, isCollapsed: true })
   })
 
@@ -600,5 +628,76 @@ describe('v49 fixture → v59: taskboard tasks are in focus, in a manually order
     expect(JSON.stringify(tables)).toMatch(taskboardTab)
     expect(JSON.stringify(upgraded)).not.toMatch(taskboardTab)
     expect(upgradeDataSet(upgraded, 58, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
+// ── v60: projects become tags; the canvas goes ───────────────────────────
+describe('v49 fixture → v60: projects are Project: tags, canvas data is gone', () => {
+  it('the fixture has two projects, a canvas, project-filtered / -grouped lists and canvas settings', () => {
+    expect(fixture.projects.map((p) => p.name)).toEqual(['Work', 'Home'])
+    expect(fixture.canvases).toHaveLength(1)
+    expect(fixture.listDefinitions[3]!.membership.predicate.projectIds).toEqual([1, 0])
+    for (const key of ['defaultProjectId', 'defaultProjectGroupBy', 'canvasViewport', 'canvasMaxExtent', 'canvasRails']) {
+      expect(fixture.settings.some((s) => s.key === key), key).toBe(true)
+    }
+  })
+
+  it('each project is a Project: <name> tag in its color (default blue without one)', async () => {
+    await importFixture()
+    expect(await db.tags.get(PROJECT_WORK_TAG_ID)).toEqual({ id: PROJECT_WORK_TAG_ID, name: 'Project: Work', color: '#4f8cff' })
+    expect(await db.tags.get(PROJECT_HOME_TAG_ID)).toEqual({ id: PROJECT_HOME_TAG_ID, name: 'Project: Home', color: '#537FE7' })
+  })
+
+  it('every task in a project carries its Project: tag; no task keeps projectId / canvasId', async () => {
+    await importFixture()
+    const byTodo = new Map<number, number[]>()
+    for (const r of await db.todoTags.toArray()) byTodo.set(r.todoId, [...(byTodo.get(r.todoId) ?? []), r.tagId])
+    for (const t of fixture.todos) {
+      const tagIds = byTodo.get(t.id) ?? []
+      if (t.projectId === 1) expect(tagIds, `todo ${t.id}`).toContain(PROJECT_WORK_TAG_ID)
+      else if (t.projectId === 2) expect(tagIds, `todo ${t.id}`).toContain(PROJECT_HOME_TAG_ID)
+      else expect(tagIds.some((id) => id === PROJECT_WORK_TAG_ID || id === PROJECT_HOME_TAG_ID), `todo ${t.id}`).toBe(false)
+    }
+    for (const t of await db.todos.toArray()) {
+      expect('projectId' in t || 'canvasId' in t, `todo ${t.id}`).toBe(false)
+    }
+  })
+
+  it('stored lists: the project filter folds into the tag filter, project grouping → tag; no list is lost', async () => {
+    await importFixture()
+    const defs = await fixtureListDefinitions()
+    expect(defs.map((d) => d.name)).toEqual(fixture.listDefinitions.map((d) => d.name))
+    for (const d of defs) expect('projectIds' in d.membership.predicate, `${d.name}.projectIds`).toBe(false)
+    // "Acme next 30 days": projects [Work, no project] → tags [Project: Work]
+    // (the "no project" pick has no tag equivalent); grouped by project → by tag.
+    const acme = defs[3]!
+    expect(acme.membership.predicate.tags).toEqual([PROJECT_WORK_TAG_ID])
+    expect(acme.grouping).toBe('tag')
+    expect(acme.runtimeFilter).toEqual({ field: 'tag' })
+    // Lists without a project filter keep their tag filters as they were.
+    expect(defs.slice(0, 3).map((d) => d.membership.predicate.tags)).toEqual([null, null, [2]])
+  })
+
+  it('drops the project, canvas, list-inset and floating widget tables and the canvas / project settings', async () => {
+    await importFixture()
+    const names = db.tables.map((t) => t.name)
+    for (const t of ['projects', 'canvases', 'listInsets', 'floatingCalendars', 'floatingNotes', 'floatingStatus']) {
+      expect(names, t).not.toContain(t)
+    }
+    for (const key of ['defaultProjectId', 'defaultProjectGroupBy', 'canvasViewport', 'canvasMaxExtent', 'canvasRails']) {
+      expect(await db.settings.get(key), key).toBeUndefined()
+    }
+  })
+
+  it('the Default layout (made from the rails and floats at v56) and the note survive', async () => {
+    await importFixture()
+    const [layout] = await db.layouts.toArray()
+    expect(layout!.columns.flatMap((c) => c.cells.flatMap((cell) => cell.tabs.map((t) => t.id)))).toContain('tab-listInsets-1')
+    expect(await db.notes.count()).toBe(fixture.notes.length)
+  })
+
+  it('upgrading the v60 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 59, CURRENT_DB_VERSION)).toBe(upgraded)
   })
 })

@@ -5,7 +5,6 @@ import type { DateField } from '../../../models/app-view'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { toggleItem } from '../../../utils/filter'
@@ -14,13 +13,12 @@ import { DEFAULT_PREDICATE } from '../../shared/filters/FilterChipBar.shared'
 import topBar from '../../layout/TopBar.module.css'
 import styles from './ListWidget.module.css'
 
-type EntityField = 'people' | 'tags' | 'status' | 'project'
+type EntityField = 'people' | 'tags' | 'status'
 
-const ID_KEY: Record<EntityField, 'personIds' | 'tags' | 'statusIds' | 'projectIds'> = {
+const ID_KEY: Record<EntityField, 'personIds' | 'tags' | 'statusIds'> = {
   people: 'personIds',
   tags: 'tags',
   status: 'statusIds',
-  project: 'projectIds',
 }
 
 export interface PredicateFieldPickerProps {
@@ -90,7 +88,6 @@ const PICKER_TITLE: Record<ListFilterField, string> = {
   people: 'People',
   tags: 'Tags',
   status: 'Status',
-  project: 'Project',
   focus: 'Focus',
   dates: 'Date',
   text: 'Text',
@@ -106,8 +103,7 @@ function EntityPicker({ field, predicate, adding, update, onClose }: {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
-  const projects = useProjectStore((s) => s.projects)
-  const entities = field === 'people' ? people : field === 'tags' ? tags : field === 'status' ? statuses : projects
+  const entities = field === 'people' ? people : field === 'tags' ? tags : statuses
   const key = ID_KEY[field]
   const raw = predicate[key] ?? null
   const ids = raw ? new Set(raw) : null

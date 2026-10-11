@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Status, Project, Tag, DateField, TodoPredicate, DateAnchor } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Status, Tag, DateField, TodoPredicate, DateAnchor } from '../models'
 import type { RuntimeFilterSpec } from '../models/list-definition'
 import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
@@ -26,8 +26,6 @@ export interface FilterCriteria {
   showCompleted: boolean
   /** null = no filter (all shown); Set = only tasks assigned to one of these people (0 = unassigned) */
   personIds: Set<number> | null
-  /** null = no filter; Set = only todos in these projects shown (0 = no project) */
-  projectIds: Set<number> | null
   /** null = no filter; Set = only those statuses shown (0 = no status) */
   statusIds: Set<number> | null
   /** Empty string = no filter; non-empty = case-insensitive substring match on title */
@@ -78,7 +76,6 @@ interface FilterState {
 
   setShowCompleted: (show: boolean) => void
   setPersonIds: (personIds: Set<number> | null) => void
-  setProjectIds: (projectIds: Set<number> | null) => void
   setStatusIds: (statusIds: Set<number> | null) => void
   setSearchText: (text: string) => void
   setDateField: (field: DateField) => void
@@ -99,7 +96,6 @@ interface FilterState {
 const defaultFilters: FilterCriteria = {
   showCompleted: false,
   personIds: null,
-  projectIds: null,
   statusIds: null,
   searchText: '',
   dateField: 'deadline',
@@ -113,7 +109,7 @@ const defaultFilters: FilterCriteria = {
 }
 
 /**
- * Number of active screen filters, one per control: people, projects, status,
+ * Number of active screen filters, one per control: people, status,
  * tags, dates (range or due / follow-up presence), focus, show completed,
  * search.
  */
@@ -121,7 +117,6 @@ export function countActiveFilters(f: FilterCriteria): number {
   const dates = f.dateRangeStart !== null || f.dateRangeEnd !== null || f.hasDeadline !== null || f.hasFollowup != null
   return [
     f.personIds !== null,
-    f.projectIds !== null,
     f.statusIds !== null,
     f.tags !== null,
     dates,
@@ -168,12 +163,6 @@ export function matchesFilter(
     const personMatch = hasPerson && assignedPersonIds!.some((id) => filters.personIds!.has(id))
     const unassignedSentinel = !hasPerson && filters.personIds.has(0)
     if (!personMatch && !unassignedSentinel) return false
-  }
-  if (filters.projectIds !== null) {
-    const pid = todo.projectId
-    if (pid == null) {
-      if (!filters.projectIds.has(0)) return false
-    } else if (!filters.projectIds.has(pid)) return false
   }
   if (filters.hasDeadline !== null) {
     const has = todo.dueDate !== undefined
@@ -235,7 +224,7 @@ export function matchesFilter(
  * `matchesFilter` with assignments and names resolved from `lookups` — the
  * one evaluation path shared by the list page (`applyFilter`) and list
  * widgets (`createPredicateEvaluator`), so search hits the same person /
- * status / tag / project names on both.
+ * status / tag names on both.
  */
 export function matchesFilterWithLookups(
   filters: FilterCriteria,
@@ -258,14 +247,12 @@ export function applyFilter(
   assignedPeopleMap?: Map<number, Person[]>,
   statuses?: Status[],
   today: Date = startOfToday(),
-  projectsById?: Map<number, Project>,
   assignedTagsMap?: Map<number, Tag[]>,
 ): PersistedTodoItem[] {
   const lookups: TodoNameLookups = {
     assignedPeopleMap,
     assignedTagsMap,
     statusesById: statuses ? new Map(statuses.map((s) => [s.id!, s])) : undefined,
-    projectsById,
   }
   return todos.filter((t) => matchesFilterWithLookups(filters, t, lookups, today))
 }
@@ -293,7 +280,7 @@ export function createPredicateEvaluator(
  * The screen (top-bar) filter composed with a list's own filter, as the two
  * stages a task must both pass:
  *
- * - Narrowing clauses (people, status, tags, project, focus, search, dates) AND
+ * - Narrowing clauses (people, status, tags, focus, search, dates) AND
  *   together — strictly, even on the same field: screen `@Alice` + list
  *   `@Bob` keeps only tasks assigned to both.
  * - `showCompleted` ORs: completed tasks show when either side shows them.
@@ -345,7 +332,6 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
   return {
     showCompleted: f.showCompleted,
     personIds: f.personIds ? Array.from(f.personIds) : null,
-    projectIds: f.projectIds ? Array.from(f.projectIds) : null,
     statusIds: f.statusIds ? Array.from(f.statusIds) : null,
     searchText: f.searchText,
     dateField: f.dateField,
@@ -364,7 +350,6 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   return {
     showCompleted: p.showCompleted,
     personIds: p.personIds ? new Set(p.personIds) : null,
-    projectIds: p.projectIds ? new Set(p.projectIds) : null,
     statusIds: p.statusIds ? new Set(p.statusIds) : null,
     searchText: p.searchText,
     dateField: p.dateField,
@@ -394,10 +379,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setPersonIds(personIds: Set<number> | null) {
     commit(set, { ...get().filters, personIds })
-  },
-
-  setProjectIds(projectIds: Set<number> | null) {
-    commit(set, { ...get().filters, projectIds })
   },
 
   setStatusIds(statusIds: Set<number> | null) {

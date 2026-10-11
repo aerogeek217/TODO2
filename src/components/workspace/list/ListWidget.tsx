@@ -150,10 +150,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const showFilterRow = listChips.length > 0 || screenChips.length > 0
 
   // + Add task: only when the merged predicate names people / status / tags
-  // / a project / focus to seed the new task with.
+  // / focus to seed the new task with.
   const canAddTask = mergedPredicate != null && (
-    mergedPredicate.projectIds != null
-    || mergedPredicate.personIds != null
+    mergedPredicate.personIds != null
     || mergedPredicate.statusIds != null
     || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
     || mergedPredicate.focus === true

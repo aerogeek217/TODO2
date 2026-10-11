@@ -57,7 +57,7 @@ function setSyncState(state: { fileSavedAt: string | null; dirtySince: string | 
 
 async function seedBrowser() {
   const now = new Date()
-  await db.canvases.add({ name: 'Browser canvas', sortOrder: 0, createdAt: now })
+  await db.settings.put({ key: 'themeMode', value: 'light' })
   await db.todos.add({ title: BROWSER_TASK, isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now })
 }
 

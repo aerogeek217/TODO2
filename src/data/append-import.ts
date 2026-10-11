@@ -1,25 +1,12 @@
 import { db } from './database'
 import type { ImportData } from './import-validation'
 import type {
-  TodoItem, TodoEvent, Person, Tag, Status, Project,
+  TodoItem, TodoEvent, Person, Tag, Status,
 } from '../models'
 import { newTodoUid } from '../utils/todo-uid'
 
 /** Per incoming task: `import` (default) or `skip`. Keyed by the incoming `uid`. */
 export type AppendChoice = 'skip' | 'import'
-
-export interface AppendImportOptions {
-  /** Canvas the imported tasks land on. Without one, tasks get no canvas / project. */
-  canvasId?: number
-  /**
-   * Project for imported tasks whose own project isn't in the file (or that
-   * had none). Callers resolve it up front (`ensureDefaultProject`) because
-   * it may create a project through the store.
-   */
-  fallbackProjectId?: number
-  /** Canvas coordinate limit for projects created on the fly. */
-  maxExtent?: number
-}
 
 export interface AppendImportResult {
   imported: number
@@ -27,17 +14,13 @@ export interface AppendImportResult {
   /** New database ids of the imported tasks, in file order. */
   todoIds: number[]
   /** Names of entities created because no existing one matched. */
-  created: { people: string[]; tags: string[]; statuses: string[]; projects: string[] }
+  created: { people: string[]; tags: string[]; statuses: string[] }
 }
 
 /** Name key for by-name matching: trimmed, case-insensitive. */
 export function nameKey(name: string): string {
   return name.trim().toLowerCase()
 }
-
-/** Width assumed for a project node without an explicit `width` (ProjectNode's default). */
-const DEFAULT_PROJECT_WIDTH = 260
-const NEW_PROJECT_GAP = 40
 
 function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]): Map<string, number> {
   const out = new Map<string, number>()
@@ -57,10 +40,10 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
  * - **New ids** for every task (ids are never reused); the incoming `uid` is
  *   kept unless a task in the database already has it, then a fresh one is
  *   minted.
- * - People / tags / statuses / projects are matched to existing rows
- *   **by name** (trimmed, case-insensitive); missing ones are created from
- *   the file's row. Projects are matched on `opts.canvasId` only; a created
- *   project is placed right of the canvas's existing ones.
+ * - People / tags / statuses are matched to existing rows **by name**
+ *   (trimmed, case-insensitive); missing ones are created from the file's
+ *   row. (Files from before projects became tags arrive with their projects
+ *   already turned into `Project: <name>` tags by the upgrade pipeline.)
  * - Join rows (`todoPeople` / `todoTags`) and the tasks'
  *   `todoEvents` history are re-pointed at the new ids (status-change event
  *   values at the resolved status ids).
@@ -71,15 +54,14 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
 export async function appendImportTasks(
   data: ImportData,
   choices: ReadonlyMap<string, AppendChoice>,
-  opts: AppendImportOptions = {},
 ): Promise<AppendImportResult> {
   const selected = data.todos.filter((t) => (choices.get(t.uid) ?? 'import') === 'import')
   const skipped = data.todos.length - selected.length
-  const created: AppendImportResult['created'] = { people: [], tags: [], statuses: [], projects: [] }
+  const created: AppendImportResult['created'] = { people: [], tags: [], statuses: [] }
 
   const tables = [
     db.todos, db.todoPeople, db.todoTags, db.todoEvents,
-    db.people, db.tags, db.statuses, db.projects,
+    db.people, db.tags, db.statuses,
   ]
   const todoIds = await db.transaction('rw', tables, async () => {
     // --- Entity resolution (by name; create missing) ---
@@ -88,27 +70,15 @@ export async function appendImportTasks(
     const existingStatuses = await db.statuses.toArray()
     const statusesByName = byNameIndex(existingStatuses)
     let nextStatusSort = existingStatuses.reduce((m, s) => Math.max(m, s.sortOrder), 0) + 1
-    const canvasProjects = opts.canvasId != null
-      ? await db.projects.where('canvasId').equals(opts.canvasId).toArray()
-      : []
-    const projectsByName = byNameIndex(canvasProjects)
-    let nextProjectSort = (await db.projects.toArray()).reduce((m, p) => Math.max(m, p.sortOrder), 0) + 1
-    let nextProjectX = canvasProjects.length === 0
-      ? 0
-      : Math.max(...canvasProjects.map((p) => p.positionX + (p.width ?? DEFAULT_PROJECT_WIDTH))) + NEW_PROJECT_GAP
-    const newProjectY = canvasProjects.length === 0 ? 0 : Math.min(...canvasProjects.map((p) => p.positionY))
-    const clamp = (n: number) => (opts.maxExtent != null ? Math.max(-opts.maxExtent, Math.min(opts.maxExtent, n)) : n)
 
     const incomingPeople = new Map(data.people.map((p) => [p.id, p]))
     const incomingTags = new Map((data.tags ?? []).map((t) => [t.id, t]))
     const incomingStatuses = new Map(data.statuses.map((s) => [s.id, s]))
-    const incomingProjects = new Map(data.projects.map((p) => [p.id, p]))
 
     // incoming id → resolved id (memoized so each entity resolves once)
     const personMap = new Map<number, number>()
     const tagMap = new Map<number, number>()
     const statusMap = new Map<number, number>()
-    const projectMap = new Map<number, number>()
 
     const resolvePerson = async (incomingId: number): Promise<number | undefined> => {
       const hit = personMap.get(incomingId)
@@ -157,36 +127,6 @@ export async function appendImportTasks(
       statusMap.set(incomingId, id)
       return id
     }
-    const resolveProject = async (incomingId: number | undefined): Promise<number | undefined> => {
-      if (opts.canvasId == null) return undefined
-      const row = incomingId != null ? incomingProjects.get(incomingId) : undefined
-      if (incomingId == null || !row) return opts.fallbackProjectId
-      const hit = projectMap.get(incomingId)
-      if (hit != null) return hit
-      let id = projectsByName.get(nameKey(row.name))
-      if (id == null) {
-        const project: Project = {
-          name: row.name.trim(),
-          canvasId: opts.canvasId,
-          positionX: clamp(nextProjectX),
-          positionY: clamp(newProjectY),
-          isCollapsed: false,
-          sortOrder: nextProjectSort++,
-          createdAt: new Date(),
-        }
-        if (row.color != null) project.color = row.color
-        if (row.width != null) project.width = row.width
-        if (row.groupBy !== undefined) project.groupBy = row.groupBy
-        if (row.groupOrder != null) project.groupOrder = row.groupOrder
-        nextProjectX += (row.width ?? DEFAULT_PROJECT_WIDTH) + NEW_PROJECT_GAP
-        id = await db.projects.add(project) as number
-        projectsByName.set(nameKey(row.name), id)
-        created.projects.push(project.name)
-      }
-      projectMap.set(incomingId, id)
-      return id
-    }
-
     // --- Tasks ---
     let nextSort = (await db.todos.toArray()).reduce((m, t) => Math.max(m, t.sortOrder), 0) + 1
     const todoIdMap = new Map<number, number>() // incoming id → new id
@@ -211,11 +151,6 @@ export async function appendImportTasks(
       if (t.focus === true) row.focus = true
       const statusId = await resolveStatus(t.statusId)
       if (statusId != null) row.statusId = statusId
-      if (opts.canvasId != null) {
-        row.canvasId = opts.canvasId
-        const projectId = await resolveProject(t.projectId)
-        if (projectId != null) row.projectId = projectId
-      }
       const id = await db.todos.add(row) as number
       if (t.id != null) todoIdMap.set(t.id, id)
       newIds.push(id)

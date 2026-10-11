@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type { PersistedTodoItem } from '../models'
 import { todoRepository } from '../data'
-import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded } from './store-helpers'
@@ -24,26 +23,22 @@ interface TodoState {
    * derived cache keys via `todos.map(t => t.id).sort().join(',')` can use
    * `${todos.length}:${todosVersion}` instead — O(1) and stable.
    * Not bumped on pure-field edits (update, toggleComplete, reorder,
-   * bulkSetStatus/Deadline/Project) because those keep the same
+   * bulkSetStatus/Deadline) because those keep the same
    * ids.
    */
   todosVersion: number
   loading: boolean
   error: string | null
 
-  loadByCanvas: (canvasId: number) => Promise<void>
-  loadByProject: (projectId: number) => Promise<void>
   loadAll: () => Promise<void>
   ensureAllLoaded: () => Promise<void>
-  add: (title: string, canvasId?: number, projectId?: number) => Promise<number>
-  addAt: (title: string, projectId: number, canvasId: number, sortOrder: number) => Promise<number>
+  add: (title: string) => Promise<number>
   update: (todo: PersistedTodoItem) => Promise<void>
   toggleComplete: (id: number) => Promise<void>
   remove: (id: number) => Promise<void>
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
   bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
   bulkSetDeadline: (ids: number[], date: Date | null) => Promise<void>
-  bulkSetProject: (ids: number[], projectId: number | undefined) => Promise<void>
   /** Sets (or, with `null`, clears) `nextFollowupAt` on every task in `ids`. */
   bulkSetFollowup: (ids: number[], date: Date | null) => Promise<void>
   /** Puts every task in `ids` in focus (`on`) or takes it out. One undo step. */
@@ -57,7 +52,6 @@ interface TodoState {
   markFollowedUp: (ids: number[]) => Promise<void>
   bulkRemove: (ids: number[]) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
-  applyMutations: (mutations: TaskMutation[]) => Promise<void>
   /**
    * Deletes the given completed tasks (snapshot first). Never called without
    * the user's say-so: the launch prompt and Settings cleanup pick
@@ -80,23 +74,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
   loading: false,
   error: null,
 
-  async loadByCanvas(canvasId: number) {
-    const todos = await loadWithState(set, () => todoRepository.getByCanvas(canvasId), 'todos by canvas')
-    if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
-  },
-
-  async loadByProject(projectId: number) {
-    const todos = await loadWithState(set, () => todoRepository.getByProject(projectId), 'todos by project')
-    if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
-  },
-
   async loadAll() {
     const todos = await loadWithState(set, () => todoRepository.getAll(), 'all todos')
     if (todos) set({ todos, todosVersion: get().todosVersion + 1 })
   },
   ensureAllLoaded: () => allEnsure.ensureLoaded(),
 
-  async add(title: string, canvasId?: number, projectId?: number) {
+  async add(title: string) {
     return mutate(set, async () => {
       const { todos } = get()
       const maxSort = todos.reduce((max, t) => Math.max(max, t.sortOrder), 0)
@@ -108,8 +92,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
         createdAt: now,
         modifiedAt: now,
         sortOrder: maxSort + 1,
-        canvasId,
-        projectId,
         nextFollowupAt: defaultNextFollowup(now),
         ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
@@ -119,35 +101,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       }
       undoable(
         `Add "${title}"`,
-        async () => { await get().add(title, canvasId, projectId) },
-        () => get()._removeNoUndo(id),
-      )
-      return id
-    }, 'Failed to add task')
-  },
-
-  async addAt(title: string, projectId: number, canvasId: number, sortOrder: number) {
-    return mutate(set, async () => {
-      const now = new Date()
-      const defaultStatusId = useSettingsStore.getState().defaultStatusId
-      const id = await todoRepository.insert({
-        title,
-        isCompleted: false,
-        createdAt: now,
-        modifiedAt: now,
-        sortOrder,
-        canvasId,
-        projectId,
-        nextFollowupAt: defaultNextFollowup(now),
-        ...(defaultStatusId != null && { statusId: defaultStatusId }),
-      })
-      const todo = await todoRepository.getById(id)
-      if (todo) {
-        set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
-      }
-      undoable(
-        `Add "${title}"`,
-        async () => { await get().addAt(title, projectId, canvasId, sortOrder) },
+        async () => { await get().add(title) },
         () => get()._removeNoUndo(id),
       )
       return id
@@ -407,10 +361,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'dueDate', date ?? undefined, `Set due date on ${ids.length} tasks`, get, set)
   },
 
-  async bulkSetProject(ids: number[], projectId: number | undefined) {
-    await bulkUpdateField(ids, 'projectId', projectId, `Move ${ids.length} tasks to project`, get, set)
-  },
-
   async bulkSetFollowup(ids: number[], date: Date | null) {
     const label = date ? `Set follow-up on ${ids.length} tasks` : `Clear follow-up on ${ids.length} tasks`
     await bulkUpdateField(ids, 'nextFollowupAt', date ?? undefined, label, get, set)
@@ -530,52 +480,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
     )
   },
 
-  async applyMutations(mutations: TaskMutation[]) {
-    if (mutations.length === 0) return
-    // Capture previous state for undo/rollback
-    const prevState = new Map<number, Partial<PersistedTodoItem>>()
-    for (const m of mutations) {
-      const todo = get().todos.find(t => t.id === m.todoId)
-      if (todo) {
-        const prev: Partial<PersistedTodoItem> = {}
-        if ('projectId' in m.changes) prev.projectId = todo.projectId
-        if ('sortOrder' in m.changes) prev.sortOrder = todo.sortOrder
-        prevState.set(m.todoId, prev)
-      }
-    }
-    const mutationMap = new Map(mutations.map(m => [m.todoId, m.changes]))
-
-    return optimistic(
-      set,
-      () => {
-        const now = new Date()
-        set({
-          todos: get().todos.map(t => {
-            const changes = mutationMap.get(t.id)
-            if (!changes) return t
-            return { ...t, ...changes, modifiedAt: now }
-          }),
-        })
-      },
-      () => todoRepository.bulkUpdate(mutations),
-      () => set({
-        todos: get().todos.map(t => {
-          const prev = prevState.get(t.id)
-          if (!prev) return t
-          return { ...t, ...prev }
-        }),
-      }),
-      'Failed to apply task mutations',
-      {
-        description: `Move ${mutations.length} tasks`,
-        redo: () => get().applyMutations(mutations),
-        undo: () => get().applyMutations(
-          Array.from(prevState.entries()).map(([todoId, changes]) => ({ todoId, changes })),
-        ),
-      },
-    )
-  },
-
   async duplicate(id: number) {
     return mutate(set, async () => {
       const todo = get().todos.find((t) => t.id === id)
@@ -588,8 +492,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
         createdAt: now,
         modifiedAt: now,
         sortOrder: maxSort + 1,
-        canvasId: todo.canvasId,
-        projectId: todo.projectId,
         dueDate: todo.dueDate,
         nextFollowupAt: todo.nextFollowupAt,
         notes: todo.notes,
@@ -605,11 +507,18 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const { personIds } = await captureAssignments(id)
       const { personRepository } = await import('../data/person-repository')
       for (const pid of personIds) await personRepository.assignPerson(newId, pid)
+      const { tagRepository } = await import('../data/tag-repository')
+      const tagIds = ((await tagRepository.getAssignedTagsForTodos([id])).get(id) ?? []).map((t) => t.id!)
+      for (const tid of tagIds) await tagRepository.assignTag(newId, tid)
       // Refresh assignment caches for the new task
+      const todoIds = get().todos.map(t => t.id)
       if (personIds.length > 0) {
         const { usePersonStore } = await import('./person-store')
-        const todoIds = get().todos.map(t => t.id)
         await usePersonStore.getState().loadAssignments(todoIds)
+      }
+      if (tagIds.length > 0) {
+        const { useTagStore } = await import('./tag-store')
+        await useTagStore.getState().loadAssignments(todoIds)
       }
       undoable(
         `Duplicate "${todo.title}"`,
@@ -639,8 +548,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
   async purgeCompleted(ids: number[]) {
     // Only rows that are still completed — the caller's list came from a
     // prompt the user answered, and a task reopened meanwhile must survive.
-    // Checked against the database, not `todos`: the store may hold only one
-    // canvas's tasks (`loadByCanvas`).
+    // Checked against the database, not `todos` (which may not be loaded yet).
     const doomed = (await todoRepository.getByIds(ids)).filter((t) => t.isCompleted).map((t) => t.id)
     if (doomed.length === 0) return 0
     // Snapshot before destructive purge

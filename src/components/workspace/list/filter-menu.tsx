@@ -1,7 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import type { DateField } from '../../../models/app-view'
 import { usePersonStore } from '../../../stores/person-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import type { ListFilterField } from '../../../stores/list-widget-store'
@@ -14,8 +13,7 @@ export function useChipNames(): FilterChipNames {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
-  const projects = useProjectStore((s) => s.projects)
-  return useMemo(() => ({ people, tags, statuses, projects }), [people, tags, statuses, projects])
+  return useMemo(() => ({ people, tags, statuses }), [people, tags, statuses])
 }
 
 /** "+ Filter" menu items: a field, then that field's picker. */

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { buildExportData, selfCheckExportJson } from '../../services/export-import'
+import { buildExportData, buildMarkdownExport, selfCheckExportJson } from '../../services/export-import'
 import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
-import { resetDb, makeTodo, makePerson, makeProject } from '../helpers'
+import { resetDb, makeTodo, makePerson } from '../helpers'
 
 beforeEach(async () => {
   await resetDb()
@@ -12,34 +12,29 @@ describe('buildExportData', () => {
   it('returns empty arrays when database is empty', async () => {
     const data = await buildExportData()
 
-    expect(data.todos).toEqual([])
-    expect(data.projects).toEqual([])
-    expect(data.canvases).toEqual([])
-    expect(data.people).toEqual([])
-    expect(data.todoPeople).toEqual([])
-    expect(data.listInsets).toEqual([])
-    expect(data.settings).toEqual([])
+    for (const table of ALL_DATA_TABLES) {
+      expect(data[table.name as keyof typeof data], table.name).toEqual([])
+    }
   })
 
   it('exports all table data', async () => {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1 } as any)
-    const project = makeProject({ id: 1, canvasId })
-    await db.projects.add(project)
-    const todo = makeTodo({ id: 1, projectId: project.id, canvasId })
-    await db.todos.add(todo)
-    const person = makePerson({ id: 1 })
-    await db.people.add(person)
+    await db.todos.add(makeTodo({ id: 1 }))
+    await db.people.add(makePerson({ id: 1 }))
     await db.todoPeople.add({ todoId: 1, personId: 1 } as any)
+    await db.tags.add({ id: 1, name: 'urgent', color: '#f00' })
+    await db.todoTags.add({ todoId: 1, tagId: 1 })
 
     const data = await buildExportData()
 
     expect(data.todos).toHaveLength(1)
     expect(data.todos[0]!.title).toBe('Task 1')
-    expect(data.projects).toHaveLength(1)
-    expect(data.canvases).toHaveLength(1)
     expect(data.people).toHaveLength(1)
     expect(data.todoPeople).toHaveLength(1)
-    expect('orgs' in data).toBe(false)
+    expect(data.tags).toHaveLength(1)
+    expect(data.todoTags).toHaveLength(1)
+    for (const removed of ['orgs', 'projects', 'canvases', 'listInsets', 'floatingNotes']) {
+      expect(removed in data, removed).toBe(false)
+    }
   })
 
   it('reads all tables in parallel', async () => {
@@ -91,15 +86,13 @@ describe('buildExportData', () => {
 
 describe('selfCheckExportJson', () => {
   it('returns null for an export that re-imports cleanly', async () => {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1, createdAt: new Date() } as any) as number
-    await db.todos.add(makeTodo({ id: 1, canvasId }))
+    await db.todos.add(makeTodo({ id: 1 }))
     const json = JSON.stringify(await buildExportData())
     expect(selfCheckExportJson(json)).toBeNull()
   })
 
   it('names the failing table / row / field for a row that would not re-import', async () => {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1, createdAt: new Date() } as any) as number
-    await db.todos.add(makeTodo({ id: 1, canvasId }))
+    await db.todos.add(makeTodo({ id: 1 }))
     await db.people.add({ id: 7, name: 'Ann', initials: 'TOOLONG' } as any)
     const json = JSON.stringify(await buildExportData())
     expect(selfCheckExportJson(json)).toBe('Invalid "people" record at index 0 ("Ann"): bad field "initials"')
@@ -109,15 +102,13 @@ describe('selfCheckExportJson', () => {
 describe('export → restore round-trip', () => {
   /**
    * Seeds one row in every `ALL_DATA_TABLES` table — the previously-dropped
-   * tables (tags, todoTags, todoEvents, floatingStatus) get explicit fixtures here
+   * tables (tags, todoTags, todoEvents) get explicit fixtures here
    * so a regression in `buildExportData` (e.g. reverting to the manual
    * 17-table list) fails this test.
    */
   it('every seeded table survives buildExportData → parseAndRestore', async () => {
     const now = new Date()
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 1, createdAt: now } as any) as number
-    const projectId = await db.projects.add(makeProject({ id: 1, canvasId })) as number
-    const todoId = await db.todos.add(makeTodo({ id: 1, projectId, canvasId })) as number
+    const todoId = await db.todos.add(makeTodo({ id: 1 })) as number
     const personId = await db.people.add(makePerson({ id: 1 })) as number
     await db.todoPeople.add({ todoId, personId } as any)
     await db.settings.add({ key: 'themeMode', value: 'dark' })
@@ -130,7 +121,6 @@ describe('export → restore round-trip', () => {
         predicate: {
           showCompleted: false,
           personIds: null,
-          projectIds: null,
           statusIds: null,
           searchText: '',
           dateField: 'deadline',
@@ -145,10 +135,6 @@ describe('export → restore round-trip', () => {
       pinnedToDashboard: true,
     } as any)
     await db.notes.add({ content: 'hello', createdAt: now, modifiedAt: now } as any)
-    await db.listInsets.add({ canvasId, listDefinitionId: 1, x: 0, y: 0, width: 200, height: 200, isCollapsed: false } as any)
-    await db.floatingCalendars.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
-    await db.floatingNotes.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
-    await db.floatingStatus.add({ canvasId, x: 0, y: 0, width: 200, height: 200 } as any)
     const tagId = await db.tags.add({ name: 'urgent', color: '#f00' }) as number
     await db.todoTags.add({ todoId, tagId } as any)
     await db.todoEvents.add({
@@ -165,6 +151,7 @@ describe('export → restore round-trip', () => {
     const counts = new Map<string, number>()
     for (const table of ALL_DATA_TABLES) {
       counts.set(table.name, await table.count())
+      expect(counts.get(table.name), `${table.name} seeded`).toBeGreaterThan(0)
     }
 
     const exportObj = await buildExportData()
@@ -188,11 +175,51 @@ describe('export → restore round-trip', () => {
     expect(tagsAfter.find((t) => t.name === 'urgent')?.color).toBe('#f00')
     const eventsAfter = await db.todoEvents.toArray()
     expect(eventsAfter.find((e) => e.type === 'created')).toBeDefined()
-    const statusFloatAfter = await db.floatingStatus.toArray()
-    expect(statusFloatAfter).toHaveLength(1)
+    expect((await db.layouts.toArray()).map((l) => l.name)).toEqual(['Default'])
     const todoTagsAfter = await db.todoTags.toArray()
     expect(todoTagsAfter).toHaveLength(1)
     const ranksAfter = await db.listOrders.toArray()
     expect(ranksAfter.map((r) => [r.listDefinitionId, r.todoId, r.rank])).toEqual([[1, todoId, 2.5]])
+  })
+})
+
+describe('buildMarkdownExport', () => {
+  it('lists every task flat, in manual order, with status, deadline and done marks', async () => {
+    await db.statuses.add({ id: 3, name: 'Waiting', color: '#888888', sortOrder: 0, icon: 'clock' } as any)
+    await db.todos.add(makeTodo({ id: 1, title: 'Second', sortOrder: 2, isCompleted: true }))
+    await db.todos.add(makeTodo({ id: 2, title: 'First', sortOrder: 1, statusId: 3, dueDate: new Date(2026, 9, 16) }))
+    await db.todos.add(makeTodo({ id: 3, title: 'Third', sortOrder: 3 }))
+
+    const md = await buildMarkdownExport()
+    const lines = md.split('\n')
+    expect(lines.slice(0, 2)).toEqual(['# TODOs', ''])
+    expect(lines.filter((l) => l.startsWith('- ['))).toEqual([
+      `- [ ] First [Waiting] (due ${new Date(2026, 9, 16).toLocaleDateString()})`,
+      '- [x] Second',
+      '- [ ] Third',
+    ])
+    // One flat list: no section headings, and no details section without details.
+    expect(lines.filter((l) => l.startsWith('#'))).toEqual(['# TODOs'])
+  })
+
+  it('adds a details section with the people, tags and notes of each task that has them', async () => {
+    await db.todos.add(makeTodo({ id: 1, title: 'Plain', sortOrder: 1 }))
+    await db.todos.add(makeTodo({ id: 2, title: 'Report', sortOrder: 2, notes: 'Use the **new** template' }))
+    await db.people.add(makePerson({ id: 1, name: 'Ann Lee' }))
+    await db.people.add(makePerson({ id: 2, name: 'Bob Stone' }))
+    await db.todoPeople.bulkAdd([{ todoId: 2, personId: 1 }, { todoId: 2, personId: 2 }])
+    await db.tags.bulkAdd([{ id: 1, name: 'urgent', color: '#ff0000' }, { id: 2, name: 'Project: Work', color: '#537FE7' }])
+    await db.todoTags.bulkAdd([{ todoId: 2, tagId: 1 }, { todoId: 2, tagId: 2 }])
+
+    const md = await buildMarkdownExport()
+    expect(md.slice(md.indexOf('# Task Details')).split('\n')).toEqual([
+      '# Task Details',
+      '',
+      '### Report',
+      '- **People:** Ann Lee, Bob Stone',
+      '- **Tags:** urgent, Project: Work',
+      '- **Notes:** Use the **new** template',
+      '',
+    ])
   })
 })

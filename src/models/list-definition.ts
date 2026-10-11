@@ -28,7 +28,7 @@ export type ListSort = TodoSortBy
 export type ListGrouping = TodoGroupBy
 
 /** Which entity a saved list's runtime-filter picker narrows on. */
-export type RuntimeFilterField = 'person' | 'project' | 'status' | 'tag'
+export type RuntimeFilterField = 'person' | 'status' | 'tag'
 
 /**
  * Optional prompt: the list asks for one or more values of `field` at render

@@ -41,10 +41,6 @@
   opacity: 0.5;
 }
 
-.cut {
-  opacity: 0.35;
-}
-
 /* Ghost: filtered out by an active filter on this surface. Chips are removed
  * by the surface; this rule dims the row so it reads as "still present". */
 .row[data-ghosted] {

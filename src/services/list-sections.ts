@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Person, Project, Status, Tag, TodoGroupBy, TodoSortBy } from '../models'
+import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy } from '../models'
 import { isTodoGroupBy } from '../models'
 import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { compareTodosByDate, type WeekStart } from '../utils/effective-date'
@@ -39,7 +39,6 @@ export interface ListSectionsContext {
   weekStartsOn: WeekStart
   people: readonly Person[]
   statuses: readonly Status[]
-  projects: readonly Project[]
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
   /**
@@ -57,7 +56,7 @@ export interface ListSectionsContext {
  *   first, then unranked oldest first), else `sortOrder` (then id).
  * - `name` — alphabetical title, ties by `sortOrder`.
  * - `deadline` / `followup` — ascending date, undated last, ties by `sortOrder`.
- * - `created` / `people` / `project` / `status` — no ordering of their own;
+ * - `created` / `people` / `status` — no ordering of their own;
  *   they fall back to manual order (as does a stored value this build doesn't
  *   know).
  */
@@ -75,7 +74,6 @@ export function listSortComparator(
     case 'manual':
     case 'created':
     case 'people':
-    case 'project':
     case 'status':
       return bySortOrder
   }
@@ -97,7 +95,6 @@ const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none'>, { key: string; lab
   deadline: { key: 'none', label: 'No Due Date' },
   followup: { key: 'none', label: 'No Follow-up' },
   people: { key: 'unassigned', label: 'Unassigned' },
-  project: { key: 'no-project', label: 'No Project' },
   status: { key: 'no-status', label: 'No Status' },
   tag: { key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL },
 }
@@ -123,8 +120,8 @@ function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped:
 /**
  * Sort `members` and split them into sections for `spec.groupBy`.
  *
- * Group order: dates Overdue → Today → This Week → Later; status and project
- * by their registry `sortOrder`; people and tags alphabetically (or in the
+ * Group order: dates Overdue → Today → This Week → Later; status by its
+ * registry `sortOrder`; people and tags alphabetically (or in the
  * restrict order). A task with several people / tags appears in each of
  * their sections. Tasks with no value on the axis trail in one
  * "No …" / "Unassigned" section. Ungrouped lists return one `all` section
@@ -147,7 +144,6 @@ export function buildListSections(
     assignedPeopleMap: ctx.assignedPeopleMap,
     assignedTagsMap: ctx.assignedTagsMap,
     statuses: ctx.statuses,
-    projects: ctx.projects,
     today: ctx.today,
     weekStartsOn: ctx.weekStartsOn,
   }
@@ -167,8 +163,6 @@ export function buildListSections(
         const person = peopleById.get(Number(g.key.slice('person-'.length)))
         return { key: g.key, label: person?.name ?? g.label, accentColor: person?.color, todos: g.todos }
       }
-      case 'project':
-        return { key: g.key, label: g.label, accentColor: 'var(--color-accent)', todos: g.todos }
       case 'status':
         return { key: g.key, label: g.label, accentColor: getGroupColor(g.key, 'status', groupingCtx), todos: g.todos }
       case 'tag':

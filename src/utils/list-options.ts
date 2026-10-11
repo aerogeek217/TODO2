@@ -17,7 +17,6 @@ export const GROUP_LABEL: Record<TodoGroupBy, string> = {
   people: 'People',
   status: 'Status',
   tag: 'Tag',
-  project: 'Project',
 }
 
 export const SORT_LABEL: Record<TodoSortBy, string> = {
@@ -27,7 +26,6 @@ export const SORT_LABEL: Record<TodoSortBy, string> = {
   name: 'Name',
   created: 'Created',
   people: 'People',
-  project: 'Project',
   status: 'Status',
 }
 
@@ -36,7 +34,6 @@ export const PROMPT_LABEL: Record<RuntimeFilterField | 'none', string> = {
   person: 'Person',
   status: 'Status',
   tag: 'Tag',
-  project: 'Project',
 }
 
 /**

@@ -3,25 +3,14 @@ import { settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import type { WeekStart } from '../utils/effective-date'
-interface CanvasViewport { x: number; y: number; zoom: number }
-import type { RailsState } from '../models/canvas-rails'
-import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
-import type { ProjectGroupBy } from '../models'
 import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
-import { DEFAULT_CANVAS_MAX_EXTENT, isValidCanvasMaxExtent } from '../utils/canvas-bounds'
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
   formatFollowupInterval,
   parseFollowupInterval,
   type FollowupInterval,
 } from '../utils/followup'
-
-const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'tag', 'deadline', 'followup'] as const
-
-export function isValidProjectGroupBy(v: unknown): v is ProjectGroupBy {
-  return typeof v === 'string' && (PROJECT_GROUP_BY_VALUES as readonly string[]).includes(v)
-}
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -35,25 +24,15 @@ export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 interface SettingsState {
   colors: ThemedColors
   themeMode: ThemeMode
-  defaultProjectId: number | null
   defaultStatusId: number | null
   quickStatusId: number | null
   seededAssignedStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
-  canvasViewport: CanvasViewport | null
-  /** Persisted canvas rails layout (null = no persisted state). */
-  canvasRails: RailsState | null
   /** Ceiling for tag registry size. `tag-store.add` throws when `tags.length`
    * reaches this value. Guards against runaway `#tag` creation from NLP input.
    */
   maxTags: number
-  /** Default groupBy seeded on every new project. `null` = no grouping. */
-  defaultProjectGroupBy: ProjectGroupBy | null
-  /** Half-side of the persisted-position bounding box. Every drag / cascade /
-   * spawn site clamps to ±N before writing to a repository so widgets cannot
-   * drift off-canvas. Configurable via SettingsPage. */
-  canvasMaxExtent: number
   /** Next follow-up for new tasks and after "Followed up" = today + this. */
   followupDefaultInterval: FollowupInterval
 
@@ -62,15 +41,10 @@ interface SettingsState {
   /** When `theme` is omitted, both bags reset; otherwise only the specified bag. */
   resetColors: (theme?: ThemeName) => Promise<void>
   setThemeMode: (mode: ThemeMode) => Promise<void>
-  setDefaultProjectId: (id: number | null) => Promise<void>
   setDefaultStatusId: (id: number | null) => Promise<void>
   setQuickStatusId: (id: number | null) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
-  setCanvasViewport: (vp: CanvasViewport) => void
-  setCanvasRails: (rails: RailsState) => void
-  setDefaultProjectGroupBy: (groupBy: ProjectGroupBy | null) => Promise<void>
-  setCanvasMaxExtent: (n: number) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
 }
 
@@ -193,48 +167,18 @@ function isValidWeekStart(n: unknown): n is WeekStart {
  * written. */
 let customizedColorKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
 
-/**
- * Build a twin-debounced setter for high-frequency settings writes (viewport,
- * rails). The inner set is debounced at `setMs`; the repo persist is debounced
- * at the longer `persistMs`. Collapses React Flow's ~60/sec onViewportChange
- * and rapid slot operations to a handful of Zustand set() + one repo.put.
- */
-function createDebouncedPersist<T>(opts: {
-  setMs: number
-  persistMs: number
-  apply: (value: T) => void
-  persist: (value: T) => void
-}): (value: T) => void {
-  let setTimer: ReturnType<typeof setTimeout> | undefined
-  let persistTimer: ReturnType<typeof setTimeout> | undefined
-  return (value: T) => {
-    if (setTimer) clearTimeout(setTimer)
-    setTimer = setTimeout(() => {
-      opts.apply(value)
-      setTimer = undefined
-    }, opts.setMs)
-    if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => opts.persist(value), opts.persistMs)
-  }
-}
-
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   colors: {
     dark: { ...DEFAULT_THEMED_COLORS.dark },
     light: { ...DEFAULT_THEMED_COLORS.light },
   },
   themeMode: 'dark' as ThemeMode,
-  defaultProjectId: null,
   defaultStatusId: null,
   quickStatusId: null,
   seededAssignedStatusId: null,
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
-  canvasViewport: null,
-  canvasRails: null,
   maxTags: DEFAULT_MAX_TAGS,
-  defaultProjectGroupBy: 'tag' as ProjectGroupBy,
-  canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
 
   async load() {
@@ -245,18 +189,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         light: { ...DEFAULT_THEMED_COLORS.light },
       }
       const customKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
-      let defaultProjectId: number | null = null
       let defaultStatusId: number | null = null
       let quickStatusId: number | null = null
       let seededAssignedStatusId: number | null = null
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
-      let canvasViewport: CanvasViewport | null = null
-      let canvasRails: RailsState | null = null
       let maxTags: number = DEFAULT_MAX_TAGS
-      let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
-      let canvasMaxExtent: number = DEFAULT_CANVAS_MAX_EXTENT
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
@@ -269,8 +208,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
               customKeys[theme].add(colorKey)
             }
           }
-        } else if (row.key === SETTING_KEYS.defaultProjectId) {
-          defaultProjectId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.defaultStatusId) {
           defaultStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.quickStatusId) {
@@ -285,30 +222,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.weekStartsOn) {
           const parsed = Number(row.value)
           if (isValidWeekStart(parsed)) weekStartsOn = parsed
-        } else if (row.key === SETTING_KEYS.canvasViewport) {
-          try {
-            const parsed = JSON.parse(row.value)
-            if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y) && Number.isFinite(parsed.zoom)) {
-              canvasViewport = { x: parsed.x, y: parsed.y, zoom: parsed.zoom }
-            }
-          } catch { /* ignore invalid JSON */ }
-        } else if (row.key === SETTING_KEYS.canvasRails) {
-          canvasRails = parseRailsState(row.value)
         } else if (row.key === SETTING_KEYS.maxTags) {
           const parsed = Number(row.value)
           if (Number.isInteger(parsed) && parsed > 0) maxTags = parsed
-        } else if (row.key === SETTING_KEYS.defaultProjectGroupBy) {
-          if (row.value === '') defaultProjectGroupBy = null
-          else if (isValidProjectGroupBy(row.value)) defaultProjectGroupBy = row.value
-        } else if (row.key === SETTING_KEYS.canvasMaxExtent) {
-          const parsed = Number(row.value)
-          if (isValidCanvasMaxExtent(parsed)) canvasMaxExtent = parsed
         } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
           followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent, followupDefaultInterval })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -356,15 +278,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     applyThemeOverrides(customizedColorKeys, get().colors, resolveTheme(mode))
   },
 
-  async setDefaultProjectId(id: number | null) {
-    if (id == null) {
-      await settingsRepository.delete(SETTING_KEYS.defaultProjectId)
-    } else {
-      await settingsRepository.put(SETTING_KEYS.defaultProjectId, String(id))
-    }
-    set({ defaultProjectId: id })
-  },
-
   async setDefaultStatusId(id: number | null) {
     if (id == null) {
       await settingsRepository.delete(SETTING_KEYS.defaultStatusId)
@@ -400,42 +313,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ completedRetentionDays: days })
   },
 
-  async setDefaultProjectGroupBy(groupBy: ProjectGroupBy | null) {
-    if (groupBy != null && !isValidProjectGroupBy(groupBy)) return
-    await settingsRepository.put(SETTING_KEYS.defaultProjectGroupBy, groupBy ?? '')
-    set({ defaultProjectGroupBy: groupBy })
-  },
-
-  async setCanvasMaxExtent(n: number) {
-    if (!isValidCanvasMaxExtent(n)) return
-    await settingsRepository.put(SETTING_KEYS.canvasMaxExtent, String(n))
-    set({ canvasMaxExtent: n })
-  },
-
   async setFollowupDefaultInterval(interval: FollowupInterval) {
     const value = formatFollowupInterval(interval)
     if (!parseFollowupInterval(value)) return
     await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
     set({ followupDefaultInterval: { ...interval } })
   },
-
-  setCanvasRails: createDebouncedPersist<RailsState>({
-    setMs: 150,
-    persistMs: 500,
-    apply: (rails) => set({ canvasRails: rails }),
-    persist: (rails) => { settingsRepository.put(SETTING_KEYS.canvasRails, serializeRailsState(rails)) },
-  }),
-
-  // React Flow fires onViewportChange ~60/sec during pan/zoom; subscribers
-  // (CanvasView) re-render on every set(), which is wasteful since the value
-  // is only read as defaultViewport on mount. 150ms trailing debounce collapses
-  // the re-render storm to a handful while keeping getState() callers
-  // (App.createFloatingNote, FilteredListPopup) close to current — the viewport
-  // has almost always settled before these fire.
-  setCanvasViewport: createDebouncedPersist<CanvasViewport>({
-    setMs: 150,
-    persistMs: 500,
-    apply: (vp) => set({ canvasViewport: vp }),
-    persist: (vp) => { settingsRepository.put(SETTING_KEYS.canvasViewport, JSON.stringify(vp)) },
-  }),
 }))

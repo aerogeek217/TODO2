@@ -1,15 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { refreshAllStores } from '../../stores/refresh-all'
-import { useCanvasStore } from '../../stores/canvas-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useProjectStore } from '../../stores/project-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useNoteStore } from '../../stores/note-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
+import { useListOrderStore } from '../../stores/list-order-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -26,7 +25,6 @@ beforeEach(async () => {
 
 describe('refreshAllStores', () => {
   it('invokes load on every store that has one + parity loadAssignments', async () => {
-    await useCanvasStore.getState().ensureDefault()
     // Need at least one todo so the post-todos assignment loaders fire.
     await useTodoStore.getState().add('seed task')
 
@@ -34,16 +32,15 @@ describe('refreshAllStores', () => {
       // Pre-Promise.all
       undoClear: vi.spyOn(useUndoStore.getState(), 'clear'),
       filterClearAll: vi.spyOn(useFilterStore.getState(), 'clearAll'),
-      canvasEnsureDefault: vi.spyOn(useCanvasStore.getState(), 'ensureDefault'),
       settingsLoad: vi.spyOn(useSettingsStore.getState(), 'load'),
       // Promise.all — global stores
       todoLoadAll: vi.spyOn(useTodoStore.getState(), 'loadAll'),
-      projectLoadAll: vi.spyOn(useProjectStore.getState(), 'loadAll'),
       personLoad: vi.spyOn(usePersonStore.getState(), 'load'),
       statusLoad: vi.spyOn(useStatusStore.getState(), 'load'),
       tagLoad: vi.spyOn(useTagStore.getState(), 'load'),
       noteLoad: vi.spyOn(useNoteStore.getState(), 'load'),
       listDefinitionLoad: vi.spyOn(useListDefinitionStore.getState(), 'load'),
+      listOrderLoad: vi.spyOn(useListOrderStore.getState(), 'load'),
       // Post-todos assignment loaders
       personLoadAssignments: vi.spyOn(usePersonStore.getState(), 'loadAssignments'),
       tagLoadAssignments: vi.spyOn(useTagStore.getState(), 'loadAssignments'),
@@ -87,7 +84,6 @@ describe('refreshAllStores', () => {
   })
 
   it('re-reads people and tag assignments that the replaced tables changed under a cached todo id', async () => {
-    await useCanvasStore.getState().ensureDefault()
     const todoId = await useTodoStore.getState().add('kept id')
     const aliceId = await usePersonStore.getState().add('Alice', 'AL')
     const bobId = await usePersonStore.getState().add('Bob', 'BO')

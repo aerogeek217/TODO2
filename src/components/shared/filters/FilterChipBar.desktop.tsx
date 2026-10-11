@@ -125,7 +125,7 @@ interface EntityChipDropdownProps {
 
 /**
  * Wraps the preview-empty open/close pattern repeated by every chip
- * (Project / People / Tags / Status). On open, if the chip has no
+ * (People / Tags / Status). On open, if the chip has no
  * active filter, we stamp `previewEmpty` so the dropdown renders with all
  * items unchecked — the first click commits only the clicked entity.
  * Select-all clears `previewEmpty` along with the id list.
@@ -218,23 +218,19 @@ export function FilterChipBarDesktop({
   const {
     p,
     people,
-    projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    projectIdsSet,
     statusIdsSet,
     tagIdsSet,
     peopleActive,
-    projectsActive,
     statusActive,
     tagsActive,
     dateActive,
     active,
     update,
     setPersonIds,
-    setProjectIds,
     setStatusIds,
     setTags,
     clearAll,
@@ -248,15 +244,6 @@ export function FilterChipBarDesktop({
     }
     const allIds = [0, ...people.map((x) => x.id!)]
     setPersonIds(toggleItem(personIdsSet, personId, allIds))
-  }
-  const handleProjectToggle = (projectId: number) => {
-    if (previewEmpty === 'project') {
-      setPreviewEmpty(null)
-      setProjectIds(new Set([projectId]))
-      return
-    }
-    const allIds = [0, ...projects.map((x) => x.id!)]
-    setProjectIds(toggleItem(projectIdsSet, projectId, allIds))
   }
   const handleStatusToggle = (statusId: number) => {
     if (previewEmpty === 'status') {
@@ -278,60 +265,17 @@ export function FilterChipBarDesktop({
 
   const isPersonChecked = (id: number) =>
     previewEmpty === 'people' ? false : personIdsSet === null || personIdsSet.has(id)
-  const isProjectChecked = (id: number) =>
-    previewEmpty === 'project' ? false : projectIdsSet === null || projectIdsSet.has(id)
   const isStatusChecked = (id: number) =>
     previewEmpty === 'status' ? false : statusIdsSet === null || statusIdsSet.has(id)
   const isTagChecked = (id: number) =>
     previewEmpty === 'tags' ? false : tagIdsSet === null || tagIdsSet.has(id)
 
   const peopleNone = previewEmpty === 'people' || (personIdsSet !== null && personIdsSet.size === 0)
-  const projectsNone = previewEmpty === 'project' || (projectIdsSet !== null && projectIdsSet.size === 0)
   const statusNone = previewEmpty === 'status' || (statusIdsSet !== null && statusIdsSet.size === 0)
   const tagsNone = previewEmpty === 'tags' || (tagIdsSet !== null && tagIdsSet.size === 0)
 
   return (
     <>
-      {projects.length > 0 && (
-        <EntityChipDropdown
-          entityKey="project"
-          label={
-            <>
-              <svg
-                className={topBar.filterIconSvg}
-                width="13"
-                height="13"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M2 4.5l6-3 6 3v7l-6 3-6-3z" />
-                <path d="M2 4.5l6 3 6-3M8 7.5v7" />
-              </svg>
-              {' '}Project
-            </>
-          }
-          isActive={projectsActive}
-          noneSelected={projectsNone}
-          previewEmpty={previewEmpty}
-          setPreviewEmpty={setPreviewEmpty}
-          setIds={setProjectIds}
-          searchable
-        >
-          {(searchText: string) => (
-            <EntityDropdownItems
-              searchText={searchText}
-              entities={projects}
-              isChecked={isProjectChecked}
-              onToggle={handleProjectToggle}
-            />
-          )}
-        </EntityChipDropdown>
-      )}
-
       {people.length > 0 && (
         <EntityChipDropdown
           entityKey="people"

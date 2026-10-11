@@ -17,7 +17,6 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
-import { useProjectStore } from '../stores/project-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useUIStore } from '../stores/ui-store'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
@@ -73,15 +72,13 @@ const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, transform, 
 
 /**
  * Loads everything the workspace's widgets read, whatever route the app was
- * opened on: all tasks (not one canvas's), people, tags, statuses, projects,
- * saved lists — and the people / tag assignments of the
+ * opened on: all tasks, people, tags, statuses, saved lists — and the people / tag assignments of the
  * loaded tasks, so chips and person / tag groups render on a cold load.
  */
 function useWorkspaceData(): void {
   const todos = useTodoStore((s) => s.todos)
   useEffect(() => {
     void useTodoStore.getState().loadAll()
-    void useProjectStore.getState().loadAll()
     void usePersonStore.getState().ensureLoaded()
     void useTagStore.getState().ensureLoaded()
     void useStatusStore.getState().ensureLoaded()

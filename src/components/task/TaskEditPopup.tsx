@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoItem, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
 import { DEFAULT_STATUS_ICON } from '../../models'
-import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -69,8 +68,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const isEdit = mode === 'edit'
   const todo = isEdit ? props.todo : undefined
 
-  const projects = useProjectStore((s) => s.projects)
-  const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
   const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
@@ -79,8 +76,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // List-widget handoff: when the QuickAddBar was opened from a list's
   // "+ Add task" affordance, `ui-store.quickAddDraft.defaults` carries the
   // list's predicate-derived seed, which takes precedence over the global
-  // filter (the canvas might have an empty topbar filter even though the
-  // list itself narrows). Falls back to the active filter otherwise.
+  // filter (the top bar may have no filter even though the list itself
+  // narrows). Falls back to the active filter otherwise.
   const filterDefaults = useMemo(() => {
     if (mode !== 'create') return null
     const draftDefaults = useUIStore.getState().quickAddDraft?.defaults
@@ -101,7 +98,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     const { resolved } = parseTaskInput(
       draft.rawTitle,
       allPeople,
-      useProjectStore.getState().projects,
       useStatusStore.getState().statuses,
     )
     // Sync tag lookup against the registry — pre-fills chips for tags that
@@ -128,11 +124,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   )
   const [deadline, setDeadline] = useState<Date | null>(
     todo?.dueDate ?? quickAddSeed?.resolved.dueDate ?? null,
-  )
-  const [projectId, setProjectId] = useState<number | undefined>(
-    todo?.projectId
-    ?? quickAddSeed?.resolved.projectId
-    ?? (mode === 'create' ? (filterDefaults?.projectId ?? defaultProjectId ?? undefined) : undefined),
   )
   // Follow-up: edit mode reads/writes the task directly (edits apply as you
   // make them); create mode keeps a draft seeded with the Settings default.
@@ -162,20 +153,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     : assignedTags
 
   const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<'people' | 'project' | 'tags' | null>(null)
-  const [projectSearch, setProjectSearch] = useState('')
+  const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
-  const projectRef = useRef<HTMLDivElement>(null)
-  const projectSearchRef = useRef<HTMLInputElement>(null)
   const statusMenuRef = useRef<HTMLDivElement>(null)
 
   const acPeople = useMemo(
     () => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })),
     [allPeople],
   )
-  const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
   const acTags = useMemo(
     () => [...allTags].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({
       id: t.id!,
@@ -185,15 +172,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     })),
     [allTags],
   )
-  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, tags: acTags })
+  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags })
 
   useEffect(() => {
     if (!isEdit) titleRef.current?.focus()
   }, [isEdit])
-
-  useEffect(() => {
-    if (openDropdown === 'project') projectSearchRef.current?.focus()
-  }, [openDropdown])
 
   // Sync state when todo changes externally (edit mode). Keyed on the synced
   // fields (not the `todo` object) so an unrelated field change — e.g. a
@@ -203,7 +186,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const todoNotes = todo?.notes
   const todoProgress = todo?.progress
   const todoStatusId = todo?.statusId
-  const todoProjectId = todo?.projectId
   const todoDueDate = todo?.dueDate
   const todoRecurrenceType = todo?.recurrenceRule?.type
   useEffect(() => {
@@ -213,10 +195,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     notesRef.current = todoNotes ?? ''
     setProgress(todoProgress ?? '')
     setStatusId(todoStatusId ?? undefined)
-    setProjectId(todoProjectId)
     setDeadline(todoDueDate ?? null)
     setRecurrenceType(todoRecurrenceType ?? '')
-  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoProjectId, todoDueDate, todoRecurrenceType])
+  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoDueDate, todoRecurrenceType])
 
   // Track whether mousedown started on the backdrop itself.
   // Prevents closing when user selects text inside and drags outside.
@@ -435,7 +416,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       nextFollowupAt: draftNextFollowup,
       lastFollowupAt: draftLastFollowup,
       recurrenceRule: buildRule(),
-      projectId,
       ...(draftFocus ? { focus: true } : {}),
     }, {
       personIds: [...pendingPersonIds],
@@ -505,10 +485,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       }
       if (openDropdown === 'tags' && tagsRef.current && !tagsRef.current.contains(target)) {
         setOpenDropdown(null)
-      }
-      if (openDropdown === 'project' && projectRef.current && !projectRef.current.contains(target)) {
-        setOpenDropdown(null)
-        setProjectSearch('')
       }
     }
     document.addEventListener('mousedown', handler, true)
@@ -612,20 +588,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             recurrenceType={recurrenceType}
             onDeadlineChange={handleDeadlineChange}
             onRecurrenceChange={handleRecurrenceChange}
-            projectId={projectId}
-            projects={projects}
-            projectSearch={projectSearch}
-            projectRef={projectRef}
-            projectSearchRef={projectSearchRef}
-            onProjectSelect={setProjectId}
-            onProjectSearchChange={setProjectSearch}
             assignedPeople={effectiveAssignedPeople}
             assignedTags={effectiveAssignedTags}
             allPeople={allPeople}
             allTags={allTags}
             assignedPeopleIds={assignedPeopleIds}
             assignedTagIds={assignedTagIds}
-            isEdit={isEdit}
             peopleRef={peopleRef}
             tagsRef={tagsRef}
             onTogglePerson={togglePerson}
@@ -634,8 +602,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onCreateTag={handleCreateTag}
             openDropdown={openDropdown}
             setOpenDropdown={setOpenDropdown}
-            todo={todo}
-            onUpdate={isEdit ? props.onUpdate : undefined}
             followupNext={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
             followupLast={isEdit ? todo?.lastFollowupAt : draftLastFollowup}
             followupNextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup

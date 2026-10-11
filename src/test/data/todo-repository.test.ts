@@ -26,24 +26,6 @@ describe('todoRepository', () => {
     expect(all.map((t) => t.title)).toEqual(['A', 'B', 'C'])
   })
 
-  it('getByCanvas filters by canvasId', async () => {
-    await todoRepository.insert(makeTodo({ title: 'In canvas 1', canvasId: 1 }))
-    await todoRepository.insert(makeTodo({ title: 'In canvas 2', canvasId: 2 }))
-
-    const result = await todoRepository.getByCanvas(1)
-    expect(result).toHaveLength(1)
-    expect(result[0]!.title).toBe('In canvas 1')
-  })
-
-  it('getByProject filters by projectId', async () => {
-    await todoRepository.insert(makeTodo({ title: 'In project 1', projectId: 1 }))
-    await todoRepository.insert(makeTodo({ title: 'In project 2', projectId: 2 }))
-
-    const result = await todoRepository.getByProject(1)
-    expect(result).toHaveLength(1)
-    expect(result[0]!.title).toBe('In project 1')
-  })
-
   it('complete toggles isCompleted', async () => {
     const id = await todoRepository.insert(makeTodo())
     await todoRepository.complete(id, true)

@@ -1,7 +1,5 @@
-import { useCanvasStore } from './canvas-store'
 import { useSettingsStore } from './settings-store'
 import { useTodoStore } from './todo-store'
-import { useProjectStore } from './project-store'
 import { usePersonStore } from './person-store'
 import { useStatusStore } from './status-store'
 import { useTagStore } from './tag-store'
@@ -35,11 +33,9 @@ export async function refreshAllStores() {
   // the replaced data may reuse for other lists / tabs.
   useListDraftStore.setState({ drafts: {} })
   useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
-  await useCanvasStore.getState().ensureDefault()
   await useSettingsStore.getState().load()
   await Promise.all([
     useTodoStore.getState().loadAll(),
-    useProjectStore.getState().loadAll(),
     usePersonStore.getState().load(),
     useStatusStore.getState().load(),
     useTagStore.getState().load(),

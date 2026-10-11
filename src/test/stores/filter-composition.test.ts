@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem, Person, Project, Status, Tag } from '../../models'
+import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
 import {
   composeScreenFilter,
   createScreenComposedEvaluator,
@@ -23,19 +23,17 @@ const work: Tag = { id: 1, name: 'work' }
 const home: Tag = { id: 2, name: 'home' }
 const doing: Status = { id: 1, name: 'Doing', color: '#0a0', sortOrder: 0 }
 const waiting: Status = { id: 2, name: 'Waiting', color: '#aa0', sortOrder: 1 }
-const alpha: Project = { id: 1, name: 'Alpha', sortOrder: 0, canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, createdAt: day(1, 1) }
-const beta: Project = { id: 2, name: 'Beta', sortOrder: 1, canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, createdAt: day(1, 1) }
 
 /**
  * One task per combination that matters: each pairs two values of a field so
  * same-field strict AND is observable.
  */
 const todos: PersistedTodoItem[] = [
-  makeTodo({ id: 1, title: 'Alice only', statusId: 1, projectId: 1, dueDate: day(10, 10) }),
-  makeTodo({ id: 2, title: 'Bob only', statusId: 2, projectId: 2, dueDate: day(10, 20), nextFollowupAt: day(10, 16), focus: true }),
+  makeTodo({ id: 1, title: 'Alice only', statusId: 1, dueDate: day(10, 10) }),
+  makeTodo({ id: 2, title: 'Bob only', statusId: 2, dueDate: day(10, 20), nextFollowupAt: day(10, 16), focus: true }),
   makeTodo({ id: 3, title: 'Alice and Bob', statusId: 1, dueDate: day(10, 15), focus: true }),
   makeTodo({ id: 4, title: 'Nobody', nextFollowupAt: day(10, 30) }),
-  makeTodo({ id: 5, title: 'Alice done', isCompleted: true, statusId: 1, projectId: 1, dueDate: day(10, 12) }),
+  makeTodo({ id: 5, title: 'Alice done', isCompleted: true, statusId: 1, dueDate: day(10, 12) }),
   makeTodo({ id: 6, title: 'Nobody done', isCompleted: true }),
 ]
 
@@ -43,7 +41,6 @@ const lookups: TodoNameLookups = {
   assignedPeopleMap: new Map([[1, [alice]], [2, [bob]], [3, [alice, bob]], [5, [alice]]]),
   assignedTagsMap: new Map([[1, [work]], [2, [home]], [3, [work, home]], [5, [work]]]),
   statusesById: new Map([[1, doing], [2, waiting]]),
-  projectsById: new Map([[1, alpha], [2, beta]]),
 }
 
 const none = (): FilterCriteria => predicateToCriteria(emptyPredicate())
@@ -60,7 +57,6 @@ function evaluatorIds(screen: FilterCriteria, list: FilterCriteria): number[] {
     ...emptyPredicate(),
     showCompleted: list.showCompleted,
     personIds: list.personIds ? [...list.personIds] : null,
-    projectIds: list.projectIds ? [...list.projectIds] : null,
     statusIds: list.statusIds ? [...list.statusIds] : null,
     tags: list.tags ? [...list.tags] : null,
     searchText: list.searchText,
@@ -87,8 +83,9 @@ const fields: Array<{ name: string; a: Partial<FilterCriteria>; b: Partial<Filte
   { name: 'tags', a: { tags: new Set([1]) }, b: { tags: new Set([2]) }, onlyA: [1, 3], onlyB: [2, 3], both: [3] },
   { name: 'status', a: { statusIds: new Set([1]) }, b: { statusIds: new Set([1, 2]) }, onlyA: [1, 3], onlyB: [1, 2, 3], both: [1, 3] },
   { name: 'status none vs set', a: { statusIds: new Set([0]) }, b: { statusIds: new Set([2]) }, onlyA: [4], onlyB: [2], both: [] },
-  { name: 'project', a: { projectIds: new Set([1]) }, b: { projectIds: new Set([1, 0]) }, onlyA: [1], onlyB: [1, 3, 4], both: [1] },
+  { name: 'tags overlapping', a: { tags: new Set([1]) }, b: { tags: new Set([1, 2]) }, onlyA: [1, 3], onlyB: [1, 2, 3], both: [1, 3] },
   { name: 'search', a: { searchText: 'alice' }, b: { searchText: 'bob' }, onlyA: [1, 3], onlyB: [2, 3], both: [3] },
+  { name: 'search by tag name', a: { searchText: 'work' }, b: { searchText: 'home' }, onlyA: [1, 3], onlyB: [2, 3], both: [3] },
   { name: 'search by status name', a: { searchText: 'doing' }, b: { searchText: 'only' }, onlyA: [1, 3], onlyB: [1, 2], both: [1] },
   {
     name: 'due range',

@@ -3,18 +3,17 @@ import { buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import { makeTodo } from '../helpers'
 
 /**
- * Phase 6 of `code-review-2026-04-25` extracted the canonical task-row context-
- * menu shape into a pure helper consumed by `TaskRow`, `MobileTaskRow`, and
- * the search context menu. These tests pin the shape + the per-item dispatch.
+ * The canonical task-row context-menu shape is a pure helper consumed by
+ * `TaskRow`, `MobileTaskRow`, and the search context menu. These tests pin
+ * the shape + the per-item dispatch.
  * The bulk-aware hook half is exercised through the row tests it powers.
  */
 describe('buildTaskRowMenuItems — task-row + mobile parity', () => {
-  it('returns the full menu shape: Open, Mark complete, Focus, Move to project, separator, Delete', () => {
+  it('returns the full menu shape: Open, Mark complete, Focus, separator, Delete', () => {
     const items = buildTaskRowMenuItems({
       todo: makeTodo({ id: 1, title: 'Foo' }),
       onToggleFocus: vi.fn(),
       onOpenDetail: vi.fn(),
-      onMoveToProject: vi.fn(),
       onComplete: vi.fn(),
       onDelete: vi.fn(),
     })
@@ -23,7 +22,6 @@ describe('buildTaskRowMenuItems — task-row + mobile parity', () => {
       'Open',
       'Mark complete',
       'Add to Focus',
-      'Move to project…',
       '--',
       'Delete',
     ])
@@ -38,24 +36,6 @@ describe('buildTaskRowMenuItems — task-row + mobile parity', () => {
       onDelete: vi.fn(),
     })
     expect(items[0]!.label).toBe('Mark complete')
-  })
-
-  it('omits the Move to project item when onMoveToProject is missing', () => {
-    const items = buildTaskRowMenuItems({
-      todo: makeTodo({ id: 1 }),
-      onToggleFocus: vi.fn(),
-      onOpenDetail: vi.fn(),
-      onComplete: vi.fn(),
-      onDelete: vi.fn(),
-    })
-    const labels = items.map((i) => i.separator ? '--' : i.label)
-    expect(labels).toEqual([
-      'Open',
-      'Mark complete',
-      'Add to Focus',
-      '--',
-      'Delete',
-    ])
   })
 
   it('shows "Mark incomplete" when the todo is completed', () => {

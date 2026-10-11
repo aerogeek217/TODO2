@@ -31,7 +31,6 @@ function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
     (a.hasFollowup ?? null) === (b.hasFollowup ?? null) &&
     (a.focus ?? null) === (b.focus ?? null) &&
     idArraysEqualAsSet(a.personIds, b.personIds) &&
-    idArraysEqualAsSet(a.projectIds, b.projectIds) &&
     idArraysEqualAsSet(a.statusIds, b.statusIds) &&
     idArraysEqualAsSet(a.tags, b.tags) &&
     anchorsEqual(a.dateRangeStart, b.dateRangeStart) &&

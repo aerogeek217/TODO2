@@ -9,7 +9,6 @@ import {
 import { useStatusStore } from '../stores/status-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useProjectStore } from '../stores/project-store'
 import { useTagStore } from '../stores/tag-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useListOrderStore, useListRanks } from '../stores/list-order-store'
@@ -46,8 +45,7 @@ const NO_BUILT: BuiltList = { list: null, baseCount: 0, runtimeFilterPending: fa
  * Runs a list definition over the loaded tasks: its predicate (plus prompt
  * picks, plus the screen filter when given — see `composeScreenFilter`)
  * through `buildDashboardLists`, with the same name lookups as the list
- * page so a predicate's search also hits person / status / tag / project
- * names. Keeps tag assignments loaded for the task set.
+ * page so a predicate's search also hits person / status / tag names. Keeps tag assignments loaded for the task set.
  *
  * `runtimeFilterValue` undefined on a list with a prompt = nothing picked
  * yet; an empty array = no narrowing.
@@ -61,7 +59,6 @@ export function useBuiltList(
   const todos = useTodoStore((s) => s.todos)
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const projects = useProjectStore((s) => s.projects)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
@@ -94,7 +91,6 @@ export function useBuiltList(
       assignedPeopleMap,
       assignedTagsMap,
       statusesById: new Map(statuses.map((st) => [st.id!, st])),
-      projectsById: new Map(projects.map((p) => [p.id!, p])),
     }
     const listOnly = createPredicateEvaluator(lookups, today)
     const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today) : listOnly
@@ -108,7 +104,6 @@ export function useBuiltList(
       assignedTagsMap,
       assignedPeopleMap,
       people,
-      projects,
       statuses,
       runtimeFilterValues,
       listRanks: new Map([[definition.id, ranks]]),
@@ -123,7 +118,7 @@ export function useBuiltList(
     }
     return { list: list ?? null, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates }
   }, [
-    definition, todos, people, assignedPeopleMap, projects,
+    definition, todos, people, assignedPeopleMap,
     assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks,
   ])
 }

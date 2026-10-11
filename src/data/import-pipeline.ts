@@ -25,7 +25,7 @@ export const TASK_ARCHIVE_KIND = 'task-archive'
  *   a task archive is rejected (`task-archive`).
  * - `append`: add tasks to the current database (Settings → "Import tasks
  *   (append)…") — accepts a task archive or a full export, so the
- *   full-database requirements (a canvas) are not enforced.
+ *   full-database requirements (tasks and settings) are not enforced.
  */
 export type ImportPurpose = 'restore' | 'append'
 
@@ -87,7 +87,7 @@ function readSchemaVersion(raw: Record<string, unknown>): number | null {
  * Task archives (`kind: 'task-archive'`) take the same path — the
  * registry transforms tolerate their missing tables — but are only accepted
  * for `purpose: 'append'`; `append` validates without the full-database
- * requirement (a canvas).
+ * requirement (tasks and settings).
  *
  * Pure — no database access. Restoring / appending is the caller's job.
  */
@@ -144,7 +144,7 @@ export function prepareImport(raw: unknown, options: PrepareImportOptions = {}):
 
   // `rest` last: a malformed non-array table value must reach validation even
   // if a transform defaulted the (absent-from-DataSet) table to `[]`.
-  const validated = validateImportData({ ...upgradedTables, ...rest }, { requireCanvases: purpose === 'restore' })
+  const validated = validateImportData({ ...upgradedTables, ...rest }, { requireFullDatabase: purpose === 'restore' })
   if (!validated.ok) {
     return { ok: false, reason: 'invalid', error: validated.error }
   }

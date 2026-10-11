@@ -21,13 +21,10 @@ function daysAgo(n: number): Date {
 
 /**
  * Two completed-long-ago tasks (one fully attached) and one open task, with
- * people / tags / statuses / projects only some of which they use.
+ * people / tags / statuses only some of which they use.
  */
 async function seed() {
   const now = new Date()
-  const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 0, createdAt: now }) as number
-  const work = await db.projects.add({ name: 'Work', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: now }) as number
-  const home = await db.projects.add({ name: 'Home', canvasId, positionX: 400, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: now }) as number
   const alice = await db.people.add({ name: 'Alice', initials: 'AL' }) as number
   const bob = await db.people.add({ name: 'Bob', initials: 'BO' }) as number
   const urgent = await db.tags.add({ name: 'urgent', color: '#ff0000' }) as number
@@ -37,20 +34,20 @@ async function seed() {
 
   const oldDone = await todoRepository.insert({
     title: 'Old done', notes: 'n', isCompleted: true, completedAt: daysAgo(90),
-    createdAt: daysAgo(120), modifiedAt: daysAgo(1), sortOrder: 1, canvasId, projectId: work, statusId: waiting,
+    createdAt: daysAgo(120), modifiedAt: daysAgo(1), sortOrder: 1, statusId: waiting,
     dueDate: daysAgo(100),
   })
   const oldBare = await todoRepository.insert({
     title: 'Old bare', isCompleted: true, completedAt: daysAgo(80), createdAt: daysAgo(90), modifiedAt: daysAgo(80), sortOrder: 2,
   })
   const open = await todoRepository.insert({
-    title: 'Open task', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 3, canvasId, projectId: home, statusId: other,
+    title: 'Open task', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 3, statusId: other,
   })
   await db.todoPeople.bulkAdd([{ todoId: oldDone, personId: alice }, { todoId: open, personId: bob }])
   await db.todoTags.bulkAdd([{ todoId: oldDone, tagId: urgent }, { todoId: open, tagId: misc }])
   await db.todoEvents.add({ todoId: oldDone, type: 'completed', fromValue: null, toValue: null, timestamp: daysAgo(90).toISOString() })
   await useTodoStore.getState().loadAll()
-  return { canvasId, work, home, alice, bob, urgent, misc, waiting, other, oldDone, oldBare, open }
+  return { alice, bob, urgent, misc, waiting, other, oldDone, oldBare, open }
 }
 
 beforeEach(async () => {
@@ -74,14 +71,15 @@ describe('buildTaskArchive', () => {
     expect(archive.tags.map((t) => t.name)).toEqual(['urgent'])
     expect(archive).not.toHaveProperty('orgs')
     expect(archive.statuses.map((x) => x.name)).toEqual(['Waiting'])
-    expect(archive.projects.map((p) => p.name)).toEqual(['Work'])
+    // Projects are tags now: an archive carries no projects table.
+    expect(archive).not.toHaveProperty('projects')
     // insert() logs 'created' for both; plus the explicit 'completed' event.
     expect(archive.todoEvents.every((e) => e.todoId === s.oldDone || e.todoId === s.oldBare)).toBe(true)
     expect(archive.todoEvents.filter((e) => e.type === 'completed')).toHaveLength(1)
     expect(archive.todoEvents.filter((e) => e.type === 'created')).toHaveLength(2)
     // No full-database tables.
-    expect(archive).not.toHaveProperty('canvases')
     expect(archive).not.toHaveProperty('settings')
+    expect(archive).not.toHaveProperty('listDefinitions')
   })
 
   it('skips ids that no longer exist', async () => {
@@ -168,7 +166,7 @@ describe('exportAndPurgeCompleted', () => {
   })
 })
 
-describe('reads the database, not the (possibly one-canvas) todo store', () => {
+describe('reads the database, not the todo store (which may not hold every task)', () => {
   it('purgeCompleted deletes a listed completed task the store does not hold', async () => {
     const s = await seed()
     useTodoStore.setState({ todos: useTodoStore.getState().todos.filter((t) => t.id !== s.oldBare) })

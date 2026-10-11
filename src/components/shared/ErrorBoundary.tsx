@@ -3,7 +3,7 @@ import styles from './ErrorBoundary.module.css'
 
 interface Props {
   children: ReactNode
-  /** Short label shown in the fallback, e.g. "Canvas" or "App". */
+  /** Short label shown in the fallback, e.g. "Workspace" or "App". */
   scope?: string
   /** Optional custom fallback renderer. Receives error + reset callback. */
   fallback?: (error: Error, reset: () => void) => ReactNode

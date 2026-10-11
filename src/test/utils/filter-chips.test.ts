@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Person, Project, Status, Tag } from '../../models'
+import type { Person, Status, Tag } from '../../models'
 import { emptyPredicate } from '../../stores/list-definition-store'
 import { predicateToCriteria } from '../../stores/filter-store'
 import {
@@ -16,8 +16,7 @@ import { choicesWith, listOptionsSummary } from '../../utils/list-options'
 const people: Person[] = [{ id: 1, name: 'Alice', initials: 'A' }, { id: 2, name: 'Bob', initials: 'B' }, { id: 3, name: 'Cy', initials: 'C' }]
 const tags: Tag[] = [{ id: 1, name: 'q4' }, { id: 2, name: 'home' }]
 const statuses: Status[] = [{ id: 1, name: 'Waiting', color: '#aa0', sortOrder: 0 }]
-const projects: Project[] = [{ id: 1, name: 'Alpha', sortOrder: 0, canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, createdAt: new Date(2026, 0, 1) }]
-const names: FilterChipNames = { people, tags, statuses, projects }
+const names: FilterChipNames = { people, tags, statuses }
 
 describe('filterChips', () => {
   it('no filter → no chips', () => {
@@ -32,7 +31,6 @@ describe('filterChips', () => {
       statusIds: [1],
       personIds: [1, 2, 3],
       tags: [1],
-      projectIds: [0],
       hasDeadline: true,
       dateRangeStart: { kind: 'relative' as const, token: 'today' as const },
       dateRangeEnd: { kind: 'offset' as const, days: 14 },
@@ -42,7 +40,6 @@ describe('filterChips', () => {
       { field: 'tags', label: 'Tags', value: '#q4' },
       { field: 'dates', label: 'Due', value: 'within 14 days, has due date' },
       { field: 'status', label: 'Status', value: 'Waiting' },
-      { field: 'project', label: 'Project', value: 'No project' },
       { field: 'text', label: 'Text', value: '“invoice”' },
     ])
     expect(hasNarrowingFilters(p)).toBe(true)
@@ -53,6 +50,8 @@ describe('filterChips', () => {
     const chips = filterChips(p, names)
     expect(chips[0]!.value).toBe('Unassigned +1')
     expect(chips[1]!.value).toBe('none')
+    const zeros = filterChips({ ...emptyPredicate(), tags: [0, 1], statusIds: [0] }, names)
+    expect(zeros.map((c) => c.value)).toEqual(['Untagged +1', 'No status'])
   })
 
   it('screen criteria take the same path; completed shows only when asked', () => {
@@ -67,12 +66,12 @@ describe('filterChips', () => {
     ])
   })
 
-  it('a focus clause reads In focus / Not in focus, after project and before text', () => {
+  it('a focus clause reads In focus / Not in focus, after status and before text', () => {
     expect(filterChips({ ...emptyPredicate(), focus: true }, names)).toEqual([
       { field: 'focus', label: 'Focus', value: 'In focus' },
     ])
-    expect(filterChips({ ...emptyPredicate(), focus: false, searchText: 'x', projectIds: [1] }, names).map((c) => c.field))
-      .toEqual(['project', 'focus', 'text'])
+    expect(filterChips({ ...emptyPredicate(), focus: false, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
+      .toEqual(['status', 'focus', 'text'])
     expect(filterChips({ ...emptyPredicate(), focus: false }, names)[0]!.value).toBe('Not in focus')
     expect(hasNarrowingFilters({ ...emptyPredicate(), focus: false })).toBe(true)
   })
@@ -105,13 +104,12 @@ describe('clearChipField', () => {
   it('clears exactly the chip’s clauses', () => {
     const p = {
       ...emptyPredicate(),
-      personIds: [1], tags: [2], statusIds: [1], projectIds: [1], searchText: 'x',
+      personIds: [1], tags: [2], statusIds: [1], searchText: 'x',
       dateRangeStart: { kind: 'offset' as const, days: 0 }, dateRangeIncludeNoDate: true, hasDeadline: true, hasFollowup: false, focus: true,
     }
     expect(clearChipField(p, 'people').personIds).toBeNull()
     expect(clearChipField(p, 'tags').tags).toBeNull()
     expect(clearChipField(p, 'status').statusIds).toBeNull()
-    expect(clearChipField(p, 'project').projectIds).toBeNull()
     expect(clearChipField(p, 'text').searchText).toBe('')
     expect(clearChipField(p, 'focus')).toMatchObject({ focus: null, personIds: [1] })
     const dates = clearChipField(p, 'dates')

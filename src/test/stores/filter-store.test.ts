@@ -33,22 +33,6 @@ describe('useFilterStore', () => {
     expect(useFilterStore.getState().isActive).toBe(false)
   })
 
-  it('matchesFilter checks project membership', () => {
-    useFilterStore.getState().setProjectIds(new Set([7]))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, projectId: 7 }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2, projectId: 9 }))).toBe(false)
-    expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
-  })
-
-  it('matchesFilter honors no-project (0) sentinel', () => {
-    useFilterStore.getState().setProjectIds(new Set([0, 7]))
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, projectId: 7 }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
-    expect(matchesFilter(f(), makeTodo({ id: 3, projectId: 9 }))).toBe(false)
-  })
-
   it('matchesFilter checks person assignment', () => {
     useFilterStore.getState().setPersonIds(new Set([5]))
 
@@ -432,7 +416,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const original = {
       showCompleted: true,
       personIds: new Set([5, 10]),
-      projectIds: null,
       statusIds: new Set([0, 3]),
       searchText: 'x',
       dateField: 'deadline' as const,
@@ -466,7 +449,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const original = {
       showCompleted: false,
       personIds: null,
-      projectIds: null,
       statusIds: null,
       searchText: '',
       dateField: 'deadline' as const,

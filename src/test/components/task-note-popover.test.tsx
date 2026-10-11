@@ -5,17 +5,13 @@ import { db } from '../../data/database'
 import { TaskNotePopover } from '../../components/task/TaskNotePopover'
 import { useTodoStore } from '../../stores/todo-store'
 import { useNoteStore } from '../../stores/note-store'
-import { useCanvasStore } from '../../stores/canvas-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo } from '../helpers'
 
 beforeEach(async () => {
   await db.delete()
   await db.open()
   useNoteStore.setState({ notes: new Map(), activeId: null, lastSavedAt: null })
-  useCanvasStore.setState({ selectedCanvasId: null })
   useTodoStore.setState({ todos: [], loading: false, error: null })
-  useSettingsStore.setState({ defaultProjectId: null })
 })
 
 afterEach(() => {

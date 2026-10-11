@@ -178,9 +178,9 @@ describe('purgeCompleted (expired selection) keys on completedAt', () => {
 })
 
 describe('uid on every insert path', () => {
-  it('add / addAt / duplicate mint distinct uids; an explicit uid is kept', async () => {
+  it('add / duplicate mint distinct uids; an explicit uid is kept', async () => {
     const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().addAt('B', 1, 1, 5)
+    const b = await useTodoStore.getState().add('B')
     const c = (await useTodoStore.getState().duplicate(a))!
     const uids = await Promise.all([a, b, c].map(async (id) => (await stored(id)).uid))
     for (const uid of uids) expect(uid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)

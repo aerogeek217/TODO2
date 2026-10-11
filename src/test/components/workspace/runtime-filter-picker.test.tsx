@@ -3,10 +3,9 @@ import { render, cleanup, fireEvent } from '@testing-library/react'
 import { RuntimeFilterPicker } from '../../../components/workspace/list/RuntimeFilterPicker'
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { db } from '../../../data/database'
-import { makePerson, makeProject, resetEntityStores } from '../../helpers'
+import { makePerson, resetEntityStores } from '../../helpers'
 
 function resetStores() {
   resetEntityStores({ todos: false, statuses: false })
@@ -154,13 +153,14 @@ describe('RuntimeFilterPicker', () => {
   })
 
   it('emits an empty array when the last chip is removed (parent normalizes to no-pick)', () => {
-    useProjectStore.setState({
-      projects: [makeProject({ id: 1, canvasId: 1, name: 'Alpha' })],
+    useTagStore.setState({
+      tags: [{ id: 1, name: 'Alpha', color: '#fff' }],
+      assignedTagsMap: new Map(),
     })
     const onChange = vi.fn()
     const { getByLabelText } = render(
       <RuntimeFilterPicker
-        spec={{ field: 'project' }}
+        spec={{ field: 'tag' }}
         value={[1]}
         onChange={onChange}
       />,
@@ -204,11 +204,10 @@ describe('RuntimeFilterPicker', () => {
       ],
       assignedPeopleMap: new Map(),
     })
-    useProjectStore.setState({ projects: [] })
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 
-    const tables = [db.people, db.projects, db.statuses, db.tags, db.todos] as const
+    const tables = [db.people, db.statuses, db.tags, db.todos] as const
     const methods = ['toArray', 'where', 'get', 'count', 'each', 'bulkGet', 'orderBy'] as const
     const spies = tables.flatMap((t) =>
       methods.map((m) => vi.spyOn(t as unknown as Record<string, () => unknown>, m)),

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { PersistedTodoItem, Person, Project, Status, Tag, TodoGroupBy, TodoSortBy } from '../../models'
+import type { PersistedTodoItem, Person, Status, Tag, TodoGroupBy, TodoSortBy } from '../../models'
 import {
   buildListSections,
   listSortComparator,
@@ -16,7 +16,6 @@ function ctxWith(over: Partial<ListSectionsContext> = {}): ListSectionsContext {
     weekStartsOn: 1,
     people: [],
     statuses: [],
-    projects: [],
     assignedPeopleMap: new Map(),
     assignedTagsMap: new Map(),
     ...over,
@@ -47,8 +46,6 @@ const buildTagSections = (
   assignedTagsMap: Map<number, Tag[]>,
   restrictToTagIds?: number[] | null,
 ) => build(todos, 'tag', { assignedTagsMap }, { restrictToTagIds })
-const buildProjectSections = (todos: PersistedTodoItem[], projects: Project[]) =>
-  build(todos, 'project', { projects })
 const buildFlatSection = (todos: PersistedTodoItem[]) => build(todos, 'none')
 
 describe('buildListSections — due and follow-up grouping', () => {
@@ -377,26 +374,6 @@ describe('buildListSections — tag grouping', () => {
   })
 })
 
-describe('buildListSections — project grouping', () => {
-  it('groups by project with no-project fallback', () => {
-    const projects: Project[] = [
-      { id: 1, name: 'Alpha', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: new Date() },
-      { id: 2, name: 'Beta', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() },
-    ]
-    const todos = [
-      makeTodo({ id: 10, projectId: 1 }),
-      makeTodo({ id: 11, projectId: 2 }),
-      makeTodo({ id: 12 }), // no project
-    ]
-
-    const sections = buildProjectSections(todos, projects)
-    expect(sections).toHaveLength(3)
-    expect(sections[0]!.label).toBe('Alpha')
-    expect(sections[1]!.label).toBe('Beta')
-    expect(sections[2]!.label).toBe('No Project')
-  })
-})
-
 describe('buildListSections — ungrouped', () => {
   it('returns single "all" section with every todo', () => {
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
@@ -422,7 +399,7 @@ describe('listSortComparator', () => {
   it('categorical sorts with no order of their own fall back to manual', () => {
     const a = makeTodo({ id: 1, title: 'b', sortOrder: 2 })
     const b = makeTodo({ id: 2, title: 'a', sortOrder: 1 })
-    for (const sortBy of ['created', 'people', 'project', 'status'] as const) {
+    for (const sortBy of ['created', 'people', 'status'] as const) {
       expect([a, b].sort(listSortComparator(sortBy)).map((t) => t.id)).toEqual([2, 1])
     }
   })
@@ -464,6 +441,16 @@ describe('buildListSections — unknown stored values', () => {
     const sections = buildListSections(
       todos,
       { groupBy: { kind: 'none' } as unknown as TodoGroupBy, sortBy: 'date' as unknown as TodoSortBy },
+      ctxWith(),
+    )
+    expect(sections.map((s) => [s.key, s.todos.map((t) => t.id)])).toEqual([['all', [2, 1]]])
+  })
+
+  it('a stored project grouping or sort reads as ungrouped / manual', () => {
+    const todos = [makeTodo({ id: 1, sortOrder: 2 }), makeTodo({ id: 2, sortOrder: 1 })]
+    const sections = buildListSections(
+      todos,
+      { groupBy: 'project' as unknown as TodoGroupBy, sortBy: 'project' as unknown as TodoSortBy },
       ctxWith(),
     )
     expect(sections.map((s) => [s.key, s.todos.map((t) => t.id)])).toEqual([['all', [2, 1]]])

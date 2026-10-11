@@ -11,7 +11,6 @@ interface NlpAutocompleteProps {
 function headerLabel(state: AutocompleteState): string {
   if (state.trigger === '#') return 'Tags'
   if (state.trigger === ':') return 'Statuses'
-  if (state.trigger === '/') return 'Projects'
   return 'People'
 }
 

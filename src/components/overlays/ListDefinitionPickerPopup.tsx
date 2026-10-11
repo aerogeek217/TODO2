@@ -17,7 +17,7 @@ interface Props {
 
 const WIDTH_PX = 280
 
-export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose, excludeIds, header = 'Add list to canvas' }: Props) {
+export function ListDefinitionPickerPopup({ x, y, onSelect, onCreateNew, onClose, excludeIds, header = 'Add list' }: Props) {
   const { panelRef, style } = usePopoverAnchor({
     anchor: { kind: 'point', x, y },
     open: true,

@@ -43,8 +43,6 @@ export interface TodoItem {
   focus?: boolean
   createdAt: Date
   modifiedAt: Date
-  projectId?: number
-  canvasId?: number
   statusId?: number
   sortOrder: number
 }

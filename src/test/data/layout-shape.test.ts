@@ -57,7 +57,7 @@ describe('layouts row validation', () => {
         ],
       }],
     }]
-    const res = validateImportData({ canvases: [{ id: 1, name: 'M', sortOrder: 0, createdAt: DATE }], layouts: [layoutRow(columns, { stray: 'x' })] })
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(columns, { stray: 'x' })] })
     if (!res.ok) throw new Error(res.error)
     expect(res.data.layouts).toEqual([{
       id: 1, name: 'Daily', createdAt: new Date(DATE), modifiedAt: new Date(DATE),

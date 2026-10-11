@@ -16,8 +16,7 @@ beforeEach(async () => {
 
 describe('FileSyncBanner — backup snapshot self-check warning', () => {
   it('surfaces a snapshot that would not restore, until dismissed', async () => {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 0, createdAt: new Date() }) as number
-    await db.todos.add(makeTodo({ id: 1, canvasId, title: '' }))
+    await db.todos.add(makeTodo({ id: 1, title: '' }))
 
     render(<FileSyncBanner />)
     await act(async () => {

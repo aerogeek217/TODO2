@@ -174,7 +174,8 @@ describe('v59 Dexie upgrade', () => {
     expect(byId(prepared.data.todos)).toEqual(todos)
     expect(byId(prepared.data.listDefinitions)).toEqual(await db.listDefinitions.orderBy('id').toArray())
     expect(byId(prepared.data.listOrders)).toEqual(await db.listOrders.orderBy('id').toArray())
-    expect(byId(prepared.data.listInsets)).toEqual(await db.listInsets.orderBy('id').toArray())
+    // (The inset the floating taskboard becomes goes with the canvas at v60;
+    // the pure transform test covers it.)
     expect(byId(prepared.data.layouts)).toEqual(await db.layouts.orderBy('id').toArray())
     const settings = await db.settings.orderBy('key').toArray()
     expect([...prepared.data.settings].sort((a, b) => a.key.localeCompare(b.key))).toEqual(settings)

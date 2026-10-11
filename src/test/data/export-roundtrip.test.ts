@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import type { Table } from 'dexie'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
 import { IMPORT_ROW_PICKERS, KNOWN_TABLE_KEYS, type ImportData } from '../../data/import-validation'
+import { ALL_SETTING_KEYS } from '../../data/setting-keys'
 import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../services/export-import'
@@ -31,7 +32,6 @@ const at = (iso: string) => new Date(iso)
 const FULL_PREDICATE: TodoPredicate = {
   showCompleted: true,
   personIds: [1, 0],
-  projectIds: [1, 0],
   statusIds: [1, 2],
   searchText: 'invoice',
   dateField: 'deadline',
@@ -44,25 +44,8 @@ const FULL_PREDICATE: TodoPredicate = {
   tags: [1],
 }
 
-const RAILS = JSON.stringify({
-  left: { orientation: 'vertical', slots: [{ id: 's1', activeTabId: 't1', tabs: [{ id: 't1', type: 'lens', listDefinitionId: 1 }] }] },
-  right: null, top: null, bottom: null,
-})
-
 function buildSeed(): Seed {
   return {
-    canvases: [{ id: 1, name: 'Main', sortOrder: 0, createdAt: at('2026-09-01T09:00:00.000Z') }],
-    projects: [
-      {
-        id: 1, name: 'Work', canvasId: 1, positionX: 120, positionY: 80, width: 360, isCollapsed: false,
-        color: '#4f8cff', sortOrder: 0, createdAt: at('2026-09-01T09:05:00.000Z'),
-        groupBy: 'status', groupOrder: ['status:2', 'status:1'],
-      },
-      {
-        id: 2, name: 'Home', canvasId: 1, positionX: 600, positionY: 80, isCollapsed: true,
-        sortOrder: 1, createdAt: at('2026-09-01T09:06:00.000Z'), groupBy: null,
-      },
-    ],
     todos: [
       {
         id: 1, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e01', title: 'Send quarterly report', notes: 'Include **charts**', progress: 'draft done',
@@ -73,7 +56,7 @@ function buildSeed(): Seed {
         recurrenceRule: { type: 'monthly', originalDayOfMonth: 31 },
         focus: true,
         createdAt: at('2026-09-02T10:00:00.000Z'), modifiedAt: at('2026-09-11T09:30:00.000Z'),
-        projectId: 1, canvasId: 1, statusId: 2, sortOrder: 0,
+        statusId: 2, sortOrder: 0,
       },
       {
         id: 2, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e02', title: 'Book dentist', isCompleted: true,
@@ -84,10 +67,6 @@ function buildSeed(): Seed {
     ],
     people: [{ id: 1, name: 'Ann Lee', initials: 'AL', color: '#e05050' }],
     tags: [{ id: 1, name: 'urgent', color: '#ff0000' }],
-    listInsets: [{
-      id: 1, listDefinitionId: 1, canvasId: 1, x: 10, y: 20, width: 320, height: 300,
-      isCollapsed: true, runtimeFilterValue: [1, 2],
-    }],
     todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
     todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
     settings: [
@@ -95,8 +74,12 @@ function buildSeed(): Seed {
       { key: 'weekStartsOn', value: '1' },
       { key: 'followupDefaultInterval', value: '2w' },
       { key: 'themeMode', value: 'dark' },
-      { key: 'canvasRails', value: RAILS },
+      { key: 'defaultStatusId', value: '2' },
+      { key: 'quickStatusId', value: '1' },
+      { key: 'completedRetentionDays', value: '30' },
+      { key: 'maxTags', value: '20' },
       { key: 'color.dark.accent', value: '#4f8cff' },
+      { key: 'color.light.accent', value: '#1a5fd0' },
       { key: 'activeLayoutId', value: '2' },
     ],
     statuses: [
@@ -114,9 +97,6 @@ function buildSeed(): Seed {
       maxTasks: 25, limitMode: 'scroll', runtimeFilter: { field: 'person', label: 'Who' },
     }],
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],
-    floatingCalendars: [{ id: 1, canvasId: 1, x: 5, y: 6, width: 400, height: 300, orientation: 'horizontal', weekOffset: -1 }],
-    floatingNotes: [{ id: 1, canvasId: 1, x: 7, y: 8, width: 240, height: 200 }],
-    floatingStatus: [{ id: 1, canvasId: 1, x: 11, y: 12, width: 260, height: 180, collapsed: true }],
     todoEvents: [
       { id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-09-02T10:00:00.000Z' },
       { id: 2, todoId: 1, type: 'deadline', fromValue: null, toValue: '2026-10-16T00:00:00.000Z', timestamp: '2026-09-11T09:30:00.000Z' },
@@ -211,6 +191,9 @@ describe('export → JSON → import round-trip', () => {
       const missing = declared.filter((f) => !covered.has(f))
       expect(missing, `seed.${key} must populate every model field — add these to buildSeed()`).toEqual([])
     }
+    // Every setting this build knows.
+    const settingKeys = new Set(seed.settings.map((s) => s.key))
+    expect(ALL_SETTING_KEYS.filter((k) => !settingKeys.has(k)), 'settings missing from buildSeed()').toEqual([])
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { resolveInput, resolveTags, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
 import { TagLimitError } from '../../stores/tag-store'
-import type { Person, Project, Tag } from '../../models'
+import type { Person, Tag } from '../../models'
 import { DEFAULT_ENTITY_COLOR } from '../../constants'
 
 function makeMockTagStore(initialTags: Tag[] = []): TagStoreLike & { nextId: number } {
@@ -30,12 +30,6 @@ const people: Person[] = [
   { id: 1, name: 'John Smith', initials: 'JS' },
   { id: 2, name: 'Sarah Connor', initials: 'SC' },
   { id: 3, name: 'Mike', initials: 'M' },
-]
-
-const projects: Project[] = [
-  { id: 100, name: 'Backend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: new Date() },
-  { id: 101, name: 'Design System', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() },
-  { id: 102, name: 'Frontend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: new Date() },
 ]
 
 describe('nlp-resolver', () => {
@@ -73,28 +67,11 @@ describe('nlp-resolver', () => {
     expect(result.personIds).toEqual([1])
   })
 
-  type ProjectCase = { input: string; projectId?: number; unmatched?: string[] }
-
-  const projectCases: ProjectCase[] = [
-    { input: 'Fix bug /Backend', projectId: 100 },           // exact
-    { input: 'Task /Des', projectId: 101 },                  // prefix
-    { input: 'Task /Backend /Frontend', projectId: 100 },    // first-match
-    { input: 'Task /Unknown', unmatched: ['Unknown'] },
-  ]
-
-  it.each(projectCases)('resolves projects from "$input"', ({ input, projectId, unmatched = [] }) => {
-    const parsed = parseInput(input)
-    const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBe(projectId)
-    expect(result.unmatchedProjects).toEqual(unmatched)
-  })
-
-  it('resolves project alongside people', () => {
+  it('keeps a /word in the resolved title', () => {
     const parsed = parseInput('Fix bug /Backend @Mike')
-    const result = resolveInput(parsed, people, projects)
-    expect(result.projectId).toBe(100)
+    const result = resolveInput(parsed, people)
+    expect(result.title).toBe('Fix bug /Backend')
     expect(result.personIds).toEqual([3])
-    expect(result.title).toBe('Fix bug')
   })
 })
 

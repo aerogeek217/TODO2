@@ -6,7 +6,6 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useProjectStore } from '../../stores/project-store'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
@@ -22,7 +21,6 @@ import { DragHandle } from '../shared/DragHandle'
 import { PortalDropdown } from '../shared/PortalDropdown'
 
 import { ContextMenu } from '../overlays/ContextMenu'
-import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { TaskNotePopover } from './TaskNotePopover'
 import { FocusMarker } from '../shared/FocusMarker'
 import styles from './TaskRow.module.css'
@@ -34,20 +32,15 @@ interface TaskRowProps {
   ghost?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
-  /** Task is in clipboard (cut) */
-  cut?: boolean
-  /** Render an `in <project>` sub-line under the title (rail lens / search). */
-  showContext?: boolean
 }
 
 export const TaskRow = memo(function TaskRow({
   todo, assignedPeople, isSelected, ghost,
-  onSelect, onOpenDetail, cut, showContext,
+  onSelect, onOpenDetail,
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
   /** Follow-up popover: anchored to the pill / empty-slot flag, or at the menu's point. */
   const [followupPopover, setFollowupPopover] = useState<
@@ -62,7 +55,6 @@ export const TaskRow = memo(function TaskRow({
   // Read entity lists from stores
   const allPeople = usePersonStore((s) => s.people)
   const allTags = useTagStore((s) => s.tags)
-  const projects = useProjectStore((s) => s.projects)
   const assignedTagsForTodo = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
   const statuses = useStatusStore((s) => s.statuses)
@@ -73,10 +65,6 @@ export const TaskRow = memo(function TaskRow({
 
   // Cross-surface hover highlighting
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
-  const project = useMemo(
-    () => (showContext && todo.projectId ? projects.find(p => p.id === todo.projectId) : undefined),
-    [showContext, todo.projectId, projects],
-  )
 
 
   // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
@@ -143,7 +131,7 @@ export const TaskRow = memo(function TaskRow({
 
   return (
     <div
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${cut ? styles.cut : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${showStatusMenu || openDropdown ? styles.rowDropdownOpen : ''}`}
       data-todo-id={todo.id}
       data-ghosted={ghost ? '' : undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
@@ -209,9 +197,6 @@ export const TaskRow = memo(function TaskRow({
           >
             {todo.title}
           </span>
-          {showContext && project && (
-            <span className={styles.contextLine}>in {project.name}</span>
-          )}
         </div>
       )}
 
@@ -453,7 +438,6 @@ export const TaskRow = memo(function TaskRow({
             todo,
             onToggleFocus: handleToggleFocus,
             onOpenDetail,
-            onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
             onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),
             onFollowedUp: () => bulk.markFollowedUp(todo.id),
             onComplete: handleToggleComplete,
@@ -463,16 +447,6 @@ export const TaskRow = memo(function TaskRow({
         />
       )}
 
-      {projectPicker && (
-        <ProjectPickerPopup
-          x={projectPicker.x}
-          y={projectPicker.y}
-          projectId={todo.projectId}
-          projects={projects}
-          onSelect={(id) => bulk.setProject(todo.id, id)}
-          onClose={() => setProjectPicker(null)}
-        />
-      )}
     </div>
   )
 })

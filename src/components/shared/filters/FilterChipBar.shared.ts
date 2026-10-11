@@ -1,7 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { TodoPredicate } from '../../../models'
 import { usePersonStore } from '../../../stores/person-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 
@@ -32,7 +31,6 @@ export interface FilterChipBarProps {
 export const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,
   personIds: null,
-  projectIds: null,
   statusIds: null,
   searchText: '',
   dateField: 'deadline',
@@ -45,13 +43,12 @@ export const DEFAULT_PREDICATE: TodoPredicate = {
   tags: null,
 }
 
-export type EntityKey = 'project' | 'people' | 'status' | 'tags'
+export type EntityKey = 'people' | 'status' | 'tags'
 
 export function hasAnyFilter(p: TodoPredicate): boolean {
   return (
     p.showCompleted ||
     p.personIds !== null ||
-    p.projectIds !== null ||
     p.statusIds !== null ||
     p.searchText !== '' ||
     p.dateRangeStart !== null ||
@@ -72,18 +69,15 @@ export const triLabel = (v: boolean | null) =>
 export interface FilterChipBarSharedState {
   p: TodoPredicate
   people: ReturnType<typeof usePersonStore.getState>['people']
-  projects: ReturnType<typeof useProjectStore.getState>['projects']
   statuses: ReturnType<typeof useStatusStore.getState>['statuses']
   sortedTags: ReturnType<typeof useTagStore.getState>['tags']
   allTagIds: number[]
 
   personIdsSet: Set<number> | null
-  projectIdsSet: Set<number> | null
   statusIdsSet: Set<number> | null
   tagIdsSet: Set<number> | null
 
   peopleActive: boolean
-  projectsActive: boolean
   statusActive: boolean
   tagsActive: boolean
   dateActive: boolean
@@ -91,7 +85,6 @@ export interface FilterChipBarSharedState {
 
   update: (patch: Partial<TodoPredicate>) => void
   setPersonIds: (next: Set<number> | null) => void
-  setProjectIds: (next: Set<number> | null) => void
   setStatusIds: (next: Set<number> | null) => void
   setTags: (next: Set<number> | null) => void
   clearAll: () => void
@@ -124,12 +117,10 @@ export function useFilterChipBarState(
   )
 
   const people = usePersonStore((s) => s.people)
-  const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
   const tags = useTagStore((s) => s.tags)
 
   const personIdsSet = useMemo(() => (p.personIds ? new Set(p.personIds) : null), [p.personIds])
-  const projectIdsSet = useMemo(() => (p.projectIds ? new Set(p.projectIds) : null), [p.projectIds])
   const statusIdsSet = useMemo(() => (p.statusIds ? new Set(p.statusIds) : null), [p.statusIds])
   const tagIdsSet = useMemo(() => (p.tags ? new Set(p.tags) : null), [p.tags])
 
@@ -137,7 +128,6 @@ export function useFilterChipBarState(
   const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
 
   const peopleActive = p.personIds !== null
-  const projectsActive = p.projectIds !== null
   const statusActive = p.statusIds !== null
   const tagsActive = (p.tags ?? null) !== null
   const dateActive =
@@ -165,10 +155,6 @@ export function useFilterChipBarState(
       update({ personIds: next ? Array.from(next) : null }),
     [update],
   )
-  const setProjectIds = useCallback(
-    (next: Set<number> | null) => update({ projectIds: next ? Array.from(next) : null }),
-    [update],
-  )
   const setStatusIds = useCallback(
     (next: Set<number> | null) => update({ statusIds: next ? Array.from(next) : null }),
     [update],
@@ -188,23 +174,19 @@ export function useFilterChipBarState(
   return {
     p,
     people,
-    projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    projectIdsSet,
     statusIdsSet,
     tagIdsSet,
     peopleActive,
-    projectsActive,
     statusActive,
     tagsActive,
     dateActive,
     active,
     update,
     setPersonIds,
-    setProjectIds,
     setStatusIds,
     setTags,
     clearAll,

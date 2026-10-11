@@ -251,7 +251,9 @@ describe('v53 Dexie upgrade', () => {
     v52.close()
   }
 
-  it('rewrites todos, lists, projects and settings, and matches the import path', async () => {
+  // Projects (whose groupBy v53 also rewrites) are tags since v60; the pure
+  // transform tests cover them.
+  it('rewrites todos, lists and settings, and matches the import path', async () => {
     await buildV52Db()
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
@@ -272,7 +274,7 @@ describe('v53 Dexie upgrade', () => {
     expect(prepared.warnings).toEqual([])
     expect([...prepared.data.todos].sort((a, b) => a.id! - b.id!)).toEqual(todos)
     expect([...prepared.data.listDefinitions].sort((a, b) => a.id! - b.id!)).toEqual(defs)
-    expect([...prepared.data.projects].sort((a, b) => a.id! - b.id!)).toEqual(await db.projects.orderBy('id').toArray())
+    expect([...(prepared.data.tags ?? [])].sort((a, b) => a.id! - b.id!)).toEqual(await db.tags.orderBy('id').toArray())
     const settings = await db.settings.orderBy('key').toArray()
     expect([...prepared.data.settings].sort((a, b) => a.key.localeCompare(b.key))).toEqual(settings)
   })

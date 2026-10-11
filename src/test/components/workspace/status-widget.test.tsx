@@ -18,7 +18,6 @@ vi.mock('../../../hooks/use-bulk-actions', () => ({
     remove: vi.fn(),
     setPriority: vi.fn(),
     setDueDate: vi.fn(),
-    setProject: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
     quickAssignTag: vi.fn(),

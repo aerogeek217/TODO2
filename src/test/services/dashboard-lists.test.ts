@@ -226,7 +226,7 @@ describe('buildDashboardLists — runtime filter', () => {
   })
 
   it('leaves other batched defs untouched by the runtime pick', () => {
-    const withRt = customDef({ id: 1, name: 'rt', runtimeFilter: { field: 'project' } })
+    const withRt = customDef({ id: 1, name: 'rt', runtimeFilter: { field: 'tag' } })
     const plain = customDef({ id: 2, name: 'plain' })
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
     const lists = buildDashboardLists([withRt, plain], todos, makeCtx({
@@ -240,7 +240,6 @@ describe('buildDashboardLists — runtime filter', () => {
   it('applyRuntimeFilter rewrites the appropriate id list for each field', () => {
     const base = emptyPredicate()
     expect(applyRuntimeFilter(base, { field: 'person' }, [5]).personIds).toEqual([5])
-    expect(applyRuntimeFilter(base, { field: 'project' }, [7]).projectIds).toEqual([7])
     expect(applyRuntimeFilter(base, { field: 'status' }, [8]).statusIds).toEqual([8])
     expect(applyRuntimeFilter(base, { field: 'tag' }, [9]).tags).toEqual([9])
   })

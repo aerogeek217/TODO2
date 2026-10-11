@@ -9,8 +9,6 @@ interface DraggableTaskRowProps {
   onOpenDetail?: (todoId: number) => void
   /** Which surface is rendering the row (decides the drag id). */
   surface?: Extract<TaskSurfaceKey, 'status-widget'>
-  /** Render as the context-showing row variant. */
-  showContext?: boolean
 }
 
 /**
@@ -22,7 +20,6 @@ export function DraggableTaskRow({
   assignedPeople,
   onOpenDetail,
   surface = 'status-widget',
-  showContext,
 }: DraggableTaskRowProps) {
   return (
     <TaskDraggable todo={todo} surface={surface}>
@@ -38,7 +35,6 @@ export function DraggableTaskRow({
             todo={todo}
             assignedPeople={assignedPeople}
             onOpenDetail={onOpenDetail ? () => onOpenDetail(todo.id) : undefined}
-            showContext={showContext}
           />
         </div>
       )}

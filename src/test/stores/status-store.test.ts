@@ -136,12 +136,11 @@ describe('useStatusStore', () => {
       await useStatusStore.getState().add('Open', '#00ff00')
       const statusId = useStatusStore.getState().statuses[0]!.id!
 
-      const canvasId = await db.canvases.add({ name: 'C', sortOrder: 0, createdAt: now } as any)
       const todoId = await db.todos.add({
-        title: 'Task', isCompleted: false,
+        uid: 'status-store-task', title: 'Task', isCompleted: false,
         sortOrder: 0, createdAt: now, modifiedAt: now,
-        canvasId, statusId,
-      } as any)
+        statusId,
+      })
 
       await useStatusStore.getState().remove(statusId)
 

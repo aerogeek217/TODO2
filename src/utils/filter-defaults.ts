@@ -7,7 +7,6 @@ export interface FilterDefaults {
   personIds: number[]
   tagIds: number[]
   statusId: number | undefined
-  projectId: number | undefined
   /** The filter keeps only tasks in focus: new tasks start in focus. */
   focus?: boolean
 }
@@ -28,13 +27,7 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) statusId = only
   }
 
-  let projectId: number | undefined
-  if (filters.projectIds && filters.projectIds.size === 1) {
-    const [only] = filters.projectIds
-    if (only !== 0) projectId = only
-  }
-
-  return { personIds, tagIds, statusId, projectId, focus: filters.focus === true }
+  return { personIds, tagIds, statusId, focus: filters.focus === true }
 }
 
 /**
@@ -49,7 +42,7 @@ export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefau
 
 /**
  * Supplement resolved NLP output with filter-inferred defaults.
- * Mutates `resolved` in place for person/project/status fields.
+ * Mutates `resolved` in place for person/status fields.
  * Tags merge: filter-default tag ids are appended to any user-typed `#tag`
  * slugs as a parallel `seedTagIds` channel — applied at submit by the
  * caller (resolved.tags stays string-typed).
@@ -59,9 +52,6 @@ export function supplementWithFilterDefaults(
   fd: FilterDefaults,
 ): void {
   if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
-  if (resolved.projectId === undefined && fd.projectId !== undefined) {
-    resolved.projectId = fd.projectId
-  }
   if (resolved.statusId === undefined && fd.statusId !== undefined) {
     resolved.statusId = fd.statusId
   }

@@ -4,23 +4,14 @@ import { FilterChipBar } from '../../../../components/shared/filters/FilterChipB
 import type { TodoPredicate } from '../../../../models'
 import { useStatusStore } from '../../../../stores/status-store'
 import { usePersonStore } from '../../../../stores/person-store'
-import { useProjectStore } from '../../../../stores/project-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { emptyPredicate } from '../../../../stores/list-definition-store'
-import { makePerson, makeProject } from '../../../helpers'
+import { makePerson } from '../../../helpers'
 
 function seedStores() {
   usePersonStore.setState({
     people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
     assignedPeopleMap: new Map(),
-  } as never)
-  useProjectStore.setState({
-    projects: [
-      makeProject({ id: 1, canvasId: 1, name: 'Marketing' }),
-      makeProject({ id: 2, canvasId: 1, name: 'Engineering' }),
-    ],
-    loading: false,
-    error: null,
   } as never)
   useStatusStore.setState({
     statuses: [{ id: 1, name: 'Active', color: '#888', sortOrder: 1, icon: 'circle' }],
@@ -64,7 +55,7 @@ describe('FilterChipBar — primitive', () => {
       expect(updates.at(-1)?.focus).toBeNull()
     })
 
-    it('opens the Project chip and commits only the clicked project (preview-empty)', () => {
+    it('opens the Tags chip and commits only the clicked tag (preview-empty)', () => {
       let captured: TodoPredicate | null = null
       render(
         <FilterChipBar
@@ -72,13 +63,13 @@ describe('FilterChipBar — primitive', () => {
           onChange={(p) => { captured = p }}
         />,
       )
-      fireEvent.click(screen.getByRole('button', { name: /Project/i }))
+      fireEvent.click(screen.getByRole('button', { name: /Tags/i }))
       // Desktop chip enters "preview-empty" mode on open (all-selected hidden,
       // first click commits only the clicked entity). Matches the legacy
       // TopBar / ListFilterEditor semantics.
-      fireEvent.click(screen.getByText('Marketing'))
+      fireEvent.click(screen.getByText('#urgent'))
       expect(captured).not.toBeNull()
-      expect(captured!.projectIds).toEqual([1])
+      expect(captured!.tags).toEqual([10])
     })
 
     it('cycles a tri-state row inside the Date dropdown', () => {
@@ -90,7 +81,7 @@ describe('FilterChipBar — primitive', () => {
         />,
       )
       fireEvent.click(screen.getByRole('button', { name: /Date/i }))
-      // Opening the Date dropdown is non-committal (post-P4): no anchor is
+      // Opening the Date dropdown is non-committal: no anchor is
       // seeded, so updates is empty until the user actually edits something.
       expect(updates).toHaveLength(0)
       fireEvent.click(screen.getByText('Has due date'))
@@ -215,7 +206,7 @@ describe('FilterChipBar — primitive', () => {
   // ── Mobile density ───────────────────────────────────────────────────
 
   describe('mobile density', () => {
-    it('expands the Projects accordion and toggles an entity', () => {
+    it('expands the Tags accordion and toggles an entity', () => {
       let captured: TodoPredicate | null = null
       render(
         <FilterChipBar
@@ -224,10 +215,10 @@ describe('FilterChipBar — primitive', () => {
           onChange={(p) => { captured = p }}
         />,
       )
-      fireEvent.click(screen.getByText('Projects'))
-      fireEvent.click(screen.getByText('Marketing'))
+      fireEvent.click(screen.getByText('Tags'))
+      fireEvent.click(screen.getByText('#urgent'))
       expect(captured).not.toBeNull()
-      expect(captured!.projectIds).not.toContain(1)
+      expect(captured!.tags).not.toContain(10)
     })
 
     it('cycles tri-state Has due date at mobile density (button form)', () => {

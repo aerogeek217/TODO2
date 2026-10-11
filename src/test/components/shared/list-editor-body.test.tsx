@@ -43,12 +43,12 @@ describe('<ListEditorBody>', () => {
     expect(last(onChange).grouping).toBe('people')
   })
 
-  it('offers the list choices, plus a stored value no longer offered', () => {
-    render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'project' })} onChange={vi.fn()} />)
+  it('offers the list choices, plus a stored sort no longer offered', () => {
+    render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'tag' })} onChange={vi.fn()} />)
     const sorts = Array.from((screen.getByLabelText('Sort by') as HTMLSelectElement).options).map((o) => o.textContent)
     expect(sorts).toEqual(['Manual', 'Due date', 'Follow-up date', 'Name', 'Created', 'Status'])
     const groups = Array.from((screen.getByLabelText('Group by') as HTMLSelectElement).options).map((o) => o.value)
-    expect(groups).toEqual(['none', 'deadline', 'followup', 'people', 'status', 'tag', 'project'])
+    expect(groups).toEqual(['none', 'deadline', 'followup', 'people', 'status', 'tag'])
   })
 
   it('sets max tasks and its limit mode; clearing removes the cap', () => {

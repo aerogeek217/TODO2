@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, ListInset, Backup, Status, Note, FloatingCalendar, FloatingNote, FloatingStatus, Tag, TodoTag, TodoEvent, ListOrder } from '../models'
+import type { TodoItem, Person, TodoPerson, Backup, Status, Note, Tag, TodoTag, TodoEvent, ListOrder } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
@@ -23,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 59
+export const CURRENT_DB_VERSION = 60
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -46,19 +46,13 @@ export const OLDEST_SUPPORTED_DB_VERSION = 49
 
 export class Todo2Database extends Dexie {
   todos!: Table<TodoItem, number>
-  projects!: Table<Project, number>
-  canvases!: Table<Canvas, number>
   people!: Table<Person, number>
   settings!: Table<SettingRow, string>
   todoPeople!: Table<TodoPerson, number>
-  listInsets!: Table<ListInset, number>
   backups!: Table<Backup, number>
   statuses!: Table<Status, number>
   listDefinitions!: Table<ListDefinition, number>
   notes!: Table<Note, number>
-  floatingCalendars!: Table<FloatingCalendar, number>
-  floatingNotes!: Table<FloatingNote, number>
-  floatingStatus!: Table<FloatingStatus, number>
   tags!: Table<Tag, number>
   todoTags!: Table<TodoTag, number>
   todoEvents!: Table<TodoEvent, number>
@@ -452,13 +446,33 @@ export class Todo2Database extends Dexie {
     // transform (`upgrades/v59-taskboard-to-focus.ts`) marks taskboard tasks
     // `focus`, creates the "Focus" list with their order, and turns taskboard
     // widgets into widgets of that list.
-    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
-    // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `59` first.
-    this.version(CURRENT_DB_VERSION)
+    this.version(59)
       .stores({
         taskboards: null,
         floatingTaskboards: null,
+      })
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, 59))
+
+    // v60: projects become tags and the canvas goes. Drops the project,
+    // canvas, list-inset and floating-widget tables and the `projectId` /
+    // `canvasId` indexes (and the old `notes.canvasId` index); the
+    // transform (`upgrades/v60-projects-to-tags.ts`) turns each project into
+    // a `Project: <name>` tag on its tasks, folds project filters / grouping
+    // / sort / prompts in stored lists into tags, and removes the canvas and
+    // project settings.
+    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
+    // what enforces the single-source-of-truth invariant (see the constant's
+    // docblock above). When bumping, turn this into a literal `60` first.
+    this.version(CURRENT_DB_VERSION)
+      .stores({
+        todos: '++id, isCompleted, dueDate, sortOrder, statusId, &uid',
+        notes: '++id, modifiedAt',
+        projects: null,
+        canvases: null,
+        listInsets: null,
+        floatingCalendars: null,
+        floatingNotes: null,
+        floatingStatus: null,
       })
       .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
@@ -497,5 +511,5 @@ export async function ensureSeededStatuses(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingStatus, db.tags, db.todoTags, db.todoEvents, db.layouts, db.listOrders] as const
+export const ALL_DATA_TABLES = [db.todos, db.people, db.settings, db.todoPeople, db.statuses, db.listDefinitions, db.notes, db.tags, db.todoTags, db.todoEvents, db.layouts, db.listOrders] as const
 

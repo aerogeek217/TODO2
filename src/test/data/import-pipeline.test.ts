@@ -9,7 +9,7 @@ function file(overrides: Record<string, unknown> = {}): Record<string, unknown> 
   return {
     [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
     exportedAt: now,
-    canvases: [{ id: 1, name: 'Main', sortOrder: 0, createdAt: now }],
+    settings: [],
     todos: [{ id: 1, uid: 'u1', title: 'Task', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 0 }],
     ...overrides,
   }
@@ -76,8 +76,8 @@ describe('prepareImport — validation', () => {
   })
 
   it('still rejects a known table that is not an array (metadata split keeps it visible)', () => {
-    const result = prepareImport(file({ todos: 'nope' }))
-    expect(result).toEqual({ ok: false, reason: 'invalid', error: '"todos" is not an array' })
+    const result = prepareImport(file({ people: 'nope' }))
+    expect(result).toEqual({ ok: false, reason: 'invalid', error: '"people" is not an array' })
   })
 
   it('ignores envelope metadata (exportedAt, savedAt)', () => {
@@ -119,7 +119,7 @@ describe('prepareImportText', () => {
 describe('prepareImport — task archives and the append purpose', () => {
   function archive(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     const raw = file({ kind: TASK_ARCHIVE_KIND, ...overrides })
-    delete raw.canvases
+    delete raw.settings
     return raw
   }
 
@@ -130,13 +130,13 @@ describe('prepareImport — task archives and the append purpose', () => {
     expect(result.error).toContain('Import tasks (append)')
   })
 
-  it('accepts a task archive (no canvases) for append and reports its kind', () => {
+  it('accepts a task archive (no settings) for append and reports its kind', () => {
     const result = prepareImport(archive(), { purpose: 'append' })
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.kind).toBe('task-archive')
     expect(result.data.todos).toHaveLength(1)
-    expect(result.data.canvases).toEqual([])
+    expect(result.data.settings).toEqual([])
   })
 
   it('accepts a full export for append (kind "full")', () => {
@@ -149,10 +149,14 @@ describe('prepareImport — task archives and the append purpose', () => {
     expect(result).toMatchObject({ ok: false, reason: 'invalid' })
   })
 
-  it('still requires canvases for a full restore', () => {
-    const raw = file()
-    delete raw.canvases
-    expect(prepareImport(raw)).toMatchObject({ ok: false, reason: 'invalid' })
+  it('still requires tasks and settings for a full restore', () => {
+    const error = 'File is not a valid TODO2 database (missing tasks or settings)'
+    for (const table of ['todos', 'settings']) {
+      const raw = file()
+      delete raw[table]
+      expect(prepareImport(raw), table).toEqual({ ok: false, reason: 'invalid', error })
+      expect(prepareImport(raw, { purpose: 'append' }).ok, `${table} (append)`).toBe(true)
+    }
   })
 
   it('prepareImportText passes the purpose through', () => {

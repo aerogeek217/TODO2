@@ -9,7 +9,7 @@ export interface PopoverPoint {
 }
 
 /** A filter field a list's filter picker edits. */
-export type ListFilterField = 'people' | 'tags' | 'status' | 'project' | 'focus' | 'dates' | 'text'
+export type ListFilterField = 'people' | 'tags' | 'status' | 'focus' | 'dates' | 'text'
 
 /** The open list-options popover, add-filter menu or filter picker (one at a time). */
 export type ListPopover =

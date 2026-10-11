@@ -33,9 +33,8 @@ async function clickExport() {
 
 describe('SettingsPage — Export JSON self-check', () => {
   it('saves the file and shows a persistent warning naming the bad row', async () => {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 0, createdAt: new Date() }) as number
-    await db.todos.add(makeTodo({ id: 1, canvasId }))
-    await db.todos.add(makeTodo({ id: 2, canvasId, title: '' }))
+    await db.todos.add(makeTodo({ id: 1 }))
+    await db.todos.add(makeTodo({ id: 2, title: '' }))
 
     await clickExport()
 
@@ -51,8 +50,7 @@ describe('SettingsPage — Export JSON self-check', () => {
   })
 
   it('shows no warning for a clean export', async () => {
-    const canvasId = await db.canvases.add({ name: 'Main', sortOrder: 0, createdAt: new Date() }) as number
-    await db.todos.add(makeTodo({ id: 1, canvasId }))
+    await db.todos.add(makeTodo({ id: 1 }))
 
     await clickExport()
 

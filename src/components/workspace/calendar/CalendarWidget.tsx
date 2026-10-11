@@ -11,7 +11,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useStatusStore } from '../../../stores/status-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -416,7 +415,6 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
-  const projects = useProjectStore((s) => s.projects)
   const screen = useFilterStore((s) => s.filters)
   const screenActive = useFilterStore((s) => s.isActive)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -439,10 +437,10 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const range = useMemo(() => calendarRange(view, offset, today, weekStartsOn), [view, offset, today, weekStartsOn])
   const month = range.start.getMonth()
 
-  const shownTodos = useMemo(() => applyFilter(
-    screen, todos, assignedPeopleMap, statuses, today,
-    new Map(projects.map((p) => [p.id!, p])), assignedTagsMap,
-  ), [screen, todos, assignedPeopleMap, statuses, today, projects, assignedTagsMap])
+  const shownTodos = useMemo(
+    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap),
+    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap],
+  )
 
   const entriesByDay = useMemo(
     () => buildEntries(shownTodos, range.days, { assignedPeopleMap, statuses, dateTypes }),

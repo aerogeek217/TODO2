@@ -24,8 +24,8 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
 
   // Arrow-key focus nav stays as a document-level keydown listener (rather
   // than onKeyDown on the panel) because focus can escape the panel when
-  // the user clicks an item that opens a child popover (e.g. the search
-  // context menu's "Move to project…" → ProjectPickerPopup).
+  // the user clicks an item that opens a child popover (e.g. "Set
+  // follow-up…" → FollowupPopover).
   useEffect(() => {
     const focusables = (): HTMLButtonElement[] =>
       itemRefs.current.filter((el): el is HTMLButtonElement => !!el)

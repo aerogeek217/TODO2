@@ -4,7 +4,6 @@ import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { upgradeV52, stripRemovedKindsFromRails } from '../../data/upgrades/v52-drop-date-stat-widgets'
 import { SCHEMA_UPGRADES, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
-import { parseRailsState } from '../../models/canvas-rails'
 import { resetDb, v51StoreSpecs } from '../helpers'
 
 const PLACEMENT = { canvasId: 1, x: 0, y: 0, width: 300, height: 200 }
@@ -76,8 +75,6 @@ describe('upgradeV52 (pure transform)', () => {
     expect(rails.bottom).toEqual(RAILS_WITH_REMOVED.bottom)
     expect(rails.widths).toEqual(RAILS_WITH_REMOVED.widths)
     expect(rails.collapsed).toEqual(RAILS_WITH_REMOVED.collapsed)
-    // The result is a valid rails value that the parser keeps whole.
-    expect(parseRailsState(JSON.stringify(rails))).toEqual(rails)
   })
 
   it('returns an untouched rails value (and settings array) unchanged', () => {
@@ -133,19 +130,23 @@ describe('v52 Dexie upgrade', () => {
     for (const dropped of ['floatingHorizons', 'floatingScoreboard', 'floatingSnoozeGraveyard']) {
       expect(backendStores).not.toContain(dropped)
     }
-    expect(await db.floatingStatus.count()).toBe(1)
-    // The floating taskboard is a list inset of the Focus list after v59.
-    expect(await db.listInsets.count()).toBe(1)
 
     const settings = await db.settings.orderBy('key').toArray()
-    // `activeLayoutId` comes from the later v56 layout seed.
-    expect(settings.map((s) => s.key)).toEqual(['activeLayoutId', 'canvasRails', 'themeMode'])
+    // `activeLayoutId` comes from the later v56 layout seed; v60 drops `canvasRails`.
+    expect(settings.map((s) => s.key)).toEqual(['activeLayoutId', 'themeMode'])
 
-    // A JSON copy of the same v51 data upgrades to the same settings.
-    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 51, ...v51DataSet() })) as unknown)
+    // The stripped rails (and the surviving floats) became the Default layout
+    // at v56: no tab of a removed kind made it there.
+    const [layout] = await db.layouts.toArray()
+    const kinds = layout!.columns.flatMap((c) => c.cells.flatMap((cell) => cell.tabs.map((t) => t.kind)))
+    expect([...new Set(kinds)].sort()).toEqual(['lens', 'status'])
+
+    // A JSON copy of the same v51 data upgrades to the same settings and layout.
+    const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 51, todos: [], ...v51DataSet() })) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     const imported = [...prepared.data.settings].sort((a, b) => a.key.localeCompare(b.key))
     expect(imported).toEqual(settings)
+    expect(prepared.data.layouts.map((l) => l.columns)).toEqual([layout!.columns])
     expect(prepared.warnings).toEqual([])
   })
 })

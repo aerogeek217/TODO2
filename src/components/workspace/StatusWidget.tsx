@@ -17,7 +17,7 @@ type SelectedStatusKey = number | 'unset' | null
 interface RowContextMenu { x: number; y: number; key: SelectedStatusKey }
 
 /**
- * Rail/float widget body for the `status` widget kind. Renders a stacked
+ * Widget body for the `status` widget kind. Renders a stacked
  * hero bar (segments proportional to per-status open counts) above a legend
  * row per status (icon · label · count · percent). Driven by
  * `selectStatusBreakdown` over the live todo + status stores.
@@ -153,7 +153,6 @@ export function StatusWidget() {
                 todo={todo}
                 assignedPeople={assignedPeopleMapCast.get(todo.id)}
                 onOpenDetail={openEditPopup}
-                showContext
               />
             ))
           )}

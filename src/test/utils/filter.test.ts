@@ -21,17 +21,16 @@ describe('matchTodoText', () => {
 
   it('reports multiple fields when the query matches in several places', () => {
     const r = matchTodoText({ title: 'foo bar', notes: 'foo' }, 'foo', {
-      projectName: 'foo project',
       personNames: ['Foo Person'],
       statusName: 'InProgress',
+      tagNames: ['foo-tag'],
     })
     expect(r.matched).toBe(true)
-    expect(r.fields).toEqual(['title', 'notes', 'project', 'person'])
+    expect(r.fields).toEqual(['title', 'notes', 'person', 'tag'])
   })
 
-  it('matches on project / person / status via ctx', () => {
+  it('matches on person / status via ctx', () => {
     const todo = { title: 't', notes: 'n' }
-    expect(matchTodoText(todo, 'projx', { projectName: 'ProjX' }).fields).toEqual(['project'])
     expect(matchTodoText(todo, 'alice', { personNames: ['Alice', 'Bob'] }).fields).toEqual(['person'])
     expect(matchTodoText(todo, 'blocked', { statusName: 'Blocked' }).fields).toEqual(['status'])
   })
@@ -63,7 +62,7 @@ describe('matchTodoText', () => {
   })
 
   it('returns matched=false when nothing matches', () => {
-    const r = matchTodoText({ title: 'abc', notes: 'def' }, 'xyz', { projectName: 'nope' })
+    const r = matchTodoText({ title: 'abc', notes: 'def' }, 'xyz', { personNames: ['nope'], statusName: 'nope', tagNames: ['nope'] })
     expect(r.matched).toBe(false)
     expect(r.fields).toEqual([])
   })
@@ -112,7 +111,7 @@ describe('groupTodosByTextMatch', () => {
     expect(ids(g.title)).toEqual([4, 2])
     expect(ids(g.notes)).toEqual([3, 1])
     expect(ids(g.tag)).toEqual([4, 1])
-    expect(g.project).toEqual([])
+    expect(g.person).toEqual([])
   })
 
   it('preserves input order when nothing is completed', () => {
@@ -126,6 +125,7 @@ describe('groupTodosByTextMatch', () => {
 
   it('returns all-empty groups for an empty query', () => {
     const g = groupTodosByTextMatch([{ id: 1, title: 'a', isCompleted: false }], '', ctxFor)
+    expect(Object.keys(g)).toEqual(['title', 'notes', 'person', 'status', 'tag'])
     expect(Object.values(g).every((arr) => arr.length === 0)).toBe(true)
   })
 })

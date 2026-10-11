@@ -7,14 +7,13 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useProjectStore } from '../../stores/project-store'
 import type { Tag } from '../../models'
-import { makePerson, makeProject, makeTodo } from '../helpers'
+import { makePerson, makeTodo } from '../helpers'
 import { SEARCH_DEBOUNCE_MS } from '../../constants'
 
 function renderBar() {
   return render(
-    <MemoryRouter initialEntries={['/list']}>
+    <MemoryRouter initialEntries={['/']}>
       <TopBar />
     </MemoryRouter>,
   )
@@ -30,7 +29,6 @@ describe('TopBar grouped search', () => {
     })
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
-    useProjectStore.setState({ projects: [makeProject({ id: 1, canvasId: 1, name: 'Marketing' })], loading: false, error: null })
   })
 
   afterEach(cleanup)
@@ -92,28 +90,6 @@ describe('TopBar grouped search', () => {
       expect(within(screen.getByRole('listbox', { name: /search results/i })).getAllByRole('option')).toHaveLength(5)
     })
     expect(screen.getByText('Show all 7')).toBeInTheDocument()
-  })
-
-  it('groups by project name when assigned', async () => {
-    useTodoStore.setState({
-      todos: [
-        makeTodo({ id: 1, title: 'plan Q4', projectId: 1 }),
-        makeTodo({ id: 2, title: 'review brief', projectId: 1 }),
-      ],
-      loading: false,
-      error: null,
-    })
-
-    renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
-    await act(async () => {
-      input.focus()
-      fireEvent.change(input, { target: { value: 'market' } })
-    })
-
-    const listbox = await screen.findByRole('listbox', { name: /search results/i })
-    const projectGroup = within(listbox).getByRole('group', { name: 'Project' })
-    expect(within(projectGroup).getAllByRole('option')).toHaveLength(2)
   })
 
   it('does not show the listbox when no results match', async () => {

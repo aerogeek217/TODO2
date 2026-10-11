@@ -2,7 +2,6 @@ import type {
   PersistedTodoItem,
   TodoPredicate,
   Person,
-  Project,
   Status,
   Tag,
 } from '../models'
@@ -35,7 +34,6 @@ export interface DashboardListsContext {
   assignedPeopleMap?: Map<number, Person[]>
   /** Registries used to label and order categorical sections. */
   people?: Person[]
-  projects?: Project[]
   statuses?: Status[]
   /**
    * Per-definition runtime-filter picks keyed by def id. Missing key → list
@@ -79,7 +77,6 @@ export function applyRuntimeFilter(
   if (values.length === 0) return predicate
   switch (spec.field) {
     case 'person': return { ...predicate, personIds: values }
-    case 'project': return { ...predicate, projectIds: values }
     case 'status': return { ...predicate, statusIds: values }
     case 'tag': return { ...predicate, tags: values }
   }
@@ -129,7 +126,6 @@ export function buildDashboardLists(
         weekStartsOn: ctx.weekStartsOn,
         people: ctx.people ?? [],
         statuses: ctx.statuses ?? [],
-        projects: ctx.projects ?? [],
         assignedPeopleMap: ctx.assignedPeopleMap ?? new Map(),
         assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
         manualRanks,

@@ -3,9 +3,7 @@ import type { SettingRow } from '../data/database'
 import { prepareImportText } from '../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from './migration-check'
 import type {
-  TodoItem, Project, Canvas, Person, ListInset,
-  TodoPerson, Status, Note,
-  FloatingCalendar, FloatingNote, FloatingStatus,
+  TodoItem, Person, TodoPerson, Status, Note,
   Tag, TodoTag, TodoEvent, PersistedTodoItem, ListOrder,
 } from '../models'
 import type { ListDefinition } from '../models/list-definition'
@@ -24,18 +22,12 @@ import { startOfToday } from '../utils/date'
 export interface ExportData {
   [SCHEMA_VERSION_KEY]: number
   todos: TodoItem[]
-  projects: Project[]
-  canvases: Canvas[]
-  listInsets: ListInset[]
   people: Person[]
   settings: SettingRow[]
   todoPeople: TodoPerson[]
   statuses: Status[]
   listDefinitions: ListDefinition[]
   notes: Note[]
-  floatingCalendars: FloatingCalendar[]
-  floatingNotes: FloatingNote[]
-  floatingStatus: FloatingStatus[]
   tags: Tag[]
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]
@@ -85,7 +77,7 @@ export function selfCheckExportJson(json: string): string | null {
 }
 
 /**
- * Builds a markdown representation of all tasks, grouped by project.
+ * Builds a markdown representation of all tasks (in manual order).
  * Uses buildExportData() to read from the repository layer.
  */
 export async function buildMarkdownExport(): Promise<string> {
@@ -93,26 +85,22 @@ export async function buildMarkdownExport(): Promise<string> {
   const allTodos = data.todos as PersistedTodoItem[]
 
   const peopleMap = new Map(data.people.map((p) => [p.id!, p.name]))
+  const tagMap = new Map(data.tags.map((t) => [t.id!, t.name]))
   const statusMap = new Map(data.statuses.map((s) => [s.id!, s]))
 
-  const todoPeopleMap = new Map<number, string[]>()
-  for (const tp of data.todoPeople) {
-    const name = peopleMap.get(tp.personId)
-    if (name) {
-      const list = todoPeopleMap.get(tp.todoId) ?? []
+  const namesByTodo = (rows: readonly { todoId: number; id: number }[], names: ReadonlyMap<number, string>) => {
+    const out = new Map<number, string[]>()
+    for (const r of rows) {
+      const name = names.get(r.id)
+      if (!name) continue
+      const list = out.get(r.todoId) ?? []
       list.push(name)
-      todoPeopleMap.set(tp.todoId, list)
+      out.set(r.todoId, list)
     }
+    return out
   }
-
-  // Group todos by project
-  const byProject = new Map<number | undefined, PersistedTodoItem[]>()
-  for (const todo of allTodos) {
-    const key = todo.projectId
-    const list = byProject.get(key) ?? []
-    list.push(todo)
-    byProject.set(key, list)
-  }
+  const todoPeopleMap = namesByTodo(data.todoPeople.map((r) => ({ todoId: r.todoId, id: r.personId })), peopleMap)
+  const todoTagsMap = namesByTodo(data.todoTags.map((r) => ({ todoId: r.todoId, id: r.tagId })), tagMap)
 
   const lines: string[] = ['# TODOs', '']
   const details: string[] = []
@@ -129,37 +117,21 @@ export async function buildMarkdownExport(): Promise<string> {
 
   const collectDetails = (todo: PersistedTodoItem) => {
     const people = todoPeopleMap.get(todo.id) ?? []
-    const hasMeta = people.length > 0 || todo.notes
+    const tags = todoTagsMap.get(todo.id) ?? []
+    const hasMeta = people.length > 0 || tags.length > 0 || todo.notes
     if (!hasMeta) return
     details.push(`### ${todo.title}`)
     if (people.length > 0) details.push(`- **People:** ${people.join(', ')}`)
+    if (tags.length > 0) details.push(`- **Tags:** ${tags.join(', ')}`)
     if (todo.notes) details.push(`- **Notes:** ${todo.notes}`)
     details.push('')
   }
 
-  const renderGroup = (groupTodos: PersistedTodoItem[]) => {
-    for (const todo of [...groupTodos].sort(bySortOrder)) {
-      lines.push(formatTodoLine(todo))
-      collectDetails(todo)
-    }
+  for (const todo of [...allTodos].sort(bySortOrder)) {
+    lines.push(formatTodoLine(todo))
+    collectDetails(todo)
   }
-
-  // Named projects first
-  for (const project of data.projects) {
-    const groupTodos = byProject.get(project.id!) ?? [] as PersistedTodoItem[]
-    if (groupTodos.length === 0) continue
-    lines.push(`## ${project.name}`, '')
-    renderGroup(groupTodos)
-    lines.push('')
-  }
-
-  // Tasks with no project
-  const noProject = byProject.get(undefined) ?? []
-  if (noProject.length > 0) {
-    lines.push('## No Project', '')
-    renderGroup(noProject)
-    lines.push('')
-  }
+  lines.push('')
 
   // Append details section
   if (details.length > 0) {

@@ -85,30 +85,23 @@ describe('natural-language-parser', () => {
     expect(result.dueDate?.getDay()).toBe(1)
   })
 
-  it('extracts /project', () => {
+  it('a /word stays in the title as plain text', () => {
     const result = parseInput('Fix header /Design')
-    expect(result.title).toBe('Fix header')
-    expect(result.projects).toEqual(['Design'])
-    expect(result.tokens.find((t) => t.type === 'project')?.value).toBe('Design')
+    expect(result.title).toBe('Fix header /Design')
+    expect(result.tokens).toHaveLength(0)
   })
 
-  it('extracts /project at start of input', () => {
-    const result = parseInput('/Backend Fix the API')
-    expect(result.title).toBe('Fix the API')
-    expect(result.projects).toEqual(['Backend'])
-  })
-
-  it('does not match / in middle of word', () => {
-    const result = parseInput('Review path/to/file')
-    expect(result.projects).toEqual([])
-    expect(result.title).toBe('Review path/to/file')
-  })
-
-  it('parses /project with other tokens', () => {
-    const result = parseInput('Fix bug /Backend @Mike')
-    expect(result.title).toBe('Fix bug')
-    expect(result.projects).toEqual(['Backend'])
+  it('a leading /word stays in the title alongside other tokens', () => {
+    const result = parseInput('/Backend Fix the API @Mike')
+    expect(result.title).toBe('/Backend Fix the API')
     expect(result.persons).toEqual(['Mike'])
+    expect(result.tokens.map((t) => t.type)).toEqual(['person'])
+  })
+
+  it('does not treat a path as a token', () => {
+    const result = parseInput('Review path/to/file')
+    expect(result.title).toBe('Review path/to/file')
+    expect(result.tokens).toHaveLength(0)
   })
 
   // ─── Cross-type overlap detection ──────────────────────────────────────────
@@ -116,13 +109,6 @@ describe('natural-language-parser', () => {
   it('person @friday is not also parsed as a date', () => {
     const result = parseInput('Ask @friday about the report')
     expect(result.persons).toEqual(['friday'])
-    expect(result.dueDate).toBeUndefined()
-    expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
-  })
-
-  it('project /tomorrow is not also parsed as a date', () => {
-    const result = parseInput('Check /tomorrow tasks')
-    expect(result.projects).toEqual(['tomorrow'])
     expect(result.dueDate).toBeUndefined()
     expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
   })
@@ -359,7 +345,7 @@ describe('natural-language-parser', () => {
 
     const cases: TagCase[] = [
       { input: '#foo bar', tags: ['foo'], title: 'bar' },
-      { input: '/proj #foo bar', tags: ['foo'], title: 'bar' },
+      { input: '/proj #foo bar', tags: ['foo'], title: '/proj bar' },
       { input: 'Do thing #Urgent', tags: ['Urgent'] },
       { input: 'ship #FooBar', tags: ['FooBar'] },
       // Dedupe case-variants by lowercase, first-seen case wins.

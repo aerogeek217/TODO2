@@ -118,8 +118,6 @@ function joinTargetTable(field: string): string {
     case 'todoId': return 'todos'
     case 'personId': return 'people'
     case 'tagId': return 'tags'
-    case 'canvasId': return 'canvases'
-    case 'projectId': return 'projects'
     case 'statusId': return 'statuses'
     case 'listDefinitionId': return 'listDefinitions'
     default: return field
@@ -156,24 +154,16 @@ export async function auditData(): Promise<AuditReport> {
   }
 
   const [
-    todos, projects, canvases, people, statuses, tags,
-    todoPeople, todoTags,
-    listInsets, floatingNotes, floatingCalendars,
-    floatingStatus, todoEvents,
+    todos, people, statuses, tags,
+    todoPeople, todoTags, todoEvents,
     settingsRows, listDefinitions, notes, listOrders,
   ] = await Promise.all([
     db.todos.toArray(),
-    db.projects.toArray(),
-    db.canvases.toArray(),
     db.people.toArray(),
     db.statuses.toArray(),
     db.tags.toArray(),
     db.todoPeople.toArray(),
     db.todoTags.toArray(),
-    db.listInsets.toArray(),
-    db.floatingNotes.toArray(),
-    db.floatingCalendars.toArray(),
-    db.floatingStatus.toArray(),
     db.todoEvents.toArray(),
     db.settings.toArray(),
     db.listDefinitions.toArray(),
@@ -190,9 +180,8 @@ export async function auditData(): Promise<AuditReport> {
   // invalid-value pass for rows whose `key` is fine but whose `value`
   // fails the per-key value validator (legacy shapes, stale formats).
   const knownTableRows: Partial<Record<string, unknown[]>> = {
-    canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
-    statuses, listDefinitions, notes,
-    floatingCalendars, floatingNotes, floatingStatus, todoEvents, listOrders,
+    todos, people, tags, todoTags, todoPeople,
+    statuses, listDefinitions, notes, todoEvents, listOrders,
   }
   for (const tableKey of KNOWN_TABLE_KEYS) {
     if (tableKey === 'settings') continue
@@ -251,9 +240,8 @@ export async function auditData(): Promise<AuditReport> {
 
   // --- Settings rows with recognized keys but invalid values ---
   // The store-load code silently falls back to defaults for a row whose value
-  // fails to parse (e.g. a malformed `canvasRails` blob), so the user sees
-  // missing state — empty rails, lost canvas viewport —
-  // and exporting the DB round-trips the bad row into a backup that
+  // fails to parse (e.g. a malformed `followupDefaultInterval`), so the user
+  // sees missing state, and exporting the DB round-trips the bad row into a backup that
   // `validateImportData` then refuses to re-import. Surface it here so the
   // audit cleanup can drop the row and let the next save re-seed.
   const invalidSettings = settingsRows
@@ -282,8 +270,6 @@ export async function auditData(): Promise<AuditReport> {
   }
 
   const todoIds = new Set(todos.map((t) => t.id!))
-  const projectIds = new Set(projects.map((p) => p.id!))
-  const canvasIds = new Set(canvases.map((c) => c.id!))
   const personIds = new Set(people.map((p) => p.id!))
   const statusIds = new Set(statuses.map((s) => s.id!))
   const tagIds = new Set(tags.map((t) => t.id!))
@@ -396,36 +382,6 @@ export async function auditData(): Promise<AuditReport> {
 
   // --- Dangling foreign keys on entities ---
 
-  const todosWithBadProject = todos.filter(
-    (t) => t.projectId != null && !projectIds.has(t.projectId),
-  )
-  if (todosWithBadProject.length > 0) {
-    issues.push({
-      table: 'todos',
-      description: 'Todos referencing deleted projects',
-      count: todosWithBadProject.length,
-      ids: todosWithBadProject.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'projectId',
-      samples: fkSample(todosWithBadProject, 'projectId'),
-    })
-  }
-
-  const todosWithBadCanvas = todos.filter(
-    (t) => t.canvasId != null && !canvasIds.has(t.canvasId),
-  )
-  if (todosWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'todos',
-      description: 'Todos referencing deleted canvases',
-      count: todosWithBadCanvas.length,
-      ids: todosWithBadCanvas.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'canvasId',
-      samples: fkSample(todosWithBadCanvas, 'canvasId'),
-    })
-  }
-
   const todosWithBadStatus = todos.filter(
     (t) => t.statusId != null && !statusIds.has(t.statusId),
   )
@@ -438,99 +394,6 @@ export async function auditData(): Promise<AuditReport> {
       fix: 'clear-field',
       field: 'statusId',
       samples: fkSample(todosWithBadStatus, 'statusId'),
-    })
-  }
-
-  const projectsWithBadCanvas = projects.filter(
-    (p) => p.canvasId != null && !canvasIds.has(p.canvasId),
-  )
-  if (projectsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'projects',
-      description: 'Projects referencing deleted canvases',
-      count: projectsWithBadCanvas.length,
-      ids: projectsWithBadCanvas.map((p) => p.id!),
-      fix: 'clear-field',
-      field: 'canvasId',
-      samples: fkSample(projectsWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const listInsetsWithBadCanvas = listInsets.filter(
-    (l) => l.canvasId != null && !canvasIds.has(l.canvasId),
-  )
-  if (listInsetsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'listInsets',
-      description: 'List insets referencing deleted canvases',
-      count: listInsetsWithBadCanvas.length,
-      ids: listInsetsWithBadCanvas.map((l) => l.id!),
-      fix: 'delete',
-      samples: fkSample(listInsetsWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingNotesWithBadCanvas = floatingNotes.filter(
-    (n) => !canvasIds.has(n.canvasId),
-  )
-  if (floatingNotesWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingNotes',
-      description: 'Floating notes referencing deleted canvases',
-      count: floatingNotesWithBadCanvas.length,
-      ids: floatingNotesWithBadCanvas.map((n) => n.id!),
-      fix: 'delete',
-      samples: fkSample(floatingNotesWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingCalendarsWithBadCanvas = floatingCalendars.filter(
-    (c) => !canvasIds.has(c.canvasId),
-  )
-  if (floatingCalendarsWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingCalendars',
-      description: 'Floating calendars referencing deleted canvases',
-      count: floatingCalendarsWithBadCanvas.length,
-      ids: floatingCalendarsWithBadCanvas.map((c) => c.id!),
-      fix: 'delete',
-      samples: fkSample(floatingCalendarsWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  const floatingStatusWithBadCanvas = floatingStatus.filter(
-    (h) => !canvasIds.has(h.canvasId),
-  )
-  if (floatingStatusWithBadCanvas.length > 0) {
-    issues.push({
-      table: 'floatingStatus',
-      description: 'Floating status widgets referencing deleted canvases',
-      count: floatingStatusWithBadCanvas.length,
-      ids: floatingStatusWithBadCanvas.map((h) => h.id!),
-      fix: 'delete',
-      samples: fkSample(floatingStatusWithBadCanvas, 'canvasId'),
-    })
-  }
-
-  // --- Unplaced tasks: on a canvas but not in any project (invisible in canvas view) ---
-
-  const unplacedTasks = todos.filter(
-    (t) => t.canvasId != null && t.projectId == null,
-  )
-  if (unplacedTasks.length > 0) {
-    issues.push({
-      table: 'todos',
-      description: 'Tasks not assigned to any project (invisible on canvas)',
-      count: unplacedTasks.length,
-      ids: unplacedTasks.map((t) => t.id!),
-      fix: 'clear-field',
-      field: 'canvasId',
-      samples: unplacedTasks.slice(0, MAX_SAMPLES_PER_ISSUE).map((t) => ({
-        row: toSampleRow(t as unknown as Record<string, unknown>),
-        id: t.id,
-        badFields: ['canvasId', 'projectId'],
-        note: 'Has canvasId but no projectId — the canvas view filters tasks by project, so this row is invisible there',
-      })),
     })
   }
 

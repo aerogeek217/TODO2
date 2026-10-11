@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 
 /** Trigger characters that open the NLP autocomplete dropdown. */
-export const NLP_TRIGGERS = ['@', '/', '#', ':'] as const
+export const NLP_TRIGGERS = ['@', '#', ':'] as const
 export type NlpTrigger = (typeof NLP_TRIGGERS)[number]
 
 const NLP_TRIGGER_SET = new Set<string>(NLP_TRIGGERS)
@@ -10,7 +10,7 @@ export interface AutocompleteItem {
   id: number
   name: string
   color?: string
-  kind: 'person' | 'project' | 'tag' | 'status'
+  kind: 'person' | 'tag' | 'status'
 }
 
 export interface AutocompleteState {
@@ -34,7 +34,6 @@ const initialState: AutocompleteState = {
 
 interface UseNlpAutocompleteOptions {
   people: AutocompleteItem[]
-  projects?: AutocompleteItem[]
   tags?: AutocompleteItem[]
   statuses?: AutocompleteItem[]
 }
@@ -46,7 +45,7 @@ interface UseNlpAutocompleteOptions {
 // Shared canvas for text measurement — avoids creating one per keystroke
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-export function useNlpAutocomplete({ people, projects = [], tags = [], statuses = [] }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, tags = [], statuses = [] }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   const triggerPosRef = useRef<number>(-1)
 
@@ -62,7 +61,7 @@ export function useNlpAutocomplete({ people, projects = [], tags = [], statuses 
   ) => {
     // Find the trigger character before cursor
     const beforeCursor = value.slice(0, cursorPos)
-    // Look backwards for @, /, #, or : that isn't preceded by a word character
+    // Look backwards for @, #, or : that isn't preceded by a word character
     let triggerIdx = -1
     let triggerChar: NlpTrigger | null = null
     for (let i = beforeCursor.length - 1; i >= 0; i--) {
@@ -84,7 +83,7 @@ export function useNlpAutocomplete({ people, projects = [], tags = [], statuses 
     triggerPosRef.current = triggerIdx
 
     // `#tag` and `:status` use case-insensitive prefix match;
-    // `@person`/`/project` stay on substring match (existing behavior).
+    // `@person` stays on substring match.
     let filtered: AutocompleteItem[]
     if (triggerChar === '#') {
       filtered = query
@@ -95,10 +94,9 @@ export function useNlpAutocomplete({ people, projects = [], tags = [], statuses 
         ? statuses.filter((item) => item.name.toLowerCase().startsWith(query))
         : statuses
     } else {
-      const sourceItems = triggerChar === '@' ? people : projects
       filtered = query
-        ? sourceItems.filter((item) => item.name.toLowerCase().includes(query))
-        : sourceItems
+        ? people.filter((item) => item.name.toLowerCase().includes(query))
+        : people
     }
 
     // Estimate caret position for dropdown positioning
@@ -118,7 +116,7 @@ export function useNlpAutocomplete({ people, projects = [], tags = [], statuses 
     }
 
     // For `#`, stay visible even with no matches so we can render the
-    // "Press Enter to create #<query>" hint. `@` and `/` hide when empty.
+    // "Press Enter to create #<query>" hint. `@` hides when empty.
     const visible = filtered.length > 0 || (triggerChar === '#' && query.length > 0)
 
     setState({
@@ -129,7 +127,7 @@ export function useNlpAutocomplete({ people, projects = [], tags = [], statuses 
       selectedIndex: 0,
       caretLeft,
     })
-  }, [people, projects, tags, statuses, state.visible, dismiss])
+  }, [people, tags, statuses, state.visible, dismiss])
 
   /**
    * Handle keyboard events for autocomplete navigation.
@@ -187,7 +185,7 @@ export function useNlpAutocomplete({ people, projects = [], tags = [], statuses 
     }
 
     // Tags / statuses stay bare — `#` and `:` patterns are single-word only;
-    // people/projects quote when the name contains spaces.
+    // people quote when the name contains spaces.
     const before = currentValue.slice(0, triggerIdx)
     const after = currentValue.slice(cursorPos)
     const trigger = state.trigger

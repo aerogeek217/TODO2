@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { RuntimeFilterSpec } from '../../../models/list-definition'
 import { usePersonStore } from '../../../stores/person-store'
-import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
@@ -10,8 +9,7 @@ import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import styles from './RuntimeFilterPicker.module.css'
 
 // All option lookups for this picker go through cached Zustand stores
-// (`usePersonStore`, `useProjectStore`, `useStatusStore`,
-// `useTagStore`) — there are no Dexie reads on render or keystroke. Keep it
+// (`usePersonStore`, `useStatusStore`, `useTagStore`) — there are no Dexie reads on render or keystroke. Keep it
 // that way: the picker is mounted on list widgets during drag-heavy
 // interactions, and re-issuing repository queries per keystroke would tank
 // the hover/typing path. The vitest companion (`runtime-filter-picker.test.tsx`)
@@ -30,8 +28,7 @@ interface RuntimeFilterPickerProps {
   value: number[] | undefined
   /**
    * Called with the next id list. Always emitted as an array; consumers
-   * decide whether to normalize empty → undefined (the canvas-rails store
-   * + list-inset store do).
+   * decide whether to normalize empty → undefined.
    */
   onChange: (value: number[]) => void
 }
@@ -40,7 +37,6 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
   if (spec.label && spec.label.trim()) return spec.label
   switch (spec.field) {
     case 'person': return 'Person'
-    case 'project': return 'Project'
     case 'status': return 'Status'
     case 'tag': return 'Tag'
   }
@@ -55,15 +51,12 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
  * Selection semantics: each picked id appears as a chip with a `×`; the
  * underlying value is the chips' id list, OR-combined when the helper
  * applies it (`applyRuntimeFilter`). Empty selection is a no-op (helper
- * passes the predicate through unchanged); the canvas-rails / list-inset
- * stores normalize an empty array down to "no pick yet" so the placeholder
- * re-appears.
+ * passes the predicate through unchanged).
  */
 const NO_IDS: readonly number[] = []
 
 export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPickerProps) {
   const people = usePersonStore((s) => s.people)
-  const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
   const tags = useTagStore((s) => s.tags)
 
@@ -75,9 +68,6 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
           if (p.id != null) base.push({ id: p.id, name: p.name, avatar: { initials: p.initials || p.name.slice(0, 2).toUpperCase(), color: p.color } })
         }
         break
-      case 'project':
-        for (const p of projects) if (p.id != null) base.push({ id: p.id, name: p.name })
-        break
       case 'status':
         for (const s of statuses) if (s.id != null) base.push({ id: s.id, name: s.name })
         break
@@ -86,7 +76,7 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
         break
     }
     return base.sort((a, b) => a.name.localeCompare(b.name))
-  }, [spec.field, people, projects, statuses, tags])
+  }, [spec.field, people, statuses, tags])
 
   const ids = value ?? NO_IDS
   const idSet = useMemo(() => new Set(ids), [ids])

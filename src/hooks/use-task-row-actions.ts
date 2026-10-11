@@ -8,7 +8,6 @@ interface BuildMenuItemsOpts {
   /** Adds the task (or the selection) to Focus / removes it, per `todo.focus`. */
   onToggleFocus: () => void
   onOpenDetail?: (todoId: number) => void
-  onMoveToProject?: () => void
   /** Opens the follow-up popover ("Set follow-up…"). Omitted on surfaces without one. */
   onSetFollowup?: () => void
   /** "Followed up": last = now, next = today + the default interval. */
@@ -25,7 +24,7 @@ interface BuildMenuItemsOpts {
  */
 export function buildTaskRowMenuItems({
   todo, onToggleFocus,
-  onOpenDetail, onMoveToProject, onSetFollowup, onFollowedUp,
+  onOpenDetail, onSetFollowup, onFollowedUp,
   onComplete, onDelete,
 }: BuildMenuItemsOpts): ContextMenuItem[] {
   return [
@@ -49,10 +48,6 @@ export function buildTaskRowMenuItems({
       label: todo.focus ? 'Remove from Focus' : 'Add to Focus',
       action: onToggleFocus,
     },
-    ...(onMoveToProject ? [{
-      label: 'Move to project…',
-      action: onMoveToProject,
-    }] : []),
     { label: '', action: () => {}, separator: true },
     {
       label: 'Delete',

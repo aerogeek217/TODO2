@@ -7,7 +7,7 @@ import { saveTextFile } from './save-file'
 
 /**
  * Completed tasks past `retentionDays`, read from the database (the todo
- * store may hold only one canvas's tasks). With `uids`, only those tasks —
+ * store may not be loaded yet). With `uids`, only those tasks —
  * the launch prompt keeps the set it found at launch.
  */
 export async function listExpiredCompleted(

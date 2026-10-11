@@ -3,18 +3,12 @@ import { parseTaskInput, applyNlpMetadata } from '../../services/nlp-task-creato
 import { resolveTags } from '../../services/nlp-resolver'
 import { useTagStore } from '../../stores/tag-store'
 import { db } from '../../data/database'
-import type { Person, Project } from '../../models'
+import type { Person } from '../../models'
 import { makeTodo } from '../helpers'
 
 const people: Person[] = [
   { id: 1, name: 'Alice Smith', initials: 'AS' },
   { id: 2, name: 'Bob Jones', initials: 'BJ' },
-]
-
-const projects: Project[] = [
-  { id: 10, name: 'Backend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: new Date() },
-  { id: 11, name: 'Frontend', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: new Date() },
-  { id: 12, name: 'my-proj', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 2, createdAt: new Date() },
 ]
 
 describe('parseTaskInput', () => {
@@ -34,21 +28,9 @@ describe('parseTaskInput', () => {
     expect(result.resolved.dueDate).toBeUndefined()
   })
 
-  it('resolves /project when projects provided', () => {
-    const result = parseTaskInput('Fix bug /Backend', people, projects)
-    expect(result.title).toBe('Fix bug')
-    expect(result.resolved.projectId).toBe(10)
-  })
-
-  it('returns undefined projectId when no projects provided', () => {
+  it('leaves a /word in the title', () => {
     const result = parseTaskInput('Fix bug /Backend', people)
-    expect(result.resolved.projectId).toBeUndefined()
-  })
-
-  it('accepts hyphens in project slugs', () => {
-    const result = parseTaskInput('/my-proj do thing', people, projects)
-    expect(result.title).toBe('do thing')
-    expect(result.resolved.projectId).toBe(12)
+    expect(result.title).toBe('Fix bug /Backend')
   })
 
   it('returns resolved tags for #tag tokens (end-to-end: fix #urgent)', () => {
@@ -58,9 +40,8 @@ describe('parseTaskInput', () => {
   })
 
   it('returns multiple resolved tags with other tokens', () => {
-    const result = parseTaskInput('Fix /Backend #urgent @Alice #blocked', people, projects)
+    const result = parseTaskInput('Fix #urgent @Alice #blocked', people)
     expect(result.title).toBe('Fix')
-    expect(result.resolved.projectId).toBe(10)
     expect(result.resolved.personIds).toEqual([1])
     expect(result.resolved.tags).toEqual(['urgent', 'blocked'])
   })
@@ -86,7 +67,6 @@ describe('applyNlpMetadata', () => {
         dueDate: due,
         personIds: [],
         unmatchedPersons: [],
-        unmatchedProjects: [],
         tags: [],
         unmatchedStatuses: [],
       },
@@ -113,7 +93,6 @@ describe('applyNlpMetadata', () => {
         recurrence: 'weekly',
         personIds: [],
         unmatchedPersons: [],
-        unmatchedProjects: [],
         tags: [],
         unmatchedStatuses: [],
       },
@@ -137,7 +116,6 @@ describe('applyNlpMetadata', () => {
         title: 'Test task',
         personIds: [1],
         unmatchedPersons: [],
-        unmatchedProjects: [],
         tags: [],
         unmatchedStatuses: [],
       },
@@ -158,7 +136,6 @@ describe('applyNlpMetadata', () => {
         title: 'Test task',
         personIds: [1, 2],
         unmatchedPersons: [],
-        unmatchedProjects: [],
         tags: [],
         unmatchedStatuses: [],
       },
@@ -188,7 +165,6 @@ describe('applyNlpMetadata', () => {
         title: 'Test task',
         personIds: [],
         unmatchedPersons: [],
-        unmatchedProjects: [],
         tags: ['urgent', 'blocked'],
         unmatchedStatuses: [],
       },
@@ -219,7 +195,6 @@ describe('applyNlpMetadata', () => {
         title: 'Test task',
         personIds: [1],
         unmatchedPersons: [],
-        unmatchedProjects: [],
         tags: [],
         unmatchedStatuses: [],
       },

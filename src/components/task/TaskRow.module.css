@@ -67,16 +67,10 @@
   opacity: 0.4;
 }
 
-.row.cut {
-  opacity: 0.35;
-  border: 1px dashed var(--color-accent-dim);
-}
-
 /*
- * Ghost: row is filtered out by an active filter on this surface (canvas
- * ProjectNode, ListView, etc.). Chips/pill bar are removed by the surface
- * itself; the row is dimmed here so it reads as "still present, just
- * filtered out".
+ * Ghost: row is filtered out by an active filter on this surface. Chips/pill
+ * bar are removed by the surface itself; the row is dimmed here so it reads
+ * as "still present, just filtered out".
  */
 .row[data-ghosted] {
   opacity: 0.45;
@@ -201,15 +195,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.contextLine {
-  font-size: 10.5px;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 1.1;
 }
 
 .title.completedTitle {

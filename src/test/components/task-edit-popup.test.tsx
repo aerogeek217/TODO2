@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
-import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -14,7 +13,7 @@ beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
 })
 
-const TITLE_PLACEHOLDER = 'New task... (@person #tag /project tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task... (@person #tag tomorrow "this week")'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })
@@ -22,8 +21,7 @@ const urgentTag: Tag & { id: number } = { id: 1, name: 'urgent', color: '#f00' }
 const followupTag: Tag & { id: number } = { id: 2, name: 'followup', color: '#0a0' }
 
 function resetStores() {
-  useProjectStore.setState({ projects: [] })
-  useSettingsStore.setState({ defaultProjectId: undefined, themeMode: 'dark' })
+  useSettingsStore.setState({ themeMode: 'dark' })
   useTodoStore.setState(useTodoStore.getInitialState(), true)
   useUIStore.setState({ quickAddDraft: null })
   useFilterStore.getState().clearAll()

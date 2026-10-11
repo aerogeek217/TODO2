@@ -1,11 +1,10 @@
-import type { PersistedTodoItem, Person, Project } from '../models'
+import type { PersistedTodoItem, Person } from '../models'
 import type { FilterCriteria } from '../stores/filter-store'
 import { db } from '../data/database'
 import { useFilterStore } from '../stores/filter-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
-import { useProjectStore } from '../stores/project-store'
 import { useTagStore } from '../stores/tag-store'
 
 let makeTodoUidSeq = 0
@@ -32,18 +31,6 @@ export function makePerson(overrides: Partial<Person> & { id: number }): Person 
   }
 }
 
-export function makeProject(overrides: Partial<Project> & { id: number; canvasId: number }): Project & { id: number } {
-  return {
-    name: `Project ${overrides.id}`,
-    positionX: 0,
-    positionY: 0,
-    isCollapsed: false,
-    sortOrder: overrides.id,
-    createdAt: new Date(),
-    ...overrides,
-  }
-}
-
 export async function resetDb(): Promise<void> {
   await db.delete()
   await db.open()
@@ -53,7 +40,6 @@ export async function resetDb(): Promise<void> {
 export const emptyFilterCriteria: FilterCriteria = {
   showCompleted: false,
   personIds: null,
-  projectIds: null,
   statusIds: null,
   searchText: '',
   dateField: 'deadline',
@@ -71,7 +57,7 @@ export function clearFilterStore(): void {
 }
 
 /**
- * Reset the entity stores (todos, people, statuses, projects, tags).
+ * Reset the entity stores (todos, people, statuses, tags).
  * Each entity flag defaults to true; pass an opt-out for the ones you want to
  * keep mid-test (e.g. `resetEntityStores({ statuses: false })` if the suite
  * pre-seeds statuses outside the helper).
@@ -80,20 +66,17 @@ export function resetEntityStores(opts: {
   todos?: boolean
   people?: boolean
   statuses?: boolean
-  projects?: boolean
   tags?: boolean
 } = {}): void {
   const {
     todos = true,
     people = true,
     statuses = true,
-    projects = true,
     tags = true,
   } = opts
   if (todos) useTodoStore.setState({ todos: [] })
   if (people) usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
   if (statuses) useStatusStore.setState({ statuses: [] })
-  if (projects) useProjectStore.setState({ projects: [] })
   if (tags) useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 }
 
@@ -109,13 +92,29 @@ function currentStoreSpecs(): Record<string, string> {
 }
 
 /**
- * Store specs of the v58 schema: the current specs plus the taskboard stores
- * v59 dropped. Update when a later version changes a store spec (add back
- * what it drops / alters, remove what it adds).
+ * Store specs of the v59 schema: the current specs plus the project / canvas /
+ * floating-widget stores v60 dropped, and the `projectId` / `canvasId`
+ * indexes it removed. Update when a later version changes a store spec (add
+ * back what it drops / alters, remove what it adds).
  */
-export function v58StoreSpecs(): Record<string, string> {
+export function v59StoreSpecs(): Record<string, string> {
   return {
     ...currentStoreSpecs(),
+    todos: '++id, projectId, canvasId, isCompleted, dueDate, sortOrder, statusId, &uid',
+    notes: '++id, modifiedAt, canvasId',
+    projects: '++id, canvasId, sortOrder',
+    canvases: '++id, sortOrder',
+    listInsets: '++id, canvasId',
+    floatingCalendars: '++id, canvasId',
+    floatingNotes: '++id, canvasId',
+    floatingStatus: '++id, canvasId',
+  }
+}
+
+/** Store specs of the v58 schema: v59's plus the taskboard stores v59 dropped. */
+export function v58StoreSpecs(): Record<string, string> {
+  return {
+    ...v59StoreSpecs(),
     taskboards: '++id',
     floatingTaskboards: '++id, canvasId',
   }

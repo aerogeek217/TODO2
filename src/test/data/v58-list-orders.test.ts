@@ -39,7 +39,7 @@ describe('v58 Dexie upgrade', () => {
 })
 
 describe('listOrders import validation', () => {
-  const base = { canvases: [{ id: 1, name: 'c', sortOrder: 0, createdAt: '2026-10-01T00:00:00.000Z' }] }
+  const base = { todos: [], settings: [] }
 
   it('accepts a dataset without listOrders (older files, task archives)', () => {
     const result = validateImportData(base)

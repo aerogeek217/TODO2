@@ -60,8 +60,6 @@ export interface TodoPredicate {
   showCompleted: boolean
   /** null = no filter (all shown); array = only those IDs shown (0 = "unassigned" sentinel) */
   personIds: number[] | null
-  /** null = no filter; array = only todos in these projects shown (0 = "no project" sentinel) */
-  projectIds: number[] | null
   statusIds: number[] | null
   searchText: string
   dateField: DateField

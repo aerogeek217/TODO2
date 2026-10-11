@@ -97,25 +97,20 @@ describe('dev seed → prepareImport → restore', () => {
     const count = (table: string) => rows(seed, table).length
     const expected: Record<string, number> = {
       todos: count('todos'),
-      projects: 5,
-      canvases: 1,
-      // v59: the floating taskboard becomes a list inset of the Focus list.
-      listInsets: count('listInsets') + count('floatingTaskboards'),
       // v55: each org becomes a person; org assignments become person assignments.
       people: count('people') + count('orgs'),
       todoPeople: count('todoPeople') + count('todoOrgs'),
       // v52 drops the two horizons rows, v53 the follow-up pointer and the scheduled color;
-      // v53 adds an explicit quickStatusId, v56 activeLayoutId.
-      settings: count('settings') - 4 + 2,
+      // v53 adds an explicit quickStatusId, v56 activeLayoutId; v60 drops the five
+      // canvas / project settings.
+      settings: count('settings') - 4 + 2 - 5,
       statuses: count('statuses'),
       // v59 adds the Focus list.
       listDefinitions: count('listDefinitions') + 1,
       notes: 1,
-      floatingCalendars: count('floatingCalendars'),
-      floatingNotes: count('floatingNotes'),
-      floatingStatus: count('floatingStatus'),
-      tags: count('tags'),
-      todoTags: count('todoTags'),
+      // v60: each project becomes a tag; each task in a project is tagged with it.
+      tags: count('tags') + count('projects'),
+      todoTags: count('todoTags') + rows(seed, 'todos').filter((t) => t.projectId !== undefined).length,
       todoEvents: count('todoEvents'),
       layouts: 1,
       // v59: the Focus list is ordered like the taskboard was.
@@ -162,6 +157,26 @@ describe('dev seed → prepareImport → restore', () => {
       .toEqual(seed.orgs.map((o) => `Org: ${String(o.name)}`).sort())
     const lists = await db.listDefinitions.toArray()
     expect(lists.find((l) => l.name === 'By client')?.runtimeFilter).toEqual({ field: 'person', label: 'Client' })
+
+    // v60: projects are Project: tags; project grouping is tag grouping; the
+    // project filter folds into the tag filter (the "no project" pick is dropped).
+    for (const t of todos) expect('projectId' in t || 'canvasId' in t, `todo ${t.id}`).toBe(false)
+    const tags = await db.tags.toArray()
+    const projectTag = new Map(rows(seed, 'projects').map((p) => {
+      const tag = tags.find((x) => x.name === `Project: ${String(p.name)}`)
+      expect(tag, String(p.name)).toMatchObject({ color: p.color })
+      return [p.id as number, tag!.id!]
+    }))
+    const todoTags = await db.todoTags.toArray()
+    for (const t of rows(seed, 'todos')) {
+      if (t.projectId === undefined) continue
+      const tagId = projectTag.get(t.projectId as number)
+      expect(todoTags.some((r) => r.todoId === t.id && r.tagId === tagId), `todo ${String(t.id)} project tag`).toBe(true)
+    }
+    expect(lists.find((l) => l.name === 'Overdue & due soon')?.grouping).toBe('tag')
+    const northwind = lists.find((l) => l.name === 'Northwind')!
+    expect('projectIds' in northwind.membership.predicate).toBe(false)
+    expect(northwind.membership.predicate.tags).toEqual([projectTag.get(3)])
   })
 
   it('turns the taskboard into in-focus tasks in the Focus list, in board order', async () => {

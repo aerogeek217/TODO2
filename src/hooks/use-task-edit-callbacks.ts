@@ -1,10 +1,8 @@
 import { useCallback, useMemo } from 'react'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useProjectStore } from '../stores/project-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
-import { useCanvasStore } from '../stores/canvas-store'
 import { useUIStore } from '../stores/ui-store'
 import type { TodoItem, PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
@@ -28,8 +26,6 @@ export function useTaskEditCallbacks() {
   const { people, assignedPeopleMap, assignPerson, unassignPerson } = usePersonStore()
   const { tags, assignedTagsMap, assignTag, unassignTag } = useTagStore()
   const { statuses } = useStatusStore()
-  const { projects, add: addProject } = useProjectStore()
-  const { selectedCanvasId } = useCanvasStore()
   const { selectedTodoId, editPopupMode, openEditPopup, closeEditPopup } = useUIStore()
 
   const selectedTodo = useMemo(
@@ -38,12 +34,8 @@ export function useTaskEditCallbacks() {
   )
 
   const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds?: number[] }) => {
-    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, projects, statuses)
-    let pid = resolved.projectId ?? partial.projectId
-    if (!pid && selectedCanvasId) {
-      pid = await addProject('New Project', selectedCanvasId)
-    }
-    const id = await addTodo(parsedTitle || partial.title!, selectedCanvasId ?? undefined, pid)
+    const { title: parsedTitle, resolved } = parseTaskInput(partial.title!, people, statuses)
+    const id = await addTodo(parsedTitle || partial.title!)
     const todo = useTodoStore.getState().todos.find((t) => t.id === id)
     if (todo) {
       const followupTouched = 'nextFollowupAt' in partial || partial.lastFollowupAt !== undefined
@@ -82,7 +74,7 @@ export function useTaskEditCallbacks() {
     for (const tagId of allTagIds) await useTagStore.getState().assignTag(id, tagId)
     useUIStore.getState().showRecentlyCreated(id)
     return id
-  }, [selectedCanvasId, addTodo, updateTodo, assignPerson, addProject, people, projects, statuses])
+  }, [addTodo, updateTodo, assignPerson, people, statuses])
 
   /** Wrap onUpdate to propagate bulk-applicable field changes to other selected tasks. */
   const bulkAwareUpdate = useCallback((updated: PersistedTodoItem) => {
@@ -99,8 +91,6 @@ export function useTaskEditCallbacks() {
       store.bulkSetStatus(otherIds, updated.statusId)
     if (updated.dueDate?.getTime() !== current.dueDate?.getTime())
       store.bulkSetDeadline(otherIds, updated.dueDate ?? null)
-    if (updated.projectId !== current.projectId)
-      store.bulkSetProject(otherIds, updated.projectId)
     if (updated.nextFollowupAt?.getTime() !== current.nextFollowupAt?.getTime())
       store.bulkSetFollowup(otherIds, updated.nextFollowupAt ?? null)
   }, [updateTodo])

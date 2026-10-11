@@ -1,20 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskEditPopup } from '../../../components/task/TaskEditPopup'
-import { useProjectStore } from '../../../stores/project-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { makePerson } from '../../helpers'
 import type { Person, Tag } from '../../../models'
 
 beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
-  useProjectStore.setState({ projects: [] })
-  useSettingsStore.setState({ defaultProjectId: undefined, themeMode: 'dark' })
+  useSettingsStore.setState({ themeMode: 'dark' })
 })
 
 afterEach(() => cleanup())
 
-const TITLE_PLACEHOLDER = 'New task... (@person #tag /project tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task... (@person #tag tomorrow "this week")'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 // Tags kept unsorted on purpose — the component sorts alphabetically; tests assert order.

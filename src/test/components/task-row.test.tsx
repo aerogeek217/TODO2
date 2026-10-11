@@ -2,16 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { useStatusStore } from '../../stores/status-store'
-import { useProjectStore } from '../../stores/project-store'
 import { useUIStore } from '../../stores/ui-store'
-import { makeTodo, makePerson, makeProject, resetEntityStores } from '../helpers'
+import { makeTodo, makePerson, resetEntityStores } from '../helpers'
 
 const mockBulk = {
   toggleComplete: vi.fn(),
   remove: vi.fn(),
   setFocus: vi.fn(),
   setDeadline: vi.fn(),
-  setProject: vi.fn(),
   setStatus: vi.fn(),
   quickAssignPerson: vi.fn(),
   quickUnassignPerson: vi.fn(),
@@ -114,7 +112,7 @@ describe('TaskRow', () => {
       fireEvent.contextMenu(getRow())
       expect(screen.queryByText(/priority/i)).not.toBeInTheDocument()
       expect(screen.getByText('Add to Focus')).toBeInTheDocument()
-      expect(screen.getByText(/Move to project/i)).toBeInTheDocument()
+      expect(screen.queryByText(/project/i)).not.toBeInTheDocument()
     })
 
     it('Add to Focus puts the row task (or its selection) in focus', () => {
@@ -212,20 +210,6 @@ describe('TaskRow', () => {
     })
   })
 
-  describe('showContext sub-line', () => {
-    it('renders `in <project name>` when showContext is true and the task has a project', () => {
-      useProjectStore.setState({ projects: [makeProject({ id: 5, canvasId: 1, name: 'Launch plan' })] })
-      render(<TaskRow todo={makeTodo({ id: 1, projectId: 5 })} showContext />)
-      expect(screen.getByText('in Launch plan')).toBeInTheDocument()
-    })
-
-    it('does not render the context line when showContext is false', () => {
-      useProjectStore.setState({ projects: [makeProject({ id: 5, canvasId: 1, name: 'Launch plan' })] })
-      render(<TaskRow todo={makeTodo({ id: 1, projectId: 5 })} />)
-      expect(screen.queryByText(/in Launch plan/i)).not.toBeInTheDocument()
-    })
-  })
-
   describe('inline tag chip', () => {
     // Assigned tags render as `#name` chips alongside the people avatars, and
     // a hover-revealed `#` empty trigger mounts when no tags are assigned.
@@ -310,7 +294,7 @@ describe('TaskRow', () => {
     })
   })
 
-  describe('@ trigger placement (item 8)', () => {
+  describe('@ trigger placement', () => {
     // The empty-state @ button must render BEFORE the pill bar so it occupies
     // the people-chip slot. When people are populated, the avatar group inside
     // the pill bar takes that slot — same visual position either way.
@@ -327,7 +311,7 @@ describe('TaskRow', () => {
     })
   })
 
-  describe('ghost mode (items 7, 9, 10)', () => {
+  describe('ghost mode', () => {
     // Ghost rows used to be inert: right-click was suppressed entirely and the
     // dim styling had regressed. Now the row carries data-ghosted (CSS dims it)
     // and the same right-click menu opens as on non-ghost rows. The hook stops
@@ -350,7 +334,6 @@ describe('TaskRow', () => {
       expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 

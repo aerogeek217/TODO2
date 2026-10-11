@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type {
-  PersistedTodoItem, Person, Project, Status, Tag, TodoPredicate,
+  PersistedTodoItem, Person, Status, Tag, TodoPredicate,
 } from '../../models'
 import { LIST_SORT_VALUES, TODO_GROUP_BY_VALUES, TODO_SORT_BY_VALUES } from '../../models'
 import type { PersistedListDefinition, RuntimeFilterSpec } from '../../models/list-definition'
@@ -36,36 +36,34 @@ const statuses: Status[] = [
   { id: 2, name: 'Waiting', color: '#aa0', sortOrder: 0 },
 ]
 
-const project = (id: number, name: string, sortOrder: number): Project => ({
-  id, name, sortOrder, canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, createdAt: new Date(2026, 0, 1),
-})
-const projects = [project(1, 'Alpha', 1), project(2, 'Beta', 0)]
-
 const work: Tag = { id: 1, name: 'work', color: '#36c' }
 const home: Tag = { id: 2, name: 'home' }
+// Projects are tags named `Project: <name>`.
+const alpha: Tag = { id: 3, name: 'Project: Alpha', color: '#7a5' }
+const beta: Tag = { id: 4, name: 'Project: Beta', color: '#a57' }
 
 const todos: PersistedTodoItem[] = [
-  makeTodo({ id: 1, title: 'Pay invoice', sortOrder: 9, dueDate: day(10, 10), statusId: 1, projectId: 1 }),
+  makeTodo({ id: 1, title: 'Pay invoice', sortOrder: 9, dueDate: day(10, 10), statusId: 1 }),
   makeTodo({ id: 2, title: 'call plumber', sortOrder: 3, dueDate: day(10, 14), nextFollowupAt: day(10, 20), focus: true }),
-  makeTodo({ id: 3, title: 'Draft memo', sortOrder: 5, dueDate: day(10, 15), statusId: 2, projectId: 2 }),
-  makeTodo({ id: 4, title: 'book flights', sortOrder: 1, dueDate: day(10, 18), nextFollowupAt: day(10, 13), projectId: 1 }),
+  makeTodo({ id: 3, title: 'Draft memo', sortOrder: 5, dueDate: day(10, 15), statusId: 2 }),
+  makeTodo({ id: 4, title: 'book flights', sortOrder: 1, dueDate: day(10, 18), nextFollowupAt: day(10, 13) }),
   makeTodo({ id: 5, title: 'Archive old files', sortOrder: 7, dueDate: day(10, 19), statusId: 1, focus: true }),
   makeTodo({ id: 6, title: 'Plan offsite', sortOrder: 2, dueDate: day(12, 1), nextFollowupAt: day(10, 14), statusId: 2 }),
   makeTodo({ id: 7, title: 'Read book', sortOrder: 8, nextFollowupAt: day(11, 30) }),
-  makeTodo({ id: 8, title: 'Done thing', sortOrder: 4, isCompleted: true, dueDate: day(10, 12), projectId: 2 }),
+  makeTodo({ id: 8, title: 'Done thing', sortOrder: 4, isCompleted: true, dueDate: day(10, 12) }),
   makeTodo({ id: 9, title: 'Water plants', sortOrder: 6, notes: 'ask alice first' }),
-  makeTodo({ id: 10, title: 'pay rent', sortOrder: 10, dueDate: day(10, 14), statusId: 1, projectId: 2 }),
+  makeTodo({ id: 10, title: 'pay rent', sortOrder: 10, dueDate: day(10, 14), statusId: 1 }),
 ]
 
 const assignedPeopleMap = new Map<number, Person[]>([
   [1, [alice]], [2, [bob, alice]], [3, [acme]], [5, [bob]], [6, [alice, acme]], [8, [alice]], [10, [bob]],
 ])
 const assignedTagsMap = new Map<number, Tag[]>([
-  [1, [work]], [3, [work, home]], [4, [home]], [6, [work]], [9, [home]], [10, [home]],
+  [1, [work, alpha]], [3, [work, home, beta]], [4, [home, alpha]], [6, [work]], [8, [beta]], [9, [home]], [10, [home, beta]],
 ])
 
 const ctx: ListSectionsContext = {
-  today, weekStartsOn: 1, people, statuses, projects, assignedPeopleMap, assignedTagsMap,
+  today, weekStartsOn: 1, people, statuses, assignedPeopleMap, assignedTagsMap,
 }
 
 function def(over: Partial<PersistedListDefinition>): PersistedListDefinition {
@@ -82,14 +80,12 @@ function widgetSections(d: PersistedListDefinition, pick: number[] | undefined, 
     assignedPeopleMap,
     assignedTagsMap,
     statusesById: new Map(statuses.map((s) => [s.id!, s])),
-    projectsById: new Map(projects.map((p) => [p.id!, p])),
   }
   const evalPredicate = screen ? createScreenComposedEvaluator(screen, lookups, today) : createPredicateEvaluator(lookups, today)
   const [list] = buildDashboardLists([d], todos, {
     ...ctx,
     people: [...people],
     statuses: [...statuses],
-    projects: [...projects],
     evalPredicate,
     runtimeFilterValues: d.runtimeFilter && pick ? new Map([[d.id, pick]]) : undefined,
   })
@@ -107,7 +103,7 @@ function listPageSections(d: PersistedListDefinition, pick: number[] | undefined
     : predicateToCriteria(applyRuntimeFilter(criteriaToPredicate(manualFilters), spec, pick))
   const members = spec && pick == null
     ? []
-    : applyFilter(effective, todos, assignedPeopleMap, statuses, today, new Map(projects.map((p) => [p.id!, p])), assignedTagsMap)
+    : applyFilter(effective, todos, assignedPeopleMap, statuses, today, assignedTagsMap)
   return buildListSections(members, {
     groupBy: d.grouping,
     sortBy,
@@ -124,10 +120,11 @@ const predicates: Array<[string, TodoPredicate]> = [
   ['completed shown', { ...emptyPredicate(), showCompleted: true }],
   ['person filter incl. unassigned', { ...emptyPredicate(), personIds: [1, 0] }],
   ['tag filter', { ...emptyPredicate(), tags: [2, 1] }],
+  ['project tag filter', { ...emptyPredicate(), tags: [4] }],
   ['search by person name', { ...emptyPredicate(), searchText: 'alice' }],
   ['search by tag name', { ...emptyPredicate(), searchText: 'work' }],
   ['search by status name', { ...emptyPredicate(), searchText: 'waiting' }],
-  ['search by project name', { ...emptyPredicate(), searchText: 'beta' }],
+  ['search by project tag name', { ...emptyPredicate(), searchText: 'beta' }],
   ['in focus', { ...emptyPredicate(), focus: true }],
   ['not in focus', { ...emptyPredicate(), focus: false }],
 ]
@@ -138,7 +135,7 @@ const runtimeCases: Array<[string, RuntimeFilterSpec | undefined, number[] | und
   ['person prompt, picks incl. unassigned', { field: 'person' }, [3, 0]],
   ['tag prompt', { field: 'tag' }, [2]],
   ['status prompt', { field: 'status' }, [1]],
-  ['project prompt', { field: 'project' }, [2]],
+  ['tag prompt, several project tags', { field: 'tag' }, [4, 3]],
   ['prompt cleared', { field: 'person' }, []],
   ['prompt unanswered', { field: 'tag' }, undefined],
 ]
@@ -165,7 +162,7 @@ describe('list page and list widgets build the same sections', () => {
     }
   })
 
-  it('widget search hits person, status, tag and project names', () => {
+  it('widget search hits person, status and tag names (incl. project tags)', () => {
     const ids = (searchText: string) => widgetSections(
       def({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), searchText } } }),
       undefined,
@@ -175,6 +172,7 @@ describe('list page and list widgets build the same sections', () => {
     expect(ids('waiting')).toEqual([6, 3])
     expect(ids('home')).toEqual([4, 3, 9, 10])
     expect(ids('alpha')).toEqual([4, 1])
+    expect(ids('project:')).toEqual([4, 3, 1, 10])
   })
 })
 

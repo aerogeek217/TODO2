@@ -12,17 +12,12 @@
  */
 export const SETTING_KEYS = {
   themeMode: 'themeMode',
-  defaultProjectId: 'defaultProjectId',
   defaultStatusId: 'defaultStatusId',
   quickStatusId: 'quickStatusId',
   seededAssignedStatusId: 'seededAssignedStatusId',
   completedRetentionDays: 'completedRetentionDays',
   weekStartsOn: 'weekStartsOn',
-  canvasViewport: 'canvasViewport',
-  canvasRails: 'canvasRails',
   maxTags: 'maxTags',
-  defaultProjectGroupBy: 'defaultProjectGroupBy',
-  canvasMaxExtent: 'canvasMaxExtent',
   /** Default next-follow-up interval for new tasks / "Followed up", compact form (`1m`, `2w`, `10d`). */
   followupDefaultInterval: 'followupDefaultInterval',
   /** Id of the workspace layout that is open (a `layouts` row). */

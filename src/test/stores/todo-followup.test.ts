@@ -36,9 +36,9 @@ describe('new tasks get the default next follow-up', () => {
     expect(mem(id).nextFollowupAt).toEqual(day(2026, 11, 10))
   })
 
-  it('addAt() and the Settings interval', async () => {
+  it('add() follows the Settings interval', async () => {
     useSettingsStore.setState({ followupDefaultInterval: { count: 10, unit: 'd' } })
-    const id = await useTodoStore.getState().addAt('B', 1, 1, 5)
+    const id = await useTodoStore.getState().add('B')
     expect((await db.todos.get(id))!.nextFollowupAt).toEqual(day(2026, 10, 20))
   })
 

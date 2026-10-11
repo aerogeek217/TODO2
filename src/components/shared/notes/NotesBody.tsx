@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { EditorView } from '@codemirror/view'
 import { useNoteStore } from '../../../stores/note-store'
 import { useSettingsStore } from '../../../stores/settings-store'
-import { useCanvasStore } from '../../../stores/canvas-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
-import { useProjectStore } from '../../../stores/project-store'
 import type { PersistedTodoItem } from '../../../models'
 import { formatShortcut } from '../../../utils/platform'
 import { getFilterDefaults, supplementWithFilterDefaults } from '../../../utils/filter-defaults'
@@ -33,8 +31,8 @@ interface NotesBodyProps {
   /** Show the inline formatting toolbar. Defaults to true. */
   showToolbar?: boolean
   /**
-   * Override the note row this body edits. When provided (floating canvas
-   * notes), reads/writes the referenced row instead of the store's global
+   * Override the note row this body edits. When provided, reads/writes the
+   * referenced row instead of the store's global
    * `activeId`. Caller is responsible for ensuring the row is loaded.
    */
   activeIdOverride?: number | null
@@ -52,9 +50,9 @@ const LINE_PREFIX_RE = /^(\s*)(?:[—–\-•]\s+)?(?:\[[ xX]\]\s+)?(.*)$/
 const ALREADY_CONVERTED_RE = /^\s*✓\s/
 
 /**
- * Presentation-neutral notes body used by the dashboard Notes tile, the
- * canvas rail Notes slot, and task note popovers. Owns the editor + Alt-T
- * convert action; the outer chrome is supplied by each surface.
+ * Presentation-neutral notes body used by the notes widget and task note
+ * popovers. Owns the editor + Alt-T convert action; the outer chrome is
+ * supplied by each surface.
  */
 export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, activeIdOverride, source, placeholder }: NotesBodyProps) {
   const storeActiveId = useNoteStore((s) => s.activeId)
@@ -64,8 +62,6 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const load = useNoteStore((s) => s.load)
   const storeFlush = useNoteStore((s) => s.flush)
 
-  const defaultProjectId = useSettingsStore((s) => s.defaultProjectId)
-  const selectedCanvasId = useCanvasStore((s) => s.selectedCanvasId)
   const addTodo = useTodoStore((s) => s.add)
   const updateTodo = useTodoStore((s) => s.update)
   const assignPerson = usePersonStore((s) => s.assignPerson)
@@ -107,17 +103,15 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
 
     // Parse line via NLP + apply the active filter's defaults (as QuickAdd does).
     const people = usePersonStore.getState().people
-    const projects = useProjectStore.getState().projects
     const statuses = useStatusStore.getState().statuses
-    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, projects, statuses)
+    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, statuses)
     const fd = getFilterDefaults(useFilterStore.getState().filters)
     supplementWithFilterDefaults(resolved, fd)
     const effectiveTitle = parsedTitle || rawTitle
-    const pid = resolved.projectId ?? defaultProjectId ?? undefined
 
     let newId: number
     try {
-      newId = await addTodo(effectiveTitle, selectedCanvasId ?? undefined, pid)
+      newId = await addTodo(effectiveTitle)
     } catch {
       onConvertToast?.('Failed to convert line')
       return true
@@ -155,7 +149,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
       },
     })
     return true
-  }, [activeId, addTodo, updateTodo, assignPerson, selectedCanvasId, defaultProjectId, onConvertToast, source])
+  }, [activeId, addTodo, updateTodo, assignPerson, onConvertToast, source])
 
   const extraKeymap = useMemo(
     () => [

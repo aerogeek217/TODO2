@@ -67,7 +67,7 @@ describe('natural-language-parser — :status token', () => {
 describe('nlp-resolver — :status resolution', () => {
   it('resolves :doing to status id via case-insensitive exact match', () => {
     const parsed = parseInput(':doing fix it')
-    const result = resolveInput(parsed, people, [], statuses)
+    const result = resolveInput(parsed, people, statuses)
     expect(result.statusId).toBe(1)
     expect(result.unmatchedStatuses).toEqual([])
     expect(result.title).toBe('fix it')
@@ -75,26 +75,26 @@ describe('nlp-resolver — :status resolution', () => {
 
   it('resolves :Doing (different case) to the same status', () => {
     const parsed = parseInput(':Doing fix it')
-    const result = resolveInput(parsed, people, [], statuses)
+    const result = resolveInput(parsed, people, statuses)
     expect(result.statusId).toBe(1)
   })
 
   it('resolves by prefix match (:bl → Blocked)', () => {
     const parsed = parseInput(':bl fix it')
-    const result = resolveInput(parsed, people, [], statuses)
+    const result = resolveInput(parsed, people, statuses)
     expect(result.statusId).toBe(2)
   })
 
   it('reports unmatched status names in unmatchedStatuses', () => {
     const parsed = parseInput(':typo fix it')
-    const result = resolveInput(parsed, people, [], statuses)
+    const result = resolveInput(parsed, people, statuses)
     expect(result.statusId).toBeUndefined()
     expect(result.unmatchedStatuses).toEqual(['typo'])
   })
 
   it('first matched status wins when multiple :tokens are present', () => {
     const parsed = parseInput(':doing :blocked fix it')
-    const result = resolveInput(parsed, people, [], statuses)
+    const result = resolveInput(parsed, people, statuses)
     expect(result.statusId).toBe(1)
   })
 

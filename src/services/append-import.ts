@@ -3,11 +3,7 @@ import type { ImportData } from '../data/import-validation'
 import { todoRepository } from '../data/todo-repository'
 import { appendImportTasks, nameKey, type AppendChoice, type AppendImportResult } from '../data/append-import'
 import { backupScheduler } from './backup-scheduler'
-import { ensureDefaultProject } from './ensure-default-project'
-import { getCanvasMaxExtent } from '../utils/canvas-bounds'
-import { useCanvasStore } from '../stores/canvas-store'
 import { useTodoStore } from '../stores/todo-store'
-import { useProjectStore } from '../stores/project-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
@@ -63,11 +59,8 @@ export function defaultAppendChoices(candidates: readonly AppendCandidate[]): Ma
 }
 
 /**
- * Runs a confirmed append import: backup snapshot → `appendImportTasks` on
- * the selected canvas → reload the affected stores.
- *
- * Tasks whose project isn't in the file land in the canvas's default project
- * (`ensureDefaultProject`), resolved only when such a task is imported.
+ * Runs a confirmed append import: backup snapshot → `appendImportTasks` →
+ * reload the affected stores.
  */
 export async function runAppendImport(
   data: ImportData,
@@ -75,28 +68,10 @@ export async function runAppendImport(
 ): Promise<AppendImportResult> {
   await backupScheduler.snapshotBeforeDestructive().catch((e) => console.warn('backup snapshot failed', e))
 
-  const canvasId = useCanvasStore.getState().selectedCanvasId ?? undefined
-  const projectIds = new Set(data.projects.map((p) => p.id))
-  const needsFallback = data.todos.some((t) =>
-    (choices.get(t.uid) ?? 'import') === 'import' && (t.projectId == null || !projectIds.has(t.projectId)),
-  )
-  let fallbackProjectId: number | undefined
-  if (canvasId != null && needsFallback) {
-    // `ensureDefaultProject` reads the project store — make sure it's loaded,
-    // or it would create an Inbox next to existing projects.
-    await useProjectStore.getState().ensureAllLoaded()
-    fallbackProjectId = await ensureDefaultProject(canvasId)
-  }
-
-  const result = await appendImportTasks(data, choices, {
-    canvasId,
-    fallbackProjectId,
-    maxExtent: getCanvasMaxExtent(),
-  })
+  const result = await appendImportTasks(data, choices)
 
   await Promise.all([
     useTodoStore.getState().loadAll(),
-    useProjectStore.getState().loadAll(),
     usePersonStore.getState().load(),
     useTagStore.getState().load(),
     useStatusStore.getState().load(),

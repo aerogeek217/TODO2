@@ -8,7 +8,6 @@ function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
   return {
     showCompleted: false,
     personIds: null,
-    projectIds: null,
     statusIds: null,
     searchText: '',
     dateField: 'deadline',
@@ -29,7 +28,6 @@ describe('getFilterDefaults', () => {
     expect(result.personIds).toEqual([])
     expect(result.tagIds).toEqual([])
     expect(result.statusId).toBeUndefined()
-    expect(result.projectId).toBeUndefined()
   })
 
   it('returns all tag ids when filter has tag clause', () => {
@@ -80,28 +78,11 @@ describe('getFilterDefaults', () => {
     const result = getFilterDefaults(makeFilters({
       personIds: new Set([5, 10]),
       statusIds: new Set([7]),
-      projectIds: new Set([42]),
       tags: new Set([1, 2]),
     }))
     expect(result.personIds).toHaveLength(2)
     expect(result.statusId).toBe(7)
-    expect(result.projectId).toBe(42)
     expect(result.tagIds).toHaveLength(2)
-  })
-
-  it('single project returns that project', () => {
-    const result = getFilterDefaults(makeFilters({ projectIds: new Set([9]) }))
-    expect(result.projectId).toBe(9)
-  })
-
-  it('single project 0 returns undefined', () => {
-    const result = getFilterDefaults(makeFilters({ projectIds: new Set([0]) }))
-    expect(result.projectId).toBeUndefined()
-  })
-
-  it('multiple projects returns undefined', () => {
-    const result = getFilterDefaults(makeFilters({ projectIds: new Set([3, 5]) }))
-    expect(result.projectId).toBeUndefined()
   })
 })
 
@@ -110,7 +91,6 @@ function makeResolved(overrides: Partial<ResolvedInput> = {}): ResolvedInput {
     title: 'test',
     personIds: [],
     unmatchedPersons: [],
-    unmatchedProjects: [],
     tags: [],
     unmatchedStatuses: [],
     ...overrides,
@@ -120,37 +100,25 @@ function makeResolved(overrides: Partial<ResolvedInput> = {}): ResolvedInput {
 describe('supplementWithFilterDefaults', () => {
   it('fills empty people from filter defaults', () => {
     const resolved = makeResolved()
-    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined, projectId: undefined })
+    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined })
     expect(resolved.personIds).toEqual([1, 2])
   })
 
   it('does not overwrite NLP-resolved people', () => {
     const resolved = makeResolved({ personIds: [99] })
-    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined, projectId: undefined })
+    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined })
     expect(resolved.personIds).toEqual([99])
-  })
-
-  it('fills undefined projectId from filter default', () => {
-    const resolved = makeResolved()
-    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: undefined, projectId: 7 })
-    expect(resolved.projectId).toBe(7)
-  })
-
-  it('does not overwrite NLP-resolved projectId', () => {
-    const resolved = makeResolved({ projectId: 55 })
-    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: undefined, projectId: 7 })
-    expect(resolved.projectId).toBe(55)
   })
 
   it('fills undefined statusId from filter default', () => {
     const resolved = makeResolved()
-    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: 4, projectId: undefined })
+    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: 4 })
     expect(resolved.statusId).toBe(4)
   })
 
   it('does not overwrite NLP-resolved statusId', () => {
     const resolved = makeResolved({ statusId: 99 })
-    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: 4, projectId: undefined })
+    supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: 4 })
     expect(resolved.statusId).toBe(99)
   })
 })
@@ -159,7 +127,6 @@ function makePredicate(overrides: Partial<TodoPredicate> = {}): TodoPredicate {
   return {
     showCompleted: false,
     personIds: null,
-    projectIds: null,
     statusIds: null,
     searchText: '',
     dateField: 'deadline',
@@ -178,12 +145,10 @@ describe('predicateToFilterDefaults', () => {
     const result = predicateToFilterDefaults(makePredicate({
       personIds: [5, 10],
       statusIds: [7],
-      projectIds: [42],
       tags: [1, 2],
     }))
     expect(result.personIds).toHaveLength(2)
     expect(result.statusId).toBe(7)
-    expect(result.projectId).toBe(42)
     expect(result.tagIds).toHaveLength(2)
   })
 
@@ -192,6 +157,5 @@ describe('predicateToFilterDefaults', () => {
     expect(result.personIds).toEqual([])
     expect(result.tagIds).toEqual([])
     expect(result.statusId).toBeUndefined()
-    expect(result.projectId).toBeUndefined()
   })
 })

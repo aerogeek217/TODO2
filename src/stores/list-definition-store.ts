@@ -45,7 +45,6 @@ export function emptyPredicate(): TodoPredicate {
   return {
     showCompleted: false,
     personIds: null,
-    projectIds: null,
     statusIds: null,
     searchText: '',
     dateField: 'deadline',

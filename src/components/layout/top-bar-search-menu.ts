@@ -18,14 +18,12 @@ import type { ContextMenuItem } from '../../models/context-menu'
 export function buildSearchContextMenuItems(params: {
   todo: PersistedTodoItem
   onOpen: (todoId: number) => void
-  onMoveToProject: () => void
 }): ContextMenuItem[] {
-  const { todo, onOpen, onMoveToProject } = params
+  const { todo, onOpen } = params
   return buildTaskRowMenuItems({
     todo,
     onToggleFocus: () => { void useTodoStore.getState().bulkSetFocus([todo.id], todo.focus !== true) },
     onOpenDetail: onOpen,
-    onMoveToProject,
     onFollowedUp: () => { void useTodoStore.getState().markFollowedUp([todo.id]) },
     onComplete: () => { void useTodoStore.getState().toggleComplete(todo.id) },
     onDelete: () => useUIStore.getState().showBulkConfirmation('delete', [todo.id]),
