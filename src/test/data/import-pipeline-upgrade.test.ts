@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SchemaUpgrade } from '../../data/schema-upgrades'
 
 /**
@@ -23,6 +23,9 @@ const testRegistry = new Map<number, SchemaUpgrade>([
   // v51: cross-table — must tolerate a missing table.
   [51, (d) => (d.people ? { ...d, people: d.people.map((p) => ({ ...p, initials: String(p.initials ?? 'XX') })) } : d)],
 ])
+// Restored before each test, so one that swaps in a step (the throwing v51
+// below) can't leak into whichever test runs next.
+const defaultSteps = new Map(testRegistry)
 
 vi.mock('../../data/schema-upgrades', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../data/schema-upgrades')>()
@@ -41,6 +44,11 @@ const base = {
 }
 
 describe('prepareImport — upgrade path (simulated CURRENT = 51)', () => {
+  beforeEach(() => {
+    testRegistry.clear()
+    for (const [version, step] of defaultSteps) testRegistry.set(version, step)
+  })
+
   it('upgrades a v49 file through v50 + v51 before validating', () => {
     const result = prepareImport({
       __schemaVersion: 49,
