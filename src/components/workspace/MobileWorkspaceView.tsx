@@ -153,7 +153,7 @@ function MobileTopBar({ name }: { name: string }) {
   )
 }
 
-/** Long-press on a list tab: the list's items (D2 tab menu) as a bottom sheet. */
+/** Long-press on a list tab: the tab menu's list items as a bottom sheet. */
 function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
   tabId: string
   listDefinitionId: number

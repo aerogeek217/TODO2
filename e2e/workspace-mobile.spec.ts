@@ -165,3 +165,17 @@ test('the layout sheet switches layouts and starts at the first column', async (
   await expect(columnName(page, 'Today')).toHaveAttribute('aria-selected', 'true')
   await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(0)
 })
+
+test('long-pressing a list tab opens its list sheet; a list edit shows the save button', async ({ page }) => {
+  await seed(page)
+  // Mobile browsers turn a long press into `contextmenu`.
+  await wsTab(page, 'todayTab').dispatchEvent('contextmenu')
+  const sheet = page.getByRole('menu', { name: 'List' })
+  await expect(sheet.getByRole('menuitem')).toHaveText(['List options…', 'Edit list…', 'Copy tasks'])
+  await sheet.getByRole('menuitem', { name: 'List options…' }).click()
+  const options = page.getByTestId('list-options')
+  await expect(options).toBeVisible()
+  await options.getByLabel('Sort').selectOption('name')
+  await expect(wsCell(page, 'a1').getByTestId('save-list')).toBeVisible()
+  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+})
