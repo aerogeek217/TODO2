@@ -225,6 +225,8 @@ export async function appendImportTasks(
       if (t.isCompleted && t.completedAt != null) row.completedAt = t.completedAt
       if (t.scheduledDate != null) row.scheduledDate = t.scheduledDate
       if (t.dueDate != null) row.dueDate = t.dueDate
+      if (t.lastFollowupAt != null) row.lastFollowupAt = t.lastFollowupAt
+      if (t.nextFollowupAt != null) row.nextFollowupAt = t.nextFollowupAt
       if (t.recurrenceRule != null) row.recurrenceRule = t.recurrenceRule
       const statusId = await resolveStatus(t.statusId)
       if (statusId != null) row.statusId = statusId

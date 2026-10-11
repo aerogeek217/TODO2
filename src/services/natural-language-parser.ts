@@ -224,6 +224,17 @@ function resolveDeadlineText(text: string, today: Date): Date | null {
   return parseRelativeDate(text)
 }
 
+/**
+ * Resolve a standalone date phrase (the same grammar `by <date>` / `due <date>`
+ * accept: `today`, `tomorrow`, day names, `next fri`, `in 3 days`, `this week`,
+ * `MM/DD[/YY]`, …) to a midnight Date, or null when it isn't one. Used by date
+ * inputs outside free-text parsing (the follow-up input).
+ */
+export function parseDatePhrase(text: string, today: Date): Date | null {
+  if (!text.trim()) return null
+  return resolveDeadlineText(text, today)
+}
+
 const MAX_INPUT_LENGTH = 500
 
 export function parseInput(text: string): ParsedInput {

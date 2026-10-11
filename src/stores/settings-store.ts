@@ -10,8 +10,14 @@ import type { ProjectGroupBy } from '../models'
 import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 import { DEFAULT_CANVAS_MAX_EXTENT, isValidCanvasMaxExtent } from '../utils/canvas-bounds'
+import {
+  DEFAULT_FOLLOWUP_INTERVAL,
+  formatFollowupInterval,
+  parseFollowupInterval,
+  type FollowupInterval,
+} from '../utils/followup'
 
-const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
+const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'followup', 'date'] as const
 
 export function isValidProjectGroupBy(v: unknown): v is ProjectGroupBy {
   return typeof v === 'string' && (PROJECT_GROUP_BY_VALUES as readonly string[]).includes(v)
@@ -49,6 +55,8 @@ interface SettingsState {
    * spawn site clamps to ±N before writing to a repository so widgets cannot
    * drift off-canvas. Configurable via SettingsPage. */
   canvasMaxExtent: number
+  /** Next follow-up for new tasks and after "Followed up" = today + this. */
+  followupDefaultInterval: FollowupInterval
 
   load: () => Promise<void>
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
@@ -64,6 +72,7 @@ interface SettingsState {
   setCanvasRails: (rails: RailsState) => void
   setDefaultProjectGroupBy: (groupBy: ProjectGroupBy | null) => Promise<void>
   setCanvasMaxExtent: (n: number) => Promise<void>
+  setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -229,6 +238,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   maxTags: DEFAULT_MAX_TAGS,
   defaultProjectGroupBy: 'tag' as ProjectGroupBy,
   canvasMaxExtent: DEFAULT_CANVAS_MAX_EXTENT,
+  followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
 
   async load() {
     try {
@@ -251,6 +261,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let maxTags: number = DEFAULT_MAX_TAGS
       let defaultProjectGroupBy: ProjectGroupBy | null = 'tag'
       let canvasMaxExtent: number = DEFAULT_CANVAS_MAX_EXTENT
+      let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const rest = row.key.slice('color.'.length)
@@ -298,11 +309,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.canvasMaxExtent) {
           const parsed = Number(row.value)
           if (isValidCanvasMaxExtent(parsed)) canvasMaxExtent = parsed
+        } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
+          followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
         }
       }
       customizedColorKeys = customKeys
       if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent, followupDefaultInterval })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -404,6 +417,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (!isValidCanvasMaxExtent(n)) return
     await settingsRepository.put(SETTING_KEYS.canvasMaxExtent, String(n))
     set({ canvasMaxExtent: n })
+  },
+
+  async setFollowupDefaultInterval(interval: FollowupInterval) {
+    const value = formatFollowupInterval(interval)
+    if (!parseFollowupInterval(value)) return
+    await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
+    set({ followupDefaultInterval: { ...interval } })
   },
 
   setCanvasRails: createDebouncedPersist<RailsState>({

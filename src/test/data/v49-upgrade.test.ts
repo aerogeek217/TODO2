@@ -257,3 +257,23 @@ describe('v49 fixture → v52: removed widgets are gone, everything else intact'
       .toEqual({ widths: original.widths, heights: original.heights, corners: original.corners, collapsed: original.collapsed })
   })
 })
+
+describe('v49 fixture → follow-up fields: no backfill', () => {
+  it('existing tasks start with no follow-up (neither last nor next)', async () => {
+    await importFixture()
+    const todos = await db.todos.toArray()
+    expect(todos.length).toBe(fixture.todos.length)
+    for (const t of todos) {
+      expect(t.lastFollowupAt, `todo ${t.id} lastFollowupAt`).toBeUndefined()
+      expect(t.nextFollowupAt, `todo ${t.id} nextFollowupAt`).toBeUndefined()
+    }
+  })
+
+  it('stored predicates without hasFollowup still load, and no default-interval row is invented', async () => {
+    await importFixture()
+    for (const def of await db.listDefinitions.toArray()) {
+      expect('hasFollowup' in def.membership.predicate, `${def.name} predicate`).toBe(false)
+    }
+    expect(await db.settings.get('followupDefaultInterval')).toBeUndefined()
+  })
+})

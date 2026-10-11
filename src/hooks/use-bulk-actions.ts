@@ -57,6 +57,20 @@ export function useBulkActions() {
     }
   }, [])
 
+  const setFollowup = useCallback((todoId: number, date: Date | null) => {
+    const ids = getTargetIds(todoId)
+    if (ids.length > 1) {
+      useTodoStore.getState().bulkSetFollowup(ids, date)
+    } else {
+      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+      if (todo) useTodoStore.getState().update({ ...todo, nextFollowupAt: date ?? undefined })
+    }
+  }, [])
+
+  const markFollowedUp = useCallback((todoId: number) => {
+    useTodoStore.getState().markFollowedUp(getTargetIds(todoId))
+  }, [])
+
   const setStatus = useCallback((todoId: number, statusId: number | undefined) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
@@ -137,6 +151,8 @@ export function useBulkActions() {
     setStatus,
     setScheduled,
     setDeadline,
+    setFollowup,
+    markFollowedUp,
     setProject,
     quickAssignPerson,
     quickUnassignPerson,

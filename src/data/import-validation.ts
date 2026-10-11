@@ -12,6 +12,7 @@ import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { SLOT_KINDS } from '../models/canvas-rails'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { MAX_CANVAS_RAILS_SETTING_BYTES } from '../constants'
+import { parseFollowupInterval } from '../utils/followup'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -148,6 +149,8 @@ function checkTodo(v: unknown): CheckResult {
     ['completedAt', isOptDateLike(v.completedAt)],
     ['scheduledDate', isOptScheduledValue(v.scheduledDate)],
     ['dueDate', isOptDateLike(v.dueDate)],
+    ['lastFollowupAt', isOptDateLike(v.lastFollowupAt)],
+    ['nextFollowupAt', isOptDateLike(v.nextFollowupAt)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
@@ -183,6 +186,7 @@ function isTodoPredicateShape(v: unknown): boolean {
   if (!isOptDateAnchor(v.dateRangeEnd)) return false
   if (!isOptTriBool(v.hasScheduled)) return false
   if (!isOptTriBool(v.hasDeadline)) return false
+  if (!isOptTriBool(v.hasFollowup)) return false
   return true
 }
 
@@ -427,7 +431,7 @@ const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS
 // `defaultProjectGroupBy` shares the unified `TodoGroupBy` literal set; the
 // canonical "no grouping" sentinel is `null` (carried as the empty string in
 // the settings row), but `'none'` is also accepted.
-const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date'] as const
+const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'followup', 'date'] as const
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -563,6 +567,11 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : `value (defaultProjectGroupBy must be one of: ${(VALID_DEFAULT_PROJECT_GROUP_BY as readonly string[]).filter(Boolean).join(', ')} or empty)`
   }
+  if (v.key === SETTING_KEYS.followupDefaultInterval) {
+    return parseFollowupInterval(v.value as string)
+      ? true
+      : 'value (followupDefaultInterval must look like 3d, 2w, 1m or 1y)'
+  }
   if (v.key === SETTING_KEYS.canvasMaxExtent) {
     const n = Number(v.value)
     return Number.isFinite(n) && n >= 1000 && n <= 100000
@@ -639,6 +648,8 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     progress: optStr(v.progress),
     scheduledDate: v.scheduledDate != null ? pickScheduledValue(v.scheduledDate as Raw) : undefined,
     dueDate: toOptDate(v.dueDate),
+    lastFollowupAt: toOptDate(v.lastFollowupAt),
+    nextFollowupAt: toOptDate(v.nextFollowupAt),
     recurrenceRule: v.recurrenceRule != null ? v.recurrenceRule as RecurrenceRule : undefined,
     projectId: optNum(v.projectId),
     canvasId: optNum(v.canvasId),

@@ -8,6 +8,12 @@ import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded } from './store-helpers'
 import { useSettingsStore } from './settings-store'
 import { resolveCompletedAt } from '../utils/completed-at'
+import { addFollowupInterval, formatFollowupDate } from '../utils/followup'
+
+/** Next follow-up for a task created (or followed up) at `now`: today + the Settings default. */
+function defaultNextFollowup(now: Date): Date {
+  return addFollowupInterval(now, useSettingsStore.getState().followupDefaultInterval)
+}
 
 interface TodoState {
   todos: PersistedTodoItem[]
@@ -38,6 +44,15 @@ interface TodoState {
   bulkSetScheduled: (ids: number[], value: ScheduledValue | null) => Promise<void>
   bulkSetDeadline: (ids: number[], date: Date | null) => Promise<void>
   bulkSetProject: (ids: number[], projectId: number | undefined) => Promise<void>
+  /** Sets (or, with `null`, clears) `nextFollowupAt` on every task in `ids`. */
+  bulkSetFollowup: (ids: number[], date: Date | null) => Promise<void>
+  /**
+   * "Followed up": `lastFollowupAt = now`, `nextFollowupAt = today + the
+   * Settings default interval`, on every task in `ids`. One undo step with
+   * the undo snackbar. The timestamps are resolved once and shared by the
+   * store and the DB write.
+   */
+  markFollowedUp: (ids: number[]) => Promise<void>
   bulkRemove: (ids: number[]) => Promise<void>
   reorder: (id: number, newSortOrder: number) => Promise<void>
   applyMutations: (mutations: TaskMutation[]) => Promise<void>
@@ -93,6 +108,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         sortOrder: maxSort + 1,
         canvasId,
         projectId,
+        nextFollowupAt: defaultNextFollowup(now),
         ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
       const todo = await todoRepository.getById(id)
@@ -120,6 +136,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         sortOrder,
         canvasId,
         projectId,
+        nextFollowupAt: defaultNextFollowup(now),
         ...(defaultStatusId != null && { statusId: defaultStatusId }),
       })
       const todo = await todoRepository.getById(id)
@@ -410,6 +427,58 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'projectId', projectId, `Move ${ids.length} tasks to project`, get, set)
   },
 
+  async bulkSetFollowup(ids: number[], date: Date | null) {
+    const label = date ? `Set follow-up on ${ids.length} tasks` : `Clear follow-up on ${ids.length} tasks`
+    await bulkUpdateField(ids, 'nextFollowupAt', date ?? undefined, label, get, set)
+  },
+
+  async markFollowedUp(ids: number[]) {
+    const targets = get().todos.filter((t) => ids.includes(t.id))
+    if (targets.length === 0) return
+    const now = new Date()
+    const next = defaultNextFollowup(now)
+    const changes = { lastFollowupAt: now, nextFollowupAt: next }
+    const prev = new Map(targets.map((t) => [t.id, {
+      lastFollowupAt: t.lastFollowupAt,
+      nextFollowupAt: t.nextFollowupAt,
+      modifiedAt: t.modifiedAt,
+    }]))
+    const targetIds = targets.map((t) => t.id)
+    const description = `Followed up · next follow-up ${formatFollowupDate(next, now)}`
+    return optimistic(
+      set,
+      () => set({
+        todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changes, modifiedAt: now } : t)),
+      }),
+      () => todoRepository.bulkUpdate(targetIds.map((todoId) => ({ todoId, changes }))),
+      () => set({
+        todos: get().todos.map((t) => {
+          const p = prev.get(t.id)
+          return p ? { ...t, ...p } : t
+        }),
+      }),
+      'Failed to mark tasks followed up',
+      {
+        description,
+        redo: () => get().markFollowedUp(targetIds),
+        undo: async () => {
+          const undoNow = new Date()
+          await todoRepository.bulkUpdate(targetIds.map((todoId) => {
+            const p = prev.get(todoId)
+            return { todoId, changes: { lastFollowupAt: p?.lastFollowupAt, nextFollowupAt: p?.nextFollowupAt } }
+          }))
+          set({
+            todos: get().todos.map((t) => {
+              const p = prev.get(t.id)
+              return p ? { ...t, lastFollowupAt: p.lastFollowupAt, nextFollowupAt: p.nextFollowupAt, modifiedAt: undoNow } : t
+            }),
+          })
+        },
+        showSnackbar: true,
+      },
+    )
+  },
+
   async bulkRemove(ids: number[]) {
     return mutate(set, async () => {
       if (ids.length > 5) {
@@ -528,6 +597,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         projectId: todo.projectId,
         scheduledDate: todo.scheduledDate,
         dueDate: todo.dueDate,
+        nextFollowupAt: todo.nextFollowupAt,
         notes: todo.notes,
         progress: todo.progress,
         statusId: todo.statusId,

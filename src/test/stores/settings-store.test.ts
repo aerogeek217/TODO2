@@ -23,7 +23,7 @@ const LIGHT_DEFAULTS = {
   header: '#f7fbfa',
   danger: '#d94a43',
   warning: '#d08a12',
-  star: '#c09a15',
+  star: '#826600',
   scheduled: '#3a9e93',
   deadline: '#b838c0',
 } as const
@@ -160,6 +160,22 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'defaultProjectGroupBy', value: '' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().defaultProjectGroupBy).toBeNull()
+  })
+
+  it('followupDefaultInterval defaults to 1 month, persists compactly, and ignores junk on load', async () => {
+    useSettingsStore.setState({ followupDefaultInterval: { count: 1, unit: 'm' } })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().followupDefaultInterval).toEqual({ count: 1, unit: 'm' })
+
+    await useSettingsStore.getState().setFollowupDefaultInterval({ count: 2, unit: 'w' })
+    expect((await db.settings.get('followupDefaultInterval'))!.value).toBe('2w')
+    useSettingsStore.setState({ followupDefaultInterval: { count: 1, unit: 'm' } })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().followupDefaultInterval).toEqual({ count: 2, unit: 'w' })
+
+    await db.settings.put({ key: 'followupDefaultInterval', value: 'soon' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().followupDefaultInterval).toEqual({ count: 1, unit: 'm' })
   })
 
   it('setDefaultProjectGroupBy ignores invalid values', async () => {

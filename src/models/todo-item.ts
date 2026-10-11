@@ -23,6 +23,19 @@ export interface TodoItem {
   scheduledDate?: ScheduledValue
   /** Deadline — UI label is "Deadline". */
   dueDate?: Date
+  /**
+   * When the task was last followed up: set to the exact moment by the
+   * "Followed up" action, or to a day (local midnight) when edited by hand.
+   * Never in the future.
+   */
+  lastFollowupAt?: Date
+  /**
+   * When to follow up next — a calendar day stored at local midnight. New
+   * tasks get today + the Settings default interval (`followupDefaultInterval`);
+   * "Followed up" moves it on by the same interval. Optional: clearing it
+   * leaves the task with no follow-up.
+   */
+  nextFollowupAt?: Date
   recurrenceRule?: RecurrenceRule
   createdAt: Date
   modifiedAt: Date
