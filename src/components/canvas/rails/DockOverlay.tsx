@@ -56,10 +56,7 @@ function SubZone({ side, claim }: { side: RailSide; claim?: EmptySideClaim }) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [pointerInside, setPointerInside] = useState(false)
   useEffect(() => {
-    if (!floatDragActive || isOver) {
-      setPointerInside(false)
-      return
-    }
+    if (!floatDragActive || isOver) return
     const onMove = (e: PointerEvent) => {
       const el = ref.current
       if (!el) return
@@ -69,7 +66,10 @@ function SubZone({ side, claim }: { side: RailSide; claim?: EmptySideClaim }) {
       setPointerInside(inside)
     }
     window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      setPointerInside(false)
+    }
   }, [floatDragActive, isOver])
   const hoverActive = isOver || pointerInside
   const label = claim

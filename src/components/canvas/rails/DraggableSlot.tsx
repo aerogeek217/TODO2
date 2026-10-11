@@ -22,8 +22,14 @@ export function DraggableSlot({ slotId, fromSide, header, children, flex, bodyRo
   const dropId = encodeRailsDropId({ kind: 'slot', slotId })
   const dragData: RailsDragData = { type: RAILS_DRAG_TYPE, kind: RAILS_DRAG_KIND.slot, slotId, fromSide }
 
-  const draggable = useDraggable({ id: dragId, data: dragData })
-  const droppable = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId } })
+  const {
+    setNodeRef: setDragNodeRef,
+    setActivatorNodeRef,
+    listeners,
+    attributes,
+    isDragging,
+  } = useDraggable({ id: dragId, data: dragData })
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId } })
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [hover, setHover] = useState<{ zone: SplitZone; dragKind: DragKind } | null>(null)
   // React-Flow-driven float drags bypass dnd-kit, so `droppable.isOver` never
@@ -46,15 +52,12 @@ export function DraggableSlot({ slotId, fromSide, header, children, flex, bodyRo
   // user doesn't see "Swap" while dragging a float (which actually merges as a
   // new tab). Source: triage-2026-04-27 item 5.
   useEffect(() => {
-    const slotDragOver = droppable.isOver && !draggable.isDragging
+    const slotDragOver = isOver && !isDragging
     const active = slotDragOver || floatDragActive
-    if (!active || draggable.isDragging) {
-      setHover(null)
-      return
-    }
+    if (!active || isDragging) return
     const dragKind: DragKind = slotDragOver ? 'slot' : 'float'
     const orientation = railOrientationForSide(fromSide)
-    const gateToRect = floatDragActive && !droppable.isOver
+    const gateToRect = floatDragActive && !isOver
     const onMove = (e: PointerEvent) => {
       const el = wrapRef.current
       if (!el) return
@@ -77,23 +80,24 @@ export function DraggableSlot({ slotId, fromSide, header, children, flex, bodyRo
     window.addEventListener('pointermove', onMove)
     return () => {
       window.removeEventListener('pointermove', onMove)
+      setHover(null)
     }
-  }, [droppable.isOver, draggable.isDragging, fromSide, floatDragActive])
+  }, [isOver, isDragging, fromSide, floatDragActive])
 
   const headerWithHandle = isValidElement(header)
     ? cloneElement(header as ReactElement<{ dragHandleProps?: unknown }>, {
         dragHandleProps: {
-          ref: draggable.setActivatorNodeRef,
-          ...draggable.listeners,
-          ...draggable.attributes,
+          ref: setActivatorNodeRef,
+          ...listeners,
+          ...attributes,
         },
       })
     : header
 
   const classes = [
     styles.wrap,
-    draggable.isDragging ? styles.dragging : '',
-    (droppable.isOver || hover != null) ? styles.over : '',
+    isDragging ? styles.dragging : '',
+    (isOver || hover != null) ? styles.over : '',
   ].filter(Boolean).join(' ')
 
   const style = flex != null && Number.isFinite(flex) && flex > 0
@@ -103,8 +107,8 @@ export function DraggableSlot({ slotId, fromSide, header, children, flex, bodyRo
   return (
     <div
       ref={(el) => {
-        draggable.setNodeRef(el)
-        droppable.setNodeRef(el)
+        setDragNodeRef(el)
+        setDropNodeRef(el)
         wrapRef.current = el
       }}
       className={classes}

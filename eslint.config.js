@@ -21,13 +21,6 @@ export default defineConfig([
     'src/components/taskboard/TaskboardPanel.tsx',
     'src/views/ListView.tsx',
   ]),
-  // Survives, reshaped in cr3 P1 (rails → workspace): fixed there, not twice.
-  globalIgnores([
-    'src/components/canvas/rails/TabStrip.tsx',
-    'src/components/canvas/rails/RailContainer.tsx',
-    'src/components/canvas/rails/DockOverlay.tsx',
-    'src/components/canvas/rails/DraggableSlot.tsx',
-  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

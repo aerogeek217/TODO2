@@ -96,17 +96,17 @@ function TabPill({ slotId, tab, active, fromSide, onActivate, onClose, onOpenCha
     tabId: tab.id,
     fromSide,
   }
-  const draggable = useDraggable({
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: `${RAILS_DRAG_ID_TAB_PREFIX}${slotId}:${tab.id}`,
     data: dragData,
   })
 
   return (
     <div
-      ref={draggable.setNodeRef}
-      {...draggable.attributes}
-      {...draggable.listeners}
-      className={`${styles.pill} ${active ? styles.active : ''} ${draggable.isDragging ? styles.dragging : ''}`}
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={`${styles.pill} ${active ? styles.active : ''} ${isDragging ? styles.dragging : ''}`}
       role="tab"
       id={tab.id}
       aria-selected={active}
@@ -219,29 +219,29 @@ export function TabStrip({
   }
 
   const dropId = encodeRailsDropId({ kind: 'tab-strip', slotId: slot.id })
-  const droppable = useDroppable({
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
     id: dropId,
     data: { type: RAILS_DRAG_TYPE, slotId: slot.id },
   })
 
   useEffect(() => {
-    if (!droppable.isOver) {
-      setHoverIdx(null)
-      return
-    }
+    if (!isOver) return
     const onMove = (e: PointerEvent) => {
       const el = tabsContainerRef.current
       if (!el) return
       setHoverIdx(computeTabInsertIdx(el, e.clientX, null))
     }
     window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
-  }, [droppable.isOver])
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      setHoverIdx(null)
+    }
+  }, [isOver])
 
   return (
     <div
-      ref={droppable.setNodeRef}
-      className={`${styles.strip} ${droppable.isOver ? styles.stripOver : ''}`}
+      ref={setDropNodeRef}
+      className={`${styles.strip} ${isOver ? styles.stripOver : ''}`}
       role="tablist"
       aria-label="Slot tabs"
       data-rails-drop-id={dropId}

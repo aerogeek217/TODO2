@@ -189,7 +189,7 @@ function CollapsedSlotStub({ slot, highlightFromAside }: CollapsedSlotStubProps)
   // matches via the stub's small rect, and `resolveFloatDockTarget` walks
   // `elementsFromPoint` for the `data-rails-drop-id` attribute.
   const dropId = encodeRailsDropId({ kind: 'slot', slotId: slot.id })
-  const droppable = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId: slot.id } })
+  const { setNodeRef, isOver } = useDroppable({ id: dropId, data: { type: RAILS_DRAG_TYPE, slotId: slot.id } })
   // React-Flow-driven float drags bypass dnd-kit, so `droppable.isOver` never
   // fires while a floating widget is being dragged over the stub. The
   // aside-level pointer listener in `RailContainer` computes the nearest
@@ -198,10 +198,10 @@ function CollapsedSlotStub({ slot, highlightFromAside }: CollapsedSlotStubProps)
   // margin / between-stub / aside-padding gaps, replacing the per-stub
   // pointer-inside shortcut. `droppable.isOver` still drives the dnd-kit
   // slot/tab drag highlight.
-  const hoverActive = droppable.isOver || highlightFromAside
+  const hoverActive = isOver || highlightFromAside
   return (
     <div
-      ref={droppable.setNodeRef}
+      ref={setNodeRef}
       className={`${styles.iconStub} ${hoverActive ? styles.iconStubOver : ''}`}
       title={label}
       data-rails-drop-id={dropId}
@@ -240,10 +240,7 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
   const asideRef = useRef<HTMLElement | null>(null)
   const [nearestStubId, setNearestStubId] = useState<string | null>(null)
   useEffect(() => {
-    if (!collapsed || !floatDragActive) {
-      setNearestStubId(null)
-      return
-    }
+    if (!collapsed || !floatDragActive) return
     const onMove = (e: PointerEvent) => {
       const aside = asideRef.current
       if (!aside) return
@@ -257,7 +254,10 @@ export function RailContainer({ side, rail, size, collapsed = false, onResize, c
       setNearestStubId(nearestStubSlotId(aside, { x: e.clientX, y: e.clientY }, side))
     }
     window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      setNearestStubId(null)
+    }
   }, [collapsed, floatDragActive, side])
 
   // When a float is in flight and the rail is collapsed, surface the aside
