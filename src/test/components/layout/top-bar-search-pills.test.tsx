@@ -35,12 +35,7 @@ function renderBar() {
 }
 
 describe('TopBar search-result pill bar — Phase 5', () => {
-  beforeEach(async () => {
-    // Drain any pending debounced timers from a prior test (TopBar's
-    // `handleSearchChange` debounces setSearchText by 150 ms; if a prior
-    // test's debounce fires during this one, it will overwrite localSearch
-    // mid-test and unmount the search row before our click reaches it).
-    await new Promise(r => setTimeout(r, 200))
+  beforeEach(() => {
     useFilterStore.getState().clearAll()
     useTodoStore.setState({ todos: [], loading: false, error: null })
     usePersonStore.setState({
