@@ -7,6 +7,11 @@ export interface WsTabSeed {
   kind: 'lens' | 'calendar' | 'notes' | 'status'
   /** Lens tabs: index into `listDefinitions`. */
   listDefIdx?: number
+  /** Calendar tabs: date types shown (default both). */
+  dateTypes?: { due: boolean; followup: boolean }
+  /** Calendar tabs: view state. */
+  view?: 'month' | 'week'
+  offset?: number
 }
 
 export interface WsCellSeed {
@@ -53,6 +58,9 @@ export interface WorkspaceSeed {
     /** Days from today. */
     dueInDays?: number
     followupInDays?: number
+    /** Hour of the due date (default midnight). */
+    dueHour?: number
+    recurrence?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
   }>
 }
 
@@ -135,7 +143,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         title: task.title,
         isCompleted: task.isCompleted ?? false,
         ...(task.isCompleted ? { completedAt: now } : {}),
-        ...(task.dueInDays != null ? { dueDate: day(task.dueInDays) } : {}),
+        ...(task.dueInDays != null ? { dueDate: new Date(day(task.dueInDays).setHours(task.dueHour ?? 0)) } : {}),
+        ...(task.recurrence ? { recurrenceRule: { type: task.recurrence } } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
         createdAt: now,
         modifiedAt: now,
@@ -160,7 +169,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
               const listDefinitionId = tab.listDefIdx != null ? defIds[tab.listDefIdx] : undefined
               return { id: tab.id, kind: 'lens', config: listDefinitionId != null ? { listDefinitionId } : {} }
             }
-            if (tab.kind === 'calendar') return { id: tab.id, kind: 'calendar', config: { dateTypes: { due: true, followup: true } } }
+            if (tab.kind === 'calendar') {
+              const viewState = tab.view != null || tab.offset != null ? { view: tab.view ?? 'month', offset: tab.offset ?? 0 } : undefined
+              return { id: tab.id, kind: 'calendar', config: { dateTypes: tab.dateTypes ?? { due: true, followup: true } }, ...(viewState ? { viewState } : {}) }
+            }
             return { id: tab.id, kind: tab.kind, config: {} }
           }),
         })),

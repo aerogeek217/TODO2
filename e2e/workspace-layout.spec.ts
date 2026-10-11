@@ -315,7 +315,7 @@ test.describe('task drags inside the workspace', () => {
         name: 'Main',
         columns: [
           { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false } }] }] },
         ],
       }],
     })
