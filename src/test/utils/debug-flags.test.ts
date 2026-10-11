@@ -87,7 +87,6 @@ describe('debug-dnd wrap sites — production silence', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const dispatchMod = await import('../../utils/task-dnd/dispatch')
     const kindsMod = await import('../../utils/task-dnd/kinds')
-    const helpers = await import('../helpers')
 
     const reschedule = vi.fn(async () => {})
     const fakeTaskboard: import('../../utils/task-dnd/dispatch').TaskboardOps = {
@@ -102,7 +101,13 @@ describe('debug-dnd wrap sites — production silence', () => {
       addAt: async () => {},
       addMultipleAt: async () => {},
     }
-    const todo = helpers.makeTodo({ id: 7 })
+    // Built inline, not via `../helpers`: after `vi.resetModules()` importing
+    // the helpers re-evaluates the whole store + Dexie graph, which took this
+    // test to the 5 s timeout under a loaded full-suite run.
+    const todo: import('../../models').PersistedTodoItem = {
+      id: 7, uid: 'debug-flags-7', title: 'Task 7', isCompleted: false,
+      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 7,
+    }
     const event = {
       active: { id: 'a', data: { current: { type: kindsMod.TASK_DRAG_KIND.task, todo } } },
       over: {
