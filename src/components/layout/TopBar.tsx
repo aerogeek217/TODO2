@@ -22,7 +22,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { startOfToday } from '../../utils/date'
-import { groupTodosByTextMatch, type TextMatchField } from '../../utils/filter'
+import { groupTodosByTextMatch, textMatchContextFor, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { TaskDraggable } from '../task/dnd/TaskDraggable'
@@ -345,12 +345,8 @@ export function TopBar() {
 
   const miniListGroups = useMemo(() => {
     if (!localSearch || !searchFocused) return null
-    return groupTodosByTextMatch(todos, localSearch, (t) => ({
-      projectName: t.projectId != null ? projectsById.get(t.projectId)?.name : undefined,
-      personNames: (assignedPeopleMap.get(t.id) ?? []).map(p => p.name),
-      statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
-      tagNames: (assignedTagsMap.get(t.id) ?? []).map(tg => tg.name),
-    }))
+    const lookups = { assignedPeopleMap, assignedTagsMap, statusesById, projectsById }
+    return groupTodosByTextMatch(todos, localSearch, (t) => textMatchContextFor(t, lookups))
   },[localSearch, searchFocused, todos, assignedPeopleMap, assignedTagsMap, projectsById, statusesById])
 
   const totalMatchCount = miniListGroups

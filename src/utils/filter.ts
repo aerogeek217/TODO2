@@ -1,3 +1,5 @@
+import type { Person, Project, Status, Tag } from '../models'
+
 /**
  * Toggle an item in a null-or-Set filter.
  * null = all shown. Set = explicit selection.
@@ -36,6 +38,31 @@ export interface TextMatchContext {
   personNames?: string[]
   statusName?: string
   tagNames?: string[]
+}
+
+/**
+ * Per-todo name lookups for {@link textMatchContextFor}. Every surface that
+ * searches tasks resolves names from these same maps, so a query hits the
+ * same tasks in the list page, list widgets and the top-bar search.
+ */
+export interface TodoNameLookups {
+  assignedPeopleMap?: ReadonlyMap<number, readonly Person[]>
+  assignedTagsMap?: ReadonlyMap<number, readonly Tag[]>
+  statusesById?: ReadonlyMap<number, Status>
+  projectsById?: ReadonlyMap<number, Project>
+}
+
+/** Resolve the person / status / tag / project names a text search can hit. */
+export function textMatchContextFor(
+  todo: { id: number; statusId?: number; projectId?: number },
+  lookups: TodoNameLookups,
+): TextMatchContext {
+  return {
+    projectName: todo.projectId != null ? lookups.projectsById?.get(todo.projectId)?.name : undefined,
+    personNames: (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.name),
+    statusName: todo.statusId != null ? lookups.statusesById?.get(todo.statusId)?.name : undefined,
+    tagNames: (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.name),
+  }
 }
 
 export interface TextMatchResult {

@@ -5,7 +5,7 @@ import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
 import { resolveDateAnchor } from '../utils/effective-date'
 import { useSettingsStore } from './settings-store'
-import { matchTodoText, type TextMatchContext } from '../utils/filter'
+import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from '../utils/filter'
 
 export type { DateField }
 
@@ -223,6 +223,24 @@ export function matchesFilter(
 }
 
 /**
+ * `matchesFilter` with assignments and names resolved from `lookups` — the
+ * one evaluation path shared by the list page (`applyFilter`) and list
+ * widgets (`createPredicateEvaluator`), so search hits the same person /
+ * status / tag / project names on both.
+ */
+export function matchesFilterWithLookups(
+  filters: FilterCriteria,
+  todo: PersistedTodoItem,
+  lookups: TodoNameLookups,
+  today: Date = startOfToday(),
+): boolean {
+  const personIds = (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.id!)
+  const tagIds = (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.id!)
+  const searchCtx = filters.searchText ? textMatchContextFor(todo, lookups) : undefined
+  return matchesFilter(filters, todo, personIds, today, searchCtx, tagIds)
+}
+
+/**
  * Canonical bulk evaluator. See `matchesFilter`.
  */
 export function applyFilter(
@@ -234,21 +252,32 @@ export function applyFilter(
   projectsById?: Map<number, Project>,
   assignedTagsMap?: Map<number, Tag[]>,
 ): PersistedTodoItem[] {
-  const needsSearchCtx = !!filters.searchText
-  return todos.filter((t) => {
-    const people = assignedPeopleMap?.get(t.id) ?? []
-    const personIds = people.map((p) => p.id!)
-    const tags = assignedTagsMap?.get(t.id) ?? []
-    const tagIds = tags.map((tg) => tg.id!)
-    const searchCtx: TextMatchContext | undefined = needsSearchCtx
-      ? {
-          projectName: t.projectId != null ? projectsById?.get(t.projectId)?.name : undefined,
-          personNames: people.map(p => p.name),
-          statusName: t.statusId != null ? statuses?.find(s => s.id === t.statusId)?.name : undefined,
-        }
-      : undefined
-    return matchesFilter(filters, t, personIds, today, searchCtx, tagIds)
-  })
+  const lookups: TodoNameLookups = {
+    assignedPeopleMap,
+    assignedTagsMap,
+    statusesById: statuses ? new Map(statuses.map((s) => [s.id!, s])) : undefined,
+    projectsById,
+  }
+  return todos.filter((t) => matchesFilterWithLookups(filters, t, lookups, today))
+}
+
+/**
+ * Membership evaluator for stored list predicates (`buildDashboardLists`'
+ * `evalPredicate`). Converts each predicate to criteria once.
+ */
+export function createPredicateEvaluator(
+  lookups: TodoNameLookups,
+  today: Date,
+): (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean {
+  const criteriaByPredicate = new WeakMap<TodoPredicate, FilterCriteria>()
+  return (predicate, todo) => {
+    let criteria = criteriaByPredicate.get(predicate)
+    if (!criteria) {
+      criteria = predicateToCriteria(predicate)
+      criteriaByPredicate.set(predicate, criteria)
+    }
+    return matchesFilterWithLookups(criteria, todo, lookups, today)
+  }
 }
 
 /** Runtime (Sets) → serializable (arrays) for saved views / list definitions. */

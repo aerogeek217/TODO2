@@ -16,7 +16,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useUIStore } from '../stores/ui-store'
 import { useStatusStore } from '../stores/status-store'
-import { useFilterStore, matchesFilter } from '../stores/filter-store'
+import { useFilterStore, matchesFilterWithLookups } from '../stores/filter-store'
 import { useFileStorageStore } from '../stores/file-storage-store'
 import { useListInsetStore } from '../stores/list-inset-store'
 import { useFloatingTaskboardStore } from '../stores/floating-taskboard-store'
@@ -213,21 +213,12 @@ export function CanvasPage() {
     const statusesById = new Map<number, Status>()
     for (const s of statuses) if (s.id != null) statusesById.set(s.id, s)
     const ghost = new Set<number>()
+    const lookups = { assignedPeopleMap, assignedTagsMap, statusesById, projectsById }
     for (const todo of todos) {
       if (todo.projectId == null) continue
       // Skip tasks already hidden by todosByProject
       if (!filters.showCompleted && todo.isCompleted) continue
-      const people = assignedPeopleMap.get(todo.id) ?? []
-      const personIds = people.map((p) => p.id!)
-      const tagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
-      const searchCtx = filters.searchText
-        ? {
-            projectName: todo.projectId != null ? projectsById.get(todo.projectId)?.name : undefined,
-            personNames: people.map(p => p.name),
-            statusName: todo.statusId != null ? statusesById.get(todo.statusId)?.name : undefined,
-          }
-        : undefined
-      if (!matchesFilter(filters, todo, personIds, undefined, searchCtx, tagIds)) {
+      if (!matchesFilterWithLookups(filters, todo, lookups)) {
         ghost.add(todo.id)
       }
     }
