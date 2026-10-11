@@ -10,10 +10,8 @@ import type {
 } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import { bySortOrder } from '../utils/sort-order'
-import { scheduledLabel } from '../utils/effective-date'
 import { formatFollowupDate } from '../utils/followup'
 import { startOfToday } from '../utils/date'
-import { useSettingsStore } from '../stores/settings-store'
 
 /**
  * Shape of `buildExportData`'s return — every data table by name plus
@@ -121,16 +119,14 @@ export async function buildMarkdownExport(): Promise<string> {
   const lines: string[] = ['# TODOs', '']
   const details: string[] = []
   const today = startOfToday()
-  const weekStartsOn = useSettingsStore.getState().weekStartsOn
 
   const formatTodoLine = (todo: PersistedTodoItem) => {
     const check = todo.isCompleted ? '[x]' : '[ ]'
-    const sched = todo.scheduledDate ? ` (sched: ${scheduledLabel(todo.scheduledDate, today, weekStartsOn)})` : ''
-    const deadline = todo.dueDate ? ` (deadline ${new Date(todo.dueDate).toLocaleDateString()})` : ''
+    const deadline = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
     const followup = todo.nextFollowupAt ? ` (follow-up ${formatFollowupDate(todo.nextFollowupAt, today)})` : ''
     const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
     const statusStr = status && (status.icon || status.hideByDefault) ? ` [${status.name}]` : ''
-    return `- ${check} ${todo.title}${statusStr}${sched}${deadline}${followup}`
+    return `- ${check} ${todo.title}${statusStr}${deadline}${followup}`
   }
 
   const collectDetails = (todo: PersistedTodoItem) => {

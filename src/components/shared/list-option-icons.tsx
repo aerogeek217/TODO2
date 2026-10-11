@@ -35,17 +35,8 @@ export function ManualIcon() {
   )
 }
 
-export function DateIcon() {
-  return <StatusIcon icon="calendar" />
-}
-
-export function ScheduledIcon() {
-  // calendar with clock overlay hint — use clock (scheduled = plan date)
-  return <StatusIcon icon="clock" />
-}
-
 export function DeadlineIcon() {
-  return <StatusIcon icon="flag" />
+  return <StatusIcon icon="calendar" />
 }
 
 export function PeopleIcon() {

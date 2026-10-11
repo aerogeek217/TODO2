@@ -1,6 +1,5 @@
 import type { RecurrenceRule, RecurrenceType } from '../models/recurrence'
 import type { TodoItem } from '../models/todo-item'
-import type { ScheduledValue } from '../models/scheduled-value'
 import { startOfToday } from '../utils/date'
 
 /** Build a RecurrenceRule, capturing originalDayOfMonth for monthly/yearly to prevent drift. */
@@ -89,34 +88,24 @@ export function computeNextDueDate(currentDueDate: Date, rule: RecurrenceRule): 
 }
 
 /**
- * The field a task's recurrence rule is anchored to:
- * prefers `dueDate` when present, otherwise a precise `scheduledDate`.
- * Returns null when the rule has no concrete date to advance
- * (e.g. only a fuzzy scheduled value, which can't be advanced).
+ * The date a task's recurrence rule advances from: its `dueDate`. Returns
+ * null when the task has no due date (the rule has nothing to advance).
  */
-export function recurrenceAnchor(
-  t: Pick<TodoItem, 'dueDate' | 'scheduledDate'>,
-): { field: 'dueDate' | 'scheduledDate'; date: Date } | null {
-  if (t.dueDate) return { field: 'dueDate', date: new Date(t.dueDate) }
-  if (t.scheduledDate && t.scheduledDate.kind === 'date') {
-    return { field: 'scheduledDate', date: new Date(t.scheduledDate.value) }
-  }
-  return null
+export function recurrenceAnchor(t: Pick<TodoItem, 'dueDate'>): { date: Date } | null {
+  return t.dueDate ? { date: new Date(t.dueDate) } : null
 }
 
 /**
- * Compute the field update for advancing a recurring task to its next occurrence.
- * Returns null when the task has no rule or no concrete anchor date.
+ * The next due date for a recurring task's next occurrence. Returns null
+ * when the task has no rule or no due date.
  */
 export function advanceRecurring(
-  t: Pick<TodoItem, 'dueDate' | 'scheduledDate' | 'recurrenceRule'>,
-): { field: 'dueDate' | 'scheduledDate'; dueDate?: Date; scheduledDate?: ScheduledValue } | null {
+  t: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>,
+): { dueDate: Date } | null {
   if (!t.recurrenceRule) return null
   const anchor = recurrenceAnchor(t)
   if (!anchor) return null
-  const next = computeNextDueDate(anchor.date, t.recurrenceRule)
-  if (anchor.field === 'dueDate') return { field: 'dueDate', dueDate: next }
-  return { field: 'scheduledDate', scheduledDate: { kind: 'date', value: next } }
+  return { dueDate: computeNextDueDate(anchor.date, t.recurrenceRule) }
 }
 
 /**

@@ -42,7 +42,6 @@ const FULL_PREDICATE: TodoPredicate = {
   dateRangeStart: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' },
   dateRangeEnd: { kind: 'offset', days: 30 },
   dateRangeIncludeNoDate: true,
-  hasScheduled: false,
   hasDeadline: true,
   hasFollowup: false,
   tags: [1],
@@ -71,7 +70,6 @@ function buildSeed(): Seed {
       {
         id: 1, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e01', title: 'Send quarterly report', notes: 'Include **charts**', progress: 'draft done',
         isCompleted: false,
-        scheduledDate: { kind: 'date', value: at('2026-10-12T00:00:00.000Z') },
         dueDate: at('2026-10-16T00:00:00.000Z'),
         lastFollowupAt: at('2026-09-13T14:25:31.000Z'),
         nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
@@ -82,7 +80,6 @@ function buildSeed(): Seed {
       {
         id: 2, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e02', title: 'Book dentist', isCompleted: true,
         completedAt: at('2026-09-10T09:30:00.000Z'),
-        scheduledDate: { kind: 'fuzzy', token: 'next-week', setAt: at('2026-09-10T09:30:00.000Z') },
         createdAt: at('2026-09-03T11:00:00.000Z'), modifiedAt: at('2026-09-10T09:30:00.000Z'),
         sortOrder: 1,
       },
@@ -99,7 +96,6 @@ function buildSeed(): Seed {
     personOrgs: [{ id: 1, personId: 1, orgId: 1 }],
     settings: [
       { key: 'seededAssignedStatusId', value: '1' },
-      { key: 'seededFollowupStatusId', value: '2' },
       { key: 'weekStartsOn', value: '1' },
       { key: 'followupDefaultInterval', value: '2w' },
       { key: 'themeMode', value: 'dark' },
@@ -195,9 +191,6 @@ describe('export → JSON → import round-trip', () => {
       expect(missing, `seed.${key} must populate every model field — add these to buildSeed()`).toEqual([])
     }
     // Nested shapes the table-level check can't see.
-    const kinds = seed.todos.map((t) => t.scheduledDate?.kind)
-    expect(kinds).toContain('date')
-    expect(kinds).toContain('fuzzy')
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
     expect(seed.taskboards.some((b) => b.entries.length > 0)).toBe(true)

@@ -11,7 +11,6 @@ import { makeTodo, makePerson, makeProject, makeOrg, resetEntityStores } from '.
 const mockBulk = {
   toggleComplete: vi.fn(),
   remove: vi.fn(),
-  setScheduled: vi.fn(),
   setDeadline: vi.fn(),
   setProject: vi.fn(),
   setStatus: vi.fn(),
@@ -37,11 +36,10 @@ function resetStores() {
   useUIStore.setState({ hoveredTodoId: null })
 }
 
-// April 16, 2026 (Thursday) — matches `vi.setSystemTime` below. Pinned for
-// fuzzy `setAt` so post-aging resolution lands on today's window.
+// April 16, 2026 (Thursday) — matches `vi.setSystemTime` below.
 const TODAY = new Date(2026, 3, 16)
 
-describe('TaskRow (unified scheduling)', () => {
+describe('TaskRow', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(TODAY)
@@ -64,30 +62,7 @@ describe('TaskRow (unified scheduling)', () => {
     })
   })
 
-  describe('scheduled chip', () => {
-    it('renders with fuzzy label when scheduledDate is fuzzy', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
-      expect(screen.getByText('Today')).toBeInTheDocument()
-    })
-
-    it('renders with relative label when scheduledDate is precise', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'date', value: new Date(2026, 3, 17) } })} />)
-      expect(screen.getByText('Tomorrow')).toBeInTheDocument()
-    })
-
-    it('is absent when scheduledDate is not set', () => {
-      const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      expect(container.querySelector('[class*="scheduledChip"]')).toBeNull()
-    })
-
-    it('does not render the empty-state calendar button when scheduledDate is set', () => {
-      // When scheduledDate is present, the empty-state "Schedule or set deadline" button is hidden
-      const { container } = render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
-      expect(container.querySelector('[title="Schedule or set deadline"]')).toBeNull()
-    })
-  })
-
-  describe('deadline chip', () => {
+  describe('due-date chip', () => {
     it('renders with formatted date when dueDate is set', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
       expect(screen.getByText(/4\/20\/2026|Apr 20/)).toBeInTheDocument()
@@ -107,22 +82,6 @@ describe('TaskRow (unified scheduling)', () => {
   })
 
   describe('past/overdue state', () => {
-    it('applies the scheduledChipPast class when the scheduled date is in the past', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'date', value: new Date(2026, 3, 10) } })} />,
-      )
-      const chip = container.querySelector('[class*="scheduledChip"]') as HTMLElement
-      expect(chip.className).toMatch(/scheduledChipPast/i)
-    })
-
-    it('does not apply the past class for a future scheduled date', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) } })} />,
-      )
-      const chip = container.querySelector('[class*="scheduledChip"]') as HTMLElement
-      expect(chip.className).not.toMatch(/scheduledChipPast/i)
-    })
-
     it('applies the deadlineChipPast class when the deadline is overdue', () => {
       const { container } = render(
         <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 10) })} />,
@@ -140,36 +99,15 @@ describe('TaskRow (unified scheduling)', () => {
     })
   })
 
-  describe('both chips', () => {
-    it('renders scheduled and deadline chips simultaneously', () => {
-      const { container } = render(
-        <TaskRow
-          todo={makeTodo({
-            id: 1,
-            scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY },
-            dueDate: new Date(2026, 3, 20),
-          })}
-        />,
-      )
-      expect(container.querySelector('[class*="scheduledChip"]')).toBeInTheDocument()
-      expect(container.querySelector('[class*="deadlineChip"]')).toBeInTheDocument()
-    })
-  })
-
   describe('empty-state date button', () => {
-    it('renders when neither scheduled nor deadline is set', () => {
+    it('renders when no due date is set', () => {
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      expect(screen.getByTitle('Schedule or set deadline')).toBeInTheDocument()
+      expect(screen.getByTitle('Set due date')).toBeInTheDocument()
     })
 
-    it('does not render when only scheduled is set', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
-      expect(screen.queryByTitle('Schedule or set deadline')).not.toBeInTheDocument()
-    })
-
-    it('does not render when only deadline is set', () => {
+    it('does not render when a due date is set', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
-      expect(screen.queryByTitle('Schedule or set deadline')).not.toBeInTheDocument()
+      expect(screen.queryByTitle('Set due date')).not.toBeInTheDocument()
     })
   })
 
@@ -184,60 +122,16 @@ describe('TaskRow (unified scheduling)', () => {
   })
 
   describe('inline date editing', () => {
-    it('clicking the scheduled chip opens an inline menu (does not open detail popup)', () => {
-      const onOpenDetail = vi.fn()
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} onOpenDetail={onOpenDetail} />,
-      )
-      const chip = container.querySelector('[class*="scheduledChip"]') as HTMLElement
-      fireEvent.click(chip)
-      // Grid presets become visible in the portaled menu
-      expect(screen.getByText('Tomorrow')).toBeInTheDocument()
-      expect(screen.getByText('Next week')).toBeInTheDocument()
-      expect(onOpenDetail).not.toHaveBeenCalled()
-    })
-
-    it('picking a fuzzy option in the scheduled menu calls setScheduled', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />,
-      )
-      fireEvent.click(container.querySelector('[class*="scheduledChip"]') as HTMLElement)
-      fireEvent.click(screen.getByText('Next week'))
-      expect(mockBulk.setScheduled).toHaveBeenCalledWith(1, expect.objectContaining({ kind: 'fuzzy', token: 'next-week' }))
-    })
-
-    it('scheduled menu shows an "Add deadline" action when dueDate is not set', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />,
-      )
-      fireEvent.click(container.querySelector('[class*="scheduledChip"]') as HTMLElement)
-      expect(screen.getByText(/Add deadline/i)).toBeInTheDocument()
-    })
-
-    it('scheduled menu hides the "Add deadline" action when a deadline is already set', () => {
-      const { container } = render(
-        <TaskRow
-          todo={makeTodo({
-            id: 1,
-            scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY },
-            dueDate: new Date(2026, 3, 20),
-          })}
-        />,
-      )
-      fireEvent.click(container.querySelector('[class*="scheduledChip"]') as HTMLElement)
-      expect(screen.queryByText(/Add deadline/i)).not.toBeInTheDocument()
-    })
-
-    it('clicking the empty-state date button opens the scheduled menu inline', () => {
+    it('clicking the empty-state date button opens the native date picker', () => {
       const onOpenDetail = vi.fn()
       render(<TaskRow todo={makeTodo({ id: 1 })} onOpenDetail={onOpenDetail} />)
-      fireEvent.click(screen.getByTitle('Schedule or set deadline'))
-      expect(screen.getByText('Today')).toBeInTheDocument()
-      expect(screen.getByText(/Add deadline/i)).toBeInTheDocument()
+      fireEvent.click(screen.getByTitle('Set due date'))
+      vi.runAllTimers() // openDeadlinePicker uses setTimeout(…, 0)
+      expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalled()
       expect(onOpenDetail).not.toHaveBeenCalled()
     })
 
-    it('clicking the deadline chip opens the native date picker (does not open detail popup)', () => {
+    it('clicking the due-date chip opens the native date picker (does not open detail popup)', () => {
       const onOpenDetail = vi.fn()
       const { container } = render(
         <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} onOpenDetail={onOpenDetail} />,
@@ -248,9 +142,9 @@ describe('TaskRow (unified scheduling)', () => {
       expect(onOpenDetail).not.toHaveBeenCalled()
     })
 
-    it('clicking the deadline chip × button clears the deadline', () => {
+    it('clicking the due-date chip × button clears the due date', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
-      fireEvent.click(screen.getByLabelText('Clear deadline'))
+      fireEvent.click(screen.getByLabelText('Clear due date'))
       expect(mockBulk.setDeadline).toHaveBeenCalledWith(1, null)
     })
   })
@@ -301,30 +195,6 @@ describe('TaskRow (unified scheduling)', () => {
       // Both wrappers carry the status-slot class (min-width reserved in CSS)
       expect(noStatus.className).toMatch(/statusWrapper/)
       expect(withStatus.className).toMatch(/statusWrapper/)
-    })
-  })
-
-  describe('date-stack sizing', () => {
-    it('applies the secondary class to the deadline chip only when both dates are present', () => {
-      const { container } = render(
-        <TaskRow
-          todo={makeTodo({
-            id: 1,
-            scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY },
-            dueDate: new Date(2026, 3, 20),
-          })}
-        />,
-      )
-      const deadline = container.querySelector('[class*="deadlineChip"]') as HTMLElement
-      expect(deadline.className).toMatch(/dateStackSecondary/i)
-    })
-
-    it('does not apply the secondary class when only the deadline is set', () => {
-      const { container } = render(
-        <TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />,
-      )
-      const deadline = container.querySelector('[class*="deadlineChip"]') as HTMLElement
-      expect(deadline.className).not.toMatch(/dateStackSecondary/i)
     })
   })
 
@@ -437,7 +307,7 @@ describe('TaskRow (unified scheduling)', () => {
       )
       const buttons = Array.from(container.querySelectorAll('button')) as HTMLElement[]
       const atIdx = buttons.findIndex((b) => b.textContent?.trim() === '@')
-      const deadlineIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Edit deadline')
+      const deadlineIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Edit due date')
       expect(atIdx).toBeGreaterThanOrEqual(0)
       expect(deadlineIdx).toBeGreaterThanOrEqual(0)
       expect(atIdx).toBeLessThan(deadlineIdx)

@@ -27,9 +27,8 @@ export function parseTaskInput(
 
 /**
  * Apply resolved NLP metadata to a newly created task.
- * Writes scheduledDate and assigns people / orgs. Recurrence anchors to dueDate
- * when present, otherwise to a precise scheduledDate; without either anchor
- * the recurrence is dropped. Tags go through the registry (resolve-or-create
+ * Writes the due date / status and assigns people / orgs. Recurrence anchors
+ * to the due date; without one the recurrence is dropped. Tags go through the registry (resolve-or-create
  * via `tag-store`) after the transaction — they live in the normalized
  * `tags`+`todoTags` tables and don't need to be atomic with person/org
  * assignment.
@@ -43,7 +42,6 @@ export async function applyNlpMetadata(
   assignOrg?: (todoId: number, orgId: number) => Promise<void>,
 ): Promise<void> {
   const hasUpdates =
-    resolved.scheduledDate !== undefined ||
     resolved.dueDate !== undefined ||
     resolved.recurrence !== undefined ||
     resolved.statusId !== undefined
@@ -57,22 +55,14 @@ export async function applyNlpMetadata(
       if (hasUpdates) {
         const todo = getTodo(todoId)
         if (todo) {
-          const nextScheduled = resolved.scheduledDate ?? todo.scheduledDate
           const nextDue = resolved.dueDate ?? todo.dueDate
           const nextStatusId = resolved.statusId ?? todo.statusId
           let nextRule = todo.recurrenceRule
           if (resolved.recurrence) {
-            if (nextDue) {
-              nextRule = makeRecurrenceRule(resolved.recurrence, nextDue)
-            } else if (nextScheduled && nextScheduled.kind === 'date') {
-              nextRule = makeRecurrenceRule(resolved.recurrence, nextScheduled.value)
-            } else {
-              nextRule = undefined
-            }
+            nextRule = nextDue ? makeRecurrenceRule(resolved.recurrence, nextDue) : undefined
           }
           await updateTodo({
             ...todo,
-            scheduledDate: nextScheduled,
             dueDate: nextDue,
             recurrenceRule: nextRule,
             statusId: nextStatusId,

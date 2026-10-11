@@ -83,13 +83,13 @@ test.describe('list editor modal — dropdown flip (item 3)', () => {
 
     await sortTrigger.click()
 
-    // 'Effective date' is in LIST_EDITOR_SORT_VALUES. Waiting for it confirms
+    // 'Due date' is in LIST_EDITOR_SORT_VALUES. Waiting for it confirms
     // the menu mounted + measured (usePopoverAnchor's compute fires once on
     // panel attach; the rendered option is the "panel mounted" signal).
-    const optionMatch = page.locator('[role="option"]').filter({ hasText: 'Effective date' })
+    const optionMatch = page.locator('[role="option"]').filter({ hasText: 'Due date' })
     await expect(optionMatch).toBeVisible()
 
-    const panel = await findIconSelectPanel(page, 'Effective date')
+    const panel = await findIconSelectPanel(page, 'Due date')
     expect(panel).not.toBeNull()
     if (!panel) return
 
@@ -116,7 +116,7 @@ test.describe('list editor modal — dropdown flip (item 3)', () => {
 
     await openListEditor(page)
     await page.getByRole('button', { name: 'Sort tasks by' }).click()
-    await expect(page.locator('[role="option"]').filter({ hasText: 'Effective date' })).toBeVisible()
+    await expect(page.locator('[role="option"]').filter({ hasText: 'Due date' })).toBeVisible()
 
     const portaled = await page.evaluate(() => {
       const lb = document.body.querySelector<HTMLElement>('[role="listbox"]')
@@ -136,7 +136,7 @@ test.describe('list editor modal — dropdown flip (item 3)', () => {
 
 /**
  * Locate the FilterChipBar dropdown panel by walking up from a known
- * label inside it (`'Has scheduled'` for the Date dropdown is unique
+ * label inside it (`'Has due date'` for the Date dropdown is unique
  * enough — it only renders inside `DateRangeDropdown`'s panel) to the
  * `document.body` direct child wrapping it. Returns `null` if no
  * portaled panel exists or the panel sits inside the dialog (the
@@ -183,8 +183,8 @@ test.describe('list editor modal — FilterChipBar dropdown flip (item 10)', () 
     await openListEditor(page)
 
     // The Date trigger is the chip with the chevron caret in its accessible
-    // name. The inner field-selector buttons that show "Effective Date" /
-    // "Scheduled" / etc. only appear *after* the panel opens.
+    // name. The inner field-selector buttons that show "Due date" /
+    // "Next follow-up" / etc. only appear *after* the panel opens.
     // Scope to the editor dialog — the page-level TopBar also renders a
     // "Date ▾" filter chip, so an unscoped locator matches twice.
     const editor = page.getByRole('dialog', { name: /Edit list:/ })
@@ -192,11 +192,11 @@ test.describe('list editor modal — FilterChipBar dropdown flip (item 10)', () 
     await expect(dateTrigger).toBeVisible()
     await dateTrigger.click()
 
-    // 'Has scheduled' is rendered by the TriStateRow inside the date panel.
+    // 'Has due date' is rendered by the TriStateRow inside the date panel.
     // Waiting for it confirms the panel mounted + measured.
-    await expect(page.getByText('Has scheduled')).toBeVisible()
+    await expect(page.getByText('Has due date')).toBeVisible()
 
-    const panel = await findFilterChipPanel(page, 'Has scheduled')
+    const panel = await findFilterChipPanel(page, 'Has due date')
     expect(panel).not.toBeNull()
     if (!panel) return
 
@@ -227,7 +227,7 @@ test.describe('list editor modal — FilterChipBar dropdown flip (item 10)', () 
     await openListEditor(page)
     const editor = page.getByRole('dialog', { name: /Edit list:/ })
     await editor.getByRole('button', { name: /Date\s*▾/ }).click()
-    await expect(page.getByText('Has scheduled')).toBeVisible()
+    await expect(page.getByText('Has due date')).toBeVisible()
 
     const portaled = await page.evaluate(() => {
       // The panel can be any direct child of document.body whose subtree
@@ -237,7 +237,7 @@ test.describe('list editor modal — FilterChipBar dropdown flip (item 10)', () 
       for (const el of candidates) {
         if (el.getAttribute('role') === 'dialog') continue
         if (window.getComputedStyle(el).position !== 'fixed') continue
-        if (!el.textContent?.includes('Has scheduled')) continue
+        if (!el.textContent?.includes('Has due date')) continue
         // Walk up: a portaled panel reaches document.body without crossing
         // the dialog wrapper. (Trivially true here since `el` itself is
         // already a body child, but keeps the assertion symmetric with

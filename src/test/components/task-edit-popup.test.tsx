@@ -478,4 +478,27 @@ describe('TaskEditPopup', () => {
       expect(screen.queryByText('Remove from Taskboard')).not.toBeInTheDocument()
     })
   })
+
+  describe('edit mode — due date', () => {
+    it('labels the date row "Due" and has no scheduled row', () => {
+      renderEditMode(makeTodo({ id: 5, title: 'Dated', dueDate: new Date(2026, 3, 20) }))
+      expect(screen.getByText('Due')).toBeInTheDocument()
+      expect(screen.queryByText('Deadline')).toBeNull()
+      expect(screen.queryByText('Scheduled')).toBeNull()
+    })
+
+    it('offers repeat only with a due date; clearing the due date drops the rule', () => {
+      const todo = makeTodo({
+        id: 6, title: 'Water plants', dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' },
+      })
+      const { onUpdate } = renderEditMode(todo)
+      expect(screen.getByDisplayValue('Weekly')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTitle('Clear due date'))
+      const updated = onUpdate.mock.calls.at(-1)![0] as PersistedTodoItem
+      expect(updated.dueDate).toBeUndefined()
+      expect(updated.recurrenceRule).toBeUndefined()
+      expect(screen.queryByText('No repeat')).toBeNull()
+    })
+  })
 })

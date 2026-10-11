@@ -601,20 +601,19 @@ describe('unknown-table audit', () => {
 })
 
 // --- Orphan-recurrence-rule audit: a `recurrenceRule` is dead weight on a row
-// that has no precise anchor (`dueDate` or precise `scheduledDate`) because
-// `recurrenceAnchor` returns null and `advanceRecurring` short-circuits. The
-// repository invariant (`todoRepository.update` / `bulkUpdate`) drops the rule
-// on new writes; this audit pass detects + cleans rows that pre-date the
-// invariant or were written by a path that bypassed the repository.
+// that has no due date because `recurrenceAnchor` returns null and
+// `advanceRecurring` short-circuits. The repository invariant
+// (`todoRepository.update` / `bulkUpdate`) drops the rule on new writes; this
+// audit pass detects + cleans rows that pre-date the invariant or were written
+// by a path that bypassed the repository.
 describe('orphan-recurrence-rule audit', () => {
-  const fuzzy = { kind: 'fuzzy' as const, token: 'this-week' as const, setAt: now }
-  const precise = { kind: 'date' as const, value: new Date(2026, 5, 1) }
+  const followup = new Date(2026, 5, 1)
 
-  it('detects a recurring task whose only schedule is fuzzy', async () => {
+  it('detects a recurring task whose only date is a follow-up', async () => {
     const { canvasId, projectId } = await seedBase()
     await db.todos.add(makeTodo({
       canvasId, projectId,
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
       recurrenceRule: { type: 'weekly' },
     }) as any)
 
@@ -625,10 +624,10 @@ describe('orphan-recurrence-rule audit', () => {
     expect(issue.fix).toBe('clear-field')
     expect(issue.samples).toHaveLength(1)
     expect(issue.samples![0]!.badFields).toEqual(['recurrenceRule'])
-    expect(issue.samples![0]!.note).toMatch(/no precise anchor/)
+    expect(issue.samples![0]!.note).toMatch(/no anchor/)
   })
 
-  it('detects a recurring task with no scheduledDate and no deadline', async () => {
+  it('detects a recurring task with no dates at all', async () => {
     const { canvasId, projectId } = await seedBase()
     await db.todos.add(makeTodo({
       canvasId, projectId,
@@ -640,23 +639,10 @@ describe('orphan-recurrence-rule audit', () => {
     expect(issue.count).toBe(1)
   })
 
-  it('does not flag a recurring task with a precise scheduledDate', async () => {
+  it('does not flag a recurring task anchored on a due date', async () => {
     const { canvasId, projectId } = await seedBase()
     await db.todos.add(makeTodo({
       canvasId, projectId,
-      scheduledDate: precise,
-      recurrenceRule: { type: 'weekly' },
-    }) as any)
-
-    const report = await auditData()
-    expect(report.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
-  })
-
-  it('does not flag a recurring task anchored on a deadline (even with fuzzy schedule)', async () => {
-    const { canvasId, projectId } = await seedBase()
-    await db.todos.add(makeTodo({
-      canvasId, projectId,
-      scheduledDate: fuzzy,
       dueDate: new Date(2026, 5, 10),
       recurrenceRule: { type: 'weekly' },
     }) as any)
@@ -665,11 +651,11 @@ describe('orphan-recurrence-rule audit', () => {
     expect(report.issues.find((i) => i.field === 'recurrenceRule')).toBeUndefined()
   })
 
-  it('does not flag a non-recurring task without an anchor', async () => {
+  it('does not flag a non-recurring task without a due date', async () => {
     const { canvasId, projectId } = await seedBase()
     await db.todos.add(makeTodo({
       canvasId, projectId,
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
     }) as any)
 
     const report = await auditData()
@@ -681,7 +667,7 @@ describe('orphan-recurrence-rule audit', () => {
     const todoId = await db.todos.add(makeTodo({
       canvasId, projectId,
       title: 'Stale recurring',
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
       recurrenceRule: { type: 'weekly' },
     }) as any) as number
 
@@ -692,14 +678,14 @@ describe('orphan-recurrence-rule audit', () => {
     const after = await db.todos.get(todoId)
     expect(after!.recurrenceRule).toBeUndefined()
     expect(after!.title).toBe('Stale recurring')
-    expect(after!.scheduledDate).toEqual(fuzzy)
+    expect(after!.nextFollowupAt).toEqual(followup)
   })
 
   it('is idempotent: re-running audit after cleanup reports no recurrence issues', async () => {
     const { canvasId, projectId } = await seedBase()
     await db.todos.add(makeTodo({
       canvasId, projectId,
-      scheduledDate: fuzzy,
+      nextFollowupAt: followup,
       recurrenceRule: { type: 'weekly' },
     }) as any)
 

@@ -1,12 +1,18 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { parseInput } from '../../services/natural-language-parser'
+
+/** `toDateString()` of today + `days` (local midnight). */
+function dayAtOffset(days: number): string {
+  const t = new Date()
+  return new Date(t.getFullYear(), t.getMonth(), t.getDate() + days).toDateString()
+}
 
 describe('natural-language-parser', () => {
   it('extracts a plain title with no tokens', () => {
     const result = parseInput('Buy groceries')
     expect(result.title).toBe('Buy groceries')
     expect(result.tokens).toHaveLength(0)
-    expect(result.scheduledDate).toBeUndefined()
+    expect(result.dueDate).toBeUndefined()
   })
 
   it('extracts @person', () => {
@@ -22,35 +28,43 @@ describe('natural-language-parser', () => {
     expect(result.persons).toEqual(['Mike', 'Sarah'])
   })
 
-  it('extracts tomorrow as fuzzy scheduled token', () => {
+  it('a bare "tomorrow" sets the due date', () => {
     const result = parseInput('Submit report tomorrow')
     expect(result.title).toBe('Submit report')
-    expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
+    expect(result.dueDate?.toDateString()).toBe(dayAtOffset(1))
   })
 
-  it('extracts today as fuzzy scheduled token', () => {
+  it('a bare "today" sets the due date', () => {
     const result = parseInput('Call dentist today')
-    expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'today' })
+    expect(result.dueDate?.toDateString()).toBe(dayAtOffset(0))
+  })
+
+  it('a bare date window ("next month") sets the due date to its last day', () => {
+    const result = parseInput('Plan offsite next month')
+    const t = new Date()
+    expect(result.title).toBe('Plan offsite')
+    expect(result.dueDate?.toDateString()).toBe(new Date(t.getFullYear(), t.getMonth() + 2, 0).toDateString())
+    expect(result.tokens.find((tok) => tok.type === 'date')?.raw).toBe('next month')
   })
 
   it('parses a complex input with date + person', () => {
     const result = parseInput('Review PR tomorrow @Mike')
     expect(result.title).toBe('Review PR')
     expect(result.persons).toEqual(['Mike'])
-    expect(result.scheduledDate).toBeDefined()
+    expect(result.dueDate).toBeInstanceOf(Date)
   })
 
   it('parses combined input: title + date + person', () => {
     const result = parseInput('Buy groceries tomorrow @john')
     expect(result.title).toBe('Buy groceries')
     expect(result.persons).toEqual(['john'])
-    expect(result.scheduledDate).toBeDefined()
+    expect(result.dueDate).toBeInstanceOf(Date)
   })
 
   it('handles input with only tokens', () => {
     const result = parseInput('@Sarah tomorrow')
     expect(result.persons).toEqual(['Sarah'])
-    expect(result.scheduledDate).toBeDefined()
+    expect(result.dueDate).toBeInstanceOf(Date)
   })
 
   it('handles empty input', () => {
@@ -59,23 +73,16 @@ describe('natural-language-parser', () => {
     expect(result.tokens).toHaveLength(0)
   })
 
-  it('extracts day name as precise scheduled date', () => {
+  it('extracts a day name as the due date', () => {
     const result = parseInput('Meeting friday')
     expect(result.title).toBe('Meeting')
-    expect(result.scheduledDate).toBeDefined()
-    expect(result.scheduledDate!.kind).toBe('date')
-    if (result.scheduledDate!.kind === 'date') {
-      expect(result.scheduledDate!.value.getDay()).toBe(5) // Friday
-    }
+    expect(result.dueDate?.getDay()).toBe(5) // Friday
   })
 
-  it('extracts "next monday" as precise scheduled date', () => {
+  it('extracts "next monday" as the due date', () => {
     const result = parseInput('Sprint planning next monday')
     expect(result.title).toBe('Sprint planning')
-    expect(result.scheduledDate).toBeDefined()
-    if (result.scheduledDate!.kind === 'date') {
-      expect(result.scheduledDate!.value.getDay()).toBe(1)
-    }
+    expect(result.dueDate?.getDay()).toBe(1)
   })
 
   it('extracts /project', () => {
@@ -109,35 +116,28 @@ describe('natural-language-parser', () => {
   it('person @friday is not also parsed as a date', () => {
     const result = parseInput('Ask @friday about the report')
     expect(result.persons).toEqual(['friday'])
-    expect(result.scheduledDate).toBeUndefined()
+    expect(result.dueDate).toBeUndefined()
     expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
   })
 
   it('project /tomorrow is not also parsed as a date', () => {
     const result = parseInput('Check /tomorrow tasks')
     expect(result.projects).toEqual(['tomorrow'])
-    expect(result.scheduledDate).toBeUndefined()
+    expect(result.dueDate).toBeUndefined()
     expect(result.tokens.filter(t => t.type === 'date')).toHaveLength(0)
   })
 
   it('person and separate date do not conflict when non-overlapping', () => {
     const result = parseInput('Ask @Mike about tomorrow')
     expect(result.persons).toEqual(['Mike'])
-    expect(result.scheduledDate).toBeDefined()
+    expect(result.dueDate).toBeInstanceOf(Date)
   })
 
   it('bare day name on same day resolves to next week, not today', () => {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const todayName = dayNames[new Date().getDay()]
     const result = parseInput(`Task ${todayName}`)
-    expect(result.scheduledDate).toBeDefined()
-    if (result.scheduledDate!.kind === 'date') {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const expected = new Date(today)
-      expected.setDate(expected.getDate() + 7)
-      expect(result.scheduledDate!.value.toDateString()).toBe(expected.toDateString())
-    }
+    expect(result.dueDate?.toDateString()).toBe(dayAtOffset(7))
   })
 
   describe('deadline syntax', () => {
@@ -176,7 +176,6 @@ describe('natural-language-parser', () => {
       const result = parseInput(input)
       expect(result.title).toBe(title)
       expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.scheduledDate).toBeUndefined()
       if (day !== undefined) expect(result.dueDate!.getDay()).toBe(day)
       if (offsetDays !== undefined) {
         expect(result.dueDate!.toDateString()).toBe(dateAtOffset(offsetDays))
@@ -195,27 +194,24 @@ describe('natural-language-parser', () => {
       expect(result.dueDate).toBeUndefined()
     })
 
-    it('allows scheduled + "by <day>" deadline in one input', () => {
-      const result = parseInput('Review tomorrow by friday')
+    it('an explicit "by <date>" wins over an earlier bare date', () => {
+      const result = parseInput('Review today by in 3 days')
       expect(result.title).toBe('Review')
-      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
-      expect(result.dueDate).toBeInstanceOf(Date)
+      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(3))
     })
 
-    it('allows scheduled + "due <day>" deadline in one input', () => {
-      const result = parseInput('Review tomorrow due friday')
+    it('an explicit "due <date>" wins over an earlier bare date', () => {
+      const result = parseInput('Review today due in 3 days')
       expect(result.title).toBe('Review')
-      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
-      expect(result.dueDate).toBeInstanceOf(Date)
-      expect(result.dueDate!.getDay()).toBe(5)
+      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(3))
     })
 
     it('does not extract "due" inside another word (overdue)', () => {
       const result = parseInput('Mark task overdue tomorrow')
-      // "overdue" must not satisfy the `\bdue` boundary; the standalone
-      // "tomorrow" then becomes a fuzzy scheduled token, not a deadline.
-      expect(result.dueDate).toBeUndefined()
-      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'tomorrow' })
+      // "overdue" must not satisfy the word boundary; the standalone
+      // "tomorrow" is then a bare date and still sets the due date.
+      expect(result.title).toBe('Mark task overdue')
+      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(1))
     })
 
     it('only consumes "due monday" from "due monday at 5pm"', () => {
@@ -236,7 +232,7 @@ describe('natural-language-parser', () => {
       return n.toString().padStart(2, '0')
     }
 
-    it('parses bare MM/DD as a precise scheduled date in the next-future year', () => {
+    it('parses bare MM/DD as a due date in the next-future year', () => {
       // Pick a date that's definitely in the past for "this year" — yesterday.
       const today = todayMidnight()
       const past = new Date(today)
@@ -244,25 +240,17 @@ describe('natural-language-parser', () => {
       const input = `Task ${past.getMonth() + 1}/${past.getDate()}`
       const result = parseInput(input)
       expect(result.title).toBe('Task')
-      expect(result.scheduledDate).toBeDefined()
-      if (result.scheduledDate?.kind === 'date') {
-        // Past MM/DD rolls forward to next year.
-        expect(result.scheduledDate.value.getFullYear()).toBe(today.getFullYear() + 1)
-        expect(result.scheduledDate.value.getMonth()).toBe(past.getMonth())
-        expect(result.scheduledDate.value.getDate()).toBe(past.getDate())
-      } else {
-        throw new Error('expected precise date')
-      }
+      // Past MM/DD rolls forward to next year.
+      expect(result.dueDate?.getFullYear()).toBe(today.getFullYear() + 1)
+      expect(result.dueDate?.getMonth()).toBe(past.getMonth())
+      expect(result.dueDate?.getDate()).toBe(past.getDate())
     })
 
     it('parses bare MM/DD as today when MM/DD === today', () => {
       const today = todayMidnight()
       const input = `Task ${today.getMonth() + 1}/${today.getDate()}`
       const result = parseInput(input)
-      expect(result.scheduledDate?.kind).toBe('date')
-      if (result.scheduledDate?.kind === 'date') {
-        expect(result.scheduledDate.value.toDateString()).toBe(today.toDateString())
-      }
+      expect(result.dueDate?.toDateString()).toBe(today.toDateString())
     })
 
     it('parses bare MM/DD as future date in current year when MM/DD is upcoming', () => {
@@ -271,44 +259,31 @@ describe('natural-language-parser', () => {
       future.setDate(future.getDate() + 14)
       const input = `Task ${future.getMonth() + 1}/${future.getDate()}`
       const result = parseInput(input)
-      expect(result.scheduledDate?.kind).toBe('date')
-      if (result.scheduledDate?.kind === 'date') {
-        expect(result.scheduledDate.value.getFullYear()).toBe(future.getFullYear())
-        expect(result.scheduledDate.value.toDateString()).toBe(future.toDateString())
-      }
+      expect(result.dueDate?.toDateString()).toBe(future.toDateString())
     })
 
     it('respects an explicit two-digit year (MM/DD/YY → 20YY)', () => {
       const result = parseInput('Task 5/4/30')
       expect(result.title).toBe('Task')
-      if (result.scheduledDate?.kind === 'date') {
-        expect(result.scheduledDate.value.getFullYear()).toBe(2030)
-        expect(result.scheduledDate.value.getMonth()).toBe(4) // May
-        expect(result.scheduledDate.value.getDate()).toBe(4)
-      } else {
-        throw new Error('expected precise date')
-      }
+      expect(result.dueDate?.getFullYear()).toBe(2030)
+      expect(result.dueDate?.getMonth()).toBe(4) // May
+      expect(result.dueDate?.getDate()).toBe(4)
     })
 
     it('respects an explicit four-digit year (MM/DD/YYYY)', () => {
       const result = parseInput('Task 12/31/2099')
-      if (result.scheduledDate?.kind === 'date') {
-        expect(result.scheduledDate.value.getFullYear()).toBe(2099)
-        expect(result.scheduledDate.value.getMonth()).toBe(11) // December
-        expect(result.scheduledDate.value.getDate()).toBe(31)
-      } else {
-        throw new Error('expected precise date')
-      }
+      expect(result.dueDate?.getFullYear()).toBe(2099)
+      expect(result.dueDate?.getMonth()).toBe(11) // December
+      expect(result.dueDate?.getDate()).toBe(31)
     })
 
-    it('"due MM/DD" is a deadline (not a scheduled date)', () => {
+    it('"due MM/DD" is a due date', () => {
       const today = todayMidnight()
       const future = new Date(today)
       future.setDate(future.getDate() + 14)
       const input = `Task due ${future.getMonth() + 1}/${future.getDate()}`
       const result = parseInput(input)
       expect(result.title).toBe('Task')
-      expect(result.scheduledDate).toBeUndefined()
       expect(result.dueDate).toBeInstanceOf(Date)
       expect(result.dueDate!.toDateString()).toBe(future.toDateString())
     })
@@ -316,7 +291,6 @@ describe('natural-language-parser', () => {
     it('"by MM/DD/YY" is a deadline with explicit year', () => {
       const result = parseInput('Ship feature by 6/3/27')
       expect(result.title).toBe('Ship feature')
-      expect(result.scheduledDate).toBeUndefined()
       expect(result.dueDate).toBeInstanceOf(Date)
       expect(result.dueDate!.getFullYear()).toBe(2027)
       expect(result.dueDate!.getMonth()).toBe(5) // June
@@ -337,85 +311,46 @@ describe('natural-language-parser', () => {
     it('rejects out-of-range month (13/1)', () => {
       const result = parseInput('Task 13/1')
       expect(result.title).toBe('Task 13/1')
-      expect(result.scheduledDate).toBeUndefined()
       expect(result.dueDate).toBeUndefined()
     })
 
     it('rejects rolled-over invalid date (2/30)', () => {
       const result = parseInput('Task 2/30')
       expect(result.title).toBe('Task 2/30')
-      expect(result.scheduledDate).toBeUndefined()
+      expect(result.dueDate).toBeUndefined()
     })
 
     it('does not match digits inside path/12/05/file', () => {
       const result = parseInput('Edit path/12/05/file.txt')
-      expect(result.scheduledDate).toBeUndefined()
+      expect(result.dueDate).toBeUndefined()
       expect(result.title).toBe('Edit path/12/05/file.txt')
     })
 
     it('does not match inside ISO-like 2025/12/05', () => {
       const result = parseInput('Stamp 2025/12/05')
-      expect(result.scheduledDate).toBeUndefined()
+      expect(result.dueDate).toBeUndefined()
       expect(result.title).toBe('Stamp 2025/12/05')
     })
 
     it('does not match a single-digit "year" suffix (5/4/3 stays in title)', () => {
       const result = parseInput('Note 5/4/3')
-      expect(result.scheduledDate).toBeUndefined()
+      expect(result.dueDate).toBeUndefined()
       expect(result.title).toBe('Note 5/4/3')
     })
 
-    it('allows scheduled bare MM/DD + "due MM/DD" deadline together', () => {
+    it('"due MM/DD" wins over an earlier bare MM/DD; both leave the title', () => {
       const today = todayMidnight()
-      const sched = new Date(today); sched.setDate(sched.getDate() + 3)
+      const bare = new Date(today); bare.setDate(bare.getDate() + 3)
       const dl = new Date(today); dl.setDate(dl.getDate() + 10)
-      const input = `Review ${pad(sched.getMonth() + 1)}/${pad(sched.getDate())} due ${dl.getMonth() + 1}/${dl.getDate()}`
+      const input = `Review ${pad(bare.getMonth() + 1)}/${pad(bare.getDate())} due ${dl.getMonth() + 1}/${dl.getDate()}`
       const result = parseInput(input)
-      expect(result.scheduledDate?.kind).toBe('date')
-      expect(result.dueDate).toBeInstanceOf(Date)
-      if (result.scheduledDate?.kind === 'date') {
-        expect(result.scheduledDate.value.toDateString()).toBe(sched.toDateString())
-      }
+      expect(result.title).toBe('Review')
       expect(result.dueDate!.toDateString()).toBe(dl.toDateString())
     })
 
     it('strips the numeric date from the title', () => {
       const result = parseInput('Pay rent 5/15/2099')
       expect(result.title).toBe('Pay rent')
-    })
-  })
-
-  describe('fuzzy scheduledDate carries setAt (post fuzzy-schedule-aging-2026-05-09)', () => {
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-
-    it('parsing "this week" stamps setAt with the current Date', () => {
-      const NOW = new Date(2026, 3, 16, 9, 30) // Apr 16 2026, 09:30 local.
-      vi.useFakeTimers()
-      vi.setSystemTime(NOW)
-      const result = parseInput('Wrap up things this week')
-      expect(result.scheduledDate).toBeDefined()
-      expect(result.scheduledDate!.kind).toBe('fuzzy')
-      if (result.scheduledDate!.kind === 'fuzzy') {
-        expect(result.scheduledDate!.token).toBe('this-week')
-        expect(result.scheduledDate!.setAt).toBeInstanceOf(Date)
-        expect(result.scheduledDate!.setAt.getTime()).toBe(NOW.getTime())
-      }
-    })
-
-    it('parsing single-word "tomorrow" also stamps setAt', () => {
-      const NOW = new Date(2026, 3, 16, 12, 0)
-      vi.useFakeTimers()
-      vi.setSystemTime(NOW)
-      const result = parseInput('Submit report tomorrow')
-      expect(result.scheduledDate).toBeDefined()
-      if (result.scheduledDate!.kind === 'fuzzy') {
-        expect(result.scheduledDate!.token).toBe('tomorrow')
-        expect(result.scheduledDate!.setAt.getTime()).toBe(NOW.getTime())
-      } else {
-        throw new Error('expected fuzzy scheduledDate')
-      }
     })
   })
 
@@ -455,7 +390,7 @@ describe('natural-language-parser', () => {
       // `#today` is a tag; a bare `today` after it is still a date.
       const result = parseInput('#today today')
       expect(result.tags).toEqual(['today'])
-      expect(result.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'today' })
+      expect(result.dueDate?.toDateString()).toBe(dayAtOffset(0))
     })
   })
 })

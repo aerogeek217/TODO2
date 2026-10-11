@@ -8,9 +8,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
-import { effectiveDate, type WeekStart } from '../../utils/effective-date'
-import { startOfToday } from '../../utils/date'
-import { useSettingsStore } from '../../stores/settings-store'
+import { startOfDay } from '../../utils/date'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import type { ContextMenuItem } from '../../models/context-menu'
 import { copyTasksRich } from '../../services/task-copy'
@@ -22,14 +20,14 @@ import styles from './ProjectNode.module.css'
 
 export { GROUP_OPTIONS }
 
-type ProjectSortBy = Extract<TodoSortBy, 'name' | 'date' | 'created'>
+type ProjectSortBy = Extract<TodoSortBy, 'name' | 'deadline' | 'created'>
 
 const PROJECT_NULL_GROUP = 'none' as const
 type ProjectGroupKey = ProjectGroupBy | typeof PROJECT_NULL_GROUP
 
 const PROJECT_SORT_OPTIONS: readonly SortGroupOption<ProjectSortBy>[] = [
   { value: 'name', label: 'Name' },
-  { value: 'date', label: 'Effective Date' },
+  { value: 'deadline', label: 'Due' },
   { value: 'created', label: 'Created' },
 ]
 
@@ -39,18 +37,15 @@ const PROJECT_GROUP_OPTIONS: readonly SortGroupOption<ProjectGroupKey>[] =
     label: o.label,
   }))
 
-export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: ProjectSortBy, asc: boolean, weekStartsOn: WeekStart): PersistedTodoItem[] {
-  const today = startOfToday()
+export function sortProjectTasks(todos: PersistedTodoItem[], sortBy: ProjectSortBy, asc: boolean): PersistedTodoItem[] {
   const compareFn = (a: PersistedTodoItem, b: PersistedTodoItem): number => {
     const dir = asc ? 1 : -1
     switch (sortBy) {
       case 'name':
         return a.title.localeCompare(b.title) * dir
-      case 'date': {
-        const ae = effectiveDate(a, today, weekStartsOn)
-        const be = effectiveDate(b, today, weekStartsOn)
-        const aTime = ae ? ae.getTime() : Infinity
-        const bTime = be ? be.getTime() : Infinity
+      case 'deadline': {
+        const aTime = a.dueDate ? startOfDay(new Date(a.dueDate)).getTime() : Infinity
+        const bTime = b.dueDate ? startOfDay(new Date(b.dueDate)).getTime() : Infinity
         return (aTime - bTime) * dir
       }
       case 'created':
@@ -89,7 +84,6 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
   const { getZoom } = useReactFlow()
   const statuses = useStatusStore((s) => s.statuses)
   const statusMap = useMemo(() => new Map(statuses.map(s => [s.id!, s as Status])), [statuses])
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const { dragExpandedProjectId } = useContext(DragInsertContext)
   const showBody = !project.isCollapsed || dragExpandedProjectId === project.id
   const [newTaskTitle, setNewTaskTitle] = useState('')
@@ -114,7 +108,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
     // Toggle direction if same sort clicked again
     const asc = lastSort && lastSort.by === sortBy ? !lastSort.asc : true
     setLastSort({ by: sortBy, asc })
-    const sorted = sortProjectTasks(todos, sortBy, asc, weekStartsOn)
+    const sorted = sortProjectTasks(todos, sortBy, asc)
     const mutations = sorted.map((t, i) => ({ todoId: t.id, changes: { sortOrder: i + 1 } }))
     useTodoStore.getState().applyMutations(mutations)
   }
@@ -254,7 +248,7 @@ function ProjectNodeInner({ data, selected }: NodeProps & { data: ProjectNodeTyp
             e.stopPropagation()
             void copyTasksRich(
               [{ todos }],
-              { assignedPeopleMap, statusMap, weekStartsOn },
+              { assignedPeopleMap, statusMap },
             )
           }}
           title="Copy tasks"

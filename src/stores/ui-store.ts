@@ -193,7 +193,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   hoveredTodoId: null,
   editPopupMode: null,
   bulkConfirmation: null,
-  listGroupBy: 'date' as ListGroupBy,
+  listGroupBy: 'deadline' as ListGroupBy,
   listSortBy: 'manual' as ListItemSortBy,
   inlineCreateAfterId: null,
   clipboardTodoIds: [],

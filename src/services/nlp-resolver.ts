@@ -1,12 +1,10 @@
 import type { Person, Project, Org, RecurrenceType, Status, Tag } from '../models'
-import type { ScheduledValue } from '../models/scheduled-value'
 import type { ParsedInput } from './natural-language-parser'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { TagLimitError } from '../stores/tag-store'
 
 export interface ResolvedInput {
   title: string
-  scheduledDate?: ScheduledValue
   dueDate?: Date
   recurrence?: RecurrenceType
   personIds: number[]
@@ -155,7 +153,6 @@ export function resolveInput(
 
   return {
     title: parsed.title,
-    scheduledDate: parsed.scheduledDate,
     dueDate: parsed.dueDate,
     recurrence: parsed.recurrence,
     personIds: persons.ids,

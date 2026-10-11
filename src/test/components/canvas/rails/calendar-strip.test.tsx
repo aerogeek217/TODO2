@@ -97,18 +97,14 @@ describe('CalendarStrip', () => {
     expect(todayCol?.className).toMatch(/hColToday/)
   })
 
-  it('places tasks with both scheduled + deadline on the scheduled day (not min)', () => {
-    // Regression: previously used effectiveDate = min(sched, due), which
-    // clamped the card back to the deadline after a drag-past-deadline
-    // (making the reschedule look like it didn't happen). Now matches
-    // CalendarView: scheduled ?? deadline.
+  it('places a task on its due day, not its follow-up day', () => {
     const today = new Date(2026, 3, 19)
     const todos = [
       makeTodo({
         id: 20,
         title: 'Slips past deadline',
-        scheduledDate: { kind: 'date', value: new Date(2026, 3, 17) }, // Fri
-        dueDate: new Date(2026, 3, 15), // Wed — earlier than scheduled
+        nextFollowupAt: new Date(2026, 3, 15), // Wed
+        dueDate: new Date(2026, 3, 17), // Fri
       }),
     ]
     render(
@@ -126,12 +122,12 @@ describe('CalendarStrip', () => {
     expect(wedRow?.textContent).not.toContain('Slips past deadline')
   })
 
-  it('places tasks on the scheduled day when only scheduledDate is set, deadline day when only dueDate', () => {
+  it('places tasks on their due day; follow-up-only tasks are not placed', () => {
     const today = new Date(2026, 3, 19)
     const todos = [
       // This week (Mon Apr 13 – Sun Apr 19): dueDate Apr 17 is visible.
       makeTodo({ id: 1, title: 'Due Friday', dueDate: new Date(2026, 3, 17) }),
-      makeTodo({ id: 2, title: 'Scheduled today', scheduledDate: { kind: 'date', value: today } }),
+      makeTodo({ id: 2, title: 'Follow up today', nextFollowupAt: today }),
       makeTodo({ id: 3, title: 'Out of range', dueDate: new Date(2026, 5, 1) }),
     ]
     render(
@@ -146,7 +142,7 @@ describe('CalendarStrip', () => {
     const fridayRow = document.querySelector(`[data-day="${dayKey(new Date(2026, 3, 17))}"]`)
     const todayRow = document.querySelector(`[data-day="${dayKey(today)}"]`)
     expect(fridayRow?.textContent).toContain('Due Friday')
-    expect(todayRow?.textContent).toContain('Scheduled today')
+    expect(todayRow?.textContent).not.toContain('Follow up today')
     expect(screen.queryByText('Out of range')).not.toBeInTheDocument()
   })
 

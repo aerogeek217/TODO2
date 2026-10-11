@@ -142,25 +142,24 @@ describe('FilterSheet', () => {
       expect(dateRangeStart.token).toBe('end-of-week')
     })
 
-    it('cycles hasScheduled tri-state null → true → false → null', () => {
+    it('cycles hasDeadline tri-state null → true → false → null', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Date range'))
-      const btn = screen.getByRole('button', { name: /Has scheduled/ })
+      const btn = screen.getByRole('button', { name: /Has due date/ })
 
-      fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasScheduled).toBe(true)
-      fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasScheduled).toBe(false)
-      fireEvent.click(btn)
-      expect(useFilterStore.getState().filters.hasScheduled).toBe(null)
-    })
-
-    it('cycles hasDeadline tri-state', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Date range'))
-      const btn = screen.getByRole('button', { name: /Has deadline/ })
       fireEvent.click(btn)
       expect(useFilterStore.getState().filters.hasDeadline).toBe(true)
+      fireEvent.click(btn)
+      expect(useFilterStore.getState().filters.hasDeadline).toBe(false)
+      fireEvent.click(btn)
+      expect(useFilterStore.getState().filters.hasDeadline).toBe(null)
+    })
+
+    it('offers no scheduled-date filter', () => {
+      renderSheet()
+      fireEvent.click(screen.getByText('Date range'))
+      expect(screen.queryByRole('button', { name: /Has scheduled/ })).toBeNull()
+      expect(screen.queryByText('Sched.')).toBeNull()
     })
   })
 

@@ -4,7 +4,7 @@
  * P2: real parser + chip wiring. Live subscriptions to person / org / project /
  * settings stores feed `parseInput` → `resolveInput` on every keystroke; chips
  * render for every metadata field the resolver produces (person, org, project,
- * tag, schedule, deadline, recurrence). Tag chips show the parsed slug — the
+ * tag, due date, recurrence). Tag chips show the parsed slug — the
  * tag-store resolve-or-create runs at submit (P4).
  *
  * Auto-derived chips are read-only feedback (no removable ×). To clear, edit
@@ -35,12 +35,10 @@ import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useOrgStore } from '../../stores/org-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput } from '../../services/natural-language-parser'
 import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
-import { resolveScheduled, type WeekStart } from '../../utils/effective-date'
 import { resolvePersonColor } from '../../utils/person-color'
 import styles from './QuickAddBar.module.css'
 
@@ -66,7 +64,6 @@ export type ParsedTokens = {
   project?: Project
   /** Lowercase tag slugs in first-seen order. */
   tags: string[]
-  scheduledAt?: Date
   deadlineAt?: Date
   recurrence?: RecurrenceType
   /** Person names from `@` tokens that matched neither a person nor an org. */
@@ -226,8 +223,6 @@ function runParse(
   orgs: Org[],
   projects: Project[],
   statuses: Status[],
-  weekStartsOn: WeekStart,
-  today: Date,
 ): { parsed: ParsedTokens; resolved: ResolvedInput } {
   if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED }
   const parsedInput = parseInput(raw)
@@ -247,10 +242,6 @@ function runParse(
     resolved.statusId !== undefined
       ? statuses.find((s): s is PersistedStatus => s.id === resolved.statusId)
       : undefined
-  const scheduledAt = resolved.scheduledDate
-    ? resolveScheduled(resolved.scheduledDate, today, weekStartsOn) ?? undefined
-    : undefined
-
   return {
     parsed: {
       title: resolved.title,
@@ -259,7 +250,6 @@ function runParse(
       orgs: orgsResolved,
       project: projectResolved,
       tags: resolved.tags,
-      scheduledAt,
       deadlineAt: resolved.dueDate,
       recurrence: resolved.recurrence,
       unmatchedPersons: resolved.unmatchedPersons,
@@ -322,11 +312,10 @@ export function QuickAddBar({
   const projects = useProjectStore((s) => s.projects)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
 
   const internalRun = useMemo(
-    () => runParse(raw, people, orgs, projects, statuses, weekStartsOn, new Date()),
-    [raw, people, orgs, projects, statuses, weekStartsOn],
+    () => runParse(raw, people, orgs, projects, statuses),
+    [raw, people, orgs, projects, statuses],
   )
   const parsed = parse ? parse(raw) : internalRun.parsed
   // Test override (`parse`) only produces `ParsedTokens`; default to the live
@@ -389,7 +378,6 @@ export function QuickAddBar({
     draft.orgs.length > 0 ||
     !!draft.project ||
     draft.tags.length > 0 ||
-    !!draft.scheduledAt ||
     !!draft.deadlineAt ||
     !!draft.recurrence
 
@@ -590,8 +578,7 @@ export function QuickAddBar({
             {draft.tags.map((t) => (
               <TagChip key={`tag-${t}`} tag={t} />
             ))}
-            {draft.scheduledAt && <DateChip icon="📅" label={formatShort(draft.scheduledAt)} />}
-            {draft.deadlineAt && <DateChip icon="🚩" label={formatShort(draft.deadlineAt)} />}
+            {draft.deadlineAt && <DateChip icon="📅" label={formatShort(draft.deadlineAt)} />}
             {draft.recurrence && <RecurrenceChip recurrence={draft.recurrence} />}
           </div>
         )}
@@ -633,7 +620,7 @@ export function QuickAddBar({
             </span>
             <span aria-hidden="true">·</span>
             <span>
-              <Kbd>!</Kbd> deadline (mon, fri…)
+              <Kbd>!</Kbd> due (mon, fri…)
             </span>
             <span aria-hidden="true">·</span>
             <span>

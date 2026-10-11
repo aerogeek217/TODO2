@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoItem, PersistedTodoItem, Person, Org, RecurrenceType, Tag } from '../../models'
 import { AppView, DEFAULT_STATUS_ICON } from '../../models'
-import type { ScheduledValue } from '../../models/scheduled-value'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -137,9 +136,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     ?? quickAddSeed?.resolved.statusId
     ?? (mode === 'create' ? (defaultStatusId ?? filterDefaults?.statusId ?? undefined) : undefined)
   )
-  const [scheduledDate, setScheduledDate] = useState<ScheduledValue | null>(
-    todo?.scheduledDate ?? quickAddSeed?.resolved.scheduledDate ?? null,
-  )
   const [deadline, setDeadline] = useState<Date | null>(
     todo?.dueDate ?? quickAddSeed?.resolved.dueDate ?? null,
   )
@@ -232,7 +228,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const todoProgress = todo?.progress
   const todoStatusId = todo?.statusId
   const todoProjectId = todo?.projectId
-  const todoScheduledDate = todo?.scheduledDate
   const todoDueDate = todo?.dueDate
   const todoRecurrenceType = todo?.recurrenceRule?.type
   useEffect(() => {
@@ -243,10 +238,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     setProgress(todoProgress ?? '')
     setStatusId(todoStatusId ?? undefined)
     setProjectId(todoProjectId)
-    setScheduledDate(todoScheduledDate ?? null)
     setDeadline(todoDueDate ?? null)
     setRecurrenceType(todoRecurrenceType ?? '')
-  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoProjectId, todoScheduledDate, todoDueDate, todoRecurrenceType])
+  }, [todoId, todoTitle, todoNotes, todoProgress, todoStatusId, todoProjectId, todoDueDate, todoRecurrenceType])
 
   // Track whether mousedown started on the backdrop itself.
   // Prevents closing when user selects text inside and drags outside.
@@ -273,11 +267,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const buildRule = useCallback(() => {
     if (!recurrenceType) return undefined
     if (deadline) return makeRecurrenceRule(recurrenceType, deadline)
-    if (scheduledDate && scheduledDate.kind === 'date') {
-      return makeRecurrenceRule(recurrenceType, scheduledDate.value)
-    }
     return undefined
-  }, [recurrenceType, deadline, scheduledDate])
+  }, [recurrenceType, deadline])
 
   const saveEdit = useCallback((overrides: Partial<TodoItem> = {}) => {
     if (!isEdit || !todo) return
@@ -287,12 +278,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       notes: notes || undefined,
       progress: progress || undefined,
       statusId,
-      scheduledDate: scheduledDate ?? undefined,
       dueDate: deadline ?? undefined,
       recurrenceRule: buildRule(),
       ...overrides,
     })
-  }, [isEdit, todo, title, notes, progress, statusId, scheduledDate, deadline, buildRule, props])
+  }, [isEdit, todo, title, notes, progress, statusId, deadline, buildRule, props])
 
   const handleTitleBlur = () => { if (isEdit) saveEdit() }
 
@@ -386,40 +376,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     },
   }), [])
 
-  const handleScheduledChange = (next: ScheduledValue | null) => {
-    setScheduledDate(next)
-    // Recurrence is anchored to deadline first, then to a precise scheduled date.
-    // If no anchor remains after this change, drop the rule.
-    const stillAnchored = !!deadline || (next?.kind === 'date')
-    if (!stillAnchored) setRecurrenceType('')
-    if (isEdit && todo) {
-      const nextRule: typeof todo.recurrenceRule = (() => {
-        if (!recurrenceType) return undefined
-        if (deadline) return makeRecurrenceRule(recurrenceType, deadline)
-        if (next?.kind === 'date') return makeRecurrenceRule(recurrenceType, next.value)
-        return undefined
-      })()
-      props.onUpdate({
-        ...todo,
-        scheduledDate: next ?? undefined,
-        recurrenceRule: nextRule,
-        modifiedAt: new Date(),
-      })
-    }
-  }
-
   const handleDeadlineChange = (next: Date | null) => {
     setDeadline(next)
-    // Rule can persist when a precise scheduled date anchors it.
-    const stillAnchored = !!next || (scheduledDate?.kind === 'date')
-    if (!stillAnchored) setRecurrenceType('')
+    // The rule is anchored to the due date; clearing it drops the rule.
+    if (!next) setRecurrenceType('')
     if (isEdit && todo) {
-      const nextRule: typeof todo.recurrenceRule = (() => {
-        if (!recurrenceType) return undefined
-        if (next) return makeRecurrenceRule(recurrenceType, next)
-        if (scheduledDate?.kind === 'date') return makeRecurrenceRule(recurrenceType, scheduledDate.value)
-        return undefined
-      })()
+      const nextRule: typeof todo.recurrenceRule =
+        recurrenceType && next ? makeRecurrenceRule(recurrenceType, next) : undefined
       props.onUpdate({
         ...todo,
         dueDate: next ?? undefined,
@@ -433,12 +396,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     const val = e.target.value as RecurrenceType | ''
     setRecurrenceType(val)
     if (isEdit && todo) {
-      const nextRule: typeof todo.recurrenceRule = (() => {
-        if (!val) return undefined
-        if (deadline) return makeRecurrenceRule(val, deadline)
-        if (scheduledDate?.kind === 'date') return makeRecurrenceRule(val, scheduledDate.value)
-        return undefined
-      })()
+      const nextRule: typeof todo.recurrenceRule =
+        val && deadline ? makeRecurrenceRule(val, deadline) : undefined
       props.onUpdate({
         ...todo,
         recurrenceRule: nextRule,
@@ -487,7 +446,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       notes: notes || undefined,
       progress: progress || undefined,
       statusId,
-      scheduledDate: scheduledDate ?? undefined,
       dueDate: deadline ?? undefined,
       nextFollowupAt: draftNextFollowup,
       lastFollowupAt: draftLastFollowup,
@@ -674,10 +632,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
 
         <div className={`${styles.scrollBody} ${openDropdown ? styles.scrollBodyDropdownOpen : ''}`}>
           <TaskEditMetadata
-            scheduledDate={scheduledDate}
             deadline={deadline}
             recurrenceType={recurrenceType}
-            onScheduledChange={handleScheduledChange}
             onDeadlineChange={handleDeadlineChange}
             onRecurrenceChange={handleRecurrenceChange}
             projectId={projectId}

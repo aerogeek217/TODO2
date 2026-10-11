@@ -70,18 +70,7 @@ describe('CalendarView — date-type tinting', () => {
     vi.useRealTimers()
   })
 
-  it('tints scheduled-only tasks with the taskItemScheduled class', () => {
-    useTodoStore.setState({
-      todos: [makeTodo({ id: 1, scheduledDate: { kind: 'date', value: new Date(2026, 3, 20) } })],
-    })
-    const { container } = render(<CalendarView />)
-    const item = findTaskItem(container, 1)
-    expect(item).not.toBeNull()
-    expect(item!.className).toMatch(/taskItemScheduled/)
-    expect(item!.className).not.toMatch(/taskItemDeadline/)
-  })
-
-  it('tints deadline-only tasks with the taskItemDeadline class', () => {
+  it('tints due-date tasks with the taskItemDeadline class and a due marker', () => {
     useTodoStore.setState({
       todos: [makeTodo({ id: 2, dueDate: new Date(2026, 3, 20) })],
     })
@@ -89,30 +78,10 @@ describe('CalendarView — date-type tinting', () => {
     const item = findTaskItem(container, 2)
     expect(item).not.toBeNull()
     expect(item!.className).toMatch(/taskItemDeadline/)
-    expect(item!.className).not.toMatch(/taskItemScheduled/)
-  })
-
-  it('tints both-set tasks with the taskItemBoth class and shows both marker icons', () => {
-    useTodoStore.setState({
-      todos: [
-        makeTodo({
-          id: 3,
-          scheduledDate: { kind: 'date', value: new Date(2026, 3, 20) },
-          dueDate: new Date(2026, 3, 22),
-        }),
-      ],
-    })
-    const { container } = render(<CalendarView />)
-    const item = findTaskItem(container, 3)
-    expect(item).not.toBeNull()
-    expect(item!.className).toMatch(/taskItemBoth/)
-    expect(item!.className).not.toMatch(/taskItemScheduled\b/)
-    expect(item!.querySelector('[class*="scheduledMarker"]')).toBeTruthy()
     expect(item!.querySelector('[class*="deadlineMarker"]')).toBeTruthy()
-    expect(item!.querySelector('[class*="deadlineBadge"]')).toBeNull()
   })
 
-  it('applies the taskItemPastDeadline stamp when the deadline is overdue', () => {
+  it('applies the taskItemPastDeadline stamp when the due date is overdue', () => {
     useTodoStore.setState({
       todos: [makeTodo({ id: 4, dueDate: new Date(2026, 3, 10) })],
     })
@@ -122,84 +91,51 @@ describe('CalendarView — date-type tinting', () => {
     expect(item!.className).toMatch(/taskItemPastDeadline/)
   })
 
-  it('applies the taskItemPastScheduled class when only the scheduled date is past', () => {
-    useTodoStore.setState({
-      todos: [makeTodo({ id: 5, scheduledDate: { kind: 'date', value: new Date(2026, 3, 10) } })],
-    })
-    const { container } = render(<CalendarView />)
-    const item = findTaskItem(container, 5)
-    expect(item).not.toBeNull()
-    expect(item!.className).toMatch(/taskItemPastScheduled/)
-  })
-
-  it('past-deadline wins when both scheduled + deadline are in the past', () => {
-    useTodoStore.setState({
-      todos: [
-        makeTodo({
-          id: 6,
-          scheduledDate: { kind: 'date', value: new Date(2026, 3, 5) },
-          dueDate: new Date(2026, 3, 10),
-        }),
-      ],
-    })
-    const { container } = render(<CalendarView />)
-    const item = findTaskItem(container, 6)
-    expect(item).not.toBeNull()
-    expect(item!.className).toMatch(/taskItemPastDeadline/)
-    expect(item!.className).not.toMatch(/taskItemPastScheduled/)
-  })
-
-  it('virtual recurring instances inherit the scheduled tint without past-class', () => {
+  it('virtual recurring instances inherit the due tint without the past class', () => {
     useTodoStore.setState({
       todos: [
         makeTodo({
           id: 7,
-          scheduledDate: { kind: 'date', value: new Date(2026, 3, 18) },
+          dueDate: new Date(2026, 3, 18),
           recurrenceRule: { type: 'weekly' },
         }),
       ],
     })
     const { container } = render(<CalendarView />)
     // The primary task renders on Apr 18, and a virtual instance on Apr 25.
-    // Both should be tinted scheduled; neither carries a past class.
     const items = Array.from(container.querySelectorAll('[class*="taskItem"]'))
       .filter((el) => (el.textContent ?? '').includes('Task 7')) as HTMLElement[]
     expect(items.length).toBeGreaterThanOrEqual(2)
     for (const el of items) {
-      expect(el.className).toMatch(/taskItemScheduled/)
+      expect(el.className).toMatch(/taskItemDeadline/)
       expect(el.className).not.toMatch(/taskItemPast/)
     }
   })
 
-  it('renders both-set tasks on their scheduled day even when scheduled > deadline', () => {
-    // Regression: effectiveDate = min(sched, due) previously clamped a
-    // dragged both-set task back to the deadline cell, making drag feel
-    // broken. Render primary = scheduledDay when set.
+  it('places a task on its due day; a follow-up date alone does not place it', () => {
     useTodoStore.setState({
       todos: [
-        makeTodo({
-          id: 9,
-          scheduledDate: { kind: 'date', value: new Date(2026, 3, 25) },
-          dueDate: new Date(2026, 3, 20),
-        }),
+        makeTodo({ id: 9, dueDate: new Date(2026, 3, 25), nextFollowupAt: new Date(2026, 3, 20) }),
+        makeTodo({ id: 10, nextFollowupAt: new Date(2026, 3, 21) }),
       ],
     })
     const { container } = render(<CalendarView />)
     const cells = Array.from(container.querySelectorAll('[class*="dayCell"]')) as HTMLElement[]
     const dayOf = (el: HTMLElement) => {
-      // Each cell's first child is the day number span.
       const numEl = el.querySelector('[class*="dayNumber"]')
       return numEl ? parseInt(numEl.textContent ?? '', 10) : NaN
     }
     const cellWithTask = cells.find((c) => (c.textContent ?? '').includes('Task 9'))
     expect(cellWithTask).toBeDefined()
     expect(dayOf(cellWithTask!)).toBe(25)
+    expect(cells.some((c) => (c.textContent ?? '').includes('Task 10'))).toBe(false)
+    expect(container.textContent).toContain('1 task without a due date')
   })
 
   it('wires --date-intensity inline style on each tinted item', () => {
     useTodoStore.setState({
       todos: [
-        makeTodo({ id: 8, scheduledDate: { kind: 'date', value: new Date(2026, 3, 20) } }),
+        makeTodo({ id: 8, dueDate: new Date(2026, 3, 20) }),
       ],
     })
     const { container } = render(<CalendarView />)

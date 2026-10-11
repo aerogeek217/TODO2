@@ -44,10 +44,10 @@ describe('<ListEditorBody>', () => {
     // the Sort one by its 'Sort tasks by' aria-label
     const sortTrigger = screen.getByLabelText('Sort tasks by')
     fireEvent.click(sortTrigger)
-    fireEvent.click(screen.getByText('Effective date'))
+    fireEvent.click(screen.getByText('Due date'))
     expect(onChange).toHaveBeenCalled()
     const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
-    expect(next.sort).toBe('date')
+    expect(next.sort).toBe('deadline')
     // Untouched fields preserved.
     expect(next.grouping).toBe('none')
     expect(next.name).toBe('Test list')
@@ -66,14 +66,14 @@ describe('<ListEditorBody>', () => {
 
   it('does not emit on no-op selection (same value)', () => {
     const onChange = vi.fn()
-    render(<ListEditorBody draft={makeDraft({ sort: 'date' })} onChange={onChange} />)
+    render(<ListEditorBody draft={makeDraft({ sort: 'deadline' })} onChange={onChange} />)
     const sortTrigger = screen.getByLabelText('Sort tasks by')
     fireEvent.click(sortTrigger)
     // After opening, the option matching the current value renders inside the
     // menu listbox — pick it explicitly via role to disambiguate from the
     // trigger's own label.
     const opts = screen.getAllByRole('option')
-    const dateOpt = opts.find((el) => el.textContent === 'Effective date')!
+    const dateOpt = opts.find((el) => el.textContent === 'Due date')!
     fireEvent.click(dateOpt)
     expect(onChange).not.toHaveBeenCalled()
   })

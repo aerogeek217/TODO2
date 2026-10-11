@@ -32,7 +32,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 function futureDef(): PersistedListDefinition {
   const predicate = emptyPredicate()
-  predicate.dateField = 'date'
+  predicate.dateField = 'deadline'
   predicate.dateRangeEnd = { kind: 'fixed', iso: new Date(2026, 3, 23).toISOString() }
   return {
     id: 1,
@@ -41,7 +41,7 @@ function futureDef(): PersistedListDefinition {
     pinnedToDashboard: false,
     favorited: false,
     membership: { kind: 'custom', predicate },
-    sort: 'date',
+    sort: 'deadline',
     grouping: { kind: 'none' },
   }
 }
@@ -153,7 +153,7 @@ describe('ListDefinitionBody', () => {
       ],
     })
     const predicate = emptyPredicate()
-    predicate.dateField = 'date'
+    predicate.dateField = 'deadline'
     predicate.dateRangeEnd = { kind: 'fixed', iso: new Date(2026, 3, 23).toISOString() }
     predicate.statusIds = [11]
     useListDefinitionStore.setState({
@@ -164,7 +164,7 @@ describe('ListDefinitionBody', () => {
         pinnedToDashboard: false,
         favorited: false,
         membership: { kind: 'custom', predicate },
-        sort: 'date',
+        sort: 'deadline',
         grouping: { kind: 'none' },
       }],
     })

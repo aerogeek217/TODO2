@@ -189,38 +189,11 @@
  * colour on the calendar that its chip does on the row. --date-intensity
  * fades the tint toward greyscale the further the date is from today.
  */
-.taskItemScheduled {
-  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
-}
-.taskItemScheduled:hover {
-  background: color-mix(in srgb, var(--color-scheduled) 18%, transparent);
-}
-
 .taskItemDeadline {
   background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
 }
 .taskItemDeadline:hover {
   background: color-mix(in srgb, var(--color-deadline) 18%, transparent);
-}
-
-/* Both set → scheduled-primary tint with a thin deadline-coloured accent edge. */
-.taskItemBoth {
-  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
-  box-shadow: inset -2px 0 0 color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
-}
-.taskItemBoth:hover {
-  background: color-mix(in srgb, var(--color-scheduled) 18%, transparent);
-}
-
-/* Past scheduled → dashed outline, weight 600, bumped bg. */
-.taskItemPastScheduled {
-  background: color-mix(in srgb, var(--color-scheduled) 18%, transparent);
-  outline: 1px dashed var(--color-scheduled);
-  outline-offset: -1px;
-  font-weight: 600;
-}
-.taskItemPastScheduled:hover {
-  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
 }
 
 /* Past deadline → stamped solid fill, weight 700, soft glow. Overrides other tints. */
@@ -240,16 +213,6 @@
   flex-shrink: 0;
 }
 
-.scheduledMarker {
-  display: inline-flex;
-  align-items: center;
-  color: var(--color-scheduled);
-  margin-right: 2px;
-  flex-shrink: 0;
-  position: relative;
-}
-.scheduledMarker svg { width: 10px; height: 10px; }
-
 .deadlineMarker {
   display: inline-flex;
   align-items: center;
@@ -260,21 +223,10 @@
 .deadlineMarker svg { width: 10px; height: 10px; }
 
 /* Inside a stamped past-deadline item, children track the item's surface-coloured text. */
-.taskItemPastDeadline .scheduledMarker,
 .taskItemPastDeadline .deadlineMarker,
 .taskItemPastDeadline .recurrenceIndicator,
 .taskItemPastDeadline .taskInitials {
   color: currentColor;
-}
-
-.markerExpired {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-scheduled);
 }
 
 .taskTitle {
@@ -296,12 +248,12 @@
   margin-bottom: 1px;
 }
 
-/* Unscheduled section */
-.unscheduledSection {
+/* Tasks without a due date */
+.undatedSection {
   margin-top: 16px;
 }
 
-.unscheduledToggle {
+.undatedToggle {
   background: none;
   border: none;
   font-size: var(--font-size-nav);
@@ -311,17 +263,17 @@
   transition: color var(--transition-fade);
 }
 
-.unscheduledToggle:hover {
+.undatedToggle:hover {
   color: var(--color-text-secondary);
 }
 
-.unscheduledList {
+.undatedList {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
 
-.unscheduledItem {
+.undatedItem {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -335,7 +287,7 @@
   transition: all var(--transition-fade);
 }
 
-.unscheduledItem:hover {
+.undatedItem:hover {
   border-color: var(--color-text-muted);
   color: var(--color-text-primary);
 }

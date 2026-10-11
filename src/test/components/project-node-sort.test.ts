@@ -3,7 +3,7 @@ import { sortProjectTasks, GROUP_OPTIONS } from '../../components/canvas/Project
 import { makeTodo } from '../helpers'
 
 describe('sortProjectTasks', () => {
-  it('sorts by date ascending', () => {
+  it('sorts by due date ascending', () => {
     const earlier = new Date(2026, 3, 1)
     const later = new Date(2026, 3, 10)
     const todos = [
@@ -12,7 +12,7 @@ describe('sortProjectTasks', () => {
       makeTodo({ id: 3, dueDate: later }),
       makeTodo({ id: 4, dueDate: earlier }),
     ]
-    const sorted = sortProjectTasks(todos, 'date', true, 1)
+    const sorted = sortProjectTasks(todos, 'deadline', true)
     expect(sorted.map((t) => t.id).slice(0, 2).sort()).toEqual([2, 4])
     expect(sorted.map((t) => t.id).slice(2).sort()).toEqual([1, 3])
   })
@@ -24,7 +24,7 @@ describe('sortProjectTasks', () => {
       makeTodo({ id: 3, title: 'Alpha' }),
       makeTodo({ id: 4, title: 'Apple' }),
     ]
-    const sorted = sortProjectTasks(todos, 'name', true, 1)
+    const sorted = sortProjectTasks(todos, 'name', true)
     expect(sorted.map((t) => t.title)).toEqual(['Alpha', 'Apple', 'Beta', 'Bravo'])
   })
 
@@ -35,7 +35,7 @@ describe('sortProjectTasks', () => {
       makeTodo({ id: 3, title: 'X' }),
       makeTodo({ id: 4, title: 'Y' }),
     ]
-    const sorted = sortProjectTasks(todos, 'name', false, 1)
+    const sorted = sortProjectTasks(todos, 'name', false)
     expect(sorted.map((t) => t.title)).toEqual(['Y', 'X', 'B', 'A'])
   })
 })

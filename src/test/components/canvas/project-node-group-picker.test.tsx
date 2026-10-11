@@ -23,7 +23,6 @@ vi.mock('../../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     toggleComplete: vi.fn(),
     remove: vi.fn(),
-    setScheduled: vi.fn(),
     setDeadline: vi.fn(),
     setProject: vi.fn(),
     setStatus: vi.fn(),
@@ -100,7 +99,7 @@ describe('ProjectNode group-by picker', () => {
     renderProjectNode()
     fireEvent.click(screen.getByTitle('Group tasks'))
     // Each label appears as a button inside the menu.
-    for (const label of ['None', 'Effective Date', 'Scheduled', 'Deadline', 'Status', 'People', 'Org', 'Tag']) {
+    for (const label of ['None', 'Due', 'Next follow-up', 'Status', 'People', 'Org', 'Tag']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
   })

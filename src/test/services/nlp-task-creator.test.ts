@@ -31,7 +31,7 @@ describe('parseTaskInput', () => {
   it('returns empty resolved when no metadata tokens', () => {
     const result = parseTaskInput('Just a plain task', people)
     expect(result.resolved.personIds).toEqual([])
-    expect(result.resolved.scheduledDate).toBeUndefined()
+    expect(result.resolved.dueDate).toBeUndefined()
   })
 
   it('resolves /project when projects provided', () => {
@@ -72,18 +72,18 @@ describe('parseTaskInput', () => {
 })
 
 describe('applyNlpMetadata', () => {
-  it('calls updateTodo with scheduledDate when present', async () => {
+  it('calls updateTodo with the due date when present', async () => {
     const todo = makeTodo({ id: 1, title: 'Test task' })
     const getTodo = vi.fn().mockReturnValue(todo)
     const updateTodo = vi.fn()
     const assignPerson = vi.fn()
 
-    const setAt = new Date('2026-04-16')
+    const due = new Date(2026, 3, 17)
     await applyNlpMetadata(
       1,
       {
         title: 'Test task',
-        scheduledDate: { kind: 'fuzzy', token: 'tomorrow', setAt },
+        dueDate: due,
         personIds: [],
         orgIds: [],
         unmatchedPersons: [],
@@ -98,7 +98,7 @@ describe('applyNlpMetadata', () => {
 
     expect(updateTodo).toHaveBeenCalledOnce()
     const updated = updateTodo.mock.calls[0]![0]
-    expect(updated.scheduledDate).toEqual({ kind: 'fuzzy', token: 'tomorrow', setAt })
+    expect(updated.dueDate).toEqual(due)
   })
 
   it('applies recurrence only when the todo has a deadline', async () => {
@@ -129,7 +129,7 @@ describe('applyNlpMetadata', () => {
     expect(updated.recurrenceRule?.type).toBe('weekly')
   })
 
-  it('skips updateTodo when no scheduledDate/recurrence', async () => {
+  it('skips updateTodo when no due date / recurrence / status', async () => {
     const updateTodo = vi.fn()
     const assignPerson = vi.fn()
 

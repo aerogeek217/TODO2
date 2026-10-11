@@ -49,13 +49,13 @@ describe('v49 fixture → prepareImport → restore', () => {
     await importFixture()
     for (const table of ALL_DATA_TABLES) {
       let expected = (fixture[table.name as FixtureTable] as unknown[]).length
-      // v52 deletes the two horizons settings rows.
-      if (table.name === 'settings') expected -= 2
+      // v52 deletes the two horizons settings rows, v53 the seeded follow-up status pointer.
+      if (table.name === 'settings') expected -= 3
       expect(await table.count(), `${table.name} count`).toBe(expected)
     }
   })
 
-  it('preserves todo key fields (ids, schedules, recurrence, assignments)', async () => {
+  it('preserves todo key fields (ids, dates, recurrence, assignments)', async () => {
     await importFixture()
     const todos = await db.todos.orderBy('id').toArray()
     expect(todos.map((t) => t.id)).toEqual([1, 2, 3, 4, 5, 6])
@@ -63,7 +63,6 @@ describe('v49 fixture → prepareImport → restore', () => {
     const report = todos.find((t) => t.title === 'Send quarterly report')!
     expect(report.notes).toBe('Include **charts**')
     expect(report.progress).toBe('draft done')
-    expect(report.scheduledDate?.kind).toBe('date')
     expect(report.recurrenceRule).toEqual({ type: 'weekly' })
     expect(report.projectId).toBe(1)
     expect(report.canvasId).toBe(1)
@@ -71,7 +70,6 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(new Date(report.dueDate!).toISOString()).toBe('2026-10-16T00:00:00.000Z')
 
     const dentist = todos.find((t) => t.title === 'Book dentist')!
-    expect(dentist.scheduledDate).toMatchObject({ kind: 'fuzzy', token: 'next-week' })
     expect(dentist.recurrenceRule).toEqual({ type: 'monthly', originalDayOfMonth: 31 })
 
     expect(todos.find((t) => t.title === 'Renew passport')!.isCompleted).toBe(true)
@@ -128,7 +126,7 @@ describe('v49 fixture → prepareImport → restore', () => {
   it('preserves every surviving settings row, including rails JSON and theme colors', async () => {
     await importFixture()
     const settings = new Map((await db.settings.toArray()).map((s) => [s.key, s.value]))
-    expect(settings.size).toBe(fixture.settings.length - 2)
+    expect(settings.size).toBe(fixture.settings.length - 3)
     expect(settings.get('weekStartsOn')).toBe('1')
     expect(settings.get('color.dark.accent')).toBe('#4f8cff')
     expect(settings.get('color.light.accent')).toBe('#1a5fd0')
@@ -147,22 +145,18 @@ describe('v49 fixture → v50: Date fields arrive as Dates', () => {
     if (iso) expect((value as Date).toISOString(), label).toBe(iso)
   }
 
-  it('todos: createdAt / modifiedAt / dueDate / scheduledDate value + setAt', async () => {
+  it('todos: createdAt / modifiedAt / dueDate / nextFollowupAt', async () => {
     await importFixture()
     const todos = await db.todos.orderBy('id').toArray()
     for (const t of todos) {
       expectDate(t.createdAt, `todo ${t.id} createdAt`)
       expectDate(t.modifiedAt, `todo ${t.id} modifiedAt`)
       if (t.dueDate !== undefined) expectDate(t.dueDate, `todo ${t.id} dueDate`)
-      if (t.scheduledDate?.kind === 'date') expectDate(t.scheduledDate.value, `todo ${t.id} scheduledDate.value`)
-      if (t.scheduledDate?.kind === 'fuzzy') expectDate(t.scheduledDate.setAt, `todo ${t.id} scheduledDate.setAt`)
+      if (t.nextFollowupAt !== undefined) expectDate(t.nextFollowupAt, `todo ${t.id} nextFollowupAt`)
     }
     const report = todos.find((t) => t.title === 'Send quarterly report')!
     expectDate(report.dueDate, 'report dueDate', '2026-10-16T00:00:00.000Z')
     expectDate(report.createdAt, 'report createdAt', '2026-09-02T10:00:00.000Z')
-    expect(report.scheduledDate).toEqual({ kind: 'date', value: new Date('2026-10-12T00:00:00.000Z') })
-    const dentist = todos.find((t) => t.title === 'Book dentist')!
-    expect(dentist.scheduledDate).toEqual({ kind: 'fuzzy', token: 'next-week', setAt: new Date('2026-09-10T09:30:00.000Z') })
   })
 
   it('canvases, projects, notes, taskboards carry Dates; todoEvents.timestamp stays a string', async () => {
@@ -258,14 +252,15 @@ describe('v49 fixture → v52: removed widgets are gone, everything else intact'
   })
 })
 
-describe('v49 fixture → follow-up fields: no backfill', () => {
-  it('existing tasks start with no follow-up (neither last nor next)', async () => {
+describe('v49 fixture → follow-up fields: no backfill beyond the scheduled date', () => {
+  it('no task gets a last follow-up; only formerly scheduled tasks get a next one (see v53)', async () => {
     await importFixture()
     const todos = await db.todos.toArray()
     expect(todos.length).toBe(fixture.todos.length)
+    const hadScheduled = new Set(fixture.todos.filter((t) => 'scheduledDate' in t).map((t) => t.id))
     for (const t of todos) {
       expect(t.lastFollowupAt, `todo ${t.id} lastFollowupAt`).toBeUndefined()
-      expect(t.nextFollowupAt, `todo ${t.id} nextFollowupAt`).toBeUndefined()
+      expect(t.nextFollowupAt !== undefined, `todo ${t.id} nextFollowupAt`).toBe(hadScheduled.has(t.id!))
     }
   })
 
@@ -275,5 +270,95 @@ describe('v49 fixture → follow-up fields: no backfill', () => {
       expect('hasFollowup' in def.membership.predicate, `${def.name} predicate`).toBe(false)
     }
     expect(await db.settings.get('followupDefaultInterval')).toBeUndefined()
+  })
+})
+
+// ── v53: scheduled date removed ──────────────────────────────────────────
+
+describe('v49 fixture → v53: scheduled dates become next follow-ups; removed enums rewritten', () => {
+  /** The local calendar day containing `iso`, at midnight. */
+  function localDay(iso: string): Date {
+    const d = new Date(iso)
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  }
+
+  it('strips scheduledDate from every todo', async () => {
+    await importFixture()
+    for (const t of await db.todos.toArray()) {
+      expect('scheduledDate' in t, `todo ${t.id} scheduledDate`).toBe(false)
+    }
+  })
+
+  it('a precise scheduled date becomes nextFollowupAt (local midnight); the due date is untouched', async () => {
+    await importFixture()
+    const todos = await db.todos.toArray()
+    const report = todos.find((t) => t.title === 'Send quarterly report')!
+    expect(report.nextFollowupAt).toEqual(localDay('2026-10-12T00:00:00.000Z'))
+    expect(report.dueDate).toEqual(new Date('2026-10-16T00:00:00.000Z'))
+    const invoice = todos.find((t) => t.title === 'Chase Globex invoice')!
+    expect(invoice.nextFollowupAt).toEqual(localDay('2026-10-09T00:00:00.000Z'))
+    expect(invoice.dueDate).toBeUndefined()
+  })
+
+  it('a fuzzy scheduled value resolves to the end of the window it was picked for', async () => {
+    await importFixture()
+    const todos = await db.todos.toArray()
+    // "next week" picked 2026-09-10 with a Monday week start → the Sunday after next.
+    const setAt = localDay('2026-09-10T09:30:00.000Z')
+    const toSunday = (7 - setAt.getDay()) % 7
+    const dentist = todos.find((t) => t.title === 'Book dentist')!
+    expect(dentist.nextFollowupAt).toEqual(
+      new Date(setAt.getFullYear(), setAt.getMonth(), setAt.getDate() + toSunday + 7),
+    )
+    // "next month" picked in September → 31 October (a completed task keeps it too).
+    const passport = todos.find((t) => t.title === 'Renew passport')!
+    const picked = localDay('2026-09-05T13:00:00.000Z')
+    expect(passport.nextFollowupAt).toEqual(new Date(picked.getFullYear(), picked.getMonth() + 2, 0))
+  })
+
+  it('recurrence anchors are preserved (anchored on the due date)', async () => {
+    await importFixture()
+    const todos = await db.todos.toArray()
+    for (const t of todos.filter((x) => x.recurrenceRule)) {
+      expect(t.dueDate, `recurring todo ${t.id} keeps a due date`).toBeInstanceOf(Date)
+    }
+  })
+
+  it('no list definition references a removed sort / group / date field or hasScheduled', async () => {
+    await importFixture()
+    const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
+    for (const def of defs) {
+      expect(['date', 'scheduled'], `${def.name} sort`).not.toContain(def.sort)
+      expect(['date', 'scheduled'], `${def.name} grouping`).not.toContain(def.grouping)
+      expect(['date', 'scheduled'], `${def.name} dateField`).not.toContain(def.membership.predicate.dateField)
+      expect('hasScheduled' in def.membership.predicate, `${def.name} hasScheduled`).toBe(false)
+    }
+    const [thisWeek, someday, byPerson, acme] = defs
+    expect(thisWeek).toMatchObject({ sort: 'deadline', grouping: 'none' })
+    expect(thisWeek!.membership.predicate).toMatchObject({
+      dateField: 'deadline',
+      dateRangeStart: { kind: 'relative', token: 'start-of-week' },
+      dateRangeEnd: { kind: 'relative', token: 'end-of-week' },
+    })
+    expect(someday!.membership.predicate).toMatchObject({ dateField: 'deadline', hasDeadline: false })
+    expect(byPerson!.membership.predicate.dateField).toBe('deadline')
+    // "Include no date" only applied to the effective date; on a predicate that
+    // already filtered by due date it was inert, and stays inert.
+    expect(acme!.membership.predicate).toMatchObject({ dateField: 'deadline', dateRangeIncludeNoDate: false })
+  })
+
+  it('removes the seeded follow-up status pointer but keeps the status itself', async () => {
+    await importFixture()
+    expect(await db.settings.get('seededFollowupStatusId')).toBeUndefined()
+    expect((await db.statuses.toArray()).some((s) => s.name === 'Follow-up')).toBe(true)
+    // The fixture picked a quick status explicitly; it is unchanged.
+    expect((await db.settings.get('quickStatusId'))?.value).toBe('2')
+  })
+
+  it('keeps historical scheduled todoEvents', async () => {
+    await importFixture()
+    const scheduled = (await db.todoEvents.toArray()).filter((e) => e.type === 'scheduled')
+    expect(scheduled.length).toBe(fixture.todoEvents.filter((e) => e.type === 'scheduled').length)
+    expect(scheduled.length).toBeGreaterThan(0)
   })
 })

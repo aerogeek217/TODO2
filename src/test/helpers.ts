@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Person, Project, Org, ScheduledValue } from '../models'
+import type { PersistedTodoItem, Person, Project, Org } from '../models'
 import type { FilterCriteria } from '../stores/filter-store'
 import { db } from '../data/database'
 import { useFilterStore } from '../stores/filter-store'
@@ -19,7 +19,7 @@ import { useListInsetStore } from '../stores/list-inset-store'
 let makeTodoUidSeq = 0
 
 export function makeTodo(
-  overrides: Partial<PersistedTodoItem> & { id?: number; scheduledDate?: ScheduledValue } = {},
+  overrides: Partial<PersistedTodoItem> & { id?: number } = {},
 ): PersistedTodoItem {
   return {
     uid: `test-uid-${++makeTodoUidSeq}`,
@@ -141,19 +141,25 @@ export function resetFloatingStores(): void {
 }
 
 /**
- * Dexie store specs of the v51 schema, for tests that build an old database
- * by hand and then open it with the real `Todo2Database`. Derived from the
- * current schema plus the stores later versions dropped (v52: the horizons /
- * scoreboard / snooze-graveyard placement tables). Update when a later
- * version changes a store spec.
+ * Dexie store specs of the v52 schema, for tests that build an old database
+ * by hand and then open it with the real `Todo2Database`. v53 changed no store
+ * spec, so this is the current schema. Update when a later version changes a
+ * store spec (add back what it drops / alters).
  */
-export function v51StoreSpecs(): Record<string, string> {
-  const current = Object.fromEntries(db.tables.map((t) => {
+export function v52StoreSpecs(): Record<string, string> {
+  return Object.fromEntries(db.tables.map((t) => {
     const indexes = t.schema.indexes.map((i) => i.src)
     return [t.name, [t.schema.primKey.src, ...indexes].join(', ')]
   }))
+}
+
+/**
+ * Store specs of the v51 schema: v52's plus the stores v52 dropped (the
+ * horizons / scoreboard / snooze-graveyard placement tables).
+ */
+export function v51StoreSpecs(): Record<string, string> {
   return {
-    ...current,
+    ...v52StoreSpecs(),
     floatingHorizons: '++id, canvasId',
     floatingScoreboard: '++id, canvasId',
     floatingSnoozeGraveyard: '++id, canvasId',

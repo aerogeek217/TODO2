@@ -12,7 +12,6 @@ import { generateInitials } from '../utils/person'
 import { parseTaskInput } from '../services/nlp-task-creator'
 import { resolveTags } from '../services/nlp-resolver'
 import { makeRecurrenceRule } from '../services/recurrence'
-import { scheduledValuesEqual } from '../utils/effective-date'
 
 /** Return the IDs of other multi-selected tasks (excluding the primary edit target). */
 function getOtherSelectedIds(primaryId: number): number[] {
@@ -52,16 +51,15 @@ export function useTaskEditCallbacks() {
       const followupTouched = 'nextFollowupAt' in partial || partial.lastFollowupAt !== undefined
       const hasMeta =
         followupTouched ||
-        partial.scheduledDate !== undefined || partial.dueDate !== undefined ||
+        partial.dueDate !== undefined ||
         partial.notes || partial.statusId !== undefined ||
-        resolved.scheduledDate !== undefined || resolved.recurrence ||
+        resolved.dueDate !== undefined || resolved.recurrence ||
         resolved.statusId !== undefined ||
         partial.recurrenceRule
       if (hasMeta) {
-        const nextDeadline = partial.dueDate ?? todo.dueDate
+        const nextDeadline = partial.dueDate ?? resolved.dueDate ?? todo.dueDate
         await updateTodo({
           ...todo,
-          scheduledDate: resolved.scheduledDate ?? partial.scheduledDate ?? todo.scheduledDate,
           dueDate: nextDeadline,
           statusId: resolved.statusId ?? partial.statusId ?? todo.statusId,
           notes: partial.notes ?? todo.notes,
@@ -101,8 +99,6 @@ export function useTaskEditCallbacks() {
     const store = useTodoStore.getState()
     if (updated.statusId !== current.statusId)
       store.bulkSetStatus(otherIds, updated.statusId)
-    if (!scheduledValuesEqual(updated.scheduledDate, current.scheduledDate))
-      store.bulkSetScheduled(otherIds, updated.scheduledDate ?? null)
     if (updated.dueDate?.getTime() !== current.dueDate?.getTime())
       store.bulkSetDeadline(otherIds, updated.dueDate ?? null)
     if (updated.projectId !== current.projectId)

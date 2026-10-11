@@ -1,6 +1,5 @@
 import type { PersistedTodoItem, Person, Org, Status } from '../models'
 import { startOfDay, MS_PER_DAY } from '../utils/date'
-import { effectiveDate, resolveScheduled, type WeekStart } from '../utils/effective-date'
 import { generateRecurringInstances, recurrenceAnchor } from './recurrence'
 
 export interface CalendarEntry {
@@ -13,14 +12,6 @@ export interface CalendarEntry {
 }
 
 export interface BuildEntriesOptions {
-  today: Date
-  weekStartsOn: WeekStart
-  /**
-   * Sort within each day's entry list.
-   *  - `sortOrder`  — pure `sortOrder` ascending (canvas calendar strip).
-   *  - `effective`  — `effectiveDate` ascending, then `sortOrder` (CalendarView grid).
-   */
-  sortMode: 'sortOrder' | 'effective'
   assignedPeopleMap?: Map<number, Person[]>
   assignedOrgsMap?: Map<number, Org[]>
   statuses?: readonly Status[]
@@ -36,11 +27,9 @@ export function dayKey(d: Date): string {
  * assigned to its todo and the resolved Status row. Virtual recurring
  * instances inherit the parent todo's people/orgs/status.
  *
- * The placement primary is `resolvedScheduled ?? deadline` — matching the
- * existing CalendarView semantic where a user-set scheduled day wins over the
- * deadline (so dragging a card to a new day actually moves it even when its
- * deadline lies earlier). Falling back to `effectiveDate` would clamp the
- * card back to `min(scheduled, deadline)`.
+ * A task is placed on its due date's day; recurring tasks also get a virtual
+ * entry on every other occurrence in range. Entries within a day are in
+ * `sortOrder` order.
  */
 export function buildEntries(
   todos: readonly PersistedTodoItem[],
@@ -52,7 +41,6 @@ export function buildEntries(
   const firstDay = days[0]
   const lastDay = days[days.length - 1]
   if (!firstDay || !lastDay) return map
-  const { today, weekStartsOn, sortMode } = options
   const rangeStart = startOfDay(firstDay)
   const rangeEnd = new Date(startOfDay(lastDay).getTime() + MS_PER_DAY)
   const inRange = (d: Date) => d.getTime() >= rangeStart.getTime() && d.getTime() < rangeEnd.getTime()
@@ -79,8 +67,7 @@ export function buildEntries(
   }
 
   for (const t of todos) {
-    const sched = resolveScheduled(t.scheduledDate, today, weekStartsOn)
-    const primary = sched ?? (t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
+    const primary = t.dueDate ? startOfDay(new Date(t.dueDate)) : null
     if (primary && inRange(primary)) {
       push(primary, enrich(t, false, `task-${t.id}`))
     }
@@ -98,16 +85,7 @@ export function buildEntries(
   }
 
   for (const [, arr] of map) {
-    if (sortMode === 'effective') {
-      arr.sort((a, b) => {
-        const ae = effectiveDate(a.todo, today, weekStartsOn)
-        const be = effectiveDate(b.todo, today, weekStartsOn)
-        if (ae && be && ae.getTime() !== be.getTime()) return ae.getTime() - be.getTime()
-        return a.todo.sortOrder - b.todo.sortOrder
-      })
-    } else {
-      arr.sort((a, b) => a.todo.sortOrder - b.todo.sortOrder)
-    }
+    arr.sort((a, b) => a.todo.sortOrder - b.todo.sortOrder)
   }
   return map
 }

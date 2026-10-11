@@ -18,7 +18,7 @@ interface PortalDropdownProps {
  * Portal-rendered dropdown anchored below a trigger element. Tracks the
  * anchor's bounding rect on resize, scroll (capture-phase, so containers count),
  * and React Flow viewport transforms; clamps so the panel stays inside the
- * viewport. Used by `TaskRow`'s status / people / scheduled menus, and by
+ * viewport. Used by `TaskRow`'s status / people menus, and by
  * `MobileTaskRow`'s long-press context menu + chip popovers (Phase 6 parity).
  */
 export function PortalDropdown({ anchorRef, onClickOutside, className, children }: PortalDropdownProps) {

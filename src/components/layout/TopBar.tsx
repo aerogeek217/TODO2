@@ -22,7 +22,6 @@ import { useProjectStore } from '../../stores/project-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFileStorageStore } from '../../stores/file-storage-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { startOfToday } from '../../utils/date'
 import { groupTodosByTextMatch, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
@@ -84,12 +83,11 @@ interface SearchResultPillContext {
 
 function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: SearchResultPillContext }) {
   const today = startOfToday()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const people = ctx.peopleByTodoId.get(todo.id) ?? []
   const orgs = ctx.orgsByTodoId.get(todo.id) ?? []
   const status = todo.statusId != null ? ctx.statusesById.get(todo.statusId) : undefined
 
-  if (people.length === 0 && orgs.length === 0 && !status && !todo.scheduledDate && !todo.dueDate) {
+  if (people.length === 0 && orgs.length === 0 && !status && !todo.dueDate && !todo.nextFollowupAt) {
     return null
   }
 
@@ -100,7 +98,6 @@ function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: Search
       orgs={orgs}
       status={status}
       today={today}
-      weekStartsOn={weekStartsOn}
       interactive={false}
       ariaHidden
       personColorContext={{ personOrgMap: ctx.personOrgMap, orgs: ctx.orgs }}

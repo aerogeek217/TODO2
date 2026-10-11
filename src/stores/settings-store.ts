@@ -17,7 +17,7 @@ import {
   type FollowupInterval,
 } from '../utils/followup'
 
-const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'followup', 'date'] as const
+const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'deadline', 'followup'] as const
 
 export function isValidProjectGroupBy(v: unknown): v is ProjectGroupBy {
   return typeof v === 'string' && (PROJECT_GROUP_BY_VALUES as readonly string[]).includes(v)
@@ -39,7 +39,6 @@ interface SettingsState {
   defaultStatusId: number | null
   quickStatusId: number | null
   seededAssignedStatusId: number | null
-  seededFollowupStatusId: number | null
   completedRetentionDays: number | null // null = keep forever
   weekStartsOn: WeekStart
   canvasViewport: CanvasViewport | null
@@ -107,7 +106,6 @@ const colorVarMap: Record<keyof ThemeColors, string> = {
   danger: '--color-danger',
   warning: '--color-warning',
   star: '--color-followup',
-  scheduled: '--color-scheduled',
   deadline: '--color-deadline',
 }
 
@@ -230,7 +228,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   defaultStatusId: null,
   quickStatusId: null,
   seededAssignedStatusId: null,
-  seededFollowupStatusId: null,
   completedRetentionDays: null,
   weekStartsOn: 1 as WeekStart,
   canvasViewport: null,
@@ -252,7 +249,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let defaultStatusId: number | null = null
       let quickStatusId: number | null = null
       let seededAssignedStatusId: number | null = null
-      let seededFollowupStatusId: number | null = null
       let completedRetentionDays: number | null = null
       let themeMode: ThemeMode = 'dark'
       let weekStartsOn: WeekStart = 1
@@ -281,8 +277,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           quickStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.seededAssignedStatusId) {
           seededAssignedStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === SETTING_KEYS.seededFollowupStatusId) {
-          seededFollowupStatusId = row.value ? Number(row.value) : null
         } else if (row.key === SETTING_KEYS.completedRetentionDays) {
           const parsed = row.value ? Number(row.value) : null
           completedRetentionDays = parsed != null && isValidRetentionDays(parsed) ? parsed : null
@@ -314,8 +308,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }
       customizedColorKeys = customKeys
-      if (quickStatusId == null && seededFollowupStatusId != null) quickStatusId = seededFollowupStatusId
-      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, seededFollowupStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent, followupDefaultInterval })
+      set({ colors, defaultProjectId, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, canvasViewport, canvasRails, maxTags, defaultProjectGroupBy, canvasMaxExtent, followupDefaultInterval })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))

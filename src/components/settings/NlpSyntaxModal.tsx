@@ -29,11 +29,11 @@ const SECTIONS: NlpSyntaxSection[] = [
     ],
   },
   {
-    label: 'Scheduled dates',
+    label: 'Due dates',
     rows: [
-      { syntax: 'today / tomorrow / tmr', description: 'Fuzzy single-day window' },
-      { syntax: 'this week / next week', description: 'Fuzzy window — resolves to end-of-window' },
-      { syntax: 'this month / next month', description: 'Fuzzy window' },
+      { syntax: 'today / tomorrow / tmr', description: 'Sets the due date' },
+      { syntax: 'this week / next week', description: 'Due on the last day of that week' },
+      { syntax: 'this month / next month', description: 'Due on the last day of that month' },
       { syntax: 'monday … sunday', description: 'Next occurrence of that day' },
       { syntax: 'next monday', description: 'The Monday after the next one' },
       { syntax: 'in 3 days', description: 'N days from today' },
@@ -42,10 +42,10 @@ const SECTIONS: NlpSyntaxSection[] = [
     ],
   },
   {
-    label: 'Deadlines',
+    label: 'Explicit due dates',
     rows: [
-      { syntax: 'due <date>', description: 'Set deadline (e.g. due friday, due 5/4)' },
-      { syntax: 'by <date>', description: 'Same as "due" — sets deadline' },
+      { syntax: 'due <date>', description: 'Set the due date (e.g. due friday, due 5/4); wins over a bare date' },
+      { syntax: 'by <date>', description: 'Same as "due"' },
       { syntax: '!<date>', description: 'Shorthand for single-word dates and MM/DD (e.g. !tuesday, !5/4)' },
     ],
   },

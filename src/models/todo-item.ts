@@ -1,5 +1,4 @@
 import type { RecurrenceRule } from './recurrence'
-import type { ScheduledValue } from './scheduled-value'
 
 export interface TodoItem {
   id?: number
@@ -20,8 +19,7 @@ export interface TodoItem {
    * not `modifiedAt` (which advances on reorders / bulk edits).
    */
   completedAt?: Date
-  scheduledDate?: ScheduledValue
-  /** Deadline — UI label is "Deadline". */
+  /** Due date (a day at local midnight). The UI calls it "Due". */
   dueDate?: Date
   /**
    * When the task was last followed up: set to the exact moment by the

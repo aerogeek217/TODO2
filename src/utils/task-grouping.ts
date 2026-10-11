@@ -1,5 +1,5 @@
 import type { PersistedTodoItem, Person, Org, Status, Tag, Project, ProjectGroupBy } from '../models'
-import { effectiveDate, resolveScheduled, type WeekStart } from './effective-date'
+import type { WeekStart } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
 import { resolvePersonColor } from './person-color'
 import { bySortOrder } from './sort-order'
@@ -7,9 +7,7 @@ import { UNAFFILIATED_PERSON_COLOR } from '../constants'
 
 export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
   { value: null, label: 'None' },
-  { value: 'date', label: 'Effective Date' },
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'deadline', label: 'Deadline' },
+  { value: 'deadline', label: 'Due' },
   { value: 'followup', label: 'Next follow-up' },
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
@@ -99,7 +97,7 @@ function parseId(prefix: string, key: string): number | null {
  * - `string[]` — todo belongs to multiple groups (people / org many-to-many);
  *   it appears once in each group, mirroring the ListView convention.
  *
- * Bucket keys for `date` / `scheduled` / `deadline` (`overdue` / `today` /
+ * Bucket keys for `deadline` / `followup` (`overdue` / `today` /
  * `week` / `later`) match `ListView.buildBucketSections` so users see the
  * same grouping across views.
  *
@@ -144,10 +142,6 @@ export function getGroupKey(
     }
     case 'project':
       return todo.projectId != null ? `project-${todo.projectId}` : null
-    case 'date':
-      return bucketDateKey(effectiveDate(todo, ctx.today, ctx.weekStartsOn), ctx.today)
-    case 'scheduled':
-      return bucketDateKey(resolveScheduled(todo.scheduledDate, ctx.today, ctx.weekStartsOn), ctx.today)
     case 'deadline':
       return bucketDateKey(
         todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null,
@@ -166,7 +160,7 @@ export function getGroupKey(
 /**
  * Human-readable label for a key produced by `getGroupKey`. Person/org
  * names are looked up via the assigned-{people,orgs} maps; status names
- * via `ctx.statuses`; date/scheduled/deadline keys map to the same labels
+ * via `ctx.statuses`; deadline/followup keys map to the same labels
  * `ListView` uses ("Overdue" / "Today" / "This Week" / "Later").
  */
 export function getGroupLabel(
@@ -214,8 +208,6 @@ export function getGroupLabel(
       const project = ctx.projects?.find((p) => p.id === id)
       return project?.name ?? ''
     }
-    case 'date':
-    case 'scheduled':
     case 'deadline':
     case 'followup':
       return DATE_BUCKET_LABELS[key] ?? ''
@@ -230,7 +222,7 @@ export function getGroupLabel(
  * defined color). People without an org membership fall back to
  * `UNAFFILIATED_PERSON_COLOR`, mirroring `AvatarStack`'s fill-variant behavior.
  *
- * Date-bucket dimensions (`date` / `scheduled` / `deadline`) are derived
+ * Date-bucket dimensions (`deadline` / `followup`) are derived
  * buckets, not entities — they intentionally have no color.
  */
 export function getGroupColor(
@@ -269,8 +261,6 @@ export function getGroupColor(
       return undefined
     }
     case 'project':
-    case 'date':
-    case 'scheduled':
     case 'deadline':
     case 'followup':
     case 'none':
@@ -310,8 +300,6 @@ function orderGroupKeys(
           return ai - bi
         })
       }
-      case 'date':
-      case 'scheduled':
       case 'deadline':
       case 'followup': {
         const idx = (k: string) => {
@@ -373,7 +361,7 @@ function orderGroupKeys(
  * `groups` keyed by the value(s) returned from `getGroupKey`.
  *
  * - Within each bucket, todo order is preserved from the input.
- * - Group order: status by `sortOrder`, date/scheduled/deadline by
+ * - Group order: status by `sortOrder`, deadline/followup by
  *   bucket order (overdue → today → week → later), people/org
  *   alphabetically by label.
  * - A todo with N keys (people/org) appears once per group — the same

@@ -1,8 +1,8 @@
 import { db } from './database'
 import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../models'
 import { startOfToday } from '../utils/date'
-import { encodeScheduledValue, encodeDateValue } from './todo-event-repository'
-import { hasPreciseRecurrenceAnchor } from './recurrence-anchor'
+import { encodeDateValue } from './todo-event-repository'
+import { hasRecurrenceAnchor } from './recurrence-anchor'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { newTodoUid } from '../utils/todo-uid'
 
@@ -33,26 +33,25 @@ function withoutUndefinedCompletedAt<T extends Partial<TodoItem>>(row: T): T {
 
 /**
  * Repository-level invariant: a `recurrenceRule` is only meaningful when the
- * row has a precise anchor (`recurrenceAnchor` would return non-null). When a
- * write produces a merged row with a rule but no anchor — e.g. a bulk
- * `bulkSetScheduled` flips a recurring task to a fuzzy schedule, or a bulk
- * `bulkSetDeadline(null)` clears the only anchor — splice
+ * row has a due date to advance (`recurrenceAnchor` would return non-null).
+ * When a write produces a merged row with a rule but no anchor — e.g. a bulk
+ * `bulkSetDeadline(null)` clears the due date — splice
  * `recurrenceRule: undefined` into the patch so the rule is dropped on disk.
  * Mirrors TaskEditPopup's silent-clear UX so every write path converges on
  * the same shape regardless of caller.
  */
 function dropOrphanedRule<T extends Partial<TodoItem>>(
-  merged: Pick<TodoItem, 'dueDate' | 'scheduledDate' | 'recurrenceRule'>,
+  merged: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>,
   changes: T,
 ): T {
   if (!merged.recurrenceRule) return changes
-  if (hasPreciseRecurrenceAnchor(merged)) return changes
+  if (hasRecurrenceAnchor(merged)) return changes
   return { ...changes, recurrenceRule: undefined }
 }
 
 /**
  * Diff a todo write against its prior state and produce one event per
- * tracked-field change (`scheduledDate`, `dueDate`, `statusId`,
+ * tracked-field change (`dueDate`, `statusId`,
  * `isCompleted`). Idempotent — an unchanged value emits nothing.
  *
  * `prior == null` means the row didn't exist (insert path) — only the
@@ -66,13 +65,6 @@ function buildFieldChangeEvents(
   timestamp: string,
 ): Omit<TodoEvent, 'id'>[] {
   const out: Omit<TodoEvent, 'id'>[] = []
-  if ('scheduledDate' in next) {
-    const from = encodeScheduledValue(prior?.scheduledDate)
-    const to = encodeScheduledValue(next.scheduledDate ?? null)
-    if (from !== to) {
-      out.push({ todoId, type: 'scheduled', fromValue: from, toValue: to, timestamp })
-    }
-  }
   if ('dueDate' in next) {
     const from = encodeDateValue(prior?.dueDate)
     const to = encodeDateValue(next.dueDate ?? null)

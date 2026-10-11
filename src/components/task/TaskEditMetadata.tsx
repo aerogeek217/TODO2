@@ -1,22 +1,15 @@
 import type { Person, Org, Tag, RecurrenceType, PersistedTodoItem } from '../../models'
-import type { ScheduledValue } from '../../models/scheduled-value'
 import { ChipSelector } from '../shared/ChipSelector'
-import { SchedulePicker } from '../shared/SchedulePicker'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
-import { scheduledLabel } from '../../utils/effective-date'
-import { formatDate, startOfToday } from '../../utils/date'
 import { useOrgStore } from '../../stores/org-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { resolvePersonColor } from '../../utils/person-color'
 import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditMetadataProps {
-  // Scheduled + Deadline
-  scheduledDate: ScheduledValue | null
+  // Due date + repeat
   deadline: Date | null
   recurrenceType: RecurrenceType | ''
-  onScheduledChange: (next: ScheduledValue | null) => void
   onDeadlineChange: (next: Date | null) => void
   onRecurrenceChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
 
@@ -67,8 +60,8 @@ interface TaskEditMetadataProps {
 }
 
 export function TaskEditMetadata({
-  scheduledDate, deadline, recurrenceType,
-  onScheduledChange, onDeadlineChange, onRecurrenceChange,
+  deadline, recurrenceType,
+  onDeadlineChange, onRecurrenceChange,
   projectId, projects, projectSearch, projectRef, projectSearchRef,
   onProjectSelect, onProjectSearchChange,
   assignedPeople, assignedOrgs, assignedTags, allPeople, allOrgs, allTags,
@@ -83,20 +76,13 @@ export function TaskEditMetadata({
 }: TaskEditMetadataProps) {
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const orgs = useOrgStore((s) => s.orgs)
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   return (
     <div className={styles.metaSection}>
-      {/* Scheduled */}
+      {/* Due date */}
       <div className={styles.metaRow}>
-        <span className={styles.metaLabel}>Scheduled</span>
-        <SchedulePicker value={scheduledDate} onChange={onScheduledChange} />
-      </div>
-
-      {/* Deadline */}
-      <div className={styles.metaRow}>
-        <span className={styles.metaLabel}>Deadline</span>
+        <span className={styles.metaLabel}>Due</span>
         <DeadlinePicker value={deadline} onChange={onDeadlineChange} />
-        {(deadline || (scheduledDate && scheduledDate.kind === 'date')) && (
+        {deadline && (
           <select
             className={styles.personSelect}
             value={recurrenceType}
@@ -112,13 +98,6 @@ export function TaskEditMetadata({
           </select>
         )}
       </div>
-
-      {/* Combined helper line — shown only when both are set */}
-      {scheduledDate && deadline && (
-        <div className={styles.scheduleHint}>
-          Deadline {formatDate(deadline)} — scheduled {scheduledLabel(scheduledDate, startOfToday(), weekStartsOn).toLowerCase()}
-        </div>
-      )}
 
       {/* Project */}
       <div className={styles.metaRow}>

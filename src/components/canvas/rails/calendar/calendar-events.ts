@@ -4,7 +4,6 @@ import {
   dayKey,
   type CalendarEntry,
 } from '../../../../services/calendar-entries'
-import type { WeekStart } from '../../../../utils/effective-date'
 import type { EventRowEntry } from './EventRow'
 
 /**
@@ -18,22 +17,16 @@ export { dayKey }
 
 /**
  * Bucket todos by day for the calendar strip. Thin wrapper over the shared
- * `services/calendar-entries.buildEntries` that fixes the strip's sort mode
- * to `sortOrder` (vs CalendarView's `effective` mode).
+ * `services/calendar-entries.buildEntries`.
  */
 export function buildEntries(
   todos: PersistedTodoItem[],
   days: Date[],
-  today: Date,
-  weekStartsOn: WeekStart,
   assignedPeopleMap: Map<number, Person[]>,
   assignedOrgsMap: Map<number, Org[]>,
   statuses: Status[],
 ): Map<string, StripEntry[]> {
   return buildEntriesShared(todos, days, {
-    today,
-    weekStartsOn,
-    sortMode: 'sortOrder',
     assignedPeopleMap,
     assignedOrgsMap,
     statuses,

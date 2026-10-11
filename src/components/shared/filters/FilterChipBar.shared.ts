@@ -40,11 +40,10 @@ export const DEFAULT_PREDICATE: TodoPredicate = {
   projectIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'date',
+  dateField: 'deadline',
   dateRangeStart: null,
   dateRangeEnd: null,
   dateRangeIncludeNoDate: false,
-  hasScheduled: null,
   hasDeadline: null,
   hasFollowup: null,
   tags: null,
@@ -63,7 +62,6 @@ export function hasAnyFilter(p: TodoPredicate): boolean {
     p.searchText !== '' ||
     p.dateRangeStart !== null ||
     p.dateRangeEnd !== null ||
-    p.hasScheduled !== null ||
     p.hasDeadline !== null ||
     (p.hasFollowup ?? null) !== null ||
     (p.tags ?? null) !== null
@@ -157,7 +155,6 @@ export function useFilterChipBarState(
   const dateActive =
     p.dateRangeStart !== null ||
     p.dateRangeEnd !== null ||
-    p.hasScheduled !== null ||
     p.hasDeadline !== null ||
     (p.hasFollowup ?? null) !== null
   const active = hasAnyFilter(p)

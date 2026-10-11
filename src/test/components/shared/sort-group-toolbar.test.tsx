@@ -4,10 +4,10 @@ import { SortGroupToolbar, type SortGroupOption } from '../../../components/shar
 
 afterEach(() => cleanup())
 
-const SORT_OPTS: readonly SortGroupOption<'manual' | 'name' | 'date'>[] = [
+const SORT_OPTS: readonly SortGroupOption<'manual' | 'name' | 'deadline'>[] = [
   { value: 'manual', label: 'None' },
   { value: 'name', label: 'Name' },
-  { value: 'date', label: 'Effective Date' },
+  { value: 'deadline', label: 'Due date' },
 ]
 
 const GROUP_OPTS: readonly SortGroupOption<'none' | 'project' | 'status'>[] = [
@@ -205,8 +205,8 @@ describe('SortGroupToolbar — compact density', () => {
     const activeOpt = screen.getByRole('option', { name: /^name/i })
     expect(activeOpt).toHaveAttribute('aria-selected', 'true')
     expect(activeOpt.textContent).toContain('↑')
-    fireEvent.click(screen.getByRole('option', { name: /effective date/i }))
-    expect(onSortChange).toHaveBeenCalledWith('date')
+    fireEvent.click(screen.getByRole('option', { name: /due date/i }))
+    expect(onSortChange).toHaveBeenCalledWith('deadline')
   })
 
   it('hides sort field when showSort=false', () => {

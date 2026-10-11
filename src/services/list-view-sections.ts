@@ -33,7 +33,7 @@ function buildBucketSections(
   weekStartsOn: WeekStart,
   noDateLabel: string,
 ): Section[] {
-  const getDate = (t: PersistedTodoItem): Date | null => pickTodoDate(t, field, today, weekStartsOn)
+  const getDate = (t: PersistedTodoItem): Date | null => pickTodoDate(t, field)
   const { buckets, noDate } = bucketByDate(todos, getDate, today, weekStartsOn, DATE_LIST_WINDOWS)
   const sections: Section[] = []
   for (const b of buckets) {
@@ -50,16 +50,8 @@ export function buildFlatSection(todos: PersistedTodoItem[]): Section[] {
   return [{ key: 'all', label: 'All tasks', todos }]
 }
 
-export function buildDateSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
-  return buildBucketSections(todos, 'date', today, weekStartsOn, 'No Date')
-}
-
-export function buildScheduledSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
-  return buildBucketSections(todos, 'scheduled', today, weekStartsOn, 'Not Scheduled')
-}
-
 export function buildDeadlineSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
-  return buildBucketSections(todos, 'deadline', today, weekStartsOn, 'No Deadline')
+  return buildBucketSections(todos, 'deadline', today, weekStartsOn, 'No Due Date')
 }
 
 export function buildFollowupSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
@@ -430,8 +422,6 @@ export function buildTagSections(
  */
 export function itemSortComparator(
   sortBy: ListItemSortBy,
-  weekStartsOn: WeekStart,
-  today: Date = startOfToday(),
 ): ((a: PersistedTodoItem, b: PersistedTodoItem) => number) | undefined {
   if (sortBy === 'manual') return undefined
   if (sortBy === 'name') {
@@ -441,8 +431,8 @@ export function itemSortComparator(
       return bySortOrder(a, b)
     }
   }
-  if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline' || sortBy === 'followup') {
-    return compareTodosByDate(sortBy, today, weekStartsOn)
+  if (sortBy === 'deadline' || sortBy === 'followup') {
+    return compareTodosByDate(sortBy)
   }
   // Categorical sort fields (created / people / project / org / status) aren't
   // exposed in `LIST_SORT_VALUES`; fall back to manual order if they leak in.

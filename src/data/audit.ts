@@ -5,7 +5,7 @@ import {
   validateRow,
   isKnownSettingKey,
 } from './import-validation'
-import { hasPreciseRecurrenceAnchor } from './recurrence-anchor'
+import { hasRecurrenceAnchor } from './recurrence-anchor'
 
 export interface AuditSample {
   /** The full offending record. JSON-serialised verbatim in the detail popup. */
@@ -608,9 +608,9 @@ export async function auditData(): Promise<AuditReport> {
     })
   }
 
-  // --- Orphaned recurrence rules: rule set, but no precise anchor remains.
+  // --- Orphaned recurrence rules: rule set, but no due date to advance.
   // `recurrenceAnchor` (services/recurrence.ts) returns null without a
-  // `dueDate` or precise `scheduledDate`, so `advanceRecurring` short-circuits
+  // `dueDate`, so `advanceRecurring` short-circuits
   // and the rule never fires — the row carries dead data on disk. The
   // repository invariant (`todoRepository.update` / `bulkUpdate`) catches
   // this on every new write; this audit pass catches legacy rows that
@@ -618,12 +618,12 @@ export async function auditData(): Promise<AuditReport> {
   // repository (e.g. raw `db.todos.update` somewhere). `clear-field` cleanup
   // strips `recurrenceRule`, leaving the rest of the row intact.
   const orphanedRecurrence = todos.filter(
-    (t) => t.recurrenceRule != null && !hasPreciseRecurrenceAnchor(t),
+    (t) => t.recurrenceRule != null && !hasRecurrenceAnchor(t),
   )
   if (orphanedRecurrence.length > 0) {
     issues.push({
       table: 'todos',
-      description: 'Todos with a recurrence rule but no precise anchor (rule never fires)',
+      description: 'Todos with a recurrence rule but no due date (rule never fires)',
       count: orphanedRecurrence.length,
       ids: orphanedRecurrence.map((t) => t.id!),
       fix: 'clear-field',
@@ -632,7 +632,7 @@ export async function auditData(): Promise<AuditReport> {
         row: toSampleRow(t as unknown as Record<string, unknown>),
         id: t.id,
         badFields: ['recurrenceRule'],
-        note: 'Recurrence rule has no precise anchor (no dueDate or precise scheduledDate) — the rule can never fire',
+        note: 'Recurrence rule has no anchor (no dueDate) — the rule can never fire',
       })),
     })
   }

@@ -39,7 +39,7 @@
   position: relative;
 }
 
-/* Inline (default): scheduled and deadline sit side-by-side, no fixed width. */
+/* Inline (default): flows with the row, no fixed width. */
 .dateInline {
   display: inline-flex;
   align-items: center;
@@ -48,71 +48,12 @@
   line-height: 1;
 }
 
-/*
- * Secondary chip in a two-chip stack: deadline when both scheduled + deadline
- * are present.
- */
-.dateStackSecondary {
-  font-size: 9.5px;
-  padding: 0 4px;
-  line-height: 10px;
-  letter-spacing: 0.1px;
-}
-
-/* × clear button inside the tight secondary chip would overflow its
- * line-height, so hide it there — users clear the primary by clicking it. */
-.dateStackSecondary .chipClear {
-  display: none;
-}
-
-/* ═══ Scheduled chip ═══ */
-
-.scheduledChip {
-  --date-intensity: 1;
-  --fade: calc((1 - var(--date-intensity)) * 100%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  font-size: var(--font-size-meta);
-  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
-  background: color-mix(in srgb, transparent var(--fade), var(--color-scheduled-bg));
-  padding: 1px 6px;
-  line-height: 14px;
-  border-radius: var(--radius-chip);
-  border: 1px solid transparent;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  font-family: inherit;
-  box-sizing: border-box;
-  font-variant-numeric: tabular-nums;
-}
-
 /* Stacked-mode chip is full-width inside its column. */
-.dateStack > .scheduledChip,
 .dateStack > .deadlineChip {
   width: 100%;
 }
 
-.scheduledChip:hover {
-  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-scheduled));
-}
-
-.scheduledChipPast {
-  color: var(--color-scheduled);
-  background: color-mix(in srgb, var(--color-scheduled) 26%, transparent);
-  border: 1px dashed var(--color-scheduled);
-  font-weight: 600;
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-scheduled) 30%, transparent);
-}
-
-.scheduledChipPast:hover {
-  background: color-mix(in srgb, var(--color-scheduled) 34%, transparent);
-}
-
-/* ═══ Deadline chip ═══ */
+/* ═══ Due-date chip ═══ */
 
 .deadlineChip {
   --date-intensity: 1;
@@ -179,8 +120,7 @@
   cursor: pointer;
 }
 
-.deadlineChip:hover .chipClear,
-.scheduledChip:hover .chipClear {
+.deadlineChip:hover .chipClear {
   opacity: 0.7;
 }
 
@@ -196,17 +136,12 @@
 
 /* ═══ Compact (icon-only) date markers — used by EventRow ═══ */
 
-.markerScheduled,
 .markerDeadline,
 .markerRecurrence {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   color: var(--color-text-muted);
-}
-
-.markerScheduled {
-  color: var(--color-scheduled);
 }
 
 .markerDeadline {

@@ -179,8 +179,8 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
   })
 
-  it('dateField defaults to date', () => {
-    expect(useFilterStore.getState().filters.dateField).toBe('date')
+  it('dateField defaults to deadline (due date)', () => {
+    expect(useFilterStore.getState().filters.dateField).toBe('deadline')
   })
 
   it('setDateField changes the date field', () => {
@@ -190,14 +190,14 @@ describe('useFilterStore', () => {
     useFilterStore.getState().setDateField('modified')
     expect(useFilterStore.getState().filters.dateField).toBe('modified')
 
-    useFilterStore.getState().setDateField('scheduled')
-    expect(useFilterStore.getState().filters.dateField).toBe('scheduled')
+    useFilterStore.getState().setDateField('followup')
+    expect(useFilterStore.getState().filters.dateField).toBe('followup')
 
     useFilterStore.getState().setDateField('deadline')
     expect(useFilterStore.getState().filters.dateField).toBe('deadline')
   })
 
-  it('date range filters by effectiveDate when dateField is date', () => {
+  it('date range filters by due date with the default dateField', () => {
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
 
     expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
@@ -222,108 +222,63 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 2, modifiedAt: new Date('2025-05-15') }))).toBe(false)
   })
 
-  it('date range filters by scheduledDate when dateField is scheduled', () => {
-    useFilterStore.getState().setDateField('scheduled')
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
-    // In-range precise scheduled
-    expect(matchesFilter(f(), makeTodo({
-      id: 1, scheduledDate: { kind: 'date', value: new Date('2025-03-15') },
-    }))).toBe(true)
-    // Out of range
-    expect(matchesFilter(f(), makeTodo({
-      id: 2, scheduledDate: { kind: 'date', value: new Date('2025-04-15') },
-    }))).toBe(false)
-    // Deadline-only task should NOT pass when dateField is scheduled
-    expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2025-03-15') }))).toBe(false)
-  })
-
-  it('aged fuzzy scheduledDate ages into past windows when dateField is scheduled', () => {
-    // Post fuzzy-schedule-aging-2026-05-09: a fuzzy this-week picked in March
-    // resolves to that week's window-end (origin-anchored), so the date-range
-    // filter for March 2025 finds it by setAt — the value never re-resolves
-    // forward to today's frame.
-    useFilterStore.getState().setDateField('scheduled')
-    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
-
-    // Aged fuzzy this-week setAt 2025-03-15 (Sat) → Mon-first this-week ends
-    // Sun 2025-03-16. Falls inside the [2025-03-01, 2025-03-31] window.
-    expect(matchesFilter(f(), makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2025-03-15') },
-    }))).toBe(true)
-    // setAt outside range — fuzzy this-week picked in May — falls outside.
-    expect(matchesFilter(f(), makeTodo({
-      id: 2,
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2025-05-15') },
-    }))).toBe(false)
-  })
-
   it('date range filters by dueDate when dateField is deadline', () => {
     useFilterStore.getState().setDateField('deadline')
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
 
     expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2025-03-15') }))).toBe(true)
     expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
-    // Scheduled-only task does NOT pass the deadline filter
-    expect(matchesFilter(f(), makeTodo({
-      id: 3, scheduledDate: { kind: 'date', value: new Date('2025-03-15') },
-    }))).toBe(false)
+    // A follow-up-only task does NOT pass the due-date filter
+    expect(matchesFilter(f(), makeTodo({ id: 3, nextFollowupAt: new Date('2025-03-15') }))).toBe(false)
   })
 
-  it('includeNoDate works with date dateField', () => {
+  it('includeNoDate keeps tasks without a due date when dateField is deadline', () => {
     useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
     useFilterStore.getState().setDateRangeIncludeNoDate(true)
 
-    // No date included
     expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2025-04-15') }))).toBe(false)
   })
 
-  describe('hasScheduled / hasDeadline presence filters', () => {
-    it('hasScheduled=true keeps only tasks with a scheduledDate', () => {
-      useFilterStore.getState().setHasScheduled(true)
-      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
-    })
+  it('includeNoDate has no effect on other date fields', () => {
+    useFilterStore.getState().setDateField('followup')
+    useFilterStore.getState().setDateRange(new Date('2025-03-01'), new Date('2025-03-31'))
+    useFilterStore.getState().setDateRangeIncludeNoDate(true)
 
-    it('hasScheduled=false keeps only tasks without a scheduledDate', () => {
-      useFilterStore.getState().setHasScheduled(false)
-      expect(matchesFilter(f(), makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2, dueDate: new Date('2026-04-20') }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
-    })
+    expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(false)
+  })
 
-    it('hasDeadline=true keeps only tasks with a deadline', () => {
+  describe('hasDeadline / hasFollowup presence filters', () => {
+    it('hasDeadline=true keeps only tasks with a due date', () => {
       useFilterStore.getState().setHasDeadline(true)
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(false)
     })
 
-    it('hasDeadline=false keeps only tasks without a deadline', () => {
+    it('hasDeadline=false keeps only tasks without a due date', () => {
       useFilterStore.getState().setHasDeadline(false)
       expect(matchesFilter(f(), makeTodo({ id: 1, dueDate: new Date('2026-04-20') }))).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(true)
+      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 3 }))).toBe(true)
     })
 
     it('null (default) disables the presence filter entirely', () => {
-      expect(f().hasScheduled).toBeNull()
       expect(f().hasDeadline).toBeNull()
+      expect(f().hasFollowup).toBeNull()
       expect(matchesFilter(f(), makeTodo({ id: 1 }))).toBe(true)
     })
 
-    it('hasScheduled and hasDeadline compose with AND', () => {
-      useFilterStore.getState().setHasScheduled(true)
+    it('hasDeadline and hasFollowup compose with AND', () => {
       useFilterStore.getState().setHasDeadline(true)
+      useFilterStore.getState().setHasFollowup(true)
       // Only the task with both should pass
       expect(matchesFilter(f(), makeTodo({
         id: 1,
-        scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') },
+        nextFollowupAt: new Date('2026-04-16'),
         dueDate: new Date('2026-04-20'),
       }))).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date('2026-04-16') } }))).toBe(false)
+      expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2026-04-20') }))).toBe(false)
     })
   })
@@ -377,18 +332,18 @@ describe('useFilterStore', () => {
     })
   })
 
-  it('clearAll resets dateField to date', () => {
+  it('clearAll resets dateField to deadline', () => {
     useFilterStore.getState().setDateField('modified')
     useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.dateField).toBe('date')
+    expect(useFilterStore.getState().filters.dateField).toBe('deadline')
   })
 
-  it('clearAll resets hasScheduled / hasDeadline to null', () => {
-    useFilterStore.getState().setHasScheduled(true)
+  it('clearAll resets hasDeadline / hasFollowup to null', () => {
+    useFilterStore.getState().setHasFollowup(true)
     useFilterStore.getState().setHasDeadline(false)
     expect(useFilterStore.getState().isActive).toBe(true)
     useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.hasScheduled).toBeNull()
+    expect(useFilterStore.getState().filters.hasFollowup).toBeNull()
     expect(useFilterStore.getState().filters.hasDeadline).toBeNull()
   })
 
@@ -669,8 +624,8 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       dateRangeStart: { kind: 'fixed' as const, iso: '2025-03-01T00:00:00.000Z' },
       dateRangeEnd: { kind: 'relative' as const, token: 'end-of-week' as const },
       dateRangeIncludeNoDate: true,
-      hasScheduled: true,
       hasDeadline: null,
+      hasFollowup: true,
       tags: null,
     }
 
@@ -679,7 +634,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     expect(serialized.personIds).toEqual([5, 10])
     expect(serialized.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
     expect(serialized.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
-    expect(serialized.hasScheduled).toBe(true)
+    expect(serialized.hasFollowup).toBe(true)
     expect(serialized.hasDeadline).toBe(null)
 
     const runtime = predicateToCriteria(serialized)
@@ -688,7 +643,7 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     expect(runtime.dateField).toBe('deadline')
     expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01T00:00:00.000Z' })
     expect(runtime.dateRangeEnd).toEqual({ kind: 'relative', token: 'end-of-week' })
-    expect(runtime.hasScheduled).toBe(true)
+    expect(runtime.hasFollowup).toBe(true)
   })
 
   it('tags round-trip as Set ↔ array; missing field reads back as null', async () => {
@@ -703,11 +658,10 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       projectIds: null,
       statusIds: null,
       searchText: '',
-      dateField: 'date' as const,
+      dateField: 'deadline' as const,
       dateRangeStart: null,
       dateRangeEnd: null,
       dateRangeIncludeNoDate: false,
-      hasScheduled: null,
       hasDeadline: null,
       tags: new Set([10, 20]),
     }
@@ -737,11 +691,10 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
       orgFilterMode: 'include-people' as const,
       statusIds: null,
       searchText: '',
-      dateField: 'date' as const,
+      dateField: 'deadline' as const,
       dateRangeStart: '2025-03-01' as unknown as never, // legacy string shape
       dateRangeEnd: null,
       dateRangeIncludeNoDate: false,
-      hasScheduled: null,
       hasDeadline: null,
     }
     const runtime = predicateToCriteria(legacy as any)

@@ -38,13 +38,13 @@ function Wrapper({ children }: { children: ReactNode }) {
 
 /**
  * Build a custom-predicate ListDefinition mirroring the pre-v23 `due-this-week`
- * preset: effectiveDate <= today + 7 days, including overdue. The migration
+ * preset: due date <= today + 7 days, including overdue. The migration
  * freezes the upper bound at migration time; tests fix today at 2026-04-16 and
  * pick an end date of 2026-04-23 to match.
  */
 function dueThisWeekDef(): PersistedListDefinition {
   const predicate = emptyPredicate()
-  predicate.dateField = 'date'
+  predicate.dateField = 'deadline'
   predicate.dateRangeEnd = { kind: 'fixed', iso: new Date(2026, 3, 23).toISOString() }
   return {
     id: 1,
@@ -53,7 +53,7 @@ function dueThisWeekDef(): PersistedListDefinition {
     pinnedToDashboard: false,
     favorited: false,
     membership: { kind: 'custom', predicate },
-    sort: 'date',
+    sort: 'deadline',
     grouping: { kind: 'none' },
   }
 }
@@ -118,12 +118,12 @@ describe('ListInsetNode (v23 — backed by a ListDefinition)', () => {
       })
     }
 
-    it('includes a task whose scheduledDate is within the next 7 days', () => {
+    it('excludes a task that only has a follow-up within the next 7 days', () => {
       const todos: PersistedTodoItem[] = [
-        makeTodo({ id: 1, title: 'Scheduled soon', scheduledDate: { kind: 'date', value: new Date(2026, 3, 18) } }),
+        makeTodo({ id: 1, title: 'Follow-up soon', nextFollowupAt: new Date(2026, 3, 18) }),
       ]
       const { container } = renderInset({ allTodos: todos })
-      expect(renderedTitles(container).some((t) => t.includes('Scheduled soon'))).toBe(true)
+      expect(renderedTitles(container).some((t) => t.includes('Follow-up soon'))).toBe(false)
     })
 
     it('includes a deadline-only task within the next 7 days', () => {
@@ -134,7 +134,7 @@ describe('ListInsetNode (v23 — backed by a ListDefinition)', () => {
       expect(renderedTitles(container).some((t) => t.includes('Deadline-only'))).toBe(true)
     })
 
-    it('includes an overdue task (effectiveDate in the past)', () => {
+    it('includes an overdue task (due date in the past)', () => {
       const todos: PersistedTodoItem[] = [
         makeTodo({ id: 4, title: 'Overdue', dueDate: new Date(2026, 3, 10) }),
       ]
@@ -142,7 +142,7 @@ describe('ListInsetNode (v23 — backed by a ListDefinition)', () => {
       expect(renderedTitles(container).some((t) => t.includes('Overdue'))).toBe(true)
     })
 
-    it('excludes a task whose effectiveDate is beyond the 7-day window', () => {
+    it('excludes a task whose due date is beyond the 7-day window', () => {
       const todos: PersistedTodoItem[] = [
         makeTodo({ id: 5, title: 'Far out', dueDate: new Date(2026, 4, 15) }),
       ]
@@ -150,7 +150,7 @@ describe('ListInsetNode (v23 — backed by a ListDefinition)', () => {
       expect(renderedTitles(container).some((t) => t.includes('Far out'))).toBe(false)
     })
 
-    it('excludes a task with no scheduled and no deadline', () => {
+    it('excludes a task with no due date', () => {
       const todos: PersistedTodoItem[] = [
         makeTodo({ id: 6, title: 'Dateless' }),
       ]
@@ -158,7 +158,7 @@ describe('ListInsetNode (v23 — backed by a ListDefinition)', () => {
       expect(renderedTitles(container).some((t) => t.includes('Dateless'))).toBe(false)
     })
 
-    it('sorts matching tasks by effectiveDate ascending (interpreter sort kind)', () => {
+    it('sorts matching tasks by due date ascending (interpreter sort kind)', () => {
       const todos: PersistedTodoItem[] = [
         makeTodo({ id: 10, title: 'Later task', dueDate: new Date(2026, 3, 20), sortOrder: 1 }),
         makeTodo({ id: 11, title: 'Earlier task', dueDate: new Date(2026, 3, 17), sortOrder: 2 }),

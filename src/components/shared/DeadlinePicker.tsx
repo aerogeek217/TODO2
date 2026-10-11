@@ -20,7 +20,7 @@ export function DeadlinePicker({ value, onChange }: DeadlinePickerProps) {
     onChange(raw ? new Date(raw + 'T00:00:00') : null)
   }
 
-  const label = value ? formatDate(value) : 'Deadline'
+  const label = value ? formatDate(value) : 'Due date'
   const cls = value ? `${styles.triggerChip} ${styles.triggerChipActive}` : styles.triggerChip
 
   return (
@@ -28,7 +28,7 @@ export function DeadlinePicker({ value, onChange }: DeadlinePickerProps) {
       type="button"
       className={cls}
       onClick={(e) => { e.stopPropagation(); handleClick() }}
-      title={value ? `Deadline: ${label}` : 'Set deadline'}
+      title={value ? `Due: ${label}` : 'Set due date'}
     >
       <StatusIcon icon="clock" />
       <span className={styles.triggerLabel}>{label}</span>
@@ -36,7 +36,7 @@ export function DeadlinePicker({ value, onChange }: DeadlinePickerProps) {
         <span
           className={styles.clearButton}
           onClick={(e) => { e.stopPropagation(); onChange(null) }}
-          title="Clear deadline"
+          title="Clear due date"
         >&times;</span>
       )}
       <input

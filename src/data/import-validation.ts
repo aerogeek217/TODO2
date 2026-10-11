@@ -1,11 +1,10 @@
 import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType } from '../models'
-import { isTodoSortBy, isTodoGroupBy } from '../models'
+import { isTodoSortBy, isTodoGroupBy, DATE_FIELD_VALUES } from '../models'
 
 export type ImportTag = Tag
 export type ImportTodoTag = TodoTag
 
 import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
-import { FUZZY_TOKENS, type FuzzyToken, type ScheduledValue } from '../models/scheduled-value'
 import { toDate, toOptDate } from './date-revive'
 import { RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
@@ -124,20 +123,6 @@ function checkProject(v: unknown): CheckResult {
   ])
 }
 
-function isOptScheduledValue(v: unknown): boolean {
-  if (v === undefined || v === null) return true
-  if (!isObj(v)) return false
-  if (v.kind === 'date') return isDateLike(v.value)
-  if (v.kind === 'fuzzy') {
-    if (typeof v.token !== 'string' || !(FUZZY_TOKENS as readonly string[]).includes(v.token)) return false
-    // `setAt` was added in Dexie v49 (fuzzy schedule aging). `isOptDateLike`
-    // (not `isDateLike`) lets a stale export from a v48 backup still validate;
-    // the v49 upgrader re-stamps the field on import via the same backfill.
-    return isOptDateLike(v.setAt)
-  }
-  return false
-}
-
 function checkTodo(v: unknown): CheckResult {
   if (!isObj(v)) return 'not an object'
   return checkFields(v, [
@@ -147,7 +132,6 @@ function checkTodo(v: unknown): CheckResult {
     ['progress', isOptStr(v.progress, 500)],
     ['isCompleted', isBool(v.isCompleted)],
     ['completedAt', isOptDateLike(v.completedAt)],
-    ['scheduledDate', isOptScheduledValue(v.scheduledDate)],
     ['dueDate', isOptDateLike(v.dueDate)],
     ['lastFollowupAt', isOptDateLike(v.lastFollowupAt)],
     ['nextFollowupAt', isOptDateLike(v.nextFollowupAt)],
@@ -184,7 +168,7 @@ function isTodoPredicateShape(v: unknown): boolean {
     || typeof v.dateRangeIncludeNoDate !== 'boolean') return false
   if (!isOptDateAnchor(v.dateRangeStart)) return false
   if (!isOptDateAnchor(v.dateRangeEnd)) return false
-  if (!isOptTriBool(v.hasScheduled)) return false
+  if (v.dateField !== undefined && !(DATE_FIELD_VALUES as readonly unknown[]).includes(v.dateField)) return false
   if (!isOptTriBool(v.hasDeadline)) return false
   if (!isOptTriBool(v.hasFollowup)) return false
   return true
@@ -431,7 +415,7 @@ const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS
 // `defaultProjectGroupBy` shares the unified `TodoGroupBy` literal set; the
 // canonical "no grouping" sentinel is `null` (carried as the empty string in
 // the settings row), but `'none'` is also accepted.
-const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'followup', 'date'] as const
+const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'org', 'tag', 'deadline', 'followup'] as const
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -525,8 +509,7 @@ function checkSetting(v: unknown): CheckResult {
   if (
     v.key === SETTING_KEYS.defaultStatusId ||
     v.key === SETTING_KEYS.quickStatusId ||
-    v.key === SETTING_KEYS.seededAssignedStatusId ||
-    v.key === SETTING_KEYS.seededFollowupStatusId
+    v.key === SETTING_KEYS.seededAssignedStatusId
   ) {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : `value (${v.key} must be numeric)`
@@ -628,16 +611,6 @@ function pickProject(v: Raw): AllFields<Project> {
   } satisfies AllFields<Project>
 }
 
-/** Validated by `isOptScheduledValue`; revives `value` / `setAt` to `Date`. */
-function pickScheduledValue(v: Raw): ScheduledValue {
-  if (v.kind === 'date') return { kind: 'date', value: toDate(v.value) }
-  // `setAt` is optional on import (pre-v49 rows); keep it absent rather than invent one.
-  return {
-    kind: 'fuzzy', token: v.token as FuzzyToken,
-    ...(v.setAt != null ? { setAt: toDate(v.setAt) } : {}),
-  } as ScheduledValue
-}
-
 function pickTodo(v: Raw): AllFields<TodoItem> {
   return {
     id: optNum(v.id), uid: v.uid as string, title: v.title as string,
@@ -646,7 +619,6 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     createdAt: toDate(v.createdAt), modifiedAt: toDate(v.modifiedAt), sortOrder: v.sortOrder as number,
     notes: optStr(v.notes),
     progress: optStr(v.progress),
-    scheduledDate: v.scheduledDate != null ? pickScheduledValue(v.scheduledDate as Raw) : undefined,
     dueDate: toOptDate(v.dueDate),
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),

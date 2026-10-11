@@ -252,7 +252,7 @@ describe('validateImportData', () => {
   // Project.groupBy field validator (per-record). Must stay in sync with the
   // settings-store `PROJECT_GROUP_BY_VALUES` source of truth.
   it('accepts every ProjectGroupBy value on a project record', () => {
-    const valid = ['status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
+    const valid = ['status', 'people', 'org', 'tag', 'deadline', 'followup']
     for (const groupBy of valid) {
       const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
       expect(result.ok, `groupBy=${groupBy}`).toBe(true)
@@ -265,7 +265,7 @@ describe('validateImportData', () => {
   })
 
   it('rejects a project record with an unknown groupBy', () => {
-    const bad = ['priority', 'TAG', 'random', 42]
+    const bad = ['priority', 'TAG', 'random', 42, 'date', 'scheduled']
     for (const groupBy of bad) {
       const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
       expect(result.ok, `groupBy=${groupBy}`).toBe(false)
@@ -275,7 +275,7 @@ describe('validateImportData', () => {
   // defaultProjectGroupBy — accepts every flat TodoGroupBy literal plus the
   // empty string sentinel.
   it('accepts defaultProjectGroupBy with every valid TodoGroupBy value plus empty', () => {
-    const valid = ['', 'none', 'status', 'people', 'org', 'tag', 'scheduled', 'deadline', 'date']
+    const valid = ['', 'none', 'status', 'people', 'org', 'tag', 'deadline', 'followup']
     for (const value of valid) {
       const result = validateImportData(validData({
         settings: [{ key: 'defaultProjectGroupBy', value }],
@@ -285,7 +285,7 @@ describe('validateImportData', () => {
   })
 
   it('rejects defaultProjectGroupBy with unknown values', () => {
-    const bad = ['priority', 'NaN', 'TAG', 'random-string']
+    const bad = ['priority', 'NaN', 'TAG', 'random-string', 'date', 'scheduled']
     for (const value of bad) {
       const result = validateImportData(validData({
         settings: [{ key: 'defaultProjectGroupBy', value }],
@@ -466,59 +466,12 @@ describe('validateImportData', () => {
     expect(invalidResult.ok).toBe(false)
   })
 
-  // Fuzzy ScheduledValue carries `setAt: Date` post-Dexie v49. The validator
-  // accepts Date | ISO string (round-trips through JSON export). Fuzzy values
-  // missing `setAt` still validate (legacy v48 backups) — the v49 upgrader
-  // backfills the field on import.
-  describe('fuzzy scheduledDate.setAt', () => {
-    it('accepts a fuzzy scheduledDate carrying a Date setAt', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: new Date(2026, 4, 1) },
-        })],
-      }))
-      expect(result.ok).toBe(true)
-      if (result.ok) {
-        expect(result.data.todos[0]?.scheduledDate).toEqual({
-          kind: 'fuzzy', token: 'this-week', setAt: new Date(2026, 4, 1),
-        })
-      }
-    })
-
-    it('accepts a fuzzy scheduledDate carrying an ISO-string setAt (post-JSON round-trip)', () => {
-      const iso = '2026-05-01T12:00:00.000Z'
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: iso },
-        })],
-      }))
-      expect(result.ok).toBe(true)
-    })
-
-    it('accepts a legacy fuzzy scheduledDate with no setAt (v48 backup)', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({ scheduledDate: { kind: 'fuzzy', token: 'this-week' } })],
-      }))
-      expect(result.ok).toBe(true)
-    })
-
-    it('rejects a fuzzy scheduledDate whose setAt is a non-date string', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: 'not-a-date' },
-        })],
-      }))
-      expect(result.ok).toBe(false)
-    })
-
-    it('rejects a fuzzy scheduledDate with an unknown token', () => {
-      const result = validateImportData(validData({
-        todos: [makeTodo({
-          scheduledDate: { kind: 'fuzzy', token: 'someday-maybe', setAt: new Date() },
-        })],
-      }))
-      expect(result.ok).toBe(false)
-    })
+  it('drops a stray scheduledDate on a todo (field no longer exists)', () => {
+    const result = validateImportData(validData({
+      todos: [makeTodo({ scheduledDate: { kind: 'date', value: new Date(2026, 4, 1) } })],
+    }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect('scheduledDate' in result.data.todos[0]!).toBe(false)
   })
 
   // Status validation.
@@ -567,22 +520,50 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('listDefinition with scheduled sort + none grouping passes validation', () => {
+  it('listDefinition with followup sort + none grouping passes validation', () => {
     const result = validateImportData(validData({
       listDefinitions: [{
-        id: 1, name: 'Scheduled', sortOrder: 0, pinnedToDashboard: true,
+        id: 1, name: 'Follow-ups', sortOrder: 0, pinnedToDashboard: true,
+        membership: {
+          kind: 'custom',
+          predicate: {
+            showCompleted: false, showHiddenStatuses: false,
+            searchText: '', dateRangeIncludeNoDate: false, dateField: 'followup',
+          },
+        },
+        sort: 'followup',
+        grouping: 'none',
+      }],
+    }))
+    expect(result.ok).toBe(true)
+  })
+
+  it.each([
+    ['sort', { sort: 'scheduled' }],
+    ['sort', { sort: 'date' }],
+    ['grouping', { grouping: 'scheduled' }],
+    ['grouping', { grouping: 'date' }],
+    ['dateField', { dateField: 'scheduled' }],
+    ['dateField', { dateField: 'date' }],
+  ])('rejects a listDefinition with a removed %s value %o', (_field, patch) => {
+    const { dateField, ...defPatch } = patch as { dateField?: string; sort?: string; grouping?: string }
+    const result = validateImportData(validData({
+      listDefinitions: [{
+        id: 1, name: 'Old', sortOrder: 0, pinnedToDashboard: true,
         membership: {
           kind: 'custom',
           predicate: {
             showCompleted: false, showHiddenStatuses: false,
             searchText: '', dateRangeIncludeNoDate: false,
+            ...(dateField ? { dateField } : {}),
           },
         },
-        sort: 'scheduled',
+        sort: 'manual',
         grouping: 'none',
+        ...defPatch,
       }],
     }))
-    expect(result.ok).toBe(true)
+    expect(result.ok).toBe(false)
   })
 
   describe('listDefinition.runtimeFilter validation', () => {
@@ -673,9 +654,8 @@ describe('validateImportData — Date revival', () => {
       todos: [
         makeTodo({
           id: 1, createdAt: iso, modifiedAt: iso, dueDate: iso,
-          scheduledDate: { kind: 'date', value: iso },
+          lastFollowupAt: iso, nextFollowupAt: iso, completedAt: iso, isCompleted: true,
         }),
-        makeTodo({ id: 2, scheduledDate: { kind: 'fuzzy', token: 'next-week', setAt: iso } }),
       ],
       notes: [{ id: 1, content: 'x', createdAt: iso, modifiedAt: iso }],
       taskboards: [{ id: 1, entries: [], createdAt: iso, updatedAt: iso }],
@@ -684,15 +664,15 @@ describe('validateImportData — Date revival', () => {
     if (!result.ok) return
     const d = result.data
     const t1 = d.todos[0]!
-    const t2 = d.todos[1]!
     const dates: Array<[string, unknown]> = [
       ['canvases.createdAt', d.canvases[0]!.createdAt],
       ['projects.createdAt', d.projects[0]!.createdAt],
       ['todos.createdAt', t1.createdAt],
       ['todos.modifiedAt', t1.modifiedAt],
       ['todos.dueDate', t1.dueDate],
-      ['todos.scheduledDate.value', t1.scheduledDate?.kind === 'date' ? t1.scheduledDate.value : null],
-      ['todos.scheduledDate.setAt', t2.scheduledDate?.kind === 'fuzzy' ? t2.scheduledDate.setAt : null],
+      ['todos.lastFollowupAt', t1.lastFollowupAt],
+      ['todos.nextFollowupAt', t1.nextFollowupAt],
+      ['todos.completedAt', t1.completedAt],
       ['notes.createdAt', d.notes[0]!.createdAt],
       ['notes.modifiedAt', d.notes[0]!.modifiedAt],
       ['taskboards.createdAt', d.taskboards[0]!.createdAt],
@@ -704,15 +684,14 @@ describe('validateImportData — Date revival', () => {
     }
   })
 
-  it('keeps an absent fuzzy setAt absent (pre-v49 rows) and leaves todoEvents.timestamp a string', () => {
+  it('leaves todoEvents.timestamp a string', () => {
     const result = validateImportData({
       canvases: [makeCanvas()],
-      todos: [makeTodo({ scheduledDate: { kind: 'fuzzy', token: 'today' } })],
+      todos: [makeTodo()],
       todoEvents: [{ id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: iso }],
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.data.todos[0]!.scheduledDate).toEqual({ kind: 'fuzzy', token: 'today' })
     expect(result.data.todoEvents[0]!.timestamp).toBe(iso)
   })
 })

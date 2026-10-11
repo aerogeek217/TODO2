@@ -80,9 +80,9 @@ describe('FilterChipBar — primitive', () => {
       // Opening the Date dropdown is non-committal (post-P4): no anchor is
       // seeded, so updates is empty until the user actually edits something.
       expect(updates).toHaveLength(0)
-      fireEvent.click(screen.getByText('Has scheduled'))
+      fireEvent.click(screen.getByText('Has due date'))
       const last = updates[updates.length - 1]!
-      expect(last.hasScheduled).toBe(true)
+      expect(last.hasDeadline).toBe(true)
     })
 
     it('opening Date with no active filter does NOT commit a today anchor', () => {
@@ -99,7 +99,7 @@ describe('FilterChipBar — primitive', () => {
       )
       // The chevron-bearing chip button is the only Date trigger that has
       // aria-expanded — the inner field-selector buttons match /Date/i too
-      // (e.g. "Effective Date") once the panel opens.
+      // (e.g. "Due date") once the panel opens.
       const chip = screen.getAllByRole('button', { name: /Date/i }).find(
         (el) => el.getAttribute('aria-expanded') !== null,
       )!
@@ -138,35 +138,37 @@ describe('FilterChipBar — primitive', () => {
         <FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />,
       )
       fireEvent.click(screen.getByRole('button', { name: /Date/i }))
-      expect(screen.getByText('Effective Date')).toBeInTheDocument()
-      expect(screen.getByText('Scheduled')).toBeInTheDocument()
+      expect(screen.getByText('Due date')).toBeInTheDocument()
+      expect(screen.getByText('Next follow-up')).toBeInTheDocument()
+      expect(screen.queryByText('Scheduled')).toBeNull()
+      expect(screen.queryByText('Effective Date')).toBeNull()
     })
 
     it('switching dateField commits BOTH field and seeded anchors atomically', () => {
       // Regression: two in-handler `update` calls (one for `dateField`, one for
       // anchors) used to close over the same stale `p`, so the second call
       // dropped the dateField change. The dropdown's input row visibly changed
-      // but the effective filter still ran against `effectiveDate`.
+      // but the effective filter still ran against the previous field.
       const updates: TodoPredicate[] = []
       render(
         <FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />,
       )
       fireEvent.click(screen.getByRole('button', { name: /Date/i }))
-      fireEvent.click(screen.getByText('Scheduled'))
+      fireEvent.click(screen.getByText('Next follow-up'))
       const last = updates.at(-1)!
-      expect(last.dateField).toBe('scheduled')
+      expect(last.dateField).toBe('followup')
       expect(last.dateRangeStart).not.toBeNull()
     })
 
     it('Clear inside Date dropdown clears anchors and both tri-states atomically', () => {
       // Same closure-staleness bug as above: chained `update` calls for
-      // anchors + hasScheduled + hasDeadline used to leave the earlier patches
+      // anchors + hasDeadline + hasFollowup used to leave the earlier patches
       // re-overwritten by the later ones.
       const updates: TodoPredicate[] = []
       const active: TodoPredicate = {
         ...emptyPredicate(),
         dateRangeStart: { kind: 'fixed', iso: new Date().toISOString() },
-        hasScheduled: true,
+        hasFollowup: true,
         hasDeadline: false,
       }
       render(
@@ -177,7 +179,7 @@ describe('FilterChipBar — primitive', () => {
       const last = updates.at(-1)!
       expect(last.dateRangeStart).toBeNull()
       expect(last.dateRangeEnd).toBeNull()
-      expect(last.hasScheduled).toBeNull()
+      expect(last.hasFollowup).toBeNull()
       expect(last.hasDeadline).toBeNull()
     })
 
@@ -215,7 +217,7 @@ describe('FilterChipBar — primitive', () => {
       expect(captured!.projectIds).not.toContain(1)
     })
 
-    it('cycles tri-state Has scheduled at mobile density (button form)', () => {
+    it('cycles tri-state Has due date at mobile density (button form)', () => {
       const updates: TodoPredicate[] = []
       render(
         <FilterChipBar
@@ -225,9 +227,9 @@ describe('FilterChipBar — primitive', () => {
         />,
       )
       fireEvent.click(screen.getByText('Date range'))
-      const btn = screen.getByRole('button', { name: /Has scheduled/ })
+      const btn = screen.getByRole('button', { name: /Has due date/ })
       fireEvent.click(btn)
-      expect(updates.at(-1)?.hasScheduled).toBe(true)
+      expect(updates.at(-1)?.hasDeadline).toBe(true)
     })
 
     it('renders the show-completed switch with correct aria-label and toggles it', () => {

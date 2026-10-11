@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import type { Org, Person, Project, Tag } from '../../models'
 import {
-  buildDateSections,
+  buildDeadlineSections,
+  buildFollowupSections,
   buildFlatSection,
   buildOrgSections,
   buildPeopleSections,
@@ -14,13 +15,13 @@ import {
 import { encodeGroupSort } from '../../utils/list-view-encoding'
 import { makeTodo } from '../helpers'
 
-describe('buildDateSections', () => {
+describe('buildDeadlineSections / buildFollowupSections', () => {
   // Fixed Monday so `+3 days` (Thursday) and `+4 days` (Friday) stay inside
   // the calendar week (weekStartsOn=1 → Mon-Sun); the post-P9 bucketer keys
   // "this week" off the calendar boundary, not a rolling-7-day window.
   const MONDAY = new Date(2026, 0, 12)
 
-  it('groups into overdue, today, this week, later, no date', () => {
+  it('groups due dates into overdue, today, this week, later, no due date', () => {
     const today = MONDAY
     const yesterday = new Date(today.getTime() - 86400000)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
@@ -33,8 +34,9 @@ describe('buildDateSections', () => {
       makeTodo({ id: 4, dueDate: inTenDays }),
       makeTodo({ id: 5 }), // no dates
     ]
-    const sections = buildDateSections(todos, 1, today)
+    const sections = buildDeadlineSections(todos, 1, today)
     expect(sections.map((s) => s.key)).toEqual(['overdue', 'today', 'week', 'later', 'none'])
+    expect(sections.at(-1)!.label).toBe('No Due Date')
     expect(sections[0]!.todos).toHaveLength(1) // overdue
     expect(sections[1]!.todos).toHaveLength(1) // today
     expect(sections[2]!.todos).toHaveLength(1) // this week
@@ -53,21 +55,21 @@ describe('buildDateSections', () => {
       makeTodo({ id: 3, dueDate: inThreeDays, sortOrder: 10 }),
       makeTodo({ id: 4, dueDate: inFourDays, sortOrder: 20 }),
     ]
-    const sections = buildDateSections(todos, 1, today)
+    const sections = buildDeadlineSections(todos, 1, today)
     const week = sections.find((s) => s.key === 'week')!
     expect(week.todos.map((t) => t.id)).toEqual([1, 2, 3, 4])
   })
 
-  it('uses scheduledDate when dueDate is absent', () => {
+  it('the due-date sections ignore the follow-up and vice versa', () => {
     const today = MONDAY
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
 
     const todos = [
-      makeTodo({ id: 1, scheduledDate: { kind: 'date', value: inThreeDays } }),
+      makeTodo({ id: 1, nextFollowupAt: inThreeDays }),
     ]
-    const sections = buildDateSections(todos, 1, today)
-    const week = sections.find((s) => s.key === 'week')!
-    expect(week.todos.map((t) => t.id)).toEqual([1])
+    expect(buildDeadlineSections(todos, 1, today).map((s) => s.key)).toEqual(['none'])
+    const followup = buildFollowupSections(todos, 1, today)
+    expect(followup.find((s) => s.key === 'week')!.todos.map((t) => t.id)).toEqual([1])
   })
 
 })
@@ -610,17 +612,15 @@ describe('buildFlatSection', () => {
 })
 
 describe('itemSortComparator', () => {
-  const today = new Date(2026, 0, 15)
-
   it('returns undefined for manual sort so the caller keeps the upstream sortOrder order', () => {
-    expect(itemSortComparator('manual', 1)).toBeUndefined()
+    expect(itemSortComparator('manual')).toBeUndefined()
   })
 
   it('sorts deadline ascending, nulls last', () => {
     const a = makeTodo({ id: 1, dueDate: new Date(2026, 0, 20), sortOrder: 10 })
     const b = makeTodo({ id: 2, dueDate: new Date(2026, 0, 18), sortOrder: 1 })
     const c = makeTodo({ id: 3, sortOrder: 5 }) // no deadline
-    const cmp = itemSortComparator('deadline', 1, today)!
+    const cmp = itemSortComparator('deadline')!
     const sorted = [a, b, c].sort(cmp)
     expect(sorted.map((t) => t.id)).toEqual([2, 1, 3])
   })
@@ -629,7 +629,7 @@ describe('itemSortComparator', () => {
     const d = new Date(2026, 0, 20)
     const a = makeTodo({ id: 1, dueDate: d, sortOrder: 10 })
     const b = makeTodo({ id: 2, dueDate: d, sortOrder: 5 })
-    const cmp = itemSortComparator('deadline', 1, today)!
+    const cmp = itemSortComparator('deadline')!
     expect([a, b].sort(cmp).map((t) => t.id)).toEqual([2, 1])
   })
 
@@ -637,7 +637,7 @@ describe('itemSortComparator', () => {
     const a = makeTodo({ id: 1, title: 'banana', sortOrder: 0 })
     const b = makeTodo({ id: 2, title: 'Apple', sortOrder: 0 })
     const c = makeTodo({ id: 3, title: 'cherry', sortOrder: 0 })
-    const cmp = itemSortComparator('name', 1)!
+    const cmp = itemSortComparator('name')!
     const sorted = [a, b, c].sort(cmp)
     expect(sorted.map((t) => t.id)).toEqual([2, 1, 3])
   })
@@ -646,7 +646,7 @@ describe('itemSortComparator', () => {
     const a = makeTodo({ id: 1, title: 'Same', sortOrder: 10 })
     const b = makeTodo({ id: 2, title: 'Same', sortOrder: 5 })
     const c = makeTodo({ id: 3, title: 'Same', sortOrder: 5 })
-    const cmp = itemSortComparator('name', 1)!
+    const cmp = itemSortComparator('name')!
     expect([a, b, c].sort(cmp).map((t) => t.id)).toEqual([2, 3, 1])
   })
 })

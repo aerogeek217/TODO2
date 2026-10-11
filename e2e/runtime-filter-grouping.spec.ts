@@ -179,11 +179,10 @@ function emptyPredicate(): Record<string, unknown> {
     projectIds: null,
     statusIds: null,
     searchText: '',
-    dateField: 'date',
+    dateField: 'deadline',
     dateRangeStart: null,
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
-    hasScheduled: null,
     hasDeadline: null,
     tags: null,
   }

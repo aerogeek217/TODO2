@@ -17,4 +17,6 @@ export type ListGroupBy = TodoGroupBy
 /** Alias of the unified `TodoSortBy` (post ui-consistency-2026-04-25 P4). */
 export type ListItemSortBy = TodoSortBy
 
-export type DateField = 'date' | 'scheduled' | 'deadline' | 'followup' | 'created' | 'modified'
+export type DateField = 'deadline' | 'followup' | 'created' | 'modified'
+
+export const DATE_FIELD_VALUES: readonly DateField[] = ['deadline', 'followup', 'created', 'modified']

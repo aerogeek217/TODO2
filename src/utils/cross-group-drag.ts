@@ -86,7 +86,7 @@ function parseId(key: string, prefix: string): number | null {
  *     be resolved.
  *   - Source and target are the same group — pure reorder, no field
  *     change.
- *   - `groupBy` is a date dimension (`date` / `scheduled` / `deadline`).
+ *   - `groupBy` is a date dimension (`deadline` / `followup`).
  *     Date buckets are derived, not assigned (Q5 in the lists-consistency
  *     plan); the visual reorder still happens, but the date itself is
  *     never rewritten.
@@ -105,7 +105,7 @@ export function resolveCrossGroupMutation(
 ): CrossGroupMutation | null {
   if (sourceKey == null || targetKey == null) return null
   if (sourceKey === targetKey) return null
-  if (groupBy === 'date' || groupBy === 'scheduled' || groupBy === 'deadline' || groupBy === 'followup') return null
+  if (groupBy === 'deadline' || groupBy === 'followup') return null
 
   if (groupBy === 'status') {
     if (targetKey === UNGROUPED_GROUP_KEY) {

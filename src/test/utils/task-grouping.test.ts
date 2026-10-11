@@ -112,42 +112,39 @@ describe('getGroupKey', () => {
     })
   })
 
-  describe('date / scheduled / deadline', () => {
+  describe('deadline / followup', () => {
     const today = new Date(2026, 0, 15)
     const yesterday = new Date(today.getTime() - 86400000)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const inTenDays = new Date(today.getTime() + 10 * 86400000)
 
-    it('buckets effective date into overdue / today / week / later', () => {
+    it('buckets the due date into overdue / today / week / later', () => {
       const ctx = makeCtx({ today })
-      expect(getGroupKey(makeTodo({ id: 1, dueDate: yesterday }), 'date', ctx)).toBe('overdue')
-      expect(getGroupKey(makeTodo({ id: 2, dueDate: today }), 'date', ctx)).toBe('today')
-      expect(getGroupKey(makeTodo({ id: 3, dueDate: inThreeDays }), 'date', ctx)).toBe('week')
-      expect(getGroupKey(makeTodo({ id: 4, dueDate: inTenDays }), 'date', ctx)).toBe('later')
-      expect(getGroupKey(makeTodo({ id: 5 }), 'date', ctx)).toBeNull()
+      expect(getGroupKey(makeTodo({ id: 1, dueDate: yesterday }), 'deadline', ctx)).toBe('overdue')
+      expect(getGroupKey(makeTodo({ id: 2, dueDate: today }), 'deadline', ctx)).toBe('today')
+      expect(getGroupKey(makeTodo({ id: 3, dueDate: inThreeDays }), 'deadline', ctx)).toBe('week')
+      expect(getGroupKey(makeTodo({ id: 4, dueDate: inTenDays }), 'deadline', ctx)).toBe('later')
+      expect(getGroupKey(makeTodo({ id: 5 }), 'deadline', ctx)).toBeNull()
     })
 
-    it('buckets scheduled date independently of deadline', () => {
+    it('buckets the next follow-up independently of the due date', () => {
       const ctx = makeCtx({ today })
-      const todo = makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'date', value: inThreeDays },
-      })
-      expect(getGroupKey(todo, 'scheduled', ctx)).toBe('week')
+      const todo = makeTodo({ id: 1, nextFollowupAt: inThreeDays })
+      expect(getGroupKey(todo, 'followup', ctx)).toBe('week')
       expect(getGroupKey(todo, 'deadline', ctx)).toBeNull()
     })
 
-    it('buckets deadline independently of scheduled', () => {
+    it('buckets the due date independently of the follow-up', () => {
       const ctx = makeCtx({ today })
       const todo = makeTodo({ id: 1, dueDate: yesterday })
       expect(getGroupKey(todo, 'deadline', ctx)).toBe('overdue')
-      expect(getGroupKey(todo, 'scheduled', ctx)).toBeNull()
+      expect(getGroupKey(todo, 'followup', ctx)).toBeNull()
     })
 
     it('matches ListView keys (overdue / today / week / later)', () => {
       const ctx = makeCtx({ today })
       const keys = [yesterday, today, inThreeDays, inTenDays].map((d) =>
-        getGroupKey(makeTodo({ id: 1, dueDate: d }), 'date', ctx),
+        getGroupKey(makeTodo({ id: 1, dueDate: d }), 'deadline', ctx),
       )
       expect(keys).toEqual(['overdue', 'today', 'week', 'later'])
     })
@@ -180,10 +177,10 @@ describe('getGroupLabel', () => {
 
   it('returns the canonical date-bucket labels', () => {
     const ctx = makeCtx()
-    expect(getGroupLabel('overdue', 'date', ctx)).toBe('Overdue')
-    expect(getGroupLabel('today', 'scheduled', ctx)).toBe('Today')
+    expect(getGroupLabel('overdue', 'deadline', ctx)).toBe('Overdue')
+    expect(getGroupLabel('today', 'followup', ctx)).toBe('Today')
     expect(getGroupLabel('week', 'deadline', ctx)).toBe('This Week')
-    expect(getGroupLabel('later', 'date', ctx)).toBe('Later')
+    expect(getGroupLabel('later', 'followup', ctx)).toBe('Later')
   })
 
   it('returns empty string for unknown keys', () => {
@@ -227,8 +224,7 @@ describe('getGroupColor', () => {
 
   it('returns undefined for date-bucket dimensions', () => {
     const ctx = makeCtx()
-    expect(getGroupColor('overdue', 'date', ctx)).toBeUndefined()
-    expect(getGroupColor('today', 'scheduled', ctx)).toBeUndefined()
+    expect(getGroupColor('overdue', 'followup', ctx)).toBeUndefined()
     expect(getGroupColor('week', 'deadline', ctx)).toBeUndefined()
   })
 
@@ -419,7 +415,7 @@ describe('partitionByGroup', () => {
       makeTodo({ id: 4, dueDate: inThreeDays }), // week
       makeTodo({ id: 5 }),                     // ungrouped
     ]
-    const result = partitionByGroup(todos, 'date', makeCtx({ today }))
+    const result = partitionByGroup(todos, 'deadline', makeCtx({ today }))
     expect(result.ungrouped.map((t) => t.id)).toEqual([5])
     expect(result.groups.map((g) => g.key)).toEqual(['overdue', 'today', 'week', 'later'])
     expect(result.groups.map((g) => g.label)).toEqual([
@@ -430,25 +426,22 @@ describe('partitionByGroup', () => {
     ])
   })
 
-  it('uses scheduledDate (not dueDate) for the scheduled dimension', () => {
+  it('uses nextFollowupAt (not dueDate) for the followup dimension', () => {
     const today = new Date(2026, 0, 15)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const todos = [
-      makeTodo({ id: 1, scheduledDate: { kind: 'date', value: inThreeDays } }),
+      makeTodo({ id: 1, nextFollowupAt: inThreeDays }),
     ]
-    const result = partitionByGroup(todos, 'scheduled', makeCtx({ today }))
+    const result = partitionByGroup(todos, 'followup', makeCtx({ today }))
     expect(result.groups[0]!.key).toBe('week')
     expect(result.groups[0]!.todos.map((t) => t.id)).toEqual([1])
   })
 
-  it('uses dueDate (not scheduledDate) for the deadline dimension', () => {
+  it('uses dueDate (not nextFollowupAt) for the deadline dimension', () => {
     const today = new Date(2026, 0, 15)
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const todos = [
-      makeTodo({
-        id: 1,
-        scheduledDate: { kind: 'date', value: inThreeDays },
-      }),
+      makeTodo({ id: 1, nextFollowupAt: inThreeDays }),
     ]
     const result = partitionByGroup(todos, 'deadline', makeCtx({ today }))
     expect(result.groups).toHaveLength(0)

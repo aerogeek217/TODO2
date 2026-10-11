@@ -40,7 +40,7 @@ describe('natural-language-parser — :status token', () => {
     const result = parseInput('ship the thing :blocked tomorrow')
     expect(result.title).toBe('ship the thing')
     expect(result.statuses).toEqual(['blocked'])
-    expect(result.scheduledDate).toBeDefined()
+    expect(result.dueDate).toBeInstanceOf(Date)
   })
 
   it('!<weekday> deadline syntax is unaffected by status pattern', () => {
@@ -60,7 +60,7 @@ describe('natural-language-parser — :status token', () => {
     const result = parseInput(':tomorrow ship it')
     expect(result.title).toBe('ship it')
     expect(result.statuses).toEqual(['tomorrow'])
-    expect(result.scheduledDate).toBeUndefined()
+    expect(result.dueDate).toBeUndefined()
   })
 })
 

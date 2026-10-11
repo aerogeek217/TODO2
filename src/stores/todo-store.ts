@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { PersistedTodoItem } from '../models'
-import type { ScheduledValue } from '../models/scheduled-value'
 import { todoRepository } from '../data'
 import type { TaskMutation } from '../services/task-placement'
 import { undoable } from '../services/undoable'
@@ -23,7 +22,7 @@ interface TodoState {
    * derived cache keys via `todos.map(t => t.id).sort().join(',')` can use
    * `${todos.length}:${todosVersion}` instead — O(1) and stable.
    * Not bumped on pure-field edits (update, toggleComplete, reorder,
-   * bulkSetStatus/Scheduled/Deadline/Project) because those keep the same
+   * bulkSetStatus/Deadline/Project) because those keep the same
    * ids.
    */
   todosVersion: number
@@ -41,7 +40,6 @@ interface TodoState {
   remove: (id: number) => Promise<void>
   bulkSetCompleted: (ids: number[], completed: boolean) => Promise<void>
   bulkSetStatus: (ids: number[], statusId: number | undefined) => Promise<void>
-  bulkSetScheduled: (ids: number[], value: ScheduledValue | null) => Promise<void>
   bulkSetDeadline: (ids: number[], date: Date | null) => Promise<void>
   bulkSetProject: (ids: number[], projectId: number | undefined) => Promise<void>
   /** Sets (or, with `null`, clears) `nextFollowupAt` on every task in `ids`. */
@@ -182,18 +180,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const todo = get().todos.find((t) => t.id === id)
     if (!todo) return
 
-    // Recurring task: advance its anchor date (dueDate or precise scheduledDate) instead of completing
+    // Recurring task: advance its due date instead of completing
     if (!todo.isCompleted && todo.recurrenceRule) {
       const advance = advanceRecurring(todo)
       if (advance) {
-        const isDue = advance.field === 'dueDate'
-        const prevValue: Date | ScheduledValue | undefined = isDue ? todo.dueDate : todo.scheduledDate
-        const nextChanges = isDue
-          ? { dueDate: advance.dueDate! }
-          : { scheduledDate: advance.scheduledDate! }
-        const prevChanges = isDue
-          ? { dueDate: prevValue as Date }
-          : { scheduledDate: prevValue as ScheduledValue }
+        const nextChanges = { dueDate: advance.dueDate }
+        const prevChanges = { dueDate: todo.dueDate }
         return optimistic(
           set,
           () => set({
@@ -279,13 +271,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
 
   async bulkSetCompleted(ids: number[], completed: boolean) {
-    // Split recurring tasks (advance their anchor date) from normal tasks (toggle completion)
+    // Split recurring tasks (advance their due date) from normal tasks (toggle completion)
     const allTodos = get().todos.filter((t) => ids.includes(t.id))
     type RecurringAdvance = {
       id: number
-      field: 'dueDate' | 'scheduledDate'
-      prev: Date | ScheduledValue
-      nextChanges: Partial<Pick<PersistedTodoItem, 'dueDate' | 'scheduledDate'>>
+      prev: Date | undefined
+      nextChanges: Pick<PersistedTodoItem, 'dueDate'>
     }
     const recurringAdvances: RecurringAdvance[] = []
     if (completed) {
@@ -293,11 +284,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         if (t.isCompleted || !t.recurrenceRule) continue
         const advance = advanceRecurring(t)
         if (!advance) continue
-        const nextChanges = advance.field === 'dueDate'
-          ? { dueDate: advance.dueDate! }
-          : { scheduledDate: advance.scheduledDate! }
-        const prev = advance.field === 'dueDate' ? t.dueDate! : t.scheduledDate!
-        recurringAdvances.push({ id: t.id, field: advance.field, prev, nextChanges })
+        recurringAdvances.push({ id: t.id, prev: t.dueDate, nextChanges: { dueDate: advance.dueDate } })
       }
     }
     const recurringIds = new Set(recurringAdvances.map((r) => r.id))
@@ -345,11 +332,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         set({
           todos: get().todos.map((t) => {
             const r = recurringPrevMap.get(t.id)
-            if (r) {
-              return r.field === 'dueDate'
-                ? { ...t, dueDate: r.prev as Date }
-                : { ...t, scheduledDate: r.prev as ScheduledValue }
-            }
+            if (r) return { ...t, dueDate: r.prev }
             const prevState = prevCompletedMap.get(t.id)
             if (prevState) {
               return { ...t, isCompleted: prevState.wasCompleted, completedAt: prevState.prevCompletedAt }
@@ -367,18 +350,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
           if (recurringAdvances.length > 0) {
             const revertMutations = recurringAdvances.map(r => ({
               todoId: r.id,
-              changes: r.field === 'dueDate'
-                ? { dueDate: r.prev as Date }
-                : { scheduledDate: r.prev as ScheduledValue },
+              changes: { dueDate: r.prev },
             }))
             await todoRepository.bulkUpdate(revertMutations)
             set({
               todos: get().todos.map((t) => {
                 const r = recurringPrevMap.get(t.id)
                 if (!r) return t
-                return r.field === 'dueDate'
-                  ? { ...t, dueDate: r.prev as Date, modifiedAt: new Date() }
-                  : { ...t, scheduledDate: r.prev as ScheduledValue, modifiedAt: new Date() }
+                return { ...t, dueDate: r.prev, modifiedAt: new Date() }
               }),
             })
           }
@@ -415,12 +394,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'statusId', statusId, `Set status on ${ids.length} tasks`, get, set)
   },
 
-  async bulkSetScheduled(ids: number[], value: ScheduledValue | null) {
-    await bulkUpdateField(ids, 'scheduledDate', value ?? undefined, `Set scheduled on ${ids.length} tasks`, get, set)
-  },
-
   async bulkSetDeadline(ids: number[], date: Date | null) {
-    await bulkUpdateField(ids, 'dueDate', date ?? undefined, `Set deadline on ${ids.length} tasks`, get, set)
+    await bulkUpdateField(ids, 'dueDate', date ?? undefined, `Set due date on ${ids.length} tasks`, get, set)
   },
 
   async bulkSetProject(ids: number[], projectId: number | undefined) {
@@ -595,7 +570,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
         sortOrder: maxSort + 1,
         canvasId: todo.canvasId,
         projectId: todo.projectId,
-        scheduledDate: todo.scheduledDate,
         dueDate: todo.dueDate,
         nextFollowupAt: todo.nextFollowupAt,
         notes: todo.notes,

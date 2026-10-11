@@ -9,15 +9,13 @@ import { useUIStore } from '../../stores/ui-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
-import { resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
+import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { ChipSelector } from '../shared/ChipSelector'
 import { StatusIcon } from '../shared/StatusIcon'
-import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
 import { TaskPillPeople, TaskPillDates, TaskPillFollowup, TaskPillStatus } from '../shared/TaskPillBar'
 import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
@@ -53,7 +51,6 @@ export const TaskRow = memo(function TaskRow({
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
-  const [showScheduledMenu, setShowScheduledMenu] = useState(false)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
   /** Follow-up popover: anchored to the pill / empty-slot flag, or at the menu's point. */
   const [followupPopover, setFollowupPopover] = useState<
@@ -62,7 +59,6 @@ export const TaskRow = memo(function TaskRow({
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
-  const scheduledAnchorRef = useRef<HTMLButtonElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
   const notesIconRef = useRef<HTMLButtonElement>(null)
 
@@ -102,8 +98,6 @@ export const TaskRow = memo(function TaskRow({
   } = useInlineEdit(todo.title, handleSaveTitle)
 
   const today = startOfToday()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today, weekStartsOn), today))
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
   const hasPeople = (assignedPeople && assignedPeople.length > 0) || assignedOrgs.length > 0
@@ -111,7 +105,6 @@ export const TaskRow = memo(function TaskRow({
   // Click-outside handlers
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
-  const closeScheduledMenu = useCallback(() => setShowScheduledMenu(false), [])
   const closeFollowup = useCallback(() => setFollowupPopover(null), [])
   const toggleFollowupFromSlot = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -337,17 +330,13 @@ export const TaskRow = memo(function TaskRow({
           `dateStackEmpty` reserves the same width so status doesn't shift
           horizontally between rows. The hidden native `<input type="date">`
           lives inside this slot in both cases (single `deadlineInputRef`). */}
-      {!ghost && (todo.scheduledDate || todo.dueDate ? (
+      {!ghost && (todo.dueDate ? (
         <>
           <TaskPillDates
             todo={todo}
             today={today}
-            weekStartsOn={weekStartsOn}
             layout="stack"
-            scheduledIntensity={scheduledIntensity}
             deadlineIntensity={deadlineIntensity}
-            scheduledAnchorRef={scheduledAnchorRef}
-            onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
             onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
             onDeadlineClear={() => bulk.setDeadline(todo.id, null)}
           />
@@ -369,11 +358,11 @@ export const TaskRow = memo(function TaskRow({
             onChange={handleDeadlineInputChange}
           />
           <button
-            ref={scheduledAnchorRef}
             type="button"
             className={`${styles.actionBtn} ${styles.actionBtnHover}`}
-            onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-            title="Schedule or set deadline"
+            onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+            title="Set due date"
+            aria-label="Set due date"
           >
             <StatusIcon icon="calendar" />
           </button>
@@ -436,19 +425,6 @@ export const TaskRow = memo(function TaskRow({
               placeholder="Search people & orgs..."
             />
           </div>
-        </PortalDropdown>,
-        document.body,
-      )}
-
-      {/* Portaled scheduled-value menu — anchored to scheduledAnchorRef. */}
-      {showScheduledMenu && !ghost && createPortal(
-        <PortalDropdown anchorRef={scheduledAnchorRef} onClickOutside={closeScheduledMenu}>
-          <ScheduledValueMenu
-            value={todo.scheduledDate ?? null}
-            onChange={(v) => bulk.setScheduled(todo.id, v)}
-            onClose={closeScheduledMenu}
-            onAddDeadline={todo.dueDate ? undefined : openDeadlinePicker}
-          />
         </PortalDropdown>,
         document.body,
       )}

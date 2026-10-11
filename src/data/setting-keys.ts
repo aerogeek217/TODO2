@@ -16,7 +16,6 @@ export const SETTING_KEYS = {
   defaultStatusId: 'defaultStatusId',
   quickStatusId: 'quickStatusId',
   seededAssignedStatusId: 'seededAssignedStatusId',
-  seededFollowupStatusId: 'seededFollowupStatusId',
   completedRetentionDays: 'completedRetentionDays',
   weekStartsOn: 'weekStartsOn',
   canvasViewport: 'canvasViewport',

@@ -4,7 +4,6 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
-import type { ScheduledValue } from '../models/scheduled-value'
 
 /**
  * Returns the set of IDs to act on: all selected IDs if the target is
@@ -35,16 +34,6 @@ export function useBulkActions() {
   const remove = useCallback((todoId: number) => {
     const ids = getTargetIds(todoId)
     useUIStore.getState().showBulkConfirmation('delete', ids)
-  }, [])
-
-  const setScheduled = useCallback((todoId: number, value: ScheduledValue | null) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useTodoStore.getState().bulkSetScheduled(ids, value)
-    } else {
-      const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-      if (todo) useTodoStore.getState().update({ ...todo, scheduledDate: value ?? undefined })
-    }
   }, [])
 
   const setDeadline = useCallback((todoId: number, date: Date | null) => {
@@ -149,7 +138,6 @@ export function useBulkActions() {
     toggleComplete,
     remove,
     setStatus,
-    setScheduled,
     setDeadline,
     setFollowup,
     markFollowedUp,

@@ -15,8 +15,7 @@ const colorLabels: Record<keyof ThemeColors, string> = {
   danger: 'Danger accent',
   warning: 'Warning accent',
   star: 'Follow up',
-  scheduled: 'Scheduled date',
-  deadline: 'Deadline date',
+  deadline: 'Due date',
 }
 
 const themeLabel: Record<ThemeName, string> = { dark: 'Dark', light: 'Light' }

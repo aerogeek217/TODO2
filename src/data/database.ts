@@ -3,7 +3,6 @@ import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg,
 import type { ListDefinition } from '../models/list-definition'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
-import { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 import { applySchemaUpgradeInTx } from './schema-upgrades'
 
 export interface SettingRow {
@@ -23,7 +22,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 52
+export const CURRENT_DB_VERSION = 53
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -394,68 +393,58 @@ export class Todo2Database extends Dexie {
     // widgets. Drops their placement tables; the transform
     // (`upgrades/v52-drop-date-stat-widgets.ts`) deletes the horizons settings
     // rows and strips those widget tabs from `settings.canvasRails`.
-    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
-    // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `52` first.
-    this.version(CURRENT_DB_VERSION)
+    this.version(52)
       .stores({
         floatingHorizons: null,
         floatingScoreboard: null,
         floatingSnoozeGraveyard: null,
       })
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, 52))
+
+    // v53: remove the scheduled date. No index change (`scheduledDate` was
+    // never indexed); the transform (`upgrades/v53-remove-scheduled-date.ts`)
+    // moves scheduled days into `nextFollowupAt` (or `dueDate` for recurrence
+    // anchors), rewrites list definitions / group-by settings that used the
+    // removed date fields, and drops the seeded follow-up status pointer.
+    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
+    // what enforces the single-source-of-truth invariant (see the constant's
+    // docblock above). When bumping, turn this into a literal `53` first.
+    this.version(CURRENT_DB_VERSION)
+      .stores({})
       .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }
 
 export const db = new Todo2Database()
 
+/**
+ * Seeds the built-in "Assigned" status when the settings pointer to it is
+ * missing or dangling. Runs after every full restore.
+ */
 export async function ensureSeededStatuses(
   statusesTable: Table<Status, number>,
   settingsTable: Table<SettingRow, string>,
-): Promise<{ assignedId: number; followupId: number }> {
-  const [assignedSetting, followupSetting] = await Promise.all([
-    settingsTable.get(SETTING_KEYS.seededAssignedStatusId),
-    settingsTable.get(SETTING_KEYS.seededFollowupStatusId),
-  ])
-
+): Promise<{ assignedId: number }> {
+  const assignedSetting = await settingsTable.get(SETTING_KEYS.seededAssignedStatusId)
   const seededAssignedId = assignedSetting ? Number(assignedSetting.value) : null
-  const seededFollowupId = followupSetting ? Number(followupSetting.value) : null
-
   const existingAssigned = seededAssignedId != null
     ? await statusesTable.get(seededAssignedId)
     : undefined
-  const existingFollowup = seededFollowupId != null
-    ? await statusesTable.get(seededFollowupId)
-    : undefined
-
-  const all = await statusesTable.toArray()
-  const maxSort = all.reduce((m, s) => Math.max(m, s.sortOrder), -1)
-  let nextSort = maxSort
 
   let assignedId = existingAssigned?.id
   if (assignedId == null) {
-    nextSort += 1
+    const all = await statusesTable.toArray()
+    const maxSort = all.reduce((m, s) => Math.max(m, s.sortOrder), -1)
     const seedAssigned: Status = {
-      name: 'Assigned', color: DEFAULT_ENTITY_COLOR, sortOrder: nextSort,
+      name: 'Assigned', color: DEFAULT_ENTITY_COLOR, sortOrder: maxSort + 1,
       icon: 'person', hideByDefault: true,
     }
     assignedId = (await statusesTable.add(seedAssigned)) as number
   }
 
-  let followupId = existingFollowup?.id
-  if (followupId == null) {
-    nextSort += 1
-    const seedFollowup: Status = {
-      name: 'Follow-up', color: DEFAULT_THEMED_COLORS.dark.warning, sortOrder: nextSort,
-      icon: 'message-bubble', hideByDefault: false,
-    }
-    followupId = (await statusesTable.add(seedFollowup)) as number
-  }
-
   await settingsTable.put({ key: SETTING_KEYS.seededAssignedStatusId, value: String(assignedId) })
-  await settingsTable.put({ key: SETTING_KEYS.seededFollowupStatusId, value: String(followupId) })
 
-  return { assignedId, followupId }
+  return { assignedId }
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */

@@ -33,8 +33,6 @@ import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import {
   buildFlatSection,
-  buildDateSections,
-  buildScheduledSections,
   buildDeadlineSections,
   buildFollowupSections,
   buildPeopleSections,
@@ -61,9 +59,7 @@ import styles from './ListView.module.css'
 
 const groupByOptions: readonly SortGroupOption<ListGroupBy>[] = [
   { value: 'none', label: 'None', icon: groupByIcons.none },
-  { value: 'date', label: 'Effective Date', icon: groupByIcons.date },
-  { value: 'scheduled', label: 'Scheduled', icon: groupByIcons.scheduled },
-  { value: 'deadline', label: 'Deadline', icon: groupByIcons.deadline },
+  { value: 'deadline', label: 'Due', icon: groupByIcons.deadline },
   { value: 'followup', label: 'Next follow-up', icon: groupByIcons.followup },
   { value: 'project', label: 'Project', icon: groupByIcons.project },
   { value: 'status', label: 'Status', icon: groupByIcons.status },
@@ -75,9 +71,7 @@ const groupByOptions: readonly SortGroupOption<ListGroupBy>[] = [
 const itemSortByOptions: readonly SortGroupOption<ListItemSortBy>[] = [
   { value: 'manual', label: 'None', icon: itemSortByIcons.manual },
   { value: 'name', label: 'Name', icon: itemSortByIcons.name },
-  { value: 'date', label: 'Effective Date', icon: itemSortByIcons.date },
-  { value: 'scheduled', label: 'Scheduled', icon: itemSortByIcons.scheduled },
-  { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
+  { value: 'deadline', label: 'Due', icon: itemSortByIcons.deadline },
   { value: 'followup', label: 'Next follow-up', icon: itemSortByIcons.followup },
 ]
 
@@ -324,10 +318,6 @@ export function ListView() {
     switch (listGroupBy) {
       case 'none':
         return buildFlatSection(activeTodos)
-      case 'date':
-        return buildDateSections(activeTodos, weekStartsOn)
-      case 'scheduled':
-        return buildScheduledSections(activeTodos, weekStartsOn)
       case 'deadline':
         return buildDeadlineSections(activeTodos, weekStartsOn)
       case 'followup':
@@ -382,8 +372,8 @@ export function ListView() {
   ])
 
   const withinGroupComparator = useMemo(
-    () => itemSortComparator(listSortBy, weekStartsOn),
-    [listSortBy, weekStartsOn],
+    () => itemSortComparator(listSortBy),
+    [listSortBy],
   )
 
   // Apply hard limit by walking sections in order and truncating at the tail.
@@ -742,7 +732,7 @@ export function ListView() {
                     label: listGroupBy === 'none' ? undefined : s.label,
                     todos: s.todos,
                   }))
-                  void copyTasksRich(copySections, { assignedPeopleMap, statusMap, weekStartsOn })
+                  void copyTasksRich(copySections, { assignedPeopleMap, statusMap })
                 }}
                 title="Copy tasks"
               >

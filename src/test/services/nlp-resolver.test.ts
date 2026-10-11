@@ -58,10 +58,10 @@ describe('nlp-resolver', () => {
     expect(result.unmatchedPersons).toEqual(unmatched)
   })
 
-  it('preserves scheduledDate from parsed input', () => {
+  it('preserves the due date from parsed input', () => {
     const parsed = parseInput('Task tomorrow')
     const result = resolveInput(parsed, people)
-    expect(result.scheduledDate).toBeDefined()
+    expect(result.dueDate).toBeInstanceOf(Date)
     expect(result.title).toBe('Task')
   })
 
@@ -69,7 +69,7 @@ describe('nlp-resolver', () => {
     const parsed = parseInput('Buy groceries tomorrow @John')
     const result = resolveInput(parsed, people)
     expect(result.title).toBe('Buy groceries')
-    expect(result.scheduledDate).toBeDefined()
+    expect(result.dueDate).toBeInstanceOf(Date)
     expect(result.personIds).toEqual([1])
   })
 

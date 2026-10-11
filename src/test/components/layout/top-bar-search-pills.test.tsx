@@ -18,7 +18,7 @@ import { makePerson, makeOrg, makeProject, makeTodo } from '../../helpers'
  *
  * `SearchResultRow` previously rendered title + notes snippet + bare date
  * spans. It now mirrors `TaskRow`'s pill bar (people + orgs avatars,
- * scheduled/deadline chips, status icon) as a read-only display. Two
+ * due-date / follow-up chips, status icon) as a read-only display. Two
  * non-negotiables:
  *
  *  - Pills must render for a todo with assigned people / orgs / status.
@@ -71,7 +71,7 @@ describe('TopBar search-result pill bar — Phase 5', () => {
       todos: [makeTodo({
         id: 1,
         title: 'Ship Q4 plan',
-        scheduledDate: { kind: 'date', value: new Date('2099-01-15') },
+        nextFollowupAt: new Date('2099-01-15'),
         dueDate: new Date('2099-02-01'),
         statusId: 5,
       })],
@@ -92,8 +92,8 @@ describe('TopBar search-result pill bar — Phase 5', () => {
     expect(within(option).getByText('AL')).toBeInTheDocument()
     expect(within(option).getByText('AC')).toBeInTheDocument()
     expect(within(option).getByTitle('In Progress')).toBeInTheDocument()
-    expect(within(option).getByTitle('Scheduled')).toBeInTheDocument()
-    expect(within(option).getByTitle('Deadline')).toBeInTheDocument()
+    expect(within(option).getByTitle(/^Next follow-up/)).toBeInTheDocument()
+    expect(within(option).getByTitle('Due')).toBeInTheDocument()
   })
 
   it('clicking a row routes through onOpen and pill chips are structurally inside the row button', async () => {
@@ -157,7 +157,7 @@ describe('TopBar search-result pill bar — Phase 5', () => {
     const option = within(listbox).getAllByRole('option')[0]!
     // Title still renders; nothing else.
     expect(within(option).getByText('plain todo')).toBeInTheDocument()
-    expect(within(option).queryByTitle('Scheduled')).toBeNull()
-    expect(within(option).queryByTitle('Deadline')).toBeNull()
+    expect(within(option).queryByTitle(/^Next follow-up/)).toBeNull()
+    expect(within(option).queryByTitle('Due')).toBeNull()
   })
 })

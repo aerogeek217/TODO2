@@ -535,13 +535,11 @@ export function FilterChipBarDesktop({
         startAnchor={p.dateRangeStart}
         endAnchor={p.dateRangeEnd}
         includeNoDate={p.dateRangeIncludeNoDate}
-        hasScheduled={p.hasScheduled}
         hasDeadline={p.hasDeadline}
         hasFollowup={p.hasFollowup ?? null}
         onChangeDateField={(dateField) => update({ dateField })}
         onChangeAnchors={(dateRangeStart, dateRangeEnd) => update({ dateRangeStart, dateRangeEnd })}
         onChangeIncludeNoDate={(dateRangeIncludeNoDate) => update({ dateRangeIncludeNoDate })}
-        onChangeHasScheduled={(hasScheduled) => update({ hasScheduled })}
         onChangeHasDeadline={(hasDeadline) => update({ hasDeadline })}
         onChangeHasFollowup={(hasFollowup) => update({ hasFollowup })}
       />

@@ -3,7 +3,7 @@ import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, Tag, Da
 import type { RuntimeFilterSpec } from '../models/list-definition'
 import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
-import { effectiveDate, resolveDateAnchor, resolveScheduled } from '../utils/effective-date'
+import { resolveDateAnchor } from '../utils/effective-date'
 import { useSettingsStore } from './settings-store'
 import { matchTodoText, type TextMatchContext } from '../utils/filter'
 
@@ -41,8 +41,6 @@ export interface FilterCriteria {
   searchText: string
   /**
    * Which date field drives the date range filter:
-   *   'date'      → effectiveDate(todo, today)
-   *   'scheduled' → resolveScheduled(todo.scheduledDate, today)
    *   'deadline'  → todo.dueDate
    *   'followup'  → todo.nextFollowupAt
    *   'created'   → todo.createdAt
@@ -53,10 +51,8 @@ export interface FilterCriteria {
   dateRangeStart: DateAnchor | null
   /** null = open-ended; `DateAnchor` = only show tasks with date on or before this anchor (resolved at eval time). */
   dateRangeEnd: DateAnchor | null
-  /** When true AND dateField === 'date', tasks with no effectiveDate (neither scheduledDate nor dueDate) are included in date-range results. */
+  /** When true AND dateField === 'deadline', tasks with no due date are included in date-range results. */
   dateRangeIncludeNoDate: boolean
-  /** Tri-state presence filter on `scheduledDate`. null = no filter. true = only tasks with it; false = only tasks without. */
-  hasScheduled: boolean | null
   /** Tri-state presence filter on `dueDate`. null = no filter. */
   hasDeadline: boolean | null
   /** Tri-state presence filter on `nextFollowupAt`. null = no filter. */
@@ -99,7 +95,6 @@ interface FilterState {
   setDateRange: (start: Date | null, end: Date | null) => void
   setDateRangeAnchors: (start: DateAnchor | null, end: DateAnchor | null) => void
   setDateRangeIncludeNoDate: (include: boolean) => void
-  setHasScheduled: (value: boolean | null) => void
   setHasDeadline: (value: boolean | null) => void
   setHasFollowup: (value: boolean | null) => void
   setTags: (tags: Set<number> | null) => void
@@ -119,11 +114,10 @@ const defaultFilters: FilterCriteria = {
   projectIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'date',
+  dateField: 'deadline',
   dateRangeStart: null,
   dateRangeEnd: null,
   dateRangeIncludeNoDate: false,
-  hasScheduled: null,
   hasDeadline: null,
   hasFollowup: null,
   tags: null,
@@ -140,7 +134,6 @@ function isFilterActive(f: FilterCriteria): boolean {
     f.searchText !== '' ||
     f.dateRangeStart !== null ||
     f.dateRangeEnd !== null ||
-    f.hasScheduled !== null ||
     f.hasDeadline !== null ||
     f.hasFollowup != null ||
     f.tags !== null
@@ -225,10 +218,6 @@ export function matchesFilter(
       if (!filters.projectIds.has(0)) return false
     } else if (!filters.projectIds.has(pid)) return false
   }
-  if (filters.hasScheduled !== null) {
-    const has = todo.scheduledDate !== undefined
-    if (has !== filters.hasScheduled) return false
-  }
   if (filters.hasDeadline !== null) {
     const has = todo.dueDate !== undefined
     if (has !== filters.hasDeadline) return false
@@ -250,12 +239,6 @@ export function matchesFilter(
 
     let rawDate: Date | null
     switch (filters.dateField) {
-      case 'date':
-        rawDate = effectiveDate(todo, today, ws)
-        break
-      case 'scheduled':
-        rawDate = todo.scheduledDate ? resolveScheduled(todo.scheduledDate, today, ws) : null
-        break
       case 'deadline':
         rawDate = todo.dueDate ? new Date(todo.dueDate) : null
         break
@@ -271,7 +254,7 @@ export function matchesFilter(
     }
 
     if (!rawDate) {
-      if (!(filters.dateField === 'date' && filters.dateRangeIncludeNoDate)) return false
+      if (!(filters.dateField === 'deadline' && filters.dateRangeIncludeNoDate)) return false
     } else {
       const d = startOfDay(new Date(rawDate))
       if (resolvedStart !== null) {
@@ -340,7 +323,6 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     dateRangeStart: f.dateRangeStart,
     dateRangeEnd: f.dateRangeEnd,
     dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
-    hasScheduled: f.hasScheduled,
     hasDeadline: f.hasDeadline,
     hasFollowup: f.hasFollowup,
     tags: f.tags ? Array.from(f.tags) : null,
@@ -363,7 +345,6 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     dateRangeStart: readDateAnchor(p.dateRangeStart),
     dateRangeEnd: readDateAnchor(p.dateRangeEnd),
     dateRangeIncludeNoDate: p.dateRangeIncludeNoDate,
-    hasScheduled: p.hasScheduled ?? null,
     hasDeadline: p.hasDeadline ?? null,
     hasFollowup: p.hasFollowup ?? null,
     tags: p.tags ? new Set(p.tags) : null,
@@ -434,10 +415,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setDateRangeIncludeNoDate(dateRangeIncludeNoDate: boolean) {
     commit(set, { ...get().filters, dateRangeIncludeNoDate })
-  },
-
-  setHasScheduled(hasScheduled: boolean | null) {
-    commit(set, { ...get().filters, hasScheduled })
   },
 
   setHasDeadline(hasDeadline: boolean | null) {

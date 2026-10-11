@@ -134,8 +134,8 @@ describe('v50 Dexie upgrade repairs a string-dated v49 database', () => {
       expect(isDate(t.modifiedAt), `todo ${t.id} modifiedAt`).toBe(true)
     }
     expect(isDate(t1!.dueDate) && isDate(t2!.dueDate)).toBe(true)
-    expect(t1!.scheduledDate?.kind === 'date' && isDate(t1.scheduledDate.value)).toBe(true)
-    expect(t2!.scheduledDate?.kind === 'fuzzy' && isDate(t2.scheduledDate.setAt)).toBe(true)
+    // Later versions turn the (revived) scheduled values into next follow-ups.
+    expect(isDate(t1!.nextFollowupAt) && isDate(t2!.nextFollowupAt)).toBe(true)
     expect(t3!.dueDate).toBeUndefined()
 
     expect(isDate((await db.canvases.get(1))!.createdAt)).toBe(true)

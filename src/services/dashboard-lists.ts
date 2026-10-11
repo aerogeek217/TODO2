@@ -16,9 +16,6 @@ import type {
 } from '../models/list-definition'
 import {
   compareTodosByDate,
-  effectiveDate,
-  isScheduledExpired,
-  resolveScheduled,
   type WeekStart,
 } from '../utils/effective-date'
 import { startOfDay } from '../utils/date'
@@ -202,7 +199,7 @@ export function buildDashboardLists(
     const members = runtimeFilterUnset
       ? []
       : todos.filter((t) => interpretMembership(effectiveDef.membership, t, ctx))
-    const sorted = [...members].sort((a, b) => interpretSort(effectiveDef.sort, a, b, ctx))
+    const sorted = [...members].sort((a, b) => interpretSort(effectiveDef.sort, a, b))
     const groupingRestrict = runtimeFilterUnset
       ? undefined
       : computeGroupingRestrict(effectiveDef, ctx)
@@ -233,21 +230,10 @@ export function interpretMembership(m: ListMembership, t: PersistedTodoItem, ctx
   return ctx.evalPredicate(m.predicate, t)
 }
 
-export function interpretSort(s: ListSort, a: PersistedTodoItem, b: PersistedTodoItem, ctx: DashboardListsContext): number {
-  const today = startOfDay(ctx.today)
-  const ws = ctx.weekStartsOn
+export function interpretSort(s: ListSort, a: PersistedTodoItem, b: PersistedTodoItem): number {
   switch (s) {
-    case 'date': {
-      // Dashboard-only: fuzzy-expired tasks bubble to the top so the user sees
-      // "this is past its window" before in-window dates.
-      const aExp = isScheduledExpired(a, today, ws)
-      const bExp = isScheduledExpired(b, today, ws)
-      if (aExp !== bExp) return aExp ? -1 : 1
-      return compareTodosByDate('date', today, ws)(a, b)
-    }
-    case 'scheduled': return compareTodosByDate('scheduled', today, ws)(a, b)
-    case 'deadline':  return compareTodosByDate('deadline', today, ws)(a, b)
-    case 'followup':  return compareTodosByDate('followup', today, ws)(a, b)
+    case 'deadline':  return compareTodosByDate('deadline')(a, b)
+    case 'followup':  return compareTodosByDate('followup')(a, b)
     case 'manual': case 'name': case 'created': case 'people':
     case 'project': case 'org': case 'status':
       return bySortOrder(a, b)
@@ -262,8 +248,6 @@ export function interpretGrouping(
 ): DashboardListGroup[] | undefined {
   switch (g) {
     case 'none':      return undefined
-    case 'date':      return bucketByEffective(todos, ctx)
-    case 'scheduled': return bucketByScheduled(todos, ctx)
     case 'deadline':  return bucketByDeadline(todos, ctx)
     case 'followup':  return bucketByFollowup(todos, ctx)
     case 'project':   return bucketByProject(todos, ctx)
@@ -287,18 +271,14 @@ const DATE_BUCKET_META: Record<DateBucketKey, { key: string; label: string }> = 
   beyond:     { key: 'beyond',      label: 'Beyond' },
 }
 
-const EFFECTIVE_WINDOWS: readonly DateBucketKey[] = [
-  'tomorrow', 'thisWeek', 'nextWeek', 'laterMonth', 'nextMonth', 'beyond',
-]
 const DEADLINE_WINDOWS: readonly DateBucketKey[] = [
   'overdue', 'today', 'thisWeek', 'nextWeek', 'thisMonth', 'later',
 ]
-const SCHEDULED_WINDOWS = EFFECTIVE_WINDOWS
 /** ListView's date vocabulary: Overdue / Today / This week / Later (+ No follow-up). */
 const FOLLOWUP_WINDOWS: readonly DateBucketKey[] = ['overdue', 'today', 'thisWeek', 'later']
 
 /**
- * Shared body for the 3 date bucketers. Resolves the day-anchor + week-start,
+ * Shared body for the date bucketers. Resolves the day-anchor + week-start,
  * runs `bucketByDate`, maps buckets to dashboard groups; caller appends or
  * folds the no-date tail.
  */
@@ -315,21 +295,10 @@ function buildDateGroups(
   return { groups, noDate }
 }
 
-function bucketByEffective(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
-  const { groups, noDate } = buildDateGroups(todos, ctx, EFFECTIVE_WINDOWS, (t, today, ws) => effectiveDate(t, today, ws))
-  // No-date todos fold into 'beyond' (semantically Someday).
-  if (noDate.length > 0) {
-    const beyond = groups.find((g) => g.key === DATE_BUCKET_META.beyond.key)
-    if (beyond) beyond.todos.push(...noDate)
-    else groups.push({ ...DATE_BUCKET_META.beyond, todos: noDate })
-  }
-  return groups
-}
-
 function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
   const { groups, noDate } = buildDateGroups(todos, ctx, DEADLINE_WINDOWS,
     (t) => t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
-  if (noDate.length > 0) groups.push({ key: 'no-deadline', label: 'No deadline', todos: noDate })
+  if (noDate.length > 0) groups.push({ key: 'no-deadline', label: 'No due date', todos: noDate })
   return groups
 }
 
@@ -337,13 +306,6 @@ function bucketByFollowup(todos: PersistedTodoItem[], ctx: DashboardListsContext
   const { groups, noDate } = buildDateGroups(todos, ctx, FOLLOWUP_WINDOWS,
     (t) => t.nextFollowupAt ? startOfDay(new Date(t.nextFollowupAt)) : null)
   if (noDate.length > 0) groups.push({ key: 'no-followup', label: 'No follow-up', todos: noDate })
-  return groups
-}
-
-function bucketByScheduled(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
-  const { groups, noDate } = buildDateGroups(todos, ctx, SCHEDULED_WINDOWS,
-    (t, today, ws) => t.scheduledDate ? resolveScheduled(t.scheduledDate, today, ws) : null)
-  if (noDate.length > 0) groups.push({ key: 'no-date', label: 'No scheduled date', todos: noDate })
   return groups
 }
 

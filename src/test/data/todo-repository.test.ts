@@ -113,59 +113,16 @@ describe('todoRepository', () => {
 
 describe('todoRepository — orphan-rule cleanup on write', () => {
   // Repository invariant: a `recurrenceRule` is only meaningful when the
-  // merged row carries a precise anchor (`dueDate` or `scheduledDate.kind ===
-  // 'date'`). Writes that produce a rule + no anchor drop the rule before
-  // persistence so the bulk paths converge on TaskEditPopup's silent-clear.
-  const preciseDate = new Date(2026, 5, 1)
-  const fuzzyValue = { kind: 'fuzzy' as const, token: 'this-week' as const, setAt: new Date(2026, 4, 9) }
+  // merged row has a due date to advance. Writes that produce a rule + no due
+  // date drop the rule before persistence so the bulk paths converge on
+  // TaskEditPopup's silent-clear.
+  const due = new Date(2026, 5, 10)
+  const followup = new Date(2026, 5, 1)
 
-  it('update flipping precise → fuzzy drops the rule', async () => {
+  it('update clearing the due date drops the rule (a follow-up is not an anchor)', async () => {
     const id = await todoRepository.insert(makeTodo({
-      title: 'Recurring',
-      scheduledDate: { kind: 'date', value: preciseDate },
-      recurrenceRule: { type: 'weekly' },
-    }))
-    const row = (await todoRepository.getById(id))!
-    row.scheduledDate = fuzzyValue
-    await todoRepository.update(row)
-
-    const updated = await todoRepository.getById(id)
-    expect(updated!.scheduledDate).toEqual(fuzzyValue)
-    expect(updated!.recurrenceRule).toBeUndefined()
-  })
-
-  it('update clearing the only precise scheduledDate drops the rule', async () => {
-    const id = await todoRepository.insert(makeTodo({
-      scheduledDate: { kind: 'date', value: preciseDate },
-      recurrenceRule: { type: 'weekly' },
-    }))
-    const row = (await todoRepository.getById(id))!
-    row.scheduledDate = undefined
-    await todoRepository.update(row)
-
-    const updated = await todoRepository.getById(id)
-    expect(updated!.scheduledDate).toBeUndefined()
-    expect(updated!.recurrenceRule).toBeUndefined()
-  })
-
-  it('update preserves the rule when a deadline still anchors it', async () => {
-    const id = await todoRepository.insert(makeTodo({
-      scheduledDate: { kind: 'date', value: preciseDate },
-      dueDate: new Date(2026, 5, 10),
-      recurrenceRule: { type: 'weekly' },
-    }))
-    const row = (await todoRepository.getById(id))!
-    row.scheduledDate = fuzzyValue
-    await todoRepository.update(row)
-
-    const updated = await todoRepository.getById(id)
-    expect(updated!.scheduledDate).toEqual(fuzzyValue)
-    expect(updated!.recurrenceRule).toEqual({ type: 'weekly' })
-  })
-
-  it('update clearing deadline on a deadline-only recurring task drops the rule', async () => {
-    const id = await todoRepository.insert(makeTodo({
-      dueDate: new Date(2026, 5, 10),
+      dueDate: due,
+      nextFollowupAt: followup,
       recurrenceRule: { type: 'monthly', originalDayOfMonth: 10 },
     }))
     const row = (await todoRepository.getById(id))!
@@ -174,28 +131,27 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
 
     const updated = await todoRepository.getById(id)
     expect(updated!.dueDate).toBeUndefined()
+    expect(updated!.nextFollowupAt).toEqual(followup)
     expect(updated!.recurrenceRule).toBeUndefined()
   })
 
-  it('update clearing deadline preserves the rule when a precise scheduledDate remains', async () => {
+  it('update preserves the rule when the due date still anchors it', async () => {
     const id = await todoRepository.insert(makeTodo({
-      scheduledDate: { kind: 'date', value: preciseDate },
-      dueDate: new Date(2026, 5, 10),
+      dueDate: due,
       recurrenceRule: { type: 'weekly' },
     }))
     const row = (await todoRepository.getById(id))!
-    row.dueDate = undefined
+    row.nextFollowupAt = followup
     await todoRepository.update(row)
 
     const updated = await todoRepository.getById(id)
-    expect(updated!.dueDate).toBeUndefined()
-    expect(updated!.scheduledDate).toEqual({ kind: 'date', value: preciseDate })
+    expect(updated!.nextFollowupAt).toEqual(followup)
     expect(updated!.recurrenceRule).toEqual({ type: 'weekly' })
   })
 
   it('update of an unrelated field on a recurring task leaves the rule alone', async () => {
     const id = await todoRepository.insert(makeTodo({
-      scheduledDate: { kind: 'date', value: preciseDate },
+      dueDate: due,
       recurrenceRule: { type: 'weekly' },
     }))
     const row = (await todoRepository.getById(id))!
@@ -207,75 +163,40 @@ describe('todoRepository — orphan-rule cleanup on write', () => {
     expect(updated!.recurrenceRule).toEqual({ type: 'weekly' })
   })
 
-  it('bulkUpdate flipping precise → fuzzy across rows drops orphaned rules and preserves anchored ones', async () => {
+  it('bulkUpdate clearing due dates drops orphaned rules and leaves rows without one alone', async () => {
     const orphanId = await todoRepository.insert(makeTodo({
       title: 'orphan',
-      scheduledDate: { kind: 'date', value: preciseDate },
+      dueDate: due,
       recurrenceRule: { type: 'weekly' },
     }))
     const anchoredId = await todoRepository.insert(makeTodo({
       title: 'anchored',
-      scheduledDate: { kind: 'date', value: preciseDate },
-      dueDate: new Date(2026, 5, 10),
+      dueDate: due,
       recurrenceRule: { type: 'weekly' },
     }))
-    const noRuleId = await todoRepository.insert(makeTodo({
-      title: 'no rule',
-      scheduledDate: { kind: 'date', value: preciseDate },
-    }))
+    const noRuleId = await todoRepository.insert(makeTodo({ title: 'no rule', dueDate: due }))
 
     await todoRepository.bulkUpdate([
-      { todoId: orphanId, changes: { scheduledDate: fuzzyValue } },
-      { todoId: anchoredId, changes: { scheduledDate: fuzzyValue } },
-      { todoId: noRuleId, changes: { scheduledDate: fuzzyValue } },
+      { todoId: orphanId, changes: { dueDate: undefined } },
+      { todoId: anchoredId, changes: { nextFollowupAt: followup } },
+      { todoId: noRuleId, changes: { dueDate: undefined } },
     ])
 
     const orphan = await todoRepository.getById(orphanId)
-    expect(orphan!.scheduledDate).toEqual(fuzzyValue)
+    expect(orphan!.dueDate).toBeUndefined()
     expect(orphan!.recurrenceRule).toBeUndefined()
 
     const anchored = await todoRepository.getById(anchoredId)
-    expect(anchored!.scheduledDate).toEqual(fuzzyValue)
     expect(anchored!.recurrenceRule).toEqual({ type: 'weekly' })
 
     const noRule = await todoRepository.getById(noRuleId)
-    expect(noRule!.scheduledDate).toEqual(fuzzyValue)
+    expect(noRule!.dueDate).toBeUndefined()
     expect(noRule!.recurrenceRule).toBeUndefined()
-  })
-
-  it('bulkUpdate clearing scheduledDate drops the rule on a schedule-only recurring row', async () => {
-    const id = await todoRepository.insert(makeTodo({
-      scheduledDate: { kind: 'date', value: preciseDate },
-      recurrenceRule: { type: 'weekly' },
-    }))
-    await todoRepository.bulkUpdate([
-      { todoId: id, changes: { scheduledDate: undefined } },
-    ])
-
-    const updated = await todoRepository.getById(id)
-    expect(updated!.scheduledDate).toBeUndefined()
-    expect(updated!.recurrenceRule).toBeUndefined()
-  })
-
-  it('bulkUpdate clearing deadline drops the rule when no precise scheduledDate remains', async () => {
-    const id = await todoRepository.insert(makeTodo({
-      dueDate: new Date(2026, 5, 10),
-      scheduledDate: fuzzyValue,
-      recurrenceRule: { type: 'monthly', originalDayOfMonth: 10 },
-    }))
-    await todoRepository.bulkUpdate([
-      { todoId: id, changes: { dueDate: undefined } },
-    ])
-
-    const updated = await todoRepository.getById(id)
-    expect(updated!.dueDate).toBeUndefined()
-    expect(updated!.scheduledDate).toEqual(fuzzyValue)
-    expect(updated!.recurrenceRule).toBeUndefined()
   })
 
   it('bulkUpdate of an unrelated field on a recurring task leaves the rule alone', async () => {
     const id = await todoRepository.insert(makeTodo({
-      scheduledDate: { kind: 'date', value: preciseDate },
+      dueDate: due,
       recurrenceRule: { type: 'weekly' },
     }))
     await todoRepository.bulkUpdate([

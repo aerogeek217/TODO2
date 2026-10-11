@@ -75,9 +75,8 @@ export interface TodoPredicate {
   /** Fixed ISO string or relative token; null = no lower bound. */
   dateRangeStart: DateAnchor | null
   dateRangeEnd: DateAnchor | null
+  /** With `dateField === 'deadline'`: also keep tasks that have no due date. */
   dateRangeIncludeNoDate: boolean
-  /** Tri-state presence filter on `scheduledDate`. null = no filter. */
-  hasScheduled: boolean | null
   /** Tri-state presence filter on `dueDate`. null = no filter. */
   hasDeadline: boolean | null
   /**

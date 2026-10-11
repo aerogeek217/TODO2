@@ -1,7 +1,6 @@
 import { createElement, type ReactNode } from 'react'
 import type { ListGroupBy, ListItemSortBy } from '../../models'
 import {
-  DateIcon,
   DeadlineIcon,
   FlatIcon,
   ManualIcon,
@@ -9,7 +8,6 @@ import {
   OrgIcon,
   PeopleIcon,
   ProjectIcon,
-  ScheduledIcon,
   StatusIconGlyph,
   TagIcon,
 } from './list-option-icons'
@@ -21,8 +19,6 @@ import { FollowupFlagIcon } from './FollowupIcons'
 // returns `undefined` for sort/group dimensions a surface doesn't expose.
 export const groupByIcons: Partial<Record<ListGroupBy, ReactNode>> = {
   none: createElement(FlatIcon),
-  date: createElement(DateIcon),
-  scheduled: createElement(ScheduledIcon),
   deadline: createElement(DeadlineIcon),
   followup: createElement(FollowupFlagIcon),
   people: createElement(PeopleIcon),
@@ -35,8 +31,6 @@ export const groupByIcons: Partial<Record<ListGroupBy, ReactNode>> = {
 export const itemSortByIcons: Partial<Record<ListItemSortBy, ReactNode>> = {
   manual: createElement(ManualIcon),
   name: createElement(NameIcon),
-  date: createElement(DateIcon),
-  scheduled: createElement(ScheduledIcon),
   deadline: createElement(DeadlineIcon),
   followup: createElement(FollowupFlagIcon),
 }

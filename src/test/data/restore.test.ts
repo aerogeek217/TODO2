@@ -194,9 +194,9 @@ describe('restoreFromImportData', () => {
       const names = statuses.map(s => s.name)
       expect(names).toContain('Open')
       expect(names).toContain('Closed')
-      // ensureSeededStatuses also adds Assigned + Follow-up.
+      // ensureSeededStatuses also adds Assigned (and nothing else).
       expect(names).toContain('Assigned')
-      expect(names).toContain('Follow-up')
+      expect(names).not.toContain('Follow-up')
     })
 
     it('replaces existing statuses with imported rows', async () => {
@@ -276,13 +276,12 @@ describe('restoreFromImportData', () => {
       expect(await db.settings.get('horizonSlots')).toBeUndefined()
     })
 
-    it('auto-seeds Assigned + Follow-up when import has no statuses', async () => {
+    it('auto-seeds only Assigned when import has no statuses', async () => {
       await restoreFromImportData(makeImportData({ statuses: [] }))
 
       const statuses = await db.statuses.toArray()
-      const names = statuses.map(s => s.name)
-      expect(names).toContain('Assigned')
-      expect(names).toContain('Follow-up')
+      expect(statuses.map(s => s.name)).toEqual(['Assigned'])
+      expect(await db.settings.get('seededFollowupStatusId')).toBeUndefined()
     })
 
     it('preserves seeded status ids round-tripped through import', async () => {
@@ -293,7 +292,6 @@ describe('restoreFromImportData', () => {
         ],
         settings: [
           { key: 'seededAssignedStatusId', value: '10' },
-          { key: 'seededFollowupStatusId', value: '11' },
         ],
       })
 
@@ -301,15 +299,15 @@ describe('restoreFromImportData', () => {
 
       const settings = await db.settings.toArray()
       const assignedId = Number(settings.find(s => s.key === 'seededAssignedStatusId')!.value)
-      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
       expect(assignedId).toBe(10)
-      expect(followupId).toBe(11)
 
       const statuses = await db.statuses.toArray()
       expect(statuses.find(s => s.id === 10)!.name).toBe('Delegated')
+      // An imported "Follow-up" status is ordinary user data: kept, not re-seeded.
+      expect(statuses.map(s => s.name).sort()).toEqual(['Delegated', 'Follow-up'])
     })
 
-    it('auto-seeds the missing seeded status when only one is imported', async () => {
+    it('keeps an imported Assigned status without seeding another', async () => {
       const data = makeImportData({
         statuses: [
           { id: 10, name: 'Assigned', color: '#537FE7', sortOrder: 0, icon: 'person', hideByDefault: true },
@@ -324,10 +322,7 @@ describe('restoreFromImportData', () => {
       const settings = await db.settings.toArray()
       const assignedId = Number(settings.find(s => s.key === 'seededAssignedStatusId')!.value)
       expect(assignedId).toBe(10)
-      const followupId = Number(settings.find(s => s.key === 'seededFollowupStatusId')!.value)
-      expect(followupId).toBeGreaterThan(0)
-      const followupStatus = await db.statuses.get(followupId)
-      expect(followupStatus!.name).toBe('Follow-up')
+      expect((await db.statuses.toArray()).map(s => s.name)).toEqual(['Assigned'])
     })
   })
 

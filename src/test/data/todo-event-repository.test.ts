@@ -3,7 +3,6 @@ import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
 import {
   todoEventRepository,
-  encodeScheduledValue,
   encodeDateValue,
 } from '../../data/todo-event-repository'
 import { makeTodo } from '../helpers'
@@ -63,23 +62,20 @@ describe('todoRepository — emit on insert / update / complete', () => {
     expect(events[0]!.timestamp).toBe(ts.toISOString())
   })
 
-  it('update emits one scheduled event when scheduledDate changes', async () => {
+  it('a follow-up change emits no event (only due date / status / completion are tracked)', async () => {
     const id = await todoRepository.insert(makeTodo())
     const todo = (await todoRepository.getById(id))!
-    todo.scheduledDate = { kind: 'date', value: new Date('2026-05-01T00:00:00Z') }
+    todo.nextFollowupAt = new Date('2026-05-01T00:00:00Z')
     await todoRepository.update(todo)
 
     const events = await todoEventRepository.byTodo(id)
-    const scheduled = events.filter((e) => e.type === 'scheduled')
-    expect(scheduled).toHaveLength(1)
-    expect(scheduled[0]!.fromValue).toBeNull()
-    expect(scheduled[0]!.toValue).toBe('2026-05-01T00:00:00.000Z')
+    expect(events.map((e) => e.type)).toEqual(['created'])
   })
 
   it('update is idempotent — re-saving the same row emits nothing', async () => {
     const id = await todoRepository.insert(makeTodo())
     const todo = (await todoRepository.getById(id))!
-    todo.scheduledDate = { kind: 'date', value: new Date('2026-05-01T00:00:00Z') }
+    todo.dueDate = new Date('2026-05-01T00:00:00Z')
     await todoRepository.update(todo)
     const before = await todoEventRepository.byTodo(id)
 
@@ -154,9 +150,9 @@ describe('todoRepository — cascade delete', () => {
   it('delete wipes every event for the todo', async () => {
     const id = await todoRepository.insert(makeTodo())
     const todo = (await todoRepository.getById(id))!
-    todo.scheduledDate = { kind: 'date', value: new Date('2026-05-01T00:00:00Z') }
+    todo.dueDate = new Date('2026-05-01T00:00:00Z')
     await todoRepository.update(todo)
-    expect((await todoEventRepository.byTodo(id)).length).toBeGreaterThan(0)
+    expect((await todoEventRepository.byTodo(id)).length).toBeGreaterThan(1)
 
     await todoRepository.delete(id)
 
@@ -180,14 +176,6 @@ describe('todoRepository — cascade delete', () => {
 })
 
 describe('encode helpers', () => {
-  it('encodeScheduledValue handles null / fixed-date / fuzzy', () => {
-    expect(encodeScheduledValue(undefined)).toBeNull()
-    expect(encodeScheduledValue(null)).toBeNull()
-    expect(encodeScheduledValue({ kind: 'date', value: new Date('2026-04-26T00:00:00Z') }))
-      .toBe('2026-04-26T00:00:00.000Z')
-    expect(encodeScheduledValue({ kind: 'fuzzy', token: 'this-week' })).toBe('fuzzy:this-week')
-  })
-
   it('encodeDateValue handles null and Date', () => {
     expect(encodeDateValue(undefined)).toBeNull()
     expect(encodeDateValue(new Date('2026-06-01T00:00:00Z'))).toBe('2026-06-01T00:00:00.000Z')

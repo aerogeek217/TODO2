@@ -14,7 +14,6 @@ vi.mock('../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     toggleComplete: mockToggleComplete,
     remove: mockRemove,
-    setScheduled: vi.fn(),
     setDeadline: vi.fn(),
     setProject: vi.fn(),
     setStatus: vi.fn(),
@@ -32,8 +31,7 @@ function getRow(): HTMLElement {
   return document.querySelector('[data-todo-id]') as HTMLElement
 }
 
-// April 11, 2026 — matches `vi.setSystemTime`. Fuzzy `setAt` uses this so
-// post-aging resolution lands on today's window.
+// April 11, 2026 — matches `vi.setSystemTime`.
 const TODAY = new Date(2026, 3, 11)
 
 describe('MobileTaskRow', () => {
@@ -92,12 +90,7 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText(/Apr 11$/)).toBeInTheDocument()
     })
 
-    it('shows scheduled chip label for fuzzy token', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
-      expect(screen.getByText('Today')).toBeInTheDocument()
-    })
-
-    it('renders no date chip when neither scheduled nor due is set', () => {
+    it('renders no date chip when no due date is set', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.queryByText(/Apr/)).not.toBeInTheDocument()
       expect(screen.queryByText('Today')).not.toBeInTheDocument()
@@ -276,16 +269,10 @@ describe('MobileTaskRow', () => {
       useTaskboardStore.setState({ board: null, loading: false, error: null })
     })
 
-    it('exposes scheduled chip as a button (tap → opens scheduled menu)', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, scheduledDate: { kind: 'fuzzy', token: 'today', setAt: TODAY } })} />)
-      const chip = screen.getByLabelText('Edit scheduled')
-      expect(chip.tagName).toBe('BUTTON')
-    })
-
-    it('exposes deadline chip as a button (tap → opens deadline picker)', () => {
+    it('exposes the due-date chip as a button (tap → opens the date picker)', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
-      const chip = screen.getByLabelText('Edit deadline')
+      const chip = screen.getByLabelText('Edit due date')
       expect(chip.tagName).toBe('BUTTON')
     })
 

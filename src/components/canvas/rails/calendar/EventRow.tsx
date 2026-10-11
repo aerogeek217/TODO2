@@ -18,7 +18,6 @@ export interface EventRowEntry {
 interface EventRowProps {
   entry: EventRowEntry
   today: Date
-  weekStartsOn: 0 | 1
   /** Compact variant: tighter padding, hides org chip, limits people to 2. Used by the horizontal calendar column where space is narrow. */
   compact?: boolean
   onClick?: () => void
@@ -35,7 +34,6 @@ interface EventRowProps {
 export const EventRow = memo(function EventRow({
   entry,
   today,
-  weekStartsOn,
   compact = false,
   onClick,
   dragRef,
@@ -64,7 +62,6 @@ export const EventRow = memo(function EventRow({
       <TaskPillDates
         todo={todo}
         today={today}
-        weekStartsOn={weekStartsOn}
         interactive={false}
         compact
       />

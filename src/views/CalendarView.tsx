@@ -17,7 +17,6 @@ import { useProjectStore } from '../stores/project-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
-import { useSettingsStore } from '../stores/settings-store'
 import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import { TaskEditPopup } from '../components/task/TaskEditPopup'
@@ -26,7 +25,7 @@ import { TaskDraggable } from '../components/task/dnd/TaskDraggable'
 import type { PersistedTodoItem } from '../models'
 import { generateInitials } from '../utils/person'
 import { startOfDay, isSameDay } from '../utils/date'
-import { effectiveDate, scheduledLabel, isScheduledExpired, isScheduledPast, isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
+import { isDeadlinePast, daysUntil, dateIntensity } from '../utils/effective-date'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import {
   CALENDAR_VIEW_SCOPE,
@@ -132,12 +131,11 @@ export function CalendarView() {
   const { openEditPopup } = useUIStore()
   const { filters } = useFilterStore()
   const { statuses } = useStatusStore()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const taskEdit = useTaskEditCallbacks()
 
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [currentDate, setCurrentDate] = useState(() => new Date())
-  const [showUnscheduled, setShowUnscheduled] = useState(false)
+  const [showUndated, setShowUndated] = useState(false)
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
 
   const sensors = useSensors(
@@ -176,15 +174,15 @@ export function CalendarView() {
 
   const [today, setToday] = useState(() => startOfDay(new Date()))
 
-  const { scheduled, unscheduled } = useMemo(() => {
-    const scheduled: PersistedTodoItem[] = []
-    const unscheduled: PersistedTodoItem[] = []
+  const { dated, undated } = useMemo(() => {
+    const dated: PersistedTodoItem[] = []
+    const undated: PersistedTodoItem[] = []
     for (const t of activeTodos) {
-      if (effectiveDate(t, today, weekStartsOn)) scheduled.push(t)
-      else unscheduled.push(t)
+      if (t.dueDate) dated.push(t)
+      else undated.push(t)
     }
-    return { scheduled, unscheduled }
-  }, [activeTodos, today, weekStartsOn])
+    return { dated, undated }
+  }, [activeTodos])
 
   // Refresh "today" when the page becomes visible (e.g. after midnight)
   useEffect(() => {
@@ -206,14 +204,11 @@ export function CalendarView() {
     return viewMode === 'month' ? formatMonthYear(currentDate) : formatWeekRange(days)
   }, [viewMode, currentDate, days])
 
-  const entriesByDay = useMemo(() => buildCalendarEntries(scheduled, days, {
-    today,
-    weekStartsOn,
-    sortMode: 'effective',
+  const entriesByDay = useMemo(() => buildCalendarEntries(dated, days, {
     assignedPeopleMap,
     assignedOrgsMap,
     statuses,
-  }), [scheduled, days, today, weekStartsOn, assignedPeopleMap, assignedOrgsMap, statuses])
+  }), [dated, days, assignedPeopleMap, assignedOrgsMap, statuses])
 
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
 
@@ -339,22 +334,17 @@ export function CalendarView() {
                         const assigned = assignedPeopleMap.get(todo.id)
                         const initials = assigned?.map((p) => p.initials || generateInitials(p.name)).join(', ')
 
-                        const hasSched = !!todo.scheduledDate
                         const hasDead = !!todo.dueDate
                         // Past states don't apply to virtual recurring instances — they
-                        // represent future occurrences whose parent's dates are the past
+                        // represent future occurrences whose parent's date is the past
                         // anchor, not the instance's day.
-                        const pastSched = !isVirtual && isScheduledPast(todo, today, weekStartsOn)
                         const pastDead = !isVirtual && isDeadlinePast(todo, today)
 
                         let tintClass: string | false = false
                         if (hasDead && pastDead) tintClass = styles.taskItemPastDeadline ?? false
-                        else if (hasSched && pastSched) tintClass = styles.taskItemPastScheduled ?? false
-                        else if (hasSched && hasDead) tintClass = styles.taskItemBoth ?? false
-                        else if (hasSched) tintClass = styles.taskItemScheduled ?? false
                         else if (hasDead) tintClass = styles.taskItemDeadline ?? false
 
-                        const intensityDate = isVirtual ? day : effectiveDate(todo, today, weekStartsOn)
+                        const intensityDate = isVirtual ? day : (todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null)
                         const intensity = dateIntensity(daysUntil(intensityDate, today))
 
                         const taskItemClass = [
@@ -369,21 +359,11 @@ export function CalendarView() {
 
                         const body = (
                           <>
-                            {hasSched && (
-                              <span
-                                className={styles.scheduledMarker}
-                                title={`Scheduled: ${scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}`}
-                                aria-label="Scheduled"
-                              >
-                                <StatusIcon icon="calendar" />
-                                {isScheduledExpired(todo, today, weekStartsOn) && <span className={styles.markerExpired} />}
-                              </span>
-                            )}
                             {hasDead && (
                               <span
                                 className={styles.deadlineMarker}
-                                title={`Deadline: ${new Date(todo.dueDate!).toLocaleDateString()}`}
-                                aria-label="Deadline"
+                                title={`Due: ${new Date(todo.dueDate!).toLocaleDateString()}`}
+                                aria-label="Due"
                               >
                                 <StatusIcon icon="clock" />
                               </span>
@@ -441,18 +421,18 @@ export function CalendarView() {
             })}
           </div>
 
-          {/* Unscheduled tasks */}
-          {unscheduled.length > 0 && (
-            <div className={styles.unscheduledSection}>
+          {/* Tasks without a due date */}
+          {undated.length > 0 && (
+            <div className={styles.undatedSection}>
               <button
-                className={styles.unscheduledToggle}
-                onClick={() => setShowUnscheduled((s) => !s)}
+                className={styles.undatedToggle}
+                onClick={() => setShowUndated((s) => !s)}
               >
-                {showUnscheduled ? '▾' : '▸'} {unscheduled.length} unscheduled task{unscheduled.length !== 1 ? 's' : ''}
+                {showUndated ? '▾' : '▸'} {undated.length} task{undated.length !== 1 ? 's' : ''} without a due date
               </button>
-              {showUnscheduled && (
-                <div className={styles.unscheduledList}>
-                  {unscheduled.map((todo) => (
+              {showUndated && (
+                <div className={styles.undatedList}>
+                  {undated.map((todo) => (
                     <TaskDraggable
                       key={todo.id}
                       todo={todo}
@@ -461,7 +441,7 @@ export function CalendarView() {
                       {({ setNodeRef, attributes, listeners }) => (
                         <div
                           ref={setNodeRef}
-                          className={styles.unscheduledItem}
+                          className={styles.undatedItem}
                           onClick={(e) => handleTaskClick(e, todo.id)}
                           {...attributes}
                           {...listeners}

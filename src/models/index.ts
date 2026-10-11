@@ -14,7 +14,7 @@ export { type FloatingNote } from './floating-note'
 export { type RecurrenceRule, type RecurrenceType } from './recurrence'
 export { type Backup, type BackupTrigger } from './backup'
 export { AppView } from './app-view'
-export { type ListSortBy, type ListGroupBy, type ListItemSortBy, type DateField } from './app-view'
+export { type ListSortBy, type ListGroupBy, type ListItemSortBy, type DateField, DATE_FIELD_VALUES } from './app-view'
 export {
   type TodoSortBy,
   type TodoGroupBy,
@@ -44,7 +44,6 @@ export { type FloatingTaskboard } from './floating-taskboard'
 export { type FloatingStatus } from './floating-status'
 export { type TodoEvent, type PersistedTodoEvent, type TodoEventType } from './todo-event'
 export { type Status, type PersistedStatus, type StatusIconKey, STATUS_ICON_KEYS, DEFAULT_STATUS_ICON } from './status'
-export { type ScheduledValue, type FuzzyToken, FUZZY_TOKENS, isScheduledValue, makeFuzzy } from './scheduled-value'
 export {
   type ListDefinition,
   type PersistedListDefinition,

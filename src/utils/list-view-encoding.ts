@@ -21,13 +21,13 @@ import type { ListGrouping, ListSort } from '../models/list-definition'
 
 /**
  * Translate a persisted saved-view sortBy value into the current `ListSortBy`.
- * Legacy tokens (`priority`, `due`, `tag`) fold to `'date'` so old rows still
+ * Legacy tokens (`priority`, `due`, `tag`) fold to `'deadline'` so old rows still
  * produce a readable group.
  */
 export function translateSortBy(sortBy: string): ListSortBy {
-  if (sortBy === 'priority' || sortBy === 'due' || sortBy === 'tag') return 'date'
+  if (sortBy === 'priority' || sortBy === 'due' || sortBy === 'tag') return 'deadline'
   if (isTodoSortBy(sortBy)) return sortBy
-  return 'date'
+  return 'deadline'
 }
 
 /**
@@ -45,8 +45,8 @@ export function resolveSavedViewGrouping(v: { sortBy: string; groupBy?: ListGrou
   } else {
     const translated = translateSortBy(v.sortBy)
     // Sort-only fields ('name', 'manual', 'created') aren't valid groupings —
-    // fall back to 'date'.
-    groupBy = isTodoGroupBy(translated) ? translated : 'date'
+    // fall back to 'deadline'.
+    groupBy = isTodoGroupBy(translated) ? translated : 'deadline'
   }
   const itemSortBy: ListItemSortBy = v.itemSortBy ?? 'manual'
   return { groupBy, itemSortBy }

@@ -77,7 +77,6 @@ export const useStatusStore = create<StatusState>((set, get) => {
     const settingsState = useSettingsStore.getState()
     const wasDefault = settingsState.defaultStatusId === id
     const wasSeededAssigned = settingsState.seededAssignedStatusId === id
-    const wasSeededFollowup = settingsState.seededFollowupStatusId === id
 
     await statusRepository.delete(id)
     set({ statuses: get().statuses.filter(s => s.id !== id) })
@@ -99,10 +98,6 @@ export const useStatusStore = create<StatusState>((set, get) => {
       await settingsRepository.delete(SETTING_KEYS.seededAssignedStatusId)
       useSettingsStore.setState({ seededAssignedStatusId: null })
     }
-    if (wasSeededFollowup) {
-      await settingsRepository.delete(SETTING_KEYS.seededFollowupStatusId)
-      useSettingsStore.setState({ seededFollowupStatusId: null })
-    }
 
     if (status) {
       undoable(
@@ -116,10 +111,6 @@ export const useStatusStore = create<StatusState>((set, get) => {
           if (wasSeededAssigned) {
             await settingsRepository.put(SETTING_KEYS.seededAssignedStatusId, String(id))
             useSettingsStore.setState({ seededAssignedStatusId: id })
-          }
-          if (wasSeededFollowup) {
-            await settingsRepository.put(SETTING_KEYS.seededFollowupStatusId, String(id))
-            useSettingsStore.setState({ seededFollowupStatusId: id })
           }
           await get().load()
           // Reload todo store to reflect restored statusIds

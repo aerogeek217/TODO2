@@ -1,5 +1,5 @@
 import { db } from './database'
-import type { TodoEvent, TodoEventType, ScheduledValue } from '../models'
+import type { TodoEvent, TodoEventType } from '../models'
 
 /**
  * Append-only `todoEvents` repository. Writes flow exclusively through
@@ -28,7 +28,7 @@ export const todoEventRepository = {
   /**
    * Events whose `timestamp` falls within `[from, to)` (start inclusive,
    * end exclusive). Optional `types` filter keeps the predicate cheap when
-   * a caller only needs e.g. `'scheduled'` events.
+   * a caller only needs e.g. `'deadline'` events.
    *
    * `timestamp` is a string column but ISO-8601 sorts lexically — Dexie's
    * `between` treats string ranges as a string compare, which matches our
@@ -52,26 +52,6 @@ export const todoEventRepository = {
   async deleteByTodo(todoId: number): Promise<void> {
     await db.todoEvents.where('todoId').equals(todoId).delete()
   },
-}
-
-/**
- * Encode a `ScheduledValue | undefined` into the `fromValue` / `toValue`
- * column shape. `null` for unset; ISO string for fixed dates; `'fuzzy:<token>'`
- * for fuzzy. The fuzzy prefix disambiguates from a date string so the inverse
- * mapping (if ever needed) is unambiguous.
- */
-export function encodeScheduledValue(v: ScheduledValue | undefined | null): string | null {
-  if (v == null) return null
-  if (v.kind === 'date') {
-    if (v.value instanceof Date) return v.value.toISOString()
-    if (typeof v.value === 'string') {
-      const t = Date.parse(v.value)
-      return isNaN(t) ? null : new Date(t).toISOString()
-    }
-    return null
-  }
-  if (v.kind === 'fuzzy') return `fuzzy:${v.token}`
-  return null
 }
 
 /** Encode a `Date | undefined` into the `fromValue` / `toValue` column shape. */

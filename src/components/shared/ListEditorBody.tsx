@@ -18,9 +18,7 @@ import local from '../settings/DashboardListsEditor.module.css'
 const SORT_LABELS: Record<TodoSortBy, string> = {
   manual: 'None (sortOrder)',
   name: 'Name',
-  date: 'Effective date',
-  scheduled: 'Scheduled',
-  deadline: 'Deadline',
+  deadline: 'Due date',
   followup: 'Next follow-up',
   created: 'Created',
   people: 'People',
@@ -31,9 +29,7 @@ const SORT_LABELS: Record<TodoSortBy, string> = {
 
 const GROUP_LABELS: Record<TodoGroupBy, string> = {
   none: 'None',
-  date: 'By date (relative)',
-  scheduled: 'By scheduled (relative)',
-  deadline: 'By deadline (relative)',
+  deadline: 'By due date (relative)',
   followup: 'By next follow-up (relative)',
   people: 'By people',
   project: 'By project',

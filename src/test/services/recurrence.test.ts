@@ -209,32 +209,14 @@ describe('makeRecurrenceRule', () => {
 })
 
 describe('recurrenceAnchor', () => {
-  it('prefers dueDate when present', () => {
-    const result = recurrenceAnchor({
-      dueDate: localDate(2026, 1, 15),
-      scheduledDate: { kind: 'date', value: localDate(2026, 1, 10) },
-    })
-    expect(result?.field).toBe('dueDate')
+  it('anchors on the due date', () => {
+    const result = recurrenceAnchor({ dueDate: localDate(2026, 1, 15) })
     expect(fmt(result!.date)).toBe('2026-01-15')
   })
 
-  it('falls back to precise scheduledDate when no dueDate', () => {
-    const result = recurrenceAnchor({
-      scheduledDate: { kind: 'date', value: localDate(2026, 1, 10) },
-    })
-    expect(result?.field).toBe('scheduledDate')
-    expect(fmt(result!.date)).toBe('2026-01-10')
-  })
-
-  it('returns null for fuzzy scheduledDate without dueDate', () => {
-    const result = recurrenceAnchor({
-      scheduledDate: { kind: 'fuzzy', token: 'this-week' },
-    })
-    expect(result).toBeNull()
-  })
-
-  it('returns null when neither scheduledDate nor dueDate is set', () => {
+  it('returns null without a due date (a follow-up date is not an anchor)', () => {
     expect(recurrenceAnchor({})).toBeNull()
+    expect(recurrenceAnchor({ nextFollowupAt: localDate(2026, 1, 15) } as Partial<TodoItem>)).toBeNull()
   })
 })
 
@@ -252,30 +234,18 @@ describe('advanceRecurring', () => {
     expect(advanceRecurring(partial({ dueDate: localDate(2026, 1, 10) }))).toBeNull()
   })
 
-  it('advances dueDate when deadline anchors the rule', () => {
+  it('advances the due date', () => {
     fakeToday(2026, 1, 15)
     const result = advanceRecurring(partial({
       dueDate: localDate(2026, 1, 10),
       recurrenceRule: { type: 'weekly' },
     }))
-    expect(result?.field).toBe('dueDate')
-    expect(fmt(result!.dueDate!)).toBe('2026-01-17')
+    expect(fmt(result!.dueDate)).toBe('2026-01-17')
   })
 
-  it('advances scheduledDate when no deadline and precise scheduled', () => {
-    fakeToday(2026, 1, 15)
+  it('returns null without a due date', () => {
     const result = advanceRecurring(partial({
-      scheduledDate: { kind: 'date', value: localDate(2026, 1, 10) },
-      recurrenceRule: { type: 'weekly' },
-    }))
-    expect(result?.field).toBe('scheduledDate')
-    expect(result?.scheduledDate?.kind).toBe('date')
-    expect(fmt((result!.scheduledDate as { kind: 'date'; value: Date }).value)).toBe('2026-01-17')
-  })
-
-  it('returns null for fuzzy-only scheduled (no concrete anchor)', () => {
-    const result = advanceRecurring(partial({
-      scheduledDate: { kind: 'fuzzy', token: 'this-week' },
+      nextFollowupAt: localDate(2026, 1, 10),
       recurrenceRule: { type: 'weekly' },
     }))
     expect(result).toBeNull()

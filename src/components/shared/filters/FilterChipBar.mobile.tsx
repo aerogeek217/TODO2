@@ -230,7 +230,7 @@ export function FilterChipBarMobile({
       >
         <div className={sheet.dateSection}>
           <div className={sheet.dateFieldSelector}>
-            {(['date', 'scheduled', 'deadline', 'followup', 'created', 'modified'] as const).map((field) => (
+            {(['deadline', 'followup', 'created', 'modified'] as const).map((field) => (
               <button
                 key={field}
                 className={`${sheet.dateFieldOption} ${p.dateField === field ? sheet.dateFieldOptionActive : ''}`}
@@ -253,44 +253,30 @@ export function FilterChipBarMobile({
               aria-label="Date range end"
             />
           </div>
-          {p.dateField === 'date' && (
+          {p.dateField === 'deadline' && (
             <div className={sheet.filterRow}>
               <span className={sheet.filterLabel}>
                 <span className={sheet.filterLabelIcon}>∅</span>
-                Include tasks with no date
+                Include tasks with no due date
               </span>
               <button
                 className={`${sheet.toggle} ${p.dateRangeIncludeNoDate ? sheet.toggleActive : ''}`}
                 onClick={() => update({ dateRangeIncludeNoDate: !p.dateRangeIncludeNoDate })}
                 role="switch"
                 aria-checked={p.dateRangeIncludeNoDate}
-                aria-label="Include tasks with no date"
+                aria-label="Include tasks with no due date"
               />
             </div>
           )}
           <div className={sheet.filterRow}>
             <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>📅</span>
-              Has scheduled
-            </span>
-            <button
-              className={`${sheet.triToggle} ${p.hasScheduled !== null ? sheet.triToggleActive : ''}`}
-              onClick={() => update({ hasScheduled: cycleTri(p.hasScheduled) })}
-              aria-label={`Has scheduled: ${triLabel(p.hasScheduled)}`}
-              title={triLabel(p.hasScheduled)}
-            >
-              {triIcon(p.hasScheduled)}
-            </button>
-          </div>
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
               <span className={sheet.filterLabelIcon}>⚑</span>
-              Has deadline
+              Has due date
             </span>
             <button
               className={`${sheet.triToggle} ${p.hasDeadline !== null ? sheet.triToggleActive : ''}`}
               onClick={() => update({ hasDeadline: cycleTri(p.hasDeadline) })}
-              aria-label={`Has deadline: ${triLabel(p.hasDeadline)}`}
+              aria-label={`Has due date: ${triLabel(p.hasDeadline)}`}
               title={triLabel(p.hasDeadline)}
             >
               {triIcon(p.hasDeadline)}

@@ -5,7 +5,6 @@ import {
   interpretMembership,
   type DashboardListsContext,
 } from '../../services/dashboard-lists'
-import { resolveFuzzy } from '../../utils/effective-date'
 import { MS_PER_DAY, startOfDay } from '../../utils/date'
 import type { Org, Person, PersistedTodoItem, Tag, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
@@ -37,16 +36,17 @@ function customDef(overrides: Partial<PersistedListDefinition> = {}): PersistedL
     pinnedToDashboard: true,
     favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
-    sort: 'date',
+    sort: 'deadline',
     grouping: 'none',
     ...overrides,
   }
 }
 
-const DATE_GROUPED_DEF = customDef({
+const FOLLOWUP_GROUPED_DEF = customDef({
   id: 2,
-  name: 'Date grouped',
-  grouping: 'date',
+  name: 'Follow-up grouped',
+  sort: 'followup',
+  grouping: 'followup',
 })
 const DEADLINE_GROUPED_DEF = customDef({
   id: 3,
@@ -399,46 +399,31 @@ describe('interpretMembership — custom', () => {
 })
 
 describe('buildDashboardLists — sort', () => {
-  it('sorts by effectiveDate ascending (earlier first)', () => {
-    const earlier = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'date', value: new Date(today.getTime() - 2 * MS_PER_DAY) },
-    })
-    const later = makeTodo({
-      id: 2,
-      scheduledDate: { kind: 'date', value: today },
-    })
+  it('sorts by due date ascending (earlier first)', () => {
+    const earlier = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 2 * MS_PER_DAY) })
+    const later = makeTodo({ id: 2, dueDate: today })
     const lists = buildDashboardLists([customDef()], [later, earlier], makeCtx())
     expect(lists[0]!.todos.map((t) => t.id)).toEqual([1, 2])
   })
 
-  it('sorts by scheduled-asc ascending, nulls last', () => {
+  it('sorts by next follow-up ascending, nulls last', () => {
     const earlier = makeTodo({
       id: 1,
-      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 1 * MS_PER_DAY) },
+      nextFollowupAt: new Date(today.getTime() + 1 * MS_PER_DAY),
       dueDate: new Date(today.getTime() + 30 * MS_PER_DAY),
     })
-    const later = makeTodo({
-      id: 2,
-      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 5 * MS_PER_DAY) },
-    })
-    const noScheduled = makeTodo({
-      id: 3,
-      dueDate: new Date(today.getTime() + 1 * MS_PER_DAY),
-    })
-    const def = customDef({ sort: 'scheduled' })
-    const lists = buildDashboardLists([def], [noScheduled, later, earlier], makeCtx())
+    const later = makeTodo({ id: 2, nextFollowupAt: new Date(today.getTime() + 5 * MS_PER_DAY) })
+    const noFollowup = makeTodo({ id: 3, dueDate: new Date(today.getTime() + 1 * MS_PER_DAY) })
+    const def = customDef({ sort: 'followup' })
+    const lists = buildDashboardLists([def], [noFollowup, later, earlier], makeCtx())
     expect(lists[0]!.todos.map((t) => t.id)).toEqual([1, 2, 3])
   })
 })
 
 describe('buildDashboardLists — grouping', () => {
   it('drops empty groups', () => {
-    const nextWeek = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 10 * MS_PER_DAY) },
-    })
-    const lists = buildDashboardLists([DATE_GROUPED_DEF], [nextWeek], makeCtx())
+    const nextWeek = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 10 * MS_PER_DAY) })
+    const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], [nextWeek], makeCtx())
     const list = lists[0]!
     expect(list.groups).toBeDefined()
     expect(list.groups!.length).toBeGreaterThan(0)
@@ -447,52 +432,26 @@ describe('buildDashboardLists — grouping', () => {
     }
   })
 
-  it('orders effective-date buckets Tomorrow → This week → Next week → Later this month → Next month → Beyond', () => {
-    // Pick today = Wed 2026-04-15 so this-week ends Sun 2026-04-19
-    const anchor = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
-    const tomorrow = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 1 * MS_PER_DAY) },
-    })
-    const thisWeek = makeTodo({
-      id: 2,
-      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 3 * MS_PER_DAY) },
-    })
-    const nextWeek = makeTodo({
-      id: 3,
-      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 8 * MS_PER_DAY) },
-    })
-    const laterMonth = makeTodo({
-      id: 4,
-      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 14 * MS_PER_DAY) },
-    })
-    const nextMonth = makeTodo({
-      id: 5,
-      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 35 * MS_PER_DAY) },
-    })
-    const beyond = makeTodo({
-      id: 6,
-      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 180 * MS_PER_DAY) },
-    })
-
-    const lists = buildDashboardLists(
-      [DATE_GROUPED_DEF],
-      [tomorrow, thisWeek, nextWeek, laterMonth, nextMonth, beyond],
-      makeCtx({ today: anchor }),
-    )
-    const grouped = lists[0]!
-    expect(grouped.groups!.map((g) => g.key)).toEqual([
-      'tomorrow',
-      'this-week',
-      'next-week',
-      'later-month',
-      'next-month',
-      'beyond',
+  it('orders due-date buckets Overdue → Today → This week → Next week → This month → Later', () => {
+    // Wed 2026-04-15: this week ends Sun 04-19, next week Sun 04-26.
+    const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
+    const at = (days: number) => new Date(anchor.getTime() + days * MS_PER_DAY)
+    const todos = [
+      makeTodo({ id: 1, dueDate: at(-2) }),
+      makeTodo({ id: 2, dueDate: at(0) }),
+      makeTodo({ id: 3, dueDate: at(3) }),
+      makeTodo({ id: 4, dueDate: at(8) }),
+      makeTodo({ id: 5, dueDate: at(14) }),
+      makeTodo({ id: 6, dueDate: at(35) }),
+    ]
+    const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], todos, makeCtx({ today: anchor }))
+    expect(lists[0]!.groups!.map((g) => g.key)).toEqual([
+      'overdue', 'today', 'this-week', 'next-week', 'this-month', 'later',
     ])
   })
 
   it('returns undefined groups for kind "none"', () => {
-    const t = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: today } })
+    const t = makeTodo({ id: 1, dueDate: today })
     const lists = buildDashboardLists([customDef()], [t], makeCtx())
     expect(lists[0]!.groups).toBeUndefined()
   })
@@ -503,7 +462,7 @@ describe('buildDashboardLists — grouping', () => {
     expect(lists[0]!.groups![0]!.key).toBe('overdue')
   })
 
-  it('deadline bucketing places todos without a deadline into a trailing noDeadline bucket', () => {
+  it('deadline bucketing places todos without a due date into a trailing bucket', () => {
     const withDeadline = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 2 * MS_PER_DAY) })
     const withoutDeadline = makeTodo({ id: 2 })
     const lists = buildDashboardLists(
@@ -514,15 +473,27 @@ describe('buildDashboardLists — grouping', () => {
     const groups = lists[0]!.groups!
     const noDeadline = groups.find((g) => g.key === 'no-deadline')
     expect(noDeadline).toBeDefined()
-    expect(noDeadline!.label).toBe('No deadline')
+    expect(noDeadline!.label).toBe('No due date')
     expect(noDeadline!.todos.map((t) => t.id)).toEqual([2])
     expect(groups[groups.length - 1]!.key).toBe('no-deadline')
   })
 
-  it('deadline bucketing omits the noDeadline bucket when every todo has a deadline', () => {
+  it('deadline bucketing omits the no-due-date bucket when every todo has one', () => {
     const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 1 * MS_PER_DAY) })
     const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], [t], makeCtx())
     expect(lists[0]!.groups!.map((g) => g.key)).not.toContain('no-deadline')
+  })
+
+  it('follow-up grouping uses the ListView vocabulary with a trailing No follow-up', () => {
+    const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
+    const todos = [
+      makeTodo({ id: 1, nextFollowupAt: new Date(anchor.getTime() - MS_PER_DAY) }),
+      makeTodo({ id: 2, nextFollowupAt: anchor }),
+      makeTodo({ id: 3, nextFollowupAt: new Date(anchor.getTime() + 30 * MS_PER_DAY) }),
+      makeTodo({ id: 4 }),
+    ]
+    const lists = buildDashboardLists([FOLLOWUP_GROUPED_DEF], todos, makeCtx({ today: anchor }))
+    expect(lists[0]!.groups!.map((g) => g.key)).toEqual(['overdue', 'today', 'later', 'no-followup'])
   })
 })
 
@@ -530,7 +501,7 @@ describe('buildDashboardLists — no list caps', () => {
   it('returns every matching task (no TOP_N)', () => {
     const future = new Date(today.getTime() + 30 * MS_PER_DAY)
     const todos = Array.from({ length: 47 }, (_, i) =>
-      makeTodo({ id: i + 1, scheduledDate: { kind: 'date', value: future } }),
+      makeTodo({ id: i + 1, dueDate: future }),
     )
     const lists = buildDashboardLists([customDef()], todos, makeCtx())
     expect(lists[0]!.todos).toHaveLength(47)
@@ -573,109 +544,24 @@ describe('buildDashboardLists — visibility via def predicate', () => {
   })
 })
 
-describe('fuzzy aging via setAt (post-fuzzy-aging-2026-05-09)', () => {
-  // Regression: a fuzzy `this-week` picked three weeks ago must NOT land in
-  // today's `this-week` bucket. resolveFuzzyOrigin anchors the resolved date
-  // on `setAt`, so the bucketer routes the historically-set value out of the
-  // current-week slot. Forward-only EFFECTIVE_WINDOWS bucketer folds past
-  // dates into the first matching window (`tomorrow` since its matcher is
-  // `ms ≤ tomorrow_midnight`); the load-bearing assertion here is that the
-  // aged task is *no longer* in `this-week` — proving aging works end-to-end.
-  it('aged fuzzy this-week (setAt three weeks ago) leaves the this-week bucket', () => {
-    const today = startOfDay(new Date('2026-04-16T00:00:00')) // Thu — week ends Sun Apr 19.
-    const setAt = startOfDay(new Date('2026-03-26T00:00:00')) // Thu, 3 weeks earlier.
-    const aged = makeTodo({
-      id: 1,
-      title: 'Aged this-week',
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt },
-    })
-    const lists = buildDashboardLists([DATE_GROUPED_DEF], [aged], makeCtx({ today }))
-    const groups = lists[0]!.groups!
-    const thisWeek = groups.find((g) => g.key === 'this-week')
-    expect(thisWeek?.todos.map((t) => t.id) ?? []).not.toContain(1)
-    // And the task is still placed somewhere (no silent drop). Whichever
-    // bucket it lands in is fine for this regression — the post-aging UX
-    // refinement of routing to a dedicated 'overdue' bucket is a separate
-    // fork; this test pins the underlying aging behavior.
-    expect(groups.flatMap((g) => g.todos).map((t) => t.id)).toContain(1)
-  })
-
-  it('current fuzzy this-week (setAt today) still lands in this-week', () => {
-    const today = startOfDay(new Date('2026-04-16T00:00:00')) // Thu — Mon-first this-week.
-    const current = makeTodo({
-      id: 1,
-      title: 'Current this-week',
-      scheduledDate: { kind: 'fuzzy', token: 'this-week', setAt: today },
-    })
-    const lists = buildDashboardLists([DATE_GROUPED_DEF], [current], makeCtx({ today }))
-    const thisWeek = lists[0]!.groups!.find((g) => g.key === 'this-week')
-    expect(thisWeek?.todos.map((t) => t.id) ?? []).toContain(1)
-  })
-})
-
-describe('week boundary parity with resolveFuzzy', () => {
-  it('bucketByEffective thisWeekEnd matches resolveFuzzy("this-week") for Mon-first', () => {
-    const anchor = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
-    // A task at this-week end should land in 'this-week' bucket, not 'next-week'.
-    const thisWeekEnd = resolveFuzzy('this-week', anchor, 1)
-    const t = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: thisWeekEnd } })
-    const lists = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 1 }))
-    const grouped = lists[0]!
-    const thisWeekGroup = grouped.groups!.find((g) => g.key === 'this-week')
-    expect(thisWeekGroup?.todos.map((x) => x.id)).toContain(1)
-  })
-
-  it('bucketByEffective thisWeekEnd matches resolveFuzzy("this-week") for Sun-first', () => {
-    const anchor = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
-    const thisWeekEndSun = resolveFuzzy('this-week', anchor, 0) // Saturday for Sun-first
-    const t = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: thisWeekEndSun } })
-    const lists = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 0 }))
-    const grouped = lists[0]!
-    const thisWeekGroup = grouped.groups!.find((g) => g.key === 'this-week')
-    expect(thisWeekGroup?.todos.map((x) => x.id)).toContain(1)
-  })
-
-  it('Sunday-first vs Monday-first place a Saturday differently', () => {
-    // 2026-04-15 is Wed. With Mon-first (1), Saturday 4/18 lands in 'this-week'
-    // (week ends Sunday 4/19). With Sun-first (0), Saturday 4/18 lands in
-    // 'this-week' too (week ends Saturday 4/18). The divergence shows for
-    // Sunday 4/19: Mon-first puts it in 'this-week' (last day); Sun-first
-    // pushes it to 'next-week' (already past Saturday end).
+describe('week boundary for due-date buckets', () => {
+  it('Sunday-first vs Monday-first place a Sunday differently', () => {
+    // 2026-04-15 is Wed. Mon-first: Sunday 4/19 is the last day of this week.
+    // Sun-first: the week ended Saturday 4/18, so Sunday is next week.
     const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
     const sunday = startOfDay(new Date(anchor.getTime() + 4 * MS_PER_DAY)) // 2026-04-19
-    const t = makeTodo({ id: 1, scheduledDate: { kind: 'date', value: sunday } })
+    const t = makeTodo({ id: 1, dueDate: sunday })
 
-    const monFirst = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 1 }))
+    const monFirst = buildDashboardLists([DEADLINE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 1 }))
     expect(monFirst[0]!.groups!.find((g) => g.key === 'this-week')?.todos.map((x) => x.id)).toContain(1)
 
-    const sunFirst = buildDashboardLists([DATE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 0 }))
+    const sunFirst = buildDashboardLists([DEADLINE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 0 }))
     expect(sunFirst[0]!.groups!.find((g) => g.key === 'next-week')?.todos.map((x) => x.id)).toContain(1)
-    // 'this-week' bucket is dropped when empty; find returns undefined.
     expect(sunFirst[0]!.groups!.find((g) => g.key === 'this-week')).toBeUndefined()
   })
 })
 
 describe('interpretSort — sortBy', () => {
-  it('sortBy=date sorts chronologically, earliest first', () => {
-    const early = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'date', value: new Date(today.getTime() - 1 * MS_PER_DAY) },
-    })
-    const late = makeTodo({
-      id: 2,
-      scheduledDate: { kind: 'date', value: new Date(today.getTime() + 5 * MS_PER_DAY) },
-    })
-    const def = customDef({
-      sort: 'date',
-    })
-    const lists = buildDashboardLists(
-      [def],
-      [late, early],
-      makeCtx(),
-    )
-    expect(lists[0]!.todos.map((t) => t.id)).toEqual([1, 2])
-  })
-
   it('sortBy=deadline sorts by dueDate only', () => {
     const a = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 5 * MS_PER_DAY) })
     const b = makeTodo({ id: 2, dueDate: new Date(today.getTime() + 1 * MS_PER_DAY) })
@@ -702,20 +588,6 @@ describe('interpretSort — sortBy', () => {
 // that want sort+group coupled set them to the same value explicitly. These
 // tests exercise the equivalent post-flatten coupling.
 describe('interpretGrouping — sort-coupled (post-flatten)', () => {
-  it('grouping=date with sort=date reuses relative-effective buckets', () => {
-    const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
-    const tomorrow = makeTodo({
-      id: 1,
-      scheduledDate: { kind: 'date', value: new Date(anchor.getTime() + 1 * MS_PER_DAY) },
-    })
-    const def = customDef({
-      sort: 'date',
-      grouping: 'date',
-    })
-    const lists = buildDashboardLists([def], [tomorrow], makeCtx({ today: anchor }))
-    expect(lists[0]!.groups?.[0]!.key).toBe('tomorrow')
-  })
-
   it('grouping=deadline with sort=deadline reuses relative-deadline buckets', () => {
     const overdue = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 5 * MS_PER_DAY) })
     const def = customDef({

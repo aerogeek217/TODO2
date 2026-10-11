@@ -223,7 +223,6 @@ export async function appendImportTasks(
       if (t.notes != null) row.notes = t.notes
       if (t.progress != null) row.progress = t.progress
       if (t.isCompleted && t.completedAt != null) row.completedAt = t.completedAt
-      if (t.scheduledDate != null) row.scheduledDate = t.scheduledDate
       if (t.dueDate != null) row.dueDate = t.dueDate
       if (t.lastFollowupAt != null) row.lastFollowupAt = t.lastFollowupAt
       if (t.nextFollowupAt != null) row.nextFollowupAt = t.nextFollowupAt

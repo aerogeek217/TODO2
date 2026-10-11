@@ -2,7 +2,7 @@ import { memo } from 'react'
 import type { CSSProperties, MouseEvent, Ref } from 'react'
 import { type PersistedTodoItem, type Person, type Org, type Status, DEFAULT_STATUS_ICON } from '../../models'
 import { formatDateShort } from '../../utils/date'
-import { scheduledLabel, isScheduledPast, isDeadlinePast } from '../../utils/effective-date'
+import { isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
 import { startOfDay } from '../../utils/date'
 import { FollowupFlagIcon } from './FollowupIcons'
@@ -11,7 +11,7 @@ import { AvatarStack } from './AvatarStack'
 import styles from './TaskPillBar.module.css'
 
 /**
- * Shared task-pill bar — replaces the parallel scheduled / deadline /
+ * Shared task-pill bar — replaces the parallel due-date /
  * people / org / status chip implementations that lived inside
  * `TaskRow` / `MobileTaskRow` / `TopBar`'s `SearchResultPills` /
  * canvas calendar `EventRow` (ui-consistency-2026-04-25 P2).
@@ -64,16 +64,12 @@ interface TaskPillPeopleProps extends PillCommon {
 interface TaskPillDatesProps extends PillCommon {
   todo: PersistedTodoItem
   today: Date
-  weekStartsOn: 0 | 1
-  /** `'stack'` = TaskRow's vertical date column (scheduled-on-top,
-   * deadline below). `'inline'` = horizontal row (default). */
+  /** `'stack'` = TaskRow's vertical date column. `'inline'` = horizontal
+   * row (default). */
   layout?: 'inline' | 'stack'
-  scheduledIntensity?: number
   deadlineIntensity?: number
-  scheduledAnchorRef?: Ref<HTMLButtonElement>
-  onScheduledClick?: (e: MouseEvent) => void
   onDeadlineClick?: (e: MouseEvent) => void
-  /** When provided AND interactive=true, the deadline chip shows an
+  /** When provided AND interactive=true, the due-date chip shows an
    * × clear button on hover. */
   onDeadlineClear?: (e: MouseEvent) => void
 }
@@ -140,30 +136,21 @@ export const TaskPillPeople = memo(function TaskPillPeople({
 // ─── Dates ────────────────────────────────────────────────────────────────────
 
 export const TaskPillDates = memo(function TaskPillDates({
-  todo, today, weekStartsOn, interactive = true, compact = false,
-  layout = 'inline', scheduledIntensity, deadlineIntensity,
-  scheduledAnchorRef, onScheduledClick, onDeadlineClick, onDeadlineClear,
+  todo, today, interactive = true, compact = false,
+  layout = 'inline', deadlineIntensity,
+  onDeadlineClick, onDeadlineClear,
 }: TaskPillDatesProps) {
-  const hasScheduled = !!todo.scheduledDate
   const hasDeadline = !!todo.dueDate
-  if (!hasScheduled && !hasDeadline) return null
+  if (!hasDeadline) return null
 
-  const scheduledPast = isScheduledPast({ scheduledDate: todo.scheduledDate }, today, weekStartsOn)
   const deadlinePast = isDeadlinePast({ dueDate: todo.dueDate }, today)
 
   if (compact) {
     return (
       <>
-        {hasDeadline && (
-          <span className={styles.markerDeadline} aria-label="Deadline">
-            <StatusIcon icon="clock" />
-          </span>
-        )}
-        {hasScheduled && (
-          <span className={styles.markerScheduled} aria-label="Scheduled">
-            <StatusIcon icon="calendar" />
-          </span>
-        )}
+        <span className={styles.markerDeadline} aria-label="Due">
+          <StatusIcon icon="clock" />
+        </span>
         {todo.recurrenceRule && (
           <span
             className={styles.markerRecurrence}
@@ -177,52 +164,21 @@ export const TaskPillDates = memo(function TaskPillDates({
     )
   }
 
-  const scheduledChipStyle: CSSProperties | undefined =
-    scheduledIntensity != null
-      ? ({ '--date-intensity': scheduledIntensity } as CSSProperties)
-      : undefined
   const deadlineChipStyle: CSSProperties | undefined =
     deadlineIntensity != null
       ? ({ '--date-intensity': deadlineIntensity } as CSSProperties)
       : undefined
 
-  const scheduledChip = hasScheduled && (
-    interactive ? (
-      <button
-        ref={scheduledAnchorRef}
-        type="button"
-        className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
-        style={scheduledChipStyle}
-        onClick={onScheduledClick}
-        title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
-        aria-label="Edit scheduled"
-      >
-        <StatusIcon icon="calendar" />
-        {scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}
-      </button>
-    ) : (
-      <span
-        className={`${styles.scheduledChip} ${scheduledPast ? styles.scheduledChipPast : ''}`}
-        style={scheduledChipStyle}
-        title={scheduledPast ? 'Scheduled date has passed' : 'Scheduled'}
-      >
-        <StatusIcon icon="calendar" />
-        {scheduledLabel(todo.scheduledDate!, today, weekStartsOn)}
-      </span>
-    )
-  )
-
-  const deadlineSecondary = hasDeadline && hasScheduled && layout === 'stack'
-  const deadlineChipClass = `${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''} ${deadlineSecondary ? styles.dateStackSecondary : ''}`
-  const deadlineChip = hasDeadline && (
+  const deadlineChipClass = `${styles.deadlineChip} ${deadlinePast ? styles.deadlineChipPast : ''}`
+  const deadlineChip = (
     interactive ? (
       <button
         type="button"
         className={deadlineChipClass}
         style={deadlineChipStyle}
         onClick={onDeadlineClick}
-        title={deadlinePast ? 'Deadline passed — click to change' : 'Deadline — click to change'}
-        aria-label="Edit deadline"
+        title={deadlinePast ? 'Due date passed — click to change' : 'Due — click to change'}
+        aria-label="Edit due date"
       >
         <StatusIcon icon="clock" />
         {formatDateShort(todo.dueDate!)}
@@ -236,8 +192,8 @@ export const TaskPillDates = memo(function TaskPillDates({
             className={styles.chipClear}
             role="button"
             tabIndex={-1}
-            aria-label="Clear deadline"
-            title="Clear deadline"
+            aria-label="Clear due date"
+            title="Clear due date"
             onClick={(e) => { e.stopPropagation(); onDeadlineClear(e) }}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -249,7 +205,7 @@ export const TaskPillDates = memo(function TaskPillDates({
       <span
         className={deadlineChipClass}
         style={deadlineChipStyle}
-        title={deadlinePast ? 'Deadline passed' : 'Deadline'}
+        title={deadlinePast ? 'Due date passed' : 'Due'}
       >
         <StatusIcon icon="clock" />
         {formatDateShort(todo.dueDate!)}
@@ -264,12 +220,10 @@ export const TaskPillDates = memo(function TaskPillDates({
 
   return layout === 'stack' ? (
     <div className={styles.dateStack}>
-      {scheduledChip}
       {deadlineChip}
     </div>
   ) : (
     <div className={styles.dateInline}>
-      {scheduledChip}
       {deadlineChip}
     </div>
   )
@@ -384,7 +338,6 @@ interface TaskPillBarProps extends PillCommon {
   /** Pre-resolved status (or undefined). */
   status?: Status
   today: Date
-  weekStartsOn: 0 | 1
 
   /** `'stack'` = TaskRow's vertical date column, `'inline'` (default) =
    * horizontal flow. */
@@ -393,11 +346,9 @@ interface TaskPillBarProps extends PillCommon {
    * outside the metaRow so it passes `false`. */
   showStatus?: boolean
 
-  scheduledIntensity?: number
   deadlineIntensity?: number
 
   peopleAnchorRef?: Ref<HTMLDivElement>
-  scheduledAnchorRef?: Ref<HTMLButtonElement>
   followupAnchorRef?: Ref<HTMLButtonElement>
   statusAnchorRef?: Ref<HTMLDivElement>
   /** Follow-up popover is open — draws the pill's open ring. */
@@ -411,7 +362,6 @@ interface TaskPillBarProps extends PillCommon {
   onPeopleClick?: (e: MouseEvent) => void
   onPersonContextMenu?: (e: MouseEvent, person: Person) => void
   onOrgContextMenu?: (e: MouseEvent, org: Org) => void
-  onScheduledClick?: (e: MouseEvent) => void
   onDeadlineClick?: (e: MouseEvent) => void
   onDeadlineClear?: (e: MouseEvent) => void
   onFollowupClick?: (e: MouseEvent) => void
@@ -420,14 +370,14 @@ interface TaskPillBarProps extends PillCommon {
 }
 
 export const TaskPillBar = memo(function TaskPillBar({
-  todo, people, orgs, status, today, weekStartsOn,
+  todo, people, orgs, status, today,
   interactive = true, compact = false, density = 'default',
   dateLayout = 'inline', showStatus = true,
-  scheduledIntensity, deadlineIntensity, personColorContext,
-  peopleAnchorRef, scheduledAnchorRef, followupAnchorRef, statusAnchorRef,
+  deadlineIntensity, personColorContext,
+  peopleAnchorRef, followupAnchorRef, statusAnchorRef,
   followupOpen, ariaHidden,
   onPeopleClick, onPersonContextMenu, onOrgContextMenu,
-  onScheduledClick, onDeadlineClick, onDeadlineClear,
+  onDeadlineClick, onDeadlineClear,
   onFollowupClick, onFollowupClear, onStatusClick,
 }: TaskPillBarProps) {
   // For interactive surfaces the chips ARE the click targets, so the bar
@@ -451,14 +401,10 @@ export const TaskPillBar = memo(function TaskPillBar({
       <TaskPillDates
         todo={todo}
         today={today}
-        weekStartsOn={weekStartsOn}
         interactive={interactive}
         compact={compact}
         layout={dateLayout}
-        scheduledIntensity={scheduledIntensity}
         deadlineIntensity={deadlineIntensity}
-        scheduledAnchorRef={scheduledAnchorRef}
-        onScheduledClick={onScheduledClick}
         onDeadlineClick={onDeadlineClick}
         onDeadlineClear={onDeadlineClear}
       />

@@ -4,7 +4,6 @@ import { useCanvasRailsStore } from '../../../stores/canvas-rails-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { useSettingsStore } from '../../../stores/settings-store'
 import { copyTasksRich } from '../../../services/task-copy'
 import { popTabToCanvas } from '../../../services/rail-pop-out'
 import type { PersistedTodoItem } from '../../../models'
@@ -75,7 +74,6 @@ export function SlotRenderer({ slot, fromSide, isFirstSlot = false }: SlotRender
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
   const statusMap = useMemo(() => new Map(statuses.map((s) => [s.id!, s])), [statuses])
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
   // When set, the picker's onSelect creates a new lens tab (or converts the
   // active tab to a lens) instead of updating the current tab's listDefinitionId.
@@ -235,7 +233,7 @@ export function SlotRenderer({ slot, fromSide, isFirstSlot = false }: SlotRender
         onClick={() => {
           void copyTasksRich(
             [{ todos: lensTodos }],
-            { assignedPeopleMap, statusMap, weekStartsOn },
+            { assignedPeopleMap, statusMap },
           )
         }}
         aria-label="Copy tasks"

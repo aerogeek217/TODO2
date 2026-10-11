@@ -93,7 +93,7 @@ function AppBulkConfirmDialog() {
  * stores, and the full-editor handoff path.
  *
  * Submit (P4): mirrors `CanvasPage.handleAddTask` — `addTodo` for the row,
- * then `applyNlpMetadata` for parsed people/orgs/scheduled/deadline/
+ * then `applyNlpMetadata` for parsed people/orgs/due date/
  * recurrence/tags. Default project follows the same setting
  * (`useSettingsStore().defaultProjectId`) the create-popup consults today,
  * so `Ctrl+Space` lands tasks in the same place across both surfaces.

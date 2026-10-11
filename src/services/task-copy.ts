@@ -9,7 +9,6 @@
  * with no label; a grouped view passes one section per heading.
  */
 import type { PersistedTodoItem, Person, Status } from '../models'
-import { scheduledLabel, type WeekStart } from '../utils/effective-date'
 import { startOfToday } from '../utils/date'
 import { formatFollowupDate } from '../utils/followup'
 
@@ -22,8 +21,6 @@ export interface CopyTaskContext {
   assignedPeopleMap: Map<number, Person[]>
   statusMap: Map<number, Status>
   today?: Date
-  /** Week-start preference for aged fuzzy `scheduledLabel` rendering. Defaults to Sunday-first when omitted. */
-  weekStartsOn?: WeekStart
 }
 
 function escapeHtml(s: string): string {
@@ -39,7 +36,6 @@ interface TodoDetails {
   check: string
   title: string
   statusStr: string
-  sched: string
   deadline: string
   followup: string
   peopleStr: string
@@ -53,21 +49,20 @@ function todoDetails(
   const check = todo.isCompleted ? '[x]' : '[ ]'
   const status = todo.statusId ? ctx.statusMap.get(todo.statusId) : undefined
   const statusStr = status ? ` [${status.name}]` : ''
-  const sched = todo.scheduledDate ? ` (sched: ${scheduledLabel(todo.scheduledDate, today, ctx.weekStartsOn ?? 0)})` : ''
-  const deadline = todo.dueDate ? ` (deadline ${new Date(todo.dueDate).toLocaleDateString()})` : ''
+  const deadline = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
   const followup = todo.nextFollowupAt ? ` (follow-up ${formatFollowupDate(todo.nextFollowupAt, today)})` : ''
   const people = ctx.assignedPeopleMap.get(todo.id) ?? []
   const peopleStr = people.length > 0 ? ` @${people.map((p) => p.name).join(', @')}` : ''
-  return { check, title: todo.title, statusStr, sched, deadline, followup, peopleStr }
+  return { check, title: todo.title, statusStr, deadline, followup, peopleStr }
 }
 
 function renderPlainLine(d: TodoDetails): string {
-  return `${d.check} ${d.title}${d.statusStr}${d.sched}${d.deadline}${d.followup}${d.peopleStr}`
+  return `${d.check} ${d.title}${d.statusStr}${d.deadline}${d.followup}${d.peopleStr}`
 }
 
 function renderHtmlItem(d: TodoDetails): string {
   const mark = d.check === '[x]' ? '☑' : '☐'
-  return `<li>${mark} ${escapeHtml(d.title)}${escapeHtml(d.statusStr + d.sched + d.deadline + d.followup + d.peopleStr)}</li>`
+  return `<li>${mark} ${escapeHtml(d.title)}${escapeHtml(d.statusStr + d.deadline + d.followup + d.peopleStr)}</li>`
 }
 
 export function buildTasksPlain(sections: CopyTaskSection[], ctx: CopyTaskContext): string {

@@ -12,7 +12,6 @@ import { StatusIcon } from '../shared/StatusIcon'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { ChipSelector } from '../shared/ChipSelector'
-import { ScheduledValueMenu } from '../shared/ScheduledValueMenu'
 import { PortalDropdown } from '../shared/PortalDropdown'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
@@ -22,7 +21,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { generateInitials } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
-import { resolveScheduled, daysUntil, dateIntensity } from '../../utils/effective-date'
+import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
 import styles from './MobileTaskRow.module.css'
 
@@ -60,15 +59,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const today = startOfToday()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const scheduledIntensity = dateIntensity(daysUntil(resolveScheduled(todo.scheduledDate, today, weekStartsOn), today))
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const assignedOrgs = assignedOrgsForTodo ?? []
 
   const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo })
 
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
-  const [showScheduledMenu, setShowScheduledMenu] = useState(false)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
@@ -78,7 +74,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   >(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
-  const scheduledAnchorRef = useRef<HTMLButtonElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
   const notesIconRef = useRef<HTMLButtonElement>(null)
 
@@ -141,7 +136,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   }, [ghost, bulk, todo.id])
 
   const closeDropdown = useCallback(() => setOpenDropdown(null), [])
-  const closeScheduledMenu = useCallback(() => setShowScheduledMenu(false), [])
   const closeFollowup = useCallback(() => setFollowupPopover(null), [])
 
   const status = useStatusStore((s) => {
@@ -154,7 +148,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const assignedPeopleIds = useMemo(() => new Set(people.map(p => p.id!)), [people])
   const hasPeople = people.length > 0 || assignedOrgs.length > 0
   const hasMetadata =
-    !!todo.scheduledDate || !!todo.dueDate || !!todo.nextFollowupAt ||
+    !!todo.dueDate || !!todo.nextFollowupAt ||
     hasPeople ||
     assignedTags.length > 0 ||
     !!todo.notes || !!todo.progress
@@ -238,24 +232,20 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             />
           )}
 
-          {/* Shared pill bar — scheduled / deadline / people / orgs. Status
+          {/* Shared pill bar — people / orgs / due date / follow-up. Status
               lives on line 1 (primaryRow), so showStatus={false}. */}
           <TaskPillBar
             todo={todo}
             people={people}
             orgs={assignedOrgs}
             today={today}
-            weekStartsOn={weekStartsOn}
             density="small"
-            scheduledIntensity={scheduledIntensity}
             deadlineIntensity={deadlineIntensity}
             peopleAnchorRef={peopleRef}
-            scheduledAnchorRef={scheduledAnchorRef}
             followupAnchorRef={followupAnchorRef}
             followupOpen={followupPopover !== null}
             showStatus={false}
             onPeopleClick={ghost ? undefined : () => setOpenDropdown(openDropdown === 'people' ? null : 'people')}
-            onScheduledClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
             onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
             onFollowupClick={ghost ? undefined : (e) => {
               e.stopPropagation()
@@ -306,8 +296,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
         </div>
       )}
 
-      {/* Empty-state date slot — exposes a tap target so users can schedule
-         or tag a previously-unset todo without opening the detail popup.
+      {/* Empty-state date slot — exposes a tap target so users can set a due
+         date or tag a previously-unset todo without opening the detail popup.
          Order matches the populated metaRow: `# @ date`. */}
       {!hasMetadata && !ghost && (
         <div className={styles.metaRow}>
@@ -325,27 +315,14 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             onCreate={handleCreateTag}
           />
           <button
-            ref={scheduledAnchorRef}
             type="button"
             className={styles.emptyDateAction}
-            onClick={(e) => { e.stopPropagation(); setShowScheduledMenu(v => !v) }}
-            aria-label="Schedule or set deadline"
+            onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
+            aria-label="Set due date"
           >
             <StatusIcon icon="calendar" />
           </button>
         </div>
-      )}
-
-      {showScheduledMenu && !ghost && createPortal(
-        <PortalDropdown anchorRef={scheduledAnchorRef} onClickOutside={closeScheduledMenu}>
-          <ScheduledValueMenu
-            value={todo.scheduledDate ?? null}
-            onChange={(v) => bulk.setScheduled(todo.id, v)}
-            onClose={closeScheduledMenu}
-            onAddDeadline={todo.dueDate ? undefined : openDeadlinePicker}
-          />
-        </PortalDropdown>,
-        document.body,
       )}
 
       {followupPopover && !ghost && (
