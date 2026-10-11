@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import type { OrgFilterMode, PersonFilterMode } from '../../../models'
 import { toggleItem } from '../../../utils/filter'
 import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
@@ -134,13 +133,11 @@ export function FilterChipBarMobile({
   const {
     p,
     people,
-    orgs,
     projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    orgIdsSet,
     projectIdsSet,
     statusIdsSet,
     tagIdsSet,
@@ -148,7 +145,6 @@ export function FilterChipBarMobile({
     active,
     update,
     setPersonIds,
-    setOrgIds,
     setProjectIds,
     setStatusIds,
     setTags,
@@ -163,10 +159,6 @@ export function FilterChipBarMobile({
   const handlePersonToggle = (personId: number) => {
     const allIds = [0, ...people.map((x) => x.id!)]
     setPersonIds(toggleItem(personIdsSet, personId, allIds))
-  }
-  const handleOrgToggle = (orgId: number) => {
-    const allIds = [0, ...orgs.map((o) => o.id!)]
-    setOrgIds(toggleItem(orgIdsSet, orgId, allIds))
   }
   const handleProjectToggle = (projectId: number) => {
     const allIds = [0, ...projects.map((x) => x.id!)]
@@ -314,64 +306,12 @@ export function FilterChipBarMobile({
           open={openSection === 'people'}
           onToggle={() => handleSection('people')}
         >
-          <div className={sheet.dateFieldSelector}>
-            {(
-              [
-                ['include-orgs', 'Orgs'],
-                ['direct-only', 'People only'],
-              ] as [PersonFilterMode, string][]
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                className={`${sheet.dateFieldOption} ${p.personFilterMode === mode ? sheet.dateFieldOptionActive : ''}`}
-                onClick={() => update({ personFilterMode: mode })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <MobileEntityList
             entities={people}
             filterIds={personIdsSet}
             onToggle={handlePersonToggle}
             noneLabel="Unassigned"
             searchPlaceholder="Search people..."
-            searchText={entitySearch}
-            onSearchChange={setEntitySearch}
-          />
-        </AccordionSection>
-      )}
-
-      {/* Orgs */}
-      {orgs.length > 0 && (
-        <AccordionSection
-          label="Orgs"
-          badge={orgIdsSet?.size}
-          open={openSection === 'org'}
-          onToggle={() => handleSection('org')}
-        >
-          <div className={sheet.dateFieldSelector}>
-            {(
-              [
-                ['include-people', 'People'],
-                ['direct-only', 'Org only'],
-              ] as [OrgFilterMode, string][]
-            ).map(([mode, label]) => (
-              <button
-                key={mode}
-                className={`${sheet.dateFieldOption} ${p.orgFilterMode === mode ? sheet.dateFieldOptionActive : ''}`}
-                onClick={() => update({ orgFilterMode: mode })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <MobileEntityList
-            entities={orgs}
-            filterIds={orgIdsSet}
-            onToggle={handleOrgToggle}
-            noneLabel="No org"
-            searchPlaceholder="Search orgs..."
             searchText={entitySearch}
             onSearchChange={setEntitySearch}
           />

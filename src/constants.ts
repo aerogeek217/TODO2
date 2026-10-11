@@ -1,8 +1,8 @@
-/** Default color for new people, tags, and orgs. */
+/** Default color for new tags and statuses. */
 export const DEFAULT_ENTITY_COLOR = '#537FE7'
 
-/** Color used for a person with no org assigned (neutral grey). */
-export const UNAFFILIATED_PERSON_COLOR = '#9CA3AF'
+/** Avatar fill for a person with no color set (neutral grey). */
+export const NEUTRAL_PERSON_COLOR = '#9CA3AF'
 
 // ─── Timing thresholds (ms) ───
 /** Window during which a second key in a chord shortcut counts (e.g. `g` then `c`). */

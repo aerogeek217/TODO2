@@ -29,7 +29,7 @@ describe('useFilterStore', () => {
     const statuses = [{ id: 5, name: 'Assigned', color: '#000', sortOrder: 0, icon: 'person' as const }]
 
     expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }))).toBe(true)
-    expect(applyFilter(f(), todos, undefined, undefined, undefined, statuses).map((t) => t.id)).toEqual([1, 2])
+    expect(applyFilter(f(), todos, undefined, statuses).map((t) => t.id)).toEqual([1, 2])
     expect(useFilterStore.getState().isActive).toBe(false)
   })
 
@@ -100,53 +100,13 @@ describe('useFilterStore', () => {
     // the predicate only. Saved-view application sets the predicate and the
     // runtime slot in two distinct calls; bleed between the two would surprise
     // the topbar's filter-active styling.
-    useFilterStore.getState().setRuntimeFilterSpec({ field: 'org', label: 'Team' })
-    expect(useFilterStore.getState().runtimeFilterSpec).toEqual({ field: 'org', label: 'Team' })
+    useFilterStore.getState().setRuntimeFilterSpec({ field: 'tag', label: 'Team' })
+    expect(useFilterStore.getState().runtimeFilterSpec).toEqual({ field: 'tag', label: 'Team' })
     expect(useFilterStore.getState().isActive).toBe(false)
 
     useFilterStore.getState().setRuntimeFilterValue([5])
     expect(useFilterStore.getState().runtimeFilterValue).toEqual([5])
     expect(useFilterStore.getState().isActive).toBe(false)
-  })
-
-  it('setOrgIds filters by direct org assignment', () => {
-    useFilterStore.getState().setOrgIds(new Set([10]))
-
-    // Task with direct org 10
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10])).toBe(true)
-    // Task with direct org 20
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20])).toBe(false)
-  })
-
-  it('setOrgIds filters by person org (assignedPersonOrgIds)', () => {
-    useFilterStore.getState().setOrgIds(new Set([10]))
-
-    // Task whose assigned person belongs to org 10
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-    // Task whose assigned person belongs to org 20
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [1], [20], [])).toBe(false)
-  })
-
-  it('setOrgIds with 0 (None): tasks with no org assignment pass', () => {
-    useFilterStore.getState().setOrgIds(new Set([0]))
-
-    // Task with no org at all
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [])).toBe(true)
-    // Task with no assigned people/orgs
-    expect(matchesFilter(f(), makeTodo({ id: 2 }))).toBe(true)
-    // Task with an org should NOT match when only 0 is in set
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [10], [10])).toBe(false)
-  })
-
-  it('combined person-org and direct-org: either match passes', () => {
-    useFilterStore.getState().setOrgIds(new Set([10, 20]))
-
-    // Only person-org match
-    expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-    // Only direct-org match
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20])).toBe(true)
-    // Neither match
-    expect(matchesFilter(f(), makeTodo({ id: 3 }), [1], [30], [30])).toBe(false)
   })
 
   it('setStatusIds filters by statusId', () => {
@@ -290,12 +250,12 @@ describe('useFilterStore', () => {
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 19),
-      }), undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, today)).toBe(true)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 20),
-      }), undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, today)).toBe(false)
     })
 
     it('relative tomorrow anchor lets a same-day task through as a start bound', () => {
@@ -308,12 +268,12 @@ describe('useFilterStore', () => {
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 15),
-      }), undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, today)).toBe(false)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 16),
-      }), undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, today)).toBe(true)
     })
 
     it('fixed anchor behaves like the legacy ISO-string range', () => {
@@ -341,20 +301,13 @@ describe('useFilterStore', () => {
     expect(useFilterStore.getState().filters.hasDeadline).toBeNull()
   })
 
-  it('clearAll resets orgFilterMode to include-people', () => {
-    useFilterStore.getState().setOrgFilterMode('direct-only')
-    useFilterStore.getState().clearAll()
-    expect(useFilterStore.getState().filters.orgFilterMode).toBe('include-people')
-  })
-
   describe('tags filter', () => {
     // Tag filters are by registry id. `matchesFilter` reads the
-    // `assignedTagIds` positional arg (9th) — no fallback to inline strings.
+    // `assignedTagIds` positional arg (6th) — no fallback to inline strings.
     const withTagIds = (ids: number[]) =>
-      // positional: filters, todo, personIds, personOrgIds, directOrgIds,
-      //             filterPersonOrgIds, today, searchCtx, assignedTagIds
+      // positional: filters, todo, personIds, today, searchCtx, assignedTagIds
       (todo: PersistedTodoItem) =>
-        matchesFilter(f(), todo, undefined, undefined, undefined, undefined, undefined, undefined, ids)
+        matchesFilter(f(), todo, undefined, undefined, undefined, ids)
 
     it('null (default) is not a filter — tagged and untagged todos pass', () => {
       expect(f().tags).toBeNull()
@@ -402,201 +355,38 @@ describe('useFilterStore', () => {
     })
   })
 
-  describe('orgFilterMode direct-only', () => {
-    it('include-people matches person-org and direct-org (default)', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-
-      // Person-org match
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-      // Direct-org match
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [10])).toBe(true)
-    })
-
-    it('direct-only ignores person-org, matches only direct-org', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
-
-      // Person-org only — should be excluded
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(false)
-      // Direct-org match
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [10])).toBe(true)
-    })
-
-    it('direct-only with task having both person-org and direct-org matches on direct', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
-
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [10])).toBe(true)
-    })
-
-    it('direct-only with None (0): no direct org passes', () => {
-      useFilterStore.getState().setOrgIds(new Set([0]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
-
-      // No direct org, but has person-org — should still pass (no direct org = None)
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-      // No org at all
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [])).toBe(true)
-    })
-
-    it('undefined orgFilterMode defaults to include-people', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [1], [10], [])).toBe(true)
-    })
-  })
-
-  describe('applyFilter integration with direct-only org mode', () => {
-    it('direct-only filters out tasks matching only via person-org', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('direct-only')
+  describe('applyFilter person membership', () => {
+    it('keeps only todos assigned to a filtered person', () => {
+      useFilterStore.getState().setPersonIds(new Set([5]))
       useFilterStore.getState().setShowCompleted(true)
 
       const todos = [
-        makeTodo({ id: 1 }), // person belongs to org 10 but no direct org
-        makeTodo({ id: 2 }), // has direct org 10
-        makeTodo({ id: 3 }), // no org at all
+        makeTodo({ id: 1 }), // unassigned
+        makeTodo({ id: 2 }), // person 5
+        makeTodo({ id: 3 }), // person 99 (not filtered)
       ]
       const assignedPeopleMap = new Map([
-        [1, [{ id: 1, name: 'Alice', initials: 'A', color: '#000' }]],
+        [2, [{ id: 5, name: 'Alice', initials: 'A' }]],
+        [3, [{ id: 99, name: 'Bob', initials: 'B' }]],
       ])
-      const personOrgMap = new Map([[1, [10]]]) // person 1 belongs to org 10
-      const assignedOrgsMap = new Map([
-        [2, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
 
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
+      const result = applyFilter(f(), todos, assignedPeopleMap)
 
-      // Only task 2 (direct org match) should pass; task 1 (person-org only) excluded
       expect(result.map(t => t.id)).toEqual([2])
     })
 
-    it('include-people mode includes tasks matching via person-org', () => {
-      useFilterStore.getState().setOrgIds(new Set([10]))
-      useFilterStore.getState().setOrgFilterMode('include-people')
+    it('unassigned (0) sentinel keeps todos with no assigned person', () => {
+      useFilterStore.getState().setPersonIds(new Set([0]))
       useFilterStore.getState().setShowCompleted(true)
 
-      const todos = [
-        makeTodo({ id: 1 }), // person belongs to org 10
-        makeTodo({ id: 2 }), // has direct org 10
-      ]
+      const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
       const assignedPeopleMap = new Map([
-        [1, [{ id: 1, name: 'Alice', initials: 'A', color: '#000' }]],
+        [2, [{ id: 5, name: 'Alice', initials: 'A' }]],
       ])
-      const personOrgMap = new Map([[1, [10]]])
-      const assignedOrgsMap = new Map([
-        [2, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
 
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
+      const result = applyFilter(f(), todos, assignedPeopleMap)
 
-      // Both should pass: task 1 via person-org, task 2 via direct org
-      expect(result.map(t => t.id)).toEqual([1, 2])
-    })
-  })
-
-  describe('personFilterMode include-orgs', () => {
-    it('default direct person match still passes without filterPersonOrgIds', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      // No filterPersonOrgIds supplied — direct match only
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [5])).toBe(true)
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [3])).toBe(false)
-    })
-
-    it('include-orgs matches tasks with direct orgs that filter person belongs to', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      // include-orgs is the default
-      // Person 5 belongs to org 10; task has direct org 10 but no direct person
-      const filterPersonOrgIds = new Set([10])
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10], filterPersonOrgIds)).toBe(true)
-      // Task with unrelated org is excluded
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [], [], [20], filterPersonOrgIds)).toBe(false)
-    })
-
-    it('direct-only ignores filter-person-org expansion', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      useFilterStore.getState().setPersonFilterMode('direct-only')
-      const filterPersonOrgIds = new Set([10])
-      // Even with filterPersonOrgIds supplied, direct-only only matches direct person
-      expect(matchesFilter(f(), makeTodo({ id: 1 }), [], [], [10], filterPersonOrgIds)).toBe(false)
-      expect(matchesFilter(f(), makeTodo({ id: 2 }), [5], [], [], filterPersonOrgIds)).toBe(true)
-    })
-
-    it('clearAll resets personFilterMode to include-orgs', () => {
-      useFilterStore.getState().setPersonFilterMode('direct-only')
-      useFilterStore.getState().clearAll()
-      expect(useFilterStore.getState().filters.personFilterMode).toBe('include-orgs')
-    })
-  })
-
-  describe('applyFilter integration with personFilterMode', () => {
-    it('include-orgs includes tasks with org matching filter-person membership', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      useFilterStore.getState().setShowCompleted(true)
-
-      const todos = [
-        makeTodo({ id: 1 }), // no direct person, has direct org 10 (person 5's org)
-        makeTodo({ id: 2 }), // direct person 5
-        makeTodo({ id: 3 }), // direct person 99 (not filtered)
-      ]
-      const assignedPeopleMap = new Map([
-        [2, [{ id: 5, name: 'Alice', initials: 'A', color: '#000' }]],
-        [3, [{ id: 99, name: 'Bob', initials: 'B', color: '#000' }]],
-      ])
-      const personOrgMap = new Map([[5, [10]]])
-      const assignedOrgsMap = new Map([
-        [1, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
-
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
-
-      expect(result.map(t => t.id).sort()).toEqual([1, 2])
-    })
-
-    it('direct-only excludes tasks matching only via filter-person org', () => {
-      useFilterStore.getState().setPersonIds(new Set([5]))
-      useFilterStore.getState().setPersonFilterMode('direct-only')
-      useFilterStore.getState().setShowCompleted(true)
-
-      const todos = [
-        makeTodo({ id: 1 }), // no direct person, direct org 10
-        makeTodo({ id: 2 }), // direct person 5
-      ]
-      const assignedPeopleMap = new Map([
-        [2, [{ id: 5, name: 'Alice', initials: 'A', color: '#000' }]],
-      ])
-      const personOrgMap = new Map([[5, [10]]])
-      const assignedOrgsMap = new Map([
-        [1, [{ id: 10, name: 'Org' }]],
-      ]) as Map<number, { id: number; name: string }[]>
-
-      const result = applyFilter(
-        f(),
-        todos,
-        assignedPeopleMap as never,
-        personOrgMap,
-        assignedOrgsMap as never,
-      )
-
-      expect(result.map(t => t.id)).toEqual([2])
+      expect(result.map(t => t.id)).toEqual([1])
     })
   })
 })
@@ -607,9 +397,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const original = {
       showCompleted: true,
       personIds: new Set([5, 10]),
-      personFilterMode: 'direct-only' as const,
-      orgIds: null,
-      orgFilterMode: 'include-people' as const,
       projectIds: null,
       statusIds: new Set([0, 3]),
       searchText: 'x',
@@ -644,9 +431,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const original = {
       showCompleted: false,
       personIds: null,
-      personFilterMode: 'include-orgs' as const,
-      orgIds: null,
-      orgFilterMode: 'include-people' as const,
       projectIds: null,
       statusIds: null,
       searchText: '',
@@ -677,9 +461,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const legacy = {
       showCompleted: false,
       personIds: null,
-      personFilterMode: 'include-orgs' as const,
-      orgIds: null,
-      orgFilterMode: 'include-people' as const,
       statusIds: null,
       searchText: '',
       dateField: 'deadline' as const,

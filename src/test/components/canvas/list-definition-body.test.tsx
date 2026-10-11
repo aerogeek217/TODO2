@@ -20,8 +20,6 @@ vi.mock('../../../hooks/use-bulk-actions', () => ({
     setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
-    quickAssignOrg: vi.fn(),
-    quickUnassignOrg: vi.fn(),
     quickAssignTag: vi.fn(),
     quickUnassignTag: vi.fn(),
   }),
@@ -230,7 +228,7 @@ describe('ListDefinitionBody', () => {
       useTodoStore.setState({ todos: [] })
       const def = futureDef()
       useListDefinitionStore.setState({
-        listDefinitions: [{ ...def, runtimeFilter: { field: 'org' } }],
+        listDefinitions: [{ ...def, runtimeFilter: { field: 'tag' } }],
       })
       render(
         <Wrapper>
@@ -240,7 +238,7 @@ describe('ListDefinitionBody', () => {
           />
         </Wrapper>,
       )
-      expect(screen.getByText('Pick a org to populate…')).toBeInTheDocument()
+      expect(screen.getByText('Pick a tag to populate…')).toBeInTheDocument()
     })
   })
 })

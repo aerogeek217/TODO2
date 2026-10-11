@@ -59,18 +59,14 @@ export interface ListDefinitionSeed {
   pinnedToDashboard?: boolean
   favorited?: boolean
   /** When set, the list def renders a `RuntimeFilterPicker` that narrows on
-   *  the chosen field at render time (Phase 6 picker tests). */
-  runtimeFilter?: { field: 'person' | 'org' | 'project' | 'status' | 'tag'; label?: string }
+   *  the chosen field at render time. */
+  runtimeFilter?: { field: 'person' | 'project' | 'status' | 'tag'; label?: string }
 }
 
 export interface PersonSeed {
   name: string
   initials?: string
-}
-
-export interface OrgSeed {
-  name: string
-  initials?: string
+  /** Optional hex color; omitted → the person renders with the neutral fill. */
   color?: string
 }
 
@@ -92,7 +88,6 @@ export interface CanvasSeedOptions {
   listDefinitions?: ListDefinitionSeed[]
   listInsets?: ListInsetSeed[]
   people?: PersonSeed[]
-  orgs?: OrgSeed[]
   /** Serialized `RailsState` JSON value persisted under `settings.canvasRails`. */
   canvasRails?: unknown
 }
@@ -239,8 +234,7 @@ export function taskRowByTitle(page: Page, title: string): Locator {
 }
 
 /** Click a task row's title span to fire `onSelect`. Clicking the row wrapper's
- *  bbox center hits a chip popover trigger (`#`/`@`/date/status) after the P10
- *  slot reorder, so callers that need selection must aim at the title text. The
+ *  bbox center can land on a chip popover trigger (`#`/`@`/date/status), so callers that need selection must aim at the title text. The
  *  title span carries `title={todo.title}` for tooltip parity, which we use as
  *  a stable, propagation-stopping selector that only fires the row's onSelect. */
 export async function selectTaskRowByTitle(page: Page, title: string): Promise<void> {
@@ -253,7 +247,7 @@ export function taskRowWrappers(page: Page): Locator {
 }
 
 /**
- * Seed a canvas with floats / list-defs / list-insets / rails for Phase 6's
+ * Seed a canvas with floats / list-defs / list-insets / people / rails for the
  * canvas-coverage specs. Mirrors `seedCanvasWithProjects`'s lifecycle (navigate
  * → wait for canvas → write rows → reload → wait for visible widgets) but
  * targets the canvas widgets the rail-dock and WidgetKindMenu specs need.
@@ -296,7 +290,6 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
     listDefinitions: opts.listDefinitions ?? [],
     listInsets: opts.listInsets ?? [],
     people: opts.people ?? [],
-    orgs: opts.orgs ?? [],
     canvasRails: opts.canvasRails ?? null,
   }
 
@@ -307,7 +300,7 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
         const idb = req.result
         const tables = [
           'floatingNotes', 'floatingCalendars', 'floatingTaskboards', 'floatingStatus',
-          'listDefinitions', 'listInsets', 'people', 'orgs', 'settings',
+          'listDefinitions', 'listInsets', 'people', 'settings',
         ]
         const tx = idb.transaction(tables, 'readwrite')
 
@@ -324,17 +317,12 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
           tx.objectStore('floatingStatus').add({ ...st, canvasId: seed.canvasId })
         }
         for (const person of seed.people) {
-          tx.objectStore('people').add({
+          const row: Record<string, unknown> = {
             name: person.name,
             initials: person.initials ?? person.name.slice(0, 2).toUpperCase(),
-          })
-        }
-        for (const org of seed.orgs) {
-          tx.objectStore('orgs').add({
-            name: org.name,
-            initials: org.initials ?? org.name.slice(0, 2).toUpperCase(),
-            color: org.color ?? '#888888',
-          })
+          }
+          if (person.color) row.color = person.color
+          tx.objectStore('people').add(row)
         }
 
         const defIds: number[] = new Array(seed.listDefinitions.length)

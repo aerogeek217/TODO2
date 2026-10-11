@@ -117,7 +117,6 @@ function joinTargetTable(field: string): string {
   switch (field) {
     case 'todoId': return 'todos'
     case 'personId': return 'people'
-    case 'orgId': return 'orgs'
     case 'tagId': return 'tags'
     case 'canvasId': return 'canvases'
     case 'projectId': return 'projects'
@@ -156,8 +155,8 @@ export async function auditData(): Promise<AuditReport> {
   }
 
   const [
-    todos, projects, canvases, people, orgs, statuses, tags,
-    todoPeople, todoOrgs, todoTags, personOrgs, taskboards,
+    todos, projects, canvases, people, statuses, tags,
+    todoPeople, todoTags, taskboards,
     listInsets, floatingNotes, floatingCalendars, floatingTaskboards,
     floatingStatus, todoEvents,
     settingsRows, listDefinitions, notes,
@@ -166,13 +165,10 @@ export async function auditData(): Promise<AuditReport> {
     db.projects.toArray(),
     db.canvases.toArray(),
     db.people.toArray(),
-    db.orgs.toArray(),
     db.statuses.toArray(),
     db.tags.toArray(),
     db.todoPeople.toArray(),
-    db.todoOrgs.toArray(),
     db.todoTags.toArray(),
-    db.personOrgs.toArray(),
     db.taskboards.toArray(),
     db.listInsets.toArray(),
     db.floatingNotes.toArray(),
@@ -195,7 +191,7 @@ export async function auditData(): Promise<AuditReport> {
   // fails the per-key value validator (legacy shapes, stale formats).
   const knownTableRows: Partial<Record<string, unknown[]>> = {
     canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
-    todoOrgs, personOrgs, orgs, taskboards, floatingTaskboards,
+    taskboards, floatingTaskboards,
     statuses, listDefinitions, notes,
     floatingCalendars, floatingNotes, floatingStatus, todoEvents,
   }
@@ -290,7 +286,6 @@ export async function auditData(): Promise<AuditReport> {
   const projectIds = new Set(projects.map((p) => p.id!))
   const canvasIds = new Set(canvases.map((c) => c.id!))
   const personIds = new Set(people.map((p) => p.id!))
-  const orgIds = new Set(orgs.map((o) => o.id!))
   const statusIds = new Set(statuses.map((s) => s.id!))
   const tagIds = new Set(tags.map((t) => t.id!))
 
@@ -324,44 +319,6 @@ export async function auditData(): Promise<AuditReport> {
         joinSample(r as unknown as Record<string, unknown>, [
           { field: 'todoId', valid: todoIds.has(r.todoId) },
           { field: 'personId', valid: personIds.has(r.personId) },
-        ]),
-      ),
-    })
-  }
-
-  const orphanedTodoOrgs = todoOrgs.filter(
-    (r) => !todoIds.has(r.todoId) || !orgIds.has(r.orgId),
-  )
-  if (orphanedTodoOrgs.length > 0) {
-    issues.push({
-      table: 'todoOrgs',
-      description: 'Org assignments referencing deleted todos or orgs',
-      count: orphanedTodoOrgs.length,
-      ids: orphanedTodoOrgs.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedTodoOrgs.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'todoId', valid: todoIds.has(r.todoId) },
-          { field: 'orgId', valid: orgIds.has(r.orgId) },
-        ]),
-      ),
-    })
-  }
-
-  const orphanedPersonOrgs = personOrgs.filter(
-    (r) => !personIds.has(r.personId) || !orgIds.has(r.orgId),
-  )
-  if (orphanedPersonOrgs.length > 0) {
-    issues.push({
-      table: 'personOrgs',
-      description: 'Person-org memberships referencing deleted people or orgs',
-      count: orphanedPersonOrgs.length,
-      ids: orphanedPersonOrgs.map((r) => r.id!),
-      fix: 'delete',
-      samples: orphanedPersonOrgs.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
-        joinSample(r as unknown as Record<string, unknown>, [
-          { field: 'personId', valid: personIds.has(r.personId) },
-          { field: 'orgId', valid: orgIds.has(r.orgId) },
         ]),
       ),
     })

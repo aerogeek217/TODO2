@@ -3,13 +3,11 @@ import type { PersistedTodoItem, Person, TodoPredicate } from '../../models'
 import {
   matchesFilter,
   predicateToCriteria,
-  computeFilterPersonOrgIds,
 } from '../../stores/filter-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -88,9 +86,6 @@ export function ListDefinitionBody({
   const todos = useTodoStore((s) => s.todos)
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const orgs = useOrgStore((s) => s.orgs)
-  const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const projects = useProjectStore((s) => s.projects)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
@@ -98,7 +93,7 @@ export function ListDefinitionBody({
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
 
   // Tag filter predicate clauses read via `assignedTagsMap`; make sure the
-  // map is populated for the current todo corpus. Mirrors people/org loads
+  // map is populated for the current todo corpus. Mirrors people loads
   // in `CanvasPage` for the filter-store path.
   useEffect(() => {
     if (todos.length === 0) return
@@ -117,15 +112,8 @@ export function ListDefinitionBody({
       const criteria = predicateToCriteria(predicate)
       const assignedPeople = assignedPeopleMap.get(todo.id) ?? []
       const personIds = assignedPeople.map((p) => p.id!)
-      const personOrgIds = assignedPeople.flatMap((p) => personOrgMap.get(p.id!) ?? [])
-      const directOrgIds = (assignedOrgsMap.get(todo.id) ?? []).map((o) => o.id!)
       const assignedTagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
-      const filterPersonOrgIds = computeFilterPersonOrgIds(
-        criteria.personIds, criteria.personFilterMode, personOrgMap,
-      )
-      return matchesFilter(
-        criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, today, undefined, assignedTagIds,
-      )
+      return matchesFilter(criteria, todo, personIds, today, undefined, assignedTagIds)
     }
     const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
       ? new Map<number, number[]>([[definition.id, runtimeFilterValue]])
@@ -136,18 +124,14 @@ export function ListDefinitionBody({
       evalPredicate,
       assignedTagsMap,
       assignedPeopleMap,
-      assignedOrgsMap,
-      personOrgMap,
       people,
-      orgs,
       projects,
       statuses,
       runtimeFilterValues,
     })
     return list ?? null
   }, [
-    definition, todos, people, assignedPeopleMap,
-    orgs, assignedOrgsMap, personOrgMap, projects,
+    definition, todos, people, assignedPeopleMap, projects,
     assignedTagsMap, statuses, today, weekStartsOn,
     runtimeFilterValue, runtimeFilterPending,
   ])
@@ -180,7 +164,7 @@ export function ListDefinitionBody({
   // - Predicate has no seedable axis (only date / search / completion clauses)
   //   → the seed would be empty, and the global FAB does the same thing.
   //   Surface the button only when the predicate filters by at least one of
-  //   project / people / org / status / tag.
+  //   project / people / status / tag.
   const mergedPredicate = (definition?.membership.kind === 'custom' && !runtimeFilterPending)
     ? ((definition.runtimeFilter && runtimeFilterValue && runtimeFilterValue.length > 0)
         ? applyRuntimeFilter(definition.membership.predicate, definition.runtimeFilter, runtimeFilterValue)
@@ -189,7 +173,6 @@ export function ListDefinitionBody({
   const hasSeedableFilter = mergedPredicate != null && (
     mergedPredicate.projectIds != null
     || mergedPredicate.personIds != null
-    || mergedPredicate.orgIds != null
     || mergedPredicate.statusIds != null
     || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
   )

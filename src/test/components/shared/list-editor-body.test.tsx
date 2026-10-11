@@ -90,8 +90,8 @@ describe('<ListEditorBody>', () => {
 
   it('clears runtimeFilter when the prompt is set back to None', () => {
     const onChange = vi.fn()
-    render(<ListEditorBody draft={makeDraft({ runtimeFilter: { field: 'org' } })} onChange={onChange} />)
-    const promptSelect = screen.getByDisplayValue('Org') as HTMLSelectElement
+    render(<ListEditorBody draft={makeDraft({ runtimeFilter: { field: 'tag' } })} onChange={onChange} />)
+    const promptSelect = screen.getByDisplayValue('Tag') as HTMLSelectElement
     fireEvent.change(promptSelect, { target: { value: 'none' } })
     expect(onChange).toHaveBeenCalled()
     const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition

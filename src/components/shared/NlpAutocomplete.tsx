@@ -12,8 +12,7 @@ function headerLabel(state: AutocompleteState): string {
   if (state.trigger === '#') return 'Tags'
   if (state.trigger === ':') return 'Statuses'
   if (state.trigger === '/') return 'Projects'
-  const hasOrgs = state.items.some((item) => item.kind === 'org')
-  return hasOrgs ? 'People & Orgs' : 'People'
+  return 'People'
 }
 
 export function NlpAutocomplete({ state, onSelect, onCreateNew }: NlpAutocompleteProps) {
@@ -40,9 +39,6 @@ export function NlpAutocomplete({ state, onSelect, onCreateNew }: NlpAutocomplet
           <span className={styles.name}>
             {state.trigger}{item.name}
           </span>
-          {item.kind === 'org' && (
-            <span className={styles.kindLabel}>(org)</span>
-          )}
         </button>
       ))}
       {isTagCreateNew && (

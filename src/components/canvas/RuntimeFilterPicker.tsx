@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { RuntimeFilterSpec } from '../../models/list-definition'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -10,7 +9,7 @@ import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './RuntimeFilterPicker.module.css'
 
 // All option lookups for this picker go through cached Zustand stores
-// (`usePersonStore`, `useOrgStore`, `useProjectStore`, `useStatusStore`,
+// (`usePersonStore`, `useProjectStore`, `useStatusStore`,
 // `useTagStore`) — there are no Dexie reads on render or keystroke. Keep it
 // that way: the picker is mounted on canvas/list surfaces during drag-heavy
 // interactions, and re-issuing repository queries per keystroke would tank
@@ -38,7 +37,6 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
   if (spec.label && spec.label.trim()) return spec.label
   switch (spec.field) {
     case 'person': return 'Person'
-    case 'org': return 'Org'
     case 'project': return 'Project'
     case 'status': return 'Status'
     case 'tag': return 'Tag'
@@ -62,7 +60,6 @@ const NO_IDS: readonly number[] = []
 
 export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPickerProps) {
   const people = usePersonStore((s) => s.people)
-  const orgs = useOrgStore((s) => s.orgs)
   const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
   const tags = useTagStore((s) => s.tags)
@@ -72,9 +69,6 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
     switch (spec.field) {
       case 'person':
         for (const p of people) if (p.id != null) base.push({ id: p.id, name: p.name })
-        break
-      case 'org':
-        for (const o of orgs) if (o.id != null) base.push({ id: o.id, name: o.name })
         break
       case 'project':
         for (const p of projects) if (p.id != null) base.push({ id: p.id, name: p.name })
@@ -87,7 +81,7 @@ export function RuntimeFilterPicker({ spec, value, onChange }: RuntimeFilterPick
         break
     }
     return base.sort((a, b) => a.name.localeCompare(b.name))
-  }, [spec.field, people, orgs, projects, statuses, tags])
+  }, [spec.field, people, projects, statuses, tags])
 
   const ids = value ?? NO_IDS
   const idSet = useMemo(() => new Set(ids), [ids])

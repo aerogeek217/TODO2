@@ -3,7 +3,6 @@ import { useSettingsStore } from './settings-store'
 import { useTodoStore } from './todo-store'
 import { useProjectStore } from './project-store'
 import { usePersonStore } from './person-store'
-import { useOrgStore } from './org-store'
 import { useStatusStore } from './status-store'
 import { useTagStore } from './tag-store'
 import { useTaskboardStore } from './taskboard-store'
@@ -41,8 +40,6 @@ export async function refreshAllStores() {
     useTodoStore.getState().loadAll(),
     useProjectStore.getState().loadAll(),
     usePersonStore.getState().load(),
-    useOrgStore.getState().load(),
-    useOrgStore.getState().loadPersonOrgMap(),
     useStatusStore.getState().load(),
     useTagStore.getState().load(),
     useTaskboardStore.getState().load(),
@@ -61,7 +58,6 @@ export async function refreshAllStores() {
   if (todoIds.length > 0) {
     await Promise.all([
       usePersonStore.getState().loadAssignments(todoIds),
-      useOrgStore.getState().loadAssignments(todoIds),
       useTagStore.getState().loadAssignments(todoIds),
     ])
   }

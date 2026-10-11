@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Person, Org, Status } from '../models'
+import type { PersistedTodoItem, Person, Status } from '../models'
 import { startOfDay, MS_PER_DAY } from '../utils/date'
 import { generateRecurringInstances, recurrenceAnchor } from './recurrence'
 
@@ -7,13 +7,11 @@ export interface CalendarEntry {
   isVirtual: boolean
   key: string
   people: Person[]
-  orgs: Org[]
   status: Status | undefined
 }
 
 export interface BuildEntriesOptions {
   assignedPeopleMap?: Map<number, Person[]>
-  assignedOrgsMap?: Map<number, Org[]>
   statuses?: readonly Status[]
 }
 
@@ -23,9 +21,9 @@ export function dayKey(d: Date): string {
 
 /**
  * Bucket todos by day for any calendar surface (CalendarView grid or canvas
- * rails calendar strip). Each entry is enriched with the people + orgs
- * assigned to its todo and the resolved Status row. Virtual recurring
- * instances inherit the parent todo's people/orgs/status.
+ * rails calendar strip). Each entry is enriched with the people assigned to
+ * its todo and the resolved Status row. Virtual recurring instances inherit
+ * the parent todo's people/status.
  *
  * A task is placed on its due date's day; recurring tasks also get a virtual
  * entry on every other occurrence in range. Entries within a day are in
@@ -55,7 +53,6 @@ export function buildEntries(
     isVirtual,
     key,
     people: options.assignedPeopleMap?.get(todo.id) ?? [],
-    orgs: options.assignedOrgsMap?.get(todo.id) ?? [],
     status: todo.statusId != null ? statusById.get(todo.statusId) : undefined,
   })
 

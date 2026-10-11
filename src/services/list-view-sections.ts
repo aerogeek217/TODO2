@@ -1,9 +1,8 @@
-import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListItemSortBy } from '../models'
+import type { PersistedTodoItem, Person, Project, Status, Tag, ListItemSortBy } from '../models'
 import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { bucketByDate, type DateBucketKey } from '../utils/bucket-by-date'
 import { startOfToday } from '../utils/date'
 import { compareTodosByDate, pickTodoDate, type TodoDateField, type WeekStart } from '../utils/effective-date'
-import { resolvePersonColor } from '../utils/person-color'
 import { bySortOrder } from '../utils/sort-order'
 import { UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
 
@@ -59,60 +58,26 @@ export function buildFollowupSections(todos: PersistedTodoItem[], weekStartsOn: 
 }
 
 /**
- * People grouping. Adapter over `partitionByGroup`.
+ * People grouping. Adapter over `partitionByGroup`: one section per assigned
+ * person (accent = the person's color), then `Unassigned`.
  *
- * Group-by-people emits one section per assigned person, period — no
- * org-first short-circuit, no `filteredOrgIds`-driven `visiblePeople`
- * narrowing. Filtering and grouping are independent axes: `personFilterMode`
- * / `orgFilterMode` already gives finer-grained control over who reaches
- * the partition. `orgs` + `personOrgMap` are kept on the signature so the
- * post-step can resolve a per-section accent via `resolvePersonColor` (the
- * person's first assigned org's color).
- *
- * Sentinel rule: `Unassigned` rendered only in legacy mode when `ungrouped`
- * is non-empty. Restrict mode silently drops `ungrouped` (axis-mismatched
- * tasks shouldn't surface as Unassigned).
+ * `restrictToPersonIds`: when groupBy=people AND the active filter narrows
+ * to specific people, only those people's sections are shown, in that
+ * order; tasks assigned only to other people are skipped and `Unassigned`
+ * is not rendered (the filter's unassigned sentinel keeps the ungrouped
+ * tasks out of every section). `null`/`undefined`/empty → every assigned
+ * person gets a section, alphabetical.
  */
 export function buildPeopleSections(
   todos: PersistedTodoItem[],
   people: Person[],
   assignedPeopleMap: Map<number, Person[]>,
-  orgs?: Org[],
-  personOrgMap?: Map<number, number[]>,
-  /**
-   * P6 (item 1) intersection rule: when groupBy=people AND the active
-   * filter narrows to specific people, restrict the visible person
-   * sections to these ids AND tier-order them — direct-tier (any task
-   * emitted under the section via direct person assignment) first;
-   * implicit-tier (all emits came via the cross-axis include-orgs
-   * callback) at the bottom of the person block. Tasks whose
-   * intersection is empty are skipped (NOT routed to "Unassigned" — the
-   * filter pass shouldn't have let an axis-mismatched task through).
-   *
-   * `null`/`undefined`/empty → existing behavior (every assigned person
-   * gets a section, alphabetical via `partitionByGroup`).
-   */
   restrictToPersonIds?: ReadonlyArray<number> | null,
-  /**
-   * P6 cross-axis lookup. Only consulted when `restrictToPersonIds` is
-   * non-empty. For `personFilterMode === 'include-orgs'`: returns the
-   * personIds of members of the task's direct orgs. For `'direct-only'`:
-   * pass `undefined` (no implicit path — tasks that survived the filter
-   * via direct assignment are the only emit path).
-   */
-  implicitPersonIdsFor?: (todo: PersistedTodoItem) => readonly number[],
 ): Section[] {
-  const restrictSet = restrictToPersonIds && restrictToPersonIds.length > 0
-    ? new Set<number>(restrictToPersonIds)
-    : null
-
   const ctx: GroupingContext = {
     assignedPeopleMap,
-    assignedOrgsMap: new Map(),
     assignedTagsMap: new Map(),
     statuses: [],
-    orgs: orgs ?? [],
-    personOrgMap: personOrgMap ?? new Map(),
     today: startOfToday(),
   }
 
@@ -121,38 +86,26 @@ export function buildPeopleSections(
       ? restrictToPersonIds.map((id) => `person-${id}`)
       : undefined
 
-  const implicitKeysFor = implicitPersonIdsFor
-    ? (todo: PersistedTodoItem): readonly string[] =>
-        implicitPersonIdsFor(todo).map((id) => `person-${id}`)
-    : undefined
-
   const { groups, ungrouped } = partitionByGroup(
     todos,
     'people',
     ctx,
     undefined,
     restrictToFilterSet,
-    implicitKeysFor,
   )
 
-  // `g.label` from `partitionByGroup` resolves names by scanning
-  // `ctx.assignedPeopleMap`, which misses implicit-tier people (no task
-  // directly assigns them — they only emerge via the cross-axis
-  // include-orgs callback). Look up via the `people` registry instead.
   const sections: Section[] = groups.map((g) => {
     const personId = Number(g.key.slice('person-'.length))
     const personEntry = people.find((p) => p.id === personId)
     return {
       key: g.key,
-      label: personEntry?.name ?? '',
-      accentColor: orgs && personOrgMap
-        ? resolvePersonColor(personId, personOrgMap, orgs)
-        : undefined,
+      label: personEntry?.name ?? g.label,
+      accentColor: personEntry?.color,
       todos: g.todos,
     }
   })
 
-  if (!restrictSet && ungrouped.length > 0) {
+  if (!restrictToFilterSet && ungrouped.length > 0) {
     sections.push({ key: 'unassigned', label: 'Unassigned', todos: ungrouped })
   }
   return sections
@@ -169,11 +122,8 @@ export function buildProjectSections(
 ): Section[] {
   const ctx: GroupingContext = {
     assignedPeopleMap: new Map(),
-    assignedOrgsMap: new Map(),
     assignedTagsMap: new Map(),
     statuses: [],
-    orgs: [],
-    personOrgMap: new Map(),
     today: startOfToday(),
   }
   const { groups, ungrouped } = partitionByGroup(todos, 'project', ctx)
@@ -191,146 +141,6 @@ export function buildProjectSections(
 }
 
 /**
- * Org grouping. Adapter over `partitionByGroup`.
- *
- * One ListView-only concern rides on top of the core partition:
- * **`filteredOrgIds`-driven visibility (legacy mode only)**: when an org
- * filter is active, only orgs in the filter set are emitable. Implemented
- * by reshaping `assignedOrgsMap` so `getGroupKey` only emits visible-org
- * keys. Tasks with no visible direct orgs fall to `ungrouped` → render as
- * `No Organization` only when `showNoOrg` is true (`!filteredOrgIds ||
- * filteredOrgIds.has(0)`).
- *
- * Person→org inference (legacy mode) was retired in
- * grouping-cross-surface-convergence-2026-04-29 P3 — group-by-org now
- * means "show direct-org assignments only", matching every other surface.
- * Restrict-mode `implicitOrgIdsFor` (the `'include-people'` filter mode)
- * stays — it's filter-driven, not grouping-driven.
- *
- * Sentinel rule: `No Organization` rendered iff legacy mode AND
- * `ungrouped.length > 0` AND `showNoOrg`. Restrict mode silently drops
- * ungrouped (axis-mismatched tasks shouldn't surface as no-org).
- */
-export function buildOrgSections(
-  todos: PersistedTodoItem[],
-  orgs: Org[],
-  assignedOrgsMap: Map<number, Org[]>,
-  personOrgMap: Map<number, number[]>,
-  filteredOrgIds?: Set<number> | null,
-  /**
-   * P6 (item 1) intersection rule: when groupBy=org AND the active
-   * filter narrows to specific orgs, restrict the visible org sections
-   * to these ids AND tier-order them — direct-tier (any task emitted
-   * via direct org assignment) first; implicit-tier (all emits via the
-   * cross-axis people→orgs membership callback) at the bottom.
-   * `null`/`undefined`/empty → existing behavior (direct + person-org
-   * emits collapsed into one entry per visible org).
-   */
-  restrictToOrgIds?: ReadonlyArray<number> | null,
-  /**
-   * P6 cross-axis lookup. Only consulted when `restrictToOrgIds` is
-   * non-empty. For `orgFilterMode === 'include-people'`: returns the
-   * orgIds reachable through the task's directly-assigned people via
-   * `personOrgMap`. For `'direct-only'`: pass `undefined` (no implicit
-   * path).
-   */
-  implicitOrgIdsFor?: (todo: PersistedTodoItem) => readonly number[],
-): Section[] {
-  const visibleOrgs = filteredOrgIds ? orgs.filter((o) => filteredOrgIds.has(o.id!)) : orgs
-  const visibleOrgIdSet = new Set(visibleOrgs.map((o) => o.id!))
-  const restrictSet = restrictToOrgIds && restrictToOrgIds.length > 0
-    ? new Set<number>(restrictToOrgIds)
-    : null
-
-  const showNoOrg = !restrictSet && (!filteredOrgIds || filteredOrgIds.has(0))
-
-  // Pre-step (legacy mode only): filter `assignedOrgsMap` so `getGroupKey`
-  // only emits visible-org keys. Tasks with only-filtered-out direct orgs
-  // fall to `ungrouped`. Restrict mode passes the unfiltered map; the
-  // `restrictToFilterSet` narrowing happens inside `partitionByGroup`.
-  const filteredAssignedOrgsMap: Map<number, Org[]> = (restrictSet || !filteredOrgIds)
-    ? assignedOrgsMap
-    : (() => {
-        const out = new Map<number, Org[]>()
-        for (const [todoId, orgArr] of assignedOrgsMap) {
-          const filtered = orgArr.filter((o) => o.id != null && visibleOrgIdSet.has(o.id))
-          if (filtered.length > 0) out.set(todoId, filtered)
-        }
-        return out
-      })()
-
-  const ctx: GroupingContext = {
-    assignedPeopleMap: new Map(),
-    assignedOrgsMap: filteredAssignedOrgsMap,
-    assignedTagsMap: new Map(),
-    statuses: [],
-    orgs,
-    personOrgMap,
-    today: startOfToday(),
-  }
-
-  const restrictToFilterSet = restrictSet
-    ? Array.from(restrictSet).map((id) => `org-${id}`)
-    : undefined
-
-  const implicitKeysFor = restrictSet && implicitOrgIdsFor
-    ? (todo: PersistedTodoItem): readonly string[] =>
-        implicitOrgIdsFor(todo).map((id) => `org-${id}`)
-    : undefined
-
-  const { groups, ungrouped } = partitionByGroup(
-    todos,
-    'org',
-    ctx,
-    undefined,
-    restrictToFilterSet,
-    implicitKeysFor,
-  )
-
-  // Section labels/colors come from the `orgs` registry — `g.label` /
-  // `getGroupColor` look at `ctx.assignedOrgsMap` which misses orgs that
-  // only emerge via `implicitKeysFor` (no task directly assigns them).
-  // Mirrors P3's adapter pattern for people.
-  const groupsByKey = new Map(groups.map((g) => [g.key, g] as const))
-
-  let orgSections: Section[]
-  if (restrictSet) {
-    // Restrict mode: tier-aware ordering already encoded in `groups`.
-    orgSections = groups.map((g) => {
-      const id = Number(g.key.slice('org-'.length))
-      const orgEntry = orgs.find((o) => o.id === id)
-      return {
-        key: g.key,
-        label: orgEntry?.name ?? '',
-        accentColor: orgEntry?.color,
-        todos: g.todos,
-      }
-    })
-  } else {
-    // Legacy mode: iterate `visibleOrgs` in registry order so additional-key
-    // emits (which `getGroupLabel` sees as '') don't drift to the front.
-    orgSections = []
-    for (const o of visibleOrgs) {
-      const g = groupsByKey.get(`org-${o.id}`)
-      if (g && g.todos.length > 0) {
-        orgSections.push({
-          key: g.key,
-          label: o.name,
-          accentColor: o.color,
-          todos: g.todos,
-        })
-      }
-    }
-  }
-
-  const sections: Section[] = [...orgSections]
-  if (showNoOrg && ungrouped.length > 0) {
-    sections.push({ key: 'no-org', label: 'No Organization', todos: ungrouped })
-  }
-  return sections
-}
-
-/**
  * Status grouping. Adapter over `partitionByGroup`. `partitionByGroup` already
  * orders status groups by registry `sortOrder` via `orderGroupKeys`, so the
  * adapter just maps through and appends the no-status sentinel.
@@ -341,11 +151,8 @@ export function buildStatusSections(
 ): Section[] {
   const ctx: GroupingContext = {
     assignedPeopleMap: new Map(),
-    assignedOrgsMap: new Map(),
     assignedTagsMap: new Map(),
     statuses,
-    orgs: [],
-    personOrgMap: new Map(),
     today: startOfToday(),
   }
   const { groups, ungrouped } = partitionByGroup(todos, 'status', ctx)
@@ -365,26 +172,20 @@ export function buildStatusSections(
  * single "No tag" bucket in legacy mode only — when filtering by tag
  * (restrict mode), the untagged trail is suppressed (the user has
  * narrowed to specific tags, so an "untagged" bucket is incoherent).
- * Tags have no cross-axis path, so no `implicitKeysFor` callback.
  */
 export function buildTagSections(
   todos: PersistedTodoItem[],
   assignedTagsMap: Map<number, Tag[]>,
   /**
-   * P6 (item 1) intersection rule: when groupBy=tag AND the filter has
-   * tags non-empty, restrict the visible tag sections to these ids in
-   * caller order. Tags have no cross-axis path — every emit is direct,
-   * so tier ordering reduces to caller-order dedup.
+   * When groupBy=tag AND the filter has tags non-empty, restrict the
+   * visible tag sections to these ids in caller order.
    */
   restrictToTagIds?: ReadonlyArray<number> | null,
 ): Section[] {
   const ctx: GroupingContext = {
     assignedPeopleMap: new Map(),
-    assignedOrgsMap: new Map(),
     assignedTagsMap,
     statuses: [],
-    orgs: [],
-    personOrgMap: new Map(),
     today: startOfToday(),
   }
   const restrictToFilterSet =
@@ -429,7 +230,7 @@ export function itemSortComparator(
   if (sortBy === 'deadline' || sortBy === 'followup') {
     return compareTodosByDate(sortBy)
   }
-  // Categorical sort fields (created / people / project / org / status) aren't
+  // Categorical sort fields (created / people / project / status) aren't
   // exposed in `LIST_SORT_VALUES`; fall back to manual order if they leak in.
   return undefined
 }

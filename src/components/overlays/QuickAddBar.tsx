@@ -1,10 +1,10 @@
 /**
  * QuickAddBar — keyboard-first task capture surface.
  *
- * P2: real parser + chip wiring. Live subscriptions to person / org / project /
- * settings stores feed `parseInput` → `resolveInput` on every keystroke; chips
- * render for every metadata field the resolver produces (person, org, project,
- * tag, due date, recurrence). Tag chips show the parsed slug — the
+ * Live subscriptions to person / project / settings stores feed
+ * `parseInput` → `resolveInput` on every keystroke; chips render for every
+ * metadata field the resolver produces (person, project, tag, due date,
+ * recurrence). Tag chips show the parsed slug — the
  * tag-store resolve-or-create runs at submit (P4).
  *
  * Auto-derived chips are read-only feedback (no removable ×). To clear, edit
@@ -21,8 +21,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
-  Org,
-  PersistedOrg,
   PersistedPerson,
   PersistedStatus,
   Person,
@@ -32,14 +30,12 @@ import type {
 } from '../../models'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { useOrgStore } from '../../stores/org-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { parseInput } from '../../services/natural-language-parser'
 import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
-import { resolvePersonColor } from '../../utils/person-color'
 import styles from './QuickAddBar.module.css'
 
 const POPUP_GAP_PX = 4
@@ -59,14 +55,12 @@ export type ParsedTokens = {
   title: string
   status?: PersistedStatus
   people: PersistedPerson[]
-  /** Orgs matched via the @-fallthrough path (`@name` that didn't match a person). */
-  orgs: PersistedOrg[]
   project?: Project
   /** Lowercase tag slugs in first-seen order. */
   tags: string[]
   deadlineAt?: Date
   recurrence?: RecurrenceType
-  /** Person names from `@` tokens that matched neither a person nor an org. */
+  /** Person names from `@` tokens that didn't match any known person. */
   unmatchedPersons: string[]
   /** Project names from `/` tokens that didn't match any known project. */
   unmatchedProjects: string[]
@@ -78,7 +72,7 @@ export type QuickAddDraft = ParsedTokens & {
   /** Unparsed input as the user typed it — used by the Details / Tab handoff
    * so `TaskEditPopup` can re-run its own NLP on mount. */
   rawTitle: string
-  /** Resolver output (`personIds` / `orgIds` / `projectId` / `tags` / dates /
+  /** Resolver output (`personIds` / `projectId` / `tags` / dates /
    * recurrence) — fed straight into `applyNlpMetadata` on submit. */
   resolved: ResolvedInput
 }
@@ -99,7 +93,7 @@ export interface QuickAddBarProps {
   initialDraft?: { rawTitle: string }
   /**
    * Optional override for tests. The default pipeline subscribes to the live
-   * person / org / project / settings stores and runs `parseInput` →
+   * person / project / settings stores and runs `parseInput` →
    * `resolveInput` over the raw input.
    */
   parse?: (input: string) => ParsedTokens
@@ -125,18 +119,6 @@ function PersonChip({ person }: { person: PersistedPerson }) {
     <span className={styles.chip}>
       <span className={styles.chipAvatar}>{person.initials}</span>
       <span>@{person.name}</span>
-    </span>
-  )
-}
-
-function OrgChip({ org }: { org: PersistedOrg }) {
-  return (
-    <span className={styles.chip}>
-      <span
-        className={styles.chipDot}
-        style={{ background: org.color ?? 'var(--color-accent)' }}
-      />
-      <span>@{org.name}</span>
     </span>
   )
 }
@@ -193,7 +175,6 @@ function RecurrenceChip({ recurrence }: { recurrence: RecurrenceType }) {
 const EMPTY_PARSED: ParsedTokens = {
   title: '',
   people: [],
-  orgs: [],
   tags: [],
   unmatchedPersons: [],
   unmatchedProjects: [],
@@ -203,7 +184,6 @@ const EMPTY_PARSED: ParsedTokens = {
 const EMPTY_RESOLVED: ResolvedInput = {
   title: '',
   personIds: [],
-  orgIds: [],
   unmatchedPersons: [],
   unmatchedProjects: [],
   tags: [],
@@ -212,7 +192,7 @@ const EMPTY_RESOLVED: ResolvedInput = {
 
 /**
  * Live pipeline: `parseInput` → `resolveInput` → entity lookup against the
- * person / org / project stores. Pure helper — receives stores as args so the
+ * person / project stores. Pure helper — receives stores as args so the
  * component-level `useMemo` can deps-cache it cleanly. Returns both the chip
  * shape (display) and the underlying `ResolvedInput` (submit feeds it to
  * `applyNlpMetadata`).
@@ -220,20 +200,16 @@ const EMPTY_RESOLVED: ResolvedInput = {
 function runParse(
   raw: string,
   people: Person[],
-  orgs: Org[],
   projects: Project[],
   statuses: Status[],
 ): { parsed: ParsedTokens; resolved: ResolvedInput } {
   if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED }
   const parsedInput = parseInput(raw)
-  const resolved = resolveInput(parsedInput, people, projects, orgs, statuses)
+  const resolved = resolveInput(parsedInput, people, projects, statuses)
 
   const peopleResolved: PersistedPerson[] = resolved.personIds
     .map((id) => people.find((p) => p.id === id))
     .filter((p): p is PersistedPerson => p?.id !== undefined)
-  const orgsResolved: PersistedOrg[] = resolved.orgIds
-    .map((id) => orgs.find((o) => o.id === id))
-    .filter((o): o is PersistedOrg => o?.id !== undefined)
   const projectResolved =
     resolved.projectId !== undefined
       ? projects.find((p) => p.id === resolved.projectId)
@@ -247,7 +223,6 @@ function runParse(
       title: resolved.title,
       status: statusResolved,
       people: peopleResolved,
-      orgs: orgsResolved,
       project: projectResolved,
       tags: resolved.tags,
       deadlineAt: resolved.dueDate,
@@ -307,38 +282,25 @@ export function QuickAddBar({
   const surfaceRef = useRef<HTMLDivElement>(null)
 
   const people = usePersonStore((s) => s.people)
-  const orgs = useOrgStore((s) => s.orgs)
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const projects = useProjectStore((s) => s.projects)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
 
   const internalRun = useMemo(
-    () => runParse(raw, people, orgs, projects, statuses),
-    [raw, people, orgs, projects, statuses],
+    () => runParse(raw, people, projects, statuses),
+    [raw, people, projects, statuses],
   )
   const parsed = parse ? parse(raw) : internalRun.parsed
   // Test override (`parse`) only produces `ParsedTokens`; default to the live
   // resolver output otherwise so submit always has a valid `ResolvedInput`.
   const resolved = internalRun.resolved
 
-  // Autocomplete candidates — mirror InsertTrigger so the popup ranks people
-  // (with org-derived color), orgs, projects, and tags identically across the
-  // two surfaces. Tags sort alphabetically; the others keep store order.
+  // Autocomplete candidates — mirror InsertTrigger so the popup ranks people,
+  // projects, and tags identically across the two surfaces. Tags sort alphabetically; the others keep store order.
   const acPeople = useMemo<AutocompleteItem[]>(
     () =>
-      people.map((p) => ({
-        id: p.id!,
-        name: p.name,
-        color: resolvePersonColor(p.id, personOrgMap, orgs),
-        kind: 'person' as const,
-      })),
-    [people, personOrgMap, orgs],
-  )
-  const acOrgs = useMemo<AutocompleteItem[]>(
-    () =>
-      orgs.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })),
-    [orgs],
+      people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })),
+    [people],
   )
   const acProjects = useMemo<AutocompleteItem[]>(
     () =>
@@ -359,7 +321,6 @@ export function QuickAddBar({
   )
   const ac = useNlpAutocomplete({
     people: acPeople,
-    orgs: acOrgs,
     projects: acProjects,
     tags: acTags,
     statuses: acStatuses,
@@ -375,7 +336,6 @@ export function QuickAddBar({
   const hasChips =
     !!draft.status ||
     draft.people.length > 0 ||
-    draft.orgs.length > 0 ||
     !!draft.project ||
     draft.tags.length > 0 ||
     !!draft.deadlineAt ||
@@ -526,9 +486,7 @@ export function QuickAddBar({
         ? 'Statuses'
         : ac.state.trigger === '/'
           ? 'Projects'
-          : ac.state.items.some((it) => it.kind === 'org')
-            ? 'People & Orgs'
-            : 'People'
+          : 'People'
   const isTagCreateNewVisible =
     ac.state.trigger === '#' && ac.state.items.length === 0 && ac.state.query.length > 0
 
@@ -570,9 +528,6 @@ export function QuickAddBar({
             {draft.status && <StatusChip status={draft.status} />}
             {draft.people.map((p) => (
               <PersonChip key={`person-${p.id}`} person={p} />
-            ))}
-            {draft.orgs.map((o) => (
-              <OrgChip key={`org-${o.id}`} org={o} />
             ))}
             {draft.project && <ProjectChip project={draft.project} />}
             {draft.tags.map((t) => (
@@ -682,7 +637,6 @@ export function QuickAddBar({
                     {ac.state.trigger}
                     {item.name}
                   </span>
-                  {item.kind === 'org' && <span className={styles.popupMeta}> (org)</span>}
                 </span>
               </button>
             ))}

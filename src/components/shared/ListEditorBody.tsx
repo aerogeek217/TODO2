@@ -23,7 +23,6 @@ const SORT_LABELS: Record<TodoSortBy, string> = {
   created: 'Created',
   people: 'People',
   project: 'Project',
-  org: 'Org',
   status: 'Status',
 }
 
@@ -33,7 +32,6 @@ const GROUP_LABELS: Record<TodoGroupBy, string> = {
   followup: 'By next follow-up (relative)',
   people: 'By people',
   project: 'By project',
-  org: 'By org',
   status: 'By status',
   tag: 'By tag',
 }
@@ -47,7 +45,6 @@ const GROUP_OPTIONS: readonly SortGroupOption<TodoGroupBy>[] =
 const RUNTIME_FILTER_OPTIONS: { value: RuntimeFilterField | 'none'; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'person', label: 'Person' },
-  { value: 'org', label: 'Org' },
   { value: 'project', label: 'Project' },
   { value: 'status', label: 'Status' },
   { value: 'tag', label: 'Tag' },

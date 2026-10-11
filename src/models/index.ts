@@ -2,12 +2,9 @@ export { type TodoItem, type PersistedTodoItem, type NewTodoItem } from './todo-
 export { type Project, type ProjectGroupBy } from './project'
 export { type Canvas } from './canvas'
 export { type Person, type PersistedPerson } from './person'
-export { type Org, type PersistedOrg } from './org'
 export { type Tag, type PersistedTag } from './tag'
 export { type TodoPerson } from './todo-person'
-export { type TodoOrg } from './todo-org'
 export { type TodoTag } from './todo-tag'
-export { type PersonOrg } from './person-org'
 export { type ListInset } from './list-inset'
 export { type FloatingCalendar } from './floating-calendar'
 export { type FloatingNote } from './floating-note'
@@ -31,8 +28,6 @@ export {
 } from './todo-sort-group'
 export {
   type TodoPredicate,
-  type OrgFilterMode,
-  type PersonFilterMode,
   type DateAnchor,
   type RelativeDateToken,
   RELATIVE_DATE_TOKENS,

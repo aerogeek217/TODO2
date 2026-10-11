@@ -8,7 +8,7 @@
  * only.
  */
 
-/* ═══ People / org chip group ═══ */
+/* ═══ People chip group ═══ */
 
 .peopleGroup {
   position: relative;
@@ -24,7 +24,7 @@
 /*
  * Fixed-width date-column slot. Always the same width whether a chip,
  * chip-stack, or empty-state add-date button is rendered inside —
- * so trailing slots (status) and preceding slots (people / orgs)
+ * so trailing slots (status) and preceding slots (people)
  * line up vertically across rows.
  */
 .dateStack {

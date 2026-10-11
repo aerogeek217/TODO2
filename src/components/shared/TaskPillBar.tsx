@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { CSSProperties, MouseEvent, Ref } from 'react'
-import { type PersistedTodoItem, type Person, type Org, type Status, DEFAULT_STATUS_ICON } from '../../models'
+import { type PersistedTodoItem, type Person, type Status, DEFAULT_STATUS_ICON } from '../../models'
 import { formatDateShort } from '../../utils/date'
 import { isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
@@ -12,7 +12,7 @@ import styles from './TaskPillBar.module.css'
 
 /**
  * Shared task-pill bar — replaces the parallel due-date /
- * people / org / status chip implementations that lived inside
+ * people / status chip implementations that lived inside
  * `TaskRow` / `MobileTaskRow` / `TopBar`'s `SearchResultPills` /
  * canvas calendar `EventRow` (ui-consistency-2026-04-25 P2).
  *
@@ -22,10 +22,8 @@ import styles from './TaskPillBar.module.css'
  * would force every consumer of `TaskPillBar` (search dropdown, calendar
  * `EventRow`, etc.) to thread tags they don't render.
  *
- * Perf — the consumer pre-resolves people / orgs / status and threads
- * them through; this primitive does NOT subscribe to assignment stores.
- * For very dense surfaces (the search dropdown), pass `personColorContext`
- * to let `AvatarStack` skip its own `useOrgStore` subscription too.
+ * Perf — the consumer pre-resolves people / status and threads them
+ * through; this primitive does NOT subscribe to any store.
  *
  * Composition — `<TaskPillBar>` is the default composed bar (people →
  * dates → follow-up → status, the layout used by `TaskRow` / `MobileTaskRow` /
@@ -46,19 +44,13 @@ interface PillCommon {
   compact?: boolean
   /** Smaller avatars even when `compact` is false (mobile). */
   density?: 'default' | 'small'
-  /** Hyperscale opt-out: when provided, AvatarStack uses these instead
-   * of subscribing to org-store. Used by the search dropdown to keep
-   * per-row subscriptions bounded. */
-  personColorContext?: { personOrgMap: Map<number, number[]>; orgs: Org[] }
 }
 
 interface TaskPillPeopleProps extends PillCommon {
   people: readonly Person[]
-  orgs: readonly Org[]
   anchorRef?: Ref<HTMLDivElement>
   onPeopleClick?: (e: MouseEvent) => void
   onPersonContextMenu?: (e: MouseEvent, person: Person) => void
-  onOrgContextMenu?: (e: MouseEvent, org: Org) => void
 }
 
 interface TaskPillDatesProps extends PillCommon {
@@ -92,43 +84,26 @@ interface TaskPillStatusProps extends PillCommon {
   onStatusClick?: (e: MouseEvent) => void
 }
 
-// ─── People + orgs ────────────────────────────────────────────────────────────
+// ─── People ───────────────────────────────────────────────────────────────────
 
 export const TaskPillPeople = memo(function TaskPillPeople({
-  people, orgs, interactive = true, compact = false, density = 'default',
-  personColorContext, anchorRef, onPeopleClick, onPersonContextMenu, onOrgContextMenu,
+  people, interactive = true, compact = false, density = 'default',
+  anchorRef, onPeopleClick, onPersonContextMenu,
 }: TaskPillPeopleProps) {
-  if (people.length === 0 && orgs.length === 0) return null
+  if (people.length === 0) return null
   const avatarSize = (compact || density === 'small') ? 'sm' : 'md'
   return (
     <div ref={anchorRef} className={styles.peopleGroup}>
-      {people.length > 0 && (
-        <AvatarStack
-          people={[...people]}
-          max={compact ? 2 : 3}
-          size={avatarSize}
-          readOnly={!interactive}
-          onClick={interactive ? onPeopleClick : undefined}
-          onPersonContextMenu={interactive && onPersonContextMenu
-            ? (e, p) => onPersonContextMenu(e, p as Person)
-            : undefined}
-          colorContext={personColorContext}
-        />
-      )}
-      {!compact && orgs.length > 0 && (
-        <AvatarStack
-          people={[...orgs]}
-          max={3}
-          size={avatarSize}
-          variant="hollow"
-          readOnly={!interactive}
-          onClick={interactive ? onPeopleClick : undefined}
-          onPersonContextMenu={interactive && onOrgContextMenu
-            ? (e, o) => onOrgContextMenu(e, o as Org)
-            : undefined}
-          colorContext={personColorContext}
-        />
-      )}
+      <AvatarStack
+        people={[...people]}
+        max={compact ? 2 : 3}
+        size={avatarSize}
+        readOnly={!interactive}
+        onClick={interactive ? onPeopleClick : undefined}
+        onPersonContextMenu={interactive && onPersonContextMenu
+          ? (e, p) => onPersonContextMenu(e, p as Person)
+          : undefined}
+      />
     </div>
   )
 })
@@ -333,8 +308,6 @@ interface TaskPillBarProps extends PillCommon {
   todo: PersistedTodoItem
   /** Pre-resolved people assignment for this todo. */
   people: readonly Person[]
-  /** Pre-resolved org assignment for this todo. */
-  orgs: readonly Org[]
   /** Pre-resolved status (or undefined). */
   status?: Status
   today: Date
@@ -361,7 +334,6 @@ interface TaskPillBarProps extends PillCommon {
 
   onPeopleClick?: (e: MouseEvent) => void
   onPersonContextMenu?: (e: MouseEvent, person: Person) => void
-  onOrgContextMenu?: (e: MouseEvent, org: Org) => void
   onDeadlineClick?: (e: MouseEvent) => void
   onDeadlineClear?: (e: MouseEvent) => void
   onFollowupClick?: (e: MouseEvent) => void
@@ -370,13 +342,13 @@ interface TaskPillBarProps extends PillCommon {
 }
 
 export const TaskPillBar = memo(function TaskPillBar({
-  todo, people, orgs, status, today,
+  todo, people, status, today,
   interactive = true, compact = false, density = 'default',
   dateLayout = 'inline', showStatus = true,
-  deadlineIntensity, personColorContext,
+  deadlineIntensity,
   peopleAnchorRef, followupAnchorRef, statusAnchorRef,
   followupOpen, ariaHidden,
-  onPeopleClick, onPersonContextMenu, onOrgContextMenu,
+  onPeopleClick, onPersonContextMenu,
   onDeadlineClick, onDeadlineClear,
   onFollowupClick, onFollowupClear, onStatusClick,
 }: TaskPillBarProps) {
@@ -388,15 +360,12 @@ export const TaskPillBar = memo(function TaskPillBar({
     <>
       <TaskPillPeople
         people={people}
-        orgs={orgs}
         interactive={interactive}
         compact={compact}
         density={density}
-        personColorContext={personColorContext}
         anchorRef={peopleAnchorRef}
         onPeopleClick={onPeopleClick}
         onPersonContextMenu={onPersonContextMenu}
-        onOrgContextMenu={onOrgContextMenu}
       />
       <TaskPillDates
         todo={todo}

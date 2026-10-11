@@ -2,15 +2,15 @@ import { expect, test, type Page } from '@playwright/test'
 import { listInsetByIndex, seedCanvas } from './fixtures/seed'
 
 /**
- * triage-2026-04-27-batch2 P3 — list editor modal regressions.
+ * List editor modal regressions.
  *
- * Item 2 (z-index): the discard-changes confirm fired by the list editor's
+ * Z-index: the discard-changes confirm fired by the list editor's
  * dirty guard used to render at `--z-dialog` (1001), which sat below the
  * editor itself at `--z-dialog-overlay` (1002) — the confirm appeared
  * "behind" the editor and the UI looked frozen. Post-fix, BulkConfirmDialog
  * routes through `--z-dialog-nested` (1003) and lands on top.
  *
- * Item 3 (dropdown flip): the Sort / Group `IconSelect` dropdowns inside
+ * Dropdown flip: the Sort / Group `IconSelect` dropdowns inside
  * `ListEditorBody` used a `position: absolute; top: calc(100% + 4px)` menu
  * inside the dialog body, which has `overflow: auto`. Near the viewport
  * bottom the menu was clipped + scroll-required. Post-fix, the menu portals
@@ -64,12 +64,12 @@ async function findIconSelectPanel(page: Page, optionLabel: string): Promise<Pan
   }, optionLabel)
 }
 
-test.describe('list editor modal — dropdown flip (item 3)', () => {
+test.describe('list editor modal — dropdown flip', () => {
   test('Sort dropdown stays inside viewport when panel would clip the bottom', async ({ page }) => {
     // Viewport short enough that the Sort menu (~226 px tall in Chromium)
     // exceeds the room below the trigger. usePopoverAnchor flips above when
     // there's room there, otherwise clamps the panel to fit; either way the
-    // user always sees the full panel (the regression item 3 covered).
+    // user always sees the full panel (the dropdown-flip regression).
     await page.setViewportSize({ width: 1024, height: 480 })
     await seedCanvas(page, {
       listDefinitions: [{ name: 'Flip target' }],
@@ -156,12 +156,11 @@ async function findFilterChipPanel(page: Page, marker: string): Promise<PanelGeo
   }, marker)
 }
 
-test.describe('list editor modal — FilterChipBar dropdown flip (item 10)', () => {
+test.describe('list editor modal — FilterChipBar dropdown flip', () => {
   test('Date dropdown stays inside viewport when panel would clip the bottom', async ({ page }) => {
-    // Triage-2026-04-27-batch2 P10: P3 only migrated `IconSelect` (Sort /
-    // Group). The FilterChipBar dropdowns rendered by `<ListFilterEditor>`
-    // (Date here; Project / People / Org / Tags / Status when those entities
-    // exist) used `position: absolute; top: calc(100% + 4px)` inside the
+    // The Sort / Group fix above only migrated `IconSelect`. The
+    // FilterChipBar dropdowns rendered by `<ListFilterEditor>` (Date here;
+    // Project / People / Tags / Status when those entities exist) used `position: absolute; top: calc(100% + 4px)` inside the
     // dialog body's `overflow: auto` and got clipped near the bottom — user
     // had to scroll inside the modal to reach the rest of the panel. After
     // the migration to `usePopoverAnchor + createPortal`, the panel escapes
@@ -255,7 +254,7 @@ test.describe('list editor modal — FilterChipBar dropdown flip (item 10)', () 
   })
 })
 
-test.describe('list editor modal — nested confirm z-index (item 2)', () => {
+test.describe('list editor modal — nested confirm z-index', () => {
   test('discard-changes confirm renders above the editor', async ({ page }) => {
     await seedCanvas(page, {
       listDefinitions: [{ name: 'Discard probe' }],

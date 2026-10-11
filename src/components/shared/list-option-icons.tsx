@@ -43,20 +43,6 @@ export function PeopleIcon() {
   return <StatusIcon icon="person" />
 }
 
-export function OrgIcon() {
-  return (
-    <svg {...svgBase}>
-      <rect x="2.5" y="3" width="5" height="10" rx="0.5" />
-      <rect x="8.5" y="6" width="5" height="7" rx="0.5" />
-      <line x1="4" y1="5.5" x2="6" y2="5.5" />
-      <line x1="4" y1="8" x2="6" y2="8" />
-      <line x1="4" y1="10.5" x2="6" y2="10.5" />
-      <line x1="10" y1="8.5" x2="12" y2="8.5" />
-      <line x1="10" y1="11" x2="12" y2="11" />
-    </svg>
-  )
-}
-
 export function ProjectIcon() {
   return (
     <svg {...svgBase}>

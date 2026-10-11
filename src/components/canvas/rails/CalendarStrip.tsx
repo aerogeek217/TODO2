@@ -1,6 +1,6 @@
 import { useId, useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
-import type { PersistedTodoItem, Person, Org, Status } from '../../../models'
+import type { PersistedTodoItem, Person, Status } from '../../../models'
 import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { startOfDay, MS_PER_DAY } from '../../../utils/date'
 import { TASK_DROP_KIND, calendarDayDropId } from '../../../utils/task-dnd'
@@ -21,7 +21,6 @@ interface CalendarStripProps {
   /** Weeks offset from today's week. 0 = current week. */
   weekOffset?: number
   assignedPeopleMap: Map<number, Person[]>
-  assignedOrgsMap: Map<number, Org[]>
   statuses: Status[]
   onOpenTodo?: (todoId: number) => void
   onWeekOffsetChange?: (n: number) => void
@@ -137,7 +136,6 @@ export function CalendarStrip({
   orientation = 'vertical',
   weekOffset = 0,
   assignedPeopleMap,
-  assignedOrgsMap,
   statuses,
   onOpenTodo,
   onWeekOffsetChange,
@@ -148,8 +146,8 @@ export function CalendarStrip({
   const scope = scopeProp ?? autoScope
   const days = useMemo(() => buildDayRange(today, weekOffset), [today, weekOffset])
   const entriesByDay = useMemo(
-    () => buildEntries(todos, days, assignedPeopleMap, assignedOrgsMap, statuses),
-    [todos, days, assignedPeopleMap, assignedOrgsMap, statuses],
+    () => buildEntries(todos, days, assignedPeopleMap, statuses),
+    [todos, days, assignedPeopleMap, statuses],
   )
   const todayKey = dayKey(today)
 

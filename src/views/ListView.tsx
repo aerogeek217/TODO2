@@ -13,7 +13,6 @@ import {
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useProjectStore } from '../stores/project-store'
-import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useUIStore } from '../stores/ui-store'
@@ -37,7 +36,6 @@ import {
   buildFollowupSections,
   buildPeopleSections,
   buildProjectSections,
-  buildOrgSections,
   buildStatusSections,
   buildTagSections,
   itemSortComparator,
@@ -64,7 +62,6 @@ const groupByOptions: readonly SortGroupOption<ListGroupBy>[] = [
   { value: 'project', label: 'Project', icon: groupByIcons.project },
   { value: 'status', label: 'Status', icon: groupByIcons.status },
   { value: 'people', label: 'People', icon: groupByIcons.people },
-  { value: 'org', label: 'Org', icon: groupByIcons.org },
   { value: 'tag', label: 'Tag', icon: groupByIcons.tag },
 ]
 
@@ -78,7 +75,6 @@ const itemSortByOptions: readonly SortGroupOption<ListItemSortBy>[] = [
 const runtimeFilterOptions: { value: RuntimeFilterField | 'none'; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'person', label: 'Person' },
-  { value: 'org', label: 'Org' },
   { value: 'project', label: 'Project' },
   { value: 'status', label: 'Status' },
   { value: 'tag', label: 'Tag' },
@@ -152,7 +148,6 @@ export function ListView() {
   const { todos, ensureAllLoaded: loadAll, update: updateTodo } = useTodoStore()
   const { people, assignedPeopleMap, ensureLoaded: loadPeople, assignPerson, unassignPerson } = usePersonStore()
   const { projects, ensureAllLoaded: loadAllProjects } = useProjectStore()
-  const { orgs, assignedOrgsMap, personOrgMap, ensureLoaded: loadOrgs, loadPersonOrgMap } = useOrgStore()
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTags = useTagStore((s) => s.ensureLoaded)
   const { statuses, ensureLoaded: loadStatuses } = useStatusStore()
@@ -206,21 +201,16 @@ export function ListView() {
     loadAll()
     loadPeople()
     loadAllProjects()
-    loadOrgs()
     loadTags()
     loadStatuses()
     loadListDefinitions()
-  }, [loadAll, loadPeople, loadAllProjects, loadOrgs, loadTags, loadStatuses, loadListDefinitions])
+  }, [loadAll, loadPeople, loadAllProjects, loadTags, loadStatuses, loadListDefinitions])
 
   useEntityAssignmentsForTodos(todos)
 
   useEffect(() => {
     setCollapsed({})
   }, [listGroupBy])
-
-  useEffect(() => {
-    loadPersonOrgMap()
-  }, [people, orgs, loadPersonOrgMap])
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
 
@@ -236,14 +226,13 @@ export function ListView() {
 
   const activeTodos = useMemo(() => {
     if (runtimeFilterSpec && runtimeFilterValue == null) return []
-    return applyFilter(effectiveFilters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
-  }, [todos, effectiveFilters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
+    return applyFilter(effectiveFilters, todos, assignedPeopleMap, statuses, undefined, projectsById, assignedTagsMap)
+  }, [todos, effectiveFilters, assignedPeopleMap, statuses, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
 
-  // Filter-aware group ordering (P5 + P6, item 12 / item 1): when groupBy
-  // matches an active filter dimension (people / org / tag), restrict the
-  // visible group sections to that filter's ids and tier-order them
-  // direct→implicit. Reads off `effectiveFilters` so the runtime-prompt
-  // pick (which writes into `personIds` / `orgIds` / `tags` via
+  // Filter-aware group ordering: when groupBy matches an active filter
+  // dimension (people / tag), restrict the visible group sections to that
+  // filter's ids. Reads off `effectiveFilters` so the runtime-prompt
+  // pick (which writes into `personIds` / `tags` via
   // `applyRuntimeFilter`) restricts the visible groups too — without this,
   // a multi-assignee task that survives the membership filter would still
   // emit sections for its other assignees.
@@ -251,67 +240,9 @@ export function ListView() {
     () => (effectiveFilters.personIds ? Array.from(effectiveFilters.personIds) : null),
     [effectiveFilters.personIds],
   )
-  const restrictToOrgIds = useMemo(
-    () => (effectiveFilters.orgIds ? Array.from(effectiveFilters.orgIds) : null),
-    [effectiveFilters.orgIds],
-  )
   const restrictToTagIds = useMemo(
     () => (effectiveFilters.tags ? Array.from(effectiveFilters.tags) : null),
     [effectiveFilters.tags],
-  )
-
-  // P6 cross-axis implicit-keys lookups. People grouping pulls members of
-  // the task's directly-assigned orgs (only when person-filter mode is the
-  // include-orgs default — direct-only mode skips the implicit tier so
-  // tasks that only matched via person-org membership simply drop out of
-  // the grouping). Org grouping is symmetric. Read from `effectiveFilters`
-  // so the runtime-prompt's hard-coded `direct-only` mode (P5) is honored.
-  const personFilterMode = effectiveFilters.personFilterMode
-  const orgFilterMode = effectiveFilters.orgFilterMode
-  const implicitPersonIdsFor = useCallback(
-    (todo: PersistedTodoItem): readonly number[] => {
-      const taskOrgs = assignedOrgsMap.get(todo.id) ?? []
-      if (taskOrgs.length === 0) return []
-      const orgIdSet = new Set<number>()
-      for (const o of taskOrgs) {
-        if (o.id != null) orgIdSet.add(o.id)
-      }
-      const memberIds: number[] = []
-      const seen = new Set<number>()
-      for (const [pid, orgIds] of personOrgMap) {
-        for (const oid of orgIds) {
-          if (orgIdSet.has(oid)) {
-            if (!seen.has(pid)) {
-              seen.add(pid)
-              memberIds.push(pid)
-            }
-            break
-          }
-        }
-      }
-      return memberIds
-    },
-    [assignedOrgsMap, personOrgMap],
-  )
-  const implicitOrgIdsFor = useCallback(
-    (todo: PersistedTodoItem): readonly number[] => {
-      const taskPeople = assignedPeopleMap.get(todo.id) ?? []
-      if (taskPeople.length === 0) return []
-      const orgIds: number[] = []
-      const seen = new Set<number>()
-      for (const p of taskPeople) {
-        if (p.id == null) continue
-        const pOrgs = personOrgMap.get(p.id) ?? []
-        for (const oid of pOrgs) {
-          if (!seen.has(oid)) {
-            seen.add(oid)
-            orgIds.push(oid)
-          }
-        }
-      }
-      return orgIds
-    },
-    [assignedPeopleMap, personOrgMap],
   )
 
   const sections = useMemo(() => {
@@ -327,23 +258,10 @@ export function ListView() {
           activeTodos,
           people,
           assignedPeopleMap,
-          orgs,
-          personOrgMap,
           restrictToPersonIds,
-          personFilterMode === 'include-orgs' ? implicitPersonIdsFor : undefined,
         )
       case 'project':
         return buildProjectSections(activeTodos, projects)
-      case 'org':
-        return buildOrgSections(
-          activeTodos,
-          orgs,
-          assignedOrgsMap,
-          personOrgMap,
-          effectiveFilters.orgIds,
-          restrictToOrgIds,
-          orgFilterMode === 'include-people' ? implicitOrgIdsFor : undefined,
-        )
       case 'status':
         return buildStatusSections(activeTodos, statuses)
       case 'tag':
@@ -354,21 +272,12 @@ export function ListView() {
     activeTodos,
     people,
     assignedPeopleMap,
-    assignedOrgsMap,
     projects,
-    orgs,
-    personOrgMap,
-    effectiveFilters.orgIds,
     statuses,
     assignedTagsMap,
     weekStartsOn,
     restrictToPersonIds,
-    restrictToOrgIds,
     restrictToTagIds,
-    personFilterMode,
-    orgFilterMode,
-    implicitPersonIdsFor,
-    implicitOrgIdsFor,
   ])
 
   const withinGroupComparator = useMemo(
@@ -573,7 +482,7 @@ export function ListView() {
         updateTodo({ ...todo, statusId: newStatusId, modifiedAt: now })
       }
     }
-    // Chronological / org / none groupings — no reassignment (ambiguous targets)
+    // Chronological / project / tag / none groupings — no reassignment
   }, [listGroupBy, sectionLabelMap, updateTodo])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -832,7 +741,6 @@ export function ListView() {
             mode="edit"
             {...taskEdit.editProps}
             allPeople={taskEdit.allPeople}
-            allOrgs={taskEdit.allOrgs}
             allTags={taskEdit.allTags}
             onClose={taskEdit.closeEditPopup}
             {...taskEdit.entityCreators}
@@ -846,14 +754,10 @@ export function ListView() {
             allPeople={taskEdit.allPeople}
             onClose={taskEdit.closeEditPopup}
             onCreate={taskEdit.onCreate}
-            assignedOrgs={[]}
-            allOrgs={taskEdit.allOrgs}
             assignedTags={[]}
             allTags={taskEdit.allTags}
             onAssignPerson={() => {}}
             onUnassignPerson={() => {}}
-            onAssignOrg={() => {}}
-            onUnassignOrg={() => {}}
             onAssignTag={() => {}}
             onUnassignTag={() => {}}
             {...taskEdit.entityCreators}

@@ -5,7 +5,6 @@ import { TopBar } from '../../../components/layout/TopBar'
 import { buildSearchContextMenuItems } from '../../../components/layout/top-bar-search-menu'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useOrgStore } from '../../../stores/org-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -182,12 +181,11 @@ describe('buildSearchContextMenuItems — search context menu', () => {
  * on mousedown — the input's natural blur still collapses the dropdown, so
  * actions still clean up both surfaces.
  */
-describe('TopBar search right-click — P2 dropdown survival', () => {
+describe('TopBar search right-click — dropdown survival', () => {
   beforeEach(() => {
     useFilterStore.getState().clearAll()
     useTodoStore.setState({ todos: [], loading: false, error: null })
     usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-    useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
     useProjectStore.setState({ projects: [], loading: false, error: null })

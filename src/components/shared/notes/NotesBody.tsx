@@ -7,7 +7,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useOrgStore } from '../../../stores/org-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useProjectStore } from '../../../stores/project-store'
 import { AppView, type PersistedTodoItem } from '../../../models'
@@ -71,7 +70,6 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const addTodo = useTodoStore((s) => s.add)
   const updateTodo = useTodoStore((s) => s.update)
   const assignPerson = usePersonStore((s) => s.assignPerson)
-  const assignOrg = useOrgStore((s) => s.assignOrg)
 
   const [caretLine, setCaretLine] = useState(0)
   const [copying, setCopying] = useState(false)
@@ -112,10 +110,9 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
     // handleAddTask path). Filter defaults are skipped on views without a
     // visible filter bar, matching TaskEditPopup's create-mode rule.
     const people = usePersonStore.getState().people
-    const orgs = useOrgStore.getState().orgs
     const projects = useProjectStore.getState().projects
     const statuses = useStatusStore.getState().statuses
-    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, projects, orgs, statuses)
+    const { title: parsedTitle, resolved } = parseTaskInput(rawTitle, people, projects, statuses)
     const activeView = useUIStore.getState().activeView
     const applyFilters = activeView !== AppView.Dashboard && activeView !== AppView.Settings
     const fd = applyFilters ? getFilterDefaults(useFilterStore.getState().filters) : null
@@ -138,7 +135,6 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
         (tid) => useTodoStore.getState().todos.find((t) => t.id === tid) as PersistedTodoItem | undefined,
         updateTodo,
         assignPerson,
-        assignOrg,
       )
       // Filter-inferred status only applies when no settings default pre-filled
       // the row (matching TaskEditPopup's priority: settings default wins).
@@ -160,7 +156,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
       },
     })
     return true
-  }, [activeId, addTodo, updateTodo, assignPerson, assignOrg, selectedCanvasId, defaultProjectId, onConvertToast, source])
+  }, [activeId, addTodo, updateTodo, assignPerson, selectedCanvasId, defaultProjectId, onConvertToast, source])
 
   const extraKeymap = useMemo(
     () => [

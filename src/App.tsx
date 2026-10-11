@@ -4,7 +4,6 @@ import { useCanvasStore } from './stores/canvas-store'
 import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
-import { useOrgStore } from './stores/org-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useProjectStore } from './stores/project-store'
 import { useFileStorageStore } from './stores/file-storage-store'
@@ -93,7 +92,7 @@ function AppBulkConfirmDialog() {
  * stores, and the full-editor handoff path.
  *
  * Submit (P4): mirrors `CanvasPage.handleAddTask` — `addTodo` for the row,
- * then `applyNlpMetadata` for parsed people/orgs/due date/
+ * then `applyNlpMetadata` for parsed people/due date/
  * recurrence/tags. Default project follows the same setting
  * (`useSettingsStore().defaultProjectId`) the create-popup consults today,
  * so `Ctrl+Space` lands tasks in the same place across both surfaces.
@@ -168,7 +167,6 @@ function AppQuickAddBar() {
       (tid) => useTodoStore.getState().todos.find((t) => t.id === tid),
       useTodoStore.getState().update,
       usePersonStore.getState().assignPerson,
-      useOrgStore.getState().assignOrg,
     )
     // Seed-default tags ride a separate channel (resolved.tags is slug-based,
     // applyNlpMetadata calls resolveTags on it). Tag ids from a list-predicate
@@ -247,7 +245,6 @@ function StartupPurgePrompt({ launchUids, onClose }: { launchUids: ReadonlySet<s
 function AppShell() {
   const { ensureDefault } = useCanvasStore()
   const { ensureLoaded: loadPeople } = usePersonStore()
-  const { ensureLoaded: loadOrgs } = useOrgStore()
   const { load: loadSettings } = useSettingsStore()
   const { initialize: initFileStorage } = useFileStorageStore()
   const isMobile = useIsMobile()
@@ -279,7 +276,7 @@ function AppShell() {
     Promise.all([ensureDefault(), loadSettings()])
       .then(() => initFileStorage())
       .then(() => navigator.storage?.persist?.().catch(() => {}))
-      .then(() => Promise.all([loadPeople(), loadOrgs(), useProjectStore.getState().ensureAllLoaded(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
+      .then(() => Promise.all([loadPeople(), useProjectStore.getState().ensureAllLoaded(), useStatusStore.getState().ensureLoaded(), useTagStore.getState().ensureLoaded()]))
       .then(async () => {
         // Completed tasks past retention are never purged silently —
         // remember which ones were expired at launch and ask
@@ -300,7 +297,7 @@ function AppShell() {
         setInitError(err instanceof Error ? err.message : String(err))
       })
     return () => backupScheduler.stop()
-  }, [ensureDefault, loadSettings, initFileStorage, loadPeople, loadOrgs])
+  }, [ensureDefault, loadSettings, initFileStorage, loadPeople])
 
   const createFloatingNote = useCallback(() => {
     if (location.pathname !== ROUTE_CANVAS) return

@@ -3,7 +3,7 @@ import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
 
 /**
  * Locks in the chip-slot ordering invariant on `TaskRow`. The four chip
- * slots (`# tags`, `@ people/orgs`, `date`, `status`) must appear in fixed
+ * slots (`# tags`, `@ people`, `date`, `status`) must appear in fixed
  * left-to-right order regardless of which fields are populated. Regression
  * for the case where status was set + date was empty: the empty-state date
  * calendar slot used to render after `<TaskPillBar>` (so after status),
@@ -114,7 +114,7 @@ test.describe('TaskRow chip slot order', () => {
           r.querySelector('button[class*="tagChip"]'),
         )
 
-        // Slot 2 — @ people/orgs. Empty: a button whose text is exactly "@".
+        // Slot 2 — @ people. Empty: a button whose text is exactly "@".
         // Populated: a `peopleGroup` wrapper from TaskPillPeople.
         let slot2: Element | null = r.querySelector('[class*="peopleGroup"]')
         if (!slot2) {

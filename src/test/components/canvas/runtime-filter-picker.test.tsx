@@ -4,13 +4,12 @@ import { RuntimeFilterPicker } from '../../../components/canvas/RuntimeFilterPic
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useProjectStore } from '../../../stores/project-store'
-import { useOrgStore } from '../../../stores/org-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { db } from '../../../data/database'
 import { makePerson, makeProject, resetEntityStores } from '../../helpers'
 
 function resetStores() {
-  resetEntityStores({ todos: false, orgs: false, statuses: false })
+  resetEntityStores({ todos: false, statuses: false })
 }
 
 describe('RuntimeFilterPicker', () => {
@@ -192,7 +191,7 @@ describe('RuntimeFilterPicker', () => {
     expect(onChange).toHaveBeenLastCalledWith([1])
   })
 
-  // Item-14 contract: the picker reads exclusively from cached Zustand stores;
+  // Contract: the picker reads exclusively from cached Zustand stores;
   // mounting and typing must not issue Dexie reads. Spy on every entity table
   // the picker could plausibly touch (`toArray` covers the `useXxxStore.ensureLoaded`
   // path; `where`/`get` cover incidental id-keyed lookups), then assert no spy
@@ -205,12 +204,11 @@ describe('RuntimeFilterPicker', () => {
       ],
       assignedPeopleMap: new Map(),
     })
-    useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
     useProjectStore.setState({ projects: [] })
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
 
-    const tables = [db.people, db.orgs, db.projects, db.statuses, db.tags, db.todos] as const
+    const tables = [db.people, db.projects, db.statuses, db.tags, db.todos] as const
     const methods = ['toArray', 'where', 'get', 'count', 'each', 'bulkGet', 'orderBy'] as const
     const spies = tables.flatMap((t) =>
       methods.map((m) => vi.spyOn(t as unknown as Record<string, () => unknown>, m)),

@@ -4,12 +4,12 @@ import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
 const DB_NAME = 'todo2'
 
 /**
- * Regression for triage-2026-05-01 P3: opening `TaskEditPopup` in *edit*
+ * Regression: opening `TaskEditPopup` in *edit*
  * mode for an existing task showed an empty Tags chip-picker dropdown,
  * even when the registry had tags. Root cause was a missing `allTags`
  * prop in the edit-mode mount sites — `taskEdit.editProps` doesn't carry
  * `allTags` (only `assignedTags`), and CanvasPage / ListView / CalendarView
- * were spreading editProps + threading `allPeople` + `allOrgs` explicitly
+ * were spreading editProps + threading `allPeople` explicitly
  * but not `allTags`. So `TaskEditPopup` defaulted `allTags = []` and the
  * picker had nothing to render. Create mode was unaffected — it threaded
  * `allTags={taskEdit.allTags}` directly.
@@ -48,7 +48,7 @@ test('TaskEditPopup edit mode shows registry tags in the Tags picker', async ({ 
   // Wait for the popup. The "Tags" row in `TaskEditMetadata` exposes a
   // `+ Add` button that toggles the chip selector dropdown.
   await expect(page.getByText('Tags', { exact: true })).toBeVisible()
-  // The Tags row's "+ Add" button — `.chipAddBtn` is reused by people/orgs/tags
+  // The Tags row's "+ Add" button — `.chipAddBtn` is reused by people/tags
   // rows, so we scope to the Tags row by walking from the visible label.
   const tagsRow = page.getByText('Tags', { exact: true }).locator('..')
   await tagsRow.getByRole('button', { name: '+ Add' }).click()

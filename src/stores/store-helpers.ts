@@ -2,17 +2,16 @@
  * Shared helpers for Zustand store patterns.
  * DUP-1: loadWithState — loading/error boilerplate
  * DUP-2: updateEntityInMap — refresh entity references in assignment maps
- * DUP-4: captureAssignments — capture person/org IDs for undo
+ * DUP-4: captureAssignments — capture person IDs for undo
  * DUP-5: bulkUpdateField — shared bulk field update with undo
  *
  * Capture/restore for soft-delete undo lives in `data/join-helpers.ts`
  * (`captureJoinRows`) and the per-entity repositories' `restoreWithJoins`
- * methods (org / tag / person) — store-layer undo paths consume those
+ * methods (tag / person) — store-layer undo paths consume those
  * rather than reaching into `db.X.add` directly.
  */
 
 import { personRepository } from '../data/person-repository'
-import { orgRepository } from '../data/org-repository'
 import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
 import { undoable } from '../services/undoable'
@@ -162,37 +161,25 @@ export function updateEntityInMap<E extends { id?: number }>(
 }
 
 /**
- * DUP-4: Capture current person/org assignment IDs for a todo (for undo).
- * Uses dynamic imports to avoid circular dependencies.
+ * DUP-4: Capture current person assignment IDs for a todo (for undo).
  */
 export async function captureAssignments(todoId: number): Promise<{
   personIds: number[]
-  orgIds: number[]
 }> {
-  const [people, orgsMap] = await Promise.all([
-    personRepository.getAssignedPeople(todoId),
-    orgRepository.getAssignedOrgsForTodos([todoId]),
-  ])
-  return {
-    personIds: people.map((p) => p.id!),
-    orgIds: (orgsMap.get(todoId) ?? []).map((o) => o.id!),
-  }
+  const people = await personRepository.getAssignedPeople(todoId)
+  return { personIds: people.map((p) => p.id!) }
 }
 
 /**
  * DUP-4: Capture assignments for multiple todos at once.
  */
 export async function captureAssignmentsBulk(todoIds: number[]): Promise<
-  Array<{ todoId: number; personIds: number[]; orgIds: number[] }>
+  Array<{ todoId: number; personIds: number[] }>
 > {
-  const [pMap, oMap] = await Promise.all([
-    personRepository.getAssignedPeopleForTodos(todoIds),
-    orgRepository.getAssignedOrgsForTodos(todoIds),
-  ])
+  const pMap = await personRepository.getAssignedPeopleForTodos(todoIds)
   return todoIds.map((todoId) => ({
     todoId,
     personIds: (pMap.get(todoId) ?? []).map((p) => p.id!),
-    orgIds: (oMap.get(todoId) ?? []).map((o) => o.id!),
   }))
 }
 

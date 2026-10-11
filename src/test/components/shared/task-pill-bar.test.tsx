@@ -7,7 +7,8 @@ import {
   TaskPillStatus,
 } from '../../../components/shared/TaskPillBar'
 import type { Status } from '../../../models'
-import { makeTodo, makePerson, makeOrg } from '../../helpers'
+import { makeTodo, makePerson } from '../../helpers'
+import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 
 const today = new Date(2026, 3, 16) // Apr 16, 2026 (Thursday)
 
@@ -33,13 +34,11 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-          orgs={[makeOrg({ id: 9, name: 'Acme', initials: 'AC', color: '#ff0000' })]}
           status={inProgress}
           today={today}
         />,
       )
       expect(screen.getByText('AL')).toBeInTheDocument()
-      expect(screen.getByText('AC')).toBeInTheDocument()
       expect(screen.getByTitle('Due — click to change')).toBeInTheDocument()
       expect(screen.getByLabelText('Status: In Progress')).toBeInTheDocument()
     })
@@ -50,7 +49,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
         />,
       )
@@ -58,13 +56,12 @@ describe('<TaskPillBar>', () => {
       expect(container.querySelector('[class*="dateStack"]')).toBeNull()
     })
 
-    it('renders no people group when there are no people or orgs', () => {
+    it('renders no people group when there are no people', () => {
       const todo = makeTodo({ id: 1 })
       const { container } = render(
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
         />,
       )
@@ -77,7 +74,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
         />,
       )
@@ -90,7 +86,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
           onDeadlineClear={() => undefined}
         />,
@@ -104,7 +99,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
         />,
       )
@@ -118,7 +112,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
           onDeadlineClick={onDeadlineClick}
         />,
@@ -137,7 +130,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
         />,
       )
@@ -150,7 +142,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
         />,
       )
@@ -169,7 +160,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
           interactive={false}
           compact
@@ -180,20 +170,18 @@ describe('<TaskPillBar>', () => {
       expect(container.querySelector('[class*="deadlineChip"]')).toBeNull()
     })
 
-    it('hides org avatars in compact mode', () => {
+    it("fills person avatars with the person's color in compact mode", () => {
       const todo = makeTodo({ id: 1 })
-      const { container } = render(
+      render(
         <TaskPillBar
           todo={todo}
-          people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-          orgs={[makeOrg({ id: 9, name: 'Acme', initials: 'AC', color: '#ff0000' })]}
+          people={[makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' })]}
           today={today}
           interactive={false}
           compact
         />,
       )
-      expect(screen.getByText('AL')).toBeInTheDocument()
-      expect(container.querySelector('[class*="avatarHollow"]')).toBeNull()
+      expect(screen.getByText('AL')).toHaveStyle({ backgroundColor: '#ff0000' })
     })
   })
 
@@ -208,7 +196,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-          orgs={[]}
           status={inProgress}
           today={today}
           interactive={false}
@@ -224,7 +211,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
           interactive={false}
         />,
@@ -240,7 +226,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
           interactive={false}
           ariaHidden
@@ -261,7 +246,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
           dateLayout="stack"
         />,
@@ -278,7 +262,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           today={today}
         />,
       )
@@ -294,7 +277,6 @@ describe('<TaskPillBar>', () => {
         <TaskPillBar
           todo={todo}
           people={[]}
-          orgs={[]}
           status={inProgress}
           today={today}
           showStatus={false}
@@ -320,14 +302,11 @@ describe('<TaskPillBar>', () => {
         path.resolve(__dirname, '../../../components/shared/TaskPillBar.tsx'),
         'utf-8',
       )
-      // Match only at-runtime references (calls / imports). Comments mentioning
-      // `useOrgStore` for context are fine; what matters is that the module
-      // never reads from any assignment store.
+      // Match only at-runtime references (calls / imports); what matters is
+      // that the module never reads from any assignment store.
       expect(file).not.toMatch(/import .*usePersonStore/)
-      expect(file).not.toMatch(/import .*useOrgStore/)
       expect(file).not.toMatch(/import .*useStatusStore/)
       expect(file).not.toMatch(/usePersonStore\(/)
-      expect(file).not.toMatch(/useOrgStore\(/)
       expect(file).not.toMatch(/useStatusStore\(/)
       expect(file).not.toMatch(/useAssignedPeopleMap/)
     })
@@ -335,18 +314,45 @@ describe('<TaskPillBar>', () => {
 })
 
 describe('<TaskPillPeople>', () => {
-  it('renders nothing when people and orgs are empty', () => {
+  it('renders nothing when people is empty', () => {
     const { container } = render(
-      <TaskPillPeople people={[]} orgs={[]} interactive={false} />,
+      <TaskPillPeople people={[]} interactive={false} />,
     )
     expect(container.firstChild).toBeNull()
+  })
+
+  it("fills each avatar with the person's own color", () => {
+    render(
+      <TaskPillPeople
+        people={[
+          makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' }),
+          makePerson({ id: 2, name: 'Bob', initials: 'BO', color: '#0000ff' }),
+        ]}
+        interactive={false}
+      />,
+    )
+    expect(screen.getByText('AL')).toHaveStyle({ backgroundColor: '#ff0000' })
+    expect(screen.getByText('BO')).toHaveStyle({ backgroundColor: '#0000ff' })
+  })
+
+  it('falls back to NEUTRAL_PERSON_COLOR for a person without a color', () => {
+    render(
+      <TaskPillPeople
+        people={[
+          makePerson({ id: 1, name: 'Alice', initials: 'AL', color: '#ff0000' }),
+          makePerson({ id: 2, name: 'Bob', initials: 'BO' }),
+        ]}
+        interactive={false}
+      />,
+    )
+    expect(screen.getByText('BO')).toHaveStyle({ backgroundColor: NEUTRAL_PERSON_COLOR })
+    expect(screen.getByText('AL')).not.toHaveStyle({ backgroundColor: NEUTRAL_PERSON_COLOR })
   })
 
   it('uses size=sm in compact mode', () => {
     const { container } = render(
       <TaskPillPeople
         people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-        orgs={[]}
         interactive={false}
         compact
       />,
@@ -359,7 +365,6 @@ describe('<TaskPillPeople>', () => {
     const { container } = render(
       <TaskPillPeople
         people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-        orgs={[]}
         interactive={false}
         density="small"
       />,

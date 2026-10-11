@@ -4,20 +4,18 @@ import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
-import { makePerson, makeOrg, makeTodo, resetDb } from '../helpers'
-import type { Person, Org, Tag, PersistedTodoItem } from '../../models'
+import { makePerson, makeTodo, resetDb } from '../helpers'
+import type { Person, Tag, PersistedTodoItem } from '../../models'
 
 // Suppress showPicker (not supported in jsdom)
 beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
 })
 
-const TITLE_PLACEHOLDER = 'New task... (@person @org #tag /project tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task... (@person #tag /project tomorrow "this week")'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })
-const acmeOrg: Org & { id: number } = makeOrg({ id: 1, name: 'Acme' })
-const globexOrg: Org & { id: number } = makeOrg({ id: 2, name: 'Globex' })
 const urgentTag: Tag & { id: number } = { id: 1, name: 'urgent', color: '#f00' }
 const followupTag: Tag & { id: number } = { id: 2, name: 'followup', color: '#0a0' }
 
@@ -54,16 +52,12 @@ function renderCreateMode(overrides: Record<string, unknown> = {}) {
     mode: 'create' as const,
     assignedPeople: [],
     allPeople: [alice, bob],
-    assignedOrgs: [],
-    allOrgs: [acmeOrg, globexOrg],
     assignedTags: [],
     allTags: [urgentTag, followupTag],
     onClose,
     onCreate,
     onAssignPerson: vi.fn(),
     onUnassignPerson: vi.fn(),
-    onAssignOrg: vi.fn(),
-    onUnassignOrg: vi.fn(),
     onAssignTag: vi.fn(),
     onUnassignTag: vi.fn(),
     onCreatePerson: vi.fn().mockResolvedValue(99),
@@ -79,8 +73,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
   const onUpdate = vi.fn()
   const onAssignPerson = vi.fn()
   const onUnassignPerson = vi.fn()
-  const onAssignOrg = vi.fn()
-  const onUnassignOrg = vi.fn()
   const onAssignTag = vi.fn()
   const onUnassignTag = vi.fn()
   const onCreateTag = vi.fn().mockResolvedValue(77)
@@ -90,8 +82,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     todo,
     assignedPeople: [alice],
     allPeople: [alice, bob],
-    assignedOrgs: [],
-    allOrgs: [acmeOrg, globexOrg],
     assignedTags: [],
     allTags: [urgentTag, followupTag],
     onClose: vi.fn(),
@@ -101,8 +91,6 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
     onDelete: vi.fn(),
     onAssignPerson,
     onUnassignPerson,
-    onAssignOrg,
-    onUnassignOrg,
     onAssignTag,
     onUnassignTag,
     onCreateTag,
@@ -110,7 +98,7 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
   }
 
   const result = render(<TaskEditPopup {...props} />)
-  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignOrg, onUnassignOrg, onAssignTag, onUnassignTag, onCreateTag }
+  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignTag, onUnassignTag, onCreateTag }
 }
 
 describe('TaskEditPopup', () => {
@@ -142,25 +130,6 @@ describe('TaskEditPopup', () => {
       const [partial, assignments] = onCreate.mock.calls[0]!
       expect(partial.title).toBe('Test task')
       expect(assignments.personIds).toEqual([1])
-      expect(assignments.orgIds).toEqual([])
-    })
-
-    it('toggling an org includes it in onCreate assignments', async () => {
-      const { onCreate } = renderCreateMode()
-
-      openPeopleDropdown() // orgs are in the people dropdown
-      fireEvent.click(screen.getByText('Acme'))
-
-      typeTitle('Org task')
-      clickCreate()
-
-      await vi.waitFor(() => {
-        expect(onCreate).toHaveBeenCalledOnce()
-      })
-
-      const [, assignments] = onCreate.mock.calls[0]!
-      expect(assignments.orgIds).toEqual([1])
-      expect(assignments.personIds).toEqual([])
     })
 
     it('toggling a person twice removes them from pending', async () => {
@@ -212,7 +181,7 @@ describe('TaskEditPopup', () => {
 
       openPeopleDropdown()
 
-      const searchInput = screen.getByPlaceholderText('Search people & orgs...')
+      const searchInput = screen.getByPlaceholderText('Search people...')
       fireEvent.change(searchInput, { target: { value: 'Charlie' } })
       fireEvent.click(screen.getByText('+ Create "Charlie"'))
 
@@ -234,14 +203,12 @@ describe('TaskEditPopup', () => {
     it('does not call the no-op assignment callbacks in create mode', () => {
       const { props } = renderCreateMode()
 
-      // Toggle person and org in the same dropdown session
+      // Toggle a person on and off in the same dropdown session
       openPeopleDropdown()
       fireEvent.click(screen.getByText('Alice'))
-      fireEvent.click(screen.getByText('Acme'))
+      fireEvent.click(screen.getByText('Alice'))
       expect(props.onAssignPerson).not.toHaveBeenCalled()
       expect(props.onUnassignPerson).not.toHaveBeenCalled()
-      expect(props.onAssignOrg).not.toHaveBeenCalled()
-      expect(props.onUnassignOrg).not.toHaveBeenCalled()
     })
 
     it('empty assignments are passed when no chips selected', async () => {
@@ -256,7 +223,6 @@ describe('TaskEditPopup', () => {
 
       const [, assignments] = onCreate.mock.calls[0]!
       expect(assignments.personIds).toEqual([])
-      expect(assignments.orgIds).toEqual([])
     })
   })
 
@@ -274,16 +240,6 @@ describe('TaskEditPopup', () => {
       // Bob is not assigned — toggling should assign
       fireEvent.click(screen.getByText('Bob'))
       expect(onAssignPerson).toHaveBeenCalledWith(2)
-    })
-
-    it('toggling an org calls onAssignOrg/onUnassignOrg', () => {
-      const todo = makeTodo({ id: 10, title: 'Edit task' })
-      const { onAssignOrg } = renderEditMode(todo)
-
-      openPeopleDropdown()
-
-      fireEvent.click(screen.getByText('Acme'))
-      expect(onAssignOrg).toHaveBeenCalledWith(1)
     })
   })
 

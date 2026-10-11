@@ -6,7 +6,6 @@ import { db } from '../../../../data/database'
 import { StatusSlotContent } from '../../../../components/canvas/rails/StatusSlotContent'
 import { useTodoStore } from '../../../../stores/todo-store'
 import { usePersonStore } from '../../../../stores/person-store'
-import { useOrgStore } from '../../../../stores/org-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { useStatusStore } from '../../../../stores/status-store'
 import { makeTodo } from '../../../helpers'
@@ -22,8 +21,6 @@ vi.mock('../../../../hooks/use-bulk-actions', () => ({
     setProject: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
-    quickAssignOrg: vi.fn(),
-    quickUnassignOrg: vi.fn(),
     quickAssignTag: vi.fn(),
     quickUnassignTag: vi.fn(),
   }),
@@ -41,7 +38,6 @@ beforeEach(async () => {
   await db.open()
   useTodoStore.setState({ todos: [], todosVersion: 0, loading: false, error: null })
   usePersonStore.setState({ people: [], assignedPeopleMap: new Map(), loading: false, error: null })
-  useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map(), loading: false, error: null })
   useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
   useStatusStore.setState({ statuses: [], loading: false, error: null })
 })

@@ -10,9 +10,8 @@ export const personRepository = {
   ...base,
 
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.people, db.todoPeople, db.personOrgs], async () => {
+    await db.transaction('rw', [db.people, db.todoPeople], async () => {
       await db.todoPeople.where('personId').equals(id).delete()
-      await db.personOrgs.where('personId').equals(id).delete()
       await db.people.delete(id)
     })
   },
@@ -53,8 +52,7 @@ export const personRepository = {
 
   /**
    * Undo-restore for `delete`: re-insert the person row (preserving its id)
-   * plus every captured join row (`todoPeople` + `personOrgs`) inside one
-   * transaction.
+   * plus its captured `todoPeople` join rows inside one transaction.
    */
   async restoreWithJoins(person: Person, joins: JoinCapture[]): Promise<void> {
     await db.transaction('rw', [db.people, ...joins.map(j => j.table)], async () => {

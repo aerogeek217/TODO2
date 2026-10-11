@@ -19,7 +19,7 @@ interface TagChipSelectorProps {
 }
 
 /**
- * Inline tag chip row + lookup-or-create popover. Mirrors the people/org
+ * Inline tag chip row + lookup-or-create popover. Mirrors the people
  * `ChipSelector` pattern on `TaskRow`: empty state shows a hover-revealed
  * `#` trigger; populated state shows clickable `#tag` chips. Click any chip
  * (or the trigger) to open a portaled dropdown over the full tag registry.

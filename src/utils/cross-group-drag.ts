@@ -1,7 +1,6 @@
 import type { ProjectGroupBy } from '../models'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 
 /**
@@ -50,22 +49,19 @@ export function parseBlockContextId(
  *
  * - `status` carries the new statusId, or `undefined` when the target is
  *   the synthetic ungrouped bucket (i.e. clear the status).
- * - `people` / `org` / `tag` carry **replace** semantics: remove the
+ * - `people` / `tag` carry **replace** semantics: remove the
  *   source assignment if any (`removeId`), add the target assignment if
  *   any (`addId`). Either side may be `null` to cover drags from the
- *   "(no people)" / "(no org)" / "(no tag)" synthetic bucket or drags
- *   into it.
+ *   "(no people)" / "(no tag)" synthetic bucket or drags into it.
  */
 export type CrossGroupMutation =
   | { kind: 'status'; todoId: number; statusId: number | undefined }
   | { kind: 'people'; todoId: number; removeId: number | null; addId: number | null }
-  | { kind: 'org'; todoId: number; removeId: number | null; addId: number | null }
   | { kind: 'tag'; todoId: number; removeId: number | null; addId: number | null }
 
 const PREFIX_BY_GROUP = {
   status: 'status-',
   people: 'person-',
-  org: 'org-',
   tag: 'tag-',
 } as const
 
@@ -116,7 +112,7 @@ export function resolveCrossGroupMutation(
     return { kind: 'status', todoId, statusId: sid }
   }
 
-  if (groupBy === 'people' || groupBy === 'org' || groupBy === 'tag') {
+  if (groupBy === 'people' || groupBy === 'tag') {
     const prefix = PREFIX_BY_GROUP[groupBy]
     const removeId = sourceKey === UNGROUPED_GROUP_KEY ? null : parseId(sourceKey, prefix)
     const addId = targetKey === UNGROUPED_GROUP_KEY ? null : parseId(targetKey, prefix)
@@ -146,15 +142,6 @@ export async function dispatchCrossGroupMutation(mutation: CrossGroupMutation): 
       }
       if (mutation.addId != null) {
         await usePersonStore.getState().assignPerson(mutation.todoId, mutation.addId)
-      }
-      return
-    }
-    case 'org': {
-      if (mutation.removeId != null) {
-        await useOrgStore.getState().unassignOrg(mutation.todoId, mutation.removeId)
-      }
-      if (mutation.addId != null) {
-        await useOrgStore.getState().assignOrg(mutation.todoId, mutation.addId)
       }
       return
     }

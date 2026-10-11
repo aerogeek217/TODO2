@@ -1,10 +1,9 @@
-import type { PersistedTodoItem, Person, Project, Org } from '../models'
+import type { PersistedTodoItem, Person, Project } from '../models'
 import type { FilterCriteria } from '../stores/filter-store'
 import { db } from '../data/database'
 import { useFilterStore } from '../stores/filter-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useOrgStore } from '../stores/org-store'
 import { useStatusStore } from '../stores/status-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTagStore } from '../stores/tag-store'
@@ -52,13 +51,6 @@ export function makeProject(overrides: Partial<Project> & { id: number; canvasId
   }
 }
 
-export function makeOrg(overrides: Partial<Org> & { id: number }): Org & { id: number } {
-  return {
-    name: `Org ${overrides.id}`,
-    ...overrides,
-  }
-}
-
 export async function resetDb(): Promise<void> {
   await db.delete()
   await db.open()
@@ -68,17 +60,13 @@ export async function resetDb(): Promise<void> {
 export const emptyFilterCriteria: FilterCriteria = {
   showCompleted: false,
   personIds: null,
-  personFilterMode: 'include-orgs',
-  orgIds: null,
-  orgFilterMode: 'include-people',
   projectIds: null,
   statusIds: null,
   searchText: '',
-  dateField: 'date',
+  dateField: 'deadline',
   dateRangeStart: null,
   dateRangeEnd: null,
   dateRangeIncludeNoDate: false,
-  hasScheduled: null,
   hasDeadline: null,
   hasFollowup: null,
   tags: null,
@@ -90,7 +78,7 @@ export function clearFilterStore(): void {
 }
 
 /**
- * Reset the entity stores (todos, people, orgs, statuses, projects, tags).
+ * Reset the entity stores (todos, people, statuses, projects, tags).
  * Each entity flag defaults to true; pass an opt-out for the ones you want to
  * keep mid-test (e.g. `resetEntityStores({ statuses: false })` if the suite
  * pre-seeds statuses outside the helper).
@@ -98,7 +86,6 @@ export function clearFilterStore(): void {
 export function resetEntityStores(opts: {
   todos?: boolean
   people?: boolean
-  orgs?: boolean
   statuses?: boolean
   projects?: boolean
   tags?: boolean
@@ -106,14 +93,12 @@ export function resetEntityStores(opts: {
   const {
     todos = true,
     people = true,
-    orgs = true,
     statuses = true,
     projects = true,
     tags = true,
   } = opts
   if (todos) useTodoStore.setState({ todos: [] })
   if (people) usePersonStore.setState({ people: [], assignedPeopleMap: new Map() })
-  if (orgs) useOrgStore.setState({ orgs: [], assignedOrgsMap: new Map(), personOrgMap: new Map() })
   if (statuses) useStatusStore.setState({ statuses: [] })
   if (projects) useProjectStore.setState({ projects: [] })
   if (tags) useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
@@ -140,16 +125,33 @@ export function resetFloatingStores(): void {
 }
 
 /**
- * Dexie store specs of the v52 schema, for tests that build an old database
- * by hand and then open it with the real `Todo2Database`. v53 and v54 changed
- * no store spec, so this is the current schema. Update when a later version changes a
- * store spec (add back what it drops / alters).
+ * Dexie store specs of the current schema, for tests that build an old
+ * database by hand and then open it with the real `Todo2Database`.
  */
-export function v52StoreSpecs(): Record<string, string> {
+function currentStoreSpecs(): Record<string, string> {
   return Object.fromEntries(db.tables.map((t) => {
     const indexes = t.schema.indexes.map((i) => i.src)
     return [t.name, [t.schema.primKey.src, ...indexes].join(', ')]
   }))
+}
+
+/**
+ * Store specs of the v54 schema: the current ones plus the org stores v55
+ * dropped. Update when a later version changes a store spec (add back what it
+ * drops / alters).
+ */
+export function v54StoreSpecs(): Record<string, string> {
+  return {
+    ...currentStoreSpecs(),
+    orgs: '++id, name',
+    todoOrgs: '++id, todoId, orgId',
+    personOrgs: '++id, personId, orgId',
+  }
+}
+
+/** Store specs of the v52 schema — v53 and v54 changed no store spec. */
+export function v52StoreSpecs(): Record<string, string> {
+  return v54StoreSpecs()
 }
 
 /**

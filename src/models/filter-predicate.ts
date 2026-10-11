@@ -1,8 +1,5 @@
 import type { DateField } from './app-view'
 
-export type OrgFilterMode = 'include-people' | 'direct-only'
-export type PersonFilterMode = 'include-orgs' | 'direct-only'
-
 /**
  * Relative-date tokens resolve to a concrete Date at eval time against "today"
  * and the user's `weekStartsOn`. Authoring a predicate with a relative anchor
@@ -63,9 +60,6 @@ export interface TodoPredicate {
   showCompleted: boolean
   /** null = no filter (all shown); array = only those IDs shown (0 = "unassigned" sentinel) */
   personIds: number[] | null
-  personFilterMode: PersonFilterMode
-  orgIds: number[] | null
-  orgFilterMode: OrgFilterMode
   /** null = no filter; array = only todos in these projects shown (0 = "no project" sentinel) */
   projectIds: number[] | null
   statusIds: number[] | null

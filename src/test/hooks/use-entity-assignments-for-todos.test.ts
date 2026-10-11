@@ -3,20 +3,16 @@ import { renderHook, cleanup } from '@testing-library/react'
 import { useEntityAssignmentsForTodos } from '../../hooks/use-entity-assignments-for-todos'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useTagStore } from '../../stores/tag-store'
 import { makeTodo } from '../helpers'
 
 let loadPeopleAssignments: ReturnType<typeof vi.fn>
-let loadOrgAssignments: ReturnType<typeof vi.fn>
 let loadTagAssignments: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   loadPeopleAssignments = vi.fn().mockResolvedValue(undefined)
-  loadOrgAssignments = vi.fn().mockResolvedValue(undefined)
   loadTagAssignments = vi.fn().mockResolvedValue(undefined)
   usePersonStore.setState({ loadAssignments: loadPeopleAssignments })
-  useOrgStore.setState({ loadAssignments: loadOrgAssignments })
   useTagStore.setState({ loadAssignments: loadTagAssignments })
   useTodoStore.setState({ todosVersion: 1 })
 })
@@ -26,12 +22,11 @@ afterEach(() => {
 })
 
 describe('useEntityAssignmentsForTodos', () => {
-  it('loads people / org / tag assignments for the visible todo ids', () => {
+  it('loads people / tag assignments for the visible todo ids', () => {
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
     renderHook(() => useEntityAssignmentsForTodos(todos))
 
     expect(loadPeopleAssignments).toHaveBeenCalledWith([1, 2])
-    expect(loadOrgAssignments).toHaveBeenCalledWith([1, 2])
     expect(loadTagAssignments).toHaveBeenCalledWith([1, 2])
   })
 
@@ -39,7 +34,6 @@ describe('useEntityAssignmentsForTodos', () => {
     renderHook(() => useEntityAssignmentsForTodos([]))
 
     expect(loadPeopleAssignments).not.toHaveBeenCalled()
-    expect(loadOrgAssignments).not.toHaveBeenCalled()
     expect(loadTagAssignments).not.toHaveBeenCalled()
   })
 
@@ -57,7 +51,6 @@ describe('useEntityAssignmentsForTodos', () => {
     rerender({ todos: fieldEdit })
 
     expect(loadPeopleAssignments).toHaveBeenCalledTimes(1)
-    expect(loadOrgAssignments).toHaveBeenCalledTimes(1)
     expect(loadTagAssignments).toHaveBeenCalledTimes(1)
   })
 
@@ -70,7 +63,6 @@ describe('useEntityAssignmentsForTodos', () => {
     rerender()
 
     expect(loadPeopleAssignments).toHaveBeenCalledTimes(2)
-    expect(loadOrgAssignments).toHaveBeenCalledTimes(2)
     expect(loadTagAssignments).toHaveBeenCalledTimes(2)
   })
 

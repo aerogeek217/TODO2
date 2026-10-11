@@ -1,8 +1,6 @@
-import type { Person, Org, Tag, RecurrenceType, PersistedTodoItem } from '../../models'
+import type { Person, Tag, RecurrenceType, PersistedTodoItem } from '../../models'
 import { ChipSelector } from '../shared/ChipSelector'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
-import { useOrgStore } from '../../stores/org-store'
-import { resolvePersonColor } from '../../utils/person-color'
 import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import styles from './TaskEditPopup.module.css'
 
@@ -22,29 +20,24 @@ interface TaskEditMetadataProps {
   onProjectSelect: (id: number | undefined) => void
   onProjectSearchChange: (search: string) => void
 
-  // People & Orgs
+  // People & tags
   assignedPeople: Person[]
-  assignedOrgs: Org[]
   assignedTags: Tag[]
   allPeople: Person[]
-  allOrgs: Org[]
   allTags: Tag[]
   assignedPeopleIds: Set<number>
-  assignedOrgIds: Set<number>
   assignedTagIds: Set<number>
   isEdit: boolean
   peopleRef: React.RefObject<HTMLDivElement | null>
-  orgsRef: React.RefObject<HTMLDivElement | null>
   tagsRef: React.RefObject<HTMLDivElement | null>
   onTogglePerson: (id: number) => void
-  onToggleOrg: (id: number) => void
   onToggleTag: (id: number) => void
   onCreatePerson?: (name: string) => Promise<void>
   onCreateTag?: (name: string) => Promise<void>
 
   // Dropdown state
-  openDropdown: 'people' | 'orgs' | 'project' | 'tags' | null
-  setOpenDropdown: (dd: 'people' | 'orgs' | 'project' | 'tags' | null) => void
+  openDropdown: 'people' | 'project' | 'tags' | null
+  setOpenDropdown: (dd: 'people' | 'project' | 'tags' | null) => void
 
   // For project select save in edit mode
   todo?: PersistedTodoItem
@@ -64,18 +57,16 @@ export function TaskEditMetadata({
   onDeadlineChange, onRecurrenceChange,
   projectId, projects, projectSearch, projectRef, projectSearchRef,
   onProjectSelect, onProjectSearchChange,
-  assignedPeople, assignedOrgs, assignedTags, allPeople, allOrgs, allTags,
-  assignedPeopleIds, assignedOrgIds, assignedTagIds, isEdit,
-  peopleRef, orgsRef, tagsRef,
-  onTogglePerson, onToggleOrg, onToggleTag,
+  assignedPeople, assignedTags, allPeople, allTags,
+  assignedPeopleIds, assignedTagIds, isEdit,
+  peopleRef, tagsRef,
+  onTogglePerson, onToggleTag,
   onCreatePerson, onCreateTag,
   openDropdown, setOpenDropdown,
   todo, onUpdate,
   followupNext, followupLast, followupNextHint,
   onFollowupNextChange, onFollowupLastChange, onFollowedUp,
 }: TaskEditMetadataProps) {
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
-  const orgs = useOrgStore((s) => s.orgs)
   return (
     <div className={styles.metaSection}>
       {/* Due date */}
@@ -173,25 +164,16 @@ export function TaskEditMetadata({
         </div>
       </div>
 
-      {/* People & Orgs */}
+      {/* People */}
       <div className={styles.metaRow}>
         <span className={styles.metaLabel}>People</span>
         <div className={styles.chipArea} ref={peopleRef}>
-          {assignedPeople.map((person) => {
-            const derived = resolvePersonColor(person.id, personOrgMap, orgs)
-            return (
+          {assignedPeople.map((person) => (
             <button key={`p-${person.id}`} className={styles.personTag}
-              style={derived ? { color: derived, borderColor: derived } : undefined}
+              style={person.color ? { color: person.color, borderColor: person.color } : undefined}
               onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
               @{person.name}
               <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onTogglePerson(person.id!) }}>&times;</span>
-            </button>
-          )})}
-          {assignedOrgs.map((org) => (
-            <button key={`o-${org.id}`} className={styles.orgChip} style={org.color ? { borderColor: org.color, color: org.color } : undefined}
-              onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
-              {org.name}
-              <span className={styles.chipRemove} onClick={(e) => { e.stopPropagation(); onToggleOrg(org.id!) }}>&times;</span>
             </button>
           ))}
           <button className={styles.chipAddBtn}
@@ -199,20 +181,13 @@ export function TaskEditMetadata({
             + Add
           </button>
           {openDropdown === 'people' && (
-            <div className={styles.chipDropdown} ref={orgsRef}>
+            <div className={styles.chipDropdown}>
               <ChipSelector
-                items={[
-                  ...allPeople.toSorted((a, b) => a.name.localeCompare(b.name)).map(p => ({ id: p.id!, name: p.name })),
-                  ...allOrgs.toSorted((a, b) => a.name.localeCompare(b.name)).map(o => ({ id: -o.id!, name: o.name, color: o.color })),
-                ]}
-                selectedIds={(() => {
-                  const ids = new Set(assignedPeopleIds)
-                  for (const oid of assignedOrgIds) ids.add(-oid)
-                  return ids
-                })()}
-                onToggle={(id) => id < 0 ? onToggleOrg(-id) : onTogglePerson(id)}
+                items={allPeople.toSorted((a, b) => a.name.localeCompare(b.name)).map(p => ({ id: p.id!, name: p.name }))}
+                selectedIds={assignedPeopleIds}
+                onToggle={onTogglePerson}
                 onCreate={onCreatePerson}
-                placeholder="Search people & orgs..."
+                placeholder="Search people..."
               />
             </div>
           )}

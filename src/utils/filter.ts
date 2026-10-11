@@ -19,10 +19,10 @@ export function toggleItem<T>(current: Set<T> | null, item: T, allItems: T[]): S
 }
 
 /** Field kinds that a text search can hit. Ordered so UI groupings render consistently. */
-export type TextMatchField = 'title' | 'notes' | 'project' | 'person' | 'org' | 'status' | 'tag'
+export type TextMatchField = 'title' | 'notes' | 'project' | 'person' | 'status' | 'tag'
 
 export const TEXT_MATCH_FIELDS: readonly TextMatchField[] = [
-  'title', 'notes', 'project', 'person', 'org', 'status', 'tag',
+  'title', 'notes', 'project', 'person', 'status', 'tag',
 ] as const
 
 /**
@@ -34,7 +34,6 @@ export const TEXT_MATCH_FIELDS: readonly TextMatchField[] = [
 export interface TextMatchContext {
   projectName?: string
   personNames?: string[]
-  orgNames?: string[]
   statusName?: string
   tagNames?: string[]
 }
@@ -62,7 +61,6 @@ export function matchTodoText(
   if (todo.notes && todo.notes.toLowerCase().includes(q)) fields.push('notes')
   if (ctx?.projectName && ctx.projectName.toLowerCase().includes(q)) fields.push('project')
   if (ctx?.personNames && ctx.personNames.some(n => n.toLowerCase().includes(q))) fields.push('person')
-  if (ctx?.orgNames && ctx.orgNames.some(n => n.toLowerCase().includes(q))) fields.push('org')
   if (ctx?.statusName && ctx.statusName.toLowerCase().includes(q)) fields.push('status')
   if (ctx?.tagNames && ctx.tagNames.some(n => n.toLowerCase().includes(q))) fields.push('tag')
   return { matched: fields.length > 0, fields }
@@ -81,10 +79,10 @@ export function groupTodosByTextMatch<T extends { title?: string; notes?: string
   ctxFor: (todo: T) => TextMatchContext | undefined,
 ): Record<TextMatchField, T[]> {
   const groups: Record<TextMatchField, T[]> = {
-    title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
+    title: [], notes: [], project: [], person: [], status: [], tag: [],
   }
   const completed: Record<TextMatchField, T[]> = {
-    title: [], notes: [], project: [], person: [], org: [], status: [], tag: [],
+    title: [], notes: [], project: [], person: [], status: [], tag: [],
   }
   for (const t of todos) {
     const { fields } = matchTodoText(t, query, ctxFor(t))

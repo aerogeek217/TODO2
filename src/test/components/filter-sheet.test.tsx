@@ -5,14 +5,12 @@ import { FilterSheet } from '../../components/overlays/FilterSheet'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { makePerson, makeOrg } from '../helpers'
+import { makePerson } from '../helpers'
 
 const alice = makePerson({ id: 1, name: 'Alice' })
 const bob = makePerson({ id: 2, name: 'Bob' })
-const acmeOrg = makeOrg({ id: 1, name: 'Acme' })
 
 /**
  * Renders FilterSheet inside a MemoryRouter, then opens it.
@@ -33,7 +31,6 @@ describe('FilterSheet', () => {
     useFilterStore.getState().clearAll()
     useUIStore.setState({ isFilterSheetOpen: false })
     usePersonStore.setState({ people: [alice, bob] })
-    useOrgStore.setState({ orgs: [acmeOrg] })
     useTagStore.setState({ tags: [] })
     useTodoStore.setState({ todos: [] })
   })
@@ -187,16 +184,6 @@ describe('FilterSheet', () => {
       fireEvent.change(screen.getByPlaceholderText('Search people...'), { target: { value: 'Ali' } })
       expect(screen.getByText('Alice')).toBeInTheDocument()
       expect(screen.queryByText('Bob')).not.toBeInTheDocument()
-    })
-
-    it('toggles an org filter', () => {
-      renderSheet()
-      fireEvent.click(screen.getByText('Orgs'))
-      fireEvent.click(screen.getByText('Acme'))
-
-      const { orgIds } = useFilterStore.getState().filters
-      expect(orgIds).not.toBeNull()
-      expect(orgIds!.has(1)).toBe(false) // Acme deselected
     })
 
     it('hides people section when no people in store', () => {

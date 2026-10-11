@@ -5,7 +5,6 @@ import { useFileOpsStore } from '../stores/file-ops-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { MAX_IMPORT_SIZE_BYTES } from '../data/import-validation'
 import type { ImportData } from '../data/import-validation'
@@ -24,7 +23,6 @@ import { AppendImportDialog } from '../components/overlays/AppendImportDialog'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { FileSyncPausedControls } from '../components/layout/FileSyncPausedControls'
 import { PeopleEditor } from '../components/settings/PeopleEditor'
-import { OrgEditor } from '../components/settings/OrgEditor'
 import { TagEditor } from '../components/settings/TagEditor'
 import { ThemeColorsEditor } from '../components/settings/ThemeColorsEditor'
 import { KeyboardShortcutsModal } from '../components/settings/KeyboardShortcutsModal'
@@ -80,7 +78,6 @@ export function SettingsPage() {
   const todos = useTodoStore((s) => s.todos)
   const purgeCompleted = useTodoStore((s) => s.purgeCompleted)
   const peopleCount = usePersonStore((s) => s.people.length)
-  const orgCount = useOrgStore((s) => s.orgs.length)
   const tagCount = useTagStore((s) => s.tags.length)
   const statusCount = useStatusStore((s) => s.statuses.length)
   const statuses = useStatusStore((s) => s.statuses)
@@ -94,7 +91,6 @@ export function SettingsPage() {
   const [appendBusy, setAppendBusy] = useState(false)
   const [appendError, setAppendError] = useState<string | null>(null)
   const [showPeopleEditor, setShowPeopleEditor] = useState(false)
-  const [showOrgEditor, setShowOrgEditor] = useState(false)
   const [showTagEditor, setShowTagEditor] = useState(false)
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -137,14 +133,12 @@ export function SettingsPage() {
 
   const isMobile = useIsMobile()
   const loadPeople = usePersonStore((s) => s.load)
-  const loadOrgs = useOrgStore((s) => s.load)
   const loadTags = useTagStore((s) => s.load)
 
   useEffect(() => {
     load()
     loadProjects()
     loadPeople()
-    loadOrgs()
     loadTags()
     loadStatuses()
     loadListDefinitions()
@@ -153,7 +147,7 @@ export function SettingsPage() {
     return () => {
       timers.forEach(clearTimeout)
     }
-  }, [load, loadProjects, loadPeople, loadOrgs, loadTags, loadStatuses, loadListDefinitions, loadBackups])
+  }, [load, loadProjects, loadPeople, loadTags, loadStatuses, loadListDefinitions, loadBackups])
 
   const retentionStats = useMemo(() => {
     if (completedRetentionDays == null) return null
@@ -404,13 +398,10 @@ export function SettingsPage() {
         {/* People & Tags — desktop only */}
         {!isMobile && (
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>People, Orgs, Statuses & Tags</div>
+          <div className={styles.sectionTitle}>People, Statuses & Tags</div>
           <div className={styles.buttonRow}>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowPeopleEditor(true)}>
               Manage People{peopleCount > 0 && ` (${peopleCount})`}
-            </button>
-            <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowOrgEditor(true)}>
-              Manage Orgs{orgCount > 0 && ` (${orgCount})`}
             </button>
             <button className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowStatusEditor(true)}>
               Manage Statuses{statusCount > 0 && ` (${statusCount})`}
@@ -931,7 +922,6 @@ export function SettingsPage() {
       {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {showNlpSyntax && <NlpSyntaxModal onClose={() => setShowNlpSyntax(false)} />}
       {showPeopleEditor && <PeopleEditor onClose={() => setShowPeopleEditor(false)} />}
-      {showOrgEditor && <OrgEditor onClose={() => setShowOrgEditor(false)} />}
       {showStatusEditor && <StatusEditor onClose={() => setShowStatusEditor(false)} />}
       {showTagEditor && <TagEditor onClose={() => setShowTagEditor(false)} />}
       {listsEditorOpen && (

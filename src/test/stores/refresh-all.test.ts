@@ -6,7 +6,6 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useProjectStore } from '../../stores/project-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
@@ -42,8 +41,6 @@ describe('refreshAllStores', () => {
       todoLoadAll: vi.spyOn(useTodoStore.getState(), 'loadAll'),
       projectLoadAll: vi.spyOn(useProjectStore.getState(), 'loadAll'),
       personLoad: vi.spyOn(usePersonStore.getState(), 'load'),
-      orgLoad: vi.spyOn(useOrgStore.getState(), 'load'),
-      orgLoadPersonOrgMap: vi.spyOn(useOrgStore.getState(), 'loadPersonOrgMap'),
       statusLoad: vi.spyOn(useStatusStore.getState(), 'load'),
       tagLoad: vi.spyOn(useTagStore.getState(), 'load'),
       taskboardLoad: vi.spyOn(useTaskboardStore.getState(), 'load'),
@@ -57,7 +54,6 @@ describe('refreshAllStores', () => {
       floatingStatusLoadByCanvas: vi.spyOn(useFloatingStatusStore.getState(), 'loadByCanvas'),
       // Post-todos assignment loaders
       personLoadAssignments: vi.spyOn(usePersonStore.getState(), 'loadAssignments'),
-      orgLoadAssignments: vi.spyOn(useOrgStore.getState(), 'loadAssignments'),
       tagLoadAssignments: vi.spyOn(useTagStore.getState(), 'loadAssignments'),
     }
 

@@ -31,9 +31,6 @@ const at = (iso: string) => new Date(iso)
 const FULL_PREDICATE: TodoPredicate = {
   showCompleted: true,
   personIds: [1, 0],
-  personFilterMode: 'direct-only',
-  orgIds: [1],
-  orgFilterMode: 'direct-only',
   projectIds: [1, 0],
   statusIds: [1, 2],
   searchText: 'invoice',
@@ -83,7 +80,7 @@ function buildSeed(): Seed {
         sortOrder: 1,
       },
     ],
-    people: [{ id: 1, name: 'Ann Lee', initials: 'AL' }],
+    people: [{ id: 1, name: 'Ann Lee', initials: 'AL', color: '#e05050' }],
     tags: [{ id: 1, name: 'urgent', color: '#ff0000' }],
     listInsets: [{
       id: 1, listDefinitionId: 1, canvasId: 1, x: 10, y: 20, width: 320, height: 300,
@@ -91,8 +88,6 @@ function buildSeed(): Seed {
     }],
     todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
     todoPeople: [{ id: 1, todoId: 1, personId: 1 }],
-    todoOrgs: [{ id: 1, todoId: 2, orgId: 1 }],
-    personOrgs: [{ id: 1, personId: 1, orgId: 1 }],
     settings: [
       { key: 'seededAssignedStatusId', value: '1' },
       { key: 'weekStartsOn', value: '1' },
@@ -101,7 +96,6 @@ function buildSeed(): Seed {
       { key: 'canvasRails', value: RAILS },
       { key: 'color.dark.accent', value: '#4f8cff' },
     ],
-    orgs: [{ id: 1, name: 'Acme', initials: 'AC', color: '#e05050' }],
     taskboards: [{
       id: 1, entries: [{ todoId: 2, sortOrder: 0 }, { todoId: 1, sortOrder: 1 }],
       createdAt: at('2026-09-01T09:00:00.000Z'), updatedAt: at('2026-09-15T08:00:00.000Z'),

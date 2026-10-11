@@ -32,7 +32,6 @@ describe('CalendarStrip', () => {
         todos={[]}
         today={today}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -51,7 +50,6 @@ describe('CalendarStrip', () => {
         today={today}
         weekOffset={1}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -67,7 +65,6 @@ describe('CalendarStrip', () => {
         todos={[]}
         today={today}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -85,7 +82,6 @@ describe('CalendarStrip', () => {
         today={today}
         orientation="horizontal"
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -112,7 +108,6 @@ describe('CalendarStrip', () => {
         todos={todos}
         today={today}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -135,7 +130,6 @@ describe('CalendarStrip', () => {
         todos={todos}
         today={today}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -164,7 +158,6 @@ describe('CalendarStrip', () => {
         today={today}
         weekOffset={1}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -181,7 +174,6 @@ describe('CalendarStrip', () => {
         todos={[]}
         today={today}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -196,7 +188,6 @@ describe('CalendarStrip', () => {
         todos={[]}
         today={today}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -207,7 +198,6 @@ describe('CalendarStrip', () => {
         today={today}
         onWeekOffsetChange={() => {}}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -224,7 +214,6 @@ describe('CalendarStrip', () => {
         weekOffset={2}
         onWeekOffsetChange={onChange}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -245,7 +234,6 @@ describe('CalendarStrip', () => {
         weekOffset={0}
         onWeekOffsetChange={() => {}}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -258,7 +246,6 @@ describe('CalendarStrip', () => {
         weekOffset={-1}
         onWeekOffsetChange={() => {}}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -276,7 +263,6 @@ describe('CalendarStrip', () => {
         weekOffset={0}
         onWeekOffsetChange={() => {}}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -289,7 +275,6 @@ describe('CalendarStrip', () => {
         weekOffset={2}
         onWeekOffsetChange={() => {}}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
       />,
     )
@@ -305,7 +290,6 @@ describe('CalendarStrip', () => {
           todos={todos}
           today={today}
           assignedPeopleMap={new Map()}
-          assignedOrgsMap={new Map()}
           statuses={[]}
         />,
       )
@@ -323,7 +307,6 @@ describe('CalendarStrip', () => {
           todos={todos}
           today={today}
           assignedPeopleMap={new Map()}
-          assignedOrgsMap={new Map()}
           statuses={[]}
           disableDnd
         />,
@@ -342,7 +325,6 @@ describe('CalendarStrip', () => {
         todos={todos}
         today={today}
         assignedPeopleMap={new Map()}
-        assignedOrgsMap={new Map()}
         statuses={[]}
         onOpenTodo={onOpenTodo}
       />,

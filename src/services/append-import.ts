@@ -10,7 +10,6 @@ import { useTodoStore } from '../stores/todo-store'
 import { useProjectStore } from '../stores/project-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
-import { useOrgStore } from '../stores/org-store'
 import { useStatusStore } from '../stores/status-store'
 
 export type { AppendChoice, AppendImportResult }
@@ -100,13 +99,11 @@ export async function runAppendImport(
     useProjectStore.getState().loadAll(),
     usePersonStore.getState().load(),
     useTagStore.getState().load(),
-    useOrgStore.getState().load(),
     useStatusStore.getState().load(),
   ])
   const todoIds = useTodoStore.getState().todos.map((t) => t.id)
   await Promise.all([
     usePersonStore.getState().loadAssignments(todoIds),
-    useOrgStore.getState().loadAssignments(todoIds),
     useTagStore.getState().loadAssignments(todoIds),
   ])
   return result

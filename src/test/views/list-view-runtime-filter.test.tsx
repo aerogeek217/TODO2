@@ -3,7 +3,6 @@ import { render, cleanup, fireEvent, act } from '@testing-library/react'
 import { ListView } from '../../views/ListView'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -30,15 +29,6 @@ vi.mock('../../data/person-repository', () => ({
     getAssignedPeopleForTodos: async () => new Map(),
     assignPerson: async () => {},
     unassignPerson: async () => {},
-  },
-}))
-vi.mock('../../data/org-repository', () => ({
-  orgRepository: {
-    getAll: async () => [],
-    getAssignedOrgsForTodos: async () => new Map(),
-    getPersonOrgMap: async () => new Map(),
-    assignOrg: async () => {},
-    unassignOrg: async () => {},
   },
 }))
 vi.mock('../../data/status-repository', () => ({
@@ -87,11 +77,6 @@ function stubLoadActions() {
   usePersonStore.setState({
     load: async () => {},
     loadAssignments: async () => {},
-  } as never)
-  useOrgStore.setState({
-    load: async () => {},
-    loadAssignments: async () => {},
-    loadPersonOrgMap: async () => {},
   } as never)
   useStatusStore.setState({ load: async () => {} } as never)
   useProjectStore.setState({ loadAll: async () => {} } as never)

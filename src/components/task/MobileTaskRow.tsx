@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef, useState, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -41,7 +40,7 @@ interface MobileTaskRowProps {
 // row action menu via `buildTaskRowMenuItems`. The action menu mirrors
 // desktop including taskboard add/remove + move-to-project, so the only
 // surface that's intentionally desktop-only is the inline avatar context
-// menu (right-click on a person/org chip to show a filtered list) — that
+// menu (right-click on a person chip to show a filtered list) — that
 // gesture has no touch analogue.
 const NO_PEOPLE: Person[] = []
 
@@ -50,17 +49,13 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   onSelect, onOpenDetail, cut,
 }: MobileTaskRowProps) {
   const allPeople = usePersonStore((s) => s.people)
-  const allOrgs = useOrgStore((s) => s.orgs)
   const allTags = useTagStore((s) => s.tags)
   const projects = useProjectStore((s) => s.projects)
-  const assignedOrgsForTodo = useOrgStore((s) => s.assignedOrgsMap.get(todo.id))
-  const assignedOrgIds = useMemo(() => new Set((assignedOrgsForTodo ?? []).map(o => o.id!)), [assignedOrgsForTodo])
   const assignedTagsForTodo = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const assignedTags = useMemo(() => assignedTagsForTodo ?? [], [assignedTagsForTodo])
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const today = startOfToday()
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
-  const assignedOrgs = assignedOrgsForTodo ?? []
 
   const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo })
 
@@ -111,12 +106,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     else bulk.quickAssignPerson(todo.id, id)
   }
 
-  const toggleOrg = (orgId: number) => {
-    if (ghost) return
-    if (assignedOrgIds.has(orgId)) bulk.quickUnassignOrg(todo.id, orgId)
-    else bulk.quickAssignOrg(todo.id, orgId)
-  }
-
   const handleCreatePerson = async (name: string) => {
     if (ghost) return
     const id = await usePersonStore.getState().add(name, generateInitials(name))
@@ -146,7 +135,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   const people = assignedPeople ?? NO_PEOPLE
   const assignedPeopleIds = useMemo(() => new Set(people.map(p => p.id!)), [people])
-  const hasPeople = people.length > 0 || assignedOrgs.length > 0
+  const hasPeople = people.length > 0
   const hasMetadata =
     !!todo.dueDate || !!todo.nextFollowupAt ||
     hasPeople ||
@@ -232,12 +221,11 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             />
           )}
 
-          {/* Shared pill bar — people / orgs / due date / follow-up. Status
+          {/* Shared pill bar — people / due date / follow-up. Status
               lives on line 1 (primaryRow), so showStatus={false}. */}
           <TaskPillBar
             todo={todo}
             people={people}
-            orgs={assignedOrgs}
             today={today}
             density="small"
             deadlineIntensity={deadlineIntensity}
@@ -349,18 +337,11 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       {openDropdown === 'people' && !ghost && createPortal(
         <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
           <ChipSelector
-            items={[
-              ...allPeople.map(p => ({ id: p.id!, name: p.name })),
-              ...allOrgs.map(o => ({ id: -o.id!, name: o.name, color: o.color })),
-            ]}
-            selectedIds={(() => {
-              const ids = new Set(assignedPeopleIds)
-              for (const oid of assignedOrgIds) ids.add(-oid)
-              return ids
-            })()}
-            onToggle={(id) => id < 0 ? toggleOrg(-id) : togglePerson(id)}
+            items={allPeople.map(p => ({ id: p.id!, name: p.name }))}
+            selectedIds={assignedPeopleIds}
+            onToggle={togglePerson}
             onCreate={handleCreatePerson}
-            placeholder="Search people & orgs..."
+            placeholder="Search people..."
           />
         </PortalDropdown>,
         document.body,

@@ -400,7 +400,7 @@
 
 /*
  * Empty-state slot: reserves the same width as .dateStack when no date is
- * set, so people/org avatars and the trailing status icon align vertically
+ * set, so people avatars and the trailing status icon align vertically
  * across rows regardless of whether a date is present.
  */
 .dateStackEmpty {

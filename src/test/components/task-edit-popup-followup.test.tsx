@@ -7,7 +7,7 @@ import { useTaskboardStore } from '../../stores/taskboard-store'
 import { makeTodo } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
 
-const TITLE_PLACEHOLDER = 'New task... (@person @org #tag /project tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task... (@person #tag /project tomorrow "this week")'
 // Sat 10 Oct 2026, 15:30 local.
 const NOW = new Date(2026, 9, 10, 15, 30)
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d)

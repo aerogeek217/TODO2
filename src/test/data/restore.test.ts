@@ -14,10 +14,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     people: [],
     listInsets: [],
     todoPeople: [],
-    todoOrgs: [],
-    personOrgs: [],
     settings: [],
-    orgs: [],
     taskboards: [],
     floatingTaskboards: [],
     statuses: [],
@@ -219,7 +216,7 @@ describe('restoreFromImportData', () => {
       expect(await db.todos.count()).toBe(0)
       expect(await db.projects.count()).toBe(0)
       expect(await db.notes.count()).toBe(0)
-      expect(await db.orgs.count()).toBe(0)
+      expect(await db.people.count()).toBe(0)
     })
 
     it('seeds an empty taskboard singleton when none imported', async () => {

@@ -14,7 +14,7 @@ interface PersonState {
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
-  add: (name: string, initials: string) => Promise<number>
+  add: (name: string, initials: string, color?: string) => Promise<number>
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
   loadAssignments: (todoIds: number[]) => Promise<void>
@@ -55,9 +55,10 @@ export const usePersonStore = create<PersonState>((set, get) => {
     },
     ensureLoaded: () => personEnsure.ensureLoaded(),
 
-    async add(name: string, initials: string) {
-      const id = await personRepository.insert({ name, initials })
-      set({ people: [...get().people, { id, name, initials }] })
+    async add(name: string, initials: string, color?: string) {
+      const person: Person = { name, initials, ...(color ? { color } : {}) }
+      const id = await personRepository.insert(person)
+      set({ people: [...get().people, { ...person, id }] })
       return id
     },
 
@@ -80,7 +81,6 @@ export const usePersonStore = create<PersonState>((set, get) => {
       const person = get().people.find((p) => p.id === id)
       const joins = await captureJoinRows([
         { table: db.todoPeople, key: 'personId', id },
-        { table: db.personOrgs, key: 'personId', id },
       ])
       await personRepository.delete(id)
       const prevMap = get().assignedPeopleMap

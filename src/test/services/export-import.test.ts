@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { buildExportData, selfCheckExportJson } from '../../services/export-import'
 import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
-import { resetDb, makeTodo, makePerson, makeProject, makeOrg } from '../helpers'
+import { resetDb, makeTodo, makePerson, makeProject } from '../helpers'
 
 beforeEach(async () => {
   await resetDb()
@@ -16,10 +16,7 @@ describe('buildExportData', () => {
     expect(data.projects).toEqual([])
     expect(data.canvases).toEqual([])
     expect(data.people).toEqual([])
-    expect(data.orgs).toEqual([])
     expect(data.todoPeople).toEqual([])
-    expect(data.todoOrgs).toEqual([])
-    expect(data.personOrgs).toEqual([])
     expect(data.listInsets).toEqual([])
     expect(data.settings).toEqual([])
   })
@@ -32,11 +29,7 @@ describe('buildExportData', () => {
     await db.todos.add(todo)
     const person = makePerson({ id: 1 })
     await db.people.add(person)
-    const org = makeOrg({ id: 1 })
-    await db.orgs.add(org)
     await db.todoPeople.add({ todoId: 1, personId: 1 } as any)
-    await db.todoOrgs.add({ todoId: 1, orgId: 1 } as any)
-    await db.personOrgs.add({ personId: 1, orgId: 1 } as any)
 
     const data = await buildExportData()
 
@@ -45,10 +38,8 @@ describe('buildExportData', () => {
     expect(data.projects).toHaveLength(1)
     expect(data.canvases).toHaveLength(1)
     expect(data.people).toHaveLength(1)
-    expect(data.orgs).toHaveLength(1)
     expect(data.todoPeople).toHaveLength(1)
-    expect(data.todoOrgs).toHaveLength(1)
-    expect(data.personOrgs).toHaveLength(1)
+    expect('orgs' in data).toBe(false)
   })
 
   it('reads all tables in parallel', async () => {
@@ -128,10 +119,7 @@ describe('export → restore round-trip', () => {
     const projectId = await db.projects.add(makeProject({ id: 1, canvasId })) as number
     const todoId = await db.todos.add(makeTodo({ id: 1, projectId, canvasId })) as number
     const personId = await db.people.add(makePerson({ id: 1 })) as number
-    const orgId = await db.orgs.add(makeOrg({ id: 1 })) as number
     await db.todoPeople.add({ todoId, personId } as any)
-    await db.todoOrgs.add({ todoId, orgId } as any)
-    await db.personOrgs.add({ personId, orgId } as any)
     await db.settings.add({ key: 'themeMode', value: 'dark' })
     await db.taskboards.add({ entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now } as any)
     await db.statuses.add({ name: 'Done', color: '#0a0', sortOrder: 0, icon: 'check' } as any)
@@ -143,9 +131,6 @@ describe('export → restore round-trip', () => {
         predicate: {
           showCompleted: false,
           personIds: null,
-          personFilterMode: 'include-orgs',
-          orgIds: null,
-          orgFilterMode: 'include-people',
           projectIds: null,
           statusIds: null,
           searchText: '',

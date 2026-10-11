@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type NodeProps, useReactFlow } from '@xyflow/react'
-import type { ListInset, PersistedTodoItem, Person, Org } from '../../models'
+import type { ListInset, PersistedTodoItem, Person } from '../../models'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -22,8 +22,6 @@ export interface ListInsetNodeData {
   inset: ListInset
   allTodos: PersistedTodoItem[]
   assignedPeopleMap: Map<number, Person[]>
-  assignedOrgsMap?: Map<number, Org[]>
-  personOrgMap?: Map<number, number[]>
   onDelete: (id: number) => void
   onToggleCollapse: (id: number) => void
   onOpenDetail?: (todoId: number) => void

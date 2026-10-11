@@ -55,12 +55,6 @@
   white-space: nowrap;
 }
 
-.kindLabel {
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
 
 .createNew {
   font-style: italic;

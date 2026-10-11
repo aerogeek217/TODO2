@@ -7,7 +7,6 @@ type EditPopupMode = 'edit' | 'create' | null
 
 export type AttributeFilter =
   | { type: 'person'; personId: number; personName: string }
-  | { type: 'org'; orgId: number; orgName: string; orgColor?: string }
 
 export interface FilteredListPopup {
   x: number

@@ -38,12 +38,11 @@ export const canvasRepository = {
     // Cascade: delete projects, todos, floating notes/calendars, list insets, floating taskboards belonging to this canvas
     await db.transaction(
       'rw',
-      [db.canvases, db.projects, db.todos, db.todoPeople, db.todoOrgs, db.taskboards, db.floatingNotes, db.floatingCalendars, db.floatingTaskboards, db.listInsets],
+      [db.canvases, db.projects, db.todos, db.todoPeople, db.taskboards, db.floatingNotes, db.floatingCalendars, db.floatingTaskboards, db.listInsets],
       async () => {
         const todoIds = (await db.todos.where('canvasId').equals(id).primaryKeys()) as number[]
         if (todoIds.length > 0) {
           await db.todoPeople.where('todoId').anyOf(todoIds).delete()
-          await db.todoOrgs.where('todoId').anyOf(todoIds).delete()
           await stripTodoFromTaskboards(todoIds)
         }
         await db.todos.where('canvasId').equals(id).delete()

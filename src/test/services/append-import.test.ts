@@ -26,7 +26,6 @@ async function archiveFromSourceDb(): Promise<{ json: string; sourceTodoId: numb
   const projectId = await db.projects.add({ name: 'Work', canvasId, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 1, createdAt: now }) as number
   const personId = await db.people.add({ name: 'Alice', initials: 'AL' }) as number
   const tagId = await db.tags.add({ name: 'urgent', color: '#ff0000' }) as number
-  const orgId = await db.orgs.add({ name: 'Acme', initials: 'AC' }) as number
   const statusId = await db.statuses.add({ name: 'Waiting', color: '#ffaa00', sortOrder: 9, icon: 'clock' }) as number
   const id = await todoRepository.insert({
     title: 'Ship release', notes: 'notes', isCompleted: true, completedAt: daysAgo(60),
@@ -34,7 +33,6 @@ async function archiveFromSourceDb(): Promise<{ json: string; sourceTodoId: numb
   })
   await db.todoPeople.add({ todoId: id, personId })
   await db.todoTags.add({ todoId: id, tagId })
-  await db.todoOrgs.add({ todoId: id, orgId })
   await db.todoEvents.bulkAdd([
     { todoId: id, type: 'status', fromValue: null, toValue: statusId, timestamp: daysAgo(65).toISOString() },
     { todoId: id, type: 'completed', fromValue: null, toValue: null, timestamp: daysAgo(60).toISOString() },
@@ -108,7 +106,7 @@ describe('appendImportTasks — archive from another database', () => {
     const result = await appendImportTasks(data, defaultAppendChoices(cands), { canvasId })
 
     expect(result).toMatchObject({ imported: 1, skipped: 0 })
-    expect(result.created).toEqual({ people: [], tags: ['urgent'], orgs: ['Acme'], statuses: [], projects: [] })
+    expect(result.created).toEqual({ people: [], tags: ['urgent'], statuses: [], projects: [] })
     const [newId] = result.todoIds
     expect(newId).toBeDefined()
     expect(newId).not.toBe(existingId)
@@ -127,14 +125,41 @@ describe('appendImportTasks — archive from another database', () => {
     expect((await db.todoPeople.where('todoId').equals(newId!).toArray()).map((r) => r.personId)).toEqual([alice])
     const tag = await db.tags.where('name').equals('urgent').first()
     expect((await db.todoTags.where('todoId').equals(newId!).toArray()).map((r) => r.tagId)).toEqual([tag?.id])
-    const org = await db.orgs.where('name').equals('Acme').first()
-    expect(org).toMatchObject({ initials: 'AC' })
-    expect((await db.todoOrgs.where('todoId').equals(newId!).toArray()).map((r) => r.orgId)).toEqual([org?.id])
 
     // History re-pointed at the new id; status values at the resolved status.
     const events = await db.todoEvents.where('todoId').equals(newId!).toArray()
     expect(events.map((e) => e.type).sort()).toEqual(['completed', 'created', 'status'])
     expect(events.find((e) => e.type === 'status')?.toValue).toBe(waiting)
+  })
+
+  it('accepts an older archive with orgs: they arrive as Org: people', async () => {
+    const { json } = await archiveFromSourceDb()
+    // The same archive as a pre-merge build wrote it: one org assigned to the task.
+    const archive = JSON.parse(json) as Record<string, unknown> & { todos: Array<{ id: number }> }
+    const taskId = archive.todos[0]?.id
+    const older = {
+      ...archive,
+      __schemaVersion: 54,
+      orgs: [{ id: 1, name: 'Acme', initials: 'AC' }, { id: 2, name: 'Globex' }],
+      todoOrgs: [{ id: 1, todoId: taskId, orgId: 1 }, { id: 2, todoId: taskId, orgId: 2 }],
+    }
+
+    await resetDb()
+    const now = new Date()
+    const canvasId = await db.canvases.add({ name: 'B', sortOrder: 0, createdAt: now }) as number
+    const existingAcme = await db.people.add({ name: 'org: acme', initials: 'OA' }) as number
+
+    const data = prepareAppend(JSON.stringify(older))
+    expect('orgs' in data).toBe(false)
+    const result = await appendImportTasks(data, defaultAppendChoices(findAppendDuplicates(data.todos, [])), { canvasId })
+
+    expect(result.created.people).toEqual(['Alice', 'Org: Globex'])
+    const globex = await db.people.where('name').equals('Org: Globex').first()
+    expect(globex).toMatchObject({ initials: 'G', color: '#f28c4e' })
+    const assigned = (await db.todoPeople.where('todoId').equals(result.todoIds[0]!).toArray()).map((r) => r.personId)
+    expect(assigned).toEqual(expect.arrayContaining([existingAcme, globex!.id]))
+    // The existing person matched by name is reused, untouched.
+    expect(await db.people.get(existingAcme)).toEqual({ id: existingAcme, name: 'org: acme', initials: 'OA' })
   })
 
   it('creates a missing project on the target canvas, right of the existing ones', async () => {

@@ -3,7 +3,7 @@ import type {
   DraggableAttributes,
   DraggableSyntheticListeners,
 } from '@dnd-kit/core'
-import type { PersistedTodoItem, Person, Org, Status } from '../../../../models'
+import type { PersistedTodoItem, Person, Status } from '../../../../models'
 import { TaskPillDates, TaskPillPeople, TaskPillStatus } from '../../../shared/TaskPillBar'
 import styles from './EventRow.module.css'
 
@@ -11,14 +11,13 @@ export interface EventRowEntry {
   todo: PersistedTodoItem
   isVirtual: boolean
   people: Person[]
-  orgs: Org[]
   status: Status | undefined
 }
 
 interface EventRowProps {
   entry: EventRowEntry
   today: Date
-  /** Compact variant: tighter padding, hides org chip, limits people to 2. Used by the horizontal calendar column where space is narrow. */
+  /** Compact variant: tighter padding, limits people to 2. Used by the horizontal calendar column where space is narrow. */
   compact?: boolean
   onClick?: () => void
   /** dnd-kit draggable wiring. CalendarStrip wraps each row in a
@@ -41,7 +40,7 @@ export const EventRow = memo(function EventRow({
   dragListeners,
   draggable = false,
 }: EventRowProps) {
-  const { todo, isVirtual, people, orgs, status } = entry
+  const { todo, isVirtual, people, status } = entry
   const className = [
     styles.event,
     compact && styles.eventCompact,
@@ -68,7 +67,6 @@ export const EventRow = memo(function EventRow({
       <span className={styles.title}>{todo.title}</span>
       <TaskPillPeople
         people={people}
-        orgs={orgs}
         interactive={false}
         compact={compact}
         density="small"

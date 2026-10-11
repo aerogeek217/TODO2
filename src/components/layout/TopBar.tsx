@@ -12,9 +12,8 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { useFilterStore, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
-import type { Org, Person, PersistedTodoItem, Status, TodoPredicate } from '../../models'
+import type { Person, PersistedTodoItem, Status, TodoPredicate } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -34,13 +33,12 @@ import { computeSearchDropIndex } from '../../utils/task-dnd'
 import { buildSearchContextMenuItems } from './top-bar-search-menu'
 import styles from './TopBar.module.css'
 
-const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'org', 'status', 'tag']
+const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   title: 'Title',
   notes: 'Notes',
   project: 'Project',
   person: 'Person',
-  org: 'Org',
   status: 'Status',
   tag: 'Tags',
 }
@@ -57,8 +55,6 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
       return <svg {...common}><path d="M2 4.5l6-3 6 3v7l-6 3-6-3z" /><path d="M2 4.5l6 3 6-3M8 7.5v7" /></svg>
     case 'person':
       return <span className={styles.miniListGroupIcon} style={{ fontSize: 12 }}>@</span>
-    case 'org':
-      return <svg {...common}><rect x="3" y="5" width="10" height="9" /><path d="M6 14v-3h4v3M6 8h.01M10 8h.01" /></svg>
     case 'status':
       return <svg {...common}><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="2" fill="currentColor" stroke="none" /></svg>
     case 'tag':
@@ -69,25 +65,19 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
 /**
  * Per-row pill context resolved once on TopBar and threaded down to every
  * `SearchResultRow`. Keeping it in one place avoids re-subscribing each row
- * to the assigned-people / assigned-orgs / status stores; passing
- * `personOrgMap` + `orgs` as `personColorContext` to `<TaskPillBar>` also
- * lets `AvatarStack` skip its own `useOrgStore` subscription.
+ * to the assigned-people / status stores.
  */
 interface SearchResultPillContext {
   peopleByTodoId: Map<number, Person[]>
-  orgsByTodoId: Map<number, Org[]>
   statusesById: Map<number, Status>
-  personOrgMap: Map<number, number[]>
-  orgs: Org[]
 }
 
 function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: SearchResultPillContext }) {
   const today = startOfToday()
   const people = ctx.peopleByTodoId.get(todo.id) ?? []
-  const orgs = ctx.orgsByTodoId.get(todo.id) ?? []
   const status = todo.statusId != null ? ctx.statusesById.get(todo.statusId) : undefined
 
-  if (people.length === 0 && orgs.length === 0 && !status && !todo.dueDate && !todo.nextFollowupAt) {
+  if (people.length === 0 && !status && !todo.dueDate && !todo.nextFollowupAt) {
     return null
   }
 
@@ -95,12 +85,10 @@ function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: Search
     <TaskPillBar
       todo={todo}
       people={people}
-      orgs={orgs}
       status={status}
       today={today}
       interactive={false}
       ariaHidden
-      personColorContext={{ personOrgMap: ctx.personOrgMap, orgs: ctx.orgs }}
     />
   )
 }
@@ -321,7 +309,6 @@ export function TopBar() {
   const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
@@ -341,11 +328,9 @@ export function TopBar() {
   useEffect(() => {
     setLocalSearch(storeSearchText)
   }, [storeSearchText])
-  const orgs = useOrgStore((s) => s.orgs)
 
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
 
   const filterPredicate = useMemo<TodoPredicate>(() => criteriaToPredicate(filters), [filters])
   const handleFilterChange = useCallback((next: TodoPredicate) => {
@@ -354,22 +339,18 @@ export function TopBar() {
 
   const searchPillCtx = useMemo<SearchResultPillContext>(() => ({
     peopleByTodoId: assignedPeopleMap,
-    orgsByTodoId: assignedOrgsMap,
     statusesById,
-    personOrgMap,
-    orgs,
-  }), [assignedPeopleMap, assignedOrgsMap, statusesById, personOrgMap, orgs])
+  }), [assignedPeopleMap, statusesById])
 
   const miniListGroups = useMemo(() => {
     if (!localSearch || !searchFocused) return null
     return groupTodosByTextMatch(todos, localSearch, (t) => ({
       projectName: t.projectId != null ? projectsById.get(t.projectId)?.name : undefined,
       personNames: (assignedPeopleMap.get(t.id) ?? []).map(p => p.name),
-      orgNames: (assignedOrgsMap.get(t.id) ?? []).map(o => o.name),
       statusName: t.statusId != null ? statusesById.get(t.statusId)?.name : undefined,
       tagNames: (assignedTagsMap.get(t.id) ?? []).map(tg => tg.name),
     }))
-  },[localSearch, searchFocused, todos, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, projectsById, statusesById])
+  },[localSearch, searchFocused, todos, assignedPeopleMap, assignedTagsMap, projectsById, statusesById])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)

@@ -205,25 +205,19 @@ export const todoRepository = {
   async restoreWithAssignments(
     todo: PersistedTodoItem,
     personIds: number[],
-    orgIds: number[] = [],
   ): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople], async () => {
       await db.todos.put(todo)
       for (const personId of personIds) {
         const existing = await db.todoPeople.where({ todoId: todo.id, personId }).count()
         if (existing === 0) await db.todoPeople.add({ todoId: todo.id, personId })
       }
-      for (const orgId of orgIds) {
-        const existing = await db.todoOrgs.where({ todoId: todo.id, orgId }).count()
-        if (existing === 0) await db.todoOrgs.add({ todoId: todo.id, orgId })
-      }
     })
   },
 
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.todoTags, db.todoEvents, db.taskboards], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.taskboards], async () => {
       await db.todoPeople.where('todoId').equals(id).delete()
-      await db.todoOrgs.where('todoId').equals(id).delete()
       await db.todoTags.where('todoId').equals(id).delete()
       await db.todoEvents.where('todoId').equals(id).delete()
       await stripTodoFromTaskboards([id])
@@ -233,10 +227,9 @@ export const todoRepository = {
 
   async bulkDelete(ids: number[]): Promise<void> {
     if (ids.length === 0) return
-    await db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.todoTags, db.todoEvents, db.taskboards], async () => {
+    await db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.taskboards], async () => {
       for (const id of ids) {
         await db.todoPeople.where('todoId').equals(id).delete()
-        await db.todoOrgs.where('todoId').equals(id).delete()
         await db.todoTags.where('todoId').equals(id).delete()
         await db.todoEvents.where('todoId').equals(id).delete()
         await db.todos.delete(id)
@@ -269,7 +262,7 @@ export const todoRepository = {
 
 /**
  * Run a callback inside a Dexie rw transaction over
- * `todos + todoPeople + todoOrgs + todoEvents`. Lets services (e.g.
+ * `todos + todoPeople + todoEvents`. Lets services (e.g.
  * nlp-task-creator) compose multi-table writes atomically without importing
  * `db` directly. `todoEvents` is included because nested
  * `todoRepository.update` opens its own sub-transaction that needs the
@@ -277,7 +270,7 @@ export const todoRepository = {
  * of the parent.
  */
 export async function runNlpMetadataTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  return db.transaction('rw', [db.todos, db.todoPeople, db.todoOrgs, db.todoEvents], fn)
+  return db.transaction('rw', [db.todos, db.todoPeople, db.todoEvents], fn)
 }
 
 // Full-scan is intentional: taskboards are inherently few (users rarely exceed

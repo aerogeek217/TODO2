@@ -2,7 +2,6 @@ import type {
   PersistedTodoItem,
   TodoPredicate,
   Person,
-  Org,
   Project,
   Status,
   Tag,
@@ -39,14 +38,10 @@ export interface DashboardListsContext {
   evalPredicate?: (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
   /** Required for `{kind:'by-tag'}` grouping; caller threads in registry + assignments. */
   assignedTagsMap?: Map<number, Tag[]>
-  /** For `by-field` people/org bucketing. Missing → "Unassigned" / "No organization". */
+  /** For people bucketing. Missing → "Unassigned". */
   assignedPeopleMap?: Map<number, Person[]>
-  assignedOrgsMap?: Map<number, Org[]>
-  /** Person→org membership bridge for `by-field: 'org'`. */
-  personOrgMap?: Map<number, number[]>
   /** Registries used to enumerate + label categorical buckets. */
   people?: Person[]
-  orgs?: Org[]
   projects?: Project[]
   statuses?: Status[]
   /**
@@ -75,28 +70,20 @@ export interface DashboardList {
 }
 
 /**
- * Per-call grouping restrict args. Visible-groups intersection rule (P7):
- * narrow grouping to picked ids and tier-order direct→implicit so a multi-
- * assignee task surviving membership filter doesn't emit non-picked sections.
+ * Per-call grouping restrict args. Visible-groups intersection rule: narrow
+ * grouping to the filter's picked ids so a multi-assignee task surviving the
+ * membership filter doesn't emit non-picked sections.
  */
 export interface DashboardListGroupingRestrict {
-  /** Non-empty → narrow `bucketByPeople` to these ids in tier-order direct→implicit. */
+  /** Non-empty → narrow `bucketByPeople` to these ids, in this order. */
   restrictToPersonIds?: ReadonlyArray<number> | null
-  /** Symmetric to `restrictToPersonIds` for `bucketByOrg`. */
-  restrictToOrgIds?: ReadonlyArray<number> | null
-  /** Symmetric for `bucketByTag` — untagged bucket suppressed in restrict mode. */
+  /** Same for `bucketByTag` — untagged bucket suppressed in restrict mode. */
   restrictToTagIds?: ReadonlyArray<number> | null
-  /** Cross-axis lookup for `bucketByPeople`; consulted only when person predicate is `'include-orgs'`. */
-  implicitPersonIdsFor?: (todo: PersistedTodoItem) => readonly number[]
-  /** Symmetric for `bucketByOrg` (`'include-people'`). */
-  implicitOrgIdsFor?: (todo: PersistedTodoItem) => readonly number[]
 }
 
 /**
  * Narrow `field` to `values` (OR-combined). Empty `values` is a no-op so
- * "user cleared all chips" doesn't short-circuit to "match nothing". For
- * `person`/`org` hard-codes `*FilterMode = 'direct-only'` (the runtime picker
- * has no UI for the toggle).
+ * "user cleared all chips" doesn't short-circuit to "match nothing".
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
@@ -105,71 +92,23 @@ export function applyRuntimeFilter(
 ): TodoPredicate {
   if (values.length === 0) return predicate
   switch (spec.field) {
-    case 'person': return { ...predicate, personIds: values, personFilterMode: 'direct-only' }
-    case 'org': return { ...predicate, orgIds: values, orgFilterMode: 'direct-only' }
+    case 'person': return { ...predicate, personIds: values }
     case 'project': return { ...predicate, projectIds: values }
     case 'status': return { ...predicate, statusIds: values }
     case 'tag': return { ...predicate, tags: values }
   }
 }
 
-/**
- * Harvest restrict args from def's effective predicate. Implicit-tier
- * callbacks gated on `personFilterMode === 'include-orgs'` /
- * `orgFilterMode === 'include-people'`.
- */
+/** Harvest restrict args from def's effective predicate. */
 function computeGroupingRestrict(
   def: PersistedListDefinition,
-  ctx: DashboardListsContext,
 ): DashboardListGroupingRestrict | undefined {
   if (def.membership.kind !== 'custom') return undefined
   const predicate = def.membership.predicate
   const restrictToPersonIds = predicate.personIds ?? null
-  const restrictToOrgIds = predicate.orgIds ?? null
   const restrictToTagIds = predicate.tags ?? null
-  if (!restrictToPersonIds && !restrictToOrgIds && !restrictToTagIds) return undefined
-
-  const { assignedOrgsMap, assignedPeopleMap, personOrgMap } = ctx
-
-  const implicitPersonIdsFor =
-    predicate.personFilterMode === 'include-orgs' && assignedOrgsMap && personOrgMap
-      ? (todo: PersistedTodoItem): readonly number[] => {
-          const orgIdSet = new Set<number>()
-          for (const o of assignedOrgsMap.get(todo.id) ?? []) {
-            if (o.id != null) orgIdSet.add(o.id)
-          }
-          if (orgIdSet.size === 0) return []
-          // personOrgMap is iterated once per pid, so no dedupe needed.
-          const memberIds: number[] = []
-          for (const [pid, orgIds] of personOrgMap) {
-            if (orgIds.some((oid) => orgIdSet.has(oid))) memberIds.push(pid)
-          }
-          return memberIds
-        }
-      : undefined
-
-  const implicitOrgIdsFor =
-    predicate.orgFilterMode === 'include-people' && assignedPeopleMap && personOrgMap
-      ? (todo: PersistedTodoItem): readonly number[] => {
-          const orgIds: number[] = []
-          const seen = new Set<number>()
-          for (const p of assignedPeopleMap.get(todo.id) ?? []) {
-            if (p.id == null) continue
-            for (const oid of personOrgMap.get(p.id) ?? []) {
-              if (!seen.has(oid)) { seen.add(oid); orgIds.push(oid) }
-            }
-          }
-          return orgIds
-        }
-      : undefined
-
-  return {
-    restrictToPersonIds,
-    restrictToOrgIds,
-    restrictToTagIds,
-    implicitPersonIdsFor,
-    implicitOrgIdsFor,
-  }
+  if (!restrictToPersonIds && !restrictToTagIds) return undefined
+  return { restrictToPersonIds, restrictToTagIds }
 }
 
 export function buildDashboardLists(
@@ -202,7 +141,7 @@ export function buildDashboardLists(
     const sorted = [...members].sort((a, b) => interpretSort(effectiveDef.sort, a, b))
     const groupingRestrict = runtimeFilterUnset
       ? undefined
-      : computeGroupingRestrict(effectiveDef, ctx)
+      : computeGroupingRestrict(effectiveDef)
     const groups = runtimeFilterUnset
       ? undefined
       : interpretGrouping(effectiveDef.grouping, sorted, ctx, groupingRestrict)
@@ -235,7 +174,7 @@ export function interpretSort(s: ListSort, a: PersistedTodoItem, b: PersistedTod
     case 'deadline':  return compareTodosByDate('deadline')(a, b)
     case 'followup':  return compareTodosByDate('followup')(a, b)
     case 'manual': case 'name': case 'created': case 'people':
-    case 'project': case 'org': case 'status':
+    case 'project': case 'status':
       return bySortOrder(a, b)
   }
 }
@@ -253,7 +192,6 @@ export function interpretGrouping(
     case 'project':   return bucketByProject(todos, ctx)
     case 'status':    return bucketByStatus(todos, ctx)
     case 'people':    return bucketByPeople(todos, ctx, restrict)
-    case 'org':       return bucketByOrg(todos, ctx, restrict)
     case 'tag':       return bucketByTag(todos, ctx, restrict)
   }
 }
@@ -308,11 +246,8 @@ function bucketByFollowup(todos: PersistedTodoItem[], ctx: DashboardListsContext
 function dashboardGroupingContext(ctx: DashboardListsContext): GroupingContext {
   return {
     assignedPeopleMap: ctx.assignedPeopleMap ?? new Map(),
-    assignedOrgsMap: ctx.assignedOrgsMap ?? new Map(),
     assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
     statuses: ctx.statuses ?? [],
-    orgs: ctx.orgs ?? [],
-    personOrgMap: ctx.personOrgMap ?? new Map(),
     projects: ctx.projects ?? [],
     today: startOfDay(ctx.today),
   }
@@ -347,19 +282,18 @@ function bucketByStatus(
 }
 
 /**
- * Generic adapter for people/org/tag. Resolves labels from `registry` so
- * restrict-mode implicit-tier emits still get names. Restrict mode drops
- * `ungrouped` (axis-mismatched tasks shouldn't surface as the sentinel).
+ * Generic adapter for people/tag. Resolves labels from `registry` when one is
+ * given. Restrict mode drops `ungrouped` (axis-mismatched tasks shouldn't
+ * surface as the sentinel).
  */
 function bucketByEntity(
   todos: PersistedTodoItem[],
   ctx: DashboardListsContext,
-  axis: 'people' | 'org' | 'tag',
-  prefix: 'person-' | 'org-' | 'tag-',
+  axis: 'people' | 'tag',
+  prefix: 'person-' | 'tag-',
   registry: ReadonlyArray<{ id?: number; name: string }>,
   options: {
     restrictIds?: ReadonlyArray<number> | null
-    implicitIdsFor?: (todo: PersistedTodoItem) => readonly number[]
     formatLabel: (name: string) => string
     ungroupedSentinel: { key: string; label: string }
   },
@@ -373,16 +307,9 @@ function bucketByEntity(
     ? restrictIds.map((id) => `${prefix}${id}`)
     : undefined
 
-  const implicitIdsFor = options.implicitIdsFor
-  const implicitKeysFor =
-    restrictIds && implicitIdsFor
-      ? (todo: PersistedTodoItem): readonly string[] =>
-          implicitIdsFor(todo).map((id) => `${prefix}${id}`)
-      : undefined
-
   const { groups, ungrouped } = partitionByGroup(
     todos, axis, groupingCtx,
-    undefined, restrictToFilterSet, implicitKeysFor,
+    undefined, restrictToFilterSet,
   )
 
   const registryById = new Map(registry.map((e) => [e.id, e] as const))
@@ -406,22 +333,8 @@ function bucketByPeople(
 ): DashboardListGroup[] {
   return bucketByEntity(todos, ctx, 'people', 'person-', ctx.people ?? [], {
     restrictIds: restrict?.restrictToPersonIds,
-    implicitIdsFor: restrict?.implicitPersonIdsFor,
     formatLabel: (name) => name,
     ungroupedSentinel: { key: 'unassigned', label: 'Unassigned' },
-  })
-}
-
-function bucketByOrg(
-  todos: PersistedTodoItem[],
-  ctx: DashboardListsContext,
-  restrict?: DashboardListGroupingRestrict,
-): DashboardListGroup[] {
-  return bucketByEntity(todos, ctx, 'org', 'org-', ctx.orgs ?? [], {
-    restrictIds: restrict?.restrictToOrgIds,
-    implicitIdsFor: restrict?.implicitOrgIdsFor,
-    formatLabel: (name) => name,
-    ungroupedSentinel: { key: 'no-org', label: 'No organization' },
   })
 }
 
@@ -431,7 +344,7 @@ function bucketByTag(
   restrict?: DashboardListGroupingRestrict,
 ): DashboardListGroup[] {
   // No tag registry on ctx — labels come from `g.label` (resolved via
-  // assignedTagsMap). Tags have no cross-axis path, so no implicitIdsFor.
+  // assignedTagsMap).
   return bucketByEntity(todos, ctx, 'tag', 'tag-', [], {
     restrictIds: restrict?.restrictToTagIds,
     formatLabel: (name) => `#${name}`,

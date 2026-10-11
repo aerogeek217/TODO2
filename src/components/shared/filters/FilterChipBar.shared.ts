@@ -1,7 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { TodoPredicate } from '../../../models'
 import { usePersonStore } from '../../../stores/person-store'
-import { useOrgStore } from '../../../stores/org-store'
 import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -33,9 +32,6 @@ export interface FilterChipBarProps {
 export const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,
   personIds: null,
-  personFilterMode: 'include-orgs',
-  orgIds: null,
-  orgFilterMode: 'include-people',
   projectIds: null,
   statusIds: null,
   searchText: '',
@@ -48,13 +44,12 @@ export const DEFAULT_PREDICATE: TodoPredicate = {
   tags: null,
 }
 
-export type EntityKey = 'project' | 'people' | 'org' | 'status' | 'tags'
+export type EntityKey = 'project' | 'people' | 'status' | 'tags'
 
 export function hasAnyFilter(p: TodoPredicate): boolean {
   return (
     p.showCompleted ||
     p.personIds !== null ||
-    p.orgIds !== null ||
     p.projectIds !== null ||
     p.statusIds !== null ||
     p.searchText !== '' ||
@@ -75,20 +70,17 @@ export const triLabel = (v: boolean | null) =>
 export interface FilterChipBarSharedState {
   p: TodoPredicate
   people: ReturnType<typeof usePersonStore.getState>['people']
-  orgs: ReturnType<typeof useOrgStore.getState>['orgs']
   projects: ReturnType<typeof useProjectStore.getState>['projects']
   statuses: ReturnType<typeof useStatusStore.getState>['statuses']
   sortedTags: ReturnType<typeof useTagStore.getState>['tags']
   allTagIds: number[]
 
   personIdsSet: Set<number> | null
-  orgIdsSet: Set<number> | null
   projectIdsSet: Set<number> | null
   statusIdsSet: Set<number> | null
   tagIdsSet: Set<number> | null
 
   peopleActive: boolean
-  orgsActive: boolean
   projectsActive: boolean
   statusActive: boolean
   tagsActive: boolean
@@ -97,7 +89,6 @@ export interface FilterChipBarSharedState {
 
   update: (patch: Partial<TodoPredicate>) => void
   setPersonIds: (next: Set<number> | null) => void
-  setOrgIds: (next: Set<number> | null) => void
   setProjectIds: (next: Set<number> | null) => void
   setStatusIds: (next: Set<number> | null) => void
   setTags: (next: Set<number> | null) => void
@@ -131,13 +122,11 @@ export function useFilterChipBarState(
   )
 
   const people = usePersonStore((s) => s.people)
-  const orgs = useOrgStore((s) => s.orgs)
   const projects = useProjectStore((s) => s.projects)
   const statuses = useStatusStore((s) => s.statuses)
   const tags = useTagStore((s) => s.tags)
 
   const personIdsSet = useMemo(() => (p.personIds ? new Set(p.personIds) : null), [p.personIds])
-  const orgIdsSet = useMemo(() => (p.orgIds ? new Set(p.orgIds) : null), [p.orgIds])
   const projectIdsSet = useMemo(() => (p.projectIds ? new Set(p.projectIds) : null), [p.projectIds])
   const statusIdsSet = useMemo(() => (p.statusIds ? new Set(p.statusIds) : null), [p.statusIds])
   const tagIdsSet = useMemo(() => (p.tags ? new Set(p.tags) : null), [p.tags])
@@ -146,7 +135,6 @@ export function useFilterChipBarState(
   const allTagIds = useMemo(() => sortedTags.map((t) => t.id!), [sortedTags])
 
   const peopleActive = p.personIds !== null
-  const orgsActive = p.orgIds !== null
   const projectsActive = p.projectIds !== null
   const statusActive = p.statusIds !== null
   const tagsActive = (p.tags ?? null) !== null
@@ -175,10 +163,6 @@ export function useFilterChipBarState(
       update({ personIds: next ? Array.from(next) : null }),
     [update],
   )
-  const setOrgIds = useCallback(
-    (next: Set<number> | null) => update({ orgIds: next ? Array.from(next) : null }),
-    [update],
-  )
   const setProjectIds = useCallback(
     (next: Set<number> | null) => update({ projectIds: next ? Array.from(next) : null }),
     [update],
@@ -202,18 +186,15 @@ export function useFilterChipBarState(
   return {
     p,
     people,
-    orgs,
     projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    orgIdsSet,
     projectIdsSet,
     statusIdsSet,
     tagIdsSet,
     peopleActive,
-    orgsActive,
     projectsActive,
     statusActive,
     tagsActive,
@@ -221,7 +202,6 @@ export function useFilterChipBarState(
     active,
     update,
     setPersonIds,
-    setOrgIds,
     setProjectIds,
     setStatusIds,
     setTags,

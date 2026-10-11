@@ -18,7 +18,6 @@ export type TodoSortBy =
   | 'created'     // createdAt
   | 'people'      // sortOrder fallback (categorical)
   | 'project'     // sortOrder fallback
-  | 'org'         // sortOrder fallback
   | 'status'      // sortOrder fallback
 
 export type TodoGroupBy =
@@ -27,18 +26,17 @@ export type TodoGroupBy =
   | 'followup'    // relative buckets on nextFollowupAt
   | 'people'      // many-to-many
   | 'project'
-  | 'org'         // direct + person→org membership
   | 'status'
   | 'tag'         // many-to-many
 
 export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
   'manual', 'name', 'deadline', 'followup', 'created',
-  'people', 'project', 'org', 'status',
+  'people', 'project', 'status',
 ] as const
 
 export const TODO_GROUP_BY_VALUES: readonly TodoGroupBy[] = [
   'none', 'deadline', 'followup',
-  'people', 'project', 'org', 'status', 'tag',
+  'people', 'project', 'status', 'tag',
 ] as const
 
 export function isTodoSortBy(v: unknown): v is TodoSortBy {
@@ -54,17 +52,17 @@ export const PROJECT_SORT_VALUES: readonly TodoSortBy[] =
   ['manual', 'name', 'deadline', 'created'] as const
 
 export const PROJECT_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'deadline', 'followup', 'status', 'people', 'org', 'tag'] as const
+  ['none', 'deadline', 'followup', 'status', 'people', 'tag'] as const
 
 export const LIST_SORT_VALUES: readonly TodoSortBy[] =
   ['manual', 'name', 'deadline', 'followup'] as const
 
 export const LIST_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'deadline', 'followup', 'project', 'status', 'people', 'org', 'tag'] as const
+  ['none', 'deadline', 'followup', 'project', 'status', 'people', 'tag'] as const
 
 /** Full set for the per-list editor (it's the most permissive surface). */
 export const LIST_EDITOR_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'deadline', 'followup', 'project', 'status', 'people', 'org'] as const
+  ['manual', 'deadline', 'followup', 'project', 'status', 'people'] as const
 
 export const LIST_EDITOR_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'deadline', 'followup', 'project', 'status', 'people', 'org', 'tag'] as const
+  ['none', 'deadline', 'followup', 'project', 'status', 'people', 'tag'] as const

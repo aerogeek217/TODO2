@@ -23,18 +23,16 @@ describe('matchTodoText', () => {
     const r = matchTodoText({ title: 'foo bar', notes: 'foo' }, 'foo', {
       projectName: 'foo project',
       personNames: ['Foo Person'],
-      orgNames: ['OtherOrg'],
       statusName: 'InProgress',
     })
     expect(r.matched).toBe(true)
     expect(r.fields).toEqual(['title', 'notes', 'project', 'person'])
   })
 
-  it('matches on project / person / org / status via ctx', () => {
+  it('matches on project / person / status via ctx', () => {
     const todo = { title: 't', notes: 'n' }
     expect(matchTodoText(todo, 'projx', { projectName: 'ProjX' }).fields).toEqual(['project'])
     expect(matchTodoText(todo, 'alice', { personNames: ['Alice', 'Bob'] }).fields).toEqual(['person'])
-    expect(matchTodoText(todo, 'acme', { orgNames: ['Acme Corp'] }).fields).toEqual(['org'])
     expect(matchTodoText(todo, 'blocked', { statusName: 'Blocked' }).fields).toEqual(['status'])
   })
 

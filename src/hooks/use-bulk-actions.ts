@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 
 /**
@@ -98,24 +97,6 @@ export function useBulkActions() {
     }
   }, [])
 
-  const quickAssignOrg = useCallback((todoId: number, orgId: number) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useOrgStore.getState().bulkAssignOrg(ids, orgId)
-    } else {
-      useOrgStore.getState().assignOrg(todoId, orgId)
-    }
-  }, [])
-
-  const quickUnassignOrg = useCallback((todoId: number, orgId: number) => {
-    const ids = getTargetIds(todoId)
-    if (ids.length > 1) {
-      useOrgStore.getState().bulkUnassignOrg(ids, orgId)
-    } else {
-      useOrgStore.getState().unassignOrg(todoId, orgId)
-    }
-  }, [])
-
   const quickAssignTag = useCallback((todoId: number, tagId: number) => {
     const ids = getTargetIds(todoId)
     if (ids.length > 1) {
@@ -144,8 +125,6 @@ export function useBulkActions() {
     setProject,
     quickAssignPerson,
     quickUnassignPerson,
-    quickAssignOrg,
-    quickUnassignOrg,
     quickAssignTag,
     quickUnassignTag,
   }

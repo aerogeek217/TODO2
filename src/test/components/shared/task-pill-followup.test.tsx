@@ -46,7 +46,7 @@ describe('<TaskPillFollowup>', () => {
 
   it('TaskPillBar renders it after the dates; no × without a clear handler (touch rows)', () => {
     const todo = makeTodo({ id: 1, dueDate: new Date(2026, 9, 20), nextFollowupAt: new Date(2026, 9, 13) })
-    render(<TaskPillBar todo={todo} people={[]} orgs={[]} today={today} weekStartsOn={1} />)
+    render(<TaskPillBar todo={todo} people={[]} today={today} weekStartsOn={1} />)
     const pill = screen.getByRole('button', { name: 'Follow-up: Tue 13' })
     expect(pill).toBeInTheDocument()
     expect(screen.queryByLabelText('Clear follow-up')).toBeNull()

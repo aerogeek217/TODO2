@@ -63,7 +63,7 @@ interface TodoState {
   purgeCompleted: (ids: number[]) => Promise<number>
   duplicate: (id: number) => Promise<number | undefined>
   /** Internal: restore a deleted todo (for undo). */
-  _restore: (todo: PersistedTodoItem, personIds: number[], orgIds: number[]) => Promise<void>
+  _restore: (todo: PersistedTodoItem, personIds: number[]) => Promise<void>
   /** Internal: remove without undo registration (for redo of add). */
   _removeNoUndo: (id: number) => Promise<void>
 }
@@ -256,7 +256,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const todo = get().todos.find((t) => t.id === id)
       if (!todo) return
       const snapshot = { ...todo }
-      const { personIds, orgIds } = await captureAssignments(id)
+      const { personIds } = await captureAssignments(id)
 
       await todoRepository.delete(id)
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
@@ -264,7 +264,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       undoable(
         `Delete "${todo.title}"`,
         () => get()._removeNoUndo(id),
-        () => get()._restore(snapshot, personIds, orgIds),
+        () => get()._restore(snapshot, personIds),
         true,
       )
     }, 'Failed to delete task')
@@ -464,7 +464,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const assignments = await captureAssignmentsBulk(ids)
       const assignmentData = snapshots.map(t => {
         const a = assignments.find(a => a.todoId === t.id)!
-        return { todo: t, personIds: a.personIds, orgIds: a.orgIds }
+        return { todo: t, personIds: a.personIds }
       })
 
       await todoRepository.bulkDelete(ids)
@@ -475,8 +475,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         `Delete ${ids.length} tasks`,
         () => get().bulkRemove(ids),
         async () => {
-          for (const { todo, personIds, orgIds } of assignmentData) {
-            await get()._restore(todo, personIds, orgIds)
+          for (const { todo, personIds } of assignmentData) {
+            await get()._restore(todo, personIds)
           }
         },
         true,
@@ -582,18 +582,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
         set({ todos: [...get().todos, newTodo], todosVersion: get().todosVersion + 1 })
       }
       // Copy assignments at repo level (bypasses store undo registration)
-      const { personIds, orgIds } = await captureAssignments(id)
+      const { personIds } = await captureAssignments(id)
       const { personRepository } = await import('../data/person-repository')
-      const { orgRepository } = await import('../data/org-repository')
       for (const pid of personIds) await personRepository.assignPerson(newId, pid)
-      for (const oid of orgIds) await orgRepository.assignOrg(newId, oid)
       // Refresh assignment caches for the new task
-      if (personIds.length > 0 || orgIds.length > 0) {
+      if (personIds.length > 0) {
         const { usePersonStore } = await import('./person-store')
-        const { useOrgStore } = await import('./org-store')
         const todoIds = get().todos.map(t => t.id)
-        if (personIds.length > 0) await usePersonStore.getState().loadAssignments(todoIds)
-        if (orgIds.length > 0) await useOrgStore.getState().loadAssignments(todoIds)
+        await usePersonStore.getState().loadAssignments(todoIds)
       }
       undoable(
         `Duplicate "${todo.title}"`,
@@ -604,20 +600,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
     }, 'Failed to duplicate task')
   },
 
-  async _restore(todo: PersistedTodoItem, personIds: number[], orgIds: number[] = []) {
-    await todoRepository.restoreWithAssignments(todo, personIds, orgIds)
+  async _restore(todo: PersistedTodoItem, personIds: number[]) {
+    await todoRepository.restoreWithAssignments(todo, personIds)
     set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
     // Refresh assignment caches
-    const todoIds = get().todos.map(t => t.id)
-    if (personIds.length > 0 || orgIds.length > 0) {
+    if (personIds.length > 0) {
       const { usePersonStore } = await import('./person-store')
-      const { useOrgStore } = await import('./org-store')
-      if (personIds.length > 0) {
-        await usePersonStore.getState().loadAssignments(todoIds)
-      }
-      if (orgIds.length > 0) {
-        await useOrgStore.getState().loadAssignments(todoIds)
-      }
+      await usePersonStore.getState().loadAssignments(get().todos.map(t => t.id))
     }
   },
 

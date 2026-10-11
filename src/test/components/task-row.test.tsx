@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
-import { makeTodo, makePerson, makeProject, makeOrg, resetEntityStores } from '../helpers'
+import { makeTodo, makePerson, makeProject, resetEntityStores } from '../helpers'
 
 const mockBulk = {
   toggleComplete: vi.fn(),
@@ -16,8 +15,6 @@ const mockBulk = {
   setStatus: vi.fn(),
   quickAssignPerson: vi.fn(),
   quickUnassignPerson: vi.fn(),
-  quickAssignOrg: vi.fn(),
-  quickUnassignOrg: vi.fn(),
   quickAssignTag: vi.fn(),
   quickUnassignTag: vi.fn(),
 }
@@ -167,17 +164,6 @@ describe('TaskRow', () => {
       expect(screen.getByText('+1')).toBeInTheDocument()
     })
 
-    it('renders orgs as a hollow AvatarStack, not as text chips', () => {
-      const org = makeOrg({ id: 9, name: 'Acme', initials: 'AC', color: '#ff00ff' })
-      useOrgStore.setState({ assignedOrgsMap: new Map([[1, [org]]]) })
-      const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      // No legacy "@Acme" org chip
-      expect(screen.queryByText('@Acme')).not.toBeInTheDocument()
-      // Hollow avatar with initials
-      const hollow = container.querySelector('[class*="avatarHollow"]')
-      expect(hollow).not.toBeNull()
-      expect(hollow!.textContent).toBe('AC')
-    })
   })
 
   describe('status slot layout', () => {
@@ -212,11 +198,10 @@ describe('TaskRow', () => {
     })
   })
 
-  describe('inline tag chip (P2 — item 1)', () => {
-    // Triage-2026-04-27 batch 2 P2 inverted the previous "tags never render
-    // on the row" rule: now assigned tags render as `#name` chips parallel to
-    // the people/org chip pattern, and a hover-revealed `#` empty trigger
-    // mounts when no tags are assigned. Tag toggle goes through bulk actions.
+  describe('inline tag chip', () => {
+    // Assigned tags render as `#name` chips alongside the people avatars, and
+    // a hover-revealed `#` empty trigger mounts when no tags are assigned.
+    // Tag toggle goes through bulk actions.
     it('renders #name chips for each assigned tag', async () => {
       const { useTagStore } = await import('../../stores/tag-store')
       useTagStore.setState({

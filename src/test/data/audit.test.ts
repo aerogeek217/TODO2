@@ -23,10 +23,7 @@ describe('auditData', () => {
   it('reports no issues on clean data', async () => {
     const { todoId } = await seedBase()
     const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
-    const orgId = await db.orgs.add({ name: 'Acme', color: '#00f' } as any)
     await db.todoPeople.add({ todoId, personId })
-    await db.todoOrgs.add({ todoId, orgId })
-    await db.personOrgs.add({ personId, orgId })
     await db.taskboards.add({ entries: [{ todoId, sortOrder: 0 }], createdAt: now, updatedAt: now })
 
     const report = await auditData()
@@ -59,21 +56,6 @@ describe('auditData', () => {
     const report = await auditData()
     expect(report.totalOrphans).toBe(1)
     expect(report.issues.find((i) => i.table === 'todoPeople')).toBeDefined()
-  })
-
-  it('detects orphaned todoOrgs', async () => {
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-
-    const report = await auditData()
-    expect(report.issues.find((i) => i.table === 'todoOrgs')!.count).toBe(1)
-  })
-
-  it('detects orphaned personOrgs', async () => {
-    const orgId = await db.orgs.add({ name: 'Acme', color: '#00f' } as any)
-    await db.personOrgs.add({ personId: 999, orgId })
-
-    const report = await auditData()
-    expect(report.issues.find((i) => i.table === 'personOrgs')!.count).toBe(1)
   })
 
   it('detects orphaned todoTags (deleted todo)', async () => {
@@ -206,7 +188,7 @@ describe('auditData', () => {
 
   it('detects multiple issue types in one scan', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
+    await db.todoTags.add({ todoId: 999, tagId: 888 })
     await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
     await db.todos.add(makeTodo({ projectId: 777 }) as any)
 
@@ -238,7 +220,7 @@ describe('auditData', () => {
 describe('cleanupIssues', () => {
   it('deletes orphaned join rows and strips orphaned taskboard entries', async () => {
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
+    await db.todoTags.add({ todoId: 999, tagId: 888 })
     const boardId = await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
 
     const report = await auditData()
@@ -248,7 +230,7 @@ describe('cleanupIssues', () => {
     expect(cleaned).toBe(3)
 
     expect(await db.todoPeople.count()).toBe(0)
-    expect(await db.todoOrgs.count()).toBe(0)
+    expect(await db.todoTags.count()).toBe(0)
     const board = await db.taskboards.get(boardId)
     expect(board?.entries).toEqual([])
   })
@@ -322,8 +304,7 @@ describe('cleanupIssues', () => {
   it('database is clean after cleanup', async () => {
     // Seed multiple types of orphans
     await db.todoPeople.add({ todoId: 999, personId: 888 })
-    await db.todoOrgs.add({ todoId: 999, orgId: 888 })
-    await db.personOrgs.add({ personId: 999, orgId: 888 })
+    await db.todoTags.add({ todoId: 999, tagId: 888 })
     await db.taskboards.add({ entries: [{ todoId: 999, sortOrder: 0 }], createdAt: now, updatedAt: now })
     // No canvasId so clearing dangling projectId won't create a new unplaced-task issue
     await db.todos.add(makeTodo({ projectId: 777 }) as any)

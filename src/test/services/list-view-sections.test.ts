@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import type { Org, Person, Project, Tag } from '../../models'
+import type { Person, Project, Tag } from '../../models'
 import {
   buildDeadlineSections,
   buildFollowupSections,
   buildFlatSection,
-  buildOrgSections,
   buildPeopleSections,
   buildProjectSections,
   buildTagSections,
@@ -116,24 +115,7 @@ describe('buildPeopleSections', () => {
     expect(sections[1]!.todos).toHaveLength(1)
   })
 
-  // grouping-cross-surface-convergence-2026-04-29 P2 — group-by-people emits
-  // person sections only. The legacy org-first short-circuit (siphon
-  // direct-org-assigned tasks into a leading per-org bucket) is dropped;
-  // a task with both a direct person AND a direct org now lands under the
-  // person, matching the canvas project widget / list widget / lens.
-  it('emits under person sections only when a task has both direct person and direct org', () => {
-    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
-    const acme: Org = { id: 100, name: 'Acme', color: '#abc' }
-    const t = makeTodo({ id: 10 })
-    const assignedPeopleMap = new Map<number, Person[]>([[10, [alice]]])
-    // `orgs` + `personOrgMap` are kept on the signature for `resolvePersonColor`
-    // accent resolution; they no longer drive a leading org section.
-    const sections = buildPeopleSections([t], [alice], assignedPeopleMap, [acme], new Map())
-    expect(sections.map((s) => s.label)).toEqual(['Alice'])
-    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
-  })
-
-  // Item 1, P6 — visible-groups intersection rule. When the active filter
+  // Visible-groups intersection rule. When the active filter
   // narrows to specific people AND grouping is by people, ONLY those
   // people's sections appear. Carol+Alice are restricted-to; Bob is filtered
   // out of the visible groups entirely, even though his task survived the
@@ -159,8 +141,6 @@ describe('buildPeopleSections', () => {
       todos,
       people,
       assignedPeopleMap,
-      undefined,
-      undefined,
       [3, 1], // restrict to Carol then Alice; Bob's task drops out of the visible groups.
     )
     expect(sections.map((s) => s.label)).toEqual(['Carol', 'Alice'])
@@ -180,71 +160,14 @@ describe('buildPeopleSections', () => {
       todos,
       people,
       assignedPeopleMap,
-      undefined,
-      undefined,
       null,
     )
-    // Order follows the `people` registry input order.
+    // Sections are alphabetical by person name.
     expect(sections.map((s) => s.label)).toEqual(['Alice', 'Bob'])
   })
 
-  it('puts implicit-tier (cross-axis) person sections at the bottom of the person block', () => {
-    // Setup mirrors the worked example from the plan's Decision 6:
-    // - Filter people [Alice, Bob], group by people, mode=include-orgs.
-    // - Bob is a member of org Acme; Alice is not.
-    // - T1 directly assigned to Alice (and Charlie, who is filtered out).
-    // - T2 directly assigned only to Charlie + org Acme — survives the
-    //   filter via Bob's org membership; emits under Bob via implicit.
-    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
-    const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
-    const charlie: Person = { id: 3, name: 'Charlie', initials: 'C' }
-    const acme: Org = { id: 100, name: 'Acme', color: '#abc' }
-    const t1 = makeTodo({ id: 10 })
-    const t2 = makeTodo({ id: 11 })
-    const assignedPeopleMap = new Map<number, Person[]>([
-      [10, [alice, charlie]],
-      [11, [charlie]],
-    ])
-    const assignedOrgsMap = new Map<number, Org[]>([
-      [10, []],
-      [11, [acme]],
-    ])
-    const personOrgMap = new Map<number, number[]>([
-      [bob.id!, [acme.id!]], // Bob ∈ Acme
-    ])
-    const implicitPersonIdsFor = (todo: typeof t1): readonly number[] => {
-      const taskOrgs = assignedOrgsMap.get(todo.id) ?? []
-      if (taskOrgs.length === 0) return []
-      const result: number[] = []
-      const seen = new Set<number>()
-      for (const [pid, orgs] of personOrgMap) {
-        if (orgs.some((oid) => taskOrgs.some((o) => o.id === oid))) {
-          if (!seen.has(pid)) {
-            seen.add(pid)
-            result.push(pid)
-          }
-        }
-      }
-      return result
-    }
-    const sections = buildPeopleSections(
-      [t1, t2],
-      [alice, bob, charlie],
-      assignedPeopleMap,
-      [acme],
-      personOrgMap,
-      [alice.id!, bob.id!],
-      implicitPersonIdsFor,
-    )
-    // Alice (direct) leads, Bob (implicit-only) at the bottom of the person
-    // block. Charlie never appears.
-    expect(sections.map((s) => s.label)).toEqual(['Alice', 'Bob'])
-    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
-    expect(sections[1]!.todos.map((t) => t.id)).toEqual([11])
-  })
-
-  it('drops tasks whose direct + implicit keys fail to intersect restrict set', () => {
-    // Filter [Alice], no implicit callback; task assigned to Bob only →
+  it('drops tasks whose keys fail to intersect restrict set', () => {
+    // Filter [Alice]; task assigned to Bob only →
     // dropped from the visible groups entirely (not routed to Unassigned).
     const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
     const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
@@ -254,187 +177,27 @@ describe('buildPeopleSections', () => {
       todos,
       [alice, bob],
       assignedPeopleMap,
-      undefined,
-      undefined,
       [alice.id!],
     )
     expect(sections).toEqual([])
   })
 
-  it('promotes a group to direct tier when any task emits under it directly', () => {
-    // Filter [Alice]; T1 has direct Alice; T2 has implicit-only Alice (via
-    // org). Group Alice ends up direct-tier (not implicit-only) because of T1.
-    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
-    const charlie: Person = { id: 3, name: 'Charlie', initials: 'C' }
-    const acme: Org = { id: 100, name: 'Acme', color: '#abc' }
-    const t1 = makeTodo({ id: 10 })
-    const t2 = makeTodo({ id: 11 })
+  it('surfaces person.color as the section accentColor (undefined when unset)', () => {
+    const alice: Person = { id: 1, name: 'Alice', initials: 'A', color: '#abc' }
+    const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
+    const todos = [makeTodo({ id: 10 }), makeTodo({ id: 11 })]
     const assignedPeopleMap = new Map<number, Person[]>([
       [10, [alice]],
-      [11, [charlie]],
+      [11, [bob]],
     ])
-    const assignedOrgsMap = new Map<number, Org[]>([
-      [10, []],
-      [11, [acme]],
-    ])
-    const personOrgMap = new Map<number, number[]>([[alice.id!, [acme.id!]]])
-    const implicitPersonIdsFor = (todo: typeof t1): readonly number[] => {
-      const taskOrgs = assignedOrgsMap.get(todo.id) ?? []
-      if (taskOrgs.length === 0) return []
-      const result: number[] = []
-      for (const [pid, orgs] of personOrgMap) {
-        if (orgs.some((oid) => taskOrgs.some((o) => o.id === oid))) result.push(pid)
-      }
-      return result
-    }
-    const sections = buildPeopleSections(
-      [t1, t2],
-      [alice, charlie],
-      assignedPeopleMap,
-      [acme],
-      personOrgMap,
-      [alice.id!],
-      implicitPersonIdsFor,
-    )
-    expect(sections.map((s) => s.label)).toEqual(['Alice'])
-    // Both tasks land in the Alice section — T1 directly, T2 via implicit.
-    expect(sections[0]!.todos.map((t) => t.id).sort()).toEqual([10, 11])
+    const sections = buildPeopleSections(todos, [alice, bob], assignedPeopleMap)
+    expect(sections.map((s) => s.label)).toEqual(['Alice', 'Bob'])
+    expect(sections[0]!.accentColor).toBe('#abc')
+    expect(sections[1]!.accentColor).toBeUndefined()
   })
 })
 
-describe('buildOrgSections — legacy mode (no restrict)', () => {
-  // Baseline coverage seeded in P4 of grouping-bucketers-consolidation-2026-04-29.
-  // The 3 inference-path tests (person→org infer / dedup / no-people-inferred
-  // sentinel) were retired in grouping-cross-surface-convergence-2026-04-29
-  // P3 alongside the `additionalKeysFor` callback. Direct emit + filtered-
-  // out direct emit stay — they cover the post-P3 grouping surface.
-  it('emits a section for each direct org assignment', () => {
-    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
-    const beta: Org = { id: 2, name: 'Beta', color: '#b' }
-    const t1 = makeTodo({ id: 10 })
-    const t2 = makeTodo({ id: 11 })
-    const assignedOrgsMap = new Map<number, Org[]>([
-      [t1.id, [acme]],
-      [t2.id, [beta]],
-    ])
-    const sections = buildOrgSections(
-      [t1, t2],
-      [acme, beta],
-      assignedOrgsMap,
-      new Map(),
-    )
-    expect(sections.map((s) => s.key)).toEqual(['org-1', 'org-2'])
-    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
-    expect(sections[1]!.todos.map((t) => t.id)).toEqual([11])
-  })
-
-  it('routes a person-only task with no direct org into the No Organization sentinel (post-P3: no inference)', () => {
-    // Pre-P3: T's assignee Alice ∈ Acme via personOrgMap → T emitted under
-    // Acme via person→org inference.
-    // Post-P3: inference is gone → T has no direct org → falls to ungrouped
-    // → renders as "No Organization" iff `showNoOrg`.
-    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
-    const alice: Person = { id: 10, name: 'Alice', initials: 'A' }
-    const t = makeTodo({ id: 100 })
-    const assignedOrgsMap = new Map<number, Org[]>() // T has no direct orgs
-    const personOrgMap = new Map<number, number[]>([[alice.id!, [acme.id!]]]) // Alice ∈ Acme
-    const sections = buildOrgSections(
-      [t],
-      [acme],
-      assignedOrgsMap,
-      personOrgMap,
-    )
-    expect(sections.map((s) => s.key)).toEqual(['no-org'])
-    expect(sections[0]!.todos.map((t) => t.id)).toEqual([100])
-  })
-
-  it('drops direct-org tasks whose orgs are filtered out and suppresses No Organization when filter excludes the sentinel', () => {
-    // filteredOrgIds = [acme.id] (no 0 sentinel) → showNoOrg=false.
-    // T2 directly assigned to Beta (filtered out) is silently dropped.
-    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
-    const beta: Org = { id: 2, name: 'Beta', color: '#b' }
-    const t1 = makeTodo({ id: 10 })
-    const t2 = makeTodo({ id: 11 })
-    const assignedOrgsMap = new Map<number, Org[]>([
-      [t1.id, [acme]],
-      [t2.id, [beta]],
-    ])
-    const sections = buildOrgSections(
-      [t1, t2],
-      [acme, beta],
-      assignedOrgsMap,
-      new Map(),
-      new Set([acme.id!]), // filter excludes Beta and the 0 sentinel
-    )
-    expect(sections.map((s) => s.key)).toEqual(['org-1'])
-    expect(sections[0]!.todos.map((t) => t.id)).toEqual([10])
-  })
-})
-
-describe('buildOrgSections — visible-groups intersection (P6)', () => {
-  it('restricts visible org sections to restrictToOrgIds in caller order', () => {
-    const orgs: Org[] = [
-      { id: 1, name: 'Acme' },
-      { id: 2, name: 'Beta' },
-      { id: 3, name: 'Charlie' },
-    ]
-    const todos = [
-      makeTodo({ id: 10 }),
-      makeTodo({ id: 11 }),
-      makeTodo({ id: 12 }),
-    ]
-    const assignedOrgsMap = new Map([
-      [10, [orgs[0]!]],
-      [11, [orgs[1]!]],
-      [12, [orgs[2]!]],
-    ])
-    const sections = buildOrgSections(
-      todos,
-      orgs,
-      assignedOrgsMap,
-      new Map(),
-      null,
-      [3], // Restrict to Charlie only — Acme/Beta tasks drop out.
-    )
-    expect(sections.map((s) => s.label)).toEqual(['Charlie'])
-  })
-
-  it('puts implicit-tier (cross-axis people→org) sections at the bottom', () => {
-    // Filter [Acme, Beta], group by org, mode=include-people.
-    // - Bob ∈ Beta only.
-    // - T1 directly assigned to org Acme → Acme is direct.
-    // - T2 directly assigned to person Bob (no direct org) → emits under
-    //   Beta as implicit via include-people.
-    const acme: Org = { id: 1, name: 'Acme', color: '#a' }
-    const beta: Org = { id: 2, name: 'Beta', color: '#b' }
-    const bob = { id: 10, name: 'Bob', initials: 'B' }
-    const t1 = makeTodo({ id: 100 })
-    const t2 = makeTodo({ id: 101 })
-    const assignedPeopleMap = new Map([[t2.id, [bob]]])
-    const assignedOrgsMap = new Map([[t1.id, [acme]]])
-    const personOrgMap = new Map([[bob.id, [beta.id!]]])
-    const implicitOrgIdsFor = (todo: typeof t1): readonly number[] => {
-      const ppl = assignedPeopleMap.get(todo.id) ?? []
-      const ids = new Set<number>()
-      for (const p of ppl) for (const oid of personOrgMap.get(p.id) ?? []) ids.add(oid)
-      return [...ids]
-    }
-    const sections = buildOrgSections(
-      [t1, t2],
-      [acme, beta],
-      assignedOrgsMap,
-      personOrgMap,
-      null,
-      [acme.id!, beta.id!],
-      implicitOrgIdsFor,
-    )
-    expect(sections.map((s) => s.label)).toEqual(['Acme', 'Beta'])
-    expect(sections[0]!.todos.map((t) => t.id)).toEqual([100])
-    expect(sections[1]!.todos.map((t) => t.id)).toEqual([101])
-  })
-})
-
-describe('buildTagSections — visible-groups intersection (P6)', () => {
+describe('buildTagSections — visible-groups intersection', () => {
   const ALPHA: Tag = { id: 3, name: 'alpha', color: '#00f' }
   const MU: Tag = { id: 4, name: 'mu', color: '#ff0' }
   const ZETA: Tag = { id: 5, name: 'zeta', color: '#0ff' }

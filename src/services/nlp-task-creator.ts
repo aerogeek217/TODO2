@@ -2,7 +2,7 @@ import { parseInput } from './natural-language-parser'
 import { resolveInput, resolveTags, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
 import { runNlpMetadataTransaction } from '../data'
-import type { Person, Project, Org, Status, PersistedTodoItem } from '../models'
+import type { Person, Project, Status, PersistedTodoItem } from '../models'
 
 export interface NlpCreateResult {
   title: string
@@ -10,27 +10,26 @@ export interface NlpCreateResult {
 }
 
 /**
- * Parse raw input text and resolve against known people / orgs / projects /
+ * Parse raw input text and resolve against known people / projects /
  * statuses. Returns the cleaned title and resolved metadata.
  */
 export function parseTaskInput(
   rawTitle: string,
   people: Person[],
   projects: Project[] = [],
-  orgs: Org[] = [],
   statuses: Status[] = [],
 ): NlpCreateResult {
   const parsed = parseInput(rawTitle)
-  const resolved = resolveInput(parsed, people, projects, orgs, statuses)
+  const resolved = resolveInput(parsed, people, projects, statuses)
   return { title: resolved.title, resolved }
 }
 
 /**
  * Apply resolved NLP metadata to a newly created task.
- * Writes the due date / status and assigns people / orgs. Recurrence anchors
+ * Writes the due date / status and assigns people. Recurrence anchors
  * to the due date; without one the recurrence is dropped. Tags go through the registry (resolve-or-create
  * via `tag-store`) after the transaction — they live in the normalized
- * `tags`+`todoTags` tables and don't need to be atomic with person/org
+ * `tags`+`todoTags` tables and don't need to be atomic with person
  * assignment.
  */
 export async function applyNlpMetadata(
@@ -39,13 +38,12 @@ export async function applyNlpMetadata(
   getTodo: (id: number) => PersistedTodoItem | undefined,
   updateTodo: (todo: PersistedTodoItem) => Promise<void>,
   assignPerson: (todoId: number, personId: number) => Promise<void>,
-  assignOrg?: (todoId: number, orgId: number) => Promise<void>,
 ): Promise<void> {
   const hasUpdates =
     resolved.dueDate !== undefined ||
     resolved.recurrence !== undefined ||
     resolved.statusId !== undefined
-  const hasAssignments = resolved.personIds.length > 0 || resolved.orgIds.length > 0
+  const hasAssignments = resolved.personIds.length > 0
   const hasTags = resolved.tags.length > 0
   if (!hasUpdates && !hasAssignments && !hasTags) return
 
@@ -73,13 +71,6 @@ export async function applyNlpMetadata(
       // Assign people
       for (const personId of resolved.personIds) {
         await assignPerson(todoId, personId)
-      }
-
-      // Assign orgs
-      if (assignOrg) {
-        for (const orgId of resolved.orgIds) {
-          await assignOrg(todoId, orgId)
-        }
       }
     })
   }

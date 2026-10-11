@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
-import { useOrgStore } from '../../stores/org-store'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
-import { makeTodo, makePerson, makeOrg } from '../helpers'
+import { makeTodo, makePerson } from '../helpers'
 
 const mockToggleComplete = vi.fn()
 const mockRemove = vi.fn()
@@ -19,8 +18,6 @@ vi.mock('../../hooks/use-bulk-actions', () => ({
     setStatus: vi.fn(),
     quickAssignPerson: vi.fn(),
     quickUnassignPerson: vi.fn(),
-    quickAssignOrg: vi.fn(),
-    quickUnassignOrg: vi.fn(),
     quickAssignTag: mockQuickAssignTag,
     quickUnassignTag: mockQuickUnassignTag,
   }),
@@ -39,7 +36,6 @@ describe('MobileTaskRow', () => {
     vi.useFakeTimers()
     vi.setSystemTime(TODAY)
     vi.clearAllMocks()
-    useOrgStore.setState({ assignedOrgsMap: new Map() })
   })
 
   afterEach(() => {
@@ -132,16 +128,6 @@ describe('MobileTaskRow', () => {
       expect(screen.queryByText('D')).not.toBeInTheDocument()
     })
 
-    it('shows org initials from store via hollow AvatarStack', () => {
-      useOrgStore.setState({
-        assignedOrgsMap: new Map([[1, [makeOrg({ id: 5, name: 'Acme', initials: 'AC' })]]]),
-      })
-      const { container } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
-      const hollow = container.querySelector('[class*="avatarHollow"]') as HTMLElement
-      expect(hollow).not.toBeNull()
-      expect(hollow.textContent).toBe('AC')
-    })
-
     it('shows progress text and bar', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, progress: '50%' })} />)
       expect(screen.getByText(/50%/)).toBeInTheDocument()
@@ -189,12 +175,11 @@ describe('MobileTaskRow', () => {
     })
   })
 
-  // ── Inline tag chip (P2 — item 1) ────────────────────────────────
+  // ── Inline tag chip ──────────────────────────────────────────────
   //
-  // Triage-2026-04-27 batch 2 P2 inverted the previous "tags never render
-  // on the row" rule: now assigned tags render as `#name` chips parallel to
-  // the people/org chip pattern. Mobile shows the empty `#` trigger always
-  // (no row hover state), so it's renderable even with no other metadata.
+  // Assigned tags render as `#name` chips alongside the people avatars.
+  // Mobile shows the empty `#` trigger always (no row hover state), so
+  // it's renderable even with no other metadata.
 
   describe('inline tag chip', () => {
     it('renders #name chips for each assigned tag', async () => {

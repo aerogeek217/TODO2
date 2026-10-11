@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TodoItem, PersistedTodoItem, Person, Org, Status, Project, Tag, DateField, TodoPredicate, PersonFilterMode, OrgFilterMode, DateAnchor } from '../models'
+import type { TodoItem, PersistedTodoItem, Person, Status, Project, Tag, DateField, TodoPredicate, DateAnchor } from '../models'
 import type { RuntimeFilterSpec } from '../models/list-definition'
 import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
@@ -7,7 +7,7 @@ import { resolveDateAnchor } from '../utils/effective-date'
 import { useSettingsStore } from './settings-store'
 import { matchTodoText, type TextMatchContext } from '../utils/filter'
 
-export type { DateField, PersonFilterMode, OrgFilterMode }
+export type { DateField }
 
 /** Helper: wrap a Date as a fixed-ISO `DateAnchor`. */
 export function fixedAnchor(d: Date): DateAnchor {
@@ -24,14 +24,8 @@ export function fixedAnchor(d: Date): DateAnchor {
  */
 export interface FilterCriteria {
   showCompleted: boolean
-  /** null = no filter (all shown); Set = only those in set are shown */
+  /** null = no filter (all shown); Set = only tasks assigned to one of these people (0 = unassigned) */
   personIds: Set<number> | null
-  /** 'include-orgs' (default) also matches tasks with orgs the filter person belongs to; 'direct-only' matches only direct person assignment */
-  personFilterMode: PersonFilterMode
-  /** null = no filter; Set = only people in these orgs are shown */
-  orgIds: Set<number> | null
-  /** 'include-people' (default) matches person-org + direct-org; 'direct-only' matches only direct org assignment */
-  orgFilterMode: OrgFilterMode
   /** null = no filter; Set = only todos in these projects shown (0 = no project) */
   projectIds: Set<number> | null
   /** null = no filter; Set = only those statuses shown (0 = no status) */
@@ -82,9 +76,6 @@ interface FilterState {
 
   setShowCompleted: (show: boolean) => void
   setPersonIds: (personIds: Set<number> | null) => void
-  setPersonFilterMode: (mode: PersonFilterMode) => void
-  setOrgIds: (orgIds: Set<number> | null) => void
-  setOrgFilterMode: (mode: OrgFilterMode) => void
   setProjectIds: (projectIds: Set<number> | null) => void
   setStatusIds: (statusIds: Set<number> | null) => void
   setSearchText: (text: string) => void
@@ -105,9 +96,6 @@ interface FilterState {
 const defaultFilters: FilterCriteria = {
   showCompleted: false,
   personIds: null,
-  personFilterMode: 'include-orgs',
-  orgIds: null,
-  orgFilterMode: 'include-people',
   projectIds: null,
   statusIds: null,
   searchText: '',
@@ -124,7 +112,6 @@ function isFilterActive(f: FilterCriteria): boolean {
   return (
     f.showCompleted ||
     f.personIds !== null ||
-    f.orgIds !== null ||
     f.projectIds !== null ||
     f.statusIds !== null ||
     f.searchText !== '' ||
@@ -134,20 +121,6 @@ function isFilterActive(f: FilterCriteria): boolean {
     f.hasFollowup != null ||
     f.tags !== null
   )
-}
-
-export function computeFilterPersonOrgIds(
-  personIds: Set<number> | null,
-  mode: PersonFilterMode,
-  personOrgMap: Map<number, number[]> | undefined,
-): Set<number> | undefined {
-  if (mode !== 'include-orgs' || !personIds || personIds.size === 0 || !personOrgMap) return undefined
-  const s = new Set<number>()
-  for (const pid of personIds) {
-    if (pid === 0) continue
-    for (const oid of personOrgMap.get(pid) ?? []) s.add(oid)
-  }
-  return s.size > 0 ? s : undefined
 }
 
 /**
@@ -160,9 +133,6 @@ export function matchesFilter(
   filters: FilterCriteria,
   todo: TodoItem,
   assignedPersonIds?: number[],
-  assignedPersonOrgIds?: number[],
-  directOrgIds?: number[],
-  filterPersonOrgIds?: Set<number>,
   today: Date = startOfToday(),
   searchCtx?: TextMatchContext,
   assignedTagIds?: number[],
@@ -183,24 +153,9 @@ export function matchesFilter(
 
   if (filters.personIds !== null) {
     const hasPerson = !!assignedPersonIds && assignedPersonIds.length > 0
-    const directPersonMatch = hasPerson && assignedPersonIds!.some((id) => filters.personIds!.has(id))
-    const includeOrgs = filters.personFilterMode === 'include-orgs'
-    const orgExpandedMatch = includeOrgs && !!filterPersonOrgIds && filterPersonOrgIds.size > 0
-      && !!directOrgIds && directOrgIds.some((oid) => filterPersonOrgIds.has(oid))
+    const personMatch = hasPerson && assignedPersonIds!.some((id) => filters.personIds!.has(id))
     const unassignedSentinel = !hasPerson && filters.personIds.has(0)
-    if (!directPersonMatch && !orgExpandedMatch && !unassignedSentinel) return false
-  }
-  if (filters.orgIds !== null) {
-    const directOnly = filters.orgFilterMode === 'direct-only'
-    const hasPersonOrg = !directOnly && assignedPersonOrgIds && assignedPersonOrgIds.length > 0
-    const hasDirectOrg = directOrgIds && directOrgIds.length > 0
-    if (!hasPersonOrg && !hasDirectOrg) {
-      if (!filters.orgIds.has(0)) return false
-    } else {
-      const personOrgMatch = !directOnly && (assignedPersonOrgIds?.some((orgId) => filters.orgIds!.has(orgId)) ?? false)
-      const directOrgMatch = directOrgIds?.some((orgId) => filters.orgIds!.has(orgId)) ?? false
-      if (!personOrgMatch && !directOrgMatch) return false
-    }
+    if (!personMatch && !unassignedSentinel) return false
   }
   if (filters.projectIds !== null) {
     const pid = todo.projectId
@@ -268,32 +223,25 @@ export function applyFilter(
   filters: FilterCriteria,
   todos: PersistedTodoItem[],
   assignedPeopleMap?: Map<number, Person[]>,
-  personOrgMap?: Map<number, number[]>,
-  assignedOrgsMap?: Map<number, Org[]>,
   statuses?: Status[],
   today: Date = startOfToday(),
   projectsById?: Map<number, Project>,
   assignedTagsMap?: Map<number, Tag[]>,
 ): PersistedTodoItem[] {
-  const filterPersonOrgIds = computeFilterPersonOrgIds(filters.personIds, filters.personFilterMode, personOrgMap)
   const needsSearchCtx = !!filters.searchText
   return todos.filter((t) => {
     const people = assignedPeopleMap?.get(t.id) ?? []
     const personIds = people.map((p) => p.id!)
-    const personOrgIds = personOrgMap ? people.flatMap((p) => personOrgMap.get(p.id!) ?? []) : undefined
-    const orgs = assignedOrgsMap?.get(t.id) ?? []
-    const directOrgIds = orgs.map((o) => o.id!)
     const tags = assignedTagsMap?.get(t.id) ?? []
     const tagIds = tags.map((tg) => tg.id!)
     const searchCtx: TextMatchContext | undefined = needsSearchCtx
       ? {
           projectName: t.projectId != null ? projectsById?.get(t.projectId)?.name : undefined,
           personNames: people.map(p => p.name),
-          orgNames: orgs.map(o => o.name),
           statusName: t.statusId != null ? statuses?.find(s => s.id === t.statusId)?.name : undefined,
         }
       : undefined
-    return matchesFilter(filters, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, today, searchCtx, tagIds)
+    return matchesFilter(filters, t, personIds, today, searchCtx, tagIds)
   })
 }
 
@@ -302,9 +250,6 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
   return {
     showCompleted: f.showCompleted,
     personIds: f.personIds ? Array.from(f.personIds) : null,
-    personFilterMode: f.personFilterMode,
-    orgIds: f.orgIds ? Array.from(f.orgIds) : null,
-    orgFilterMode: f.orgFilterMode,
     projectIds: f.projectIds ? Array.from(f.projectIds) : null,
     statusIds: f.statusIds ? Array.from(f.statusIds) : null,
     searchText: f.searchText,
@@ -323,9 +268,6 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   return {
     showCompleted: p.showCompleted,
     personIds: p.personIds ? new Set(p.personIds) : null,
-    personFilterMode: p.personFilterMode,
-    orgIds: p.orgIds ? new Set(p.orgIds) : null,
-    orgFilterMode: p.orgFilterMode,
     projectIds: p.projectIds ? new Set(p.projectIds) : null,
     statusIds: p.statusIds ? new Set(p.statusIds) : null,
     searchText: p.searchText,
@@ -355,18 +297,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setPersonIds(personIds: Set<number> | null) {
     commit(set, { ...get().filters, personIds })
-  },
-
-  setPersonFilterMode(personFilterMode: PersonFilterMode) {
-    commit(set, { ...get().filters, personFilterMode })
-  },
-
-  setOrgIds(orgIds: Set<number> | null) {
-    commit(set, { ...get().filters, orgIds })
-  },
-
-  setOrgFilterMode(orgFilterMode: OrgFilterMode) {
-    commit(set, { ...get().filters, orgFilterMode })
   },
 
   setProjectIds(projectIds: Set<number> | null) {

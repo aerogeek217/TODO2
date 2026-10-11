@@ -24,15 +24,12 @@ function anchorsEqual(a: DateAnchor | null, b: DateAnchor | null): boolean {
 function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
   return (
     a.showCompleted === b.showCompleted &&
-    a.personFilterMode === b.personFilterMode &&
-    a.orgFilterMode === b.orgFilterMode &&
     a.searchText === b.searchText &&
     a.dateField === b.dateField &&
     a.dateRangeIncludeNoDate === b.dateRangeIncludeNoDate &&
     a.hasDeadline === b.hasDeadline &&
     (a.hasFollowup ?? null) === (b.hasFollowup ?? null) &&
     idArraysEqualAsSet(a.personIds, b.personIds) &&
-    idArraysEqualAsSet(a.orgIds, b.orgIds) &&
     idArraysEqualAsSet(a.projectIds, b.projectIds) &&
     idArraysEqualAsSet(a.statusIds, b.statusIds) &&
     idArraysEqualAsSet(a.tags, b.tags) &&

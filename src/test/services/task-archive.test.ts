@@ -21,7 +21,7 @@ function daysAgo(n: number): Date {
 
 /**
  * Two completed-long-ago tasks (one fully attached) and one open task, with
- * people / tags / orgs / statuses / projects only some of which they use.
+ * people / tags / statuses / projects only some of which they use.
  */
 async function seed() {
   const now = new Date()
@@ -32,7 +32,6 @@ async function seed() {
   const bob = await db.people.add({ name: 'Bob', initials: 'BO' }) as number
   const urgent = await db.tags.add({ name: 'urgent', color: '#ff0000' }) as number
   const misc = await db.tags.add({ name: 'misc', color: '#00ff00' }) as number
-  const acme = await db.orgs.add({ name: 'Acme', initials: 'AC', color: '#0000ff' }) as number
   const waiting = await db.statuses.add({ name: 'Waiting', color: '#ffaa00', sortOrder: 50, icon: 'clock' }) as number
   const other = await db.statuses.add({ name: 'Other', color: '#aaaaaa', sortOrder: 51 }) as number
 
@@ -49,10 +48,9 @@ async function seed() {
   })
   await db.todoPeople.bulkAdd([{ todoId: oldDone, personId: alice }, { todoId: open, personId: bob }])
   await db.todoTags.bulkAdd([{ todoId: oldDone, tagId: urgent }, { todoId: open, tagId: misc }])
-  await db.todoOrgs.bulkAdd([{ todoId: oldDone, orgId: acme }])
   await db.todoEvents.add({ todoId: oldDone, type: 'completed', fromValue: null, toValue: null, timestamp: daysAgo(90).toISOString() })
   await useTodoStore.getState().loadAll()
-  return { canvasId, work, home, alice, bob, urgent, misc, acme, waiting, other, oldDone, oldBare, open }
+  return { canvasId, work, home, alice, bob, urgent, misc, waiting, other, oldDone, oldBare, open }
 }
 
 beforeEach(async () => {
@@ -72,10 +70,9 @@ describe('buildTaskArchive', () => {
     expect(archive.todos.map((t) => t.title)).toEqual(['Old done', 'Old bare'])
     expect(archive.todoPeople).toEqual([expect.objectContaining({ todoId: s.oldDone, personId: s.alice })])
     expect(archive.todoTags).toEqual([expect.objectContaining({ todoId: s.oldDone, tagId: s.urgent })])
-    expect(archive.todoOrgs).toEqual([expect.objectContaining({ todoId: s.oldDone, orgId: s.acme })])
     expect(archive.people.map((p) => p.name)).toEqual(['Alice'])
     expect(archive.tags.map((t) => t.name)).toEqual(['urgent'])
-    expect(archive.orgs.map((o) => o.name)).toEqual(['Acme'])
+    expect(archive).not.toHaveProperty('orgs')
     expect(archive.statuses.map((x) => x.name)).toEqual(['Waiting'])
     expect(archive.projects.map((p) => p.name)).toEqual(['Work'])
     // insert() logs 'created' for both; plus the explicit 'completed' event.

@@ -462,7 +462,7 @@ export function useCanvasDnD({
       // Cross-group drag mutation (Phase 6 of lists-consistency). Triggered
       // only for single-task, same-project drops where both the dragged row
       // and the hovered row sit in `SortableTaskList` group containers:
-      // replace semantics on people/org/tag, scalar set for status, skip
+      // replace semantics on people/tag, scalar set for status, skip
       // for date dimensions. Cross-project drags fall through to the
       // existing project-change behavior alone (no field mutation layered
       // on). Multi-drag is skipped to keep semantics unambiguous when the

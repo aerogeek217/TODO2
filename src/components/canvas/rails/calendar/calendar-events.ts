@@ -1,4 +1,4 @@
-import type { PersistedTodoItem, Person, Org, Status } from '../../../../models'
+import type { PersistedTodoItem, Person, Status } from '../../../../models'
 import {
   buildEntries as buildEntriesShared,
   dayKey,
@@ -7,7 +7,7 @@ import {
 import type { EventRowEntry } from './EventRow'
 
 /**
- * Canvas calendar strip uses the `EventRowEntry` interface (people / orgs /
+ * Canvas calendar strip uses the `EventRowEntry` interface (people /
  * status all required). The shared `CalendarEntry` matches that surface area
  * — the alias keeps existing call-site types stable.
  */
@@ -23,12 +23,10 @@ export function buildEntries(
   todos: PersistedTodoItem[],
   days: Date[],
   assignedPeopleMap: Map<number, Person[]>,
-  assignedOrgsMap: Map<number, Org[]>,
   statuses: Status[],
 ): Map<string, StripEntry[]> {
   return buildEntriesShared(todos, days, {
     assignedPeopleMap,
-    assignedOrgsMap,
     statuses,
   }) as Map<string, StripEntry[]>
 }

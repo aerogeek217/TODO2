@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, ListInset, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
@@ -22,7 +22,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 54
+export const CURRENT_DB_VERSION = 55
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -51,9 +51,6 @@ export class Todo2Database extends Dexie {
   settings!: Table<SettingRow, string>
   todoPeople!: Table<TodoPerson, number>
   listInsets!: Table<ListInset, number>
-  orgs!: Table<Org, number>
-  todoOrgs!: Table<TodoOrg, number>
-  personOrgs!: Table<PersonOrg, number>
   backups!: Table<Backup, number>
   taskboards!: Table<Taskboard, number>
   statuses!: Table<Status, number>
@@ -411,11 +408,21 @@ export class Todo2Database extends Dexie {
     // v54: remove hide-by-status. No index change; the transform
     // (`upgrades/v54-remove-hidden-statuses.ts`) strips `hideByDefault` from
     // statuses and `showHiddenStatuses` from stored list predicates.
+    this.version(54).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 54))
+
+    // v55: merge orgs into people. Drops the org tables; the transform
+    // (`upgrades/v55-merge-orgs-into-people.ts`) turns each org into an
+    // `Org: <name>` person, org assignments into person assignments, and
+    // folds the org filter / group / runtime-filter values into people.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `54` first.
+    // docblock above). When bumping, turn this into a literal `55` first.
     this.version(CURRENT_DB_VERSION)
-      .stores({})
+      .stores({
+        orgs: null,
+        todoOrgs: null,
+        personOrgs: null,
+      })
       .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }
@@ -453,5 +460,5 @@ export async function ensureSeededStatuses(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.todoOrgs, db.personOrgs, db.orgs, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingStatus, db.tags, db.todoTags, db.todoEvents] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingStatus, db.tags, db.todoTags, db.todoEvents] as const
 

@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QuickAddBar, type QuickAddDraft } from '../../../components/overlays/QuickAddBar'
 import { usePersonStore } from '../../../stores/person-store'
-import { useOrgStore } from '../../../stores/org-store'
 import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -27,11 +26,6 @@ function seedStores() {
   usePersonStore.setState({
     people: [anna, bob],
     assignedPeopleMap: new Map(),
-  })
-  useOrgStore.setState({
-    orgs: [],
-    assignedOrgsMap: new Map(),
-    personOrgMap: new Map(),
   })
   useProjectStore.setState({ projects: [triage] })
   useStatusStore.setState({ statuses: [doingStatus] })
@@ -275,7 +269,6 @@ describe('QuickAddBar — parse override', () => {
     const parse = vi.fn((input: string) => ({
       title: input.replace(/\s*FIXED$/, ''),
       people: [anna],
-      orgs: [],
       tags: ['debug'],
       unmatchedPersons: [],
       unmatchedProjects: [],

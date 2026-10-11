@@ -3,8 +3,8 @@ import type { SettingRow } from '../data/database'
 import { prepareImportText } from '../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from './migration-check'
 import type {
-  TodoItem, Project, Canvas, Person, Org, ListInset,
-  TodoPerson, TodoOrg, PersonOrg, Taskboard, Status, Note,
+  TodoItem, Project, Canvas, Person, ListInset,
+  TodoPerson, Taskboard, Status, Note,
   FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus,
   Tag, TodoTag, TodoEvent, PersistedTodoItem,
 } from '../models'
@@ -29,9 +29,6 @@ export interface ExportData {
   people: Person[]
   settings: SettingRow[]
   todoPeople: TodoPerson[]
-  todoOrgs: TodoOrg[]
-  personOrgs: PersonOrg[]
-  orgs: Org[]
   taskboards: Taskboard[]
   statuses: Status[]
   listDefinitions: ListDefinition[]

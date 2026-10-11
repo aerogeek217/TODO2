@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { ImportData } from './import-validation'
 import type {
-  TodoItem, TodoEvent, Person, Tag, Org, Status, Project,
+  TodoItem, TodoEvent, Person, Tag, Status, Project,
 } from '../models'
 import { newTodoUid } from '../utils/todo-uid'
 
@@ -27,7 +27,7 @@ export interface AppendImportResult {
   /** New database ids of the imported tasks, in file order. */
   todoIds: number[]
   /** Names of entities created because no existing one matched. */
-  created: { people: string[]; tags: string[]; orgs: string[]; statuses: string[]; projects: string[] }
+  created: { people: string[]; tags: string[]; statuses: string[]; projects: string[] }
 }
 
 /** Name key for by-name matching: trimmed, case-insensitive. */
@@ -57,11 +57,11 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
  * - **New ids** for every task (ids are never reused); the incoming `uid` is
  *   kept unless a task in the database already has it, then a fresh one is
  *   minted.
- * - People / tags / orgs / statuses / projects are matched to existing rows
+ * - People / tags / statuses / projects are matched to existing rows
  *   **by name** (trimmed, case-insensitive); missing ones are created from
  *   the file's row. Projects are matched on `opts.canvasId` only; a created
  *   project is placed right of the canvas's existing ones.
- * - Join rows (`todoPeople` / `todoTags` / `todoOrgs`) and the tasks'
+ * - Join rows (`todoPeople` / `todoTags`) and the tasks'
  *   `todoEvents` history are re-pointed at the new ids (status-change event
  *   values at the resolved status ids).
  * - Tasks whose `choices` entry is `skip` are left out with their rows.
@@ -75,17 +75,16 @@ export async function appendImportTasks(
 ): Promise<AppendImportResult> {
   const selected = data.todos.filter((t) => (choices.get(t.uid) ?? 'import') === 'import')
   const skipped = data.todos.length - selected.length
-  const created: AppendImportResult['created'] = { people: [], tags: [], orgs: [], statuses: [], projects: [] }
+  const created: AppendImportResult['created'] = { people: [], tags: [], statuses: [], projects: [] }
 
   const tables = [
-    db.todos, db.todoPeople, db.todoTags, db.todoOrgs, db.todoEvents,
-    db.people, db.tags, db.orgs, db.statuses, db.projects,
+    db.todos, db.todoPeople, db.todoTags, db.todoEvents,
+    db.people, db.tags, db.statuses, db.projects,
   ]
   const todoIds = await db.transaction('rw', tables, async () => {
     // --- Entity resolution (by name; create missing) ---
     const peopleByName = byNameIndex(await db.people.toArray())
     const tagsByName = byNameIndex(await db.tags.toArray())
-    const orgsByName = byNameIndex(await db.orgs.toArray())
     const existingStatuses = await db.statuses.toArray()
     const statusesByName = byNameIndex(existingStatuses)
     let nextStatusSort = existingStatuses.reduce((m, s) => Math.max(m, s.sortOrder), 0) + 1
@@ -102,14 +101,12 @@ export async function appendImportTasks(
 
     const incomingPeople = new Map(data.people.map((p) => [p.id, p]))
     const incomingTags = new Map((data.tags ?? []).map((t) => [t.id, t]))
-    const incomingOrgs = new Map(data.orgs.map((o) => [o.id, o]))
     const incomingStatuses = new Map(data.statuses.map((s) => [s.id, s]))
     const incomingProjects = new Map(data.projects.map((p) => [p.id, p]))
 
     // incoming id → resolved id (memoized so each entity resolves once)
     const personMap = new Map<number, number>()
     const tagMap = new Map<number, number>()
-    const orgMap = new Map<number, number>()
     const statusMap = new Map<number, number>()
     const projectMap = new Map<number, number>()
 
@@ -120,7 +117,9 @@ export async function appendImportTasks(
       if (!row) return undefined
       let id = peopleByName.get(nameKey(row.name))
       if (id == null) {
-        id = await db.people.add({ name: row.name.trim(), initials: row.initials } as Person) as number
+        const person: Person = { name: row.name.trim(), initials: row.initials }
+        if (row.color != null) person.color = row.color
+        id = await db.people.add(person) as number
         peopleByName.set(nameKey(row.name), id)
         created.people.push(row.name.trim())
       }
@@ -139,23 +138,6 @@ export async function appendImportTasks(
         created.tags.push(row.name.trim())
       }
       tagMap.set(incomingId, id)
-      return id
-    }
-    const resolveOrg = async (incomingId: number): Promise<number | undefined> => {
-      const hit = orgMap.get(incomingId)
-      if (hit != null) return hit
-      const row = incomingOrgs.get(incomingId)
-      if (!row) return undefined
-      let id = orgsByName.get(nameKey(row.name))
-      if (id == null) {
-        const org: Org = { name: row.name.trim() }
-        if (row.initials != null) org.initials = row.initials
-        if (row.color != null) org.color = row.color
-        id = await db.orgs.add(org) as number
-        orgsByName.set(nameKey(row.name), id)
-        created.orgs.push(org.name)
-      }
-      orgMap.set(incomingId, id)
       return id
     }
     const resolveStatus = async (incomingId: number | undefined): Promise<number | undefined> => {
@@ -252,12 +234,6 @@ export async function appendImportTasks(
       const tagId = todoId != null ? await resolveTag(r.tagId) : undefined
       if (todoId == null || tagId == null || !once(`t:${todoId}:${tagId}`)) continue
       await db.todoTags.add({ todoId, tagId })
-    }
-    for (const r of data.todoOrgs) {
-      const todoId = todoIdMap.get(r.todoId)
-      const orgId = todoId != null ? await resolveOrg(r.orgId) : undefined
-      if (todoId == null || orgId == null || !once(`o:${todoId}:${orgId}`)) continue
-      await db.todoOrgs.add({ todoId, orgId })
     }
 
     // --- History ---

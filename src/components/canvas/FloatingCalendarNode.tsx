@@ -1,9 +1,8 @@
 import { memo, useEffect, useMemo, useState } from 'react'
 import { type NodeProps } from '@xyflow/react'
-import type { FloatingCalendar, PersistedTodoItem, Person, Org, Status, Tag } from '../../models'
+import type { FloatingCalendar, PersistedTodoItem, Person, Status, Tag } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -32,8 +31,6 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
 
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const { filters } = useFilterStore()
@@ -60,14 +57,12 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
       filters,
       todos,
       assignedPeopleMap as Map<number, Person[]>,
-      personOrgMap,
-      assignedOrgsMap as Map<number, Org[]>,
       statuses as Status[],
       undefined,
       undefined,
       assignedTagsMap as Map<number, Tag[]>,
     ),
-    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, assignedTagsMap],
+    [filters, todos, assignedPeopleMap, statuses, assignedTagsMap],
   )
 
   const width = calendar.width
@@ -107,7 +102,6 @@ function FloatingCalendarNodeInner({ data }: NodeProps & { data: FloatingCalenda
           orientation={orientation}
           weekOffset={weekOffset}
           assignedPeopleMap={assignedPeopleMap as Map<number, Person[]>}
-          assignedOrgsMap={assignedOrgsMap as Map<number, Org[]>}
           statuses={statuses as Status[]}
           onOpenTodo={openEditPopup}
           onWeekOffsetChange={(n) => { if (calendar.id != null) void updateWeekOffset(calendar.id, n) }}

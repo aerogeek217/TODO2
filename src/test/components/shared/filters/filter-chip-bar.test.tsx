@@ -4,21 +4,15 @@ import { FilterChipBar } from '../../../../components/shared/filters/FilterChipB
 import type { TodoPredicate } from '../../../../models'
 import { useStatusStore } from '../../../../stores/status-store'
 import { usePersonStore } from '../../../../stores/person-store'
-import { useOrgStore } from '../../../../stores/org-store'
 import { useProjectStore } from '../../../../stores/project-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { emptyPredicate } from '../../../../stores/list-definition-store'
-import { makePerson, makeOrg, makeProject } from '../../../helpers'
+import { makePerson, makeProject } from '../../../helpers'
 
 function seedStores() {
   usePersonStore.setState({
     people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
     assignedPeopleMap: new Map(),
-  } as never)
-  useOrgStore.setState({
-    orgs: [makeOrg({ id: 1, name: 'Acme' })],
-    assignedOrgsMap: new Map(),
-    personOrgMap: new Map(),
   } as never)
   useProjectStore.setState({
     projects: [

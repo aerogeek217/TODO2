@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { renderHook, cleanup } from '@testing-library/react'
-import type { Person, Org, Status } from '../../models'
+import type { Person, Status } from '../../models'
 import { useGroupedTaskBlocks } from '../../hooks/use-grouped-task-blocks'
 import { UNGROUPED_GROUP_KEY } from '../../utils/cross-group-drag'
-import { useOrgStore } from '../../stores/org-store'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useFilterStore } from '../../stores/filter-store'
@@ -16,7 +16,6 @@ const STATUSES: Status[] = [
 
 const ALICE: Person = { id: 1, name: 'Alice', initials: 'A' }
 const BOB: Person = { id: 2, name: 'Bob', initials: 'B' }
-const ACME: Org = { id: 10, name: 'Acme' }
 
 beforeEach(() => {
   resetEntityStores()
@@ -100,7 +99,7 @@ describe('useGroupedTaskBlocks', () => {
     expect(keys).toContain('person-2')
   })
 
-  it('restricts visible groups to active people filter (P6 intersection)', () => {
+  it('restricts visible groups to active people filter (visible-groups intersection)', () => {
     useFilterStore.setState({
       filters: { ...useFilterStore.getState().filters, personIds: new Set([1]) },
     })
@@ -119,55 +118,23 @@ describe('useGroupedTaskBlocks', () => {
     expect(keys).not.toContain('person-2')
   })
 
-  it('surfaces include-orgs implicit person keys for tasks with org but no person', () => {
-    // ALICE belongs to ACME; the task has ACME but no direct person assignment.
-    useOrgStore.setState({
-      orgs: [ACME],
-      assignedOrgsMap: new Map([[1, [ACME]]]),
-      personOrgMap: new Map([[1, [10]]]),
-    })
-    useFilterStore.setState({
-      filters: {
-        ...useFilterStore.getState().filters,
-        personIds: new Set([1]),
-        personFilterMode: 'include-orgs',
-      },
-    })
-    const t = makeTodo({ id: 1 })
-    const peopleMap = new Map<number, Person[]>()
+  it('colors person blocks with person.color, falling back to the neutral color', () => {
+    const coloredAlice: Person = { ...ALICE, color: '#123456' }
+    const t1 = makeTodo({ id: 1 })
+    const t2 = makeTodo({ id: 2 })
+    const peopleMap = new Map<number, Person[]>([
+      [1, [coloredAlice]],
+      [2, [BOB]],
+    ])
     const { result } = renderHook(() =>
-      useGroupedTaskBlocks([t], 'people', peopleMap),
+      useGroupedTaskBlocks([t1, t2], 'people', peopleMap),
     )
     const blocks = result.current!
-    // Cross-axis: surfaces under person-1 because ALICE is a member of ACME.
-    expect(blocks.find((b) => b.key === 'person-1')?.todos.map((x) => x.id)).toEqual([1])
+    expect(blocks.find((b) => b.key === 'person-1')?.color).toBe('#123456')
+    expect(blocks.find((b) => b.key === 'person-2')?.color).toBe(NEUTRAL_PERSON_COLOR)
   })
 
-  it('returns no implicit-tier surfaces for direct-only mode', () => {
-    useOrgStore.setState({
-      orgs: [ACME],
-      assignedOrgsMap: new Map([[1, [ACME]]]),
-      personOrgMap: new Map([[1, [10]]]),
-    })
-    useFilterStore.setState({
-      filters: {
-        ...useFilterStore.getState().filters,
-        personIds: new Set([1]),
-        personFilterMode: 'direct-only',
-      },
-    })
-    const t = makeTodo({ id: 1 })
-    const peopleMap = new Map<number, Person[]>()
-    const { result } = renderHook(() =>
-      useGroupedTaskBlocks([t], 'people', peopleMap),
-    )
-    const blocks = result.current!
-    // direct-only: the org-membership cross-axis path is skipped, so
-    // person-1 has no rows.
-    expect(blocks.find((b) => b.key === 'person-1')).toBeUndefined()
-  })
-
-  it('restricts to active tag filter without cross-axis path', () => {
+  it('restricts visible groups to active tag filter', () => {
     const urgent = { id: 7, name: 'urgent', color: '#f00' }
     useTagStore.setState({
       tags: [urgent],

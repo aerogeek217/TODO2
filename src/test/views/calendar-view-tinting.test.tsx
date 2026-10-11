@@ -25,15 +25,6 @@ vi.mock('../../data/person-repository', () => ({
     unassignPerson: async () => {},
   },
 }))
-vi.mock('../../data/org-repository', () => ({
-  orgRepository: {
-    getAll: async () => [],
-    getAssignedOrgsForTodos: async () => new Map(),
-    getPersonOrgMap: async () => new Map(),
-    assignOrg: async () => {},
-    unassignOrg: async () => {},
-  },
-}))
 vi.mock('../../data/status-repository', () => ({
   statusRepository: { getAll: async () => [] },
 }))

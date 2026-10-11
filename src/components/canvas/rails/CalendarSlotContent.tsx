@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type { CalendarOrientation } from '../../../models/canvas-rails'
 import { useTodoStore } from '../../../stores/todo-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useOrgStore } from '../../../stores/org-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -23,8 +22,6 @@ interface CalendarSlotContentProps {
 export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChange, scope }: CalendarSlotContentProps) {
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const { filters } = useFilterStore()
@@ -48,8 +45,8 @@ export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChang
   }, [today])
 
   const activeTodos = useMemo(
-    () => applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, undefined, assignedTagsMap),
-    [filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, assignedTagsMap],
+    () => applyFilter(filters, todos, assignedPeopleMap, statuses, undefined, undefined, assignedTagsMap),
+    [filters, todos, assignedPeopleMap, statuses, assignedTagsMap],
   )
 
   return (
@@ -59,7 +56,6 @@ export function CalendarSlotContent({ orientation, weekOffset, onWeekOffsetChang
       orientation={orientation}
       weekOffset={weekOffset}
       assignedPeopleMap={assignedPeopleMap}
-      assignedOrgsMap={assignedOrgsMap}
       statuses={statuses}
       onOpenTodo={openEditPopup}
       onWeekOffsetChange={onWeekOffsetChange}

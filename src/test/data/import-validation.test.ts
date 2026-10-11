@@ -252,7 +252,7 @@ describe('validateImportData', () => {
   // Project.groupBy field validator (per-record). Must stay in sync with the
   // settings-store `PROJECT_GROUP_BY_VALUES` source of truth.
   it('accepts every ProjectGroupBy value on a project record', () => {
-    const valid = ['status', 'people', 'org', 'tag', 'deadline', 'followup']
+    const valid = ['status', 'people', 'tag', 'deadline', 'followup']
     for (const groupBy of valid) {
       const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
       expect(result.ok, `groupBy=${groupBy}`).toBe(true)
@@ -265,7 +265,7 @@ describe('validateImportData', () => {
   })
 
   it('rejects a project record with an unknown groupBy', () => {
-    const bad = ['priority', 'TAG', 'random', 42, 'date', 'scheduled']
+    const bad = ['priority', 'TAG', 'random', 42, 'date', 'scheduled', 'org']
     for (const groupBy of bad) {
       const result = validateImportData(validData({ projects: [makeProject({ groupBy })] }))
       expect(result.ok, `groupBy=${groupBy}`).toBe(false)
@@ -275,7 +275,7 @@ describe('validateImportData', () => {
   // defaultProjectGroupBy — accepts every flat TodoGroupBy literal plus the
   // empty string sentinel.
   it('accepts defaultProjectGroupBy with every valid TodoGroupBy value plus empty', () => {
-    const valid = ['', 'none', 'status', 'people', 'org', 'tag', 'deadline', 'followup']
+    const valid = ['', 'none', 'status', 'people', 'tag', 'deadline', 'followup']
     for (const value of valid) {
       const result = validateImportData(validData({
         settings: [{ key: 'defaultProjectGroupBy', value }],
@@ -409,49 +409,22 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  // Org / TodoOrg / RecurrenceRule validation.
-  it('valid org object passes validation', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Engineering' }] }))
+  // Person color / RecurrenceRule validation.
+  it('person with a valid color passes and keeps it', () => {
+    const result = validateImportData(validData({ people: [makePerson({ color: '#f28c4e' })] }))
     expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.people[0]?.color).toBe('#f28c4e')
   })
 
-  it('org with missing name fails', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1 }] }))
+  it('person with an invalid color fails', () => {
+    const result = validateImportData(validData({ people: [makePerson({ color: 'not-a-color' })] }))
     expect(result.ok).toBe(false)
   })
 
-  it('org with invalid color fails', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', color: 'not-a-color' }] }))
-    expect(result.ok).toBe(false)
-  })
-
-  it('org with too-long initials fails', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: 'ABCDE' }] }))
-    expect(result.ok).toBe(false)
-  })
-
-  it('org with valid initials passes', () => {
-    const result = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: 'ENG' }] }))
+  it('person without a color passes', () => {
+    const result = validateImportData(validData({ people: [makePerson()] }))
     expect(result.ok).toBe(true)
-  })
-
-  it('org with null/undefined initials passes', () => {
-    const r1 = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng', initials: null }] }))
-    expect(r1.ok).toBe(true)
-    const r2 = validateImportData(validData({ orgs: [{ id: 1, name: 'Eng' }] }))
-    expect(r2.ok).toBe(true)
-  })
-
-  it('valid todoOrg object passes validation', () => {
-    const result = validateImportData(validData({ todoOrgs: [{ id: 1, todoId: 1, orgId: 1 }] }))
-    expect(result.ok).toBe(true)
-  })
-
-  it('todoOrg with missing todoId or orgId fails', () => {
-    const result1 = validateImportData(validData({ todoOrgs: [{ id: 1, orgId: 1 }] }))
-    expect(result1.ok).toBe(false)
-    const result2 = validateImportData(validData({ todoOrgs: [{ id: 1, todoId: 1 }] }))
-    expect(result2.ok).toBe(false)
+    if (result.ok) expect('color' in (result.data.people[0] ?? {})).toBe(false)
   })
 
   it('todo with valid recurrenceRule passes; invalid type fails', () => {
@@ -584,7 +557,7 @@ describe('validateImportData', () => {
     }
 
     it('accepts each known runtimeFilter field', () => {
-      for (const field of ['person', 'org', 'project', 'status', 'tag']) {
+      for (const field of ['person', 'project', 'status', 'tag']) {
         const result = validateImportData(validData({
           listDefinitions: [makeListDef({ runtimeFilter: { field } })],
         }))

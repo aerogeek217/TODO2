@@ -1,4 +1,4 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, TodoOrg, PersonOrg, ListInset, Org, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, ListInset, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType } from '../models'
 import { isTodoSortBy, isTodoGroupBy, DATE_FIELD_VALUES } from '../models'
 
 export type ImportTag = Tag
@@ -190,7 +190,7 @@ function isValidGrouping(g: unknown): boolean {
   return typeof g === 'string' && isTodoGroupBy(g)
 }
 
-const VALID_RUNTIME_FILTER_FIELDS: readonly RuntimeFilterField[] = ['person', 'org', 'project', 'status', 'tag']
+const VALID_RUNTIME_FILTER_FIELDS: readonly RuntimeFilterField[] = ['person', 'project', 'status', 'tag']
 
 function isOptRuntimeFilter(v: unknown): boolean {
   if (v === undefined || v === null) return true
@@ -235,14 +235,6 @@ function checkPerson(v: unknown): CheckResult {
   return checkFields(v, [
     ['name', isStr(v.name, 200)],
     ['initials', isStr(v.initials, 4)],
-  ])
-}
-
-function checkOrg(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ['name', isStr(v.name, 200)],
-    ['initials', isOptStr(v.initials, 4)],
     ['color', isOptColor(v.color)],
   ])
 }
@@ -288,22 +280,6 @@ function checkTodoPerson(v: unknown): CheckResult {
   return checkFields(v, [
     ['todoId', isFiniteNum(v.todoId)],
     ['personId', isFiniteNum(v.personId)],
-  ])
-}
-
-function checkTodoOrg(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ['todoId', isFiniteNum(v.todoId)],
-    ['orgId', isFiniteNum(v.orgId)],
-  ])
-}
-
-function checkPersonOrg(v: unknown): CheckResult {
-  if (!isObj(v)) return 'not an object'
-  return checkFields(v, [
-    ['personId', isFiniteNum(v.personId)],
-    ['orgId', isFiniteNum(v.orgId)],
   ])
 }
 
@@ -409,7 +385,7 @@ const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS
 // `defaultProjectGroupBy` shares the unified `TodoGroupBy` literal set; the
 // canonical "no grouping" sentinel is `null` (carried as the empty string in
 // the settings row), but `'none'` is also accepted.
-const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'org', 'tag', 'deadline', 'followup'] as const
+const VALID_DEFAULT_PROJECT_GROUP_BY = ['', 'none', 'status', 'people', 'tag', 'deadline', 'followup'] as const
 
 const SETTING_VALUE_MAX_LEN_DEFAULT = 200
 const SETTING_VALUE_MAX_LEN_BY_KEY: Record<string, number> = {
@@ -633,15 +609,10 @@ function pickStatus(v: Raw): AllFields<Status> {
 }
 
 function pickPerson(v: Raw): AllFields<Person> {
-  return { id: optNum(v.id), name: v.name as string, initials: v.initials as string } satisfies AllFields<Person>
-}
-
-function pickOrg(v: Raw): AllFields<Org> {
   return {
-    id: optNum(v.id), name: v.name as string,
-    initials: optStr(v.initials),
+    id: optNum(v.id), name: v.name as string, initials: v.initials as string,
     color: optStr(v.color),
-  } satisfies AllFields<Org>
+  } satisfies AllFields<Person>
 }
 
 function pickTag(v: Raw): AllFields<Tag> {
@@ -666,14 +637,6 @@ function pickTodoTag(v: Raw): AllFields<TodoTag> {
 
 function pickTodoPerson(v: Raw): AllFields<TodoPerson> {
   return { id: optNum(v.id), todoId: v.todoId as number, personId: v.personId as number } satisfies AllFields<TodoPerson>
-}
-
-function pickTodoOrg(v: Raw): AllFields<TodoOrg> {
-  return { id: optNum(v.id), todoId: v.todoId as number, orgId: v.orgId as number } satisfies AllFields<TodoOrg>
-}
-
-function pickPersonOrg(v: Raw): AllFields<PersonOrg> {
-  return { id: optNum(v.id), personId: v.personId as number, orgId: v.orgId as number } satisfies AllFields<PersonOrg>
 }
 
 function pickTaskboardEntry(v: Raw): TaskboardEntry {
@@ -793,10 +756,7 @@ export const IMPORT_ROW_PICKERS: { readonly [K in keyof ImportData]-?: (v: Raw) 
   listInsets: pickListInset,
   todoTags: pickTodoTag,
   todoPeople: pickTodoPerson,
-  todoOrgs: pickTodoOrg,
-  personOrgs: pickPersonOrg,
   settings: pickSetting,
-  orgs: pickOrg,
   taskboards: pickTaskboard,
   floatingTaskboards: pickFloatingTaskboard,
   statuses: pickStatus,
@@ -830,10 +790,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'listInsets', check: checkListInset },
   { key: 'todoTags', check: checkTodoTag },
   { key: 'todoPeople', check: checkTodoPerson },
-  { key: 'todoOrgs', check: checkTodoOrg },
-  { key: 'personOrgs', check: checkPersonOrg },
   { key: 'settings', check: checkSetting },
-  { key: 'orgs', check: checkOrg },
   { key: 'taskboards', check: checkTaskboard },
   { key: 'floatingTaskboards', check: checkFloatingTaskboard },
   { key: 'statuses', check: checkStatus },
@@ -857,10 +814,7 @@ export interface ImportData {
   listInsets: ListInset[]
   todoTags?: ImportTodoTag[]
   todoPeople: TodoPerson[]
-  todoOrgs: TodoOrg[]
-  personOrgs: PersonOrg[]
   settings: SettingRow[]
-  orgs: Org[]
   taskboards: Taskboard[]
   floatingTaskboards: FloatingTaskboard[]
   statuses: Status[]
@@ -1012,10 +966,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       listInsets: pickRows('listInsets', raw.listInsets),
       ...(Array.isArray(raw.todoTags) && raw.todoTags.length > 0 ? { todoTags: pickRows('todoTags', raw.todoTags) } : {}),
       todoPeople: pickRows('todoPeople', raw.todoPeople),
-      todoOrgs: pickRows('todoOrgs', raw.todoOrgs),
-      personOrgs: pickRows('personOrgs', raw.personOrgs),
       settings: pickRows('settings', settingRows),
-      orgs: pickRows('orgs', raw.orgs),
       taskboards: pickRows('taskboards', raw.taskboards),
       floatingTaskboards: pickRows('floatingTaskboards', raw.floatingTaskboards),
       statuses: pickRows('statuses', raw.statuses),

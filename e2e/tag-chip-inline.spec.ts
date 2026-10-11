@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test'
 import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
 
 /**
- * triage-2026-04-27-batch2 P2 — Inline tag chip on task rows (item 1).
+ * Inline tag chip on task rows.
  *
- * Adds a `TagChipSelector` shared component parallel to the people/org chip
+ * `TagChipSelector` is a shared component parallel to the people chip
  * pattern. Click the empty `#` trigger (or any populated `#tag` chip) to open
  * a portaled lookup-or-create dropdown. JSDOM covers the handler wiring;
  * Chromium is authoritative for the portal positioning + computed
@@ -45,9 +45,9 @@ test.describe('inline tag chip', () => {
 
     // Type a novel tag name + Enter creates the tag, assigns it, and closes
     // the dropdown — the new chip should appear inline on the row.
-    await search.fill('p2-test')
+    await search.fill('inline-test')
     await search.press('Enter')
 
-    await expect(row.getByText('#p2-test')).toBeVisible()
+    await expect(row.getByText('#inline-test')).toBeVisible()
   })
 })

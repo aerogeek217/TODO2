@@ -2,14 +2,13 @@ import { expect, test, type Page } from '@playwright/test'
 import { listInsetByIndex, seedCanvas } from './fixtures/seed'
 
 /**
- * Phase 6 picker coverage: encodes the three RuntimeFilterPicker regressions
- * triage-2026-04-25 P3 (T2: portaled panel + viewport flip),
- * triage-2026-04-25 P? (T4: `/list` mount under a wrap that used to clip),
- * and triage-2026-04-25 P1 (T5: last-chip removal must clear in-memory filter).
+ * RuntimeFilterPicker coverage: encodes three regressions — portaled panel +
+ * viewport flip, `/list` mount under a wrap that used to clip, and
+ * last-chip removal must clear the persisted filter.
  *
  * JSDOM is unauthoritative — the picker's portaled panel positioning rides
  * `usePopoverAnchor`'s `getBoundingClientRect` reads of the trigger element
- * and the viewport, which only resolve correctly under a real DOM. T5's
+ * and the viewport, which only resolve correctly under a real DOM. The clear-chip
  * regression specifically needs Dexie's spread-merge semantics to round-trip
  * through `useListInsetStore.update` so an explicit `undefined` overwrites
  * a stale array — JSDOM IDB shims don't reproduce that.
@@ -45,7 +44,7 @@ async function findPanelRect(page: Page, optionName: string): Promise<PanelGeom 
   }, optionName)
 }
 
-test.describe('RuntimeFilterPicker — viewport overflow (T2)', () => {
+test.describe('RuntimeFilterPicker — viewport overflow', () => {
   test('panel flips above input when input is near viewport bottom', async ({ page }) => {
     // Position the list-inset so its runtime-filter input lands in the
     // lower 1/4 of the viewport. The default `bottom-start` placement would
@@ -79,7 +78,7 @@ test.describe('RuntimeFilterPicker — viewport overflow (T2)', () => {
     // on initial panel attach. Reopening after the people have loaded gives
     // compute a panelHeight that matches the rendered panel, so the
     // flip/clamp arithmetic uses the right size. (This is not strictly part
-    // of the T2 regression but keeps the test deterministic on Chromium.)
+    // of the flip regression but keeps the test deterministic on Chromium.)
     await input.click()
     await page.getByRole('button', { name: 'Ada' }).waitFor({ state: 'visible' })
     await page.keyboard.press('Escape')
@@ -114,7 +113,7 @@ test.describe('RuntimeFilterPicker — viewport overflow (T2)', () => {
   })
 })
 
-test.describe('RuntimeFilterPicker — /list mount (T4)', () => {
+test.describe('RuntimeFilterPicker — /list mount', () => {
   test('panel mounts and is visible when picker opens on /list', async ({ page }) => {
     // Seed: a favorited list def with a runtime filter on person + a person.
     // The favorites chip is the load path on /list; clicking it fires
@@ -159,7 +158,7 @@ test.describe('RuntimeFilterPicker — /list mount (T4)', () => {
   })
 })
 
-test.describe('RuntimeFilterPicker — clear-last-chip (T5)', () => {
+test.describe('RuntimeFilterPicker — clear-last-chip', () => {
   test('picking a person then clearing the chip clears the persisted filter', async ({ page }) => {
     // Pre-fix: clearing the last chip relied on dropping a key from the
     // inset row, but `useListInsetStore.update` spread-merges so the prior
@@ -240,9 +239,6 @@ function emptyPredicate(): Record<string, unknown> {
   return {
     showCompleted: false,
     personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
     projectIds: null,
     statusIds: null,
     searchText: '',
@@ -251,6 +247,7 @@ function emptyPredicate(): Record<string, unknown> {
     dateRangeEnd: null,
     dateRangeIncludeNoDate: false,
     hasDeadline: null,
+    hasFollowup: null,
     tags: null,
   }
 }

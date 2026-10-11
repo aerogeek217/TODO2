@@ -17,7 +17,7 @@ import {
   type FollowupInterval,
 } from '../utils/followup'
 
-const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'org', 'tag', 'deadline', 'followup'] as const
+const PROJECT_GROUP_BY_VALUES = ['status', 'people', 'tag', 'deadline', 'followup'] as const
 
 export function isValidProjectGroupBy(v: unknown): v is ProjectGroupBy {
   return typeof v === 'string' && (PROJECT_GROUP_BY_VALUES as readonly string[]).includes(v)

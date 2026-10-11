@@ -52,6 +52,8 @@ describe('v49 fixture → prepareImport → restore', () => {
       let expected = (fixture[table.name as FixtureTable] as unknown[]).length
       // v52 deletes the two horizons settings rows, v53 the seeded follow-up status pointer.
       if (table.name === 'settings') expected -= 3
+      // v55 turns the two orgs into people and their two assignments into person assignments.
+      if (table.name === 'people' || table.name === 'todoPeople') expected += 2
       expect(await table.count(), `${table.name} count`).toBe(expected)
     }
   })
@@ -76,16 +78,14 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(todos.find((t) => t.title === 'Renew passport')!.isCompleted).toBe(true)
 
     expect(await db.todoPeople.where('todoId').equals(1).count()).toBe(1)
-    expect(await db.todoOrgs.where('todoId').equals(3).count()).toBe(1)
+    expect(await db.todoPeople.where('todoId').equals(3).count()).toBe(2)
     expect(await db.todoTags.where('todoId').equals(5).count()).toBe(1)
   })
 
-  it('preserves entities: people, orgs + membership, tags, statuses', async () => {
+  it('preserves entities: people (orgs now among them), tags, statuses', async () => {
     await importFixture()
-    expect((await db.people.toArray()).map((p) => p.name)).toEqual(['Ann Lee', 'Bob Stone', 'Cat Ng'])
-    const acme = (await db.orgs.toArray()).find((o) => o.name === 'Acme')!
-    expect(acme).toMatchObject({ initials: 'AC', color: '#e05050' })
-    expect(await db.personOrgs.count()).toBe(2)
+    expect((await db.people.orderBy('id').toArray()).map((p) => p.name))
+      .toEqual(['Ann Lee', 'Bob Stone', 'Cat Ng', 'Org: Acme', 'Org: Globex'])
     expect((await db.tags.toArray()).map((t) => t.name)).toEqual(['urgent', 'Q4'])
 
     const statuses = await db.statuses.orderBy('sortOrder').toArray()
@@ -399,5 +399,55 @@ describe('v49 fixture → v54: hidden statuses removed', () => {
     )
     const statuses = await db.statuses.toArray()
     for (const s of statuses) expect('hideByDefault' in s, `status ${s.name}`).toBe(false)
+  })
+})
+
+// ── v55: orgs merged into people ─────────────────────────────────────────
+
+describe('v49 fixture → v55: orgs become Org: people', () => {
+  it('the fixture has orgs, org assignments, membership and an org filter', () => {
+    expect(fixture.orgs.map((o) => o.name)).toEqual(['Acme', 'Globex'])
+    expect(fixture.todoOrgs).toHaveLength(2)
+    expect(fixture.personOrgs).toHaveLength(2)
+    expect(fixture.listDefinitions.some((d) => d.membership.predicate.orgIds !== null)).toBe(true)
+  })
+
+  it('each org is a person named Org: <name>, colored orange, initials kept or generated', async () => {
+    await importFixture()
+    const people = await db.people.orderBy('id').toArray()
+    expect(people.slice(3)).toEqual([
+      { id: 4, name: 'Org: Acme', initials: 'AC', color: '#f28c4e' },
+      { id: 5, name: 'Org: Globex', initials: 'G', color: '#f28c4e' },
+    ])
+  })
+
+  it('org assignments are person assignments; existing ones untouched', async () => {
+    await importFixture()
+    const pairs = (await db.todoPeople.toArray()).map((r) => [r.todoId, r.personId])
+    expect(pairs).toEqual(expect.arrayContaining([[1, 1], [3, 2], [5, 1], [3, 5], [6, 4]]))
+    expect(pairs).toHaveLength(5)
+  })
+
+  it('membership is gone; members keep the org color they were shown in', async () => {
+    await importFixture()
+    for (const name of ['orgs', 'todoOrgs', 'personOrgs']) {
+      expect(db.tables.some((t) => t.name === name), name).toBe(false)
+    }
+    const people = await db.people.orderBy('id').toArray()
+    expect(people[0]).toMatchObject({ name: 'Ann Lee', color: '#e05050' }) // member of Acme (red)
+    expect('color' in people[1]!).toBe(false) // member of Globex (no color)
+    expect('color' in people[2]!).toBe(false) // no membership
+  })
+
+  it('stored predicates fold the org filter into the person filter and lose the filter modes', async () => {
+    await importFixture()
+    const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
+    for (const d of defs) {
+      const p = d.membership.predicate as unknown as Record<string, unknown>
+      for (const key of ['orgIds', 'orgFilterMode', 'personFilterMode']) {
+        expect(key in p, `${d.name}.${key}`).toBe(false)
+      }
+    }
+    expect(defs.map((d) => d.membership.predicate.personIds)).toEqual([null, null, null, [1, 0, 4]])
   })
 })

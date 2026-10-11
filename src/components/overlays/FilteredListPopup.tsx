@@ -5,7 +5,6 @@ import type { TodoPredicate } from '../../models'
 import { useUIStore, type AttributeFilter } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useListInsetStore } from '../../stores/list-inset-store'
 import { useListDefinitionStore, emptyPredicate } from '../../stores/list-definition-store'
 import { useCanvasStore } from '../../stores/canvas-store'
@@ -19,15 +18,12 @@ function getHeaderInfo(filter: AttributeFilter): { label: string; icon: React.Re
   switch (filter.type) {
     case 'person':
       return { label: filter.personName, icon: <span>@</span> }
-    case 'org':
-      return { label: filter.orgName, icon: <span style={filter.orgColor ? { color: filter.orgColor } : undefined}>@</span> }
   }
 }
 
 function filterToListDefName(filter: AttributeFilter): string {
   switch (filter.type) {
     case 'person': return `Tasks assigned to ${filter.personName}`
-    case 'org': return `Tasks in ${filter.orgName}`
   }
 }
 
@@ -35,7 +31,6 @@ function filterToPredicate(filter: AttributeFilter): TodoPredicate {
   const p = emptyPredicate()
   switch (filter.type) {
     case 'person': p.personIds = [filter.personId]; break
-    case 'org': p.orgIds = [filter.orgId]; break
   }
   return p
 }
@@ -49,7 +44,6 @@ export function FilteredListPopup() {
 
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedOrgsMap = useOrgStore((s) => s.assignedOrgsMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const addInset = useListInsetStore((s) => s.add)
   const addListDef = useListDefinitionStore((s) => s.add)
@@ -74,13 +68,9 @@ export function FilteredListPopup() {
           const assigned = assignedPeopleMap.get(todo.id)
           return assigned?.some(p => p.id === filter.personId) ?? false
         }
-        case 'org': {
-          const assigned = assignedOrgsMap.get(todo.id)
-          return assigned?.some(o => o.id === filter.orgId) ?? false
-        }
       }
     }).sort(bySortOrder)
-  }, [popup, todos, assignedPeopleMap, assignedOrgsMap])
+  }, [popup, todos, assignedPeopleMap])
 
   // Point-anchored popover. Substitutional with the previous behavior:
   // scroll/resize don't close (matches pre-migration), Escape closes,

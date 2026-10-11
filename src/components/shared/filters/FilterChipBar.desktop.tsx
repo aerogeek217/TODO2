@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { OrgFilterMode, PersonFilterMode } from '../../../models'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { toggleItem } from '../../../utils/filter'
 import { StatusIcon } from '../StatusIcon'
@@ -202,7 +201,7 @@ interface EntityChipDropdownProps {
 
 /**
  * Wraps the preview-empty open/close pattern repeated by every chip
- * (Project / People / Org / Tags / Status). On open, if the chip has no
+ * (Project / People / Tags / Status). On open, if the chip has no
  * active filter, we stamp `previewEmpty` so the dropdown renders with all
  * items unchecked — the first click commits only the clicked entity.
  * Select-all clears `previewEmpty` along with the id list.
@@ -259,18 +258,15 @@ export function FilterChipBarDesktop({
   const {
     p,
     people,
-    orgs,
     projects,
     statuses,
     sortedTags,
     allTagIds,
     personIdsSet,
-    orgIdsSet,
     projectIdsSet,
     statusIdsSet,
     tagIdsSet,
     peopleActive,
-    orgsActive,
     projectsActive,
     statusActive,
     tagsActive,
@@ -278,7 +274,6 @@ export function FilterChipBarDesktop({
     active,
     update,
     setPersonIds,
-    setOrgIds,
     setProjectIds,
     setStatusIds,
     setTags,
@@ -293,15 +288,6 @@ export function FilterChipBarDesktop({
     }
     const allIds = [0, ...people.map((x) => x.id!)]
     setPersonIds(toggleItem(personIdsSet, personId, allIds))
-  }
-  const handleOrgToggle = (orgId: number) => {
-    if (previewEmpty === 'org') {
-      setPreviewEmpty(null)
-      setOrgIds(new Set([orgId]))
-      return
-    }
-    const allIds = [0, ...orgs.map((o) => o.id!)]
-    setOrgIds(toggleItem(orgIdsSet, orgId, allIds))
   }
   const handleProjectToggle = (projectId: number) => {
     if (previewEmpty === 'project') {
@@ -332,8 +318,6 @@ export function FilterChipBarDesktop({
 
   const isPersonChecked = (id: number) =>
     previewEmpty === 'people' ? false : personIdsSet === null || personIdsSet.has(id)
-  const isOrgChecked = (id: number) =>
-    previewEmpty === 'org' ? false : orgIdsSet === null || orgIdsSet.has(id)
   const isProjectChecked = (id: number) =>
     previewEmpty === 'project' ? false : projectIdsSet === null || projectIdsSet.has(id)
   const isStatusChecked = (id: number) =>
@@ -342,7 +326,6 @@ export function FilterChipBarDesktop({
     previewEmpty === 'tags' ? false : tagIdsSet === null || tagIdsSet.has(id)
 
   const peopleNone = previewEmpty === 'people' || (personIdsSet !== null && personIdsSet.size === 0)
-  const orgsNone = previewEmpty === 'org' || (orgIdsSet !== null && orgIdsSet.size === 0)
   const projectsNone = previewEmpty === 'project' || (projectIdsSet !== null && projectIdsSet.size === 0)
   const statusNone = previewEmpty === 'status' || (statusIdsSet !== null && statusIdsSet.size === 0)
   const tagsNone = previewEmpty === 'tags' || (tagIdsSet !== null && tagIdsSet.size === 0)
@@ -405,78 +388,14 @@ export function FilterChipBarDesktop({
           searchable
         >
           {(searchText: string) => (
-            <>
-              <div className={topBar.orgModeToggle}>
-                {(
-                  [
-                    ['include-orgs', 'Orgs'],
-                    ['direct-only', 'People only'],
-                  ] as [PersonFilterMode, string][]
-                ).map(([mode, label]) => (
-                  <button
-                    type="button"
-                    key={mode}
-                    className={`${topBar.orgModeOption} ${p.personFilterMode === mode ? topBar.orgModeOptionActive : ''}`}
-                    onClick={() => update({ personFilterMode: mode })}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <EntityDropdownItems
-                searchText={searchText}
-                entities={people}
-                isChecked={isPersonChecked}
-                onToggle={handlePersonToggle}
-                namePrefix="@"
-                showDot={false}
-              />
-            </>
-          )}
-        </EntityChipDropdown>
-      )}
-
-      {orgs.length > 0 && (
-        <EntityChipDropdown
-          entityKey="org"
-          label={
-            <>
-              <span className={topBar.filterIcon}>@</span> Org
-            </>
-          }
-          isActive={orgsActive}
-          noneSelected={orgsNone}
-          previewEmpty={previewEmpty}
-          setPreviewEmpty={setPreviewEmpty}
-          setIds={setOrgIds}
-          searchable
-        >
-          {(searchText: string) => (
-            <>
-              <div className={topBar.orgModeToggle}>
-                {(
-                  [
-                    ['include-people', 'People'],
-                    ['direct-only', 'Org only'],
-                  ] as [OrgFilterMode, string][]
-                ).map(([mode, label]) => (
-                  <button
-                    type="button"
-                    key={mode}
-                    className={`${topBar.orgModeOption} ${p.orgFilterMode === mode ? topBar.orgModeOptionActive : ''}`}
-                    onClick={() => update({ orgFilterMode: mode })}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <EntityDropdownItems
-                searchText={searchText}
-                entities={orgs}
-                isChecked={isOrgChecked}
-                onToggle={handleOrgToggle}
-              />
-            </>
+            <EntityDropdownItems
+              searchText={searchText}
+              entities={people}
+              isChecked={isPersonChecked}
+              onToggle={handlePersonToggle}
+              namePrefix="@"
+              showDot={false}
+            />
           )}
         </EntityChipDropdown>
       )}

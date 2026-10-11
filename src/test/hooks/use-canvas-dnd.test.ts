@@ -20,7 +20,6 @@ import { useUndoStore } from '../../stores/undo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useTagStore } from '../../stores/tag-store'
 import { makeTodo, makePerson, makeProject } from '../helpers'
 import { blockContextId } from '../../utils/cross-group-drag'
@@ -428,9 +427,6 @@ describe('useCanvasDnD — cross-group drag mutates the grouped field', () => {
     const unassignPerson = vi.fn().mockResolvedValue(undefined)
     const assignPerson = vi.fn().mockResolvedValue(undefined)
     usePersonStore.setState({ unassignPerson, assignPerson })
-    const unassignOrg = vi.fn().mockResolvedValue(undefined)
-    const assignOrg = vi.fn().mockResolvedValue(undefined)
-    useOrgStore.setState({ unassignOrg, assignOrg })
     const unassignTag = vi.fn().mockResolvedValue(undefined)
     const assignTag = vi.fn().mockResolvedValue(undefined)
     useTagStore.setState({ unassignTag, assignTag })
@@ -456,8 +452,6 @@ describe('useCanvasDnD — cross-group drag mutates the grouped field', () => {
     expect(update).not.toHaveBeenCalled()
     expect(unassignPerson).not.toHaveBeenCalled()
     expect(assignPerson).not.toHaveBeenCalled()
-    expect(unassignOrg).not.toHaveBeenCalled()
-    expect(assignOrg).not.toHaveBeenCalled()
     expect(unassignTag).not.toHaveBeenCalled()
     expect(assignTag).not.toHaveBeenCalled()
   })

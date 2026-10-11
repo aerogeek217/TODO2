@@ -28,7 +28,7 @@ export type ListSort = TodoSortBy
 export type ListGrouping = TodoGroupBy
 
 /** Which entity a saved list's runtime-filter picker narrows on. */
-export type RuntimeFilterField = 'person' | 'org' | 'project' | 'status' | 'tag'
+export type RuntimeFilterField = 'person' | 'project' | 'status' | 'tag'
 
 /**
  * Optional per-card prompt: the consumer supplies one id at render time that

@@ -2,7 +2,7 @@ import { CURRENT_DB_VERSION, db } from '../data/database'
 import { prepareImportText, TASK_ARCHIVE_KIND } from '../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from './migration-check'
 import type {
-  TodoItem, TodoPerson, TodoTag, TodoOrg, TodoEvent, Person, Tag, Org, Status, Project,
+  TodoItem, TodoPerson, TodoTag, TodoEvent, Person, Tag, Status, Project,
 } from '../models'
 
 /**
@@ -11,15 +11,16 @@ import type {
  * `exportedAt`) plus `kind: 'task-archive'`, carrying only the archived
  * tasks and what is needed to re-attach them on an append import:
  *
- * - `todos` and their `todoPeople` / `todoTags` / `todoOrgs` join rows and
+ * - `todos` and their `todoPeople` / `todoTags` join rows and
  *   `todoEvents` history;
- * - the referenced `people` / `tags` / `orgs` / `statuses` / `projects` rows,
+ * - the referenced `people` / `tags` / `statuses` / `projects` rows,
  *   so the append import can match them **by name** in another database.
  *
  * It imports through the same pipeline as everything else
  * (`prepareImport(…, { purpose: 'append' })` — the schema transforms tolerate
  * the missing tables), so an archive written today still loads after later
- * schema changes.
+ * schema changes — e.g. older archives carry `orgs` / `todoOrgs`, which the
+ * upgrade turns into people and person assignments.
  */
 export interface TaskArchive {
   [SCHEMA_VERSION_KEY]: number
@@ -28,11 +29,9 @@ export interface TaskArchive {
   todos: TodoItem[]
   todoPeople: TodoPerson[]
   todoTags: TodoTag[]
-  todoOrgs: TodoOrg[]
   todoEvents: TodoEvent[]
   people: Person[]
   tags: Tag[]
-  orgs: Org[]
   statuses: Status[]
   projects: Project[]
 }
@@ -52,20 +51,18 @@ export async function buildTaskArchive(todoIds: readonly number[], now: Date = n
   const ids = [...new Set(todoIds)]
   return db.transaction(
     'r',
-    [db.todos, db.todoPeople, db.todoTags, db.todoOrgs, db.todoEvents, db.people, db.tags, db.orgs, db.statuses, db.projects],
+    [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.people, db.tags, db.statuses, db.projects],
     async () => {
       const todos = (await db.todos.bulkGet(ids)).filter((t): t is TodoItem => t != null)
       const presentIds = todos.map((t) => t.id).filter((id): id is number => id != null)
-      const [todoPeople, todoTags, todoOrgs, todoEvents] = await Promise.all([
+      const [todoPeople, todoTags, todoEvents] = await Promise.all([
         db.todoPeople.where('todoId').anyOf(presentIds).toArray(),
         db.todoTags.where('todoId').anyOf(presentIds).toArray(),
-        db.todoOrgs.where('todoId').anyOf(presentIds).toArray(),
         db.todoEvents.where('todoId').anyOf(presentIds).toArray(),
       ])
-      const [people, tags, orgs, statuses, projects] = await Promise.all([
+      const [people, tags, statuses, projects] = await Promise.all([
         db.people.bulkGet(definedIds(todoPeople.map((r) => r.personId))),
         db.tags.bulkGet(definedIds(todoTags.map((r) => r.tagId))),
-        db.orgs.bulkGet(definedIds(todoOrgs.map((r) => r.orgId))),
         db.statuses.bulkGet(definedIds(todos.map((t) => t.statusId))),
         db.projects.bulkGet(definedIds(todos.map((t) => t.projectId))),
       ])
@@ -76,11 +73,9 @@ export async function buildTaskArchive(todoIds: readonly number[], now: Date = n
         todos,
         todoPeople,
         todoTags,
-        todoOrgs,
         todoEvents,
         people: people.filter((r): r is Person => r != null),
         tags: tags.filter((r): r is Tag => r != null),
-        orgs: orgs.filter((r): r is Org => r != null),
         statuses: statuses.filter((r): r is Status => r != null),
         projects: projects.filter((r): r is Project => r != null),
       }

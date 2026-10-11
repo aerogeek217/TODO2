@@ -11,7 +11,6 @@ import {
 } from '@dnd-kit/core'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
-import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { useProjectStore } from '../stores/project-store'
 import { useUIStore } from '../stores/ui-store'
@@ -123,8 +122,7 @@ function DayDroppable({ day, children }: DayCellProps) {
 
 export function CalendarView() {
   const { todos, ensureAllLoaded: loadAll } = useTodoStore()
-  const { people, ensureLoaded: loadPeople, assignedPeopleMap } = usePersonStore()
-  const { orgs, personOrgMap, assignedOrgsMap, ensureLoaded: loadOrgs, loadPersonOrgMap } = useOrgStore()
+  const { ensureLoaded: loadPeople, assignedPeopleMap } = usePersonStore()
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTags = useTagStore((s) => s.ensureLoaded)
   const { projects, ensureAllLoaded: loadAllProjects } = useProjectStore()
@@ -156,21 +154,16 @@ export function CalendarView() {
   useEffect(() => {
     loadAll()
     loadPeople()
-    loadOrgs()
     loadTags()
     loadAllProjects()
-  }, [loadAll, loadPeople, loadOrgs, loadTags, loadAllProjects])
+  }, [loadAll, loadPeople, loadTags, loadAllProjects])
 
   useEntityAssignmentsForTodos(todos)
 
-  useEffect(() => {
-    loadPersonOrgMap()
-  }, [people, orgs, loadPersonOrgMap])
-
   const projectsById = useMemo(() => new Map(projects.map(p => [p.id!, p])), [projects])
   const activeTodos = useMemo(() => {
-    return applyFilter(filters, todos, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, undefined, projectsById, assignedTagsMap)
-  }, [todos, filters, assignedPeopleMap, personOrgMap, assignedOrgsMap, statuses, projectsById, assignedTagsMap])
+    return applyFilter(filters, todos, assignedPeopleMap, statuses, undefined, projectsById, assignedTagsMap)
+  }, [todos, filters, assignedPeopleMap, statuses, projectsById, assignedTagsMap])
 
   const [today, setToday] = useState(() => startOfDay(new Date()))
 
@@ -206,9 +199,8 @@ export function CalendarView() {
 
   const entriesByDay = useMemo(() => buildCalendarEntries(dated, days, {
     assignedPeopleMap,
-    assignedOrgsMap,
     statuses,
-  }), [dated, days, assignedPeopleMap, assignedOrgsMap, statuses])
+  }), [dated, days, assignedPeopleMap, statuses])
 
   const goToday = useCallback(() => setCurrentDate(new Date()), [])
 
@@ -476,7 +468,6 @@ export function CalendarView() {
             mode="edit"
             {...taskEdit.editProps}
             allPeople={taskEdit.allPeople}
-            allOrgs={taskEdit.allOrgs}
             allTags={taskEdit.allTags}
             onClose={taskEdit.closeEditPopup}
             {...taskEdit.entityCreators}
@@ -490,14 +481,10 @@ export function CalendarView() {
             allPeople={taskEdit.allPeople}
             onClose={taskEdit.closeEditPopup}
             onCreate={taskEdit.onCreate}
-            assignedOrgs={[]}
-            allOrgs={taskEdit.allOrgs}
             assignedTags={[]}
             allTags={taskEdit.allTags}
             onAssignPerson={() => {}}
             onUnassignPerson={() => {}}
-            onAssignOrg={() => {}}
-            onUnassignOrg={() => {}}
             onAssignTag={() => {}}
             onUnassignTag={() => {}}
             {...taskEdit.entityCreators}

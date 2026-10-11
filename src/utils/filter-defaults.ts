@@ -5,7 +5,6 @@ import type { TodoPredicate } from '../models'
 
 export interface FilterDefaults {
   personIds: number[]
-  orgIds: number[]
   tagIds: number[]
   statusId: number | undefined
   projectId: number | undefined
@@ -18,7 +17,6 @@ export interface FilterDefaults {
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const personIds = filters.personIds ? [...filters.personIds].filter(id => id !== 0) : []
-  const orgIds = filters.orgIds ? [...filters.orgIds].filter(id => id !== 0) : []
   const tagIds = filters.tags ? [...filters.tags].filter(id => id !== 0) : []
 
   let statusId: number | undefined
@@ -33,7 +31,7 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) projectId = only
   }
 
-  return { personIds, orgIds, tagIds, statusId, projectId }
+  return { personIds, tagIds, statusId, projectId }
 }
 
 /**
@@ -48,7 +46,7 @@ export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefau
 
 /**
  * Supplement resolved NLP output with filter-inferred defaults.
- * Mutates `resolved` in place for person/org/project fields.
+ * Mutates `resolved` in place for person/project/status fields.
  * Tags merge: filter-default tag ids are appended to any user-typed `#tag`
  * slugs as a parallel `seedTagIds` channel — applied at submit by the
  * caller (resolved.tags stays string-typed).
@@ -58,7 +56,6 @@ export function supplementWithFilterDefaults(
   fd: FilterDefaults,
 ): void {
   if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
-  if (resolved.orgIds.length === 0) resolved.orgIds = fd.orgIds
   if (resolved.projectId === undefined && fd.projectId !== undefined) {
     resolved.projectId = fd.projectId
   }

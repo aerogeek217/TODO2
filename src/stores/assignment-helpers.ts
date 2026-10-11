@@ -2,7 +2,7 @@ import { optimistic, type SetFn } from './store-helpers'
 
 /**
  * Factory that generates assign/unassign/bulk assignment actions for
- * entity stores (tag, person, org). Centralizes the duplicated pattern
+ * entity stores (tag, person). Centralizes the duplicated pattern
  * so bug fixes apply once.
  */
 

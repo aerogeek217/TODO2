@@ -11,10 +11,8 @@ import { useClickOutside } from '../../hooks/use-click-outside'
 import { NlpAutocomplete } from '../shared/NlpAutocomplete'
 import { usePersonStore } from '../../stores/person-store'
 import { useProjectStore } from '../../stores/project-store'
-import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
-import { resolvePersonColor } from '../../utils/person-color'
 import styles from './InsertTrigger.module.css'
 
 /** Imperative handle exposed to `SortableTaskList` so the parent owns *when*
@@ -71,22 +69,14 @@ export const InsertTrigger = forwardRef<InsertTriggerHandle, InsertTriggerProps>
 
   const people = usePersonStore((s) => s.people)
   const projects = useProjectStore((s) => s.projects)
-  const orgsFromStore = useOrgStore((s) => s.orgs)
-  const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const tagsFromStore = useTagStore((s) => s.tags)
   const statusesFromStore = useStatusStore((s) => s.statuses)
 
   const acPeople = useMemo(
-    () => people.map((p) => ({
-      id: p.id!,
-      name: p.name,
-      color: resolvePersonColor(p.id, personOrgMap, orgsFromStore),
-      kind: 'person' as const,
-    })),
-    [people, personOrgMap, orgsFromStore],
+    () => people.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'person' as const })),
+    [people],
   )
   const acProjects = useMemo(() => projects.map((p) => ({ id: p.id!, name: p.name, color: p.color, kind: 'project' as const })), [projects])
-  const acOrgs = useMemo(() => orgsFromStore.map((o) => ({ id: o.id!, name: o.name, color: o.color, kind: 'org' as const })), [orgsFromStore])
   const acTags = useMemo(
     () => [...tagsFromStore].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({
       id: t.id!,
@@ -106,7 +96,7 @@ export const InsertTrigger = forwardRef<InsertTriggerHandle, InsertTriggerProps>
     [statusesFromStore],
   )
 
-  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, orgs: acOrgs, tags: acTags, statuses: acStatuses })
+  const ac = useNlpAutocomplete({ people: acPeople, projects: acProjects, tags: acTags, statuses: acStatuses })
 
   useClickOutside(wrapperRef, () => {
     ac.dismiss()

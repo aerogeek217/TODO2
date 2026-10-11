@@ -4,6 +4,7 @@ import { upgradeV51 } from './upgrades/v51-uid-completed-at'
 import { upgradeV52 } from './upgrades/v52-drop-date-stat-widgets'
 import { upgradeV53 } from './upgrades/v53-remove-scheduled-date'
 import { upgradeV54 } from './upgrades/v54-remove-hidden-statuses'
+import { upgradeV55 } from './upgrades/v55-merge-orgs-into-people'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -65,6 +66,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [52, upgradeV52],
   [53, upgradeV53],
   [54, upgradeV54],
+  [55, upgradeV55],
 ])
 
 /**

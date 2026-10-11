@@ -10,7 +10,7 @@ export interface AutocompleteItem {
   id: number
   name: string
   color?: string
-  kind: 'person' | 'org' | 'project' | 'tag' | 'status'
+  kind: 'person' | 'project' | 'tag' | 'status'
 }
 
 export interface AutocompleteState {
@@ -35,7 +35,6 @@ const initialState: AutocompleteState = {
 interface UseNlpAutocompleteOptions {
   people: AutocompleteItem[]
   projects?: AutocompleteItem[]
-  orgs?: AutocompleteItem[]
   tags?: AutocompleteItem[]
   statuses?: AutocompleteItem[]
 }
@@ -47,7 +46,7 @@ interface UseNlpAutocompleteOptions {
 // Shared canvas for text measurement — avoids creating one per keystroke
 const measureCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
 
-export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = [], statuses = [] }: UseNlpAutocompleteOptions) {
+export function useNlpAutocomplete({ people, projects = [], tags = [], statuses = [] }: UseNlpAutocompleteOptions) {
   const [state, setState] = useState<AutocompleteState>(initialState)
   const triggerPosRef = useRef<number>(-1)
 
@@ -96,7 +95,7 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
         ? statuses.filter((item) => item.name.toLowerCase().startsWith(query))
         : statuses
     } else {
-      const sourceItems = triggerChar === '@' ? [...people, ...orgs] : projects
+      const sourceItems = triggerChar === '@' ? people : projects
       filtered = query
         ? sourceItems.filter((item) => item.name.toLowerCase().includes(query))
         : sourceItems
@@ -130,7 +129,7 @@ export function useNlpAutocomplete({ people, projects = [], orgs = [], tags = []
       selectedIndex: 0,
       caretLeft,
     })
-  }, [people, projects, orgs, tags, statuses, state.visible, dismiss])
+  }, [people, projects, tags, statuses, state.visible, dismiss])
 
   /**
    * Handle keyboard events for autocomplete navigation.

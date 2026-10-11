@@ -1,8 +1,7 @@
-import type { PersistedTodoItem, Person, Org, Status, Tag, Project, ProjectGroupBy } from '../models'
+import type { PersistedTodoItem, Person, Status, Tag, Project, ProjectGroupBy } from '../models'
 import { startOfDay, MS_PER_DAY } from './date'
-import { resolvePersonColor } from './person-color'
 import { bySortOrder } from './sort-order'
-import { UNAFFILIATED_PERSON_COLOR } from '../constants'
+import { NEUTRAL_PERSON_COLOR } from '../constants'
 
 export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
   { value: null, label: 'None' },
@@ -10,24 +9,17 @@ export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = 
   { value: 'followup', label: 'Next follow-up' },
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
-  { value: 'org', label: 'Org' },
   { value: 'tag', label: 'Tag' },
 ]
 
 export interface GroupingContext {
   assignedPeopleMap: Map<number, Person[]>
-  assignedOrgsMap: Map<number, Org[]>
   assignedTagsMap: Map<number, Tag[]>
   statuses: readonly Status[]
-  /** Org registry — used by `getGroupColor` to resolve person colors via
-   *  their first assigned org. Empty list is fine when not grouping by people. */
-  orgs: readonly Org[]
-  /** personId → orgId[] — used by `getGroupColor` to resolve person colors. */
-  personOrgMap: Map<number, number[]>
   /** Project registry — used by `orderGroupKeys` to sort project keys by
    *  registry `sortOrder`. Optional: empty/undefined is fine when not grouping
    *  by project (caller can also resolve labels at the call site, mirroring
-   *  the people/org pattern). */
+   *  the people pattern). */
   projects?: readonly Project[]
   today: Date
 }
@@ -36,17 +28,6 @@ export interface PartitionGroup<T extends PersistedTodoItem> {
   key: string
   label: string
   todos: T[]
-  /**
-   * `'direct'` when at least one task emit under this key came via the task's
-   * direct group keys (assigned person/org/tag). `'implicit'` when every emit
-   * came via the cross-axis `implicitKeysFor` callback (e.g. via the task's
-   * direct orgs' member-people, when grouping by people).
-   *
-   * When `partitionByGroup` is called without `restrictToFilterSet`, every
-   * group reports `'direct'` — the implicit path is gated on restrict mode
-   * (P6, item 1).
-   */
-  tier: 'direct' | 'implicit'
 }
 
 export interface PartitionResult<T extends PersistedTodoItem> {
@@ -92,7 +73,7 @@ function parseId(prefix: string, key: string): number | null {
  * - `null` — todo has no value for this dimension; the partition routes it
  *   into the `ungrouped` block.
  * - `string` — single group key.
- * - `string[]` — todo belongs to multiple groups (people / org many-to-many);
+ * - `string[]` — todo belongs to multiple groups (people / tag many-to-many);
  *   it appears once in each group, mirroring the ListView convention.
  *
  * Bucket keys for `deadline` / `followup` (`overdue` / `today` /
@@ -122,14 +103,6 @@ export function getGroupKey(
       }
       return keys.size === 0 ? null : [...keys]
     }
-    case 'org': {
-      const assigned = ctx.assignedOrgsMap.get(todo.id) ?? []
-      const keys = new Set<string>()
-      for (const o of assigned) {
-        if (o.id != null) keys.add(`org-${o.id}`)
-      }
-      return keys.size === 0 ? null : [...keys]
-    }
     case 'tag': {
       const assigned = ctx.assignedTagsMap.get(todo.id) ?? []
       const keys = new Set<string>()
@@ -156,8 +129,8 @@ export function getGroupKey(
 }
 
 /**
- * Human-readable label for a key produced by `getGroupKey`. Person/org
- * names are looked up via the assigned-{people,orgs} maps; status names
+ * Human-readable label for a key produced by `getGroupKey`. Person / tag
+ * names are looked up via the assigned-{people,tags} maps; status names
  * via `ctx.statuses`; deadline/followup keys map to the same labels
  * `ListView` uses ("Overdue" / "Today" / "This Week" / "Later").
  */
@@ -178,15 +151,6 @@ export function getGroupLabel(
       if (id == null) return ''
       for (const arr of ctx.assignedPeopleMap.values()) {
         const hit = arr.find((p) => p.id === id)
-        if (hit) return hit.name
-      }
-      return ''
-    }
-    case 'org': {
-      const id = parseId('org-', key)
-      if (id == null) return ''
-      for (const arr of ctx.assignedOrgsMap.values()) {
-        const hit = arr.find((o) => o.id === id)
         if (hit) return hit.name
       }
       return ''
@@ -217,8 +181,8 @@ export function getGroupLabel(
 /**
  * Resolve the swatch color for a group header. Returns `undefined` when the
  * key has no associated color (date buckets, unknown keys, status with no
- * defined color). People without an org membership fall back to
- * `UNAFFILIATED_PERSON_COLOR`, mirroring `AvatarStack`'s fill-variant behavior.
+ * defined color). People without a color fall back to
+ * `NEUTRAL_PERSON_COLOR`, mirroring `AvatarStack`'s fill-variant behavior.
  *
  * Date-bucket dimensions (`deadline` / `followup`) are derived
  * buckets, not entities — they intentionally have no color.
@@ -238,16 +202,11 @@ export function getGroupColor(
     case 'people': {
       const id = parseId('person-', key)
       if (id == null) return undefined
-      return resolvePersonColor(id, ctx.personOrgMap, [...ctx.orgs]) ?? UNAFFILIATED_PERSON_COLOR
-    }
-    case 'org': {
-      const id = parseId('org-', key)
-      if (id == null) return undefined
-      for (const arr of ctx.assignedOrgsMap.values()) {
-        const hit = arr.find((o) => o.id === id)
-        if (hit?.color) return hit.color
+      for (const arr of ctx.assignedPeopleMap.values()) {
+        const hit = arr.find((p) => p.id === id)
+        if (hit) return hit.color ?? NEUTRAL_PERSON_COLOR
       }
-      return undefined
+      return NEUTRAL_PERSON_COLOR
     }
     case 'tag': {
       const id = parseId('tag-', key)
@@ -268,12 +227,12 @@ export function getGroupColor(
 
 /**
  * Order group keys by dimension-default rules (status sortOrder, date bucket
- * order, alphabetical for people/org/tag), then optionally pull
+ * order, alphabetical for people/tag), then optionally pull
  * `prioritizeGroupKeys` to the front in caller order.
  *
  * Used by `partitionByGroup` to satisfy "filter by X + group by X → put X
  * first" UX (item 12, triage-2026-04-27-batch2 P5). Caller passes the same
- * prefixed keys `getGroupKey` emits (`person-N` / `org-N` / `tag-N`); only
+ * prefixed keys `getGroupKey` emits (`person-N` / `tag-N`); only
  * keys present in the input list are pulled forward, so passing IDs that
  * don't have a group is harmless. Keys not in the prioritize list keep
  * their default order.
@@ -307,7 +266,6 @@ function orderGroupKeys(
         return keys.slice().sort((a, b) => idx(a) - idx(b))
       }
       case 'people':
-      case 'org':
       case 'tag':
         return keys.slice().sort((a, b) =>
           getGroupLabel(a, groupBy, ctx).localeCompare(getGroupLabel(b, groupBy, ctx)),
@@ -315,7 +273,7 @@ function orderGroupKeys(
       case 'project': {
         // Sort by project registry sortOrder when `ctx.projects` is supplied;
         // otherwise fall through to alphabetical-by-label fallback (mirrors
-        // people/org/tag behavior when label is empty).
+        // people/tag behavior when label is empty).
         const projects = ctx.projects
         if (projects && projects.length > 0) {
           const order = new Map<number, number>()
@@ -360,41 +318,20 @@ function orderGroupKeys(
  *
  * - Within each bucket, todo order is preserved from the input.
  * - Group order: status by `sortOrder`, deadline/followup by
- *   bucket order (overdue → today → week → later), people/org
+ *   bucket order (overdue → today → week → later), people/tag
  *   alphabetically by label.
- * - A todo with N keys (people/org) appears once per group — the same
+ * - A todo with N keys (people/tag) appears once per group — the same
  *   row reference, no clone.
  *
  * `prioritizeGroupKeys` (optional): keys pulled to the front in caller
- * order (filter-aware ordering for "filter by X + group by X" — item 12,
- * P5). Pass the same prefixed keys `getGroupKey` emits (`person-N`,
- * `org-N`, `tag-N`).
+ * order (filter-aware ordering for "filter by X + group by X"). Pass the
+ * same prefixed keys `getGroupKey` emits (`person-N`, `tag-N`).
  *
- * `restrictToFilterSet` (optional, P6 item 1): when set, the partition
- * narrows to *visible* groups defined by `(filterSet) ∩ (direct keys ∪
- * implicit keys)`. Tasks whose intersection is empty are skipped; tasks
- * with no direct keys at all (and no implicit rescue) still route to
- * `ungrouped` (preserves the unassigned-sentinel filter case). When a
- * task has no direct keys but `implicitKeysFor` returns filter-matched
- * keys, the task emits under those keys as implicit-tier (mirrors
- * ListView legacy `buildPeopleSections` behavior — task assigned only
- * to an org whose member is in the people filter). Pass the same
+ * `restrictToFilterSet` (optional): when set, only groups whose key is in
+ * the set are emitted, in the set's order. Tasks with no key at all still
+ * route to `ungrouped` (preserves the unassigned-sentinel filter case);
+ * tasks whose keys all fall outside the set are dropped. Pass the same
  * prefixed keys `getGroupKey` emits.
- *
- * `implicitKeysFor` (optional, P6): caller-supplied cross-axis lookup,
- * only consulted when `restrictToFilterSet` is set. For
- * `groupBy === 'people'`, return person keys reachable from the task's
- * orgs (members of any direct org). For `groupBy === 'org'`, return org
- * keys reachable from the task's people. Tags have no cross-axis path —
- * pass nothing.
- *
- * Returns `groups` with a per-group `tier`: `'direct'` when at least one
- * emit under that key came via the task's direct group keys; `'implicit'`
- * when every emit came via `implicitKeysFor`. When `restrictToFilterSet`
- * is unset, every group is `'direct'` and ordering follows the legacy
- * `prioritizeGroupKeys` path. When it *is* set, ordering is direct-tier
- * first then implicit-tier — within each tier, the order of
- * `restrictToFilterSet` is preserved.
  */
 export function partitionByGroup<T extends PersistedTodoItem>(
   todos: readonly T[],
@@ -402,125 +339,42 @@ export function partitionByGroup<T extends PersistedTodoItem>(
   ctx: GroupingContext,
   prioritizeGroupKeys?: ReadonlyArray<string>,
   restrictToFilterSet?: ReadonlyArray<string>,
-  implicitKeysFor?: (todo: T, axis: ProjectGroupBy) => readonly string[],
 ): PartitionResult<T> {
   const ungrouped: T[] = []
-  const groupMap = new Map<string, { todos: T[]; hasDirect: boolean }>()
+  const groupMap = new Map<string, T[]>()
   const filterSet =
     restrictToFilterSet && restrictToFilterSet.length > 0
       ? new Set(restrictToFilterSet)
       : null
 
-  const pushDirect = (key: string, t: T): void => {
-    let bucket = groupMap.get(key)
-    if (!bucket) {
-      bucket = { todos: [], hasDirect: true }
-      groupMap.set(key, bucket)
-    } else {
-      bucket.hasDirect = true
-    }
-    bucket.todos.push(t)
-  }
-
-  const pushImplicit = (key: string, t: T): void => {
-    let bucket = groupMap.get(key)
-    if (!bucket) {
-      bucket = { todos: [], hasDirect: false }
-      groupMap.set(key, bucket)
-    }
-    bucket.todos.push(t)
-  }
-
   for (const t of todos) {
     const key = getGroupKey(t, groupBy, ctx)
-    const baseDirectKeys: string[] =
-      key == null ? [] : Array.isArray(key) ? key : [key]
-
-    const directKeys: string[] = []
-    const directSeen = new Set<string>()
-    for (const k of baseDirectKeys) {
-      if (!directSeen.has(k)) {
-        directSeen.add(k)
-        directKeys.push(k)
-      }
-    }
-
-    if (filterSet === null) {
-      // Legacy mode: no implicit path runs.
-      if (directKeys.length === 0) {
-        ungrouped.push(t)
-        continue
-      }
-      for (const k of directKeys) pushDirect(k, t)
+    const keys = new Set(key == null ? [] : Array.isArray(key) ? key : [key])
+    if (keys.size === 0) {
+      ungrouped.push(t)
       continue
     }
-
-    const emitDirect: string[] = []
-    for (const k of directKeys) if (filterSet.has(k)) emitDirect.push(k)
-
-    const directSet = new Set(emitDirect)
-    const emitImplicit: string[] = []
-    if (implicitKeysFor) {
-      for (const k of implicitKeysFor(t, groupBy)) {
-        if (filterSet.has(k) && !directSet.has(k)) emitImplicit.push(k)
+    for (const k of keys) {
+      if (filterSet !== null && !filterSet.has(k)) continue
+      let bucket = groupMap.get(k)
+      if (!bucket) {
+        bucket = []
+        groupMap.set(k, bucket)
       }
+      bucket.push(t)
     }
-
-    if (emitDirect.length === 0 && emitImplicit.length === 0) {
-      // Restrict mode, empty intersection. Two sub-cases:
-      // - directKeys.length === 0: task has no direct keys at all (e.g.,
-      //   no people assigned). Route to ungrouped — preserves the
-      //   unassigned-sentinel filter case.
-      // - directKeys.length > 0 but none match the filter set, and implicit
-      //   didn't rescue: task is axis-mismatched. Drop entirely.
-      if (directKeys.length === 0) ungrouped.push(t)
-      continue
-    }
-
-    for (const k of emitDirect) pushDirect(k, t)
-    for (const k of emitImplicit) pushImplicit(k, t)
   }
 
   const orderedKeys =
     filterSet !== null
-      ? orderRestrictedKeys(restrictToFilterSet!, groupMap)
+      ? [...new Set(restrictToFilterSet)].filter((k) => groupMap.has(k))
       : orderGroupKeys([...groupMap.keys()], groupBy, ctx, prioritizeGroupKeys)
 
-  const groups = orderedKeys.map((key) => {
-    const bucket = groupMap.get(key)!
-    return {
-      key,
-      label: getGroupLabel(key, groupBy, ctx),
-      todos: bucket.todos,
-      tier: (bucket.hasDirect ? 'direct' : 'implicit') as 'direct' | 'implicit',
-    }
-  })
+  const groups = orderedKeys.map((key) => ({
+    key,
+    label: getGroupLabel(key, groupBy, ctx),
+    todos: groupMap.get(key) ?? [],
+  }))
 
   return { ungrouped, groups }
-}
-
-/**
- * Tier-aware ordering for restrict mode (P6 item 1). Walks
- * `restrictToFilterSet` in caller order, splits keys into direct- vs
- * implicit-only tiers based on `groupMap[k].hasDirect`, and emits
- * `[...direct, ...implicit]`. Keys not present in `groupMap` (no task
- * emitted there) are dropped. Repeated keys in the input are deduped to
- * their first appearance.
- */
-function orderRestrictedKeys<T extends PersistedTodoItem>(
-  restrictToFilterSet: ReadonlyArray<string>,
-  groupMap: Map<string, { todos: T[]; hasDirect: boolean }>,
-): string[] {
-  const direct: string[] = []
-  const implicit: string[] = []
-  const seen = new Set<string>()
-  for (const k of restrictToFilterSet) {
-    if (seen.has(k)) continue
-    seen.add(k)
-    const bucket = groupMap.get(k)
-    if (!bucket) continue
-    if (bucket.hasDirect) direct.push(k)
-    else implicit.push(k)
-  }
-  return [...direct, ...implicit]
 }

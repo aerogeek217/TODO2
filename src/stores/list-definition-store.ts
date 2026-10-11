@@ -45,9 +45,6 @@ export function emptyPredicate(): TodoPredicate {
   return {
     showCompleted: false,
     personIds: null,
-    personFilterMode: 'include-orgs',
-    orgIds: null,
-    orgFilterMode: 'include-people',
     projectIds: null,
     statusIds: null,
     searchText: '',
