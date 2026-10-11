@@ -25,8 +25,6 @@ import { createCommands, searchDynamicCommands } from './services/command-regist
 import { backupScheduler } from './services/backup-scheduler'
 import { applyNlpMetadata } from './services/nlp-task-creator'
 import { getFilterDefaults, supplementWithFilterDefaults } from './utils/filter-defaults'
-import { applyRuntimeFilter } from './services/dashboard-lists'
-import { criteriaToPredicate, predicateToCriteria } from './stores/filter-store'
 import { checkUnsupportedOldDB } from './services/migration-check'
 import type { UnsupportedDBInfo } from './services/migration-check'
 import { MigrationDialog } from './components/overlays/MigrationDialog'
@@ -103,24 +101,10 @@ function AppQuickAddBar() {
     // `quickAddDraft.defaults` (from a list widget's "+ Add task" path); any
     // other invocation falls through to the active top-bar filter.
     // `supplementWithFilterDefaults` only fills fields the user didn't type —
-    // so an `@person` token always wins over the seed.
-    //
-    // Runtime filter: a prompt pick held in the filter store is kept separate
-    // from the predicate. At submit time the picked entity is baked into the
-    // defaults too, so a list keyed on `Tasks for {assignee}` adds new tasks
-    // assigned to whoever the user picked.
+    // so an `@person` token always wins over the seed. (A list widget's seed
+    // already carries its prompt picks.)
     const draft = useUIStore.getState().quickAddDraft
-    let fd = draft?.defaults
-    if (!fd) {
-      const filterStore = useFilterStore.getState()
-      let baseFilters = filterStore.filters
-      const { runtimeFilterSpec, runtimeFilterValue } = filterStore
-      if (runtimeFilterSpec && runtimeFilterValue && runtimeFilterValue.length > 0) {
-        const merged = applyRuntimeFilter(criteriaToPredicate(baseFilters), runtimeFilterSpec, runtimeFilterValue)
-        baseFilters = predicateToCriteria(merged)
-      }
-      fd = getFilterDefaults(baseFilters)
-    }
+    const fd = draft?.defaults ?? getFilterDefaults(useFilterStore.getState().filters)
     supplementWithFilterDefaults(resolved, fd)
     // Parse-cleaned title fed to addTodo, then applyNlpMetadata for everything
     // the resolver pulled out. Tags ride through applyNlpMetadata's

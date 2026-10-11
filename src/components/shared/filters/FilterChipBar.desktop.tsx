@@ -50,11 +50,9 @@ function FilterDropdown({
 
   // Portal + flip + clamp: when this chip-row sits inside the list editor
   // modal, the dialog body's `overflow: auto` used to
-  // clip the panel and force the user to scroll inside the modal. Routing
-  // through usePopoverAnchor + createPortal mirrors the IconSelect fix
-  // (triage-2026-04-27 batch2 P3 / item 3) for the rest of the editor's
-  // dropdowns. usePopoverAnchor also subsumes the prior `useRightEdgeFlip`
-  // X-axis flip and adds a Y-axis flip when there's no room below.
+  // clip the panel and force the user to scroll inside the modal, so the
+  // panel is portaled and placed by usePopoverAnchor (X flip at the right
+  // edge, Y flip when there's no room below).
   const { panelRef, style } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: triggerRef },
     open,

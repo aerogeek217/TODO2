@@ -8,9 +8,9 @@ import type { DateBucketKey } from '../utils/bucket-by-date'
 import { manualOrderComparator, type ListRanks } from '../utils/list-order'
 
 /**
- * One rendered group of a list. Every list surface (the list page and list
- * widgets) builds its sections with {@link buildListSections}, so the same
- * definition yields the same keys, labels, accents and order everywhere.
+ * One rendered group of a list. Every list widget builds its sections with
+ * {@link buildListSections}, so the same definition yields the same keys,
+ * labels, accents and order everywhere.
  */
 export interface Section {
   key: string

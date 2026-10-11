@@ -42,7 +42,7 @@ export interface TextMatchContext {
 /**
  * Per-todo name lookups for {@link textMatchContextFor}. Every surface that
  * searches tasks resolves names from these same maps, so a query hits the
- * same tasks in the list page, list widgets and the top-bar search.
+ * same tasks in list widgets, the calendar widget and the top-bar search.
  */
 export interface TodoNameLookups {
   assignedPeopleMap?: ReadonlyMap<number, readonly Person[]>

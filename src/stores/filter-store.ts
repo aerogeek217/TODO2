@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { TodoItem, PersistedTodoItem, Person, Status, Tag, DateField, TodoPredicate, DateAnchor } from '../models'
-import type { RuntimeFilterSpec } from '../models/list-definition'
 import { startOfDay, startOfToday } from '../utils/date'
 import { readDateAnchor } from '../utils/date-anchor'
 import { resolveDateAnchor } from '../utils/effective-date'
@@ -63,16 +62,6 @@ interface FilterState {
   filters: FilterCriteria
   /** Derived: true when any filter is active. Use useFilterStore(s => s.isActive) or getState().isActive. */
   readonly isActive: boolean
-  /**
-   * Per-list-definition runtime filter prompt (e.g. "Tasks for {assignee}").
-   * The spec describes which entity field the list narrows on; the value is
-   * the live picked id list. Lifted into the store so the FilterChipBar's
-   * Clear-all path can drop both predicate AND runtime-filter state in one
-   * shot — and so the runtime input visibly disappears when the user clears
-   * filters from the topbar.
-   */
-  runtimeFilterSpec: RuntimeFilterSpec | null
-  runtimeFilterValue: number[] | undefined
 
   setShowCompleted: (show: boolean) => void
   setPersonIds: (personIds: Set<number> | null) => void
@@ -88,8 +77,6 @@ interface FilterState {
   setFocus: (value: boolean | null) => void
   setTags: (tags: Set<number> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
-  setRuntimeFilterSpec: (spec: RuntimeFilterSpec | null) => void
-  setRuntimeFilterValue: (value: number[] | undefined) => void
   clearAll: () => void
 }
 
@@ -222,9 +209,9 @@ export function matchesFilter(
 
 /**
  * `matchesFilter` with assignments and names resolved from `lookups` — the
- * one evaluation path shared by the list page (`applyFilter`) and list
- * widgets (`createPredicateEvaluator`), so search hits the same person /
- * status / tag names on both.
+ * one evaluation path shared by the screen filter (`applyFilter`, e.g. the
+ * calendar widget) and list widgets (`createPredicateEvaluator`), so search
+ * hits the same person / status / tag names on both.
  */
 export function matchesFilterWithLookups(
   filters: FilterCriteria,
@@ -370,8 +357,6 @@ function commit(set: (s: Partial<FilterState>) => void, filters: FilterCriteria)
 export const useFilterStore = create<FilterState>((set, get) => ({
   filters: { ...defaultFilters },
   isActive: false,
-  runtimeFilterSpec: null,
-  runtimeFilterValue: undefined,
 
   setShowCompleted(showCompleted: boolean) {
     commit(set, { ...get().filters, showCompleted })
@@ -429,20 +414,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     commit(set, { ...filters })
   },
 
-  setRuntimeFilterSpec(spec: RuntimeFilterSpec | null) {
-    set({ runtimeFilterSpec: spec })
-  },
-
-  setRuntimeFilterValue(value: number[] | undefined) {
-    set({ runtimeFilterValue: value })
-  },
-
   clearAll() {
     set({
       filters: { ...defaultFilters },
       isActive: false,
-      runtimeFilterSpec: null,
-      runtimeFilterValue: undefined,
     })
   },
 }))

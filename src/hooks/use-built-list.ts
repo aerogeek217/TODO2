@@ -44,8 +44,9 @@ const NO_BUILT: BuiltList = { list: null, baseCount: 0, runtimeFilterPending: fa
 /**
  * Runs a list definition over the loaded tasks: its predicate (plus prompt
  * picks, plus the screen filter when given — see `composeScreenFilter`)
- * through `buildDashboardLists`, with the same name lookups as the list
- * page so a predicate's search also hits person / status / tag names. Keeps tag assignments loaded for the task set.
+ * through `buildDashboardLists`, with the shared name lookups so a
+ * predicate's search also hits person / status / tag names. Keeps tag
+ * assignments loaded for the task set.
  *
  * `runtimeFilterValue` undefined on a list with a prompt = nothing picked
  * yet; an empty array = no narrowing.
