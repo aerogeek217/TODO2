@@ -16,6 +16,7 @@ function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
     assignedTagsMap: new Map(),
     statuses: [],
     today: new Date(2026, 0, 15),
+    weekStartsOn: 1,
     ...over,
   }
 }
@@ -120,7 +121,16 @@ describe('getGroupKey', () => {
       expect(getGroupKey(todo, 'followup', ctx)).toBeNull()
     })
 
-    it('matches ListView keys (overdue / today / week / later)', () => {
+    it('"This Week" ends with the calendar week, not seven rolling days', () => {
+      // Thu 15 Jan 2026: a Monday-first week ends Sun 18 Jan.
+      const ctx = makeCtx({ today })
+      expect(getGroupKey(makeTodo({ id: 1, dueDate: new Date(2026, 0, 18) }), 'deadline', ctx)).toBe('week')
+      expect(getGroupKey(makeTodo({ id: 2, dueDate: new Date(2026, 0, 19) }), 'deadline', ctx)).toBe('later')
+      expect(getGroupKey(makeTodo({ id: 3, dueDate: new Date(2026, 0, 17) }), 'deadline', makeCtx({ today, weekStartsOn: 0 }))).toBe('week')
+      expect(getGroupKey(makeTodo({ id: 4, dueDate: new Date(2026, 0, 18) }), 'deadline', makeCtx({ today, weekStartsOn: 0 }))).toBe('later')
+    })
+
+    it('matches the list keys (overdue / today / week / later)', () => {
       const ctx = makeCtx({ today })
       const keys = [yesterday, today, inThreeDays, inTenDays].map((d) =>
         getGroupKey(makeTodo({ id: 1, dueDate: d }), 'deadline', ctx),

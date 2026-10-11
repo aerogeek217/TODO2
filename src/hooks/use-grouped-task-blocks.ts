@@ -3,6 +3,7 @@ import type { Person, PersistedTodoItem, ProjectGroupBy } from '../models'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useFilterStore } from '../stores/filter-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { partitionByGroup, getGroupColor } from '../utils/task-grouping'
 import { UNGROUPED_GROUP_KEY } from '../utils/cross-group-drag'
 import { startOfToday } from '../utils/date'
@@ -47,6 +48,7 @@ export function useGroupedTaskBlocks(
 ): RenderBlock[] | null {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
+  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const today = useMemo(() => startOfToday(), [])
 
   const filterPersonIds = useFilterStore((s) => s.filters.personIds)
@@ -59,6 +61,7 @@ export function useGroupedTaskBlocks(
       assignedTagsMap,
       statuses,
       today,
+      weekStartsOn,
     }
     let restrictToFilterSet: string[] | undefined
     if (groupBy === 'people' && filterPersonIds && filterPersonIds.size > 0) {
@@ -94,5 +97,5 @@ export function useGroupedTaskBlocks(
       }
     }
     return out
-  }, [groupBy, displayItems, assignedPeopleMap, assignedTagsMap, statuses, today, filterPersonIds, filterTags])
+  }, [groupBy, displayItems, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn, filterPersonIds, filterTags])
 }

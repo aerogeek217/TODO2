@@ -6,7 +6,7 @@ import {
   predicateToCriteria,
 } from '../../stores/filter-store'
 import { buildDashboardLists, type DashboardListsContext } from '../../services/dashboard-lists'
-import { buildFollowupSections, itemSortComparator } from '../../services/list-view-sections'
+import { buildListSections, listSortComparator } from '../../services/list-sections'
 import { partitionByGroup, type GroupingContext } from '../../utils/task-grouping'
 import { resolveCrossGroupMutation } from '../../utils/cross-group-drag'
 import { defsEqual } from '../../utils/list-def-equal'
@@ -78,8 +78,11 @@ describe('filter: hasFollowup + dateField followup', () => {
 })
 
 describe('sort + group by next follow-up', () => {
-  it('ListView: Overdue / Today / This Week / Later, then No Follow-up', () => {
-    const sections = buildFollowupSections(all, 1, today)
+  it('sections: Overdue / Today / This Week / Later, then No Follow-up', () => {
+    const sections = buildListSections(all, { groupBy: 'followup', sortBy: 'manual' }, {
+      today, weekStartsOn: 1, people: [], statuses: [], projects: [],
+      assignedPeopleMap: new Map(), assignedTagsMap: new Map(),
+    })
     expect(sections.map((s) => [s.label, s.todos.map((t) => t.id)])).toEqual([
       ['Overdue', [1]],
       ['Today', [2]],
@@ -90,7 +93,7 @@ describe('sort + group by next follow-up', () => {
   })
 
   it('sort ascending, tasks without a follow-up last', () => {
-    const cmp = itemSortComparator('followup', 1, today)!
+    const cmp = listSortComparator('followup')
     expect([...all].sort(cmp).map((t) => t.id)).toEqual([1, 2, 3, 4, 5])
   })
 
@@ -102,19 +105,19 @@ describe('sort + group by next follow-up', () => {
     }
     const [list] = buildDashboardLists([def], all, ctx)
     expect(list!.todos.map((t) => t.id)).toEqual([1, 2, 3, 4, 5])
-    expect(list!.groups!.map((g) => [g.label, g.todos.map((t) => t.id)])).toEqual([
+    expect(list!.sections.map((g) => [g.label, g.todos.map((t) => t.id)])).toEqual([
       ['Overdue', [1]],
       ['Today', [2]],
-      ['This week', [3]],
+      ['This Week', [3]],
       ['Later', [4]],
-      ['No follow-up', [5]],
+      ['No Follow-up', [5]],
     ])
   })
 
   it('canvas/project grouping buckets on the next follow-up', () => {
     const ctx: GroupingContext = {
       assignedPeopleMap: new Map(), assignedTagsMap: new Map(),
-      statuses: [], today,
+      statuses: [], today, weekStartsOn: 1,
     }
     const { groups, ungrouped } = partitionByGroup(all, 'followup', ctx)
     expect(groups.map((g) => [g.label, g.todos.map((t) => t.id)])).toEqual([

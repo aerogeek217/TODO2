@@ -76,7 +76,7 @@ describe('buildDashboardLists', () => {
 })
 
 describe('buildDashboardLists — predicate tags clause', () => {
-  // End-to-end: the same evalPredicate used by HorizonsSlotContent + ListDefinitionBody,
+  // End-to-end: the same evalPredicate used by ListDefinitionBody,
   // wired to the canonical matchesFilter. A custom list with `tags: [<id>]`
   // should include only todos whose assignment map contains the id via OR.
   // Predicate tag ids are into the registry; assigned-tag resolution lives at
@@ -272,8 +272,8 @@ describe('buildDashboardLists — runtime filter', () => {
   })
 
   it('end-to-end: runtime person pick of A keeps only tasks assigned to A', async () => {
-    // Wire the canonical matchesFilter as evalPredicate (same shape ListView /
-    // HorizonsSlotContent use). Picking Alice via a runtime person filter
+    // Wire the canonical matchesFilter as evalPredicate (same shape list
+    // widgets use). Picking Alice via a runtime person filter
     // includes her task and excludes both another person's task and an
     // unassigned one.
     const { predicateToCriteria, matchesFilter } = await import('../../stores/filter-store')
@@ -343,15 +343,15 @@ describe('buildDashboardLists — grouping', () => {
     const nextWeek = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 10 * MS_PER_DAY) })
     const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], [nextWeek], makeCtx())
     const list = lists[0]!
-    expect(list.groups).toBeDefined()
-    expect(list.groups!.length).toBeGreaterThan(0)
-    for (const g of list.groups!) {
+    expect(list.sections).toBeDefined()
+    expect(list.sections.length).toBeGreaterThan(0)
+    for (const g of list.sections) {
       expect(g.todos.length).toBeGreaterThan(0)
     }
   })
 
-  it('orders due-date buckets Overdue → Today → This week → Next week → This month → Later', () => {
-    // Wed 2026-04-15: this week ends Sun 04-19, next week Sun 04-26.
+  it('orders due-date sections Overdue → Today → This Week → Later', () => {
+    // Wed 2026-04-15: this week ends Sun 04-19.
     const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
     const at = (days: number) => new Date(anchor.getTime() + days * MS_PER_DAY)
     const todos = [
@@ -363,21 +363,21 @@ describe('buildDashboardLists — grouping', () => {
       makeTodo({ id: 6, dueDate: at(35) }),
     ]
     const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], todos, makeCtx({ today: anchor }))
-    expect(lists[0]!.groups!.map((g) => g.key)).toEqual([
-      'overdue', 'today', 'this-week', 'next-week', 'this-month', 'later',
+    expect(lists[0]!.sections.map((g) => [g.key, g.todos.map((t) => t.id)])).toEqual([
+      ['overdue', [1]], ['today', [2]], ['week', [3]], ['later', [4, 5, 6]],
     ])
   })
 
-  it('returns undefined groups for kind "none"', () => {
+  it('an ungrouped list has one "all" section', () => {
     const t = makeTodo({ id: 1, dueDate: today })
     const lists = buildDashboardLists([customDef()], [t], makeCtx())
-    expect(lists[0]!.groups).toBeUndefined()
+    expect(lists[0]!.sections.map((g) => [g.key, g.todos.map((x) => x.id)])).toEqual([['all', [1]]])
   })
 
   it('deadline bucketing puts overdue first', () => {
     const overdue = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 5 * MS_PER_DAY) })
     const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], [overdue], makeCtx())
-    expect(lists[0]!.groups![0]!.key).toBe('overdue')
+    expect(lists[0]!.sections[0]!.key).toBe('overdue')
   })
 
   it('deadline bucketing places todos without a due date into a trailing bucket', () => {
@@ -388,21 +388,21 @@ describe('buildDashboardLists — grouping', () => {
       [withDeadline, withoutDeadline],
       makeCtx(),
     )
-    const groups = lists[0]!.groups!
-    const noDeadline = groups.find((g) => g.key === 'no-deadline')
+    const groups = lists[0]!.sections
+    const noDeadline = groups.find((g) => g.key === 'none')
     expect(noDeadline).toBeDefined()
-    expect(noDeadline!.label).toBe('No due date')
+    expect(noDeadline!.label).toBe('No Due Date')
     expect(noDeadline!.todos.map((t) => t.id)).toEqual([2])
-    expect(groups[groups.length - 1]!.key).toBe('no-deadline')
+    expect(groups[groups.length - 1]!.key).toBe('none')
   })
 
   it('deadline bucketing omits the no-due-date bucket when every todo has one', () => {
     const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 1 * MS_PER_DAY) })
     const lists = buildDashboardLists([DEADLINE_GROUPED_DEF], [t], makeCtx())
-    expect(lists[0]!.groups!.map((g) => g.key)).not.toContain('no-deadline')
+    expect(lists[0]!.sections.map((g) => g.key)).not.toContain('none')
   })
 
-  it('follow-up grouping uses the ListView vocabulary with a trailing No follow-up', () => {
+  it('follow-up grouping uses the list vocabulary with a trailing No Follow-up', () => {
     const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
     const todos = [
       makeTodo({ id: 1, nextFollowupAt: new Date(anchor.getTime() - MS_PER_DAY) }),
@@ -411,7 +411,9 @@ describe('buildDashboardLists — grouping', () => {
       makeTodo({ id: 4 }),
     ]
     const lists = buildDashboardLists([FOLLOWUP_GROUPED_DEF], todos, makeCtx({ today: anchor }))
-    expect(lists[0]!.groups!.map((g) => g.key)).toEqual(['overdue', 'today', 'later', 'no-followup'])
+    expect(lists[0]!.sections.map((g) => [g.key, g.label])).toEqual([
+      ['overdue', 'Overdue'], ['today', 'Today'], ['later', 'Later'], ['none', 'No Follow-up'],
+    ])
   })
 })
 
@@ -450,27 +452,35 @@ describe('buildDashboardLists — visibility via def predicate', () => {
 describe('week boundary for due-date buckets', () => {
   it('Sunday-first vs Monday-first place a Sunday differently', () => {
     // 2026-04-15 is Wed. Mon-first: Sunday 4/19 is the last day of this week.
-    // Sun-first: the week ended Saturday 4/18, so Sunday is next week.
+    // Sun-first: the week ended Saturday 4/18, so Sunday is later.
     const anchor = startOfDay(new Date('2026-04-15T00:00:00'))
     const sunday = startOfDay(new Date(anchor.getTime() + 4 * MS_PER_DAY)) // 2026-04-19
     const t = makeTodo({ id: 1, dueDate: sunday })
 
     const monFirst = buildDashboardLists([DEADLINE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 1 }))
-    expect(monFirst[0]!.groups!.find((g) => g.key === 'this-week')?.todos.map((x) => x.id)).toContain(1)
+    expect(monFirst[0]!.sections.find((g) => g.key === 'week')?.todos.map((x) => x.id)).toContain(1)
 
     const sunFirst = buildDashboardLists([DEADLINE_GROUPED_DEF], [t], makeCtx({ today: anchor, weekStartsOn: 0 }))
-    expect(sunFirst[0]!.groups!.find((g) => g.key === 'next-week')?.todos.map((x) => x.id)).toContain(1)
-    expect(sunFirst[0]!.groups!.find((g) => g.key === 'this-week')).toBeUndefined()
+    expect(sunFirst[0]!.sections.find((g) => g.key === 'later')?.todos.map((x) => x.id)).toContain(1)
+    expect(sunFirst[0]!.sections.find((g) => g.key === 'week')).toBeUndefined()
   })
 })
 
-describe('interpretSort — sortBy', () => {
+describe('buildDashboardLists — sort fields', () => {
   it('sortBy=deadline sorts by dueDate only', () => {
     const a = makeTodo({ id: 1, dueDate: new Date(today.getTime() + 5 * MS_PER_DAY) })
     const b = makeTodo({ id: 2, dueDate: new Date(today.getTime() + 1 * MS_PER_DAY) })
     const def = customDef({
       sort: 'deadline',
     })
+    const lists = buildDashboardLists([def], [a, b], makeCtx())
+    expect(lists[0]!.todos.map((t) => t.id)).toEqual([2, 1])
+  })
+
+  it('sortBy=name sorts alphabetically', () => {
+    const a = makeTodo({ id: 1, title: 'banana', sortOrder: 1 })
+    const b = makeTodo({ id: 2, title: 'Apple', sortOrder: 2 })
+    const def = customDef({ sort: 'name' })
     const lists = buildDashboardLists([def], [a, b], makeCtx())
     expect(lists[0]!.todos.map((t) => t.id)).toEqual([2, 1])
   })
@@ -486,11 +496,9 @@ describe('interpretSort — sortBy', () => {
   })
 })
 
-// Post ui-consistency-2026-04-25 P4 the legacy `{kind:'by-sortBy'}` "match
-// the sort" semantic is gone — the on-disk shape is flat literals. Surfaces
-// that want sort+group coupled set them to the same value explicitly. These
-// tests exercise the equivalent post-flatten coupling.
-describe('interpretGrouping — sort-coupled (post-flatten)', () => {
+// Sort and grouping are independent literals; lists that want them coupled
+// set both to the same value.
+describe('buildDashboardLists — sort and grouping on the same field', () => {
   it('grouping=deadline with sort=deadline reuses relative-deadline buckets', () => {
     const overdue = makeTodo({ id: 1, dueDate: new Date(today.getTime() - 5 * MS_PER_DAY) })
     const def = customDef({
@@ -498,7 +506,7 @@ describe('interpretGrouping — sort-coupled (post-flatten)', () => {
       grouping: 'deadline',
     })
     const lists = buildDashboardLists([def], [overdue], makeCtx())
-    expect(lists[0]!.groups?.[0]!.key).toBe('overdue')
+    expect(lists[0]!.sections?.[0]!.key).toBe('overdue')
   })
 
   it('grouping=people with sort=people buckets via registry + assigned map', () => {
@@ -520,25 +528,25 @@ describe('interpretGrouping — sort-coupled (post-flatten)', () => {
       people: [ALICE, BOB],
       assignedPeopleMap,
     }))
-    const groups = lists[0]!.groups!
+    const groups = lists[0]!.sections
     expect(groups.map((g) => g.key)).toEqual(['person-1', 'person-2', 'unassigned'])
     expect(groups[0]!.todos.map((t) => t.id).sort()).toEqual([101, 102])
     expect(groups[1]!.todos.map((t) => t.id)).toEqual([102])
     expect(groups[2]!.todos.map((t) => t.id)).toEqual([103])
   })
 
-  it("grouping='none' returns undefined regardless of sort", () => {
+  it("grouping='none' returns one 'all' section regardless of sort", () => {
     const t = makeTodo({ id: 1 })
     const def = customDef({
       sort: 'manual',
       grouping: 'none',
     })
     const lists = buildDashboardLists([def], [t], makeCtx())
-    expect(lists[0]!.groups).toBeUndefined()
+    expect(lists[0]!.sections.map((g) => g.key)).toEqual(['all'])
   })
 })
 
-describe('interpretGrouping — by-tag', () => {
+describe('buildDashboardLists — tag grouping', () => {
   const URGENT: Tag = { id: 10, name: 'urgent', color: '#f00' }
   const WORK: Tag = { id: 20, name: 'work', color: '#0f0' }
   const ALPHA: Tag = { id: 30, name: 'alpha', color: '#00f' }
@@ -554,14 +562,14 @@ describe('interpretGrouping — by-tag', () => {
     ])
     const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [a, b], makeCtx({ assignedTagsMap }))
-    const groups = lists[0]!.groups!
+    const groups = lists[0]!.sections
     expect(groups.map((g) => g.key)).toEqual(['tag-10', 'tag-20'])
     expect(groups.map((g) => g.label)).toEqual(['#urgent', '#work'])
     expect(groups[0]!.todos.map((t) => t.id).sort()).toEqual([1, 2])
     expect(groups[1]!.todos.map((t) => t.id)).toEqual([1])
   })
 
-  it('routes untagged todos into a trailing "No tag" bucket', () => {
+  it('routes untagged todos into a trailing "No Tag" bucket', () => {
     const tagged = makeTodo({ id: 1 })
     const untagged = makeTodo({ id: 2 })
     const assignedTagsMap = new Map<number, Tag[]>([
@@ -570,9 +578,9 @@ describe('interpretGrouping — by-tag', () => {
     ])
     const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [tagged, untagged], makeCtx({ assignedTagsMap }))
-    const groups = lists[0]!.groups!
+    const groups = lists[0]!.sections
     expect(groups.map((g) => g.key)).toEqual(['tag-10', 'no-tag'])
-    expect(groups[1]!.label).toBe('No tag')
+    expect(groups[1]!.label).toBe('No Tag')
     expect(groups[1]!.todos.map((t) => t.id)).toEqual([2])
   })
 
@@ -585,29 +593,28 @@ describe('interpretGrouping — by-tag', () => {
     ])
     const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], todos, makeCtx({ assignedTagsMap }))
-    expect(lists[0]!.groups!.map((g) => g.key)).toEqual(['tag-30', 'tag-40', 'tag-50'])
-    expect(lists[0]!.groups!.map((g) => g.label)).toEqual(['#alpha', '#mu', '#zeta'])
+    expect(lists[0]!.sections.map((g) => g.key)).toEqual(['tag-30', 'tag-40', 'tag-50'])
+    expect(lists[0]!.sections.map((g) => g.label)).toEqual(['#alpha', '#mu', '#zeta'])
   })
 
   it('returns an empty list (not undefined) when no todos match', () => {
     const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [], makeCtx())
-    expect(lists[0]!.groups).toEqual([])
+    expect(lists[0]!.sections).toEqual([])
   })
 
-  it('without an assignedTagsMap, every todo lands in the "No tag" bucket', () => {
+  it('without an assignedTagsMap, every todo lands in the "No Tag" bucket', () => {
     const a = makeTodo({ id: 1 })
     const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [a], makeCtx())
-    expect(lists[0]!.groups).toEqual([
-      { key: 'no-tag', label: 'No tag', todos: [a] },
+    expect(lists[0]!.sections).toEqual([
+      { key: 'no-tag', label: 'No Tag', todos: [a] },
     ])
   })
 })
 
-// The canvas list-widget / lens ride `dashboard-lists` rather than the
-// ListView pipeline, so the visible-groups intersection rule applies here
-// too. A multi-assignee task surviving the membership filter must NOT emit
+// The visible-groups intersection rule applies to list widgets too. A
+// multi-assignee task surviving the membership filter must NOT emit
 // groups for non-picked assignees just because grouping=people / tag.
 describe('buildDashboardLists — restrict-mode grouping', () => {
   const ALICE: Person = { id: 1, name: 'Alice', initials: 'A' }
@@ -638,7 +645,7 @@ describe('buildDashboardLists — restrict-mode grouping', () => {
       assignedPeopleMap: new Map<number, Person[]>([[101, [ALICE, CHARLIE]]]),
     })
     const [list] = buildDashboardLists([def], [t], ctx)
-    const groups = list!.groups!
+    const groups = list!.sections
     expect(groups.map((g) => g.key)).toEqual(['person-1'])
     expect(groups[0]!.label).toBe('Alice')
     expect(groups[0]!.todos.map((x) => x.id)).toEqual([101])
@@ -670,7 +677,7 @@ describe('buildDashboardLists — restrict-mode grouping', () => {
     const t = makeTodo({ id: 101 })
     const ctx = makeCtx({ evalPredicate, assignedTagsMap })
     const [list] = buildDashboardLists([def], [t], ctx)
-    const groups = list!.groups!
+    const groups = list!.sections
     expect(groups.map((g) => g.key)).toEqual(['tag-10'])
     expect(groups[0]!.label).toBe('#urgent')
     expect(groups.find((g) => g.key === 'no-tag')).toBeUndefined()

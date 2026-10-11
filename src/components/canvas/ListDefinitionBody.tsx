@@ -1,9 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, type ReactNode } from 'react'
-import type { PersistedTodoItem, Person, TodoPredicate } from '../../models'
-import {
-  matchesFilter,
-  predicateToCriteria,
-} from '../../stores/filter-store'
+import type { PersistedTodoItem, Person } from '../../models'
+import { createPredicateEvaluator } from '../../stores/filter-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -62,9 +59,10 @@ interface ListDefinitionBodyProps {
 
 /**
  * Shared body for `ListInsetNode` (canvas) and `LensSlotContent` (rails).
- * Reads global filter + membership stores, runs the definition through
- * `buildDashboardLists`, and renders a flat list via `renderRow` (or a plain
- * `<TaskRow>` by default). `onResult` reports `{name, count}` so callers can
+ * Reads the membership stores, runs the definition through
+ * `buildDashboardLists` (sections from the shared `buildListSections`), and
+ * renders its sections — or a flat list when ungrouped — via `renderRow` (or a
+ * plain `<TaskRow>` by default). `onResult` reports `{name, count}` so callers can
  * drive their title chrome without rebuilding the pipeline.
  */
 export function ListDefinitionBody({
@@ -108,13 +106,14 @@ export function ListDefinitionBody({
   const builtList = useMemo<DashboardList | null>(() => {
     if (!definition) return null
     if (runtimeFilterPending) return null
-    const evalPredicate = (predicate: TodoPredicate, todo: PersistedTodoItem) => {
-      const criteria = predicateToCriteria(predicate)
-      const assignedPeople = assignedPeopleMap.get(todo.id) ?? []
-      const personIds = assignedPeople.map((p) => p.id!)
-      const assignedTagIds = (assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
-      return matchesFilter(criteria, todo, personIds, today, undefined, assignedTagIds)
-    }
+    // Same lookups as the list page, so a predicate's search text also hits
+    // person / status / tag / project names.
+    const evalPredicate = createPredicateEvaluator({
+      assignedPeopleMap,
+      assignedTagsMap,
+      statusesById: new Map(statuses.map((st) => [st.id!, st])),
+      projectsById: new Map(projects.map((p) => [p.id!, p])),
+    }, today)
     const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
       ? new Map<number, number[]>([[definition.id, runtimeFilterValue]])
       : undefined
@@ -137,7 +136,7 @@ export function ListDefinitionBody({
   ])
 
   const filteredTodos = builtList?.todos ?? EMPTY_TODOS
-  const groups = builtList?.groups
+  const groups = definition?.grouping !== 'none' ? builtList?.sections : undefined
 
   // Keep a live ref to `onResult` so the notify-effect doesn't depend on
   // callback identity. Callers routinely pass inline arrows; depending on the

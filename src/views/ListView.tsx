@@ -29,17 +29,7 @@ import { SectionHeader } from '../components/shared/SectionHeader'
 import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
-import {
-  buildFlatSection,
-  buildDeadlineSections,
-  buildFollowupSections,
-  buildPeopleSections,
-  buildProjectSections,
-  buildStatusSections,
-  buildTagSections,
-  itemSortComparator,
-  truncateSections,
-} from '../services/list-view-sections'
+import { buildListSections, truncateSections } from '../services/list-sections'
 import { FavoriteChip, ListDefinitionSelector, NewListPrompt } from '../components/list-view/SavedListsControls'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { createPortal } from 'react-dom'
@@ -50,6 +40,7 @@ import { applyRuntimeFilter } from '../services/dashboard-lists'
 import { RuntimeFilterPicker } from '../components/canvas/RuntimeFilterPicker'
 import { TASK_DROP_KIND } from '../utils/task-dnd'
 import { useIsMobile } from '../hooks/use-is-mobile'
+import { useToday } from '../hooks/use-today'
 import { SortGroupToolbar, type SortGroupOption } from '../components/shared/SortGroupToolbar'
 import { groupByIcons, itemSortByIcons } from '../components/shared/list-option-icon-maps'
 import styles from './ListView.module.css'
@@ -173,6 +164,7 @@ export function ListView() {
   const setRuntimeFilterSpec = useFilterStore((s) => s.setRuntimeFilterSpec)
   const setRuntimeFilterValue = useFilterStore((s) => s.setRuntimeFilterValue)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
+  const today = useToday()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
   const [overSectionKey, setOverSectionKey] = useState<string | null>(null)
@@ -224,8 +216,8 @@ export function ListView() {
 
   const activeTodos = useMemo(() => {
     if (runtimeFilterSpec && runtimeFilterValue == null) return []
-    return applyFilter(effectiveFilters, todos, assignedPeopleMap, statuses, undefined, projectsById, assignedTagsMap)
-  }, [todos, effectiveFilters, assignedPeopleMap, statuses, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
+    return applyFilter(effectiveFilters, todos, assignedPeopleMap, statuses, today, projectsById, assignedTagsMap)
+  }, [todos, effectiveFilters, assignedPeopleMap, statuses, today, projectsById, assignedTagsMap, runtimeFilterSpec, runtimeFilterValue])
 
   // Filter-aware group ordering: when groupBy matches an active filter
   // dimension (people / tag), restrict the visible group sections to that
@@ -243,44 +235,18 @@ export function ListView() {
     [effectiveFilters.tags],
   )
 
-  const sections = useMemo(() => {
-    switch (listGroupBy) {
-      case 'none':
-        return buildFlatSection(activeTodos)
-      case 'deadline':
-        return buildDeadlineSections(activeTodos, weekStartsOn)
-      case 'followup':
-        return buildFollowupSections(activeTodos, weekStartsOn)
-      case 'people':
-        return buildPeopleSections(
-          activeTodos,
-          people,
-          assignedPeopleMap,
-          restrictToPersonIds,
-        )
-      case 'project':
-        return buildProjectSections(activeTodos, projects)
-      case 'status':
-        return buildStatusSections(activeTodos, statuses)
-      case 'tag':
-        return buildTagSections(activeTodos, assignedTagsMap, restrictToTagIds)
-    }
-  }, [
-    listGroupBy,
-    activeTodos,
-    people,
-    assignedPeopleMap,
-    projects,
-    statuses,
-    assignedTagsMap,
-    weekStartsOn,
-    restrictToPersonIds,
-    restrictToTagIds,
-  ])
-
-  const withinGroupComparator = useMemo(
-    () => itemSortComparator(listSortBy),
-    [listSortBy],
+  // Same builder as list widgets: sorted, then grouped, so the hard limit
+  // below keeps the first tasks in display order.
+  const sections = useMemo(
+    () => buildListSections(
+      activeTodos,
+      { groupBy: listGroupBy, sortBy: listSortBy, restrictToPersonIds, restrictToTagIds },
+      { today, weekStartsOn, people, statuses, projects, assignedPeopleMap, assignedTagsMap },
+    ),
+    [
+      activeTodos, listGroupBy, listSortBy, restrictToPersonIds, restrictToTagIds,
+      today, weekStartsOn, people, statuses, projects, assignedPeopleMap, assignedTagsMap,
+    ],
   )
 
   // Apply hard limit by walking sections in order and truncating at the tail.
@@ -700,7 +666,6 @@ export function ListView() {
                         draggable={isDndEnabled}
                         sectionKey={section.key}
                         dropIndicatorIndex={dropIdx}
-                        rootComparator={withinGroupComparator}
                         onOpenDetail={handleClick}
                       />
                     </div>

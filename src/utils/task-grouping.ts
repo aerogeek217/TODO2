@@ -1,6 +1,7 @@
 import type { PersistedTodoItem, Person, Status, Tag, Project, ProjectGroupBy } from '../models'
-import { startOfDay, MS_PER_DAY } from './date'
+import type { WeekStart } from './effective-date'
 import { bySortOrder } from './sort-order'
+import { DATE_BUCKET_LABELS, DATE_BUCKET_ORDER, dateBucketKey, isDateBucketKey } from './bucket-by-date'
 import { NEUTRAL_PERSON_COLOR } from '../constants'
 
 export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = [
@@ -22,6 +23,8 @@ export interface GroupingContext {
    *  the people pattern). */
   projects?: readonly Project[]
   today: Date
+  /** Week boundary for the date axes' "This Week" bucket. */
+  weekStartsOn: WeekStart
 }
 
 export interface PartitionGroup<T extends PersistedTodoItem> {
@@ -33,32 +36,6 @@ export interface PartitionGroup<T extends PersistedTodoItem> {
 export interface PartitionResult<T extends PersistedTodoItem> {
   ungrouped: T[]
   groups: PartitionGroup<T>[]
-}
-
-const DATE_BUCKET_ORDER = ['overdue', 'today', 'week', 'later'] as const
-
-const DATE_BUCKET_LABELS: Record<string, string> = {
-  overdue: 'Overdue',
-  today: 'Today',
-  week: 'This Week',
-  later: 'Later',
-}
-
-/**
- * 4-bucket date keyer for canvas / project-grouped surfaces. Diverges from
- * `bucketByDate`'s `'thisWeek'` (calendar-week-aligned via `startOfWeek`) by
- * design: this one uses a rolling 7-day window so the 'week' bucket reads
- * "everything in the next 7 days" regardless of which weekday today is — the
- * canvas grouping UX preferred for in-project triage.
- */
-function bucketDateKey(d: Date | null, today: Date): string | null {
-  if (!d) return null
-  const tomorrow = new Date(today.getTime() + MS_PER_DAY)
-  const weekEnd = new Date(today.getTime() + 7 * MS_PER_DAY)
-  if (d < today) return 'overdue'
-  if (d < tomorrow) return 'today'
-  if (d < weekEnd) return 'week'
-  return 'later'
 }
 
 function parseId(prefix: string, key: string): number | null {
@@ -76,16 +53,13 @@ function parseId(prefix: string, key: string): number | null {
  * - `string[]` — todo belongs to multiple groups (people / tag many-to-many);
  *   it appears once in each group, mirroring the ListView convention.
  *
- * Bucket keys for `deadline` / `followup` (`overdue` / `today` /
- * `week` / `later`) match `ListView.buildBucketSections` so users see the
- * same grouping across views.
+ * Bucket keys for `deadline` / `followup` are the shared relative-date keys
+ * (`overdue` / `today` / `week` / `later`, see `utils/bucket-by-date`).
  *
- * Post ui-consistency-2026-04-25 P4 `ProjectGroupBy = TodoGroupBy` widens
- * the union to include `'none'` and `'project'`. `'none'` is a no-op at this
- * layer (means "ungrouped"; callers gate on it). `'project'` returns
- * `project-${todo.projectId}` for surfaces that can group by project (the
- * canvas `ProjectNode` is one project at a time and excludes this axis from
- * `PROJECT_GROUP_VALUES`; ListView includes it).
+ * `'none'` is a no-op at this layer (means "ungrouped"; callers gate on it).
+ * `'project'` returns `project-${todo.projectId}` for surfaces that can group
+ * by project (the canvas `ProjectNode` is one project at a time and excludes
+ * this axis from `PROJECT_GROUP_VALUES`).
  */
 export function getGroupKey(
   todo: PersistedTodoItem,
@@ -114,15 +88,9 @@ export function getGroupKey(
     case 'project':
       return todo.projectId != null ? `project-${todo.projectId}` : null
     case 'deadline':
-      return bucketDateKey(
-        todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null,
-        ctx.today,
-      )
+      return dateBucketKey(todo.dueDate ? new Date(todo.dueDate) : null, ctx.today, ctx.weekStartsOn)
     case 'followup':
-      return bucketDateKey(
-        todo.nextFollowupAt ? startOfDay(new Date(todo.nextFollowupAt)) : null,
-        ctx.today,
-      )
+      return dateBucketKey(todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null, ctx.today, ctx.weekStartsOn)
     case 'none':
       return null
   }
@@ -131,8 +99,8 @@ export function getGroupKey(
 /**
  * Human-readable label for a key produced by `getGroupKey`. Person / tag
  * names are looked up via the assigned-{people,tags} maps; status names
- * via `ctx.statuses`; deadline/followup keys map to the same labels
- * `ListView` uses ("Overdue" / "Today" / "This Week" / "Later").
+ * via `ctx.statuses`; deadline/followup keys map to the shared date labels
+ * ("Overdue" / "Today" / "This Week" / "Later").
  */
 export function getGroupLabel(
   key: string,
@@ -172,7 +140,7 @@ export function getGroupLabel(
     }
     case 'deadline':
     case 'followup':
-      return DATE_BUCKET_LABELS[key] ?? ''
+      return isDateBucketKey(key) ? DATE_BUCKET_LABELS[key] : ''
     case 'none':
       return ''
   }
@@ -231,7 +199,7 @@ export function getGroupColor(
  * `prioritizeGroupKeys` to the front in caller order.
  *
  * Used by `partitionByGroup` to satisfy "filter by X + group by X → put X
- * first" UX (item 12, triage-2026-04-27-batch2 P5). Caller passes the same
+ * first" UX. Caller passes the same
  * prefixed keys `getGroupKey` emits (`person-N` / `tag-N`); only
  * keys present in the input list are pulled forward, so passing IDs that
  * don't have a group is harmless. Keys not in the prioritize list keep
@@ -259,10 +227,7 @@ function orderGroupKeys(
       }
       case 'deadline':
       case 'followup': {
-        const idx = (k: string) => {
-          const i = (DATE_BUCKET_ORDER as readonly string[]).indexOf(k)
-          return i === -1 ? DATE_BUCKET_ORDER.length : i
-        }
+        const idx = (k: string) => (isDateBucketKey(k) ? DATE_BUCKET_ORDER.indexOf(k) : DATE_BUCKET_ORDER.length)
         return keys.slice().sort((a, b) => idx(a) - idx(b))
       }
       case 'people':

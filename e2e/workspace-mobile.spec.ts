@@ -120,7 +120,7 @@ test('tapping a column name scrolls to it; tabs switch inside a cell and stay sw
 
   await wsTab(page, 'statusTab').tap()
   await expect(wsTab(page, 'statusTab')).toHaveAttribute('aria-selected', 'true')
-  await expect(wsCell(page, 'c1').getByText('No status')).toBeVisible()
+  await expect(wsCell(page, 'c1').getByText('No Status')).toBeVisible()
   // The column is named after its first cell's active tab.
   await expect(columnName(page, 'Status')).toHaveAttribute('aria-selected', 'true')
 

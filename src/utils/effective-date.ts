@@ -139,9 +139,8 @@ export function pickTodoDate(
 /**
  * Build an ascending comparator over `field` for `PersistedTodoItem`. Nulls
  * sort last; ties fall through to `bySortOrder` (sortOrder, then id) so the
- * order is fully stable. Used by ListView's `itemSortComparator` and
- * dashboard-lists' per-field comparators — both surfaces sort the same set
- * the same way.
+ * order is fully stable. Used by `listSortComparator`
+ * (`services/list-sections`), which every list surface sorts with.
  */
 export function compareTodosByDate(
   field: TodoDateField,

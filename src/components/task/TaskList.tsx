@@ -1,7 +1,6 @@
 import { useMemo, useCallback } from 'react'
 import type { PersistedTodoItem, Person } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
-import { bySortOrder } from '../../utils/sort-order'
 import { useIsMobile } from '../../hooks/use-is-mobile'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { TaskRow } from './TaskRow'
@@ -10,14 +9,13 @@ import { TaskDraggable } from './dnd/TaskDraggable'
 import styles from './TaskList.module.css'
 
 interface TaskListProps {
+  /** Rendered in this order (list sections arrive sorted). */
   todos: PersistedTodoItem[]
   assignedPeopleMap?: Map<number, Person[]>
   draggable?: boolean
   sectionKey?: string
   /** Index in the flat visual list where the drop indicator should appear, or undefined to hide */
   dropIndicatorIndex?: number
-  /** Optional comparator to order todos (defaults to sortOrder) */
-  rootComparator?: (a: PersistedTodoItem, b: PersistedTodoItem) => number
   onOpenDetail?: (todoId: number) => void
 }
 
@@ -48,7 +46,6 @@ export function TaskList({
   draggable,
   sectionKey,
   dropIndicatorIndex,
-  rootComparator,
   onOpenDetail,
 }: TaskListProps) {
   const { selectedTodoIds, focusedTodoId, selectOneTodo, toggleSelectTodo, rangeSelectTodo, clipboardTodoIds } = useUIStore()
@@ -57,12 +54,7 @@ export function TaskList({
 
   const clipboardSet = useMemo(() => new Set(clipboardTodoIds), [clipboardTodoIds])
 
-  const sortedTodos = useMemo(
-    () => [...todos].sort(rootComparator ?? bySortOrder),
-    [todos, rootComparator],
-  )
-
-  const orderedIds = sortedTodos.map(t => t.id)
+  const orderedIds = todos.map(t => t.id)
   const orderedIdsRef = useLatestRef(orderedIds)
 
   // Stable callbacks — identity doesn't change between renders
@@ -78,14 +70,14 @@ export function TaskList({
 
   return (
     <>
-      {sortedTodos.map((todo, idx) => {
+      {todos.map((todo, idx) => {
         const isSel = selectedTodoIds.has(todo.id)
         const isFocused = todo.id === focusedTodoId
         const isMultiSelect = selectedTodoIds.size > 1
-        const prevTodo = sortedTodos[idx - 1]
-        const nextTodo = sortedTodos[idx + 1]
+        const prevTodo = todos[idx - 1]
+        const nextTodo = todos[idx + 1]
         const prevSel = idx > 0 && prevTodo != null && selectedTodoIds.has(prevTodo.id)
-        const nextSel = idx < sortedTodos.length - 1 && nextTodo != null && selectedTodoIds.has(nextTodo.id)
+        const nextSel = idx < todos.length - 1 && nextTodo != null && selectedTodoIds.has(nextTodo.id)
         const selCls = isSel
           ? `${styles.sel} ${!prevSel ? styles.selFirst : ''} ${!nextSel ? styles.selLast : ''}`
           : ''
@@ -116,7 +108,7 @@ export function TaskList({
           </div>
         )
       })}
-      {dropIndicatorIndex != null && dropIndicatorIndex >= sortedTodos.length && <div className={styles.dropIndicator} />}
+      {dropIndicatorIndex != null && dropIndicatorIndex >= todos.length && <div className={styles.dropIndicator} />}
     </>
   )
 }

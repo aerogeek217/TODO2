@@ -1,20 +1,58 @@
 import { describe, it, expect } from 'vitest'
-import type { Person, Project, Tag } from '../../models'
+import type { PersistedTodoItem, Person, Project, Status, Tag, TodoGroupBy, TodoSortBy } from '../../models'
 import {
-  buildDeadlineSections,
-  buildFollowupSections,
-  buildFlatSection,
-  buildPeopleSections,
-  buildProjectSections,
-  buildTagSections,
-  itemSortComparator,
+  buildListSections,
+  listSortComparator,
   truncateSections,
+  type ListSectionsContext,
+  type ListSectionsSpec,
   type Section,
-} from '../../services/list-view-sections'
+} from '../../services/list-sections'
 import { encodeGroupSort } from '../../utils/list-view-encoding'
 import { makeTodo } from '../helpers'
 
-describe('buildDeadlineSections / buildFollowupSections', () => {
+function ctxWith(over: Partial<ListSectionsContext> = {}): ListSectionsContext {
+  return {
+    today: new Date(2026, 0, 12),
+    weekStartsOn: 1,
+    people: [],
+    statuses: [],
+    projects: [],
+    assignedPeopleMap: new Map(),
+    assignedTagsMap: new Map(),
+    ...over,
+  }
+}
+
+function build(
+  todos: PersistedTodoItem[],
+  groupBy: TodoGroupBy,
+  over: Partial<ListSectionsContext> = {},
+  spec: Partial<ListSectionsSpec> & { sortBy?: TodoSortBy } = {},
+): Section[] {
+  return buildListSections(todos, { groupBy, sortBy: 'manual', ...spec }, ctxWith(over))
+}
+
+const buildDeadlineSections = (todos: PersistedTodoItem[], weekStartsOn: 0 | 1, today: Date) =>
+  build(todos, 'deadline', { weekStartsOn, today })
+const buildFollowupSections = (todos: PersistedTodoItem[], weekStartsOn: 0 | 1, today: Date) =>
+  build(todos, 'followup', { weekStartsOn, today })
+const buildPeopleSections = (
+  todos: PersistedTodoItem[],
+  people: Person[],
+  assignedPeopleMap: Map<number, Person[]>,
+  restrictToPersonIds?: number[] | null,
+) => build(todos, 'people', { people, assignedPeopleMap }, { restrictToPersonIds })
+const buildTagSections = (
+  todos: PersistedTodoItem[],
+  assignedTagsMap: Map<number, Tag[]>,
+  restrictToTagIds?: number[] | null,
+) => build(todos, 'tag', { assignedTagsMap }, { restrictToTagIds })
+const buildProjectSections = (todos: PersistedTodoItem[], projects: Project[]) =>
+  build(todos, 'project', { projects })
+const buildFlatSection = (todos: PersistedTodoItem[]) => build(todos, 'none')
+
+describe('buildListSections — due and follow-up grouping', () => {
   // Fixed Monday so `+3 days` (Thursday) and `+4 days` (Friday) stay inside
   // the calendar week (weekStartsOn=1 → Mon-Sun); the post-P9 bucketer keys
   // "this week" off the calendar boundary, not a rolling-7-day window.
@@ -43,7 +81,7 @@ describe('buildDeadlineSections / buildFollowupSections', () => {
     expect(sections[4]!.todos).toHaveLength(1) // no date
   })
 
-  it('preserves input order within a bucket (caller sorts upstream)', () => {
+  it('keeps manual (sortOrder) order within a bucket', () => {
     const today = MONDAY
     const inThreeDays = new Date(today.getTime() + 3 * 86400000)
     const inFourDays = new Date(today.getTime() + 4 * 86400000)
@@ -56,7 +94,7 @@ describe('buildDeadlineSections / buildFollowupSections', () => {
     ]
     const sections = buildDeadlineSections(todos, 1, today)
     const week = sections.find((s) => s.key === 'week')!
-    expect(week.todos.map((t) => t.id)).toEqual([1, 2, 3, 4])
+    expect(week.todos.map((t) => t.id)).toEqual([2, 3, 4, 1])
   })
 
   it('the due-date sections ignore the follow-up and vice versa', () => {
@@ -73,7 +111,7 @@ describe('buildDeadlineSections / buildFollowupSections', () => {
 
 })
 
-describe('buildPeopleSections', () => {
+describe('buildListSections — people grouping', () => {
   it('groups by assigned person with unassigned fallback', () => {
     const people: Person[] = [
       { id: 1, name: 'Alice', initials: 'A' },
@@ -197,7 +235,7 @@ describe('buildPeopleSections', () => {
   })
 })
 
-describe('buildTagSections — visible-groups intersection', () => {
+describe('buildListSections — tag grouping, visible-groups intersection', () => {
   const ALPHA: Tag = { id: 3, name: 'alpha', color: '#00f' }
   const MU: Tag = { id: 4, name: 'mu', color: '#ff0' }
   const ZETA: Tag = { id: 5, name: 'zeta', color: '#0ff' }
@@ -246,7 +284,7 @@ describe('buildTagSections — visible-groups intersection', () => {
   })
 })
 
-describe('buildTagSections', () => {
+describe('buildListSections — tag grouping', () => {
   const URGENT: Tag = { id: 1, name: 'urgent', color: '#f00' }
   const WORK: Tag = { id: 2, name: 'work', color: '#0f0' }
   const ALPHA: Tag = { id: 3, name: 'alpha', color: '#00f' }
@@ -295,7 +333,7 @@ describe('buildTagSections', () => {
     expect(sections[0]!.label).toBe('#Urgent')
   })
 
-  it('routes untagged todos into a trailing "No tag" bucket', () => {
+  it('routes untagged todos into a trailing "No Tag" bucket', () => {
     const todos = [
       makeTodo({ id: 10 }),
       makeTodo({ id: 11 }),
@@ -309,7 +347,7 @@ describe('buildTagSections', () => {
     const sections = buildTagSections(todos, assigned)
     expect(sections.map((s) => s.key)).toEqual(['tag-1', 'no-tag'])
     const noTag = sections[1]!
-    expect(noTag.label).toBe('No tag')
+    expect(noTag.label).toBe('No Tag')
     expect(noTag.todos.map((t) => t.id).sort()).toEqual([11, 12])
   })
 
@@ -340,7 +378,7 @@ describe('buildTagSections', () => {
   })
 })
 
-describe('buildProjectSections', () => {
+describe('buildListSections — project grouping', () => {
   it('groups by project with no-project fallback', () => {
     const projects: Project[] = [
       { id: 1, name: 'Alpha', canvasId: 1, positionX: 0, positionY: 0, isCollapsed: false, sortOrder: 0, createdAt: new Date() },
@@ -360,7 +398,7 @@ describe('buildProjectSections', () => {
   })
 })
 
-describe('buildFlatSection', () => {
+describe('buildListSections — ungrouped', () => {
   it('returns single "all" section with every todo', () => {
     const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
     const sections = buildFlatSection(todos)
@@ -374,17 +412,27 @@ describe('buildFlatSection', () => {
   })
 })
 
-describe('itemSortComparator', () => {
-  it('returns undefined for manual sort so the caller keeps the upstream sortOrder order', () => {
-    expect(itemSortComparator('manual')).toBeUndefined()
+describe('listSortComparator', () => {
+  it('manual sorts by sortOrder, then id', () => {
+    const a = makeTodo({ id: 1, sortOrder: 10 })
+    const b = makeTodo({ id: 2, sortOrder: 5 })
+    const c = makeTodo({ id: 3, sortOrder: 5 })
+    expect([a, c, b].sort(listSortComparator('manual')).map((t) => t.id)).toEqual([2, 3, 1])
+  })
+
+  it('categorical sorts with no order of their own fall back to manual', () => {
+    const a = makeTodo({ id: 1, title: 'b', sortOrder: 2 })
+    const b = makeTodo({ id: 2, title: 'a', sortOrder: 1 })
+    for (const sortBy of ['created', 'people', 'project', 'status'] as const) {
+      expect([a, b].sort(listSortComparator(sortBy)).map((t) => t.id)).toEqual([2, 1])
+    }
   })
 
   it('sorts deadline ascending, nulls last', () => {
     const a = makeTodo({ id: 1, dueDate: new Date(2026, 0, 20), sortOrder: 10 })
     const b = makeTodo({ id: 2, dueDate: new Date(2026, 0, 18), sortOrder: 1 })
     const c = makeTodo({ id: 3, sortOrder: 5 }) // no deadline
-    const cmp = itemSortComparator('deadline')!
-    const sorted = [a, b, c].sort(cmp)
+    const sorted = [a, b, c].sort(listSortComparator('deadline'))
     expect(sorted.map((t) => t.id)).toEqual([2, 1, 3])
   })
 
@@ -392,16 +440,14 @@ describe('itemSortComparator', () => {
     const d = new Date(2026, 0, 20)
     const a = makeTodo({ id: 1, dueDate: d, sortOrder: 10 })
     const b = makeTodo({ id: 2, dueDate: d, sortOrder: 5 })
-    const cmp = itemSortComparator('deadline')!
-    expect([a, b].sort(cmp).map((t) => t.id)).toEqual([2, 1])
+    expect([a, b].sort(listSortComparator('deadline')).map((t) => t.id)).toEqual([2, 1])
   })
 
   it('sorts name ascending via localeCompare, case-insensitive', () => {
     const a = makeTodo({ id: 1, title: 'banana', sortOrder: 0 })
     const b = makeTodo({ id: 2, title: 'Apple', sortOrder: 0 })
     const c = makeTodo({ id: 3, title: 'cherry', sortOrder: 0 })
-    const cmp = itemSortComparator('name')!
-    const sorted = [a, b, c].sort(cmp)
+    const sorted = [a, b, c].sort(listSortComparator('name'))
     expect(sorted.map((t) => t.id)).toEqual([2, 1, 3])
   })
 
@@ -409,8 +455,85 @@ describe('itemSortComparator', () => {
     const a = makeTodo({ id: 1, title: 'Same', sortOrder: 10 })
     const b = makeTodo({ id: 2, title: 'Same', sortOrder: 5 })
     const c = makeTodo({ id: 3, title: 'Same', sortOrder: 5 })
-    const cmp = itemSortComparator('name')!
-    expect([a, b, c].sort(cmp).map((t) => t.id)).toEqual([2, 3, 1])
+    expect([a, b, c].sort(listSortComparator('name')).map((t) => t.id)).toEqual([2, 3, 1])
+  })
+})
+
+describe('buildListSections — unknown stored values', () => {
+  it('an unknown grouping reads as ungrouped and an unknown sort as manual', () => {
+    const todos = [makeTodo({ id: 1, sortOrder: 2 }), makeTodo({ id: 2, sortOrder: 1 })]
+    const sections = buildListSections(
+      todos,
+      { groupBy: { kind: 'none' } as unknown as TodoGroupBy, sortBy: 'date' as unknown as TodoSortBy },
+      ctxWith(),
+    )
+    expect(sections.map((s) => [s.key, s.todos.map((t) => t.id)])).toEqual([['all', [2, 1]]])
+  })
+})
+
+describe('buildListSections — sort within groups', () => {
+  it('sorts inside each section, not across them', () => {
+    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
+    const bob: Person = { id: 2, name: 'Bob', initials: 'B' }
+    const todos = [
+      makeTodo({ id: 1, title: 'zeta', sortOrder: 1 }),
+      makeTodo({ id: 2, title: 'alpha', sortOrder: 2 }),
+      makeTodo({ id: 3, title: 'mid', sortOrder: 3 }),
+      makeTodo({ id: 4, title: 'beta', sortOrder: 4 }),
+    ]
+    const assignedPeopleMap = new Map<number, Person[]>([[1, [bob]], [2, [bob]], [3, [alice]], [4, [alice]]])
+    const sections = build(todos, 'people', { people: [alice, bob], assignedPeopleMap }, { sortBy: 'name' })
+    expect(sections.map((s) => [s.label, s.todos.map((t) => t.title)])).toEqual([
+      ['Alice', ['beta', 'mid']],
+      ['Bob', ['alpha', 'zeta']],
+    ])
+  })
+
+  it('ungrouped lists come back as one sorted "all" section', () => {
+    const todos = [
+      makeTodo({ id: 1, dueDate: new Date(2026, 0, 20) }),
+      makeTodo({ id: 2 }),
+      makeTodo({ id: 3, dueDate: new Date(2026, 0, 13) }),
+    ]
+    const sections = build(todos, 'none', {}, { sortBy: 'deadline' })
+    expect(sections.map((s) => [s.key, s.todos.map((t) => t.id)])).toEqual([['all', [3, 1, 2]]])
+  })
+})
+
+describe('buildListSections — accents and sentinels', () => {
+  it('date sections: danger for overdue, accent for today and this week, none for later', () => {
+    const today = new Date(2026, 0, 12)
+    const todos = [
+      makeTodo({ id: 1, dueDate: new Date(2026, 0, 11) }),
+      makeTodo({ id: 2, dueDate: today }),
+      makeTodo({ id: 3, dueDate: new Date(2026, 0, 14) }),
+      makeTodo({ id: 4, dueDate: new Date(2026, 1, 1) }),
+    ]
+    expect(buildDeadlineSections(todos, 1, today).map((s) => s.accentColor)).toEqual([
+      'var(--color-danger)', 'var(--color-accent)', 'var(--color-accent)', undefined,
+    ])
+  })
+
+  it('status sections follow the registry sortOrder with status colors, then No Status', () => {
+    const statuses: Status[] = [
+      { id: 1, name: 'Doing', color: '#0a0', sortOrder: 1 },
+      { id: 2, name: 'Waiting', color: '#aa0', sortOrder: 0 },
+    ]
+    const todos = [makeTodo({ id: 1, statusId: 1 }), makeTodo({ id: 2, statusId: 2 }), makeTodo({ id: 3 })]
+    const sections = build(todos, 'status', { statuses })
+    expect(sections.map((s) => [s.key, s.label, s.accentColor])).toEqual([
+      ['status-2', 'Waiting', '#aa0'],
+      ['status-1', 'Doing', '#0a0'],
+      ['no-status', 'No Status', undefined],
+    ])
+  })
+
+  it('a person filter that includes Unassigned keeps the Unassigned section', () => {
+    const alice: Person = { id: 1, name: 'Alice', initials: 'A' }
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
+    const assignedPeopleMap = new Map<number, Person[]>([[1, [alice]]])
+    expect(buildPeopleSections(todos, [alice], assignedPeopleMap, [0]).map((s) => s.key)).toEqual(['unassigned'])
+    expect(buildPeopleSections(todos, [alice], assignedPeopleMap, [1, 0]).map((s) => s.key)).toEqual(['person-1', 'unassigned'])
   })
 })
 
