@@ -18,6 +18,7 @@ import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store
 import { useFloatingStatusStore } from '../../stores/floating-status-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
+import { useWorkspaceStore } from '../../stores/workspace-store'
 
 beforeEach(async () => {
   await db.delete()
@@ -77,5 +78,20 @@ describe('refreshAllStores', () => {
 
     expect(tagLoadSpy).toHaveBeenCalled()
     expect(listDefLoadSpy).toHaveBeenCalled()
+  })
+
+  it('re-opens the workspace layout from the replaced data once the workspace was opened', async () => {
+    await refreshAllStores()
+    expect(useWorkspaceStore.getState().hydrated).toBe(false)
+    expect(await db.layouts.count()).toBe(0)
+
+    await useWorkspaceStore.getState().init()
+    useWorkspaceStore.getState().addWidget('notes', { kind: 'layout' })
+    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    await db.layouts.update(useWorkspaceStore.getState().activeLayoutId!, { name: 'Imported' })
+
+    await refreshAllStores()
+    expect(useWorkspaceStore.getState()).toMatchObject({ isDirty: false })
+    expect(useWorkspaceStore.getState().working).toMatchObject({ name: 'Imported', columns: [] })
   })
 })

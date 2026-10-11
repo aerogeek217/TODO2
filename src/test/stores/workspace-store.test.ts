@@ -1,0 +1,218 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { db } from '../../data/database'
+import { layoutRepository } from '../../data/layout-repository'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import { createTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
+import { resetDb } from '../helpers'
+
+const T0 = new Date('2026-09-01T09:00:00.000Z')
+
+/** [A: (a1 a2)] [B: (b1)] */
+function twoColumns(name = 'Daily', extra: Partial<WorkspaceLayout> = {}): Omit<WorkspaceLayout, 'id'> {
+  return {
+    name,
+    createdAt: T0,
+    modifiedAt: T0,
+    columns: [
+      { id: 'A', weight: 1, cells: [{ id: 'ka', weight: 1, activeTabId: 'a1', tabs: [createTab('notes', 'a1'), createTab('calendar', 'a2')] }] },
+      { id: 'B', weight: 1, cells: [{ id: 'kb', weight: 1, activeTabId: 'b1', tabs: [createTab('status', 'b1')] }] },
+    ],
+    ...extra,
+  }
+}
+
+async function seedAndInit(...layouts: Array<Omit<WorkspaceLayout, 'id'>>): Promise<number[]> {
+  const ids: number[] = []
+  for (const l of layouts) ids.push(await layoutRepository.insert(l))
+  if (ids[0] !== undefined) await layoutRepository.setActiveId(ids[0])
+  await useWorkspaceStore.getState().init()
+  return ids
+}
+
+async function stored(id: number): Promise<PersistedWorkspaceLayout> {
+  const row = await layoutRepository.get(id)
+  if (!row) throw new Error(`no layout ${id}`)
+  return row
+}
+
+const ws = () => useWorkspaceStore.getState()
+
+beforeEach(async () => {
+  await resetDb()
+  useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
+})
+
+describe('init / default layout', () => {
+  it('creates one empty Default layout on an empty database and opens it', async () => {
+    await ws().init()
+    const layouts = await db.layouts.toArray()
+    expect(layouts).toHaveLength(1)
+    expect(layouts[0]).toMatchObject({ name: 'Default', columns: [] })
+    expect(await layoutRepository.getActiveId()).toBe(layouts[0]!.id)
+    expect(ws()).toMatchObject({ hydrated: true, isDirty: false, activeLayoutId: layouts[0]!.id })
+    expect(ws().working).toEqual(layouts[0])
+  })
+
+  it('is idempotent under concurrent callers (StrictMode double effects, several mounts)', async () => {
+    await Promise.all([ws().init(), ws().init(), layoutRepository.ensureDefault(), ws().init(), layoutRepository.ensureDefault()])
+    expect(await db.layouts.count()).toBe(1)
+    await ws().init()
+    expect(await db.layouts.count()).toBe(1)
+  })
+
+  it('opens the active layout; a dangling activeLayoutId falls back to the most recently used', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B', { lastUsedAt: new Date('2026-09-05') }))
+    expect(ws().activeLayoutId).toBe(a)
+    await layoutRepository.setActiveId(999)
+    await ws().init()
+    expect(ws().activeLayoutId).toBe(b)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['A', 'B'])
+  })
+})
+
+describe('structural edits and dirty state', () => {
+  it('edits mark the layout dirty; undoing the edit by hand clears it', async () => {
+    await seedAndInit(twoColumns())
+    ws().moveTab('a2', { kind: 'cell', cellId: 'ka', index: 0 })
+    expect(ws().isDirty).toBe(true)
+    ws().moveTab('a2', { kind: 'cell', cellId: 'ka', index: 1 })
+    expect(ws().isDirty).toBe(false)
+  })
+
+  it('save writes the working copy and clears dirty; discard reverts', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    const tabId = ws().addWidget('lens', { kind: 'column-edge', columnId: 'B', edge: 'right' }, { listDefinitionId: 7 })
+    expect(tabId).not.toBeNull()
+    expect(ws().isDirty).toBe(true)
+    expect((await stored(id!)).columns).toHaveLength(2)
+
+    await ws().save()
+    expect(ws().isDirty).toBe(false)
+    const saved = await stored(id!)
+    expect(saved.columns).toHaveLength(3)
+    expect(saved.columns[2]!.cells[0]!.tabs[0]).toEqual({ id: tabId, kind: 'lens', config: { listDefinitionId: 7 } })
+    expect(saved.modifiedAt.getTime()).toBeGreaterThan(T0.getTime())
+
+    ws().closeTab(tabId!)
+    expect(ws().working!.columns).toHaveLength(2)
+    ws().discard()
+    expect(ws().isDirty).toBe(false)
+    expect(ws().working!.columns).toHaveLength(3)
+  })
+
+  it('split / close cell / resize / tab config / change kind are layout changes', async () => {
+    await seedAndInit(twoColumns())
+    const cellId = ws().splitCell('kb', 'below')
+    expect(cellId).not.toBeNull()
+    expect(ws().isDirty).toBe(true)
+    ws().closeCell(cellId!)
+    expect(ws().isDirty).toBe(false)
+    ws().setColumnWeights({ A: 1.4, B: 0.6 })
+    expect(ws().isDirty).toBe(true)
+    ws().discard()
+    ws().patchTabConfig('a2', 'calendar', { dateTypes: { due: false, followup: true } })
+    expect(ws().isDirty).toBe(true)
+    ws().discard()
+    ws().changeTabKind('b1', 'notes')
+    expect(ws().working!.columns[1]!.cells[0]!.tabs[0]).toEqual({ id: 'b1', kind: 'notes', config: {} })
+    expect(ws().isDirty).toBe(true)
+  })
+
+  it('new ids never collide with ones already in the layout', async () => {
+    await seedAndInit(twoColumns())
+    const ids = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      const id = ws().addWidget('notes', { kind: 'layout' })
+      expect(id).not.toBeNull()
+      ids.add(id!)
+    }
+    expect(ids.size).toBe(20)
+  })
+})
+
+describe('view state', () => {
+  it('active tab / collapse / tab view state persist at once and never mark the layout dirty', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    await ws().setActiveTab('a2')
+    await ws().setCellCollapsed('kb', true)
+    await ws().patchTabViewState('a2', 'calendar', { view: 'month', offset: 3 })
+    expect(ws().isDirty).toBe(false)
+    const row = await stored(id!)
+    expect(row.columns[0]!.cells[0]!.activeTabId).toBe('a2')
+    expect(row.columns[1]!.cells[0]!.collapsed).toBe(true)
+    expect(row.columns[0]!.cells[0]!.tabs[1]!.viewState).toEqual({ view: 'month', offset: 3 })
+    expect(row.modifiedAt).toEqual(T0)
+  })
+
+  it('with unsaved changes: view state still reaches the stored layout, structure does not', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    const tabId = ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })!
+    await ws().patchTabViewState('a2', 'calendar', { offset: -1 })
+    await ws().setActiveTab(tabId) // only exists in the working copy
+    expect(ws().isDirty).toBe(true)
+    const row = await stored(id!)
+    expect(row.columns[0]!.cells[0]!.tabs[1]!.viewState).toEqual({ offset: -1 })
+    expect(row.columns[1]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['b1'])
+    expect(row.columns[1]!.cells[0]!.activeTabId).toBe('b1')
+    ws().discard()
+    expect(ws().working!.columns[0]!.cells[0]!.tabs[1]!.viewState).toEqual({ offset: -1 })
+  })
+})
+
+describe('saved layouts', () => {
+  it('saveAs opens a new layout; the original stays as last saved', async () => {
+    const [orig] = await seedAndInit(twoColumns())
+    ws().closeTab('b1')
+    const copy = await ws().saveAs('  Daily copy ')
+    expect(copy).not.toBeNull()
+    expect(ws()).toMatchObject({ activeLayoutId: copy, isDirty: false })
+    expect(ws().working!.name).toBe('Daily copy')
+    expect((await stored(copy!)).columns).toHaveLength(1)
+    expect((await stored(orig!)).columns).toHaveLength(2)
+    expect(await layoutRepository.getActiveId()).toBe(copy)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['Daily', 'Daily copy'])
+    expect(await ws().saveAs('   ')).toBeNull()
+  })
+
+  it('load switches layouts (dropping the working copy) and stamps lastUsedAt', async () => {
+    const [a, b] = await seedAndInit(twoColumns('A'), twoColumns('B'))
+    ws().closeTab('b1')
+    await ws().load(b!)
+    expect(ws()).toMatchObject({ activeLayoutId: b, isDirty: false })
+    expect(ws().working!.columns).toHaveLength(2)
+    expect(await layoutRepository.getActiveId()).toBe(b)
+    expect((await stored(b!)).lastUsedAt).toBeInstanceOf(Date)
+    expect((await stored(a!)).columns).toHaveLength(2)
+    await ws().load(999)
+    expect(ws().activeLayoutId).toBe(b)
+  })
+
+  it('rename never marks dirty and keeps unsaved edits', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    ws().closeTab('b1')
+    expect(await ws().rename(id!, 'Morning')).toBe(true)
+    expect(ws()).toMatchObject({ isDirty: true })
+    expect(ws().working!.name).toBe('Morning')
+    expect(ws().working!.columns).toHaveLength(1)
+    const row = await stored(id!)
+    expect(row.name).toBe('Morning')
+    expect(row.columns).toHaveLength(2)
+    expect(await ws().rename(id!, '')).toBe(false)
+  })
+
+  it('delete refuses the last layout; deleting the open one opens the most recently used', async () => {
+    const [a, b, c] = await seedAndInit(
+      twoColumns('A'),
+      twoColumns('B', { lastUsedAt: new Date('2026-09-09') }),
+      twoColumns('C', { lastUsedAt: new Date('2026-09-05') }),
+    )
+    expect(await ws().delete(c!)).toBe(true)
+    expect(ws().activeLayoutId).toBe(a)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['A', 'B'])
+    expect(await ws().delete(a!)).toBe(true)
+    expect(ws().activeLayoutId).toBe(b)
+    expect(ws().layouts.map((l) => l.name)).toEqual(['B'])
+    expect(await ws().delete(b!)).toBe(false)
+    expect(await db.layouts.count()).toBe(1)
+  })
+})

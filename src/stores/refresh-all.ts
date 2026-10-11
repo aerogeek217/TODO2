@@ -15,6 +15,7 @@ import { useFloatingTaskboardStore } from './floating-taskboard-store'
 import { useFloatingStatusStore } from './floating-status-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
+import { useWorkspaceStore } from './workspace-store'
 
 /**
  * Reload every Zustand store from IndexedDB after a destructive replace
@@ -45,6 +46,9 @@ export async function refreshAllStores() {
     useTaskboardStore.getState().load(),
     useNoteStore.getState().load(),
     useListDefinitionStore.getState().load(),
+    // Re-open the active layout from the replaced data (drops any unsaved
+    // working copy); untouched until the workspace has been opened once.
+    ...(useWorkspaceStore.getState().hydrated ? [useWorkspaceStore.getState().init()] : []),
     ...(canvasId != null ? [
       useListInsetStore.getState().loadByCanvas(canvasId),
       useFloatingNoteStore.getState().loadByCanvas(canvasId),
