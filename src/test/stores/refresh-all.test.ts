@@ -94,4 +94,29 @@ describe('refreshAllStores', () => {
     expect(useWorkspaceStore.getState()).toMatchObject({ isDirty: false })
     expect(useWorkspaceStore.getState().working).toMatchObject({ name: 'Imported', columns: [] })
   })
+
+  it('re-reads people and tag assignments that the replaced tables changed under a cached todo id', async () => {
+    await useCanvasStore.getState().ensureDefault()
+    const todoId = await useTodoStore.getState().add('kept id')
+    const aliceId = await usePersonStore.getState().add('Alice', 'AL')
+    const bobId = await usePersonStore.getState().add('Bob', 'BO')
+    const homeId = await useTagStore.getState().add('home')
+    const workId = await useTagStore.getState().add('work')
+    await db.todoPeople.add({ todoId, personId: aliceId })
+    await db.todoTags.add({ todoId, tagId: homeId })
+    await usePersonStore.getState().loadAssignments([todoId])
+    await useTagStore.getState().loadAssignments([todoId])
+    expect(usePersonStore.getState().assignedPeopleMap.get(todoId)?.map((p) => p.name)).toEqual(['Alice'])
+
+    // A restore swaps the join rows but keeps the todo's id.
+    await db.todoPeople.clear()
+    await db.todoTags.clear()
+    await db.todoPeople.add({ todoId, personId: bobId })
+    await db.todoTags.add({ todoId, tagId: workId })
+
+    await refreshAllStores()
+
+    expect(usePersonStore.getState().assignedPeopleMap.get(todoId)?.map((p) => p.name)).toEqual(['Bob'])
+    expect(useTagStore.getState().assignedTagsMap.get(todoId)?.map((t) => t.name)).toEqual(['work'])
+  })
 })

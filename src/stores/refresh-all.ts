@@ -57,12 +57,12 @@ export async function refreshAllStores() {
       useFloatingStatusStore.getState().loadByCanvas(canvasId),
     ] : []),
   ])
-  // Reload assignment maps after entities and todos are loaded
+  // Reload assignment maps after entities and todos are loaded. Refetch every
+  // id: the replaced tables can keep a todo's id while changing its people /
+  // tags, and the cached entries describe the old data.
   const todoIds = useTodoStore.getState().todos.map(t => t.id)
-  if (todoIds.length > 0) {
-    await Promise.all([
-      usePersonStore.getState().loadAssignments(todoIds),
-      useTagStore.getState().loadAssignments(todoIds),
-    ])
-  }
+  await Promise.all([
+    usePersonStore.getState().loadAssignments(todoIds, { refetch: true }),
+    useTagStore.getState().loadAssignments(todoIds, { refetch: true }),
+  ])
 }

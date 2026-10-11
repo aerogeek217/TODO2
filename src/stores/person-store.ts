@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Person } from '../models'
 import { db, personRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
-import { createAssignmentActions } from './assignment-helpers'
+import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
 import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
 
@@ -17,7 +17,7 @@ interface PersonState {
   add: (name: string, initials: string, color?: string) => Promise<number>
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
-  loadAssignments: (todoIds: number[]) => Promise<void>
+  loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
   assignPerson: (todoId: number, personId: number) => Promise<void>
   unassignPerson: (todoId: number, personId: number) => Promise<void>
   bulkAssignPerson: (todoIds: number[], personId: number) => Promise<void>

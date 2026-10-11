@@ -18,8 +18,17 @@ interface AssignmentConfig<T> {
   getName: (entity: T) => string
 }
 
+export interface LoadAssignmentsOptions {
+  /**
+   * Re-read every id from the database instead of only the ids missing from
+   * the map. Needed after the tables were replaced underneath the store
+   * (import / restore), where cached entries describe the old data.
+   */
+  refetch?: boolean
+}
+
 export interface AssignmentActions {
-  loadAssignments: (todoIds: number[]) => Promise<void>
+  loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
   assign: (todoId: number, entityId: number) => Promise<void>
   unassign: (todoId: number, entityId: number) => Promise<void>
   bulkAssign: (todoIds: number[], entityId: number) => Promise<void>
@@ -36,11 +45,12 @@ export function createAssignmentActions<T extends { id?: number }>(
   const { repo, label, getName } = config
 
   const actions: AssignmentActions = {
-    async loadAssignments(todoIds: number[]) {
+    async loadAssignments(todoIds: number[], options?: LoadAssignmentsOptions) {
+      const refetch = options?.refetch === true
       const initialMap = getMap()
       const todoIdSet = new Set(todoIds)
-      // Only query IDs not already in the map
-      const newIds = todoIds.filter(id => !initialMap.has(id))
+      // Only query IDs not already in the map (all of them on a refetch)
+      const newIds = refetch ? todoIds : todoIds.filter(id => !initialMap.has(id))
       if (newIds.length === 0 && initialMap.size === todoIdSet.size) return
 
       // Fetch missing IDs from DB. The await window here is the source of the
@@ -63,7 +73,9 @@ export function createAssignmentActions<T extends { id?: number }>(
       const merged = new Map<number, T[]>()
       for (const id of todoIds) {
         const latest = latestMap.get(id)
-        if (latest !== undefined) {
+        if (refetch) {
+          merged.set(id, fetched.get(id) ?? [])
+        } else if (latest !== undefined) {
           merged.set(id, latest)
         } else {
           merged.set(id, fetched.get(id) ?? [])

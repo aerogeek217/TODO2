@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { Tag } from '../models'
 import { db, tagRepository } from '../data'
 import { captureJoinRows } from '../data/join-helpers'
-import { createAssignmentActions } from './assignment-helpers'
+import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
 import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from '../services/undoable'
@@ -32,7 +32,7 @@ interface TagState {
   add: (name: string, color?: string) => Promise<number>
   update: (tag: Tag) => Promise<void>
   remove: (id: number) => Promise<void>
-  loadAssignments: (todoIds: number[]) => Promise<void>
+  loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
   assignTag: (todoId: number, tagId: number) => Promise<void>
   unassignTag: (todoId: number, tagId: number) => Promise<void>
   bulkAssignTag: (todoIds: number[], tagId: number) => Promise<void>
