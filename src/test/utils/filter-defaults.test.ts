@@ -7,7 +7,6 @@ import type { TodoPredicate } from '../../models'
 function makeFilters(overrides: Partial<FilterCriteria> = {}): FilterCriteria {
   return {
     showCompleted: false,
-    showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
     orgIds: null,
@@ -171,7 +170,6 @@ describe('supplementWithFilterDefaults', () => {
 function makePredicate(overrides: Partial<TodoPredicate> = {}): TodoPredicate {
   return {
     showCompleted: false,
-    showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
     orgIds: null,

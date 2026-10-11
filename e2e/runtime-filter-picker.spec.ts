@@ -239,7 +239,6 @@ async function readInsetRuntimeFilter(page: Page): Promise<number[] | undefined>
 function emptyPredicate(): Record<string, unknown> {
   return {
     showCompleted: false,
-    showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
     orgIds: null,

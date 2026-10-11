@@ -8,7 +8,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { PersistedTodoItem, Person, FloatingTaskboard, TaskboardEntry } from '../../models'
 import { useFloatingTaskboardStore } from '../../stores/floating-taskboard-store'
-import { useStatusStore } from '../../stores/status-store'
 import { TaskRow } from '../task/TaskRow'
 import { SortableTaskDraggable } from '../task/dnd/TaskDraggable'
 import { WidgetHeader } from '../shared/WidgetHeader'
@@ -35,7 +34,6 @@ export interface TaskboardNodeData {
   assignedPeopleMap: Map<number, Person[]>
   ghostTodoIds?: Set<number>
   showCompleted?: boolean
-  showHiddenStatuses?: boolean
   onOpenDetail?: (todoId: number) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
@@ -97,7 +95,6 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     assignedPeopleMap,
     ghostTodoIds,
     showCompleted,
-    showHiddenStatuses,
     onOpenDetail,
     isCollapsed,
     onToggleCollapse,
@@ -138,21 +135,14 @@ function TaskboardNodeInner({ data }: NodeProps & { data: TaskboardNodeType }) {
     return map
   }, [allTodos])
 
-  const statuses = useStatusStore((s) => s.statuses)
-  const hiddenStatusIds = useMemo(
-    () => new Set(statuses.filter((s) => s.hideByDefault).map((s) => s.id!)),
-    [statuses],
-  )
-
   const visibleEntries = useMemo(
     () => entries.filter((e) => {
       const t = todoMap.get(e.todoId)
       if (!t) return false
       if (!showCompleted && t.isCompleted) return false
-      if (!showHiddenStatuses && t.statusId != null && hiddenStatusIds.has(t.statusId)) return false
       return true
     }),
-    [entries, todoMap, showCompleted, showHiddenStatuses, hiddenStatusIds],
+    [entries, todoMap, showCompleted],
   )
 
   const entryIds = useMemo(

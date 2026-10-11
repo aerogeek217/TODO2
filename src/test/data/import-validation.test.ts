@@ -527,7 +527,7 @@ describe('validateImportData', () => {
         membership: {
           kind: 'custom',
           predicate: {
-            showCompleted: false, showHiddenStatuses: false,
+            showCompleted: false,
             searchText: '', dateRangeIncludeNoDate: false, dateField: 'followup',
           },
         },
@@ -553,7 +553,7 @@ describe('validateImportData', () => {
         membership: {
           kind: 'custom',
           predicate: {
-            showCompleted: false, showHiddenStatuses: false,
+            showCompleted: false,
             searchText: '', dateRangeIncludeNoDate: false,
             ...(dateField ? { dateField } : {}),
           },
@@ -573,7 +573,7 @@ describe('validateImportData', () => {
         membership: {
           kind: 'custom',
           predicate: {
-            showCompleted: false, showHiddenStatuses: false,
+            showCompleted: false,
             searchText: '', dateRangeIncludeNoDate: false,
           },
         },

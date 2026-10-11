@@ -94,15 +94,11 @@ describe('FilterSheet', () => {
       expect(toggle).toHaveAttribute('aria-checked', 'true')
     })
 
-    it('toggles show hidden statuses filter', () => {
+    it('has no show-hidden toggle', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Show / hide'))
-      const toggle = screen.getByRole('switch', { name: 'Show hidden statuses' })
-      expect(toggle).toHaveAttribute('aria-checked', 'false')
-
-      fireEvent.click(toggle)
-      expect(useFilterStore.getState().filters.showHiddenStatuses).toBe(true)
-      expect(toggle).toHaveAttribute('aria-checked', 'true')
+      expect(screen.queryByRole('switch', { name: /hidden/i })).toBeNull()
+      expect(screen.queryByText('Show hidden')).toBeNull()
     })
   })
 

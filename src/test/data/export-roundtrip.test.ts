@@ -30,7 +30,6 @@ const at = (iso: string) => new Date(iso)
 
 const FULL_PREDICATE: TodoPredicate = {
   showCompleted: true,
-  showHiddenStatuses: true,
   personIds: [1, 0],
   personFilterMode: 'direct-only',
   orgIds: [1],
@@ -109,8 +108,8 @@ function buildSeed(): Seed {
     }],
     floatingTaskboards: [{ id: 1, canvasId: 1, x: 1, y: 2, width: 300, height: 400, collapsed: true }],
     statuses: [
-      { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person', hideByDefault: true },
-      { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble', hideByDefault: false },
+      { id: 1, name: 'Assigned', color: '#8a8a8a', sortOrder: 0, icon: 'person' },
+      { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble' },
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,

@@ -171,7 +171,6 @@ async function visibleSectionLabels(page: Page): Promise<string[]> {
 function emptyPredicate(): Record<string, unknown> {
   return {
     showCompleted: false,
-    showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
     orgIds: null,

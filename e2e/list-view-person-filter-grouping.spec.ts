@@ -126,7 +126,6 @@ async function seedAssignmentsAndListDef(page: Page, opts: PostSeedOptions): Pro
               kind: 'custom',
               predicate: {
                 showCompleted: false,
-                showHiddenStatuses: false,
                 personIds: filterPersonIds,
                 personFilterMode: 'include-orgs',
                 orgIds: null,

@@ -68,7 +68,6 @@ describe('popSlotToCanvas', () => {
       favorited: false,
       membership: { kind: 'custom', predicate: {
         showCompleted: false,
-        showHiddenStatuses: false,
         personIds: null,
         personFilterMode: 'include-orgs',
         orgIds: null,
@@ -338,7 +337,6 @@ describe('popTabAtPosition', () => {
       favorited: false,
       membership: { kind: 'custom', predicate: {
         showCompleted: false,
-        showHiddenStatuses: false,
         personIds: null,
         personFilterMode: 'include-orgs',
         orgIds: null,

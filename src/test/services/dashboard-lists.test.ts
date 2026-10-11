@@ -13,8 +13,6 @@ import { makeTodo } from '../helpers'
 
 const today = startOfDay(new Date('2026-04-13T12:00:00'))
 
-const hiddenStatusId = 101
-
 /**
  * Default: match every todo (grouping/sort tests don't care about membership).
  * Individual tests that need a custom predicate pass one in makeCtx overrides.
@@ -92,7 +90,7 @@ describe('buildDashboardLists — predicate tags clause', () => {
       matchesFilter(
         predicateToCriteria(p), t,
         undefined, undefined, undefined, undefined,
-        undefined, undefined, undefined,
+        undefined, undefined,
         assigned.get(t.id) ?? [],
       )
   }
@@ -380,7 +378,7 @@ describe('buildDashboardLists — runtime filter', () => {
 })
 
 describe('interpretMembership — custom', () => {
-  it('delegates to ctx.evalPredicate — evaluator is authoritative for all gates including showCompleted/showHiddenStatuses', () => {
+  it('delegates to ctx.evalPredicate — evaluator is authoritative for all gates including showCompleted', () => {
     const t = makeTodo({ id: 1 })
     const ctx = makeCtx({
       evalPredicate: (_p, todo) => todo.id === 1,
@@ -509,26 +507,11 @@ describe('buildDashboardLists — no list caps', () => {
 })
 
 describe('buildDashboardLists — visibility via def predicate', () => {
-  // Realistic evalPredicate: the def's predicate controls completed / hidden-status visibility.
-  const hiddenStatusIdSet = new Set([hiddenStatusId])
+  // Realistic evalPredicate: the def's predicate controls completed visibility.
   const evalByPredicate = (p: TodoPredicate, t: PersistedTodoItem) => {
     if (t.isCompleted && !p.showCompleted) return false
-    if (t.statusId != null && hiddenStatusIdSet.has(t.statusId) && !p.showHiddenStatuses) return false
     return true
   }
-
-  it('hideByDefault status excluded when def predicate hides them', () => {
-    const t = makeTodo({ id: 1, statusId: hiddenStatusId })
-    const lists = buildDashboardLists([customDef()], [t], makeCtx({ evalPredicate: evalByPredicate }))
-    expect(lists[0]!.todos).toHaveLength(0)
-  })
-
-  it('hideByDefault status included when def predicate shows them', () => {
-    const t = makeTodo({ id: 1, statusId: hiddenStatusId })
-    const def = customDef({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), showHiddenStatuses: true } } })
-    const lists = buildDashboardLists([def], [t], makeCtx({ evalPredicate: evalByPredicate }))
-    expect(lists[0]!.todos).toHaveLength(1)
-  })
 
   it('completed tasks excluded when def predicate hides them', () => {
     const t = makeTodo({ id: 1, isCompleted: true })
@@ -923,7 +906,7 @@ describe('buildDashboardLists — restrict-mode grouping (P1 cleanup)', () => {
       return matchesFilter(
         criteria, t,
         undefined, undefined, undefined, undefined,
-        undefined, undefined, undefined,
+        undefined, undefined,
         assignedTagIds,
       )
     }

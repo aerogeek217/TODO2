@@ -562,40 +562,13 @@ export function FilterChipBarDesktop({
           {(searchText: string) => (
             <EntityDropdownItems
               searchText={searchText}
-              entities={statuses.map((s) =>
-                s.hideByDefault ? { ...s, name: `${s.name} (hidden)` } : s,
-              )}
+              entities={statuses}
               isChecked={isStatusChecked}
               onToggle={handleStatusToggle}
             />
           )}
         </EntityChipDropdown>
       )}
-
-      <button
-        type="button"
-        className={`${topBar.filterChip} ${p.showHiddenStatuses ? topBar.filterChipActive : ''}`}
-        onClick={() => update({ showHiddenStatuses: !p.showHiddenStatuses })}
-        role="switch"
-        aria-checked={p.showHiddenStatuses}
-      >
-        <svg
-          className={topBar.filterIcon}
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M8 2C5 2 3 4.5 3 7v4c0 .5-.3 1-.7 1.3-.3.2-.3.7.2.7h1.3c.3 0 .5.3.4.6-.2.4.1.9.5.9s.6-.3.9-.6c.2-.2.5-.4.9-.4s.7.2.9.4c.3.3.5.6.9.6s.7-.5.5-.9c-.1-.3.1-.6.4-.6h1.3c.5 0 .5-.5.2-.7-.4-.2-.7-.8-.7-1.3V7c0-2.5-2-5-5-5z" />
-          <circle cx="6.5" cy="7" r="1" />
-          <circle cx="9.5" cy="7" r="1" />
-        </svg>
-        {' '}Show hidden
-      </button>
 
       <button
         type="button"

@@ -31,7 +31,6 @@ interface EditState {
   name: string
   color: string
   icon?: StatusIconKey
-  hideByDefault?: boolean
 }
 
 interface StatusEditorProps {
@@ -94,7 +93,6 @@ function SortableStatusRow({ status, onEdit, onDelete }: {
         <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} />
       </span>
       <span className={styles.nameEditable} onClick={() => onEdit(status)}>{status.name}</span>
-      {status.hideByDefault && <span className={styles.hiddenLabel}>(hidden)</span>}
       <div className={styles.actions}>
         <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => onDelete(status.id)} title="Delete">&times;</button>
       </div>
@@ -110,7 +108,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(DEFAULT_ENTITY_COLOR)
   const [newIcon, setNewIcon] = useState<StatusIconKey | undefined>(undefined)
-  const [newHidden, setNewHidden] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [deleteCount, setDeleteCount] = useState(0)
   const [nameError, setNameError] = useState('')
@@ -119,7 +116,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   useEffect(() => { load(); ensureTodosLoaded() }, [load, ensureTodosLoaded])
 
   const startEdit = (s: Status) => {
-    setEditing({ id: s.id!, name: s.name, color: s.color, icon: s.icon, hideByDefault: s.hideByDefault })
+    setEditing({ id: s.id!, name: s.name, color: s.color, icon: s.icon })
     setAdding(false)
     setDeleteId(null)
     setNameError('')
@@ -130,7 +127,7 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     const existing = statuses.find(s => s.id === editing.id)
     if (!existing) return
     try {
-      await update({ ...existing, name: editing.name.trim(), color: editing.color, icon: editing.icon, hideByDefault: editing.hideByDefault })
+      await update({ ...existing, name: editing.name.trim(), color: editing.color, icon: editing.icon })
       setEditing(null)
       setNameError('')
     } catch (e) {
@@ -146,18 +143,16 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
     setNewName('')
     setNewColor(DEFAULT_ENTITY_COLOR)
     setNewIcon(undefined)
-    setNewHidden(false)
   }
 
   const saveAdd = async () => {
     if (!newName.trim()) return
     try {
-      await add(newName.trim(), newColor, newIcon, newHidden || undefined)
+      await add(newName.trim(), newColor, newIcon)
       setAdding(false)
       setNewName('')
       setNewColor(DEFAULT_ENTITY_COLOR)
       setNewIcon(undefined)
-      setNewHidden(false)
       setNameError('')
     } catch (e) {
       setNameError((e as Error).message)
@@ -246,10 +241,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                           placeholder="Status name"
                           autoFocus
                         />
-                        <label className={styles.hiddenToggle} title="Hidden statuses are excluded from default filters">
-                          <input type="checkbox" checked={ed.hideByDefault ?? false} onChange={(e) => setEditing({ ...ed, hideByDefault: e.target.checked || undefined })} />
-                          Hidden
-                        </label>
                         <div className={styles.editActions}>
                           <button className={styles.saveBtn} onClick={saveEdit}>Save</button>
                           <button className={styles.cancelBtn} onClick={() => { setEditing(null); setNameError('') }}>Cancel</button>
@@ -285,10 +276,6 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
                 placeholder="Status name"
                 autoFocus
               />
-              <label className={styles.hiddenToggle} title="Hidden statuses are excluded from default filters">
-                <input type="checkbox" checked={newHidden} onChange={(e) => setNewHidden(e.target.checked)} />
-                Hidden
-              </label>
               <div className={styles.editActions}>
                 <button className={styles.saveBtn} onClick={saveAdd}>Add</button>
                 <button className={styles.cancelBtn} onClick={() => { setAdding(false); setNameError('') }}>Cancel</button>

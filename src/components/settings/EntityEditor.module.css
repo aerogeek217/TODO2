@@ -458,30 +458,6 @@
   border-color: var(--color-accent);
 }
 
-/* Hidden toggle in edit row */
-.hiddenToggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.hiddenToggle input {
-  margin: 0;
-  cursor: pointer;
-}
-
-/* Hidden label in row */
-.hiddenLabel {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
 /* Icon preview in row */
 .iconPreview {
   flex-shrink: 0;

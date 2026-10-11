@@ -223,7 +223,6 @@ interface CanvasViewProps {
   onResizeStatus?: (id: number, width: number, height: number) => void
   onCascadeShift?: (shifts: Array<{ projectId: number; x: number; y: number }>) => void
   showCompleted?: boolean
-  showHiddenStatuses?: boolean
   /**
    * Float-dock dispatch (Phase 2 of float-dock). Invoked when a floating
    * widget (note/calendar/inset/taskboard) is released over a rail drop zone.
@@ -271,7 +270,6 @@ export function CanvasView({
   onResizeStatus,
   onCascadeShift,
   showCompleted,
-  showHiddenStatuses,
   onFloatDock,
 }: CanvasViewProps) {
   const { onAddTask, onInsertTask, onDeleteProject, onRenameProject, onToggleCollapse, onResizeProject, onSetProjectColor, onAddProject } = projectHandlers
@@ -542,7 +540,6 @@ export function CanvasView({
         assignedPeopleMap,
         ghostTodoIds,
         showCompleted,
-        showHiddenStatuses,
         onOpenDetail,
         isCollapsed: ft.collapsed ?? false,
         onToggleCollapse: onToggleTaskboardCollapse ? () => onToggleTaskboardCollapse(ft.id!) : NOOP,
@@ -590,7 +587,7 @@ export function CanvasView({
     allPeople, allOrgs,
     floatingTaskboards, taskboard, onToggleTaskboardCollapse, onCloseTaskboard, onResizeTaskboard,
     floatingStatus, onCloseStatus, onResizeStatus,
-    showCompleted, showHiddenStatuses,
+    showCompleted,
   ])
 
   // Local node state — React Flow controlled mode.

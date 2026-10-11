@@ -61,7 +61,6 @@ export type DateAnchor =
  */
 export interface TodoPredicate {
   showCompleted: boolean
-  showHiddenStatuses: boolean
   /** null = no filter (all shown); array = only those IDs shown (0 = "unassigned" sentinel) */
   personIds: number[] | null
   personFilterMode: PersonFilterMode

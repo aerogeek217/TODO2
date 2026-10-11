@@ -32,7 +32,6 @@ export interface FilterChipBarProps {
 
 export const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,
-  showHiddenStatuses: false,
   personIds: null,
   personFilterMode: 'include-orgs',
   orgIds: null,
@@ -54,7 +53,6 @@ export type EntityKey = 'project' | 'people' | 'org' | 'status' | 'tags'
 export function hasAnyFilter(p: TodoPredicate): boolean {
   return (
     p.showCompleted ||
-    p.showHiddenStatuses ||
     p.personIds !== null ||
     p.orgIds !== null ||
     p.projectIds !== null ||

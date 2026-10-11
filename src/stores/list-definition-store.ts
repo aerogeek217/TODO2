@@ -40,11 +40,10 @@ interface ListDefinitionState {
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
 }
 
-/** Empty predicate — matches all tasks aside from the standard completed/hidden gates. */
+/** Empty predicate — matches every open task (completed tasks need `showCompleted`). */
 export function emptyPredicate(): TodoPredicate {
   return {
     showCompleted: false,
-    showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
     orgIds: null,

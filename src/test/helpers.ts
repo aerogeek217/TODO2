@@ -67,7 +67,6 @@ export async function resetDb(): Promise<void> {
 /** Default empty filter shape — mirrors `defaultFilters` inside filter-store. */
 export const emptyFilterCriteria: FilterCriteria = {
   showCompleted: false,
-  showHiddenStatuses: false,
   personIds: null,
   personFilterMode: 'include-orgs',
   orgIds: null,
@@ -142,8 +141,8 @@ export function resetFloatingStores(): void {
 
 /**
  * Dexie store specs of the v52 schema, for tests that build an old database
- * by hand and then open it with the real `Todo2Database`. v53 changed no store
- * spec, so this is the current schema. Update when a later version changes a
+ * by hand and then open it with the real `Todo2Database`. v53 and v54 changed
+ * no store spec, so this is the current schema. Update when a later version changes a
  * store spec (add back what it drops / alters).
  */
 export function v52StoreSpecs(): Record<string, string> {

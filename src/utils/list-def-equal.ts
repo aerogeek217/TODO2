@@ -24,7 +24,6 @@ function anchorsEqual(a: DateAnchor | null, b: DateAnchor | null): boolean {
 function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
   return (
     a.showCompleted === b.showCompleted &&
-    a.showHiddenStatuses === b.showHiddenStatuses &&
     a.personFilterMode === b.personFilterMode &&
     a.orgFilterMode === b.orgFilterMode &&
     a.searchText === b.searchText &&

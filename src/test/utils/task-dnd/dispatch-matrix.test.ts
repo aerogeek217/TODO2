@@ -424,20 +424,19 @@ describe('dispatchTaskDrop — F3 target-panel-unmount regression', () => {
 // ─── Indicator/drop invariants ──────────────────────────────────────
 
 describe('dispatchTaskDrop — visible vs full entry mapping', () => {
-  // After Phase 6 the insertion index comes from dnd-kit's sortable data,
-  // which knows about ALL entries in the sortable — not just visible ones.
-  // But the full array stored by the taskboard may include completed or
-  // hidden-status rows that the UI filters out. `fullIndexForSortableDrop`
+  // The insertion index comes from dnd-kit's sortable data, which knows
+  // about ALL entries in the sortable — not just visible ones. But the full
+  // array stored by the taskboard may include completed rows that the UI
+  // filters out. `fullIndexForSortableDrop`
   // maps the over.id back to its slot in the full array so the drop lands
   // exactly at the indicated row, even when completed entries sit above it.
 
   it('dropping on an entry below a hidden/completed entry resolves to its full-array index', async () => {
     // Full: [10 (visible), 20 (hidden), 30 (visible)]
     // User drags 99 over the second visible row (todo 30). over.id is tbp-30.
-    // Pre-Phase-6 this returned a visible index of 1; addAt(99, 1) inserted
-    // ABOVE the hidden entry 20, landing 99 between 10 and 20. Post-Phase-6
-    // the dispatcher maps tbp-30 → full index 2 so 99 lands between 20 and
-    // 30, matching the indicator.
+    // A visible index of 1 would make addAt(99, 1) insert ABOVE the hidden
+    // entry 20, landing 99 between 10 and 20. The dispatcher maps tbp-30 →
+    // full index 2 so 99 lands between 20 and 30, matching the indicator.
     const tb = taskboardOps([10, 20, 30])
     await dispatchTaskDrop(
       makeEvent({

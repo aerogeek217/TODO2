@@ -24,7 +24,6 @@ export function fixedAnchor(d: Date): DateAnchor {
  */
 export interface FilterCriteria {
   showCompleted: boolean
-  showHiddenStatuses: boolean
   /** null = no filter (all shown); Set = only those in set are shown */
   personIds: Set<number> | null
   /** 'include-orgs' (default) also matches tasks with orgs the filter person belongs to; 'direct-only' matches only direct person assignment */
@@ -82,7 +81,6 @@ interface FilterState {
   runtimeFilterValue: number[] | undefined
 
   setShowCompleted: (show: boolean) => void
-  setShowHiddenStatuses: (show: boolean) => void
   setPersonIds: (personIds: Set<number> | null) => void
   setPersonFilterMode: (mode: PersonFilterMode) => void
   setOrgIds: (orgIds: Set<number> | null) => void
@@ -106,7 +104,6 @@ interface FilterState {
 
 const defaultFilters: FilterCriteria = {
   showCompleted: false,
-  showHiddenStatuses: false,
   personIds: null,
   personFilterMode: 'include-orgs',
   orgIds: null,
@@ -126,7 +123,6 @@ const defaultFilters: FilterCriteria = {
 function isFilterActive(f: FilterCriteria): boolean {
   return (
     f.showCompleted ||
-    f.showHiddenStatuses ||
     f.personIds !== null ||
     f.orgIds !== null ||
     f.projectIds !== null ||
@@ -167,7 +163,6 @@ export function matchesFilter(
   assignedPersonOrgIds?: number[],
   directOrgIds?: number[],
   filterPersonOrgIds?: Set<number>,
-  statuses?: Status[],
   today: Date = startOfToday(),
   searchCtx?: TextMatchContext,
   assignedTagIds?: number[],
@@ -179,11 +174,6 @@ export function matchesFilter(
     if (!hasStatus) {
       if (!filters.statusIds.has(0)) return false
     } else if (!filters.statusIds.has(todo.statusId!)) return false
-  } else {
-    if (todo.statusId != null && !filters.showHiddenStatuses) {
-      const status = statuses?.find(s => s.id === todo.statusId)
-      if (status?.hideByDefault) return false
-    }
   }
 
   if (filters.searchText) {
@@ -303,7 +293,7 @@ export function applyFilter(
           statusName: t.statusId != null ? statuses?.find(s => s.id === t.statusId)?.name : undefined,
         }
       : undefined
-    return matchesFilter(filters, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, searchCtx, tagIds)
+    return matchesFilter(filters, t, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, today, searchCtx, tagIds)
   })
 }
 
@@ -311,7 +301,6 @@ export function applyFilter(
 export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
   return {
     showCompleted: f.showCompleted,
-    showHiddenStatuses: f.showHiddenStatuses,
     personIds: f.personIds ? Array.from(f.personIds) : null,
     personFilterMode: f.personFilterMode,
     orgIds: f.orgIds ? Array.from(f.orgIds) : null,
@@ -333,7 +322,6 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
 export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   return {
     showCompleted: p.showCompleted,
-    showHiddenStatuses: p.showHiddenStatuses,
     personIds: p.personIds ? new Set(p.personIds) : null,
     personFilterMode: p.personFilterMode,
     orgIds: p.orgIds ? new Set(p.orgIds) : null,
@@ -363,10 +351,6 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setShowCompleted(showCompleted: boolean) {
     commit(set, { ...get().filters, showCompleted })
-  },
-
-  setShowHiddenStatuses(showHiddenStatuses: boolean) {
-    commit(set, { ...get().filters, showHiddenStatuses })
   },
 
   setPersonIds(personIds: Set<number> | null) {

@@ -125,7 +125,7 @@ export async function buildMarkdownExport(): Promise<string> {
     const deadline = todo.dueDate ? ` (due ${new Date(todo.dueDate).toLocaleDateString()})` : ''
     const followup = todo.nextFollowupAt ? ` (follow-up ${formatFollowupDate(todo.nextFollowupAt, today)})` : ''
     const status = todo.statusId ? statusMap.get(todo.statusId) : undefined
-    const statusStr = status && (status.icon || status.hideByDefault) ? ` [${status.name}]` : ''
+    const statusStr = status?.icon ? ` [${status.name}]` : ''
     return `- ${check} ${todo.title}${statusStr}${deadline}${followup}`
   }
 

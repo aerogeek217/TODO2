@@ -142,7 +142,6 @@ describe('export → restore round-trip', () => {
         kind: 'custom',
         predicate: {
           showCompleted: false,
-          showHiddenStatuses: false,
           personIds: null,
           personFilterMode: 'include-orgs',
           orgIds: null,

@@ -180,7 +180,7 @@ export function FilterChipBarMobile({
     setTags(toggleItem(tagIdsSet, tagId, allTagIds))
   }
 
-  const togglesActiveCount = [p.showCompleted, p.showHiddenStatuses].filter(Boolean).length
+  const togglesActiveCount = p.showCompleted ? 1 : 0
 
   return (
     <>
@@ -192,19 +192,6 @@ export function FilterChipBarMobile({
         onToggle={() => handleSection('toggles')}
       >
         <div>
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon}>👁</span>
-              Show hidden
-            </span>
-            <button
-              className={`${sheet.toggle} ${p.showHiddenStatuses ? sheet.toggleActive : ''}`}
-              onClick={() => update({ showHiddenStatuses: !p.showHiddenStatuses })}
-              role="switch"
-              aria-checked={p.showHiddenStatuses}
-              aria-label="Show hidden statuses"
-            />
-          </div>
           <div className={sheet.filterRow}>
             <span className={sheet.filterLabel}>
               <span className={sheet.filterLabelIcon}>✓</span>
@@ -451,9 +438,7 @@ export function FilterChipBarMobile({
           onToggle={() => handleSection('status')}
         >
           <MobileEntityList
-            entities={statuses.map((st) =>
-              st.hideByDefault ? { ...st, name: `${st.name} (hidden)` } : st,
-            )}
+            entities={statuses}
             filterIds={statusIdsSet}
             onToggle={handleStatusToggle}
             noneLabel="No status"

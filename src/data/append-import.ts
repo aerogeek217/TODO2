@@ -168,7 +168,6 @@ export async function appendImportTasks(
       if (id == null) {
         const status: Status = { name: row.name.trim(), color: row.color, sortOrder: nextStatusSort++ }
         if (row.icon != null) status.icon = row.icon
-        if (row.hideByDefault != null) status.hideByDefault = row.hideByDefault
         id = await db.statuses.add(status) as number
         statusesByName.set(nameKey(row.name), id)
         created.statuses.push(status.name)

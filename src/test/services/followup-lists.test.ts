@@ -35,20 +35,20 @@ describe('filter: hasFollowup + dateField followup', () => {
   const f = () => useFilterStore.getState().filters
 
   it('tri-state presence: null = all, true = with, false = without', () => {
-    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, undefined, today))).toHaveLength(5)
+    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, today))).toHaveLength(5)
     useFilterStore.getState().setHasFollowup(true)
     expect(useFilterStore.getState().isActive).toBe(true)
-    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, undefined, today)).map((t) => t.id))
+    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, today)).map((t) => t.id))
       .toEqual([4, 3, 1, 2])
     useFilterStore.getState().setHasFollowup(false)
-    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, undefined, today)).map((t) => t.id))
+    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, today)).map((t) => t.id))
       .toEqual([5])
   })
 
   it('date range on the next follow-up', () => {
     useFilterStore.getState().setDateField('followup')
     useFilterStore.getState().setDateRange(day(10, 14), day(10, 18))
-    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, undefined, today)).map((t) => t.id))
+    expect(all.filter((t) => matchesFilter(f(), t, undefined, undefined, undefined, undefined, today)).map((t) => t.id))
       .toEqual([3, 2])
   })
 

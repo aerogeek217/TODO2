@@ -6,6 +6,7 @@ import { ListDefinitionBody } from '../../../components/canvas/ListDefinitionBod
 import { useStatusStore } from '../../../stores/status-store'
 import { useListDefinitionStore, emptyPredicate } from '../../../stores/list-definition-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useFilterStore } from '../../../stores/filter-store'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { makeTodo, resetEntityStores, clearFilterStore } from '../../helpers'
 
@@ -137,14 +138,13 @@ describe('ListDefinitionBody', () => {
   })
 
   it('ignores the global top-bar filter — def predicate is authoritative', () => {
-    // Regression: a list def whose predicate references a hidden status was
-    // showing zero rows until the user flipped global "Show hidden", because
-    // the component pre-filtered via applyFilter. On canvas the def is
-    // authoritative; the global filter must not intersect.
+    // Regression: the component used to pre-filter via applyFilter, so a
+    // top-bar status filter excluding the def's status emptied the list. On
+    // canvas the def is authoritative; the global filter must not intersect.
     useStatusStore.setState({
       statuses: [
         { id: 10, name: 'Open', color: '#fff', sortOrder: 0 },
-        { id: 11, name: 'Blocked', color: '#fff', sortOrder: 1, hideByDefault: true },
+        { id: 11, name: 'Blocked', color: '#fff', sortOrder: 1 },
       ],
     })
     useTodoStore.setState({
@@ -168,8 +168,9 @@ describe('ListDefinitionBody', () => {
         grouping: { kind: 'none' },
       }],
     })
-    // Global top-bar hides hidden statuses — should NOT affect the widget.
+    // Global top-bar filter excludes the def's status — should NOT affect the widget.
     clearFilterStore()
+    useFilterStore.getState().setStatusIds(new Set([10]))
     render(
       <Wrapper>
         <ListDefinitionBody listDefinitionId={1} />

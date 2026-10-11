@@ -4,8 +4,8 @@
  * `services/notes-export.ts` — writes both `text/html` and `text/plain`
  * through `ClipboardItem`, falls back to plain-text `writeText`.
  *
- * The helper renders what it's given: callers pre-filter (completed /
- * hidden-status) and pre-group. A single flat list is a one-section call
+ * The helper renders what it's given: callers pre-filter (e.g. completed
+ * tasks) and pre-group. A single flat list is a one-section call
  * with no label; a grouped view passes one section per heading.
  */
 import type { PersistedTodoItem, Person, Status } from '../models'

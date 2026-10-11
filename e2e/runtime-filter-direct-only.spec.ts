@@ -126,7 +126,6 @@ async function seedAssignments(page: Page, opts: AssignmentSeed): Promise<void> 
 function emptyPredicate(): Record<string, unknown> {
   return {
     showCompleted: false,
-    showHiddenStatuses: false,
     personIds: null,
     personFilterMode: 'include-orgs',
     orgIds: null,

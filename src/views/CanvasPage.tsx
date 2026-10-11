@@ -170,10 +170,6 @@ export function CanvasPage() {
     for (const todo of todos) {
       if (todo.projectId == null) continue
       if (!filters.showCompleted && todo.isCompleted) continue
-      if (!filters.showHiddenStatuses) {
-        const s = statuses.find(x => x.id === todo.statusId)
-        if (s?.hideByDefault) continue
-      }
       const visList = visibleByProject.get(todo.projectId) ?? []
       visList.push(todo)
       visibleByProject.set(todo.projectId, visList)
@@ -195,7 +191,7 @@ export function CanvasPage() {
     }
     prevTodosByProjectRef.current = stable
     return stable
-  }, [todos, filters.showCompleted, filters.showHiddenStatuses, statuses])
+  }, [todos, filters.showCompleted])
 
   // --- DnD (extracted to useCanvasDnD hook) ---
   const dnd = useCanvasDnD({
@@ -231,10 +227,6 @@ export function CanvasPage() {
       if (todo.projectId == null) continue
       // Skip tasks already hidden by todosByProject
       if (!filters.showCompleted && todo.isCompleted) continue
-      if (!filters.showHiddenStatuses) {
-        const s = todo.statusId != null ? statusesById.get(todo.statusId) : undefined
-        if (s?.hideByDefault) continue
-      }
       const people = assignedPeopleMap.get(todo.id) ?? []
       const orgs = assignedOrgsMap.get(todo.id) ?? []
       const personIds = people.map((p) => p.id!)
@@ -249,7 +241,7 @@ export function CanvasPage() {
             statusName: todo.statusId != null ? statusesById.get(todo.statusId)?.name : undefined,
           }
         : undefined
-      if (!matchesFilter(filters, todo, personIds, pOrgIds, dOrgIds, filterPersonOrgIds, statuses, undefined, searchCtx, tagIds)) {
+      if (!matchesFilter(filters, todo, personIds, pOrgIds, dOrgIds, filterPersonOrgIds, undefined, searchCtx, tagIds)) {
         ghost.add(todo.id)
       }
     }
@@ -623,7 +615,6 @@ export function CanvasPage() {
           onResizeStatus={statusController.handlers.onResize}
           onCascadeShift={handleCascadeShift}
           showCompleted={filters.showCompleted}
-          showHiddenStatuses={filters.showHiddenStatuses}
           onFloatDock={handleFloatDock}
         />
         {isProjectNavigatorOpen && (

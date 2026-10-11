@@ -163,7 +163,6 @@ function isOptTriBool(v: unknown): boolean {
 function isTodoPredicateShape(v: unknown): boolean {
   if (!isObj(v)) return false
   if (typeof v.showCompleted !== 'boolean'
-    || typeof v.showHiddenStatuses !== 'boolean'
     || typeof v.searchText !== 'string'
     || typeof v.dateRangeIncludeNoDate !== 'boolean') return false
   if (!isOptDateAnchor(v.dateRangeStart)) return false
@@ -228,7 +227,6 @@ function checkStatus(v: unknown): CheckResult {
     ['color', isValidCssColor(v.color)],
     ['sortOrder', isFiniteNum(v.sortOrder)],
     ['icon', isOptStatusIcon(v.icon)],
-    ['hideByDefault', isOptBool(v.hideByDefault)],
   ])
 }
 
@@ -307,10 +305,6 @@ function checkPersonOrg(v: unknown): CheckResult {
     ['personId', isFiniteNum(v.personId)],
     ['orgId', isFiniteNum(v.orgId)],
   ])
-}
-
-function isOptBool(v: unknown): boolean {
-  return v === undefined || isBool(v)
 }
 
 function checkNote(v: unknown): CheckResult {
@@ -635,7 +629,6 @@ function pickStatus(v: Raw): AllFields<Status> {
   return {
     id: optNum(v.id), name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
     icon: v.icon != null ? v.icon as StatusIconKey : undefined,
-    hideByDefault: v.hideByDefault != null ? v.hideByDefault as boolean : undefined,
   } satisfies AllFields<Status>
 }
 

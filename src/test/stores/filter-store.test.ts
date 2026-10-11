@@ -24,18 +24,13 @@ describe('useFilterStore', () => {
     expect(matchesFilter(f(), makeTodo({ id: 2, isCompleted: false }))).toBe(true)
   })
 
-  it('showHiddenStatuses false hides tasks with hideByDefault statuses', () => {
-    const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
+  it('a status never hides a task on its own — only a status filter narrows by status', () => {
+    const todos = [makeTodo({ id: 1, statusId: 5 }), makeTodo({ id: 2 })] as PersistedTodoItem[]
+    const statuses = [{ id: 5, name: 'Assigned', color: '#000', sortOrder: 0, icon: 'person' as const }]
 
-    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, statuses)).toBe(false)
-    expect(matchesFilter(f(), makeTodo({ id: 2 }), undefined, undefined, undefined, undefined, statuses)).toBe(true)
-  })
-
-  it('showHiddenStatuses true shows tasks with hideByDefault statuses', () => {
-    useFilterStore.getState().setShowHiddenStatuses(true)
-    const statuses = [{ id: 5, name: 'Hidden', color: '#000', sortOrder: 0, hideByDefault: true }]
-
-    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }), undefined, undefined, undefined, undefined, statuses)).toBe(true)
+    expect(matchesFilter(f(), makeTodo({ id: 1, statusId: 5 }))).toBe(true)
+    expect(applyFilter(f(), todos, undefined, undefined, undefined, statuses).map((t) => t.id)).toEqual([1, 2])
+    expect(useFilterStore.getState().isActive).toBe(false)
   })
 
   it('matchesFilter checks project membership', () => {
@@ -81,7 +76,6 @@ describe('useFilterStore', () => {
     const { filters, isActive } = useFilterStore.getState()
     expect(filters.personIds).toBe(null)
     expect(filters.showCompleted).toBe(false)
-    expect(filters.showHiddenStatuses).toBe(false)
     expect(isActive).toBe(false)
   })
 
@@ -296,12 +290,12 @@ describe('useFilterStore', () => {
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 19),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, undefined, undefined, undefined, today)).toBe(true)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 20),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, undefined, undefined, undefined, today)).toBe(false)
     })
 
     it('relative tomorrow anchor lets a same-day task through as a start bound', () => {
@@ -314,12 +308,12 @@ describe('useFilterStore', () => {
       expect(matchesFilter(f(), makeTodo({
         id: 1,
         dueDate: new Date(2026, 3, 15),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(false)
+      }), undefined, undefined, undefined, undefined, today)).toBe(false)
 
       expect(matchesFilter(f(), makeTodo({
         id: 2,
         dueDate: new Date(2026, 3, 16),
-      }), undefined, undefined, undefined, undefined, undefined, today)).toBe(true)
+      }), undefined, undefined, undefined, undefined, today)).toBe(true)
     })
 
     it('fixed anchor behaves like the legacy ISO-string range', () => {
@@ -354,13 +348,13 @@ describe('useFilterStore', () => {
   })
 
   describe('tags filter', () => {
-    // Tag filters are by registry id (Phase 5). `matchesFilter` reads the
+    // Tag filters are by registry id. `matchesFilter` reads the
     // `assignedTagIds` positional arg (9th) — no fallback to inline strings.
     const withTagIds = (ids: number[]) =>
       // positional: filters, todo, personIds, personOrgIds, directOrgIds,
-      //             filterPersonOrgIds, statuses, today, searchCtx, assignedTagIds
+      //             filterPersonOrgIds, today, searchCtx, assignedTagIds
       (todo: PersistedTodoItem) =>
-        matchesFilter(f(), todo, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ids)
+        matchesFilter(f(), todo, undefined, undefined, undefined, undefined, undefined, undefined, ids)
 
     it('null (default) is not a filter — tagged and untagged todos pass', () => {
       expect(f().tags).toBeNull()
@@ -612,7 +606,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
     const original = {
       showCompleted: true,
-      showHiddenStatuses: false,
       personIds: new Set([5, 10]),
       personFilterMode: 'direct-only' as const,
       orgIds: null,
@@ -650,7 +643,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const { criteriaToPredicate, predicateToCriteria } = await import('../../stores/filter-store')
     const original = {
       showCompleted: false,
-      showHiddenStatuses: false,
       personIds: null,
       personFilterMode: 'include-orgs' as const,
       orgIds: null,
@@ -684,7 +676,6 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     const { predicateToCriteria } = await import('../../stores/filter-store')
     const legacy = {
       showCompleted: false,
-      showHiddenStatuses: false,
       personIds: null,
       personFilterMode: 'include-orgs' as const,
       orgIds: null,

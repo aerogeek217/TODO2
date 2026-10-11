@@ -287,8 +287,8 @@ describe('restoreFromImportData', () => {
     it('preserves seeded status ids round-tripped through import', async () => {
       const data = makeImportData({
         statuses: [
-          { id: 10, name: 'Delegated', color: '#537FE7', sortOrder: 0, icon: 'person', hideByDefault: true },
-          { id: 11, name: 'Follow-up', color: '#F5A623', sortOrder: 1, icon: 'message-bubble', hideByDefault: false },
+          { id: 10, name: 'Delegated', color: '#537FE7', sortOrder: 0, icon: 'person' },
+          { id: 11, name: 'Follow-up', color: '#F5A623', sortOrder: 1, icon: 'message-bubble' },
         ],
         settings: [
           { key: 'seededAssignedStatusId', value: '10' },
@@ -310,7 +310,7 @@ describe('restoreFromImportData', () => {
     it('keeps an imported Assigned status without seeding another', async () => {
       const data = makeImportData({
         statuses: [
-          { id: 10, name: 'Assigned', color: '#537FE7', sortOrder: 0, icon: 'person', hideByDefault: true },
+          { id: 10, name: 'Assigned', color: '#537FE7', sortOrder: 0, icon: 'person' },
         ],
         settings: [
           { key: 'seededAssignedStatusId', value: '10' },

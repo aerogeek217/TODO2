@@ -51,6 +51,12 @@ describe('FilterChipBar — primitive', () => {
   // ── Desktop density ──────────────────────────────────────────────────
 
   describe('desktop density', () => {
+    it('offers Show completed but no show-hidden toggle', () => {
+      render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
+      expect(screen.getByRole('switch', { name: /Show completed/i })).toBeInTheDocument()
+      expect(screen.queryByRole('switch', { name: /hidden/i })).toBeNull()
+    })
+
     it('opens the Project chip and commits only the clicked project (preview-empty)', () => {
       let captured: TodoPredicate | null = null
       render(

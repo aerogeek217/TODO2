@@ -22,7 +22,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 53
+export const CURRENT_DB_VERSION = 54
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -406,9 +406,14 @@ export class Todo2Database extends Dexie {
     // moves scheduled days into `nextFollowupAt` (or `dueDate` for recurrence
     // anchors), rewrites list definitions / group-by settings that used the
     // removed date fields, and drops the seeded follow-up status pointer.
+    this.version(53).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 53))
+
+    // v54: remove hide-by-status. No index change; the transform
+    // (`upgrades/v54-remove-hidden-statuses.ts`) strips `hideByDefault` from
+    // statuses and `showHiddenStatuses` from stored list predicates.
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `53` first.
+    // docblock above). When bumping, turn this into a literal `54` first.
     this.version(CURRENT_DB_VERSION)
       .stores({})
       .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
@@ -437,7 +442,7 @@ export async function ensureSeededStatuses(
     const maxSort = all.reduce((m, s) => Math.max(m, s.sortOrder), -1)
     const seedAssigned: Status = {
       name: 'Assigned', color: DEFAULT_ENTITY_COLOR, sortOrder: maxSort + 1,
-      icon: 'person', hideByDefault: true,
+      icon: 'person',
     }
     assignedId = (await statusesTable.add(seedAssigned)) as number
   }

@@ -124,7 +124,7 @@ export function ListDefinitionBody({
         criteria.personIds, criteria.personFilterMode, personOrgMap,
       )
       return matchesFilter(
-        criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, statuses, today, undefined, assignedTagIds,
+        criteria, todo, personIds, personOrgIds, directOrgIds, filterPersonOrgIds, today, undefined, assignedTagIds,
       )
     }
     const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null

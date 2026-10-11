@@ -3,6 +3,7 @@ import fixture from '../fixtures/v49-export.json'
 import { db, ALL_DATA_TABLES, CURRENT_DB_VERSION } from '../../data/database'
 import { parseRailsState } from '../../models/canvas-rails'
 import { prepareImport } from '../../data/import-pipeline'
+import { upgradeDataSet, type DataSet } from '../../data/schema-upgrades'
 import { restoreFromImportData } from '../../data/restore'
 import { resetDb } from '../helpers'
 
@@ -79,7 +80,7 @@ describe('v49 fixture → prepareImport → restore', () => {
     expect(await db.todoTags.where('todoId').equals(5).count()).toBe(1)
   })
 
-  it('preserves entities: people, orgs + membership, tags, statuses incl. hidden-by-default', async () => {
+  it('preserves entities: people, orgs + membership, tags, statuses', async () => {
     await importFixture()
     expect((await db.people.toArray()).map((p) => p.name)).toEqual(['Ann Lee', 'Bob Stone', 'Cat Ng'])
     const acme = (await db.orgs.toArray()).find((o) => o.name === 'Acme')!
@@ -89,7 +90,7 @@ describe('v49 fixture → prepareImport → restore', () => {
 
     const statuses = await db.statuses.orderBy('sortOrder').toArray()
     expect(statuses.map((s) => s.name)).toEqual(['Assigned', 'Follow-up', 'Waiting'])
-    expect(statuses[0]).toMatchObject({ icon: 'person', hideByDefault: true })
+    expect(statuses[0]).toMatchObject({ icon: 'person', color: '#8a8a8a' })
   })
 
   it('preserves taskboard entries, list definitions with runtime filters, and list insets', async () => {
@@ -360,5 +361,43 @@ describe('v49 fixture → v53: scheduled dates become next follow-ups; removed e
     const scheduled = (await db.todoEvents.toArray()).filter((e) => e.type === 'scheduled')
     expect(scheduled.length).toBe(fixture.todoEvents.filter((e) => e.type === 'scheduled').length)
     expect(scheduled.length).toBeGreaterThan(0)
+  })
+})
+
+// ── v54: hide-by-status removed ──────────────────────────────────────────
+
+describe('v49 fixture → v54: hidden statuses removed', () => {
+  function upgradedFixture(): DataSet {
+    const raw = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+    const tables: DataSet = {}
+    for (const [key, value] of Object.entries(raw)) if (Array.isArray(value)) tables[key] = value as DataSet[string]
+    return upgradeDataSet(tables, 49, CURRENT_DB_VERSION)
+  }
+
+  it('the fixture has a hidden-by-default status and predicates carrying showHiddenStatuses', () => {
+    expect(fixture.statuses.some((s) => 'hideByDefault' in s && s.hideByDefault)).toBe(true)
+    expect(fixture.listDefinitions.every((d) => 'showHiddenStatuses' in d.membership.predicate)).toBe(true)
+  })
+
+  it('the upgrade pipeline strips hideByDefault from statuses and showHiddenStatuses from predicates', () => {
+    const data = upgradedFixture()
+    for (const s of data.statuses!) expect('hideByDefault' in s, `status ${String(s.name)}`).toBe(false)
+    for (const d of data.listDefinitions!) {
+      const p = (d.membership as { predicate: Record<string, unknown> }).predicate
+      expect('showHiddenStatuses' in p, `${String(d.name)} predicate`).toBe(false)
+    }
+  })
+
+  it('no status filter is invented: lists keep their own status filters, showCompleted untouched', async () => {
+    await importFixture()
+    const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
+    expect(defs.map((d) => d.membership.predicate.statusIds)).toEqual(
+      fixture.listDefinitions.map((d) => d.membership.predicate.statusIds),
+    )
+    expect(defs.map((d) => d.membership.predicate.showCompleted)).toEqual(
+      fixture.listDefinitions.map((d) => d.membership.predicate.showCompleted),
+    )
+    const statuses = await db.statuses.toArray()
+    for (const s of statuses) expect('hideByDefault' in s, `status ${s.name}`).toBe(false)
   })
 })
