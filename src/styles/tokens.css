@@ -61,6 +61,10 @@
   --mobile-tab-bar-height: 56px;
   --mobile-row-min-height: 48px;
   --mobile-fab-bottom: 16px;
+  --mobile-topbar-height: 52px;
+  --mobile-column-strip-height: 40px;
+  --mobile-cell-header-height: 40px;
+  --mobile-cell-tab-height: 34px;
   --touch-target-min: 44px;
 
   /* Transitions */

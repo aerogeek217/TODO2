@@ -26,6 +26,8 @@ import { buildRescheduleUpdate } from '../utils/reschedule'
 import { dropChangesLayout, dropTargetForHit, hitTestWorkspace } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
+import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
+import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedChangesDialog } from '../components/workspace/LayoutDialogs'
 import { PlusIcon, WidgetKindIcon } from '../components/workspace/icons'
@@ -42,6 +44,9 @@ import { DashboardListsEditor } from '../components/settings/DashboardListsEdito
 import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
 import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
 import styles from './WorkspacePage.module.css'
+
+/** No drag sensors on mobile: layout editing and task drags are desktop-only there. */
+const NO_SENSORS: ReturnType<typeof useSensors> = []
 
 /** The tab ghost follows the pointer at +12 / +10 px. */
 const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, transform, active }) => {
@@ -183,6 +188,7 @@ export function WorkspacePage() {
   const closeListsEditor = useUIStore((s) => s.closeListsEditor)
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
   const tabDrag = useTabDragState()
+  const isMobile = useIsMobile()
 
   useWorkspaceData()
 
@@ -192,9 +198,10 @@ export function WorkspacePage() {
     if (!useWorkspaceStore.getState().hydrated) void useWorkspaceStore.getState().init()
   }, [])
 
-  const sensors = useSensors(
+  const pointerSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }),
   )
+  const sensors = isMobile ? NO_SENSORS : pointerSensors
 
   // Tab drags find their target from pointer geometry, not dnd-kit
   // droppables; task drags match the widgets' droppables (calendar days,
@@ -245,7 +252,9 @@ export function WorkspacePage() {
     >
       <TabDragContext.Provider value={drag}>
         <div className={styles.page} data-dragging-tab={drag ? 'true' : undefined}>
-          {working ? <WorkspaceView layout={working} /> : hydrated ? null : <div className={styles.loading}>Loading…</div>}
+          {working
+            ? (isMobile ? <MobileWorkspaceView layout={working} /> : <WorkspaceView layout={working} />)
+            : hydrated ? null : <div className={styles.loading}>Loading…</div>}
         </div>
       </TabDragContext.Provider>
 

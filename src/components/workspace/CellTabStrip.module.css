@@ -199,3 +199,17 @@
   background: var(--color-tint-8);
   color: var(--color-text-primary);
 }
+
+/* Touch layout (mobile): taller tabs, and a swipe that starts on a tab still
+   scrolls the column pager (tabs aren't drag handles here). */
+.touch {
+  padding: 0 12px;
+  touch-action: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* No hover state on touch (it sticks after a tap). */
+.touch:not(.active):not(.flat):hover {
+  background: transparent;
+  color: var(--color-text-muted);
+}

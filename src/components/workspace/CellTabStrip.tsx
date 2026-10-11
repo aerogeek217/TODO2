@@ -15,23 +15,26 @@ interface TabProps {
   active: boolean
   collapsed: boolean
   count?: number
+  /** Touch layout: taller tabs, no close ×, not draggable. */
+  touch: boolean
   onActivate: () => void
-  onClose: () => void
-  onOpenMenu: (point: { x: number; y: number }) => void
+  onClose?: () => void
+  onOpenMenu?: (point: { x: number; y: number }) => void
   onFocusSibling: (delta: 1 | -1 | 'first' | 'last') => void
   setRef: (el: HTMLDivElement | null) => void
 }
 
-function Tab({ tab, active, collapsed, count, onActivate, onClose, onOpenMenu, onFocusSibling, setRef }: TabProps) {
+function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef }: TabProps) {
   const title = useTabTitle(tab)
   const data: WorkspaceTabDragData = { type: WORKSPACE_TAB_DRAG, tabId: tab.id, kind: tab.kind, title }
-  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data })
+  const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: workspaceTabDragId(tab.id), data, disabled: touch })
+  const closable = !collapsed && onClose != null
 
   return (
     <div
       ref={(el) => { setNodeRef(el); setRef(el) }}
-      {...attributes}
-      {...listeners}
+      {...(touch ? undefined : attributes)}
+      {...(touch ? undefined : listeners)}
       role="tab"
       id={`ws-tab-${tab.id}`}
       aria-selected={active}
@@ -41,13 +44,14 @@ function Tab({ tab, active, collapsed, count, onActivate, onClose, onOpenMenu, o
         styles.tab,
         active ? styles.active : '',
         collapsed ? styles.flat : '',
+        touch ? styles.touch : '',
         isDragging ? styles.dragSource : '',
       ].join(' ')}
       title={title}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
-        onOpenMenu({ x: e.clientX, y: e.clientY })
+        onOpenMenu?.({ x: e.clientX, y: e.clientY })
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate() }
@@ -55,18 +59,18 @@ function Tab({ tab, active, collapsed, count, onActivate, onClose, onOpenMenu, o
         else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); onFocusSibling(-1) }
         else if (e.key === 'Home') { e.preventDefault(); onFocusSibling('first') }
         else if (e.key === 'End') { e.preventDefault(); onFocusSibling('last') }
-        else if (e.key === 'Delete') { e.preventDefault(); onClose() }
+        else if (e.key === 'Delete' && closable) { e.preventDefault(); onClose?.() }
         else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
           e.preventDefault()
           const r = e.currentTarget.getBoundingClientRect()
-          onOpenMenu({ x: r.left, y: r.bottom + 4 })
+          onOpenMenu?.({ x: r.left, y: r.bottom + 4 })
         }
       }}
     >
       <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
       <span className={styles.title}>{title}</span>
       {count != null && <span className={styles.count}>{count}</span>}
-      {!collapsed && (
+      {closable && (
         <button
           type="button"
           className={styles.close}
@@ -74,7 +78,7 @@ function Tab({ tab, active, collapsed, count, onActivate, onClose, onOpenMenu, o
           title="Close tab"
           tabIndex={-1}
           onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); onClose() }}
+          onClick={(e) => { e.stopPropagation(); onClose?.() }}
         >
           <CloseIcon />
         </button>
@@ -100,10 +104,15 @@ interface CellTabStripProps {
   activeCount?: number
   /** While a tab is dragged over this cell's middle zone: the ghost tab. */
   ghost?: { kind: WidgetKind; title: string } | null
+  /**
+   * Touch layout (mobile): taller tabs that only switch — not draggable; the
+   * close ×, add `+` and tab menu appear only when their handlers are given.
+   */
+  touch?: boolean
   onActivate: (tabId: string) => void
-  onClose: (tabId: string) => void
-  onOpenTabMenu: (tabId: string, point: { x: number; y: number }) => void
-  onAddTab: (anchor: RefObject<HTMLButtonElement | null>) => void
+  onClose?: (tabId: string) => void
+  onOpenTabMenu?: (tabId: string, point: { x: number; y: number }) => void
+  onAddTab?: (anchor: RefObject<HTMLButtonElement | null>) => void
 }
 
 /**
@@ -116,6 +125,7 @@ export function CellTabStrip({
   collapsed,
   activeCount,
   ghost,
+  touch = false,
   onActivate,
   onClose,
   onOpenTabMenu,
@@ -184,10 +194,11 @@ export function CellTabStrip({
             tab={tab}
             active={tab.id === active?.id}
             collapsed={collapsed}
+            touch={touch}
             count={tab.id === active?.id && tab.kind === 'lens' ? activeCount : undefined}
             onActivate={() => onActivate(tab.id)}
-            onClose={() => onClose(tab.id)}
-            onOpenMenu={(p) => onOpenTabMenu(tab.id, p)}
+            onClose={onClose ? () => onClose(tab.id) : undefined}
+            onOpenMenu={onOpenTabMenu ? (p) => onOpenTabMenu(tab.id, p) : undefined}
             onFocusSibling={(d) => focusSibling(tab.id, d)}
             setRef={(el) => {
               if (el) tabEls.current.set(tab.id, el)
@@ -212,7 +223,7 @@ export function CellTabStrip({
           <ChevronDownIcon />
         </button>
       )}
-      {!collapsed && (
+      {!collapsed && onAddTab && (
         <button
           ref={addRef}
           type="button"

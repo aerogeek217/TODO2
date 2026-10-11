@@ -12,6 +12,7 @@ import styles from './FilterSheet.module.css'
 
 export function FilterSheet() {
   const isOpen = useUIStore((s) => s.isFilterSheetOpen)
+  const focusSearch = useUIStore((s) => s.filterSheetFocusSearch)
   const closeSheet = useCallback(() => useUIStore.getState().setFilterSheetOpen(false), [])
   const filters = useFilterStore((s) => s.filters)
   const setSearchText = useFilterStore((s) => s.setSearchText)
@@ -57,6 +58,8 @@ export function FilterSheet() {
               className={styles.searchInput}
               type="text"
               placeholder="Search tasks..."
+              aria-label="Search tasks"
+              autoFocus={focusSearch}
               value={filters.searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />

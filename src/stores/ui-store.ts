@@ -75,6 +75,8 @@ interface UIState {
   pendingCanvasTarget: { x: number; y: number } | null
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
+  /** The filter sheet was opened from a search button: focus its search box. */
+  filterSheetFocusSearch: boolean
   /** Project navigator panel open state */
   isProjectNavigatorOpen: boolean
   /** Taskboard panel open state */
@@ -167,6 +169,8 @@ interface UIState {
   setPendingCanvasTarget: (target: { x: number; y: number } | null) => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
+  /** Opens the mobile filter sheet with its search box focused. */
+  openFilterSheetSearch: () => void
   toggleProjectNavigator: () => void
   toggleTaskboard: () => void
   setFloatDrag: (next: FloatDragState | null) => void
@@ -200,6 +204,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   filteredListPopup: null,
   pendingCanvasTarget: null,
   isFilterSheetOpen: false,
+  filterSheetFocusSearch: false,
   isProjectNavigatorOpen: false,
   isTaskboardOpen: localStorage.getItem('taskboardOpen') !== 'false',
   listsEditorOpen: false,
@@ -330,11 +335,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   toggleFilterSheet() {
-    set({ isFilterSheetOpen: !get().isFilterSheetOpen })
+    set({ isFilterSheetOpen: !get().isFilterSheetOpen, filterSheetFocusSearch: false })
   },
 
   setFilterSheetOpen(open: boolean) {
-    set({ isFilterSheetOpen: open })
+    set({ isFilterSheetOpen: open, filterSheetFocusSearch: false })
+  },
+
+  openFilterSheetSearch() {
+    set({ isFilterSheetOpen: true, filterSheetFocusSearch: true })
   },
 
   toggleProjectNavigator() {

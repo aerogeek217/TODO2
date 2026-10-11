@@ -421,21 +421,21 @@ function AppShell() {
         <div className={styles.content}>
         <Suspense fallback={null}>
           <Routes>
-            <Route path={ROUTE_CANVAS} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : (
+            <Route path={ROUTE_CANVAS} element={isMobile ? <Navigate to={ROUTE_WORKSPACE} replace /> : (
               <ErrorBoundary scope="Canvas">
                 <CanvasPage />
               </ErrorBoundary>
             )} />
-            <Route path={ROUTE_WORKSPACE} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : (
+            <Route path={ROUTE_WORKSPACE} element={
               <ErrorBoundary scope="Workspace">
                 <WorkspacePage />
               </ErrorBoundary>
-            )} />
+            } />
             <Route path="/dashboard" element={<Navigate to={ROUTE_CANVAS} replace />} />
             <Route path={ROUTE_LIST} element={<ListView />} />
-            <Route path={ROUTE_CALENDAR} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : <CalendarView />} />
+            <Route path={ROUTE_CALENDAR} element={isMobile ? <Navigate to={ROUTE_WORKSPACE} replace /> : <CalendarView />} />
             <Route path={ROUTE_SETTINGS} element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to={isMobile ? ROUTE_LIST : ROUTE_CANVAS} replace />} />
+            <Route path="*" element={<Navigate to={isMobile ? ROUTE_WORKSPACE : ROUTE_CANVAS} replace />} />
           </Routes>
         </Suspense>
         </div>
