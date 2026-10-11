@@ -30,6 +30,7 @@ async function archiveFromSourceDb(): Promise<{ json: string; sourceTodoId: numb
   const id = await todoRepository.insert({
     title: 'Ship release', notes: 'notes', isCompleted: true, completedAt: daysAgo(60),
     createdAt: daysAgo(90), modifiedAt: daysAgo(60), sortOrder: 1, canvasId, projectId, statusId, dueDate: daysAgo(70),
+    focus: true,
   })
   await db.todoPeople.add({ todoId: id, personId })
   await db.todoTags.add({ todoId: id, tagId })
@@ -115,7 +116,7 @@ describe('appendImportTasks — archive from another database', () => {
     const row = await db.todos.get(newId!)
     expect(row).toMatchObject({
       title: 'Ship release', notes: 'notes', uid: sourceUid, isCompleted: true,
-      canvasId, projectId: work, statusId: waiting,
+      canvasId, projectId: work, statusId: waiting, focus: true,
     })
     expect(row?.completedAt).toBeInstanceOf(Date)
     expect(row?.dueDate).toBeInstanceOf(Date)

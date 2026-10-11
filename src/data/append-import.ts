@@ -208,6 +208,7 @@ export async function appendImportTasks(
       if (t.lastFollowupAt != null) row.lastFollowupAt = t.lastFollowupAt
       if (t.nextFollowupAt != null) row.nextFollowupAt = t.nextFollowupAt
       if (t.recurrenceRule != null) row.recurrenceRule = t.recurrenceRule
+      if (t.focus === true) row.focus = true
       const statusId = await resolveStatus(t.statusId)
       if (statusId != null) row.statusId = statusId
       if (opts.canvasId != null) {
