@@ -69,6 +69,7 @@ export function TagChipSelector({
             className={styles.tagMore}
             onClick={toggleOpen}
             title={assignedTags.slice(1).map((t) => `#${t.name}`).join(' ')}
+            aria-label={`${assignedTags.length - 1} more ${assignedTags.length === 2 ? 'tag' : 'tags'}`}
           >
             +{assignedTags.length - 1}
           </button>

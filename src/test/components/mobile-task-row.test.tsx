@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
 import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
+import { useTagStore } from '../../stores/tag-store'
 import { makeTodo, makePerson } from '../helpers'
 
 const mockToggleComplete = vi.fn()
@@ -36,6 +37,8 @@ describe('MobileTaskRow', () => {
     vi.useFakeTimers()
     vi.setSystemTime(TODAY)
     vi.clearAllMocks()
+    // Some tests seed tag assignments for todo 1; no test may inherit them.
+    useTagStore.setState(useTagStore.getInitialState(), true)
   })
 
   afterEach(() => {
@@ -182,8 +185,7 @@ describe('MobileTaskRow', () => {
   // it's renderable even with no other metadata.
 
   describe('inline tag chip', () => {
-    it('renders #name chips for each assigned tag', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
+    it('renders #name chips for each assigned tag', () => {
       useTagStore.setState({
         tags: [
           { id: 1, name: 'alpha', color: '#111' },
@@ -203,8 +205,7 @@ describe('MobileTaskRow', () => {
       expect(screen.getByText('#beta')).toBeInTheDocument()
     })
 
-    it('renders the empty-state # trigger when no metadata is set', async () => {
-      const { useTagStore } = await import('../../stores/tag-store')
+    it('renders the empty-state # trigger when no metadata is set', () => {
       useTagStore.setState({
         tags: [{ id: 1, name: 'alpha', color: '#111' }],
         assignedTagsMap: new Map(),

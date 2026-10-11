@@ -28,7 +28,8 @@ function getRow(): HTMLElement {
 }
 
 function resetStores() {
-  resetEntityStores({ todos: false, tags: false })
+  // Tags too: several tests seed tag assignments for todo 1.
+  resetEntityStores({ todos: false })
   useTaskboardStore.setState({ board: null })
   useUIStore.setState({ hoveredTodoId: null })
 }

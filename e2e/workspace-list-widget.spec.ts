@@ -230,8 +230,8 @@ test('narrow widgets: a follow-up pill gives way to a due pill, the summary hide
   await expect(wide.locator('button[title="List options"]')).toBeVisible()
   await expect(narrow.locator('button[title="List options"]')).toBeHidden()
   // Extra tags collapse into +N; the title keeps a readable width.
-  await expect(narrow.getByRole('button', { name: '+1', exact: true })).toBeVisible()
-  await expect(wide.getByRole('button', { name: '+1', exact: true })).toBeHidden()
+  await expect(narrow.getByRole('button', { name: '1 more tag', exact: true })).toBeVisible()
+  await expect(wide.getByRole('button', { name: '1 more tag', exact: true })).toBeHidden()
   await expect(wide.getByRole('button', { name: '#work', exact: true })).toBeVisible()
   const title = narrow.locator('[data-todo-id] [title^="A fairly long"]')
   expect((await title.boundingBox())!.width).toBeGreaterThan(60)
