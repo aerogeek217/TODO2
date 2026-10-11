@@ -144,7 +144,6 @@ describe('export → restore round-trip', () => {
       sort: 'manual',
       grouping: 'none',
       pinnedToDashboard: true,
-      favorited: false,
     } as any)
     await db.notes.add({ content: 'hello', createdAt: now, modifiedAt: now } as any)
     await db.listInsets.add({ canvasId, listDefinitionId: 1, x: 0, y: 0, width: 200, height: 200, isCollapsed: false } as any)

@@ -119,7 +119,6 @@
   --color-header-bg: #1f2120;
 
   /* Favorite/star marker — single value across themes for v1. */
-  --color-favorite: #e6c34d;
 
   /* Accent */
   --color-accent: #7ec4bc;
@@ -251,7 +250,6 @@
   --color-header-bg: #f7fbfa;
 
   /* Favorite/star marker — single value across themes for v1. */
-  --color-favorite: #e6c34d;
 
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;

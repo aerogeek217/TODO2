@@ -16,7 +16,7 @@ describe('layouts row validation', () => {
     const columns = [
       { id: 'c1', weight: 1, cells: [
         { id: 'k1', weight: 1, activeTabId: 't2', collapsed: true, tabs: [
-          { id: 't1', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { runtimeFilterValue: [1, 0] } },
+          { id: 't1', kind: 'lens', config: { listDefinitionId: 3 } },
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
           { id: 't3', kind: 'notes', config: {} },
           { id: 't4', kind: 'taskboard', config: {} },
@@ -40,7 +40,6 @@ describe('layouts row validation', () => {
     ['calendar with no date type', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: false, followup: false } } })), 'columns[0].cells[0].tabs[0].config.dateTypes'],
     ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].cells[0].tabs[0].viewState.view'],
     ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
-    ['bad runtime picks', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { runtimeFilterValue: ['a'] } })), 'columns[0].cells[0].tabs[0].viewState.runtimeFilterValue'],
     ['bad collapsed', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { collapsed: 'yes' })), 'columns[0].cells[0].collapsed'],
     ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
   ])('rejects %s', (_label, row, field) => {
@@ -53,6 +52,8 @@ describe('layouts row validation', () => {
         id: 'k', weight: 1, activeTabId: 'gone', collapsed: false, junk: true,
         tabs: [
           { id: 't1', kind: 'notes', config: { stray: 1 }, viewState: { stray: 2 } },
+          // A list tab saves no prompt picks.
+          { id: 't3', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { runtimeFilterValue: [1] } },
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, x: 1 } }, viewState: { offset: 500 } },
         ],
       }],
@@ -63,6 +64,7 @@ describe('layouts row validation', () => {
       id: 1, name: 'Daily', createdAt: new Date(DATE), modifiedAt: new Date(DATE),
       columns: [{ id: 'c', weight: 2, cells: [{ id: 'k', weight: 1, tabs: [
         { id: 't1', kind: 'notes', config: {} },
+        { id: 't3', kind: 'lens', config: { listDefinitionId: 4 } },
         { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
       ] }] }],
     }])

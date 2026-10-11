@@ -1,6 +1,7 @@
 import type { PersistedTodoItem } from '../../models'
 import { clampCalendarOffset, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { useListWidgetStore } from '../../stores/list-widget-store'
 import { LensSlotContent } from '../canvas/rails/LensSlotContent'
 import { CalendarSlotContent } from '../canvas/rails/CalendarSlotContent'
 import { NotesSlotContent } from '../canvas/rails/NotesSlotContent'
@@ -16,6 +17,8 @@ interface WidgetBodyProps {
 /** The body of a cell's active tab, by widget kind. */
 export function WidgetBody({ tab, onLensResult }: WidgetBodyProps) {
   const patchTabViewState = useWorkspaceStore((s) => s.patchTabViewState)
+  const picks = useListWidgetStore((s) => s.picks[tab.id])
+  const setPicks = useListWidgetStore((s) => s.setPicks)
 
   switch (tab.kind) {
     case 'lens':
@@ -23,8 +26,8 @@ export function WidgetBody({ tab, onLensResult }: WidgetBodyProps) {
         <LensSlotContent
           listDefinitionId={tab.config.listDefinitionId}
           onTitleChange={(_name, count, todos) => onLensResult?.(count, todos)}
-          runtimeFilterValue={tab.viewState?.runtimeFilterValue}
-          onRuntimeFilterChange={(v) => { void patchTabViewState(tab.id, 'lens', { runtimeFilterValue: v }) }}
+          runtimeFilterValue={picks}
+          onRuntimeFilterChange={(v) => setPicks(tab.id, v ?? [])}
         />
       )
     case 'calendar':

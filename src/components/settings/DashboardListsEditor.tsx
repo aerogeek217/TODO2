@@ -36,12 +36,10 @@ interface Props {
 function SortableRow({
   def,
   onEdit,
-  onToggleFavorite,
   onDelete,
 }: {
   def: PersistedListDefinition
   onEdit: (id: number) => void
-  onToggleFavorite: (id: number, next: boolean) => void
   onDelete: (id: number) => void
 }) {
   const { attributes, listeners, setNodeRef, style, isDragging } = useSortableRow(def.id)
@@ -57,17 +55,6 @@ function SortableRow({
       >
         ⚙
       </button>
-      <label
-        className={local.pinToggle}
-        title={def.favorited ? 'Shown in ListView Favorites' : 'Not in ListView Favorites'}
-      >
-        <input
-          type="checkbox"
-          checked={def.favorited}
-          onChange={(e) => onToggleFavorite(def.id, e.target.checked)}
-        />
-        Favorite
-      </label>
       <div className={styles.actions}>
         <button
           className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
@@ -80,7 +67,7 @@ function SortableRow({
 }
 
 export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
-  const { listDefinitions, load, add, update, setFavorited, remove, reorder } = useListDefinitionStore()
+  const { listDefinitions, load, add, update, remove, reorder } = useListDefinitionStore()
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -159,11 +146,6 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
     setEditingListId(null)
   }, [draft, dirty, update])
 
-  const handleToggleEditorFavorite = useCallback(() => {
-    if (!editingList) return
-    void setFavorited(editingList.id, !editingList.favorited)
-  }, [editingList, setFavorited])
-
   const startAdd = () => {
     setAdding(true)
     setDeleteId(null)
@@ -217,7 +199,6 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
                   key={d.id}
                   def={d}
                   onEdit={handleEdit}
-                  onToggleFavorite={(id, next) => { void setFavorited(id, next) }}
                   onDelete={(id) => { setDeleteId(id); setAdding(false) }}
                 />
               ))}
@@ -266,10 +247,9 @@ export function DashboardListsEditor({ onClose, initialSelectedId }: Props) {
       })()}
       <ListEditorDialog
         open={!!editingList && !!draft}
-        list={editingList ? { id: editingList.id, name: editingList.name, favorited: editingList.favorited } : null}
+        list={editingList ? { id: editingList.id, name: editingList.name } : null}
         onClose={handleEditorClose}
         onSave={handleEditorSave}
-        onToggleFavorite={handleToggleEditorFavorite}
       >
         {draft && <ListEditorBody draft={draft} onChange={setDraft} />}
       </ListEditorDialog>

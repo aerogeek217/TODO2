@@ -136,12 +136,17 @@ function currentStoreSpecs(): Record<string, string> {
 }
 
 /**
- * Store specs of the v55 schema: the current ones minus the `layouts` store
- * v56 added. Update when a later version changes a store spec (add back what
- * it drops / alters, remove what it adds).
+ * Store specs of the v56 schema — v57 changed no store spec. Update when a
+ * later version changes a store spec (add back what it drops / alters,
+ * remove what it adds).
  */
+export function v56StoreSpecs(): Record<string, string> {
+  return currentStoreSpecs()
+}
+
+/** Store specs of the v55 schema: v56's minus the `layouts` store v56 added. */
 export function v55StoreSpecs(): Record<string, string> {
-  const specs = currentStoreSpecs()
+  const specs = v56StoreSpecs()
   delete specs.layouts
   return specs
 }

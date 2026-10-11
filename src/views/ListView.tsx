@@ -30,7 +30,7 @@ import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { copyTasksRich, type CopyTaskSection } from '../services/task-copy'
 import { buildListSections, truncateSections } from '../services/list-sections'
-import { FavoriteChip, ListDefinitionSelector, NewListPrompt } from '../components/list-view/SavedListsControls'
+import { ListDefinitionSelector, NewListPrompt } from '../components/list-view/SavedListsControls'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { createPortal } from 'react-dom'
 import type { PersistedTodoItem, PersistedListDefinition, ListGroupBy, ListItemSortBy } from '../models'
@@ -274,12 +274,7 @@ export function ListView() {
     openEditPopup(todoId)
   }, [openEditPopup])
 
-  // --- Lists: Save / Load / Favorites (unified Phase 3 flow) ---
-
-  const favoritedDefs = useMemo(
-    () => allListDefinitions.filter((d) => d.favorited).sort(bySortOrder),
-    [allListDefinitions],
-  )
+  // --- Lists: Save / Load ---
 
   const allDefsSorted = useMemo(
     () => [...allListDefinitions].sort(bySortOrder),
@@ -372,7 +367,6 @@ export function ListView() {
         sort,
         grouping,
         pinnedToDashboard: false,
-        favorited: true,
         ...(maxTasks != null ? { maxTasks, limitMode } : {}),
         ...(runtimeFilterSpec ? { runtimeFilter: runtimeFilterSpec } : {}),
       })
@@ -495,19 +489,6 @@ export function ListView() {
             <div className={styles.pageTitle}>List</div>
             <div className={styles.pageSubtitle}>{totalActive} active tasks</div>
           </div>
-
-          {favoritedDefs.length > 0 && (
-            <div className={styles.savedViewsBar}>
-              {favoritedDefs.map((def) => (
-                <FavoriteChip
-                  key={def.id}
-                  def={def}
-                  isActive={activeLoadedDefId === def.id}
-                  onApply={applyAndMarkLoaded}
-                />
-              ))}
-            </div>
-          )}
 
           <div className={styles.toolbar}>
             <div className={styles.toolbarControls}>

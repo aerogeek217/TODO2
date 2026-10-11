@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedCanvas } from './fixtures/seed'
+import { loadSavedList, seedCanvas } from './fixtures/seed'
 
 /**
  * Locks in the visible-groups intersection rule for `groupBy === 'people'`
@@ -22,7 +22,7 @@ const DB = 'todo2'
 interface PostSeedOptions {
   tasks?: Array<{ title: string; people?: string[] }>
   /**
-   * Names of people whose ids the favorited list def's predicate should carry
+   * Names of people whose ids the list def's predicate should carry
    * as `personIds`. Resolved to ids inside the seed transaction so the caller
    * doesn't have to round-trip.
    */
@@ -32,11 +32,11 @@ interface PostSeedOptions {
 
 /**
  * Resolves people by name to their IDB ids, writes tasks + their person join
- * rows, and creates a favorited list def whose predicate carries the resolved
+ * rows, and creates a list def whose predicate carries the resolved
  * `personIds` and `grouping: 'people'`. Run after `seedCanvas` and before
  * `page.reload()` so a single reload picks up everything.
  *
- * Clicking the favorited chip on `/list` triggers `applyDefinition`, which
+ * Loading it on `/list` triggers `applyDefinition`, which
  * calls `setAllFilters(predicateToCriteria(def.membership.predicate))` AND
  * `setListGroupBy('people')` — fully driving the surface under test in one
  * gesture, no manual filter-chip wiring required.
@@ -88,7 +88,6 @@ async function seedAssignmentsAndListDef(page: Page, opts: PostSeedOptions): Pro
           writeTx.objectStore('listDefinitions').add({
             name: seed.filterDefName,
             sortOrder: 1,
-            favorited: true,
             pinnedToDashboard: false,
             grouping: 'people',
             sort: 'manual',
@@ -142,9 +141,9 @@ test.describe('ListView — visible-groups intersection', () => {
     await page.reload()
     await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
     await page.goto('/#/list')
-    // Click the favorited list def chip — `applyDefinition` flips both the
-    // filter (people=[Alice, Bob]) AND `listGroupBy='people'`.
-    await page.getByRole('button', { name: 'People grouping' }).click()
+    // Loading the list — `applyDefinition` flips both the filter
+    // (people=[Alice, Bob]) AND `listGroupBy='people'`.
+    await loadSavedList(page, 'People grouping')
 
     // SectionHeader renders `<span class="<hashed>label">{name}</span>`. Names
     // appear nowhere else as plain text on this surface (people pills inside

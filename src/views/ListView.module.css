@@ -32,67 +32,6 @@
   flex: 1;
 }
 
-/* Saved views bar */
-.savedViewsBar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.savedViewChip {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  transition: all 0.15s ease;
-  cursor: grab;
-}
-
-.savedViewChip:active {
-  cursor: grabbing;
-}
-
-.savedViewChip:hover {
-  border-color: var(--color-text-muted);
-}
-
-.savedViewChipActive {
-  border-color: var(--color-accent);
-  background: var(--color-accent-bg-light);
-}
-
-.savedViewName {
-  background: none;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
-  padding: 4px 6px 4px 10px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.savedViewName:hover {
-  color: var(--color-text-primary);
-}
-
-.savedViewChipActive .savedViewName {
-  color: var(--color-accent);
-}
-
-.savedViewRenameInput {
-  background: var(--color-surface);
-  border: none;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-meta);
-  padding: 4px 6px;
-  width: 100px;
-  outline: none;
-}
-
 /* Group / Sort toolbar */
 .toolbar {
   display: flex;
@@ -567,17 +506,6 @@
     display: none;
   }
 
-  .savedViewsBar {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    flex-wrap: nowrap;
-  }
-
-  .savedViewsBar::-webkit-scrollbar {
-    display: none;
-  }
-
   .taskList {
     padding-left: 8px;
   }
@@ -598,9 +526,5 @@
     color: var(--color-text-secondary);
     border-color: var(--color-border);
     background: none;
-  }
-
-  .savedViewName:hover {
-    color: var(--color-text-secondary);
   }
 }

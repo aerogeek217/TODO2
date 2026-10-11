@@ -109,11 +109,11 @@ function buildSeed(): Seed {
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true } },
-      sort: 'followup', grouping: 'followup', pinnedToDashboard: false, favorited: false,
+      sort: 'followup', grouping: 'followup', pinnedToDashboard: false,
     }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
-      sort: 'deadline', grouping: 'people', pinnedToDashboard: false, favorited: true,
+      sort: 'deadline', grouping: 'people', pinnedToDashboard: false,
       maxTasks: 25, limitMode: 'scroll', runtimeFilter: { field: 'person', label: 'Who' },
     }],
     notes: [{ id: 1, content: '# Inbox\n\n- remember', createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-15T08:00:00.000Z') }],
@@ -135,7 +135,7 @@ function buildSeed(): Seed {
             id: 'c1', weight: 1.5, cells: [
               {
                 id: 'k1', weight: 2, activeTabId: 't2', tabs: [
-                  { id: 't1', kind: 'lens', config: { listDefinitionId: 1 }, viewState: { runtimeFilterValue: [1, 0] } },
+                  { id: 't1', kind: 'lens', config: { listDefinitionId: 1 } },
                   { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'month', offset: -2 } },
                 ],
               },
@@ -220,7 +220,7 @@ describe('export → JSON → import round-trip', () => {
     expect(cells.some((c) => c.collapsed === true)).toBe(true)
     expect(cells.some((c) => c.tabs.length === 0)).toBe(true)
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(['lens', 'calendar', 'notes', 'taskboard', 'status']))
-    expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined && t.viewState?.runtimeFilterValue !== undefined)).toBe(true)
+    expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
   })
 

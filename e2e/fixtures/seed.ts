@@ -58,7 +58,6 @@ export interface ListDefinitionSeed {
   sort?: { kind: string } & Record<string, unknown> | string
   grouping?: { kind: string } & Record<string, unknown> | string
   pinnedToDashboard?: boolean
-  favorited?: boolean
   /** When set, the list def renders a `RuntimeFilterPicker` that narrows on
    *  the chosen field at render time. */
   runtimeFilter?: { field: 'person' | 'project' | 'status' | 'tag'; label?: string }
@@ -208,6 +207,12 @@ export async function seedCanvasWithProjects(
 }
 
 /** Locator for a project node by visible project name. */
+/** On `/list`: loads a saved list through the toolbar's Load dialog. */
+export async function loadSavedList(page: Page, name: string): Promise<void> {
+  await page.getByTitle('Load a saved list').click()
+  await page.locator('button[class*="selectorName"]', { hasText: name }).click()
+}
+
 export function projectNode(page: Page, name: string): Locator {
   return page.locator('.react-flow__node-project').filter({ hasText: name })
 }
@@ -341,7 +346,6 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
             sort: def.sort ?? 'deadline',
             grouping: def.grouping ?? 'none',
             pinnedToDashboard: def.pinnedToDashboard ?? false,
-            favorited: def.favorited ?? false,
           }
           if (def.runtimeFilter) row.runtimeFilter = def.runtimeFilter
           const r = tx.objectStore('listDefinitions').add(row)

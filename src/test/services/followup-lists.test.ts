@@ -64,7 +64,7 @@ describe('filter: hasFollowup + dateField followup', () => {
 
   it('list-definition equality sees hasFollowup (absent == null)', () => {
     const base: PersistedListDefinition = {
-      id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: false, favorited: false,
+      id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: false,
       membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'followup', grouping: 'followup',
     }
     const withNull: PersistedListDefinition = { ...base, membership: { kind: 'custom', predicate: { ...emptyPredicate(), hasFollowup: null } } }
@@ -100,7 +100,7 @@ describe('sort + group by next follow-up', () => {
   it('list widgets use the same vocabulary and sort', () => {
     const ctx: DashboardListsContext = { today, weekStartsOn: 1, evalPredicate: () => true }
     const def: PersistedListDefinition = {
-      id: 9, name: 'Follow-ups', sortOrder: 0, pinnedToDashboard: false, favorited: false,
+      id: 9, name: 'Follow-ups', sortOrder: 0, pinnedToDashboard: false,
       membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'followup', grouping: 'followup',
     }
     const [list] = buildDashboardLists([def], all, ctx)

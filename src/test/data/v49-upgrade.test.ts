@@ -107,8 +107,10 @@ describe('v49 fixture → prepareImport → restore', () => {
 
     const defs = await db.listDefinitions.orderBy('sortOrder').toArray()
     expect(defs.map((d) => d.name)).toEqual(['This week', 'Someday', 'By person', 'Acme next 30 days'])
+    // v57 drops the favorites flag.
+    expect(defs.every((d) => !('favorited' in d))).toBe(true)
     expect(defs[2]).toMatchObject({
-      favorited: true, pinnedToDashboard: false, maxTasks: 25, limitMode: 'scroll',
+      pinnedToDashboard: false, maxTasks: 25, limitMode: 'scroll',
       runtimeFilter: { field: 'person', label: 'Who' }, sort: 'deadline', grouping: 'people',
     })
     expect(defs[3]!.membership.predicate.dateRangeEnd).toEqual({ kind: 'offset', days: 30 })
@@ -459,9 +461,9 @@ describe('v49 fixture → v55: orgs become Org: people', () => {
   })
 })
 
-// ── v56: workspace layouts ────────────────────────────────────────────────
+// ── v56: workspace layouts (v57: list tabs save no prompt picks) ─────────
 
-describe('v49 fixture → v56: rails + floating widgets become the Default layout', () => {
+describe('v49 fixture → v57: rails + floating widgets become the Default layout', () => {
   const canvasCreatedAt = new Date('2026-09-01T09:00:00.000Z')
 
   it('seeds one active Default layout: left rail, bottom rail, right rail, then every float', async () => {
@@ -479,7 +481,7 @@ describe('v49 fixture → v56: rails + floating widgets become the Default layou
           id: 'col-1', weight: 1, cells: [
             {
               id: 's-lens', weight: 2, activeTabId: 't-lens', tabs: [
-                { id: 't-lens', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { runtimeFilterValue: [1] } },
+                { id: 't-lens', kind: 'lens', config: { listDefinitionId: 3 } },
                 { id: 't-notes', kind: 'notes', config: {} },
               ],
             },
@@ -512,7 +514,7 @@ describe('v49 fixture → v56: rails + floating widgets become the Default layou
             { id: 'cell-floatingStatus-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingStatus-1', tabs: [{ id: 'tab-floatingStatus-1', kind: 'status', config: {} }] },
             {
               id: 'cell-listInsets-1', weight: 1, activeTabId: 'tab-listInsets-1', tabs: [
-                { id: 'tab-listInsets-1', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { runtimeFilterValue: [1, 2] } },
+                { id: 'tab-listInsets-1', kind: 'lens', config: { listDefinitionId: 3 } },
               ],
             },
             {

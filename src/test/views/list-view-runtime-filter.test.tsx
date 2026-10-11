@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, fireEvent, act } from '@testing-library/react'
+import { render, cleanup, fireEvent, act, screen } from '@testing-library/react'
 import { ListView } from '../../views/ListView'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
@@ -92,12 +92,20 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     name: `List ${overrides.id}`,
     sortOrder: overrides.id,
     pinnedToDashboard: false,
-    favorited: true,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
     grouping: 'none',
     ...overrides,
   }
+}
+
+/** Loads a saved list through the toolbar's Load dialog. */
+function loadList(name: string) {
+  fireEvent.click(screen.getByTitle('Load a saved list'))
+  const rows = Array.from(document.body.querySelectorAll('button[class*="selectorName"]')) as HTMLButtonElement[]
+  const row = rows.find((b) => b.textContent === name)
+  if (!row) throw new Error(`no saved list "${name}"`)
+  fireEvent.click(row)
 }
 
 describe('ListView — runtime-filter picker', () => {
@@ -127,8 +135,8 @@ describe('ListView — runtime-filter picker', () => {
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
-    const { getByText, getByLabelText } = render(<ListView />)
-    fireEvent.click(getByText('Tasks for…'))
+    const { getByLabelText } = render(<ListView />)
+    loadList('Tasks for…')
 
     const picker = getByLabelText(/Filter tasks by person/i) as HTMLInputElement
     // Focusing the input opens the option list; Alice should appear.
@@ -158,8 +166,8 @@ describe('ListView — runtime-filter picker', () => {
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
-    const { getByText, getByLabelText } = render(<ListView />)
-    fireEvent.click(getByText('Tasks for…'))
+    const { getByLabelText } = render(<ListView />)
+    loadList('Tasks for…')
 
     const picker = getByLabelText(/Filter tasks by project/i) as HTMLInputElement
     fireEvent.focus(picker)
@@ -195,8 +203,8 @@ describe('ListView — runtime-filter picker', () => {
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
-    const { getByText, getByLabelText } = render(<ListView />)
-    fireEvent.click(getByText('Tasks for…'))
+    const { getByLabelText } = render(<ListView />)
+    loadList('Tasks for…')
 
     const picker = getByLabelText(/Filter tasks by project/i) as HTMLInputElement
     fireEvent.focus(picker)
@@ -226,8 +234,8 @@ describe('ListView — runtime-filter picker', () => {
     })
     useListDefinitionStore.setState({ listDefinitions: [def] })
 
-    const { getByText, getByLabelText, queryByLabelText } = render(<ListView />)
-    fireEvent.click(getByText('Tasks for…'))
+    const { getByLabelText, queryByLabelText } = render(<ListView />)
+    loadList('Tasks for…')
     expect(queryByLabelText(/Filter tasks by person/i)).toBeTruthy()
 
     const promptSelect = getByLabelText(/Prompt field/i) as HTMLSelectElement
@@ -254,15 +262,14 @@ describe('ListView — runtime-filter picker', () => {
     } as Partial<ReturnType<typeof useListDefinitionStore.getState>> as never)
 
     const { getByText, getByLabelText } = render(<ListView />)
-    fireEvent.click(getByText('Tasks for…'))
+    loadList('Tasks for…')
 
     // Change the spec from 'person' → 'project'.
     const promptSelect = getByLabelText(/Prompt field/i) as HTMLSelectElement
     fireEvent.change(promptSelect, { target: { value: 'project' } })
 
     async function triggerSaveConfirm() {
-      // Open the save selector, pick the row in the selector (disambiguate
-      // from the favorite chip that also renders the def name by class-name).
+      // Open the save selector and pick the list's row.
       fireEvent.click(getByText('Save'))
       const rows = Array.from(document.body.querySelectorAll('button[class*="selectorName"]')) as HTMLButtonElement[]
       const row = rows.find((b) => b.textContent === 'Tasks for…')

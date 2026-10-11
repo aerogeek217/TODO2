@@ -45,11 +45,6 @@ export interface LensTabConfig {
   listDefinitionId?: number
 }
 
-export interface LensTabViewState {
-  /** Picks for the list's runtime prompt (`ListDefinition.runtimeFilter`). */
-  runtimeFilterValue?: number[]
-}
-
 export interface CalendarTabConfig {
   dateTypes: CalendarDateTypes
 }
@@ -71,7 +66,8 @@ interface TabOf<K extends WidgetKind, C, V> {
   viewState?: V
 }
 
-export type LensTab = TabOf<'lens', LensTabConfig, LensTabViewState>
+/** A list tab has no view state: its prompt picks are temporary (not saved). */
+export type LensTab = TabOf<'lens', LensTabConfig, NoTabSettings>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type TaskboardTab = TabOf<'taskboard', NoTabSettings, NoTabSettings>

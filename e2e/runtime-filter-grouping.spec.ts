@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedCanvas } from './fixtures/seed'
+import { loadSavedList, seedCanvas } from './fixtures/seed'
 
 /**
  * Locks in the runtime × groupBy cross-product on `/list`. Runtime ×
@@ -159,8 +159,8 @@ test.describe('Runtime filter × groupBy diagonal (/list)', () => {
     //   T2 = {Bob, Charlie}   → emits under Bob when Bob is picked.
     //   T3 = {Charlie}        → control; never appears under either pick
     //                            (Charlie is never the runtime pick).
-    // The favorited def carries grouping=people + runtimeFilter.field=person.
-    // Clicking the favorite chip drives applyDefinition, which sets BOTH
+    // The def carries grouping=people + runtimeFilter.field=person.
+    // Loading it drives applyDefinition, which sets BOTH
     // listGroupBy AND runtimeFilterSpec in one call — that's the load path
     // we exercise. The runtime pick restricts the visible person sections to
     // the pick, so T1's Charlie co-assignment does not emit a Charlie section.
@@ -168,7 +168,6 @@ test.describe('Runtime filter × groupBy diagonal (/list)', () => {
       people: [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Charlie' }],
       listDefinitions: [{
         name: 'Runtime person grouping',
-        favorited: true,
         membership: { kind: 'custom', predicate: emptyPredicate() },
         sort: 'manual',
         grouping: 'people',
@@ -186,7 +185,7 @@ test.describe('Runtime filter × groupBy diagonal (/list)', () => {
     await page.reload()
     await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
     await page.goto('/#/list')
-    await page.getByRole('button', { name: 'Runtime person grouping' }).click()
+    await loadSavedList(page, 'Runtime person grouping')
 
     // Picker mounts; pick Alice. `exact: true` is required because, between
     // picks, the runtime filter is briefly empty and every task surfaces —

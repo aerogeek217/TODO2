@@ -18,7 +18,6 @@ interface AddInput {
   sort?: ListSort
   grouping?: ListGrouping
   pinnedToDashboard?: boolean
-  favorited?: boolean
   maxTasks?: number
   limitMode?: 'hard' | 'scroll'
 }
@@ -34,7 +33,6 @@ interface ListDefinitionState {
   update: (def: PersistedListDefinition) => Promise<void>
   rename: (id: number, name: string) => Promise<void>
   setPinned: (id: number, pinned: boolean) => Promise<void>
-  setFavorited: (id: number, favorited: boolean) => Promise<void>
   remove: (id: number) => Promise<void>
   clone: (id: number) => Promise<number | undefined>
   reorder: (fromIndex: number, toIndex: number) => Promise<void>
@@ -75,7 +73,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
   ensureLoaded: () => defEnsure.ensureLoaded(),
 
-  async add({ name, membership, sort, grouping, pinnedToDashboard = true, favorited = false, maxTasks, limitMode }) {
+  async add({ name, membership, sort, grouping, pinnedToDashboard = true, maxTasks, limitMode }) {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name is required')
     const { listDefinitions } = get()
@@ -83,7 +81,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       name: trimmed,
       sortOrder: nextSortOrder(listDefinitions),
       pinnedToDashboard,
-      favorited,
       membership: membership ?? { kind: 'custom', predicate: emptyPredicate() },
       sort: sort ?? 'manual',
       grouping: grouping ?? 'none',
@@ -126,12 +123,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     await get().update({ ...def, pinnedToDashboard: pinned })
   },
 
-  async setFavorited(id, favorited) {
-    const def = get().listDefinitions.find(d => d.id === id)
-    if (!def || def.favorited === favorited) return
-    await get().update({ ...def, favorited })
-  },
-
   async remove(id) {
     const prev = get().listDefinitions
     const def = prev.find(d => d.id === id)
@@ -167,7 +158,6 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       sort: src.sort,
       grouping: src.grouping,
       pinnedToDashboard: src.pinnedToDashboard,
-      favorited: src.favorited,
       ...(src.maxTasks != null ? { maxTasks: src.maxTasks } : {}),
       ...(src.limitMode != null ? { limitMode: src.limitMode } : {}),
     })

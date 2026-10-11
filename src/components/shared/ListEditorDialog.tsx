@@ -5,7 +5,6 @@ import styles from './ListEditorDialog.module.css'
 export interface ListEditorDialogList {
   id: number
   name: string
-  favorited: boolean
 }
 
 export interface ListEditorDialogProps {
@@ -13,7 +12,6 @@ export interface ListEditorDialogProps {
   list: ListEditorDialogList | null
   onClose: () => void
   onSave: () => void
-  onToggleFavorite: () => void
   /** The form body — name field, filter chips, sort/group/prompt selects, etc. */
   children: ReactNode
 }
@@ -23,7 +21,6 @@ export function ListEditorDialog({
   list,
   onClose,
   onSave,
-  onToggleFavorite,
   children,
 }: ListEditorDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -68,16 +65,6 @@ export function ListEditorDialog({
 
           <button
             type="button"
-            className={styles.favBtn}
-            onClick={onToggleFavorite}
-            aria-pressed={list.favorited}
-          >
-            <FavIcon on={list.favorited} />
-            <span>{list.favorited ? 'In favorites' : 'Add to favorites'}</span>
-          </button>
-
-          <button
-            type="button"
             className={styles.closeBtn}
             onClick={onClose}
             aria-label="Close"
@@ -99,16 +86,5 @@ export function ListEditorDialog({
       </div>
     </>,
     document.body,
-  )
-}
-
-function FavIcon({ on }: { on: boolean }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`${styles.favIcon} ${on ? styles.favIconOn : ''}`}
-    >
-      {on ? '★' : ''}
-    </span>
   )
 }

@@ -12,7 +12,6 @@ function makeDef(overrides: Partial<PersistedListDefinition> = {}): PersistedLis
     sort: 'manual',
     grouping: 'none',
     pinnedToDashboard: false,
-    favorited: false,
     ...overrides,
   } as PersistedListDefinition
 }
@@ -33,12 +32,11 @@ describe('reconcileListDefDraft', () => {
     expect(reconcileListDefDraft(makeDef(), up)).toBe(up)
   })
 
-  it('keeps dirty edits but forwards favorited / pin / sortOrder', () => {
+  it('keeps dirty edits but forwards pin / sortOrder', () => {
     const draft = makeDef({ name: 'Edited' })
-    const up = makeDef({ favorited: true, pinnedToDashboard: true, sortOrder: 5 })
+    const up = makeDef({ pinnedToDashboard: true, sortOrder: 5 })
     expect(reconcileListDefDraft(draft, up)).toEqual({
       ...draft,
-      favorited: true,
       pinnedToDashboard: true,
       sortOrder: 5,
     })
@@ -58,10 +56,10 @@ describe('useListDefDraft', () => {
       initialProps: { up: v1 as PersistedListDefinition | null },
     })
     act(() => result.current[1]({ ...v1, name: 'Edited' }))
-    const v2 = makeDef({ favorited: true })
+    const v2 = makeDef({ sortOrder: 7 })
     rerender({ up: v2 })
     expect(result.current[0]?.name).toBe('Edited')
-    expect(result.current[0]?.favorited).toBe(true)
+    expect(result.current[0]?.sortOrder).toBe(7)
     rerender({ up: null })
     expect(result.current[0]).toBeNull()
   })

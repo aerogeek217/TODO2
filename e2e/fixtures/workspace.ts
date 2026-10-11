@@ -100,7 +100,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         sort: def.sort ?? 'manual',
         grouping: def.grouping ?? 'none',
         pinnedToDashboard: false,
-        favorited: false,
       }))
     }
     let taskOrder = 0

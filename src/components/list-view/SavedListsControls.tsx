@@ -2,33 +2,6 @@ import type { PersistedListDefinition } from '../../models'
 import styles from '../../views/ListView.module.css'
 
 /**
- * One favorited-list chip rendered in the Favorites bar above the toolbar.
- * Click loads the list; the active state is driven by the parent comparing
- * `def.id` against the last-loaded id.
- */
-export function FavoriteChip({
-  def,
-  isActive,
-  onApply,
-}: {
-  def: PersistedListDefinition
-  isActive: boolean
-  onApply: (def: PersistedListDefinition) => void
-}) {
-  return (
-    <div className={`${styles.savedViewChip} ${isActive ? styles.savedViewChipActive : ''}`}>
-      <button
-        className={styles.savedViewName}
-        onClick={() => onApply(def)}
-        title="Click to load this list"
-      >
-        {def.name}
-      </button>
-    </div>
-  )
-}
-
-/**
  * Anchor-less overlay listing every `ListDefinition`. Used for both Save (with
  * a leading "+ New" entry) and Load (list only). Each row has a `×` that
  * routes through `onDelete` with a confirmation. Click the row to pick it.
@@ -116,7 +89,7 @@ export function NewListPrompt({
       <div className={styles.dialog}>
         <div className={styles.dialogTitle}>New list</div>
         <div className={styles.dialogHint}>
-          Captures current filter + grouping as a reusable list and adds it to Favorites.
+          Captures current filter + grouping as a reusable list.
         </div>
         <input
           className={styles.dialogInput}

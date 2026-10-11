@@ -10,26 +10,10 @@
 
 /* Override of EntityEditor's `.modal { width: 520px }` for the lists
  * editor: rows still need horizontal room even after the inline editor
- * retired (the row's name + ⚙ + favorite + delete cluster). 90vw cap
+ * retired (the row's name + ⚙ + delete cluster). 90vw cap
  * (inherited) keeps narrow viewports behaving. */
 .modalWide {
   width: 760px;
-}
-
-.pinToggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.pinToggle input {
-  margin: 0;
-  cursor: pointer;
 }
 
 .hint {

@@ -23,7 +23,6 @@ export function StandaloneListEditor() {
     id == null ? null : s.listDefinitions.find((d) => d.id === id) ?? null,
   )
   const update = useListDefinitionStore((s) => s.update)
-  const setFavorited = useListDefinitionStore((s) => s.setFavorited)
 
 
   const [draft, setDraft] = useListDefDraft(editingList)
@@ -70,22 +69,12 @@ export function StandaloneListEditor() {
     closeDialog()
   }, [draft, dirty, update, closeDialog])
 
-  const handleToggleFavorite = useCallback(() => {
-    if (!editingList) return
-    void setFavorited(editingList.id, !editingList.favorited)
-  }, [editingList, setFavorited])
-
   return (
     <ListEditorDialog
       open={!!editingList && !!draft}
-      list={
-        editingList
-          ? { id: editingList.id, name: editingList.name, favorited: editingList.favorited }
-          : null
-      }
+      list={editingList ? { id: editingList.id, name: editingList.name } : null}
       onClose={handleClose}
       onSave={handleSave}
-      onToggleFavorite={handleToggleFavorite}
     >
       {draft && <ListEditorBody draft={draft} onChange={setDraft} />}
     </ListEditorDialog>

@@ -23,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 56
+export const CURRENT_DB_VERSION = 57
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -428,14 +428,20 @@ export class Todo2Database extends Dexie {
     // table; the transform (`upgrades/v56-seed-workspace-layout.ts`) seeds a
     // "Default" layout from the canvas rails + floating widgets and points
     // the `activeLayoutId` setting at it.
-    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
-    // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `56` first.
-    this.version(CURRENT_DB_VERSION)
+    this.version(56)
       .stores({
         layouts: '++id',
       })
-      .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, 56))
+
+    // v57: list favorites and saved prompt picks go. No index change; the
+    // transform (`upgrades/v57-drop-list-favorites.ts`) strips `favorited`
+    // from list definitions and `viewState.runtimeFilterValue` from
+    // workspace list tabs.
+    // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
+    // what enforces the single-source-of-truth invariant (see the constant's
+    // docblock above). When bumping, turn this into a literal `57` first.
+    this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }
 

@@ -6,7 +6,6 @@ import {
   type LayoutColumn,
   type LayoutTab,
   type LensTabConfig,
-  type LensTabViewState,
 } from '../models/workspace-layout'
 
 /**
@@ -20,7 +19,6 @@ export const MAX_LAYOUT_COLUMNS = 32
 export const MAX_COLUMN_CELLS = 32
 export const MAX_CELL_TABS = 32
 const MAX_ID_LEN = 100
-const MAX_RUNTIME_PICKS = 1000
 
 type Obj = Record<string, unknown>
 
@@ -48,12 +46,6 @@ function checkTabSettings(tab: Obj, path: string): true | string {
   switch (tab.kind) {
     case 'lens':
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
-      if (view?.runtimeFilterValue !== undefined) {
-        const picks = view.runtimeFilterValue
-        if (!Array.isArray(picks) || picks.length > MAX_RUNTIME_PICKS || !picks.every(isFiniteNum)) {
-          return `${path}.viewState.runtimeFilterValue`
-        }
-      }
       return true
     case 'calendar': {
       const types = config.dateTypes
@@ -121,12 +113,7 @@ function pickTab(raw: Obj): LayoutTab {
     case 'lens': {
       const lensConfig: LensTabConfig = {}
       if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
-      const tab: LayoutTab = { id, kind: 'lens', config: lensConfig }
-      if (Array.isArray(view?.runtimeFilterValue)) {
-        const viewState: LensTabViewState = { runtimeFilterValue: (view.runtimeFilterValue as number[]).slice() }
-        tab.viewState = viewState
-      }
-      return tab
+      return { id, kind: 'lens', config: lensConfig }
     }
     case 'calendar': {
       const types = config.dateTypes as Obj

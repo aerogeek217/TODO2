@@ -41,7 +41,6 @@ function emptyDef(): PersistedListDefinition {
     name: 'Empty',
     sortOrder: 0,
     pinnedToDashboard: false,
-    favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'deadline',
     grouping: 'none',

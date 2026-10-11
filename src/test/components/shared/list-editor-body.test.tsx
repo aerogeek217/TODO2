@@ -16,7 +16,6 @@ function makeDraft(overrides: Partial<PersistedListDefinition> = {}): PersistedL
     name: 'Test list',
     sortOrder: 0,
     pinnedToDashboard: true,
-    favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
     grouping: 'none',

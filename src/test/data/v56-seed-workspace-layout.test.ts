@@ -91,7 +91,9 @@ describe('upgradeV56 (pure)', () => {
     const out = upgradeV56(v55DataSet())
     const res = validateImportData({ ...out, canvases: out.canvases })
     if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns).toEqual(out.layouts![0]!.columns)
+    // The current model saves no prompt picks on list tabs (v57 drops them).
+    const withoutPicks = JSON.parse(JSON.stringify(out.layouts![0]!.columns).replace(',"viewState":{"runtimeFilterValue":[3]}', ''))
+    expect(res.data.layouts[0]!.columns).toEqual(withoutPicks)
   })
 
   it('no rails and no floats → an empty Default layout', () => {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { listInsetByIndex, seedCanvas } from './fixtures/seed'
+import { listInsetByIndex, loadSavedList, seedCanvas } from './fixtures/seed'
 
 /**
  * RuntimeFilterPicker coverage: encodes three regressions — portaled panel +
@@ -115,14 +115,13 @@ test.describe('RuntimeFilterPicker — viewport overflow', () => {
 
 test.describe('RuntimeFilterPicker — /list mount', () => {
   test('panel mounts and is visible when picker opens on /list', async ({ page }) => {
-    // Seed: a favorited list def with a runtime filter on person + a person.
-    // The favorites chip is the load path on /list; clicking it fires
-    // `applyDefinition`, which sets `runtimeFilterSpec` → picker renders.
+    // Seed: a list def with a runtime filter on person + a person. Loading it
+    // on /list fires `applyDefinition`, which sets `runtimeFilterSpec` →
+    // picker renders.
     await seedCanvas(page, {
       people: [{ name: 'Ada' }],
       listDefinitions: [{
         name: 'List view picker',
-        favorited: true,
         membership: { kind: 'custom', predicate: emptyPredicate() },
         runtimeFilter: { field: 'person' },
       }],
@@ -132,8 +131,7 @@ test.describe('RuntimeFilterPicker — /list mount', () => {
     // page.goto('/list') only changes the browser path and leaves the app
     // sitting on `#/` — switch the hash explicitly so ListView mounts.
     await page.goto('/#/list')
-    // Click the favorite chip to load the def.
-    await page.getByRole('button', { name: 'List view picker' }).click()
+    await loadSavedList(page, 'List view picker')
 
     const input = page.locator('input[aria-label="Filter tasks by person"]')
     await expect(input).toBeVisible()

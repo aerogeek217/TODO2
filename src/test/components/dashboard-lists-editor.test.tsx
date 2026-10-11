@@ -15,7 +15,6 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     name: `List ${overrides.id}`,
     sortOrder: overrides.id,
     pinnedToDashboard: true,
-    favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
     grouping: 'none',
@@ -283,19 +282,5 @@ describe('DashboardListsEditor — modal-on-modal contract', () => {
     expect(showSpy).toHaveBeenCalled()
     // Editor still mounted — confirm flow is gating the close.
     expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
-  })
-
-  it('header favorite toggle fires setFavorited immediately, no Save needed', () => {
-    const setFavoritedSpy = vi.fn(async () => {})
-    useListDefinitionStore.setState({ setFavorited: setFavoritedSpy } as never)
-
-    render(
-      <MemoryRouter>
-        <DashboardListsEditor onClose={() => {}} />
-      </MemoryRouter>,
-    )
-    fireEvent.click(screen.getByText('⚙'))
-    fireEvent.click(screen.getByText('Add to favorites'))
-    expect(setFavoritedSpy).toHaveBeenCalledWith(1, true)
   })
 })
