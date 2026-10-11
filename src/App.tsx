@@ -257,7 +257,8 @@ function AppShell() {
   const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const showFab = location.pathname !== ROUTE_SETTINGS && location.pathname !== ROUTE_CALENDAR
+  // Desktop: quick add lives in the sidebar.
+  const showFab = isMobile && location.pathname !== ROUTE_SETTINGS && location.pathname !== ROUTE_CALENDAR
 
   // Reset filter sheet when viewport transitions from mobile to desktop
   useEffect(() => {

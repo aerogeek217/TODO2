@@ -1,7 +1,7 @@
 import type { PersistedTodoItem, Project, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from '../routes'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
 
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks' | 'projects'
 
@@ -58,6 +58,7 @@ export function createCommands(ctx: CommandContext): Command[] {
   const cmdX = formatShortcut('Mod-X')
   const commands: Command[] = [
     // Navigation
+    { id: 'nav-workspace', name: 'Go to Workspace', shortcut: 'G then W', category: 'navigation', action: () => ctx.navigateTo(ROUTE_WORKSPACE) },
     { id: 'nav-canvas', name: 'Go to Canvas', shortcut: 'G then C', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CANVAS) },
     { id: 'nav-list', name: 'Go to List', shortcut: 'G then L', category: 'navigation', action: () => ctx.navigateTo(ROUTE_LIST) },
     { id: 'nav-calendar', name: 'Go to Calendar', shortcut: 'G then A', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CALENDAR) },

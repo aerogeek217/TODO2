@@ -14,7 +14,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
 import { pasteTasksAt } from './clipboard'
 import { bySortOrder } from '../utils/sort-order'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from '../routes'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
 
 export type ShortcutCategory = 'general' | 'navigation' | 'task' | 'notes'
 
@@ -413,6 +413,11 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
 ]
 
 export const SEQUENCE_BINDINGS: SequenceBinding[] = [
+  {
+    prefix: 'g', key: 'w',
+    modalRow: { category: 'navigation', label: 'G then W', description: 'Go to Workspace' },
+    handler: ({ callbacks }) => callbacks.navigate(ROUTE_WORKSPACE),
+  },
   {
     prefix: 'g', key: 'c',
     modalRow: { category: 'navigation', label: 'G then C', description: 'Go to Canvas' },

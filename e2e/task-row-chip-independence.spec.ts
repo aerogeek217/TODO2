@@ -69,12 +69,12 @@ test.describe('TaskRow chip independence', () => {
     await page.reload()
     await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
 
-    // Open QuickAdd via the FAB and submit a task with @Alice. The race
+    // Open QuickAdd via the sidebar's Quick add button and submit a task with @Alice. The race
     // window is the few ms between `useTodoStore.add` resolving and
     // `applyNlpMetadata` finishing — `CanvasPage`'s `loadAssignments`
     // effect fires in that window on every `todos` change, and pre-fix
     // its post-fetch `setMap` clobbered the optimistic assign.
-    await page.locator('button[title^="New task"]').click()
+    await page.getByRole('button', { name: 'Quick add' }).click()
     const input = page.locator('input[placeholder="New task…"]')
     await input.waitFor({ state: 'visible' })
     await input.fill('Race regression @Alice')

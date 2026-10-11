@@ -1,10 +1,22 @@
 import { useNavigate, useLocation } from 'react-router'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useResolvedTheme } from '../../hooks/use-resolved-theme'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from '../../routes'
+import { useUIStore } from '../../stores/ui-store'
+import { formatShortcut } from '../../utils/platform'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../../routes'
 import styles from './Sidebar.module.css'
 
 const views = [
+  {
+    path: ROUTE_WORKSPACE,
+    label: 'Workspace',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="2" y="2.5" width="12" height="11" rx="2" />
+        <path d="M6.5 2.5v11M10 2.5v11" />
+      </svg>
+    ),
+  },
   {
     path: ROUTE_CANVAS,
     label: 'Canvas',
@@ -54,6 +66,18 @@ export function Sidebar() {
 
   return (
     <nav className={styles.sidebar}>
+      <button
+        type="button"
+        className={styles.quickAdd}
+        onClick={() => useUIStore.getState().openQuickAdd()}
+        aria-label="Quick add"
+        title={`Quick add (${formatShortcut('Mod-Space')})`}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="M8 3v10M3 8h10" />
+        </svg>
+      </button>
+      <span className={styles.separator} aria-hidden="true" />
       <div className={styles.viewIcons}>
         {views.map(({ path, label, icon }) => (
           <button
@@ -61,6 +85,8 @@ export function Sidebar() {
             className={`${styles.iconButton} ${location.pathname === path ? styles.active : ''}`}
             onClick={() => navigate(path)}
             title={label}
+            aria-label={label}
+            aria-current={location.pathname === path ? 'page' : undefined}
           >
             {icon}
           </button>
