@@ -1,6 +1,6 @@
 # TODO2
 
-A spatial todo web app with infinite canvas, multiple views, and local-first storage.
+A todo web app with a workspace of widgets (lists, calendars, notes) in columns, saved layouts, and local-first storage.
 
 ## Architecture
 @docs/ARCHITECTURE.md
@@ -15,14 +15,13 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 - Test affected only: `npx vitest related <changed src files> --run` — use while iterating; run the full `npm test` once before committing
 - Test watch: `npm run test:watch`
 - E2E: `npm run test:e2e` (Playwright, `fullyParallel`; starts its own dev server on port 5173 — separate from the 5180 dev server). Single spec: `npx playwright test e2e/<name>.spec.ts`
-- Lint: `npm run lint` (`eslint . --max-warnings 0`). Temporary per-file ignores for canvas-replacement files live in `eslint.config.js` — each is removed by the phase that deletes/rewrites the file; don't add entries to dodge fixes.
+- Lint: `npm run lint` (`eslint . --max-warnings 0`). No per-file ignores — don't add any to dodge fixes.
 - Dev seed: `npm run seed:dev` → `dev-data/seed-v49.json` (gitignored; realistic v49 export for manual testing via Settings → Import JSON — runs the full upgrade pipeline; dates relative to today, re-run when stale). Needs Node ≥ 22.6.
 
 ## Tech Stack
 - React 19 + TypeScript + Vite
 - Zustand (state management)
 - Dexie.js (IndexedDB, local-first persistence)
-- React Flow (spatial canvas — slated for replacement on `feature/canvas-replacement`)
 - dnd-kit (drag-and-drop)
 - React Router v7 (data router: `createHashRouter` + `RouterProvider`)
 
@@ -47,8 +46,8 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 
 ## Tools — Chrome DevTools MCP
 - A Chrome DevTools MCP server is wired up — tools appear as `mcp__chrome-devtools__*` (deferred; load schemas via `ToolSearch select:<name>` before first call). It drives a real Chromium instance: page nav, click/fill/drag, `take_snapshot`, `take_screenshot`, `evaluate_script`, `list_console_messages`, `list_network_requests`, performance + lighthouse + memory.
-- **Reach for it when JSDOM is not authoritative**: focus handoffs, drag-and-drop hit-testing on rails / floats / list widget rows, popover anchor placement and viewport flips, ResizeObserver-driven layout, `data-rails-drop-id` geometry, async-store-driven re-render timing, and any visual check vs. a design handoff.
-- **Workflow**: prototype the interaction in MCP against `npm run dev` (port 5180) to see what actually happens, then codify the regression in vitest (logic) or Playwright (real-browser flows — specs in `e2e/`, fixtures + CDP-trusted gestures in `e2e/fixtures/seed.ts`). MCP is a diagnosis + spike tool, not the regression layer.
+- **Reach for it when JSDOM is not authoritative**: focus handoffs, drag-and-drop hit-testing (workspace tab drags, list widget rows, calendar day drops), popover anchor placement and viewport flips, ResizeObserver-driven layout, async-store-driven re-render timing, and any visual check vs. a design handoff.
+- **Workflow**: prototype the interaction in MCP against `npm run dev` (port 5180) to see what actually happens, then codify the regression in vitest (logic) or Playwright (real-browser flows — specs in `e2e/`, fixtures + trusted-mouse gestures in `e2e/fixtures/workspace.ts`). MCP is a diagnosis + spike tool, not the regression layer.
 - **Don't use it for**: pure logic / model / store / Dexie work — read the source. Don't substitute MCP for unit tests.
 
 ## Git Workflow
