@@ -1,5 +1,4 @@
 import type { PersistedTodoItem, Person, Org, Status, Tag, Project, ProjectGroupBy } from '../models'
-import type { WeekStart } from './effective-date'
 import { startOfDay, MS_PER_DAY } from './date'
 import { resolvePersonColor } from './person-color'
 import { bySortOrder } from './sort-order'
@@ -31,7 +30,6 @@ export interface GroupingContext {
    *  the people/org pattern). */
   projects?: readonly Project[]
   today: Date
-  weekStartsOn: WeekStart
 }
 
 export interface PartitionGroup<T extends PersistedTodoItem> {

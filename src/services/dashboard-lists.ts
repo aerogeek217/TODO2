@@ -261,14 +261,10 @@ export function interpretGrouping(
 const DATE_BUCKET_META: Record<DateBucketKey, { key: string; label: string }> = {
   overdue:    { key: 'overdue',     label: 'Overdue' },
   today:      { key: 'today',       label: 'Today' },
-  tomorrow:   { key: 'tomorrow',    label: 'Tomorrow' },
   thisWeek:   { key: 'this-week',   label: 'This week' },
   nextWeek:   { key: 'next-week',   label: 'Next week' },
   thisMonth:  { key: 'this-month',  label: 'This month' },
-  laterMonth: { key: 'later-month', label: 'Later this month' },
-  nextMonth:  { key: 'next-month',  label: 'Next month' },
   later:      { key: 'later',       label: 'Later' },
-  beyond:     { key: 'beyond',      label: 'Beyond' },
 }
 
 const DEADLINE_WINDOWS: readonly DateBucketKey[] = [
@@ -319,7 +315,6 @@ function dashboardGroupingContext(ctx: DashboardListsContext): GroupingContext {
     personOrgMap: ctx.personOrgMap ?? new Map(),
     projects: ctx.projects ?? [],
     today: startOfDay(ctx.today),
-    weekStartsOn: ctx.weekStartsOn,
   }
 }
 

@@ -114,7 +114,6 @@ export function buildPeopleSections(
     orgs: orgs ?? [],
     personOrgMap: personOrgMap ?? new Map(),
     today: startOfToday(),
-    weekStartsOn: 0,
   }
 
   const restrictToFilterSet =
@@ -176,7 +175,6 @@ export function buildProjectSections(
     orgs: [],
     personOrgMap: new Map(),
     today: startOfToday(),
-    weekStartsOn: 0,
   }
   const { groups, ungrouped } = partitionByGroup(todos, 'project', ctx)
   const groupsByKey = new Map(groups.map((g) => [g.key, g] as const))
@@ -269,7 +267,6 @@ export function buildOrgSections(
     orgs,
     personOrgMap,
     today: startOfToday(),
-    weekStartsOn: 0,
   }
 
   const restrictToFilterSet = restrictSet
@@ -350,7 +347,6 @@ export function buildStatusSections(
     orgs: [],
     personOrgMap: new Map(),
     today: startOfToday(),
-    weekStartsOn: 0,
   }
   const { groups, ungrouped } = partitionByGroup(todos, 'status', ctx)
   const sections: Section[] = groups.map((g) => ({
@@ -390,7 +386,6 @@ export function buildTagSections(
     orgs: [],
     personOrgMap: new Map(),
     today: startOfToday(),
-    weekStartsOn: 0,
   }
   const restrictToFilterSet =
     restrictToTagIds && restrictToTagIds.length > 0

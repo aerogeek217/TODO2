@@ -663,9 +663,9 @@ describe('encodeGroupSort', () => {
   })
 
   it('coupled groupBy === itemSortBy → both = same field', () => {
-    const { sort, grouping } = encodeGroupSort('date', 'date')
-    expect(grouping).toBe('date')
-    expect(sort).toBe('date')
+    const { sort, grouping } = encodeGroupSort('deadline', 'deadline')
+    expect(grouping).toBe('deadline')
+    expect(sort).toBe('deadline')
   })
 
   it('decoupled groupBy / itemSortBy → flat literals retained independently', () => {
@@ -681,9 +681,9 @@ describe('encodeGroupSort', () => {
   })
 
   it("grouped by tag → grouping='tag'", () => {
-    const { sort, grouping } = encodeGroupSort('tag', 'date')
+    const { sort, grouping } = encodeGroupSort('tag', 'followup')
     expect(grouping).toBe('tag')
-    expect(sort).toBe('date')
+    expect(sort).toBe('followup')
   })
 })
 

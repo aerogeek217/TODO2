@@ -7,7 +7,6 @@ import { useOrgStore } from '../../stores/org-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useFilterStore } from '../../stores/filter-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo, clearFilterStore, resetEntityStores } from '../helpers'
 
 const STATUSES: Status[] = [
@@ -23,7 +22,6 @@ beforeEach(() => {
   resetEntityStores()
   clearFilterStore()
   useStatusStore.setState({ statuses: STATUSES })
-  useSettingsStore.setState({ weekStartsOn: 1 })
 })
 
 afterEach(() => {

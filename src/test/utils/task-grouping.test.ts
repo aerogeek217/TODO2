@@ -19,7 +19,6 @@ function makeCtx(over: Partial<GroupingContext> = {}): GroupingContext {
     orgs: [],
     personOrgMap: new Map(),
     today: new Date(2026, 0, 15),
-    weekStartsOn: 1,
     ...over,
   }
 }

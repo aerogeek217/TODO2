@@ -6,32 +6,24 @@ import { startOfWeek } from './effective-date'
 /**
  * Vocabulary for relative-date bucket windows. The bucketer walks the
  * caller-supplied window list in order and assigns each todo to the first
- * matching window. The terminal `later` / `beyond` catch-alls capture
- * everything not consumed by an earlier window.
+ * matching window. The terminal `later` catch-all captures everything not
+ * consumed by an earlier window.
  *
  * Boundaries:
  *  - `overdue`     — ms < today midnight
  *  - `today`       — ms < tomorrow midnight (so today only when paired with `overdue` upstream)
- *  - `tomorrow`    — ms ≤ tomorrow midnight (folds today in when used without `overdue`/`today`)
  *  - `thisWeek`    — ms ≤ end of calendar week (honors `weekStartsOn`)
  *  - `nextWeek`    — ms ≤ end of calendar week + 7
  *  - `thisMonth`   — ms ≤ last day-midnight of current calendar month
- *  - `laterMonth`  — same boundary as `thisMonth`; alias for "rest of this month"
- *  - `nextMonth`   — ms ≤ last day-midnight of next calendar month
  *  - `later`       — catch-all
- *  - `beyond`      — catch-all (semantic alias for `later`)
  */
 export type DateBucketKey =
   | 'overdue'
   | 'today'
-  | 'tomorrow'
   | 'thisWeek'
   | 'nextWeek'
   | 'thisMonth'
-  | 'laterMonth'
-  | 'nextMonth'
   | 'later'
-  | 'beyond'
 
 interface BoundaryCtx {
   base: number
@@ -39,20 +31,15 @@ interface BoundaryCtx {
   thisWeekEnd: number
   nextWeekEnd: number
   thisMonthEnd: number
-  nextMonthEnd: number
 }
 
 const WINDOW_MATCHERS: Record<DateBucketKey, (ms: number, c: BoundaryCtx) => boolean> = {
   overdue:    (ms, c) => ms < c.base,
   today:      (ms, c) => ms < c.tomorrow,
-  tomorrow:   (ms, c) => ms <= c.tomorrow,
   thisWeek:   (ms, c) => ms <= c.thisWeekEnd,
   nextWeek:   (ms, c) => ms <= c.nextWeekEnd,
   thisMonth:  (ms, c) => ms <= c.thisMonthEnd,
-  laterMonth: (ms, c) => ms <= c.thisMonthEnd,
-  nextMonth:  (ms, c) => ms <= c.nextMonthEnd,
   later:      () => true,
-  beyond:     () => true,
 }
 
 /**
@@ -66,8 +53,7 @@ export function dateBucketBoundaries(today: Date, weekStartsOn: WeekStart): Boun
   const thisWeekEnd = wkStart + 6 * MS_PER_DAY
   const nextWeekEnd = thisWeekEnd + 7 * MS_PER_DAY
   const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).getTime()
-  const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0).getTime()
-  return { base, tomorrow, thisWeekEnd, nextWeekEnd, thisMonthEnd, nextMonthEnd }
+  return { base, tomorrow, thisWeekEnd, nextWeekEnd, thisMonthEnd }
 }
 
 export interface DateBucket<T> {
@@ -85,7 +71,7 @@ export interface BucketByDateResult<T> {
 /**
  * Walk `todos` once and partition them into the supplied windows. Each todo
  * is assigned to the first window whose matcher returns true; null dates land
- * in `noDate`. Use a terminal catch-all (`later` or `beyond`) to keep dates
+ * in `noDate`. Use the terminal catch-all (`later`) to keep dates
  * past the last named window.
  */
 export function bucketByDate<T extends PersistedTodoItem>(

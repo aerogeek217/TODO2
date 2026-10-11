@@ -6,7 +6,6 @@ import { useOrgStore } from '../../../stores/org-store'
 import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
-import { useSettingsStore } from '../../../stores/settings-store'
 import type { PersistedPerson, PersistedStatus, Project } from '../../../models'
 
 const anna: PersistedPerson = { id: 1, name: 'Anna', initials: 'AN' }
@@ -37,7 +36,6 @@ function seedStores() {
   useProjectStore.setState({ projects: [triage] })
   useStatusStore.setState({ statuses: [doingStatus] })
   useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
-  useSettingsStore.setState({ weekStartsOn: 1 })
 }
 
 function noop() {}

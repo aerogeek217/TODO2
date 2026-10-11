@@ -1,4 +1,4 @@
-import { startOfDay, startOfToday, MS_PER_DAY } from './date'
+import { startOfDay, MS_PER_DAY } from './date'
 import type { TodoItem, PersistedTodoItem } from '../models/todo-item'
 import type { DateAnchor, RelativeDateToken } from '../models/filter-predicate'
 import { bySortOrder } from './sort-order'
@@ -117,8 +117,6 @@ export function dateIntensity(days: number | null | undefined): number {
   const f = 1 - days / 14
   return Math.max(0.15, f)
 }
-
-export { startOfToday }
 
 /** The per-task date fields lists can sort and group by. */
 export type TodoDateField = 'deadline' | 'followup'

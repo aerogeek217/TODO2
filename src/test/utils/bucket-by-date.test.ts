@@ -33,72 +33,40 @@ describe('dateBucketBoundaries', () => {
   })
 })
 
-describe('bucketByDate — 6-bucket effective form', () => {
+describe('bucketByDate — due-date windows', () => {
   const today = startOfDay(new Date('2026-04-15T00:00:00')) // Wed
-  const windows = ['tomorrow', 'thisWeek', 'nextWeek', 'laterMonth', 'nextMonth', 'beyond'] as const
-
-  it('places a tomorrow date in the tomorrow bucket', () => {
-    const t = makeTodo({ id: 1, dueDate: new Date(today.getTime() + MS_PER_DAY) })
-    const { buckets } = bucketByDate(
-      [t],
-      (x) => x.dueDate ? startOfDay(new Date(x.dueDate)) : null,
-      today,
-      1,
-      windows,
-    )
-    expect(buckets).toHaveLength(1)
-    expect(buckets[0]!.key).toBe('tomorrow')
-    expect(buckets[0]!.todos.map((x) => x.id)).toEqual([1])
-  })
+  const windows = ['overdue', 'today', 'thisWeek', 'nextWeek', 'thisMonth', 'later'] as const
+  const due = (x: { dueDate?: Date }) => x.dueDate ? startOfDay(new Date(x.dueDate)) : null
 
   it('places a Sunday-of-this-week date in this-week (Mon-first)', () => {
-    const sunday = startOfDay(new Date('2026-04-19T00:00:00'))
-    const t = makeTodo({ id: 1, dueDate: sunday })
-    const { buckets } = bucketByDate(
-      [t],
-      (x) => x.dueDate ? startOfDay(new Date(x.dueDate)) : null,
-      today,
-      1,
-      windows,
-    )
+    const t = makeTodo({ id: 1, dueDate: startOfDay(new Date('2026-04-19T00:00:00')) })
+    const { buckets } = bucketByDate([t], due, today, 1, windows)
     expect(buckets[0]!.key).toBe('thisWeek')
   })
 
   it('places the same Sunday-of-this-week in next-week with Sun-first (off-by-one shift)', () => {
-    const sunday = startOfDay(new Date('2026-04-19T00:00:00'))
-    const t = makeTodo({ id: 1, dueDate: sunday })
-    const { buckets } = bucketByDate(
-      [t],
-      (x) => x.dueDate ? startOfDay(new Date(x.dueDate)) : null,
-      today,
-      0,
-      windows,
-    )
+    const t = makeTodo({ id: 1, dueDate: startOfDay(new Date('2026-04-19T00:00:00')) })
+    const { buckets } = bucketByDate([t], due, today, 0, windows)
     expect(buckets[0]!.key).toBe('nextWeek')
   })
 
-  it('places far-future dates in beyond', () => {
-    const farOut = startOfDay(new Date('2026-09-01T00:00:00'))
-    const t = makeTodo({ id: 1, dueDate: farOut })
-    const { buckets } = bucketByDate(
-      [t],
-      (x) => x.dueDate ? startOfDay(new Date(x.dueDate)) : null,
-      today,
-      1,
-      windows,
-    )
-    expect(buckets[0]!.key).toBe('beyond')
+  it('places a date later this month in this-month, far-future dates in later', () => {
+    const rest = makeTodo({ id: 1, dueDate: startOfDay(new Date('2026-04-29T00:00:00')) })
+    const far = makeTodo({ id: 2, dueDate: startOfDay(new Date('2026-09-01T00:00:00')) })
+    const { buckets } = bucketByDate([rest, far], due, today, 1, windows)
+    expect(buckets.map((b) => b.key)).toEqual(['thisMonth', 'later'])
   })
 
   it('null-date todos go to noDate, never into a window', () => {
     const t = makeTodo({ id: 1 })
-    const { buckets, noDate } = bucketByDate(
-      [t],
-      () => null,
-      today,
-      1,
-      windows,
-    )
+    const { buckets, noDate } = bucketByDate([t], () => null, today, 1, windows)
+    expect(buckets).toHaveLength(0)
+    expect(noDate).toEqual([t])
+  })
+
+  it('a date no window matches surfaces in noDate instead of being dropped', () => {
+    const t = makeTodo({ id: 1, dueDate: startOfDay(new Date('2026-09-01T00:00:00')) })
+    const { buckets, noDate } = bucketByDate([t], due, today, 1, ['overdue', 'today'])
     expect(buckets).toHaveLength(0)
     expect(noDate).toEqual([t])
   })

@@ -3,7 +3,6 @@ import type { Person, PersistedTodoItem, ProjectGroupBy } from '../models'
 import { useOrgStore } from '../stores/org-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
-import { useSettingsStore } from '../stores/settings-store'
 import { useFilterStore } from '../stores/filter-store'
 import { partitionByGroup, getGroupColor } from '../utils/task-grouping'
 import { UNGROUPED_GROUP_KEY } from '../utils/cross-group-drag'
@@ -54,7 +53,6 @@ export function useGroupedTaskBlocks(
   const personOrgMap = useOrgStore((s) => s.personOrgMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const today = useMemo(() => startOfToday(), [])
 
   const filterPersonIds = useFilterStore((s) => s.filters.personIds)
@@ -73,7 +71,6 @@ export function useGroupedTaskBlocks(
       orgs,
       personOrgMap,
       today,
-      weekStartsOn,
     }
     let restrictToFilterSet: string[] | undefined
     let implicitKeysFor:
@@ -172,5 +169,5 @@ export function useGroupedTaskBlocks(
       }
     }
     return out
-  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, orgs, personOrgMap, today, weekStartsOn, filterPersonIds, personFilterMode, filterOrgIds, orgFilterMode, filterTags])
+  }, [groupBy, displayItems, assignedPeopleMap, assignedOrgsMap, assignedTagsMap, statuses, orgs, personOrgMap, today, filterPersonIds, personFilterMode, filterOrgIds, orgFilterMode, filterTags])
 }

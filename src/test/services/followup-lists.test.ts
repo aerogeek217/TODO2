@@ -114,7 +114,7 @@ describe('sort + group by next follow-up', () => {
   it('canvas/project grouping buckets on the next follow-up', () => {
     const ctx: GroupingContext = {
       assignedPeopleMap: new Map(), assignedOrgsMap: new Map(), assignedTagsMap: new Map(),
-      statuses: [], orgs: [], personOrgMap: new Map(), today, weekStartsOn: 1,
+      statuses: [], orgs: [], personOrgMap: new Map(), today,
     }
     const { groups, ungrouped } = partitionByGroup(all, 'followup', ctx)
     expect(groups.map((g) => [g.label, g.todos.map((t) => t.id)])).toEqual([
