@@ -1,5 +1,4 @@
 import type { PersistedTodoItem } from '../../models'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { formatDate, formatRelativeTime } from '../../utils/date'
 import styles from './TaskEditPopup.module.css'
 
@@ -54,22 +53,12 @@ interface EditFooterProps {
 }
 
 function EditFooter({ todo, onDelete, onDuplicate, onClose }: EditFooterProps) {
-  const onBoard = useTaskboardStore((s) => s.has(todo.id))
-
-  const handleToggleBoard = () => {
-    if (onBoard) void useTaskboardStore.getState().removeEntry(todo.id)
-    else void useTaskboardStore.getState().add(todo.id)
-  }
-
   return (
     <div className={styles.footer}>
       <span className={styles.timestamps}>
         Created {formatDate(todo.createdAt)} · Modified {formatRelativeTime(todo.modifiedAt)}
       </span>
       <div className={styles.footerActions}>
-        <button className={styles.duplicateButton} onClick={handleToggleBoard}>
-          {onBoard ? 'Remove from Taskboard' : 'Add to Taskboard'}
-        </button>
         {onDuplicate && (
           <button className={styles.duplicateButton} onClick={onDuplicate}>
             Duplicate

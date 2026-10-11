@@ -142,6 +142,10 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
         const todo = useTodoStore.getState().todos.find((t) => t.id === newId) as PersistedTodoItem | undefined
         if (todo) await updateTodo({ ...todo, statusId: fd.statusId })
       }
+      if (fd?.focus) {
+        const todo = useTodoStore.getState().todos.find((t) => t.id === newId) as PersistedTodoItem | undefined
+        if (todo) await updateTodo({ ...todo, focus: true })
+      }
     } catch {
       // Task was created; metadata failure is non-fatal for the user flow.
     }

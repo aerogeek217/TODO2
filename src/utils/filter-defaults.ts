@@ -8,12 +8,15 @@ export interface FilterDefaults {
   tagIds: number[]
   statusId: number | undefined
   projectId: number | undefined
+  /** The filter keeps only tasks in focus: new tasks start in focus. */
+  focus?: boolean
 }
 
 /**
  * Extract task creation defaults from active filter criteria.
  * Strips sentinel value 0 (None/Unaffiliated) from entity ID sets.
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
+ * A focus-only filter makes new tasks start in focus.
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const personIds = filters.personIds ? [...filters.personIds].filter(id => id !== 0) : []
@@ -31,7 +34,7 @@ export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
     if (only !== 0) projectId = only
   }
 
-  return { personIds, tagIds, statusId, projectId }
+  return { personIds, tagIds, statusId, projectId, focus: filters.focus === true }
 }
 
 /**

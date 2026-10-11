@@ -11,6 +11,7 @@ import { PortalDropdown } from '../../shared/PortalDropdown'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { FollowupFlagIcon } from '../../shared/FollowupIcons'
 import { FollowupPopover } from '../../shared/followup/FollowupPopover'
+import { FocusIcon } from '../../shared/FocusMarker'
 import { AtIcon, CheckIcon, CloseIcon, HashIcon, TrashIcon } from '../icons'
 import styles from './ListWidget.module.css'
 
@@ -31,7 +32,9 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
 
 /**
  * The floating bar over a list widget with 2+ rows selected: set due date,
- * set follow-up, assign people, add tag, complete, delete, clear. Each goes
+ * set follow-up, assign people, add tag, complete, focus, delete, clear.
+ * Focus is tri-state: when only some are in focus, a click puts all of them
+ * in; when all are, a click takes all of them out. Each goes
  * through the existing bulk paths (`bulkSet*`, `bulkAssign*`,
  * `showBulkConfirmation`).
  */
@@ -53,6 +56,8 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
     return todos.filter((t) => set.has(t.id))
   }, [todos, ids])
   const allCompleted = selectedTodos.length > 0 && selectedTodos.every((t) => t.isCompleted)
+  const focusedCount = selectedTodos.filter((t) => t.focus === true).length
+  const allFocused = selectedTodos.length > 0 && focusedCount === selectedTodos.length
   const sharedPeople = useMemo(() => sharedIds(assignedPeopleMap, ids), [assignedPeopleMap, ids])
   const sharedTags = useMemo(() => sharedIds(assignedTagsMap, ids), [assignedTagsMap, ids])
   // The follow-up popover edits "the selection": it starts empty.
@@ -138,6 +143,16 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
         onClick={() => useUIStore.getState().showBulkConfirmation(allCompleted ? 'uncomplete' : 'complete', list)}
       >
         <CheckIcon />
+      </button>
+      <button
+        type="button"
+        className={`${styles.bulkButton} ${focusedCount > 0 ? styles.bulkButtonFocus : ''}`}
+        title={allFocused ? 'Remove from Focus' : focusedCount > 0 ? `Add to Focus (${focusedCount} of ${selectedTodos.length} in focus)` : 'Add to Focus'}
+        aria-label={allFocused ? 'Remove from Focus' : 'Add to Focus'}
+        aria-pressed={allFocused ? true : focusedCount > 0 ? 'mixed' : false}
+        onClick={() => { void useTodoStore.getState().bulkSetFocus(list, !allFocused) }}
+      >
+        <FocusIcon />
       </button>
       <button
         type="button"

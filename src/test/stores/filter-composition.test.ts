@@ -32,8 +32,8 @@ const beta: Project = { id: 2, name: 'Beta', sortOrder: 1, canvasId: 1, position
  */
 const todos: PersistedTodoItem[] = [
   makeTodo({ id: 1, title: 'Alice only', statusId: 1, projectId: 1, dueDate: day(10, 10) }),
-  makeTodo({ id: 2, title: 'Bob only', statusId: 2, projectId: 2, dueDate: day(10, 20), nextFollowupAt: day(10, 16) }),
-  makeTodo({ id: 3, title: 'Alice and Bob', statusId: 1, dueDate: day(10, 15) }),
+  makeTodo({ id: 2, title: 'Bob only', statusId: 2, projectId: 2, dueDate: day(10, 20), nextFollowupAt: day(10, 16), focus: true }),
+  makeTodo({ id: 3, title: 'Alice and Bob', statusId: 1, dueDate: day(10, 15), focus: true }),
   makeTodo({ id: 4, title: 'Nobody', nextFollowupAt: day(10, 30) }),
   makeTodo({ id: 5, title: 'Alice done', isCompleted: true, statusId: 1, projectId: 1, dueDate: day(10, 12) }),
   makeTodo({ id: 6, title: 'Nobody done', isCompleted: true }),
@@ -70,6 +70,7 @@ function evaluatorIds(screen: FilterCriteria, list: FilterCriteria): number[] {
     dateRangeIncludeNoDate: list.dateRangeIncludeNoDate,
     hasDeadline: list.hasDeadline,
     hasFollowup: list.hasFollowup,
+    focus: list.focus,
   }
   return todos.filter((t) => evaluate(predicate, t)).map((t) => t.id)
 }
@@ -103,6 +104,8 @@ const fields: Array<{ name: string; a: Partial<FilterCriteria>; b: Partial<Filte
   },
   { name: 'has due date', a: { hasDeadline: true }, b: { hasDeadline: false }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
   { name: 'has follow-up', a: { hasFollowup: true }, b: { hasDeadline: true }, onlyA: [2, 4], onlyB: [1, 2, 3], both: [2] },
+  { name: 'focus', a: { focus: true }, b: { focus: false }, onlyA: [2, 3], onlyB: [1, 4], both: [] },
+  { name: 'focus with people', a: { focus: true }, b: { personIds: new Set([1]) }, onlyA: [2, 3], onlyB: [1, 3], both: [3] },
 ]
 
 describe('composeScreenFilter', () => {

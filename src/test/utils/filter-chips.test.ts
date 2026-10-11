@@ -67,6 +67,16 @@ describe('filterChips', () => {
     ])
   })
 
+  it('a focus clause reads In focus / Not in focus, after project and before text', () => {
+    expect(filterChips({ ...emptyPredicate(), focus: true }, names)).toEqual([
+      { field: 'focus', label: 'Focus', value: 'In focus' },
+    ])
+    expect(filterChips({ ...emptyPredicate(), focus: false, searchText: 'x', projectIds: [1] }, names).map((c) => c.field))
+      .toEqual(['project', 'focus', 'text'])
+    expect(filterChips({ ...emptyPredicate(), focus: false }, names)[0]!.value).toBe('Not in focus')
+    expect(hasNarrowingFilters({ ...emptyPredicate(), focus: false })).toBe(true)
+  })
+
   it('describeFilters joins chips in words', () => {
     const p = { ...emptyPredicate(), statusIds: [1], dateField: 'followup' as const, dateRangeEnd: { kind: 'relative' as const, token: 'end-of-week' as const } }
     expect(describeFilters(filterChips(p, names))).toBe('Follow-up by end of week · Status Waiting')
@@ -96,13 +106,14 @@ describe('clearChipField', () => {
     const p = {
       ...emptyPredicate(),
       personIds: [1], tags: [2], statusIds: [1], projectIds: [1], searchText: 'x',
-      dateRangeStart: { kind: 'offset' as const, days: 0 }, dateRangeIncludeNoDate: true, hasDeadline: true, hasFollowup: false,
+      dateRangeStart: { kind: 'offset' as const, days: 0 }, dateRangeIncludeNoDate: true, hasDeadline: true, hasFollowup: false, focus: true,
     }
     expect(clearChipField(p, 'people').personIds).toBeNull()
     expect(clearChipField(p, 'tags').tags).toBeNull()
     expect(clearChipField(p, 'status').statusIds).toBeNull()
     expect(clearChipField(p, 'project').projectIds).toBeNull()
     expect(clearChipField(p, 'text').searchText).toBe('')
+    expect(clearChipField(p, 'focus')).toMatchObject({ focus: null, personIds: [1] })
     const dates = clearChipField(p, 'dates')
     expect(dates).toMatchObject({ dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null, hasFollowup: null, personIds: [1] })
   })

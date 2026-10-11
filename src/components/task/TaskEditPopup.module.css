@@ -193,6 +193,50 @@
   border-color: var(--color-tint-12);
 }
 
+.badgeDivider {
+  align-self: center;
+  width: 1px;
+  height: 18px;
+  background: var(--color-border);
+}
+
+/* Marker toggle (Focus): off = muted, on = the marker's colour on its tint. */
+.markerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background var(--transition-medium), color var(--transition-medium);
+}
+
+.markerToggle svg {
+  font-size: 14px;
+}
+
+.markerToggle:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.markerToggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.markerToggleFocusOn,
+.markerToggleFocusOn:hover {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-marker-focus);
+}
+
 .badgeStar {
   color: var(--color-followup);
   border-color: rgba(245, 200, 66, 0.3);

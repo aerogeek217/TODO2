@@ -54,6 +54,7 @@ export function emptyPredicate(): TodoPredicate {
     dateRangeIncludeNoDate: false,
     hasDeadline: null,
     hasFollowup: null,
+    focus: null,
     tags: null,
   }
 }

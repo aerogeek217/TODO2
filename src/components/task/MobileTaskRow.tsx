@@ -5,7 +5,6 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useProjectStore } from '../../stores/project-store'
 import { StatusIcon } from '../shared/StatusIcon'
 import { TaskPillBar } from '../shared/TaskPillBar'
@@ -22,6 +21,7 @@ import { generateInitials } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
+import { FocusMarker } from '../shared/FocusMarker'
 import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
@@ -57,11 +57,11 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const today = startOfToday()
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
 
-  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo })
+  const { bulk, handleToggleComplete, handleToggleFocus, handleDelete } = useTaskRowActions({ todo })
 
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
   /** Follow-up popover: anchored to the pill, or at the long-press menu's point. */
   const [followupPopover, setFollowupPopover] = useState<
@@ -85,9 +85,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const onBoard = useTaskboardStore.getState().has(todo.id)
-    setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
-  }, [todo.id])
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }, [])
 
   const openDeadlinePicker = useCallback(() => {
     setTimeout(() => {
@@ -166,6 +165,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           onClick={(e) => e.stopPropagation()}
           aria-label="Toggle complete"
         />
+
+        {todo.focus && (
+          <span className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}>
+            <FocusMarker size={16} />
+          </span>
+        )}
 
         <span className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}>
           {todo.title}
@@ -353,7 +358,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           y={contextMenu.y}
           items={buildTaskRowMenuItems({
             todo,
-            onBoard: contextMenu.onBoard,
+            onToggleFocus: handleToggleFocus,
             onOpenDetail,
             onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),
             onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),

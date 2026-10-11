@@ -79,6 +79,12 @@ export interface TodoPredicate {
    */
   hasFollowup?: boolean | null
   /**
+   * Tri-state filter on `TodoItem.focus`: `true` = only tasks in focus,
+   * `false` = only tasks not in focus, null = no filter. Optional on read
+   * (predicates stored before the field existed read as `null`).
+   */
+  focus?: boolean | null
+  /**
    * null = no filter; array of tag ids (into the `tags` registry) with OR
    * semantics (todo must have at least one assigned tag in the set). A todo
    * with no tag assignments is excluded when this clause is a non-empty array.

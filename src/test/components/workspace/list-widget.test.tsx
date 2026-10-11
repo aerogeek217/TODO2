@@ -267,6 +267,33 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(screen.queryByTestId('list-bulk-bar')).toBeNull()
   })
 
+  it('the bulk bar Focus button puts every selected task in focus, then takes them out', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, focus: true }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2 }),
+      ],
+    })
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    const focus = screen.getByRole('button', { name: 'Add to Focus' })
+    expect(focus).toHaveAttribute('aria-pressed', 'mixed')
+    await act(async () => { fireEvent.click(focus) })
+    expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([true, true])
+    const remove = screen.getByRole('button', { name: 'Remove from Focus' })
+    expect(remove).toHaveAttribute('aria-pressed', 'true')
+    await act(async () => { fireEvent.click(remove) })
+    expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([undefined, undefined])
+  })
+
+  it('a focus list offers + Add task (new tasks start in focus)', () => {
+    setup(def({}, { focus: true }))
+    expect(screen.getByRole('button', { name: /Add task/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
+    expect(useUIStore.getState().quickAddDraft?.defaults?.focus).toBe(true)
+  })
+
   it('a manual list follows its ranks; unranked tasks come after, oldest first', () => {
     useTodoStore.setState({
       todos: [

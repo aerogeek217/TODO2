@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useFilterStore, matchesFilter, applyFilter, countActiveFilters } from '../../stores/filter-store'
+import { useFilterStore, matchesFilter, applyFilter, countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
 import type { PersistedTodoItem } from '../../models'
 import { makeTodo } from '../helpers'
 
@@ -234,6 +234,41 @@ describe('useFilterStore', () => {
       }))).toBe(true)
       expect(matchesFilter(f(), makeTodo({ id: 2, nextFollowupAt: new Date('2026-04-16') }))).toBe(false)
       expect(matchesFilter(f(), makeTodo({ id: 3, dueDate: new Date('2026-04-20') }))).toBe(false)
+    })
+  })
+
+  describe('focus filter', () => {
+    it('true keeps only tasks in focus; false only tasks not in focus; null is off', () => {
+      const focused = makeTodo({ id: 1, focus: true })
+      const plain = makeTodo({ id: 2 })
+      expect(f().focus).toBeNull()
+      expect(matchesFilter(f(), focused)).toBe(true)
+      expect(matchesFilter(f(), plain)).toBe(true)
+      useFilterStore.getState().setFocus(true)
+      expect(matchesFilter(f(), focused)).toBe(true)
+      expect(matchesFilter(f(), plain)).toBe(false)
+      useFilterStore.getState().setFocus(false)
+      expect(matchesFilter(f(), focused)).toBe(false)
+      expect(matchesFilter(f(), plain)).toBe(true)
+    })
+
+    it('counts as an active filter and clears with clearAll', () => {
+      useFilterStore.getState().setFocus(true)
+      expect(useFilterStore.getState().isActive).toBe(true)
+      expect(countActiveFilters(f())).toBe(1)
+      useFilterStore.getState().clearAll()
+      expect(f().focus).toBeNull()
+      expect(useFilterStore.getState().isActive).toBe(false)
+    })
+
+    it('round-trips through the predicate; a predicate without it reads as null', () => {
+      useFilterStore.getState().setFocus(false)
+      const predicate = criteriaToPredicate(f())
+      expect(predicate.focus).toBe(false)
+      expect(predicateToCriteria(predicate).focus).toBe(false)
+      const { focus: _drop, ...legacy } = predicate
+      void _drop
+      expect(predicateToCriteria(legacy).focus).toBeNull()
     })
   })
 

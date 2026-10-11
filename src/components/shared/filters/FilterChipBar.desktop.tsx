@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { toggleItem } from '../../../utils/filter'
 import topBar from '../../layout/TopBar.module.css'
+import { FocusIcon } from '../FocusMarker'
 import { DateRangeDropdown } from './DateRangeDropdown'
-import { EntityDropdownItems, SelectionPanelBody } from './FilterPanels'
+import { EntityDropdownItems, FocusPanelBody, SelectionPanelBody } from './FilterPanels'
 import {
   useFilterChipBarState,
   type EntityKey,
@@ -164,6 +165,42 @@ function EntityChipDropdown({
     >
       {children}
     </FilterDropdown>
+  )
+}
+
+/** The Focus filter button: any task / in focus / not in focus. */
+function FocusDropdown({ value, onChange }: { value: boolean | null; onChange: (v: boolean | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const handleClose = useCallback(() => setOpen(false), [])
+  const { panelRef, style } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: triggerRef },
+    open,
+    onClose: handleClose,
+  })
+  return (
+    <div className={topBar.dropdownWrapper}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`${topBar.filterChip} ${value !== null ? topBar.filterChipActive : ''}`}
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        <span className={topBar.filterIcon}><FocusIcon /></span> Focus
+        <span className={`${topBar.chevron} ${open ? topBar.chevronOpen : ''}`}>&#9662;</span>
+      </button>
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          className={topBar.dropdownPanel}
+          style={{ position: style.position, left: style.left, top: style.top }}
+        >
+          <FocusPanelBody value={value} onChange={(v) => { onChange(v); setOpen(false) }} />
+        </div>,
+        document.body,
+      )}
+    </div>
   )
 }
 
@@ -411,6 +448,8 @@ export function FilterChipBarDesktop({
           )}
         </EntityChipDropdown>
       )}
+
+      <FocusDropdown value={p.focus ?? null} onChange={(focus) => update({ focus })} />
 
       <button
         type="button"

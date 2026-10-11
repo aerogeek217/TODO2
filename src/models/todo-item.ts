@@ -35,6 +35,12 @@ export interface TodoItem {
    */
   nextFollowupAt?: Date
   recurrenceRule?: RecurrenceRule
+  /**
+   * On the user's short list of tasks to work on now. Shown as a marker on
+   * the row; the "Focus" list (predicate `focus: true`, manual order) lists
+   * them. Absent = not in focus.
+   */
+  focus?: boolean
   createdAt: Date
   modifiedAt: Date
   projectId?: number

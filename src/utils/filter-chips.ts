@@ -4,7 +4,7 @@ import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 
 /** The filter fields a chip stands for, in chip order. */
-export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'project' | 'text' | 'completed'
+export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'project' | 'focus' | 'text' | 'completed'
 
 export interface FilterChip {
   field: FilterChipField
@@ -35,6 +35,7 @@ export interface FilterClauses {
   dateRangeEnd: DateAnchor | null
   hasDeadline: boolean | null
   hasFollowup?: boolean | null
+  focus?: boolean | null
 }
 
 /** `first +N` over the resolved names; `none` when nothing is picked. */
@@ -91,9 +92,14 @@ function datesChip(c: FilterClauses): FilterChip | null {
   return { field: 'dates', label: range ? DATE_FIELD_LABELS_SHORT[c.dateField] : 'Dates', value: parts.join(', ') }
 }
 
+/** `In focus` / `Not in focus` for a focus clause. */
+export function focusValue(focus: boolean): string {
+  return focus ? 'In focus' : 'Not in focus'
+}
+
 /**
  * Chips for the narrowing clauses of a filter, in chip order (people, tags,
- * dates, status, project, text). `showCompleted` adds a trailing
+ * dates, status, project, focus, text). `showCompleted` adds a trailing
  * `completed` chip only when `includeCompleted` is set (screen filters show
  * it; a list's own filter keeps it in its options).
  */
@@ -106,6 +112,7 @@ export function filterChips(c: FilterClauses, names: FilterChipNames, includeCom
   if (dates) chips.push(dates)
   if (c.statusIds != null) chips.push({ field: 'status', label: 'Status', value: namesValue(c.statusIds, byId(names.statuses), 'No status') })
   if (c.projectIds != null) chips.push({ field: 'project', label: 'Project', value: namesValue(c.projectIds, byId(names.projects), 'No project') })
+  if (c.focus != null) chips.push({ field: 'focus', label: 'Focus', value: focusValue(c.focus) })
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
   if (includeCompleted && c.showCompleted) chips.push({ field: 'completed', label: 'Completed', value: 'Completed shown' })
@@ -123,6 +130,7 @@ export function hasNarrowingFilters(p: TodoPredicate): boolean {
     || p.dateRangeEnd != null
     || p.hasDeadline != null
     || (p.hasFollowup ?? null) != null
+    || (p.focus ?? null) != null
 }
 
 /** The filters in words, e.g. `Status Waiting · Due within 14 days`. */
@@ -137,6 +145,7 @@ export function clearChipField(p: TodoPredicate, field: FilterChipField): TodoPr
     case 'tags': return { ...p, tags: null }
     case 'status': return { ...p, statusIds: null }
     case 'project': return { ...p, projectIds: null }
+    case 'focus': return { ...p, focus: null }
     case 'text': return { ...p, searchText: '' }
     case 'dates': return { ...p, dateRangeStart: null, dateRangeEnd: null, dateRangeIncludeNoDate: false, hasDeadline: null, hasFollowup: null }
     case 'completed': return { ...p, showCompleted: false }

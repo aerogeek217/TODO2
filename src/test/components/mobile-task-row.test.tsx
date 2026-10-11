@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTagStore } from '../../stores/tag-store'
 import { makeTodo, makePerson } from '../helpers'
@@ -10,10 +9,12 @@ const mockToggleComplete = vi.fn()
 const mockRemove = vi.fn()
 const mockQuickAssignTag = vi.fn()
 const mockQuickUnassignTag = vi.fn()
+const mockSetFocus = vi.fn()
 vi.mock('../../hooks/use-bulk-actions', () => ({
   useBulkActions: () => ({
     toggleComplete: mockToggleComplete,
     remove: mockRemove,
+    setFocus: mockSetFocus,
     setDeadline: vi.fn(),
     setProject: vi.fn(),
     setStatus: vi.fn(),
@@ -251,10 +252,6 @@ describe('MobileTaskRow', () => {
   // is identical to TaskRow.
 
   describe('Phase 6 parity', () => {
-    beforeEach(() => {
-      useTaskboardStore.setState({ board: null, loading: false, error: null })
-    })
-
     it('exposes the due-date chip as a button (tap → opens the date picker)', () => {
       const year = new Date().getFullYear()
       render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
@@ -274,25 +271,31 @@ describe('MobileTaskRow', () => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 
-    it('Add to Taskboard menu action targets the row todo', () => {
-      const add = vi.fn()
-      vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ has: () => false, add } as never)
+    it('Add to Focus menu action targets the row todo', () => {
+      mockSetFocus.mockClear()
       render(<MobileTaskRow todo={makeTodo({ id: 42, title: 'Foo' })} />)
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Taskboard' }))
-      expect(add).toHaveBeenCalledWith(42)
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Focus' }))
+      expect(mockSetFocus).toHaveBeenCalledWith(42, true)
+    })
+
+    it('shows the focus marker only for a task in focus', () => {
+      const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
+      expect(screen.queryByRole('img', { name: 'Focus' })).not.toBeInTheDocument()
+      unmount()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
+      expect(screen.getByRole('img', { name: 'Focus' })).toBeInTheDocument()
     })
 
     it('Delete menu action routes through bulk.remove (which queues the confirm dialog)', () => {
       mockRemove.mockClear()
-      vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ has: () => false, add: vi.fn(), removeEntry: vi.fn() } as never)
       render(<MobileTaskRow todo={makeTodo({ id: 7, title: 'Foo' })} />)
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
@@ -307,7 +310,7 @@ describe('MobileTaskRow', () => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })

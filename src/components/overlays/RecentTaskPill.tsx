@@ -10,7 +10,7 @@
  *   • interact with the inline `<TaskRow>` exactly as on any other surface
  *     (status, people, dates, tags, notes, inline-edit title; double-click
  *     opens the full editor)
- *   • click "+ Taskboard" to one-shot add it to the singleton taskboard
+ *   • click "+ Focus" to one-shot put it in focus
  *   • click × to dismiss immediately
  *
  * Render lifetime is keyed on `recentlyCreated.key` so a fresh creation
@@ -20,7 +20,6 @@ import { useEffect } from 'react'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { TaskRow } from '../task/TaskRow'
 import styles from './RecentTaskPill.module.css'
 
@@ -33,7 +32,6 @@ export function RecentTaskPill() {
 function RecentTaskPillBody({ todoId }: { todoId: number }) {
   const todo = useTodoStore((s) => s.todos.find((t) => t.id === todoId))
   const assignedPeople = usePersonStore((s) => s.assignedPeopleMap.get(todoId))
-  const onTaskboard = useTaskboardStore((s) => s.board?.entries.some((e) => e.todoId === todoId) ?? false)
   const clearRecent = useUIStore((s) => s.clearRecentlyCreated)
   const openEdit = useUIStore((s) => s.openEditPopup)
 
@@ -50,9 +48,10 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
     openEdit(id)
   }
 
-  const handleAddToTaskboard = () => {
-    if (onTaskboard) return
-    void useTaskboardStore.getState().add(todoId)
+  const inFocus = todo.focus === true
+  const handleAddToFocus = () => {
+    if (inFocus) return
+    void useTodoStore.getState().bulkSetFocus([todoId], true)
     clearRecent()
   }
 
@@ -74,11 +73,11 @@ function RecentTaskPillBody({ todoId }: { todoId: number }) {
       <button
         type="button"
         className={styles.boardButton}
-        onClick={handleAddToTaskboard}
-        disabled={onTaskboard}
-        title={onTaskboard ? 'Already on taskboard' : 'Add to taskboard'}
+        onClick={handleAddToFocus}
+        disabled={inFocus}
+        title={inFocus ? 'Already in focus' : 'Add to Focus'}
       >
-        {onTaskboard ? '✓ Taskboard' : '+ Taskboard'}
+        {inFocus ? '✓ Focus' : '+ Focus'}
       </button>
       <button
         type="button"

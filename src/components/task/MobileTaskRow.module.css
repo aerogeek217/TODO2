@@ -241,3 +241,15 @@
   color: var(--color-text-muted);
   white-space: nowrap;
 }
+
+/* Markers (Focus) between the checkbox and the title; never hidden. */
+.markers {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.markersDone {
+  opacity: 0.45;
+}

@@ -55,6 +55,11 @@ export function useBulkActions() {
     }
   }, [])
 
+  /** Puts the task (or the selection it's part of) in focus, or takes it out. */
+  const setFocus = useCallback((todoId: number, on: boolean) => {
+    void useTodoStore.getState().bulkSetFocus(getTargetIds(todoId), on)
+  }, [])
+
   const markFollowedUp = useCallback((todoId: number) => {
     useTodoStore.getState().markFollowedUp(getTargetIds(todoId))
   }, [])
@@ -118,6 +123,7 @@ export function useBulkActions() {
   return {
     toggleComplete,
     remove,
+    setFocus,
     setStatus,
     setDeadline,
     setFollowup,

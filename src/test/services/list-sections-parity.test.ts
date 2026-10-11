@@ -46,10 +46,10 @@ const home: Tag = { id: 2, name: 'home' }
 
 const todos: PersistedTodoItem[] = [
   makeTodo({ id: 1, title: 'Pay invoice', sortOrder: 9, dueDate: day(10, 10), statusId: 1, projectId: 1 }),
-  makeTodo({ id: 2, title: 'call plumber', sortOrder: 3, dueDate: day(10, 14), nextFollowupAt: day(10, 20) }),
+  makeTodo({ id: 2, title: 'call plumber', sortOrder: 3, dueDate: day(10, 14), nextFollowupAt: day(10, 20), focus: true }),
   makeTodo({ id: 3, title: 'Draft memo', sortOrder: 5, dueDate: day(10, 15), statusId: 2, projectId: 2 }),
   makeTodo({ id: 4, title: 'book flights', sortOrder: 1, dueDate: day(10, 18), nextFollowupAt: day(10, 13), projectId: 1 }),
-  makeTodo({ id: 5, title: 'Archive old files', sortOrder: 7, dueDate: day(10, 19), statusId: 1 }),
+  makeTodo({ id: 5, title: 'Archive old files', sortOrder: 7, dueDate: day(10, 19), statusId: 1, focus: true }),
   makeTodo({ id: 6, title: 'Plan offsite', sortOrder: 2, dueDate: day(12, 1), nextFollowupAt: day(10, 14), statusId: 2 }),
   makeTodo({ id: 7, title: 'Read book', sortOrder: 8, nextFollowupAt: day(11, 30) }),
   makeTodo({ id: 8, title: 'Done thing', sortOrder: 4, isCompleted: true, dueDate: day(10, 12), projectId: 2 }),
@@ -128,6 +128,8 @@ const predicates: Array<[string, TodoPredicate]> = [
   ['search by tag name', { ...emptyPredicate(), searchText: 'work' }],
   ['search by status name', { ...emptyPredicate(), searchText: 'waiting' }],
   ['search by project name', { ...emptyPredicate(), searchText: 'beta' }],
+  ['in focus', { ...emptyPredicate(), focus: true }],
+  ['not in focus', { ...emptyPredicate(), focus: false }],
 ]
 
 const runtimeCases: Array<[string, RuntimeFilterSpec | undefined, number[] | undefined]> = [

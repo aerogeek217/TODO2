@@ -72,7 +72,7 @@
 
 /* TaskRow advertises `cursor: grab` because it normally lives inside a
  * sortable list. The pill has no DndContext above it, so a drag would no-op
- * — flatten the affordance to avoid implying drag-to-taskboard. */
+ * — flatten the affordance so it does not look draggable. */
 .rowWrapper > *,
 .rowWrapper > *:active {
   cursor: default;

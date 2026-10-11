@@ -3,7 +3,9 @@ import { act, render, screen, fireEvent, cleanup, waitFor } from '@testing-libra
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { useUIStore } from '../../stores/ui-store'
+import { useFilterStore } from '../../stores/filter-store'
 import { makePerson, makeTodo, resetDb } from '../helpers'
 import type { Person, Tag, PersistedTodoItem } from '../../models'
 
@@ -22,7 +24,9 @@ const followupTag: Tag & { id: number } = { id: 2, name: 'followup', color: '#0a
 function resetStores() {
   useProjectStore.setState({ projects: [] })
   useSettingsStore.setState({ defaultProjectId: undefined, themeMode: 'dark' })
-  useTaskboardStore.setState({ board: { id: 1, entries: [], createdAt: new Date(), updatedAt: new Date() } })
+  useTodoStore.setState(useTodoStore.getInitialState(), true)
+  useUIStore.setState({ quickAddDraft: null })
+  useFilterStore.getState().clearAll()
 }
 
 function typeTitle(text: string) {
@@ -98,7 +102,7 @@ function renderEditMode(todo: PersistedTodoItem, overrides: Record<string, unkno
   }
 
   const result = render(<TaskEditPopup {...props} />)
-  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignTag, onUnassignTag, onCreateTag }
+  return { ...result, onUpdate, onAssignPerson, onUnassignPerson, onAssignTag, onUnassignTag, onCreateTag, props }
 }
 
 describe('TaskEditPopup', () => {
@@ -387,51 +391,43 @@ describe('TaskEditPopup', () => {
     })
   })
 
-  describe('edit mode — taskboard toggle', () => {
+  describe('Focus toggle', () => {
     beforeEach(async () => {
       await resetDb()
-      useTaskboardStore.setState({ board: null, loading: false, error: null })
+      resetStores()
     })
 
-    it('clicking Add to Taskboard adds the todo and flips the label', async () => {
-      const todo = makeTodo({ id: 42, title: 'Taskboard target' })
-      renderEditMode(todo)
+    it('edit mode: clicking Focus puts the task in focus, and again takes it out', async () => {
+      const todo = makeTodo({ id: 42, title: 'Focus target' })
+      useTodoStore.setState({ todos: [todo] })
+      const { rerender, props } = renderEditMode(todo)
 
-      expect(screen.getByText('Add to Taskboard')).toBeInTheDocument()
-      expect(useTaskboardStore.getState().has(42)).toBe(false)
-
-      await act(async () => {
-        fireEvent.click(screen.getByText('Add to Taskboard'))
-      })
-
-      await waitFor(() => {
-        expect(useTaskboardStore.getState().has(42)).toBe(true)
-      })
-      expect(screen.getByText('Remove from Taskboard')).toBeInTheDocument()
+      const toggle = screen.getByRole('button', { name: /Focus/ })
+      expect(toggle).toHaveAttribute('aria-pressed', 'false')
       expect(screen.queryByText('Add to Taskboard')).not.toBeInTheDocument()
+
+      await act(async () => { fireEvent.click(toggle) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.focus).toBe(true))
+
+      rerender(<TaskEditPopup {...props} todo={useTodoStore.getState().todos[0]!} />)
+      expect(screen.getByRole('button', { name: /Focus/ })).toHaveAttribute('aria-pressed', 'true')
+
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Focus/ })) })
+      await waitFor(() => expect(useTodoStore.getState().todos[0]!.focus).toBeUndefined())
     })
 
-    it('clicking Remove from Taskboard removes the todo and flips the label back', async () => {
-      const todo = makeTodo({ id: 77, title: 'Already on board' })
-      renderEditMode(todo)
+    it('create mode: the Focus toggle is passed to onCreate', async () => {
+      const { onCreate } = renderCreateMode()
+      typeTitle('New focused task')
+      fireEvent.click(screen.getByRole('button', { name: /Focus/ }))
+      await act(async () => { fireEvent.click(screen.getByText('Create task')) })
+      expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ title: 'New focused task', focus: true }), expect.anything())
+    })
 
-      await act(async () => {
-        await useTaskboardStore.getState().add(77)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByText('Remove from Taskboard')).toBeInTheDocument()
-      })
-
-      await act(async () => {
-        fireEvent.click(screen.getByText('Remove from Taskboard'))
-      })
-
-      await waitFor(() => {
-        expect(useTaskboardStore.getState().has(77)).toBe(false)
-      })
-      expect(screen.getByText('Add to Taskboard')).toBeInTheDocument()
-      expect(screen.queryByText('Remove from Taskboard')).not.toBeInTheDocument()
+    it('create mode: a focus-only screen filter starts the toggle on', () => {
+      useFilterStore.getState().setFocus(true)
+      renderCreateMode()
+      expect(screen.getByRole('button', { name: /Focus/ })).toHaveAttribute('aria-pressed', 'true')
     })
   })
 

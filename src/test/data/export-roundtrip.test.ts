@@ -40,6 +40,7 @@ const FULL_PREDICATE: TodoPredicate = {
   dateRangeIncludeNoDate: true,
   hasDeadline: true,
   hasFollowup: false,
+  focus: false,
   tags: [1],
 }
 
@@ -70,6 +71,7 @@ function buildSeed(): Seed {
         lastFollowupAt: at('2026-09-13T14:25:31.000Z'),
         nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
         recurrenceRule: { type: 'monthly', originalDayOfMonth: 31 },
+        focus: true,
         createdAt: at('2026-09-02T10:00:00.000Z'), modifiedAt: at('2026-09-11T09:30:00.000Z'),
         projectId: 1, canvasId: 1, statusId: 2, sortOrder: 0,
       },

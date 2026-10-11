@@ -41,6 +41,7 @@ export const DEFAULT_PREDICATE: TodoPredicate = {
   dateRangeIncludeNoDate: false,
   hasDeadline: null,
   hasFollowup: null,
+  focus: null,
   tags: null,
 }
 
@@ -57,6 +58,7 @@ export function hasAnyFilter(p: TodoPredicate): boolean {
     p.dateRangeEnd !== null ||
     p.hasDeadline !== null ||
     (p.hasFollowup ?? null) !== null ||
+    (p.focus ?? null) !== null ||
     (p.tags ?? null) !== null
   )
 }

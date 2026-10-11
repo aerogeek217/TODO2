@@ -384,6 +384,10 @@
   color: var(--color-text-primary);
 }
 
+.bulkButtonFocus {
+  color: var(--color-marker-focus);
+}
+
 .bulkDanger {
   color: var(--color-danger);
 }

@@ -6,7 +6,8 @@ import type { ContextMenuItem } from '../models/context-menu'
 
 interface BuildMenuItemsOpts {
   todo: PersistedTodoItem
-  onBoard: boolean
+  /** Adds the task (or the selection) to Focus / removes it, per `todo.focus`. */
+  onToggleFocus: () => void
   /** When true, the row is rendered inside a Taskboard surface — terminal "Delete" becomes "Remove from Taskboard". */
   onTaskboard?: boolean
   onOpenDetail?: (todoId: number) => void
@@ -26,7 +27,7 @@ interface BuildMenuItemsOpts {
  * tests cover the menu shape without mounting a row.
  */
 export function buildTaskRowMenuItems({
-  todo, onBoard, onTaskboard,
+  todo, onToggleFocus, onTaskboard,
   onOpenDetail, onMoveToProject, onSetFollowup, onFollowedUp,
   onComplete, onDelete,
 }: BuildMenuItemsOpts): ContextMenuItem[] {
@@ -47,15 +48,10 @@ export function buildTaskRowMenuItems({
       label: 'Followed up',
       action: onFollowedUp,
     }] : []),
-    onBoard
-      ? {
-          label: 'Remove from Taskboard',
-          action: () => { void useTaskboardStore.getState().removeEntry(todo.id) },
-        }
-      : {
-          label: 'Add to Taskboard',
-          action: () => { void useTaskboardStore.getState().add(todo.id) },
-        },
+    {
+      label: todo.focus ? 'Remove from Focus' : 'Add to Focus',
+      action: onToggleFocus,
+    },
     ...(onMoveToProject ? [{
       label: 'Move to project…',
       action: onMoveToProject,
@@ -93,6 +89,10 @@ export function useTaskRowActions({ todo, onTaskboard }: UseTaskRowActionsOpts) 
     bulk.toggleComplete(todo.id)
   }, [bulk, todo.id])
 
+  const handleToggleFocus = useCallback(() => {
+    bulk.setFocus(todo.id, todo.focus !== true)
+  }, [bulk, todo.id, todo.focus])
+
   const handleDelete = useCallback(() => {
     if (onTaskboard) {
       void useTaskboardStore.getState().removeEntry(todo.id)
@@ -101,5 +101,5 @@ export function useTaskRowActions({ todo, onTaskboard }: UseTaskRowActionsOpts) 
     bulk.remove(todo.id)
   }, [bulk, todo.id, onTaskboard])
 
-  return { bulk, handleToggleComplete, handleDelete }
+  return { bulk, handleToggleComplete, handleToggleFocus, handleDelete }
 }

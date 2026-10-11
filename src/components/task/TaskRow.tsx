@@ -5,7 +5,6 @@ import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
 import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
@@ -25,6 +24,7 @@ import { PortalDropdown } from '../shared/PortalDropdown'
 import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { TaskNotePopover } from './TaskNotePopover'
+import { FocusMarker } from '../shared/FocusMarker'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
@@ -48,7 +48,7 @@ export const TaskRow = memo(function TaskRow({
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; onBoard: boolean } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [projectPicker, setProjectPicker] = useState<{ x: number; y: number } | null>(null)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
   /** Follow-up popover: anchored to the pill / empty-slot flag, or at the menu's point. */
@@ -82,7 +82,7 @@ export const TaskRow = memo(function TaskRow({
 
 
   // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
-  const { bulk, handleToggleComplete, handleDelete } = useTaskRowActions({ todo, onTaskboard })
+  const { bulk, handleToggleComplete, handleToggleFocus, handleDelete } = useTaskRowActions({ todo, onTaskboard })
 
   // Inline title editing
   const handleSaveTitle = useCallback((newTitle: string) => {
@@ -160,9 +160,7 @@ export const TaskRow = memo(function TaskRow({
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        const tb = useTaskboardStore.getState()
-        const onBoard = tb.has(todo.id)
-        setContextMenu({ x: e.clientX, y: e.clientY, onBoard })
+        setContextMenu({ x: e.clientX, y: e.clientY })
       }}
     >
 
@@ -176,6 +174,12 @@ export const TaskRow = memo(function TaskRow({
         onClick={(e) => e.stopPropagation()}
         aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
       />
+
+      {todo.focus && (
+        <span className={`${styles.markers} ${todo.isCompleted ? styles.markersDone : ''}`}>
+          <FocusMarker />
+        </span>
+      )}
 
       {isEditing ? (
         <input
@@ -449,7 +453,7 @@ export const TaskRow = memo(function TaskRow({
           y={contextMenu.y}
           items={buildTaskRowMenuItems({
             todo,
-            onBoard: contextMenu.onBoard,
+            onToggleFocus: handleToggleFocus,
             onTaskboard,
             onOpenDetail,
             onMoveToProject: () => setProjectPicker({ x: contextMenu.x, y: contextMenu.y }),

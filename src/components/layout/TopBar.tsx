@@ -169,11 +169,10 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
  * ref-touching `handleOpenTodo` over as a JSX prop instead of passing it into
  * a render-time `buildSearchContextMenuItems` call (`react-hooks/refs`).
  */
-function SearchResultContextMenu({ x, y, todo, onBoard, onOpen, onMoveToProject, onClose }: {
+function SearchResultContextMenu({ x, y, todo, onOpen, onMoveToProject, onClose }: {
   x: number
   y: number
   todo: PersistedTodoItem
-  onBoard: boolean
   onOpen: (todoId: number) => void
   onMoveToProject: () => void
   onClose: () => void
@@ -182,7 +181,7 @@ function SearchResultContextMenu({ x, y, todo, onBoard, onOpen, onMoveToProject,
     <CanvasContextMenu
       x={x}
       y={y}
-      items={buildSearchContextMenuItems({ todo, onBoard, onOpen, onMoveToProject })}
+      items={buildSearchContextMenuItems({ todo, onOpen, onMoveToProject })}
       onClose={onClose}
     />
   )
@@ -301,7 +300,7 @@ export function TopBar() {
   // menu + project picker outlive the search dropdown closing when the menu
   // opens — the row would otherwise unmount along with its portals.
   const [searchContextMenu, setSearchContextMenu] = useState<
-    { todoId: number; x: number; y: number; onBoard: boolean } | null
+    { todoId: number; x: number; y: number } | null
   >(null)
   const [searchProjectPicker, setSearchProjectPicker] = useState<
     { todoId: number; x: number; y: number } | null
@@ -424,8 +423,7 @@ export function TopBar() {
   }, [openEditPopup, handleSearchChange])
 
   const handleOpenSearchContextMenu = useCallback((todo: PersistedTodoItem, x: number, y: number) => {
-    const onBoard = useTaskboardStore.getState().has(todo.id)
-    setSearchContextMenu({ todoId: todo.id, x, y, onBoard })
+    setSearchContextMenu({ todoId: todo.id, x, y })
     // Keep the dropdown open so the user can pick another row after closing
     // the menu. The row's `onMouseDown preventDefault` already blocks the
     // right-click from transferring focus off the input; picking a menu item
@@ -546,7 +544,6 @@ export function TopBar() {
           x={searchContextMenu.x}
           y={searchContextMenu.y}
           todo={menuTodo}
-          onBoard={searchContextMenu.onBoard}
           onOpen={handleOpenTodo}
           onMoveToProject={() => setSearchProjectPicker({
             todoId: menuTodo.id,

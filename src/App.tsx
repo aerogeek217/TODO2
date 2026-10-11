@@ -181,6 +181,12 @@ function AppQuickAddBar() {
         await tagStore.assignTag(id, tagId)
       }
     }
+    // A focus filter / the Focus list's "+ Add task": the task starts in focus
+    // so it shows where it was added.
+    if (fd.focus) {
+      const created = useTodoStore.getState().todos.find((t) => t.id === id)
+      if (created) await useTodoStore.getState().update({ ...created, focus: true })
+    }
     useUIStore.getState().showRecentlyCreated(id)
     close()
   }, [close])

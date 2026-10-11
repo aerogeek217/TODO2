@@ -139,6 +139,7 @@ function checkTodo(v: unknown): CheckResult {
     ['lastFollowupAt', isOptDateLike(v.lastFollowupAt)],
     ['nextFollowupAt', isOptDateLike(v.nextFollowupAt)],
     ['recurrenceRule', isOptRecurrenceRule(v.recurrenceRule)],
+    ['focus', isOptTriBool(v.focus)],
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['projectId', isOptNum(v.projectId)],
@@ -173,6 +174,7 @@ function isTodoPredicateShape(v: unknown): boolean {
   if (v.dateField !== undefined && !(DATE_FIELD_VALUES as readonly unknown[]).includes(v.dateField)) return false
   if (!isOptTriBool(v.hasDeadline)) return false
   if (!isOptTriBool(v.hasFollowup)) return false
+  if (!isOptTriBool(v.focus)) return false
   return true
 }
 
@@ -619,6 +621,8 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),
     recurrenceRule: v.recurrenceRule != null ? v.recurrenceRule as RecurrenceRule : undefined,
+    // Only `true` is stored; `false` / absent both mean "not in focus".
+    focus: v.focus === true ? true : undefined,
     projectId: optNum(v.projectId),
     canvasId: optNum(v.canvasId),
     statusId: optNum(v.statusId),

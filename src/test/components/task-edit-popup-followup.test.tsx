@@ -3,7 +3,6 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { makeTodo } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
 
@@ -18,7 +17,6 @@ beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
   useProjectStore.setState({ projects: [] })
   useSettingsStore.setState({ defaultProjectId: undefined, themeMode: 'dark', followupDefaultInterval: { count: 1, unit: 'm' } })
-  useTaskboardStore.setState({ board: { id: 1, entries: [], createdAt: new Date(), updatedAt: new Date() } })
 })
 
 afterEach(() => {

@@ -3,6 +3,7 @@ import { toggleItem } from '../../../utils/filter'
 import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
 import { FollowupFlagIcon } from '../FollowupIcons'
+import { FocusIcon } from '../FocusMarker'
 import sheet from '../../overlays/FilterSheet.module.css'
 import {
   cycleTri,
@@ -172,7 +173,8 @@ export function FilterChipBarMobile({
     setTags(toggleItem(tagIdsSet, tagId, allTagIds))
   }
 
-  const togglesActiveCount = p.showCompleted ? 1 : 0
+  const focus = p.focus ?? null
+  const togglesActiveCount = (p.showCompleted ? 1 : 0) + (focus !== null ? 1 : 0)
 
   return (
     <>
@@ -196,6 +198,20 @@ export function FilterChipBarMobile({
               aria-checked={p.showCompleted}
               aria-label="Show completed"
             />
+          </div>
+          <div className={sheet.filterRow}>
+            <span className={sheet.filterLabel}>
+              <span className={sheet.filterLabelIcon}><FocusIcon /></span>
+              In focus
+            </span>
+            <button
+              className={`${sheet.triToggle} ${focus !== null ? sheet.triToggleActive : ''}`}
+              onClick={() => update({ focus: cycleTri(focus) })}
+              aria-label={`In focus: ${focus === null ? 'No filter' : focus ? 'Only tasks in focus' : 'Only tasks not in focus'}`}
+              title={focus === null ? 'No filter' : focus ? 'Only tasks in focus' : 'Only tasks not in focus'}
+            >
+              {triIcon(focus)}
+            </button>
           </div>
         </div>
       </AccordionSection>

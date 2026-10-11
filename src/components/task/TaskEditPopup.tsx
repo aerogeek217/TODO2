@@ -10,6 +10,7 @@ import { addFollowupInterval, describeFollowupInterval } from '../../utils/follo
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
+import { FocusIcon } from '../shared/FocusMarker'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { makeRecurrenceRule } from '../../services/recurrence'
 import { parseTaskInput } from '../../services/nlp-task-creator'
@@ -141,6 +142,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     () => (mode === 'create' ? addFollowupInterval(new Date(), followupInterval) : undefined),
   )
   const [draftLastFollowup, setDraftLastFollowup] = useState<Date | undefined>(undefined)
+  const [draftFocus, setDraftFocus] = useState(filterDefaults?.focus === true)
   const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create')
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
     todo?.recurrenceRule?.type ?? quickAddSeed?.resolved.recurrence ?? '',
@@ -415,6 +417,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     setNextFollowupIsDefault(false)
   }
 
+  const focusOn = isEdit ? todo?.focus === true : draftFocus
+  const handleToggleFocus = () => {
+    if (isEdit && todo) {
+      void useTodoStore.getState().bulkSetFocus([todo.id], !focusOn)
+    } else {
+      setDraftFocus((v) => !v)
+    }
+  }
+
   const handleCreate = async () => {
     if (mode !== 'create' || !title.trim()) return
     const newTodoId = await props.onCreate({
@@ -427,6 +438,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       lastFollowupAt: draftLastFollowup,
       recurrenceRule: buildRule(),
       projectId,
+      ...(draftFocus ? { focus: true } : {}),
     }, {
       personIds: [...pendingPersonIds],
       tagIds: [...pendingTagIds],
@@ -584,6 +596,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
               )}
             </div>
           )}
+          {statuses.length > 0 && <span className={styles.badgeDivider} aria-hidden="true" />}
+          <button
+            type="button"
+            className={`${styles.markerToggle} ${focusOn ? styles.markerToggleFocusOn : ''}`}
+            aria-pressed={focusOn}
+            onClick={handleToggleFocus}
+            title={focusOn ? 'Remove from Focus' : 'Add to Focus'}
+          >
+            <FocusIcon /> Focus
+          </button>
         </div>
 
         <div className={`${styles.scrollBody} ${openDropdown ? styles.scrollBodyDropdownOpen : ''}`}>

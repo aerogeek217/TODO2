@@ -9,7 +9,7 @@ import { useProjectStore } from '../../../stores/project-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { toggleItem } from '../../../utils/filter'
-import { EntityDropdownItems, DateRangePanelBody, SelectionPanelBody } from '../../shared/filters/FilterPanels'
+import { EntityDropdownItems, DateRangePanelBody, FocusPanelBody, SelectionPanelBody } from '../../shared/filters/FilterPanels'
 import { DEFAULT_PREDICATE } from '../../shared/filters/FilterChipBar.shared'
 import topBar from '../../layout/TopBar.module.css'
 import styles from './ListWidget.module.css'
@@ -76,6 +76,8 @@ export function PredicateFieldPicker({ field, predicate: stored, onChange, at, a
         <DatesPicker predicate={predicate} presetField={adding ? dateField : undefined} update={update} onClose={onClose} />
       ) : field === 'text' ? (
         <TextPicker predicate={predicate} update={update} onClose={onClose} />
+      ) : field === 'focus' ? (
+        <FocusPanelBody value={predicate.focus ?? null} onChange={(focus) => { update({ focus }); onClose() }} />
       ) : (
         <EntityPicker field={field} predicate={predicate} adding={adding} update={update} onClose={onClose} />
       )}
@@ -89,6 +91,7 @@ const PICKER_TITLE: Record<ListFilterField, string> = {
   tags: 'Tags',
   status: 'Status',
   project: 'Project',
+  focus: 'Focus',
   dates: 'Date',
   text: 'Text',
 }

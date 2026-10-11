@@ -125,7 +125,8 @@
      editor's color picker shows the actual rendered color. */
   --color-header-bg: #1f2120;
 
-  /* Favorite/star marker — single value across themes for v1. */
+  /* Task markers (shown before the title when set). */
+  --color-marker-focus: var(--color-accent);
 
   /* Accent */
   --color-accent: #7ec4bc;
@@ -256,7 +257,8 @@
   /* Solid background for WidgetHeader / FilteredListPopup chrome. */
   --color-header-bg: #f7fbfa;
 
-  /* Favorite/star marker — single value across themes for v1. */
+  /* Task markers (shown before the title when set). */
+  --color-marker-focus: var(--color-accent);
 
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;

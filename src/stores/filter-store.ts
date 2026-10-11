@@ -50,6 +50,8 @@ export interface FilterCriteria {
   hasDeadline: boolean | null
   /** Tri-state presence filter on `nextFollowupAt`. null = no filter. */
   hasFollowup: boolean | null
+  /** Tri-state filter on `TodoItem.focus` (true = in focus only). null = no filter. */
+  focus: boolean | null
   /**
    * null = no filter; Set of tag ids (into the `tags` registry) — todo must
    * have at least one assigned tag in the set (OR semantics). An empty Set
@@ -86,6 +88,7 @@ interface FilterState {
   setDateRangeIncludeNoDate: (include: boolean) => void
   setHasDeadline: (value: boolean | null) => void
   setHasFollowup: (value: boolean | null) => void
+  setFocus: (value: boolean | null) => void
   setTags: (tags: Set<number> | null) => void
   setAllFilters: (filters: FilterCriteria) => void
   setRuntimeFilterSpec: (spec: RuntimeFilterSpec | null) => void
@@ -105,12 +108,14 @@ const defaultFilters: FilterCriteria = {
   dateRangeIncludeNoDate: false,
   hasDeadline: null,
   hasFollowup: null,
+  focus: null,
   tags: null,
 }
 
 /**
  * Number of active screen filters, one per control: people, projects, status,
- * tags, dates (range or due / follow-up presence), show completed, search.
+ * tags, dates (range or due / follow-up presence), focus, show completed,
+ * search.
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = f.dateRangeStart !== null || f.dateRangeEnd !== null || f.hasDeadline !== null || f.hasFollowup != null
@@ -120,6 +125,7 @@ export function countActiveFilters(f: FilterCriteria): number {
     f.statusIds !== null,
     f.tags !== null,
     dates,
+    f.focus != null,
     f.showCompleted,
     f.searchText !== '',
   ].filter(Boolean).length
@@ -176,6 +182,9 @@ export function matchesFilter(
   if (filters.hasFollowup != null) {
     const has = todo.nextFollowupAt != null
     if (has !== filters.hasFollowup) return false
+  }
+  if (filters.focus != null) {
+    if ((todo.focus === true) !== filters.focus) return false
   }
   if (filters.tags !== null) {
     const ids = assignedTagIds ?? []
@@ -284,7 +293,7 @@ export function createPredicateEvaluator(
  * The screen (top-bar) filter composed with a list's own filter, as the two
  * stages a task must both pass:
  *
- * - Narrowing clauses (people, status, tags, project, search, dates) AND
+ * - Narrowing clauses (people, status, tags, project, focus, search, dates) AND
  *   together — strictly, even on the same field: screen `@Alice` + list
  *   `@Bob` keeps only tasks assigned to both.
  * - `showCompleted` ORs: completed tasks show when either side shows them.
@@ -345,6 +354,7 @@ export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
     dateRangeIncludeNoDate: f.dateRangeIncludeNoDate,
     hasDeadline: f.hasDeadline,
     hasFollowup: f.hasFollowup,
+    focus: f.focus,
     tags: f.tags ? Array.from(f.tags) : null,
   }
 }
@@ -363,6 +373,7 @@ export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
     dateRangeIncludeNoDate: p.dateRangeIncludeNoDate,
     hasDeadline: p.hasDeadline ?? null,
     hasFollowup: p.hasFollowup ?? null,
+    focus: p.focus ?? null,
     tags: p.tags ? new Set(p.tags) : null,
   }
 }
@@ -423,6 +434,10 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   setHasFollowup(hasFollowup: boolean | null) {
     commit(set, { ...get().filters, hasFollowup })
+  },
+
+  setFocus(focus: boolean | null) {
+    commit(set, { ...get().filters, focus })
   },
 
   setTags(tags: Set<number> | null) {

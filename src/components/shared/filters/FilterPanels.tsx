@@ -264,3 +264,32 @@ export function DateRangePanelBody({
     </>
   )
 }
+
+const FOCUS_OPTIONS: ReadonlyArray<{ value: boolean | null; label: string }> = [
+  { value: null, label: 'Any task' },
+  { value: true, label: 'In focus' },
+  { value: false, label: 'Not in focus' },
+]
+
+/** The focus filter: any task / only tasks in focus / only tasks not in focus. */
+export function FocusPanelBody({ value, onChange }: {
+  value: boolean | null
+  onChange: (v: boolean | null) => void
+}) {
+  return (
+    <div role="radiogroup" aria-label="Focus">
+      {FOCUS_OPTIONS.map((opt) => (
+        <label
+          key={String(opt.value)}
+          className={topBar.dropdownItem}
+          role="radio"
+          aria-checked={value === opt.value}
+          onClick={() => onChange(opt.value)}
+        >
+          <span className={`${topBar.check} ${value === opt.value ? topBar.checked : ''}`} />
+          {opt.label}
+        </label>
+      ))}
+    </div>
+  )
+}

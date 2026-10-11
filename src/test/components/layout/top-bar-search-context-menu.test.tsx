@@ -9,7 +9,6 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useProjectStore } from '../../../stores/project-store'
-import { useTaskboardStore } from '../../../stores/taskboard-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { makeTodo } from '../../helpers'
 
@@ -41,7 +40,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
   it('includes the full menu item sequence with a separator before Delete', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 1, title: 'Foo' }),
-      onBoard: false,
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
@@ -50,7 +48,7 @@ describe('buildSearchContextMenuItems — search context menu', () => {
       'Open',
       'Mark complete',
       'Followed up',
-      'Add to Taskboard',
+      'Add to Focus',
       'Move to project…',
       '--',
       'Delete',
@@ -61,29 +59,16 @@ describe('buildSearchContextMenuItems — search context menu', () => {
   it('shows "Mark incomplete" when the todo is completed', () => {
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 1, title: 'Foo', isCompleted: true }),
-      onBoard: false,
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
     expect(items[1]!.label).toBe('Mark incomplete')
   })
 
-  it('shows "Remove from Taskboard" when the todo is already on the board', () => {
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 1, title: 'Foo' }),
-      onBoard: true,
-      onOpen: vi.fn(),
-      onMoveToProject: vi.fn(),
-    })
-    expect(items.some((i) => i.label === 'Remove from Taskboard')).toBe(true)
-    expect(items.some((i) => i.label === 'Add to Taskboard')).toBe(false)
-  })
-
   it('Open action calls the onOpen callback with the todo id', () => {
     const onOpen = vi.fn()
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 42, title: 'Foo' }),
-      onBoard: false,
       onOpen,
       onMoveToProject: vi.fn(),
     })
@@ -96,7 +81,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     vi.spyOn(useTodoStore, 'getState').mockReturnValue({ toggleComplete } as never)
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 7, title: 'Foo' }),
-      onBoard: false,
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
@@ -104,37 +88,34 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     expect(toggleComplete).toHaveBeenCalledWith(7)
   })
 
-  it('Add to Taskboard action calls taskboardStore.add', () => {
-    const add = vi.fn()
-    vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ add } as never)
+  it('Add to Focus puts just this task in focus', () => {
+    const bulkSetFocus = vi.fn()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetFocus } as never)
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 9, title: 'Foo' }),
-      onBoard: false,
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    itemByLabel(items, 'Add to Taskboard').action()
-    expect(add).toHaveBeenCalledWith(9)
+    itemByLabel(items, 'Add to Focus').action()
+    expect(bulkSetFocus).toHaveBeenCalledWith([9], true)
   })
 
-  it('Remove from Taskboard action calls taskboardStore.removeEntry when on board', () => {
-    const removeEntry = vi.fn()
-    vi.spyOn(useTaskboardStore, 'getState').mockReturnValue({ removeEntry } as never)
+  it('Remove from Focus takes a task in focus out', () => {
+    const bulkSetFocus = vi.fn()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetFocus } as never)
     const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 11, title: 'Foo' }),
-      onBoard: true,
+      todo: makeTodo({ id: 11, title: 'Foo', focus: true }),
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
-    itemByLabel(items, 'Remove from Taskboard').action()
-    expect(removeEntry).toHaveBeenCalledWith(11)
+    itemByLabel(items, 'Remove from Focus').action()
+    expect(bulkSetFocus).toHaveBeenCalledWith([11], false)
   })
 
   it('Move to project… action calls the onMoveToProject callback', () => {
     const onMoveToProject = vi.fn()
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 3, title: 'Foo' }),
-      onBoard: false,
       onOpen: vi.fn(),
       onMoveToProject,
     })
@@ -147,7 +128,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     vi.spyOn(useTodoStore, 'getState').mockReturnValue({ markFollowedUp } as never)
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 5, title: 'Foo' }),
-      onBoard: false,
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
@@ -160,7 +140,6 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     vi.spyOn(useUIStore, 'getState').mockReturnValue({ showBulkConfirmation } as never)
     const items = buildSearchContextMenuItems({
       todo: makeTodo({ id: 99, title: 'Foo' }),
-      onBoard: false,
       onOpen: vi.fn(),
       onMoveToProject: vi.fn(),
     })
@@ -189,7 +168,6 @@ describe('TopBar search right-click — dropdown survival', () => {
     useStatusStore.setState({ statuses: [] })
     useTagStore.setState({ tags: [], assignedTagsMap: new Map(), loading: false, error: null })
     useProjectStore.setState({ projects: [], loading: false, error: null })
-    useTaskboardStore.setState({ board: null, loading: false, error: null })
   })
 
   afterEach(cleanup)

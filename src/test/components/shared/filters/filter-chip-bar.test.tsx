@@ -51,6 +51,19 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.queryByRole('switch', { name: /hidden/i })).toBeNull()
     })
 
+    it('the Focus button picks in focus / not in focus / any task', () => {
+      const updates: TodoPredicate[] = []
+      const { rerender } = render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      fireEvent.click(screen.getByRole('button', { name: /Focus/ }))
+      fireEvent.click(screen.getByRole('radio', { name: 'In focus' }))
+      expect(updates.at(-1)?.focus).toBe(true)
+      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), focus: true }} onChange={(p) => updates.push(p)} />)
+      fireEvent.click(screen.getByRole('button', { name: /Focus/ }))
+      expect(screen.getByRole('radio', { name: 'In focus' })).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(screen.getByRole('radio', { name: 'Any task' }))
+      expect(updates.at(-1)?.focus).toBeNull()
+    })
+
     it('opens the Project chip and commits only the clicked project (preview-empty)', () => {
       let captured: TodoPredicate | null = null
       render(
@@ -230,6 +243,14 @@ describe('FilterChipBar — primitive', () => {
       const btn = screen.getByRole('button', { name: /Has due date/ })
       fireEvent.click(btn)
       expect(updates.at(-1)?.hasDeadline).toBe(true)
+    })
+
+    it('cycles the In focus tri-state at mobile density', () => {
+      const updates: TodoPredicate[] = []
+      render(<FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      fireEvent.click(screen.getByText('Show / hide'))
+      fireEvent.click(screen.getByRole('button', { name: /In focus/ }))
+      expect(updates.at(-1)?.focus).toBe(true)
     })
 
     it('renders the show-completed switch with correct aria-label and toggles it', () => {

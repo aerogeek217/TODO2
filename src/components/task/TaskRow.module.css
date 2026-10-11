@@ -533,3 +533,15 @@
     width: auto;
   }
 }
+
+/* Markers (Focus) between the checkbox and the title; never hidden. */
+.markers {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.markersDone {
+  opacity: 0.45;
+}

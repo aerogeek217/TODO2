@@ -53,7 +53,8 @@ export function useTaskEditCallbacks() {
         partial.notes || partial.statusId !== undefined ||
         resolved.dueDate !== undefined || resolved.recurrence ||
         resolved.statusId !== undefined ||
-        partial.recurrenceRule
+        partial.recurrenceRule ||
+        partial.focus
       if (hasMeta) {
         const nextDeadline = partial.dueDate ?? resolved.dueDate ?? todo.dueDate
         await updateTodo({
@@ -64,6 +65,7 @@ export function useTaskEditCallbacks() {
           // The editor's Next field may have been changed or cleared from the default.
           nextFollowupAt: 'nextFollowupAt' in partial ? partial.nextFollowupAt : todo.nextFollowupAt,
           lastFollowupAt: partial.lastFollowupAt ?? todo.lastFollowupAt,
+          focus: partial.focus ?? todo.focus,
           recurrenceRule: partial.recurrenceRule
             ?? (nextDeadline && resolved.recurrence ? makeRecurrenceRule(resolved.recurrence, nextDeadline) : undefined),
         })

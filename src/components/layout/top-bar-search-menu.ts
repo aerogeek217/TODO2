@@ -13,18 +13,17 @@ import type { ContextMenuItem } from '../../models/context-menu'
  *    not part of the multi-select), bypassing the bulk-actions expansion.
  *  - Delete: queues a single-id bulk confirmation (same — no selection
  *    expansion).
- *  - Followed up: stamps just this task (same reason).
+ *  - Followed up / Focus: act on just this task (same reason).
  */
 export function buildSearchContextMenuItems(params: {
   todo: PersistedTodoItem
-  onBoard: boolean
   onOpen: (todoId: number) => void
   onMoveToProject: () => void
 }): ContextMenuItem[] {
-  const { todo, onBoard, onOpen, onMoveToProject } = params
+  const { todo, onOpen, onMoveToProject } = params
   return buildTaskRowMenuItems({
     todo,
-    onBoard,
+    onToggleFocus: () => { void useTodoStore.getState().bulkSetFocus([todo.id], todo.focus !== true) },
     onOpenDetail: onOpen,
     onMoveToProject,
     onFollowedUp: () => { void useTodoStore.getState().markFollowedUp([todo.id]) },

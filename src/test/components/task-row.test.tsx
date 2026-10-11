@@ -3,13 +3,13 @@ import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { useStatusStore } from '../../stores/status-store'
 import { useProjectStore } from '../../stores/project-store'
-import { useTaskboardStore } from '../../stores/taskboard-store'
 import { useUIStore } from '../../stores/ui-store'
 import { makeTodo, makePerson, makeProject, resetEntityStores } from '../helpers'
 
 const mockBulk = {
   toggleComplete: vi.fn(),
   remove: vi.fn(),
+  setFocus: vi.fn(),
   setDeadline: vi.fn(),
   setProject: vi.fn(),
   setStatus: vi.fn(),
@@ -30,7 +30,6 @@ function getRow(): HTMLElement {
 function resetStores() {
   // Tags too: several tests seed tag assignments for todo 1.
   resetEntityStores({ todos: false })
-  useTaskboardStore.setState({ board: null })
   useUIStore.setState({ hoveredTodoId: null })
 }
 
@@ -114,8 +113,36 @@ describe('TaskRow', () => {
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
       fireEvent.contextMenu(getRow())
       expect(screen.queryByText(/priority/i)).not.toBeInTheDocument()
-      expect(screen.getByText(/Taskboard/i)).toBeInTheDocument()
+      expect(screen.getByText('Add to Focus')).toBeInTheDocument()
       expect(screen.getByText(/Move to project/i)).toBeInTheDocument()
+    })
+
+    it('Add to Focus puts the row task (or its selection) in focus', () => {
+      mockBulk.setFocus.mockClear()
+      render(<TaskRow todo={makeTodo({ id: 3 })} />)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Focus' }))
+      expect(mockBulk.setFocus).toHaveBeenCalledWith(3, true)
+    })
+
+    it('Remove from Focus takes a task in focus out', () => {
+      mockBulk.setFocus.mockClear()
+      render(<TaskRow todo={makeTodo({ id: 3, focus: true })} />)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Focus' }))
+      expect(mockBulk.setFocus).toHaveBeenCalledWith(3, false)
+    })
+  })
+
+  describe('focus marker', () => {
+    it('shows the marker before the title only for a task in focus', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, title: 'Plain' })} />)
+      expect(screen.queryByRole('img', { name: 'Focus' })).not.toBeInTheDocument()
+      unmount()
+      render(<TaskRow todo={makeTodo({ id: 1, title: 'Focused', focus: true })} />)
+      const marker = screen.getByRole('img', { name: 'Focus' })
+      const title = screen.getByText('Focused')
+      expect(marker.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
   })
 
@@ -322,7 +349,7 @@ describe('TaskRow', () => {
       })
       expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: /Add to Taskboard|Remove from Taskboard/ })).toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Move to project…' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
