@@ -81,6 +81,12 @@ export interface TodoPredicate {
   /** Tri-state presence filter on `dueDate`. null = no filter. */
   hasDeadline: boolean | null
   /**
+   * Tri-state presence filter on `nextFollowupAt`. null = no filter. Optional
+   * on read so predicates stored before the field existed deserialize as
+   * `null` without a data rewrite.
+   */
+  hasFollowup?: boolean | null
+  /**
    * null = no filter; array of tag ids (into the `tags` registry) with OR
    * semantics (todo must have at least one assigned tag in the set). A todo
    * with no tag assignments is excluded when this clause is a non-empty array.

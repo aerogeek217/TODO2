@@ -2,7 +2,7 @@ import type { PersistedTodoItem, Person, Project, Org, Status, Tag, ListItemSort
 import { partitionByGroup, getGroupColor, type GroupingContext } from '../utils/task-grouping'
 import { bucketByDate, type DateBucketKey } from '../utils/bucket-by-date'
 import { startOfToday } from '../utils/date'
-import { compareTodosByDate, pickTodoDate, type WeekStart } from '../utils/effective-date'
+import { compareTodosByDate, pickTodoDate, type TodoDateField, type WeekStart } from '../utils/effective-date'
 import { resolvePersonColor } from '../utils/person-color'
 import { bySortOrder } from '../utils/sort-order'
 import { UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
@@ -13,8 +13,6 @@ export interface Section {
   accentColor?: string
   todos: PersistedTodoItem[]
 }
-
-type DateBucketField = 'date' | 'scheduled' | 'deadline'
 
 const DATE_LIST_WINDOWS: readonly DateBucketKey[] = ['overdue', 'today', 'thisWeek', 'later']
 
@@ -30,7 +28,7 @@ const DATE_LIST_META: Partial<Record<DateBucketKey, { sectionKey: string; label:
 
 function buildBucketSections(
   todos: PersistedTodoItem[],
-  field: DateBucketField,
+  field: TodoDateField,
   today: Date,
   weekStartsOn: WeekStart,
   noDateLabel: string,
@@ -62,6 +60,10 @@ export function buildScheduledSections(todos: PersistedTodoItem[], weekStartsOn:
 
 export function buildDeadlineSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
   return buildBucketSections(todos, 'deadline', today, weekStartsOn, 'No Deadline')
+}
+
+export function buildFollowupSections(todos: PersistedTodoItem[], weekStartsOn: WeekStart, today: Date = startOfToday()): Section[] {
+  return buildBucketSections(todos, 'followup', today, weekStartsOn, 'No Follow-up')
 }
 
 /**
@@ -439,7 +441,7 @@ export function itemSortComparator(
       return bySortOrder(a, b)
     }
   }
-  if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline') {
+  if (sortBy === 'date' || sortBy === 'scheduled' || sortBy === 'deadline' || sortBy === 'followup') {
     return compareTodosByDate(sortBy, today, weekStartsOn)
   }
   // Categorical sort fields (created / people / project / org / status) aren't

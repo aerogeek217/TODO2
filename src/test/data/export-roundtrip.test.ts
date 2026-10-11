@@ -44,6 +44,7 @@ const FULL_PREDICATE: TodoPredicate = {
   dateRangeIncludeNoDate: true,
   hasScheduled: false,
   hasDeadline: true,
+  hasFollowup: false,
   tags: [1],
 }
 
@@ -72,6 +73,8 @@ function buildSeed(): Seed {
         isCompleted: false,
         scheduledDate: { kind: 'date', value: at('2026-10-12T00:00:00.000Z') },
         dueDate: at('2026-10-16T00:00:00.000Z'),
+        lastFollowupAt: at('2026-09-13T14:25:31.000Z'),
+        nextFollowupAt: at('2026-10-13T00:00:00.000Z'),
         recurrenceRule: { type: 'monthly', originalDayOfMonth: 31 },
         createdAt: at('2026-09-02T10:00:00.000Z'), modifiedAt: at('2026-09-11T09:30:00.000Z'),
         projectId: 1, canvasId: 1, statusId: 2, sortOrder: 0,
@@ -98,6 +101,7 @@ function buildSeed(): Seed {
       { key: 'seededAssignedStatusId', value: '1' },
       { key: 'seededFollowupStatusId', value: '2' },
       { key: 'weekStartsOn', value: '1' },
+      { key: 'followupDefaultInterval', value: '2w' },
       { key: 'themeMode', value: 'dark' },
       { key: 'canvasRails', value: RAILS },
       { key: 'color.dark.accent', value: '#4f8cff' },
@@ -113,6 +117,10 @@ function buildSeed(): Seed {
       { id: 2, name: 'Follow-up', color: '#e0a030', sortOrder: 1, icon: 'message-bubble', hideByDefault: false },
     ],
     listDefinitions: [{
+      id: 2, name: 'Follow-ups', sortOrder: 1,
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true } },
+      sort: 'followup', grouping: 'followup', pinnedToDashboard: false, favorited: false,
+    }, {
       id: 1, name: 'By person', sortOrder: 0,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
       sort: 'deadline', grouping: 'people', pinnedToDashboard: false, favorited: true,

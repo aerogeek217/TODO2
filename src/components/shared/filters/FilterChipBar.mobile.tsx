@@ -3,6 +3,7 @@ import type { OrgFilterMode, PersonFilterMode } from '../../../models'
 import { toggleItem } from '../../../utils/filter'
 import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
+import { FollowupFlagIcon } from '../FollowupIcons'
 import sheet from '../../overlays/FilterSheet.module.css'
 import {
   cycleTri,
@@ -229,7 +230,7 @@ export function FilterChipBarMobile({
       >
         <div className={sheet.dateSection}>
           <div className={sheet.dateFieldSelector}>
-            {(['date', 'scheduled', 'deadline', 'created', 'modified'] as const).map((field) => (
+            {(['date', 'scheduled', 'deadline', 'followup', 'created', 'modified'] as const).map((field) => (
               <button
                 key={field}
                 className={`${sheet.dateFieldOption} ${p.dateField === field ? sheet.dateFieldOptionActive : ''}`}
@@ -293,6 +294,20 @@ export function FilterChipBarMobile({
               title={triLabel(p.hasDeadline)}
             >
               {triIcon(p.hasDeadline)}
+            </button>
+          </div>
+          <div className={sheet.filterRow}>
+            <span className={sheet.filterLabel}>
+              <span className={sheet.filterLabelIcon}><FollowupFlagIcon /></span>
+              Has follow-up
+            </span>
+            <button
+              className={`${sheet.triToggle} ${(p.hasFollowup ?? null) !== null ? sheet.triToggleActive : ''}`}
+              onClick={() => update({ hasFollowup: cycleTri(p.hasFollowup ?? null) })}
+              aria-label={`Has follow-up: ${triLabel(p.hasFollowup ?? null)}`}
+              title={triLabel(p.hasFollowup ?? null)}
+            >
+              {triIcon(p.hasFollowup ?? null)}
             </button>
           </div>
         </div>

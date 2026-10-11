@@ -303,16 +303,19 @@ export function scheduledValuesEqual(a?: ScheduledValue | null, b?: ScheduledVal
 
 export { startOfToday }
 
+/** The per-task date fields lists can sort and group by. */
+export type TodoDateField = 'date' | 'scheduled' | 'deadline' | 'followup'
+
 /**
  * Which date a todo contributes to a given comparator field. `'date'` uses the
  * unified `effectiveDate` (min(scheduled, deadline)); `'scheduled'` resolves
  * the scheduled value (precise or fuzzy-aged); `'deadline'` snaps the
- * `dueDate` to its midnight. Returns `null` for missing values — caller sorts
- * those last.
+ * `dueDate` to its midnight; `'followup'` snaps `nextFollowupAt` likewise.
+ * Returns `null` for missing values — caller sorts those last.
  */
 export function pickTodoDate(
   t: PersistedTodoItem,
-  field: 'date' | 'scheduled' | 'deadline',
+  field: TodoDateField,
   today: Date,
   weekStartsOn: WeekStart,
 ): Date | null {
@@ -320,6 +323,7 @@ export function pickTodoDate(
     case 'date': return effectiveDate(t, today, weekStartsOn)
     case 'scheduled': return t.scheduledDate ? resolveScheduled(t.scheduledDate, today, weekStartsOn) : null
     case 'deadline': return t.dueDate ? startOfDay(new Date(t.dueDate)) : null
+    case 'followup': return t.nextFollowupAt ? startOfDay(new Date(t.nextFollowupAt)) : null
   }
 }
 
@@ -331,7 +335,7 @@ export function pickTodoDate(
  * the same way.
  */
 export function compareTodosByDate(
-  field: 'date' | 'scheduled' | 'deadline',
+  field: TodoDateField,
   today: Date,
   weekStartsOn: WeekStart,
 ): (a: PersistedTodoItem, b: PersistedTodoItem) => number {

@@ -105,7 +105,7 @@ export function resolveCrossGroupMutation(
 ): CrossGroupMutation | null {
   if (sourceKey == null || targetKey == null) return null
   if (sourceKey === targetKey) return null
-  if (groupBy === 'date' || groupBy === 'scheduled' || groupBy === 'deadline') return null
+  if (groupBy === 'date' || groupBy === 'scheduled' || groupBy === 'deadline' || groupBy === 'followup') return null
 
   if (groupBy === 'status') {
     if (targetKey === UNGROUPED_GROUP_KEY) {

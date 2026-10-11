@@ -43,11 +43,13 @@ interface DateRangeDropdownProps {
   includeNoDate: boolean
   hasScheduled: boolean | null
   hasDeadline: boolean | null
+  hasFollowup: boolean | null
   onChangeDateField: (field: DateField) => void
   onChangeAnchors: (start: DateAnchor | null, end: DateAnchor | null) => void
   onChangeIncludeNoDate: (include: boolean) => void
   onChangeHasScheduled: (v: boolean | null) => void
   onChangeHasDeadline: (v: boolean | null) => void
+  onChangeHasFollowup: (v: boolean | null) => void
 }
 
 /**
@@ -55,7 +57,7 @@ interface DateRangeDropdownProps {
  * via `usePopoverAnchor`. Opening is non-committal — switching dateField
  * stamps a `today` anchor (per-field), but plain open/close leaves the
  * predicate untouched. The Clear button atomically resets anchors and the
- * has-scheduled / has-deadline tri-states.
+ * has-scheduled / has-deadline / has-follow-up tri-states.
  */
 export function DateRangeDropdown({
   active,
@@ -65,11 +67,13 @@ export function DateRangeDropdown({
   includeNoDate,
   hasScheduled,
   hasDeadline,
+  hasFollowup,
   onChangeDateField,
   onChangeAnchors,
   onChangeIncludeNoDate,
   onChangeHasScheduled,
   onChangeHasDeadline,
+  onChangeHasFollowup,
 }: DateRangeDropdownProps) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -123,7 +127,7 @@ export function DateRangeDropdown({
           style={{ position: style.position, left: style.left, top: style.top }}
         >
           <div className={topBar.dateFieldSelector}>
-            {(['date', 'scheduled', 'deadline', 'created', 'modified'] as const).map((field) => (
+            {(['date', 'scheduled', 'deadline', 'followup', 'created', 'modified'] as const).map((field) => (
               <button
                 type="button"
                 key={field}
@@ -132,7 +136,7 @@ export function DateRangeDropdown({
                   if (field === dateField) return
                   onChangeDateField(field)
                   const todayAnchor = fixedAnchor(startOfToday())
-                  if (field === 'date' || field === 'scheduled' || field === 'deadline') {
+                  if (field === 'date' || field === 'scheduled' || field === 'deadline' || field === 'followup') {
                     onChangeAnchors(todayAnchor, null)
                   } else {
                     onChangeAnchors(null, todayAnchor)
@@ -175,6 +179,7 @@ export function DateRangeDropdown({
           <div className={topBar.dropdownDivider} />
           <TriStateRow label="Has scheduled" value={hasScheduled} onChange={onChangeHasScheduled} />
           <TriStateRow label="Has deadline" value={hasDeadline} onChange={onChangeHasDeadline} />
+          <TriStateRow label="Has follow-up" value={hasFollowup} onChange={onChangeHasFollowup} />
           <div className={topBar.dropdownDivider} />
           <div className={topBar.dropdownActions}>
             <button
@@ -184,6 +189,7 @@ export function DateRangeDropdown({
                 onChangeAnchors(null, null)
                 onChangeHasScheduled(null)
                 onChangeHasDeadline(null)
+                onChangeHasFollowup(null)
                 setOpen(false)
               }}
             >

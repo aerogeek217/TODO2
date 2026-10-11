@@ -16,6 +16,7 @@ export type TodoSortBy =
   | 'date'        // effective date (scheduled fallback to deadline)
   | 'scheduled'   // scheduled date
   | 'deadline'    // dueDate
+  | 'followup'    // nextFollowupAt
   | 'created'     // createdAt
   | 'people'      // sortOrder fallback (categorical)
   | 'project'     // sortOrder fallback
@@ -27,6 +28,7 @@ export type TodoGroupBy =
   | 'date'        // relative date buckets on effective date (Today / This week / …)
   | 'scheduled'   // relative buckets on scheduled date
   | 'deadline'    // relative buckets on dueDate
+  | 'followup'    // relative buckets on nextFollowupAt
   | 'people'      // many-to-many
   | 'project'
   | 'org'         // direct + person→org membership
@@ -34,12 +36,12 @@ export type TodoGroupBy =
   | 'tag'         // many-to-many
 
 export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
-  'manual', 'name', 'date', 'scheduled', 'deadline', 'created',
+  'manual', 'name', 'date', 'scheduled', 'deadline', 'followup', 'created',
   'people', 'project', 'org', 'status',
 ] as const
 
 export const TODO_GROUP_BY_VALUES: readonly TodoGroupBy[] = [
-  'none', 'date', 'scheduled', 'deadline',
+  'none', 'date', 'scheduled', 'deadline', 'followup',
   'people', 'project', 'org', 'status', 'tag',
 ] as const
 
@@ -56,17 +58,17 @@ export const PROJECT_SORT_VALUES: readonly TodoSortBy[] =
   ['manual', 'name', 'date', 'created'] as const
 
 export const PROJECT_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'date', 'scheduled', 'deadline', 'status', 'people', 'org', 'tag'] as const
+  ['none', 'date', 'scheduled', 'deadline', 'followup', 'status', 'people', 'org', 'tag'] as const
 
 export const LIST_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'name', 'date', 'scheduled', 'deadline'] as const
+  ['manual', 'name', 'date', 'scheduled', 'deadline', 'followup'] as const
 
 export const LIST_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'date', 'scheduled', 'deadline', 'project', 'status', 'people', 'org', 'tag'] as const
+  ['none', 'date', 'scheduled', 'deadline', 'followup', 'project', 'status', 'people', 'org', 'tag'] as const
 
 /** Full set for the per-list editor (it's the most permissive surface). */
 export const LIST_EDITOR_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'date', 'scheduled', 'deadline', 'project', 'status', 'people', 'org'] as const
+  ['manual', 'date', 'scheduled', 'deadline', 'followup', 'project', 'status', 'people', 'org'] as const
 
 export const LIST_EDITOR_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'date', 'scheduled', 'deadline', 'project', 'status', 'people', 'org', 'tag'] as const
+  ['none', 'date', 'scheduled', 'deadline', 'followup', 'project', 'status', 'people', 'org', 'tag'] as const

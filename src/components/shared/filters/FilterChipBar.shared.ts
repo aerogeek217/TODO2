@@ -46,6 +46,7 @@ export const DEFAULT_PREDICATE: TodoPredicate = {
   dateRangeIncludeNoDate: false,
   hasScheduled: null,
   hasDeadline: null,
+  hasFollowup: null,
   tags: null,
 }
 
@@ -64,6 +65,7 @@ export function hasAnyFilter(p: TodoPredicate): boolean {
     p.dateRangeEnd !== null ||
     p.hasScheduled !== null ||
     p.hasDeadline !== null ||
+    (p.hasFollowup ?? null) !== null ||
     (p.tags ?? null) !== null
   )
 }
@@ -156,7 +158,8 @@ export function useFilterChipBarState(
     p.dateRangeStart !== null ||
     p.dateRangeEnd !== null ||
     p.hasScheduled !== null ||
-    p.hasDeadline !== null
+    p.hasDeadline !== null ||
+    (p.hasFollowup ?? null) !== null
   const active = hasAnyFilter(p)
 
   const inflightRef = useRef<TodoPredicate>(p)

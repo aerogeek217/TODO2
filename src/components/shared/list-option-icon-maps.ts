@@ -13,6 +13,7 @@ import {
   StatusIconGlyph,
   TagIcon,
 } from './list-option-icons'
+import { FollowupFlagIcon } from './FollowupIcons'
 
 // Post ui-consistency-2026-04-25 P4 the keys widen to the full unified union.
 // Surfaces consume only the icons they need (via their per-surface subset
@@ -23,6 +24,7 @@ export const groupByIcons: Partial<Record<ListGroupBy, ReactNode>> = {
   date: createElement(DateIcon),
   scheduled: createElement(ScheduledIcon),
   deadline: createElement(DeadlineIcon),
+  followup: createElement(FollowupFlagIcon),
   people: createElement(PeopleIcon),
   org: createElement(OrgIcon),
   project: createElement(ProjectIcon),
@@ -36,4 +38,5 @@ export const itemSortByIcons: Partial<Record<ListItemSortBy, ReactNode>> = {
   date: createElement(DateIcon),
   scheduled: createElement(ScheduledIcon),
   deadline: createElement(DeadlineIcon),
+  followup: createElement(FollowupFlagIcon),
 }

@@ -36,6 +36,7 @@ import {
   buildDateSections,
   buildScheduledSections,
   buildDeadlineSections,
+  buildFollowupSections,
   buildPeopleSections,
   buildProjectSections,
   buildOrgSections,
@@ -63,6 +64,7 @@ const groupByOptions: readonly SortGroupOption<ListGroupBy>[] = [
   { value: 'date', label: 'Effective Date', icon: groupByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: groupByIcons.scheduled },
   { value: 'deadline', label: 'Deadline', icon: groupByIcons.deadline },
+  { value: 'followup', label: 'Next follow-up', icon: groupByIcons.followup },
   { value: 'project', label: 'Project', icon: groupByIcons.project },
   { value: 'status', label: 'Status', icon: groupByIcons.status },
   { value: 'people', label: 'People', icon: groupByIcons.people },
@@ -76,6 +78,7 @@ const itemSortByOptions: readonly SortGroupOption<ListItemSortBy>[] = [
   { value: 'date', label: 'Effective Date', icon: itemSortByIcons.date },
   { value: 'scheduled', label: 'Scheduled', icon: itemSortByIcons.scheduled },
   { value: 'deadline', label: 'Deadline', icon: itemSortByIcons.deadline },
+  { value: 'followup', label: 'Next follow-up', icon: itemSortByIcons.followup },
 ]
 
 const runtimeFilterOptions: { value: RuntimeFilterField | 'none'; label: string }[] = [
@@ -327,6 +330,8 @@ export function ListView() {
         return buildScheduledSections(activeTodos, weekStartsOn)
       case 'deadline':
         return buildDeadlineSections(activeTodos, weekStartsOn)
+      case 'followup':
+        return buildFollowupSections(activeTodos, weekStartsOn)
       case 'people':
         return buildPeopleSections(
           activeTodos,

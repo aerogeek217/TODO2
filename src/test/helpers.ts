@@ -81,6 +81,7 @@ export const emptyFilterCriteria: FilterCriteria = {
   dateRangeIncludeNoDate: false,
   hasScheduled: null,
   hasDeadline: null,
+  hasFollowup: null,
   tags: null,
 }
 

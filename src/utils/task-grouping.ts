@@ -10,6 +10,7 @@ export const GROUP_OPTIONS: { value: ProjectGroupBy | null; label: string }[] = 
   { value: 'date', label: 'Effective Date' },
   { value: 'scheduled', label: 'Scheduled' },
   { value: 'deadline', label: 'Deadline' },
+  { value: 'followup', label: 'Next follow-up' },
   { value: 'status', label: 'Status' },
   { value: 'people', label: 'People' },
   { value: 'org', label: 'Org' },
@@ -152,6 +153,11 @@ export function getGroupKey(
         todo.dueDate ? startOfDay(new Date(todo.dueDate)) : null,
         ctx.today,
       )
+    case 'followup':
+      return bucketDateKey(
+        todo.nextFollowupAt ? startOfDay(new Date(todo.nextFollowupAt)) : null,
+        ctx.today,
+      )
     case 'none':
       return null
   }
@@ -211,6 +217,7 @@ export function getGroupLabel(
     case 'date':
     case 'scheduled':
     case 'deadline':
+    case 'followup':
       return DATE_BUCKET_LABELS[key] ?? ''
     case 'none':
       return ''
@@ -265,6 +272,7 @@ export function getGroupColor(
     case 'date':
     case 'scheduled':
     case 'deadline':
+    case 'followup':
     case 'none':
       return undefined
   }
@@ -304,7 +312,8 @@ function orderGroupKeys(
       }
       case 'date':
       case 'scheduled':
-      case 'deadline': {
+      case 'deadline':
+      case 'followup': {
         const idx = (k: string) => {
           const i = (DATE_BUCKET_ORDER as readonly string[]).indexOf(k)
           return i === -1 ? DATE_BUCKET_ORDER.length : i

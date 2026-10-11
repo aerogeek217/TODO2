@@ -32,6 +32,7 @@ function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
     a.dateRangeIncludeNoDate === b.dateRangeIncludeNoDate &&
     a.hasScheduled === b.hasScheduled &&
     a.hasDeadline === b.hasDeadline &&
+    (a.hasFollowup ?? null) === (b.hasFollowup ?? null) &&
     idArraysEqualAsSet(a.personIds, b.personIds) &&
     idArraysEqualAsSet(a.orgIds, b.orgIds) &&
     idArraysEqualAsSet(a.projectIds, b.projectIds) &&

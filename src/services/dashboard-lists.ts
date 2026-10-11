@@ -247,6 +247,7 @@ export function interpretSort(s: ListSort, a: PersistedTodoItem, b: PersistedTod
     }
     case 'scheduled': return compareTodosByDate('scheduled', today, ws)(a, b)
     case 'deadline':  return compareTodosByDate('deadline', today, ws)(a, b)
+    case 'followup':  return compareTodosByDate('followup', today, ws)(a, b)
     case 'manual': case 'name': case 'created': case 'people':
     case 'project': case 'org': case 'status':
       return bySortOrder(a, b)
@@ -264,6 +265,7 @@ export function interpretGrouping(
     case 'date':      return bucketByEffective(todos, ctx)
     case 'scheduled': return bucketByScheduled(todos, ctx)
     case 'deadline':  return bucketByDeadline(todos, ctx)
+    case 'followup':  return bucketByFollowup(todos, ctx)
     case 'project':   return bucketByProject(todos, ctx)
     case 'status':    return bucketByStatus(todos, ctx)
     case 'people':    return bucketByPeople(todos, ctx, restrict)
@@ -292,6 +294,8 @@ const DEADLINE_WINDOWS: readonly DateBucketKey[] = [
   'overdue', 'today', 'thisWeek', 'nextWeek', 'thisMonth', 'later',
 ]
 const SCHEDULED_WINDOWS = EFFECTIVE_WINDOWS
+/** ListView's date vocabulary: Overdue / Today / This week / Later (+ No follow-up). */
+const FOLLOWUP_WINDOWS: readonly DateBucketKey[] = ['overdue', 'today', 'thisWeek', 'later']
 
 /**
  * Shared body for the 3 date bucketers. Resolves the day-anchor + week-start,
@@ -326,6 +330,13 @@ function bucketByDeadline(todos: PersistedTodoItem[], ctx: DashboardListsContext
   const { groups, noDate } = buildDateGroups(todos, ctx, DEADLINE_WINDOWS,
     (t) => t.dueDate ? startOfDay(new Date(t.dueDate)) : null)
   if (noDate.length > 0) groups.push({ key: 'no-deadline', label: 'No deadline', todos: noDate })
+  return groups
+}
+
+function bucketByFollowup(todos: PersistedTodoItem[], ctx: DashboardListsContext): DashboardListGroup[] {
+  const { groups, noDate } = buildDateGroups(todos, ctx, FOLLOWUP_WINDOWS,
+    (t) => t.nextFollowupAt ? startOfDay(new Date(t.nextFollowupAt)) : null)
+  if (noDate.length > 0) groups.push({ key: 'no-followup', label: 'No follow-up', todos: noDate })
   return groups
 }
 
