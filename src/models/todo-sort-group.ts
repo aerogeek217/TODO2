@@ -59,10 +59,3 @@ export const LIST_SORT_VALUES: readonly TodoSortBy[] =
 
 export const LIST_GROUP_VALUES: readonly TodoGroupBy[] =
   ['none', 'deadline', 'followup', 'project', 'status', 'people', 'tag'] as const
-
-/** Full set for the per-list editor (it's the most permissive surface). */
-export const LIST_EDITOR_SORT_VALUES: readonly TodoSortBy[] =
-  ['manual', 'deadline', 'followup', 'project', 'status', 'people'] as const
-
-export const LIST_EDITOR_GROUP_VALUES: readonly TodoGroupBy[] =
-  ['none', 'deadline', 'followup', 'project', 'status', 'people', 'tag'] as const

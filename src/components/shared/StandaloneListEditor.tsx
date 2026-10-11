@@ -5,24 +5,23 @@ import { defsEqual } from '../../utils/list-def-equal'
 import { ListEditorBody } from './ListEditorBody'
 import { ListEditorDialog } from './ListEditorDialog'
 import { useListDefDraft } from '../../hooks/use-list-def-draft'
+import { useEffectiveListDefinition, useListDraftStore } from '../../stores/list-draft-store'
+import { useListWidgetCount } from '../workspace/widget-hooks'
 
 /**
- * Direct list-editor dialog mounted by `CanvasPage` (triage-2026-04-26 P5 /
- * Q7=A). Drives the "Edit list" entry from a tab pill / float's
- * widget-kind menu (`SlotRenderer` + `ListInsetNode`) — the editor opens
- * over a dimmed canvas with NO `DashboardListsEditor` (Lists manager modal)
- * underneath. Subscribes to `useUIStore.listEditorDialogId` for its open
- * state and target def; the manager surface remains the entry point for
- * Settings → "Lists" and the on-canvas list-create-then-edit flow.
+ * The "Edit list…" dialog opened from a list widget's tab menu or options
+ * (`useUIStore.listEditorDialogId`). It starts from the list as shown — its
+ * unsaved inline edits, if any. Save writes the definition at once (the
+ * inline edits with it); Cancel drops only the dialog's own edits.
  */
 export function StandaloneListEditor() {
   const id = useUIStore((s) => s.listEditorDialogId)
   const closeDialog = useUIStore((s) => s.closeListEditorDialog)
   const showBulkConfirmation = useUIStore((s) => s.showBulkConfirmation)
-  const editingList = useListDefinitionStore((s) =>
-    id == null ? null : s.listDefinitions.find((d) => d.id === id) ?? null,
-  )
+  // Starts from the list as shown: its unsaved inline edits, if any.
+  const editingList = useEffectiveListDefinition(id ?? undefined) ?? null
   const update = useListDefinitionStore((s) => s.update)
+  const widgetCount = useListWidgetCount(id ?? undefined)
 
 
   const [draft, setDraft] = useListDefDraft(editingList)
@@ -63,16 +62,18 @@ export function StandaloneListEditor() {
       // Editor stays open so the user can fix it.
       return
     }
-    if (dirty) {
-      void update({ ...draft, name: trimmedName })
-    }
+    // Saving writes the definition at once — including any unsaved inline
+    // edits it started from, which are then no longer unsaved.
+    void update({ ...draft, name: trimmedName })
+    useListDraftStore.getState().discard(draft.id)
     closeDialog()
-  }, [draft, dirty, update, closeDialog])
+  }, [draft, update, closeDialog])
 
   return (
     <ListEditorDialog
       open={!!editingList && !!draft}
       list={editingList ? { id: editingList.id, name: editingList.name } : null}
+      widgetCount={widgetCount}
       onClose={handleClose}
       onSave={handleSave}
     >

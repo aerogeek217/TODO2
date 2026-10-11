@@ -2,13 +2,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent } from '@testing-library/react'
 import { ListEditorBody } from '../../../components/shared/ListEditorBody'
 import { emptyPredicate } from '../../../stores/list-definition-store'
+import { useStatusStore } from '../../../stores/status-store'
 import type { PersistedListDefinition } from '../../../models'
-
-/**
- * ListEditorBody migrated to <SortGroupToolbar> + flat literals
- * (ui-consistency-2026-04-25 P4). The encoder/decoder helpers are gone;
- * draft.sort and draft.grouping round-trip as plain strings.
- */
 
 function makeDraft(overrides: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
   return {
@@ -23,6 +18,10 @@ function makeDraft(overrides: Partial<PersistedListDefinition> = {}): PersistedL
   }
 }
 
+function last(onChange: ReturnType<typeof vi.fn>): PersistedListDefinition {
+  return onChange.mock.calls.at(-1)![0] as PersistedListDefinition
+}
+
 describe('<ListEditorBody>', () => {
   afterEach(() => { cleanup() })
 
@@ -32,68 +31,63 @@ describe('<ListEditorBody>', () => {
     const input = screen.getByPlaceholderText('List name') as HTMLInputElement
     expect(input.value).toBe('My list')
     fireEvent.change(input, { target: { value: 'Renamed' } })
-    expect(onChange).toHaveBeenCalled()
-    expect(onChange.mock.calls.at(-1)![0].name).toBe('Renamed')
+    expect(last(onChange).name).toBe('Renamed')
   })
 
-  it('emits a flat-string sort when the sort dropdown changes', () => {
-    const onChange = vi.fn()
-    render(<ListEditorBody draft={makeDraft({ sort: 'manual' })} onChange={onChange} />)
-    // SortGroupToolbar comfortable density wraps two IconSelect triggers; pick
-    // the Sort one by its 'Sort tasks by' aria-label
-    const sortTrigger = screen.getByLabelText('Sort tasks by')
-    fireEvent.click(sortTrigger)
-    fireEvent.click(screen.getByText('Due date'))
-    expect(onChange).toHaveBeenCalled()
-    const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
-    expect(next.sort).toBe('deadline')
-    // Untouched fields preserved.
-    expect(next.grouping).toBe('none')
-    expect(next.name).toBe('Test list')
-  })
-
-  it('emits a flat-string grouping when the group dropdown changes', () => {
+  it('sets the sort and grouping as flat values, keeping the rest', () => {
     const onChange = vi.fn()
     render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
-    const groupTrigger = screen.getByLabelText('Group tasks by')
-    fireEvent.click(groupTrigger)
-    fireEvent.click(screen.getByText('By project'))
-    expect(onChange).toHaveBeenCalled()
-    const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
-    expect(next.grouping).toBe('project')
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'deadline' } })
+    expect(last(onChange)).toMatchObject({ sort: 'deadline', grouping: 'none', name: 'Test list' })
+    fireEvent.change(screen.getByLabelText('Group by'), { target: { value: 'people' } })
+    expect(last(onChange).grouping).toBe('people')
   })
 
-  it('does not emit on no-op selection (same value)', () => {
+  it('offers the list choices, plus a stored value no longer offered', () => {
+    render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'project' })} onChange={vi.fn()} />)
+    const sorts = Array.from((screen.getByLabelText('Sort by') as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(sorts).toEqual(['Manual', 'Due date', 'Follow-up date', 'Name', 'Created', 'Status'])
+    const groups = Array.from((screen.getByLabelText('Group by') as HTMLSelectElement).options).map((o) => o.value)
+    expect(groups).toEqual(['none', 'deadline', 'followup', 'people', 'status', 'tag', 'project'])
+  })
+
+  it('sets max tasks and its limit mode; clearing removes the cap', () => {
     const onChange = vi.fn()
-    render(<ListEditorBody draft={makeDraft({ sort: 'deadline' })} onChange={onChange} />)
-    const sortTrigger = screen.getByLabelText('Sort tasks by')
-    fireEvent.click(sortTrigger)
-    // After opening, the option matching the current value renders inside the
-    // menu listbox — pick it explicitly via role to disambiguate from the
-    // trigger's own label.
-    const opts = screen.getAllByRole('option')
-    const dateOpt = opts.find((el) => el.textContent === 'Due date')!
-    fireEvent.click(dateOpt)
-    expect(onChange).not.toHaveBeenCalled()
+    render(<ListEditorBody draft={makeDraft({ maxTasks: 5 })} onChange={onChange} />)
+    const max = screen.getByLabelText('Max tasks') as HTMLInputElement
+    expect(max.value).toBe('5')
+    fireEvent.change(max, { target: { value: '12' } })
+    expect(last(onChange).maxTasks).toBe(12)
+    fireEvent.change(max, { target: { value: '' } })
+    expect(last(onChange).maxTasks).toBeUndefined()
+    fireEvent.click(screen.getByRole('radio', { name: 'Scroll' }))
+    expect(last(onChange).limitMode).toBe('scroll')
   })
 
-  it('toggles runtimeFilter via the prompt select', () => {
+  it('toggles show completed in the predicate', () => {
     const onChange = vi.fn()
     render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
-    const promptSelect = screen.getByDisplayValue('None') as HTMLSelectElement
-    fireEvent.change(promptSelect, { target: { value: 'person' } })
-    expect(onChange).toHaveBeenCalled()
-    const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
-    expect(next.runtimeFilter).toEqual({ field: 'person' })
+    fireEvent.click(screen.getByLabelText('Show completed tasks'))
+    expect(last(onChange).membership.predicate.showCompleted).toBe(true)
   })
 
-  it('clears runtimeFilter when the prompt is set back to None', () => {
+  it('shows the list filters as chips; × removes one', () => {
+    useStatusStore.setState({ statuses: [{ id: 4, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
     const onChange = vi.fn()
-    render(<ListEditorBody draft={makeDraft({ runtimeFilter: { field: 'tag' } })} onChange={onChange} />)
-    const promptSelect = screen.getByDisplayValue('Tag') as HTMLSelectElement
-    fireEvent.change(promptSelect, { target: { value: 'none' } })
-    expect(onChange).toHaveBeenCalled()
-    const next = onChange.mock.calls.at(-1)![0] as PersistedListDefinition
-    expect(next.runtimeFilter).toBeUndefined()
+    const predicate = { ...emptyPredicate(), statusIds: [4] }
+    render(<ListEditorBody draft={makeDraft({ membership: { kind: 'custom', predicate } })} onChange={onChange} />)
+    expect(screen.getByTestId('list-filter-chip').textContent).toContain('Waiting')
+    fireEvent.click(screen.getByLabelText('Remove filter'))
+    expect(last(onChange).membership.predicate.statusIds).toBeNull()
+  })
+
+  it('sets the prompt field, and clears it with Nothing', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<ListEditorBody draft={makeDraft()} onChange={onChange} />)
+    fireEvent.change(screen.getByLabelText('Prompt for'), { target: { value: 'person' } })
+    expect(last(onChange).runtimeFilter).toEqual({ field: 'person' })
+    rerender(<ListEditorBody draft={makeDraft({ runtimeFilter: { field: 'tag' } })} onChange={onChange} />)
+    fireEvent.change(screen.getByLabelText('Prompt for'), { target: { value: 'none' } })
+    expect(last(onChange).runtimeFilter).toBeUndefined()
   })
 })

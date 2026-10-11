@@ -1,0 +1,115 @@
+/* "Edit list" form: a 108px label column and 32px controls. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  flex: 0 0 108px;
+  align-self: flex-start;
+  line-height: 32px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.input,
+.select,
+.maxInput {
+  height: 32px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-inset);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+}
+
+.input,
+.select {
+  flex: 1 1 auto;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.maxInput:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-focus);
+}
+
+.maxInput {
+  flex: 0 0 80px;
+  width: 80px;
+}
+
+.maxInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.check input {
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.segmented {
+  display: inline-flex;
+  height: 32px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--color-tint-4);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+}
+
+.segment {
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.segmentOn {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}

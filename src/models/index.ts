@@ -23,8 +23,6 @@ export {
   PROJECT_GROUP_VALUES,
   LIST_SORT_VALUES,
   LIST_GROUP_VALUES,
-  LIST_EDITOR_SORT_VALUES,
-  LIST_EDITOR_GROUP_VALUES,
 } from './todo-sort-group'
 export {
   type TodoPredicate,

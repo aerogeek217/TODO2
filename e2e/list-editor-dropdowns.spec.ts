@@ -7,15 +7,12 @@ import { listInsetByIndex, seedCanvas } from './fixtures/seed'
  * Z-index: the discard-changes confirm fired by the list editor's
  * dirty guard used to render at `--z-dialog` (1001), which sat below the
  * editor itself at `--z-dialog-overlay` (1002) — the confirm appeared
- * "behind" the editor and the UI looked frozen. Post-fix, BulkConfirmDialog
- * routes through `--z-dialog-nested` (1003) and lands on top.
+ * "behind" the editor and the UI looked frozen. BulkConfirmDialog routes
+ * through `--z-dialog-nested` (1003) and lands on top.
  *
- * Dropdown flip: the Sort / Group `IconSelect` dropdowns inside
- * `ListEditorBody` used a `position: absolute; top: calc(100% + 4px)` menu
- * inside the dialog body, which has `overflow: auto`. Near the viewport
- * bottom the menu was clipped + scroll-required. Post-fix, the menu portals
- * to `document.body` and `usePopoverAnchor` flips bottom→top when there's
- * no room below.
+ * Filter pickers: the editor's filter chips open their pickers through
+ * `usePopoverAnchor + createPortal`, so a picker near the viewport bottom
+ * escapes the dialog body's `overflow: auto` and flips / clamps into view.
  *
  * JSDOM is not authoritative for either: the z-index regression is a real
  * stacking-context interaction, and `usePopoverAnchor`'s flip math reads
@@ -40,113 +37,15 @@ async function openListEditor(page: Page): Promise<void> {
 interface PanelGeom { left: number; top: number; right: number; bottom: number; width: number; height: number }
 
 /**
- * Locate the portaled IconSelect listbox by walking up from a known option's
- * label to the `document.body` direct child wrapping it (mirrors the helper
- * in `runtime-filter-picker.spec.ts`). Returns `null` if no matching
- * portaled panel exists.
- */
-async function findIconSelectPanel(page: Page, optionLabel: string): Promise<PanelGeom | null> {
-  return await page.evaluate((target) => {
-    const listboxes = Array.from(document.body.querySelectorAll<HTMLElement>('[role="listbox"]'))
-    for (const lb of listboxes) {
-      if (!lb.textContent?.includes(target)) continue
-      let el: HTMLElement | null = lb
-      while (el && el.parentElement && el.parentElement !== document.body) {
-        el = el.parentElement
-      }
-      if (!el) continue
-      // Portaled panels carry inline `position: fixed` from usePopoverAnchor.
-      if (el.style.position !== 'fixed') continue
-      const r = el.getBoundingClientRect()
-      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }
-    }
-    return null
-  }, optionLabel)
-}
-
-test.describe('list editor modal — dropdown flip', () => {
-  test('Sort dropdown stays inside viewport when panel would clip the bottom', async ({ page }) => {
-    // Viewport short enough that the Sort menu (~226 px tall in Chromium)
-    // exceeds the room below the trigger. usePopoverAnchor flips above when
-    // there's room there, otherwise clamps the panel to fit; either way the
-    // user always sees the full panel (the dropdown-flip regression).
-    await page.setViewportSize({ width: 1024, height: 480 })
-    await seedCanvas(page, {
-      listDefinitions: [{ name: 'Flip target' }],
-      listInsets: [{ listDefIdx: 0, x: 320, y: 200, width: 320, height: 240 }],
-    })
-
-    await openListEditor(page)
-
-    const sortTrigger = page.getByRole('button', { name: 'Sort tasks by' })
-    await expect(sortTrigger).toBeVisible()
-
-    await sortTrigger.click()
-
-    // 'Due date' is in LIST_EDITOR_SORT_VALUES. Waiting for it confirms
-    // the menu mounted + measured (usePopoverAnchor's compute fires once on
-    // panel attach; the rendered option is the "panel mounted" signal).
-    const optionMatch = page.locator('[role="option"]').filter({ hasText: 'Due date' })
-    await expect(optionMatch).toBeVisible()
-
-    const panel = await findIconSelectPanel(page, 'Due date')
-    expect(panel).not.toBeNull()
-    if (!panel) return
-
-    const vh = await page.evaluate(() => window.innerHeight)
-    const vw = await page.evaluate(() => window.innerWidth)
-
-    // Inside viewport (8 px margin per usePopoverAnchor's VIEWPORT_MARGIN_PX).
-    // Pre-fix the menu lived inside the dialog body (`overflow: auto`) and
-    // overflowed past the viewport with no scroll affordance.
-    expect(panel.top).toBeGreaterThanOrEqual(8)
-    expect(panel.bottom).toBeLessThanOrEqual(vh - 8)
-    expect(panel.left).toBeGreaterThanOrEqual(8)
-    expect(panel.right).toBeLessThanOrEqual(vw - 8)
-  })
-
-  test('Sort dropdown is portaled out of the dialog body', async ({ page }) => {
-    // Pre-fix the menu lived inside the dialog's `body { overflow: auto }`
-    // wrapper, so a tall option list got clipped. Asserting the panel's
-    // ancestor chain proves it now portals to document.body.
-    await seedCanvas(page, {
-      listDefinitions: [{ name: 'Portal target' }],
-      listInsets: [{ listDefIdx: 0, x: 320, y: 200, width: 320, height: 240 }],
-    })
-
-    await openListEditor(page)
-    await page.getByRole('button', { name: 'Sort tasks by' }).click()
-    await expect(page.locator('[role="option"]').filter({ hasText: 'Due date' })).toBeVisible()
-
-    const portaled = await page.evaluate(() => {
-      const lb = document.body.querySelector<HTMLElement>('[role="listbox"]')
-      if (!lb) return false
-      // Walk up to the body. If the listbox is portaled, the chain hits
-      // document.body without crossing the dialog wrapper.
-      let el: HTMLElement | null = lb
-      while (el && el !== document.body) {
-        if (el.getAttribute('role') === 'dialog') return false
-        el = el.parentElement
-      }
-      return el === document.body
-    })
-    expect(portaled).toBe(true)
-  })
-})
-
-/**
- * Locate the FilterChipBar dropdown panel by walking up from a known
- * label inside it (`'Has due date'` for the Date dropdown is unique
- * enough — it only renders inside `DateRangeDropdown`'s panel) to the
- * `document.body` direct child wrapping it. Returns `null` if no
- * portaled panel exists or the panel sits inside the dialog (the
- * pre-fix shape).
+ * Locate a portaled filter picker panel: the `document.body` child with
+ * `position: fixed` whose text contains `marker` (`'Has due date'` only
+ * renders inside the date picker). `null` if no portaled panel exists.
  */
 async function findFilterChipPanel(page: Page, marker: string): Promise<PanelGeom | null> {
   return await page.evaluate((target) => {
     const candidates = Array.from(document.body.children) as HTMLElement[]
     for (const el of candidates) {
-      if (el.getAttribute('role') === 'dialog') continue
+      if (/Edit list:/.test(el.getAttribute('aria-label') ?? '')) continue
       if (window.getComputedStyle(el).position !== 'fixed') continue
       if (!el.textContent?.includes(target)) continue
       const r = el.getBoundingClientRect()
@@ -156,44 +55,31 @@ async function findFilterChipPanel(page: Page, marker: string): Promise<PanelGeo
   }, marker)
 }
 
-test.describe('list editor modal — FilterChipBar dropdown flip', () => {
+/** Opens the editor's date filter picker: + Filter → Due date. */
+async function openDatePicker(page: Page): Promise<void> {
+  const editor = page.getByRole('dialog', { name: /Edit list:/ })
+  await editor.getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Due date' }).click()
+  await expect(page.getByText('Has due date')).toBeVisible()
+}
+
+test.describe('list editor modal — filter picker placement', () => {
   test('Date dropdown stays inside viewport when panel would clip the bottom', async ({ page }) => {
-    // The Sort / Group fix above only migrated `IconSelect`. The
-    // FilterChipBar dropdowns rendered by `<ListFilterEditor>` (Date here;
-    // Project / People / Tags / Status when those entities exist) used `position: absolute; top: calc(100% + 4px)` inside the
-    // dialog body's `overflow: auto` and got clipped near the bottom — user
-    // had to scroll inside the modal to reach the rest of the panel. After
-    // the migration to `usePopoverAnchor + createPortal`, the panel escapes
-    // the dialog and flips up when there's no room below.
+    // A picker inside the dialog body's `overflow: auto` would be clipped
+    // near the bottom; portaled, it escapes the dialog and flips up when
+    // there's no room below.
     await page.setViewportSize({ width: 1024, height: 480 })
     await seedCanvas(page, {
       listDefinitions: [{
         name: 'Date flip target',
-        // ListEditorBody renders <ListFilterEditor> only for `custom`
-        // membership. `predicate: {}` is intentionally minimal —
-        // FilterChipBar's `useMemo({ ...DEFAULT_PREDICATE, ...rawPredicate })`
-        // fills in the rest at render time so we don't need to mirror the
-        // full TodoPredicate shape in this fixture.
+        // A minimal stored predicate: the editor fills in the rest.
         membership: { kind: 'custom', predicate: {} },
       }],
       listInsets: [{ listDefIdx: 0, x: 320, y: 200, width: 320, height: 240 }],
     })
 
     await openListEditor(page)
-
-    // The Date trigger is the chip with the chevron caret in its accessible
-    // name. The inner field-selector buttons that show "Due date" /
-    // "Next follow-up" / etc. only appear *after* the panel opens.
-    // Scope to the editor dialog — the page-level TopBar also renders a
-    // "Date ▾" filter chip, so an unscoped locator matches twice.
-    const editor = page.getByRole('dialog', { name: /Edit list:/ })
-    const dateTrigger = editor.getByRole('button', { name: /Date\s*▾/ })
-    await expect(dateTrigger).toBeVisible()
-    await dateTrigger.click()
-
-    // 'Has due date' is rendered by the TriStateRow inside the date panel.
-    // Waiting for it confirms the panel mounted + measured.
-    await expect(page.getByText('Has due date')).toBeVisible()
+    await openDatePicker(page)
 
     const panel = await findFilterChipPanel(page, 'Has due date')
     expect(panel).not.toBeNull()
@@ -224,9 +110,7 @@ test.describe('list editor modal — FilterChipBar dropdown flip', () => {
     })
 
     await openListEditor(page)
-    const editor = page.getByRole('dialog', { name: /Edit list:/ })
-    await editor.getByRole('button', { name: /Date\s*▾/ }).click()
-    await expect(page.getByText('Has due date')).toBeVisible()
+    await openDatePicker(page)
 
     const portaled = await page.evaluate(() => {
       // The panel can be any direct child of document.body whose subtree
@@ -234,16 +118,14 @@ test.describe('list editor modal — FilterChipBar dropdown flip', () => {
       // `position: fixed` (the usePopoverAnchor signature).
       const candidates = Array.from(document.body.children) as HTMLElement[]
       for (const el of candidates) {
-        if (el.getAttribute('role') === 'dialog') continue
+        if (/Edit list:/.test(el.getAttribute('aria-label') ?? '')) continue
         if (window.getComputedStyle(el).position !== 'fixed') continue
         if (!el.textContent?.includes('Has due date')) continue
         // Walk up: a portaled panel reaches document.body without crossing
-        // the dialog wrapper. (Trivially true here since `el` itself is
-        // already a body child, but keeps the assertion symmetric with
-        // the IconSelect spec above.)
+        // the dialog wrapper.
         let cur: HTMLElement | null = el
         while (cur && cur !== document.body) {
-          if (cur.getAttribute('role') === 'dialog') return false
+          if (/Edit list:/.test(cur.getAttribute('aria-label') ?? '')) return false
           cur = cur.parentElement
         }
         return cur === document.body
@@ -271,7 +153,7 @@ test.describe('list editor modal — nested confirm z-index', () => {
 
     // Click the editor's Cancel — fires `handleClose` → guardDirty →
     // showBulkConfirmation('custom', …, { title: 'Discard changes?' }).
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('dialog', { name: /Edit list:/ }).getByRole('button', { name: /^Cancel/ }).click()
 
     const confirmDialog = page.getByRole('dialog').filter({ hasText: 'Discard changes?' })
     await expect(confirmDialog).toBeVisible()
