@@ -305,3 +305,34 @@ test.describe('adding and changing widgets', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })
 })
+
+test.describe('task drags inside the workspace', () => {
+  test('dragging a task from a list widget onto a calendar day sets its due date', async ({ page }) => {
+    await seedWorkspace(page, {
+      listDefinitions: [{ name: 'Everything' }],
+      tasks: [{ title: 'Move me' }],
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
+          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+        ],
+      }],
+    })
+    const row = wsCell(page, 'a1').locator('[data-task-drag-id]').filter({ hasText: 'Move me' })
+    const day = wsCell(page, 'b1').locator('[data-day]').nth(2)
+    await expect(row).toBeVisible()
+    const from = await row.boundingBox()
+    const to = await day.boundingBox()
+    if (!from || !to) throw new Error('no geometry')
+    await page.mouse.move(from.x + 40, from.y + from.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 50, from.y + from.height / 2 + 8, { steps: 2 })
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 })
+    await expect(day).toHaveAttribute('data-drop-target', 'true')
+    await page.mouse.up()
+    await expect(day).toContainText('Move me')
+    // A task drop is not a layout change.
+    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  })
+})
