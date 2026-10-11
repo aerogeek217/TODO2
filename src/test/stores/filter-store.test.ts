@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useFilterStore, matchesFilter, applyFilter } from '../../stores/filter-store'
+import { useFilterStore, matchesFilter, applyFilter, countActiveFilters } from '../../stores/filter-store'
 import type { PersistedTodoItem } from '../../models'
 import { makeTodo } from '../helpers'
 
@@ -471,5 +471,23 @@ describe('criteriaToPredicate / predicateToCriteria round-trip', () => {
     }
     const runtime = predicateToCriteria(legacy as any)
     expect(runtime.dateRangeStart).toEqual({ kind: 'fixed', iso: '2025-03-01' })
+  })
+})
+
+describe('countActiveFilters', () => {
+  beforeEach(() => useFilterStore.getState().clearAll())
+
+  it('is 0 with no filters', () => {
+    expect(countActiveFilters(useFilterStore.getState().filters)).toBe(0)
+  })
+
+  it('counts one per active control; the date clauses count once', () => {
+    const s = useFilterStore.getState()
+    s.setSearchText('plumber')
+    s.setShowCompleted(true)
+    s.setHasDeadline(true)
+    s.setHasFollowup(false)
+    expect(countActiveFilters(useFilterStore.getState().filters)).toBe(3)
+    expect(useFilterStore.getState().isActive).toBe(true)
   })
 })

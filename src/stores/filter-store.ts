@@ -108,19 +108,25 @@ const defaultFilters: FilterCriteria = {
   tags: null,
 }
 
+/**
+ * Number of active screen filters, one per control: people, projects, status,
+ * tags, dates (range or due / follow-up presence), show completed, search.
+ */
+export function countActiveFilters(f: FilterCriteria): number {
+  const dates = f.dateRangeStart !== null || f.dateRangeEnd !== null || f.hasDeadline !== null || f.hasFollowup != null
+  return [
+    f.personIds !== null,
+    f.projectIds !== null,
+    f.statusIds !== null,
+    f.tags !== null,
+    dates,
+    f.showCompleted,
+    f.searchText !== '',
+  ].filter(Boolean).length
+}
+
 function isFilterActive(f: FilterCriteria): boolean {
-  return (
-    f.showCompleted ||
-    f.personIds !== null ||
-    f.projectIds !== null ||
-    f.statusIds !== null ||
-    f.searchText !== '' ||
-    f.dateRangeStart !== null ||
-    f.dateRangeEnd !== null ||
-    f.hasDeadline !== null ||
-    f.hasFollowup != null ||
-    f.tags !== null
-  )
+  return countActiveFilters(f) > 0
 }
 
 /**

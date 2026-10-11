@@ -117,14 +117,20 @@
     padding-bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Quick add: a 44px round button at the bottom right, above the tab bar. */
   .fabGroup {
+    left: auto;
+    right: 16px;
+    transform: none;
     bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + var(--mobile-fab-bottom));
   }
 
   .fab {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
+    width: var(--touch-target-min);
+    height: var(--touch-target-min);
+    border-radius: var(--radius-pill);
+    color: var(--color-text-on-accent);
+    box-shadow: var(--shadow-dropdown);
   }
 }
 

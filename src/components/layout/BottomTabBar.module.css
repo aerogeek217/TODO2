@@ -6,7 +6,7 @@
   height: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--color-surface);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border-muted);
   display: flex;
   align-items: stretch;
   z-index: var(--z-fab);
@@ -18,11 +18,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
   background: none;
   border: none;
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
   padding: 0;
@@ -39,8 +40,8 @@
 }
 
 .tabIcon {
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -51,12 +52,20 @@
   line-height: 1;
 }
 
-.filterDot {
+/* Count of active screen filters. */
+.filterBadge {
   position: absolute;
-  top: -1px;
-  right: -4px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  top: 6px;
+  left: calc(50% + 6px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
   background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  line-height: 16px;
+  text-align: center;
 }

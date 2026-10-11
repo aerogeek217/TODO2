@@ -257,7 +257,7 @@ function AppShell() {
   const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  // Desktop: quick add lives in the sidebar.
+  // Desktop: quick add lives in the sidebar. Mobile: a floating + above the tab bar.
   const showFab = isMobile && location.pathname !== ROUTE_SETTINGS && location.pathname !== ROUTE_CALENDAR
 
   // Reset filter sheet when viewport transitions from mobile to desktop
@@ -442,10 +442,10 @@ function AppShell() {
       </div>
       {showFab && (
         <div className={styles.fabGroup}>
-          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} title={`New task (${formatShortcut('Mod-Space')})`}>
-            <svg width="16" height="16" viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <line x1="14" y1="6" x2="14" y2="22" />
-              <line x1="6" y1="14" x2="22" y2="14" />
+          <button className={styles.fab} onClick={() => useUIStore.getState().openQuickAdd()} aria-label="Quick add" title={`Quick add (${formatShortcut('Mod-Space')})`}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <line x1="9" y1="3" x2="9" y2="15" />
+              <line x1="3" y1="9" x2="15" y2="9" />
             </svg>
           </button>
         </div>
