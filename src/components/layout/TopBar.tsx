@@ -16,7 +16,7 @@ import { groupTodosByTextMatch, textMatchContextFor, type TextMatchField } from 
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
-import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
+import { ContextMenu } from '../overlays/ContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { buildSearchContextMenuItems } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
@@ -151,7 +151,7 @@ function SearchResultContextMenu({ x, y, todo, onOpen, onMoveToProject, onClose 
   onClose: () => void
 }) {
   return (
-    <CanvasContextMenu
+    <ContextMenu
       x={x}
       y={y}
       items={buildSearchContextMenuItems({ todo, onOpen, onMoveToProject })}

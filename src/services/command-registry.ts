@@ -1,9 +1,9 @@
-import type { PersistedTodoItem, Project, Status } from '../models'
+import type { PersistedTodoItem, Status } from '../models'
 import { startOfToday } from '../utils/date'
 import { formatShortcut } from '../utils/platform'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
+import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
 
-export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks' | 'projects'
+export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'tasks'
 
 export interface Command {
   id: string
@@ -30,18 +30,8 @@ export interface CommandContext {
   setDateRange: (start: Date | null, end: Date | null) => void
   /** Lazy todo getter (for task search — only called when palette has a query) */
   getTodos: () => PersistedTodoItem[]
-  /** Lazy project getter (for project navigation — only called when palette has a query) */
-  getProjects: () => Project[]
-  /** Navigate to a task on canvas */
+  /** Open a task (from a palette task search hit) */
   focusTask: (todoId: number) => void
-  /** Navigate to a project on canvas */
-  focusProject: (projectId: number) => void
-  /** Fit all nodes into view */
-  fitView?: () => void
-  /** Canvas-only: create floating note */
-  createFloatingNote?: () => void
-  /** Canvas-only: toggle project navigator */
-  toggleProjectNavigator?: () => void
   /** Open keyboard shortcuts modal */
   openShortcutsModal?: () => void
   /** Statuses for bulk commands */
@@ -50,18 +40,13 @@ export interface CommandContext {
 
 export function createCommands(ctx: CommandContext): Command[] {
   const cmdF = formatShortcut('Mod-F')
-  const cmdZero = formatShortcut('Mod-0')
   const cmdSpace = formatShortcut('Mod-Space')
   const cmdZ = formatShortcut('Mod-Z')
   const cmdShiftZ = formatShortcut('Mod-Shift-Z')
   const cmdA = formatShortcut('Mod-A')
-  const cmdX = formatShortcut('Mod-X')
   const commands: Command[] = [
     // Navigation
     { id: 'nav-workspace', name: 'Go to Workspace', shortcut: 'G then W', category: 'navigation', action: () => ctx.navigateTo(ROUTE_WORKSPACE) },
-    { id: 'nav-canvas', name: 'Go to Canvas', shortcut: 'G then C', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CANVAS) },
-    { id: 'nav-list', name: 'Go to List', shortcut: 'G then L', category: 'navigation', action: () => ctx.navigateTo(ROUTE_LIST) },
-    { id: 'nav-calendar', name: 'Go to Calendar', shortcut: 'G then A', category: 'navigation', action: () => ctx.navigateTo(ROUTE_CALENDAR) },
     { id: 'nav-settings', name: 'Go to Settings', shortcut: 'G then S', category: 'navigation', action: () => ctx.navigateTo(ROUTE_SETTINGS) },
     { id: 'focus-filter', name: 'Focus Filters', shortcut: 'F', category: 'navigation', action: () => {
       const filterRow = document.querySelector('[data-filter-row]')
@@ -72,13 +57,10 @@ export function createCommands(ctx: CommandContext): Command[] {
       const searchInput = document.querySelector('[data-search-input]') as HTMLInputElement | null
       if (searchInput) { searchInput.focus(); searchInput.select() }
     }},
-    ...(ctx.fitView ? [{ id: 'fit-view', name: 'Fit All to View', shortcut: cmdZero, category: 'navigation' as CommandCategory, action: ctx.fitView }] : []),
-    ...(ctx.toggleProjectNavigator ? [{ id: 'toggle-project-nav', name: 'Toggle Project Navigator', shortcut: 'P', category: 'navigation' as CommandCategory, action: ctx.toggleProjectNavigator }] : []),
     ...(ctx.openShortcutsModal ? [{ id: 'keyboard-shortcuts', name: 'Keyboard Shortcuts', shortcut: '?', category: 'navigation' as CommandCategory, action: ctx.openShortcutsModal }] : []),
 
     // Task actions
     { id: 'new-task', name: 'New Task', shortcut: cmdSpace, category: 'task', action: ctx.openQuickAdd },
-    ...(ctx.createFloatingNote ? [{ id: 'new-floating-note', name: 'New Note', shortcut: 'N', category: 'task' as CommandCategory, action: ctx.createFloatingNote }] : []),
     { id: 'undo', name: 'Undo', shortcut: cmdZ, category: 'task', action: async () => {
       const { useUndoStore } = await import('../stores/undo-store')
       useUndoStore.getState().undo()
@@ -146,16 +128,6 @@ export function createCommands(ctx: CommandContext): Command[] {
     }
     commands.push(
       { id: 'bulk-delete', name: `Delete ${label}`, category: 'bulk', action: () => ctx.bulkRemove(ctx.getSelectedIds()) },
-      { id: 'bulk-cut', name: `Cut ${label}`, shortcut: cmdX, category: 'bulk', action: async () => {
-        const ids = ctx.getSelectedIds()
-        if (ids.length > 0) {
-          const { useTodoStore } = await import('../stores/todo-store')
-          const { useUIStore } = await import('../stores/ui-store')
-          const todos = useTodoStore.getState().todos
-          const first = todos.find(t => ids.includes(t.id))
-          useUIStore.getState().cutTasks(ids, first?.projectId ?? null)
-        }
-      }},
     )
   }
 
@@ -164,24 +136,13 @@ export function createCommands(ctx: CommandContext): Command[] {
 
 /**
  * Filter-first dynamic command search — only creates Command objects for
- * todos/projects whose names match the query. Called lazily by the command
+ * todos whose titles match the query. Called lazily by the command
  * palette when the user types a search string.
  */
 export function searchDynamicCommands(query: string, ctx: CommandContext): Command[] {
   if (!query) return []
   const q = query.toLowerCase()
   const results: Command[] = []
-
-  for (const project of ctx.getProjects()) {
-    if (project.name.toLowerCase().includes(q)) {
-      results.push({
-        id: `project-${project.id}`,
-        name: project.name,
-        category: 'projects',
-        action: () => ctx.focusProject(project.id!),
-      })
-    }
-  }
 
   for (const todo of ctx.getTodos()) {
     if (todo.title.toLowerCase().includes(q)) {

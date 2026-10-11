@@ -52,15 +52,10 @@ export function PortalDropdown({ anchorRef, onClickOutside, className, children 
     window.addEventListener('scroll', update, true)
     window.addEventListener('resize', update)
 
-    const transformEl = anchorRef.current?.closest('.react-flow')?.querySelector('.react-flow__viewport') as HTMLElement | null
-    const mo = transformEl ? new MutationObserver(update) : null
-    if (mo && transformEl) mo.observe(transformEl, { attributes: true, attributeFilter: ['style'] })
-
     return () => {
       ro.disconnect()
       window.removeEventListener('scroll', update, true)
       window.removeEventListener('resize', update)
-      mo?.disconnect()
     }
   }, [anchorRef])
 

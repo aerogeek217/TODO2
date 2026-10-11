@@ -29,35 +29,8 @@
   flex-shrink: 0;
 }
 
-.headerDraggable {
-  cursor: grab;
-}
-
-.headerDraggable:active {
-  cursor: grabbing;
-}
-
-.dragging {
-  opacity: 0.85;
-  box-shadow: var(--shadow-popup), 0 8px 32px rgba(0, 0, 0, 0.3);
-}
-
-.dragHint {
-  font-size: 14px;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-  opacity: 0.6;
-}
-
 .headerIcon {
   flex-shrink: 0;
-}
-
-.priorityDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
 }
 
 .headerLabel {

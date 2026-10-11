@@ -4,8 +4,6 @@ import {
   type DraggableAttributes,
   type DraggableSyntheticListeners,
 } from '@dnd-kit/core'
-import { useSortable } from '@dnd-kit/sortable'
-import type { Transform } from '@dnd-kit/utilities'
 import type { PersistedTodoItem } from '../../../models'
 import {
   TASK_DRAG_KIND,
@@ -37,11 +35,6 @@ interface DraggableRenderArgs {
   isDragging: boolean
 }
 
-interface SortableRenderArgs extends DraggableRenderArgs {
-  transform: Transform | null
-  transition: string | undefined
-}
-
 export interface TaskDraggableProps extends SharedProps {
   children: (args: DraggableRenderArgs) => ReactNode
 }
@@ -50,8 +43,7 @@ export interface TaskDraggableProps extends SharedProps {
  * Shared `useDraggable` wrapper. Owns the id + data payload shape so every
  * surface that renders a draggable task row emits identical ids (per
  * `taskDragId`) and identical `data.type` values. Extracted in Phase 4 of the
- * DnD unification — replaces the hand-rolled per-surface wrappers
- * (`DraggableTaskRow`, `TaskList.DraggableRow`, `DashboardDraggableRow`).
+ * DnD unification — replaces the hand-rolled per-surface wrappers.
  *
  * Render-prop API: the caller keeps control over the wrapper DOM (classNames,
  * placeholder variants, opacity, data-* attrs) — this component only owns id
@@ -73,36 +65,4 @@ export function TaskDraggable({
     disabled,
   })
   return <>{children({ attributes, listeners, setNodeRef, isDragging })}</>
-}
-
-export interface SortableTaskDraggableProps extends SharedProps {
-  children: (args: SortableRenderArgs) => ReactNode
-}
-
-/**
- * Sortable variant of {@link TaskDraggable}. Same payload contract, wrapping
- * `useSortable` instead of `useDraggable` so the caller's surface ends up
- * inside a `SortableContext`'s reorder flow. Used by canvas project rows.
- */
-export function SortableTaskDraggable({
-  todo,
-  surface,
-  kind,
-  extraData,
-  disabled,
-  children,
-}: SortableTaskDraggableProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    isDragging,
-    transform,
-    transition,
-  } = useSortable({
-    id: taskDragId(surface, todo.id),
-    data: { ...extraData, type: kind ?? TASK_DRAG_KIND.task, todo },
-    disabled,
-  })
-  return <>{children({ attributes, listeners, setNodeRef, isDragging, transform, transition })}</>
 }

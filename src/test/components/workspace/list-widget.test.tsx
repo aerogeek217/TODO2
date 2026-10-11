@@ -169,6 +169,23 @@ describe('ListWidget', () => {
     expect(result()?.countLabel).toBe('2')
   })
 
+  it('picking values in the prompt picker filters the list, several picks OR-combined', () => {
+    usePersonStore.setState({
+      people: [alice, bob],
+      assignedPeopleMap: new Map([[1, [alice]], [2, [bob]]]),
+    })
+    setup(def({ runtimeFilter: { field: 'person' } }))
+    const picker = screen.getByLabelText(/Filter tasks by person/i)
+    const pick = (name: string) => {
+      fireEvent.focus(picker)
+      fireEvent.click(Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.endsWith(name))!)
+    }
+    pick('Alice')
+    expect(titles()).toEqual(['Alice task'])
+    pick('Bob')
+    expect(titles()).toEqual(['Alice task', 'Bob task'])
+  })
+
   it('Add task shows only when the merged predicate names people / status / tags', () => {
     setup(def())
     expect(screen.queryByTitle('Add a task to this list')).toBeNull()

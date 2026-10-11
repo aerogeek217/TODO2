@@ -7,18 +7,6 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
   globalIgnores(['dist']),
-  // TEMPORARY lint ignores (cr1 P1, canvas replacement). Each entry is
-  // removed by the phase that deletes or rewrites the file — never add a
-  // file here to dodge a fix in code that survives.
-  //
-  // Retired by the replacement: non-trivial findings in files the canvas
-  // replacement deletes outright.
-  globalIgnores([
-    'src/components/canvas/CanvasView.tsx',
-    'src/components/canvas/ProjectNode.tsx',
-    'src/components/canvas/SortableTaskList.tsx',
-    'src/views/ListView.tsx',
-  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

@@ -34,7 +34,7 @@ import {
   type CrossGroupMutation,
 } from '../../../utils/cross-group-drag'
 import type { ListRowDragSource, ListRowDropTarget } from '../../../utils/list-row-drop'
-import { RuntimeFilterPicker } from '../../canvas/RuntimeFilterPicker'
+import { RuntimeFilterPicker } from './RuntimeFilterPicker'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { ReassignDialog } from '../../overlays/ReassignDialog'
 import { ChevronDownIcon, FunnelIcon, PlusIcon, SortIcon } from '../icons'

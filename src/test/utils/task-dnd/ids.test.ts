@@ -2,19 +2,15 @@ import { describe, it, expect } from 'vitest'
 import {
   calendarDayDropId,
   isTaskDragId,
-  projectDropId,
   taskDragId,
   type TaskSurfaceKey,
 } from '../../../utils/task-dnd'
 
 describe('taskDragId — per-surface id format', () => {
   it.each([
-    ['canvas-project' as TaskSurfaceKey, 42, undefined, 'todo-42'],
-    ['inset' as TaskSurfaceKey, 42, undefined, 'inset-todo-42'],
-    ['lens' as TaskSurfaceKey, 42, undefined, 'lens-todo-42'],
-    ['list' as TaskSurfaceKey, 42, undefined, 'list-todo-42'],
-    ['calendar-view' as TaskSurfaceKey, 42, undefined, 'calview-todo-42'],
-    ['calendar-strip' as TaskSurfaceKey, 42, undefined, 'calstrip-todo-42'],
+    ['status-widget' as TaskSurfaceKey, 42, undefined, 'status-todo-42'],
+    ['list-widget' as TaskSurfaceKey, 42, { scope: 't1', sectionKey: 'all' }, 'lw|t1|all|42'],
+    ['calendar-widget' as TaskSurfaceKey, 42, { scope: 't2', sectionKey: 'due' }, 'cw|t2|due|42'],
   ])('%s → %s', (surface, id, extras, expected) => {
     expect(taskDragId(surface, id, extras)).toBe(expected)
   })
@@ -31,18 +27,13 @@ describe('taskDragId — per-surface id format', () => {
 
 describe('isTaskDragId', () => {
   it('accepts every surface id format', () => {
-    expect(isTaskDragId('todo-1')).toBe(true)
-    expect(isTaskDragId('inset-todo-1')).toBe(true)
-    expect(isTaskDragId('lens-todo-1')).toBe(true)
-    expect(isTaskDragId('list-todo-1')).toBe(true)
-    expect(isTaskDragId('calview-todo-1')).toBe(true)
-    expect(isTaskDragId('calstrip-todo-1')).toBe(true)
+    expect(isTaskDragId('status-todo-1')).toBe(true)
+    expect(isTaskDragId('lw|t1|all|1')).toBe(true)
+    expect(isTaskDragId('cw|t1|due|1')).toBe(true)
   })
 
   it('rejects drop-target ids', () => {
-    expect(isTaskDragId('project-drop-5')).toBe(false)
     expect(isTaskDragId('calday-view-0')).toBe(false)
-    expect(isTaskDragId('rails:slot:s-1')).toBe(false)
   })
 
   it('rejects non-string / null / number ids', () => {
@@ -53,10 +44,6 @@ describe('isTaskDragId', () => {
 })
 
 describe('drop-zone id helpers', () => {
-  it('projectDropId', () => {
-    expect(projectDropId(5)).toBe('project-drop-5')
-  })
-
   it('calendarDayDropId embeds scope + ms', () => {
     expect(calendarDayDropId('view', 1700000000000)).toBe('calday-view-1700000000000')
     expect(calendarDayDropId('strip-rail-left', 42)).toBe('calday-strip-rail-left-42')

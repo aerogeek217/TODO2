@@ -1,6 +1,6 @@
 import type { LayoutTab } from '../../models/workspace-layout'
-import { NotesSlotContent } from '../canvas/rails/NotesSlotContent'
-import { StatusSlotContent } from '../canvas/rails/StatusSlotContent'
+import { NotesWidget } from './NotesWidget'
+import { StatusWidget } from './StatusWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 
@@ -18,8 +18,8 @@ export function WidgetBody({ tab, onLensResult }: WidgetBodyProps) {
     case 'calendar':
       return <CalendarWidget tab={tab} />
     case 'notes':
-      return <NotesSlotContent />
+      return <NotesWidget />
     case 'status':
-      return <StatusSlotContent />
+      return <StatusWidget />
   }
 }

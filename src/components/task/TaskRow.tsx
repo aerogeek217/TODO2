@@ -21,7 +21,7 @@ import { TagChipSelector } from '../shared/TagChipSelector'
 import { DragHandle } from '../shared/DragHandle'
 import { PortalDropdown } from '../shared/PortalDropdown'
 
-import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
+import { ContextMenu } from '../overlays/ContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { TaskNotePopover } from './TaskNotePopover'
 import { FocusMarker } from '../shared/FocusMarker'
@@ -446,7 +446,7 @@ export const TaskRow = memo(function TaskRow({
       )}
 
       {contextMenu && (
-        <CanvasContextMenu
+        <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           items={buildTaskRowMenuItems({

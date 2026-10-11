@@ -3,15 +3,12 @@
  * call sites (Sidebar, BottomTabBar, command-registry, keyboard-shortcuts)
  * stay in sync with the `<Route>` declarations.
  */
-export const ROUTE_CANVAS = '/'
-export const ROUTE_LIST = '/list'
-export const ROUTE_CALENDAR = '/calendar'
+export const ROUTE_WORKSPACE = '/'
 export const ROUTE_SETTINGS = '/settings'
-export const ROUTE_WORKSPACE = '/workspace'
+
+/** Former page routes; each redirects to the workspace. */
+export const LEGACY_ROUTES: readonly string[] = ['/workspace', '/list', '/calendar', '/dashboard']
 
 export type AppRoute =
-  | typeof ROUTE_CANVAS
-  | typeof ROUTE_LIST
-  | typeof ROUTE_CALENDAR
-  | typeof ROUTE_SETTINGS
   | typeof ROUTE_WORKSPACE
+  | typeof ROUTE_SETTINGS

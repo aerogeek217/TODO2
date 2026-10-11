@@ -10,10 +10,6 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useNoteStore } from '../../stores/note-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useListInsetStore } from '../../stores/list-inset-store'
-import { useFloatingNoteStore } from '../../stores/floating-note-store'
-import { useFloatingCalendarStore } from '../../stores/floating-calendar-store'
-import { useFloatingStatusStore } from '../../stores/floating-status-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useFilterStore } from '../../stores/filter-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -29,8 +25,7 @@ beforeEach(async () => {
 })
 
 describe('refreshAllStores', () => {
-  it('invokes load/loadByCanvas on every store that has one + parity loadAssignments', async () => {
-    // Need a canvas so the per-canvas branch fires.
+  it('invokes load on every store that has one + parity loadAssignments', async () => {
     await useCanvasStore.getState().ensureDefault()
     // Need at least one todo so the post-todos assignment loaders fire.
     await useTodoStore.getState().add('seed task')
@@ -49,11 +44,6 @@ describe('refreshAllStores', () => {
       tagLoad: vi.spyOn(useTagStore.getState(), 'load'),
       noteLoad: vi.spyOn(useNoteStore.getState(), 'load'),
       listDefinitionLoad: vi.spyOn(useListDefinitionStore.getState(), 'load'),
-      // Promise.all — per-canvas stores
-      listInsetLoadByCanvas: vi.spyOn(useListInsetStore.getState(), 'loadByCanvas'),
-      floatingNoteLoadByCanvas: vi.spyOn(useFloatingNoteStore.getState(), 'loadByCanvas'),
-      floatingCalendarLoadByCanvas: vi.spyOn(useFloatingCalendarStore.getState(), 'loadByCanvas'),
-      floatingStatusLoadByCanvas: vi.spyOn(useFloatingStatusStore.getState(), 'loadByCanvas'),
       // Post-todos assignment loaders
       personLoadAssignments: vi.spyOn(usePersonStore.getState(), 'loadAssignments'),
       tagLoadAssignments: vi.spyOn(useTagStore.getState(), 'loadAssignments'),

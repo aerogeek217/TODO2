@@ -1,6 +1,4 @@
 import { create } from 'zustand'
-import { AppView } from '../models'
-import type { ListGroupBy, ListItemSortBy } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
 
@@ -26,35 +24,7 @@ export interface BulkConfirmation {
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
 }
 
-export interface CanvasViewport {
-  x: number
-  y: number
-  zoom: number
-}
-
-/**
- * Kind of floating canvas widget currently being dragged. Derived from the
- * React Flow node id prefix in `CanvasView.handleNodesChange` and stashed on
- * the UI store so the rails `DockOverlay` and the Phase 2 hit-test can observe
- * an in-flight float-dock gesture without plumbing refs through the tree.
- *
- * `'lens'` is the floating list widget — `ListInsetNode` on the canvas, the
- * `lens` slot kind on rails, and the `lens` arm of `FloatDescriptor`. The
- * React Flow node id prefix is still `inset-` (see `CanvasView.INSET_PREFIX`)
- * for DOM/test stability; `floatKindForNodeId` performs the prefix→kind
- * translation. `TaskSurfaceKey` separately uses `'inset'` and `'lens'` to
- * distinguish the floating list row's drag id from a rail-docked list row's
- * — those are distinct surfaces and live in `utils/task-dnd/ids.ts`.
- */
-export type FloatDragKind = 'note' | 'calendar' | 'lens' | 'status'
-
-export interface FloatDragState {
-  kind: FloatDragKind
-  id: number
-}
-
 interface UIState {
-  activeView: AppView
   selectedTodoId: number | null
   selectedTodoIds: Set<number>
   selectionAnchorId: number | null
@@ -73,27 +43,16 @@ interface UIState {
   hoveredTodoId: number | null
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
-  /** What the List view groups tasks by. `'none'` = flat list. */
-  listGroupBy: ListGroupBy
-  /** How the List view sorts tasks within each group (or across all when ungrouped). */
-  listSortBy: ListItemSortBy
-  inlineCreateAfterId: number | null
-  clipboardTodoIds: number[]
-  clipboardSourceProjectId: number | null
   filteredListPopup: FilteredListPopup | null
-  /** Pending canvas target from command palette navigation */
-  pendingCanvasTarget: { x: number; y: number } | null
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
   /** The filter sheet was opened from a search button: focus its search box. */
   filterSheetFocusSearch: boolean
-  /** Project navigator panel open state */
-  isProjectNavigatorOpen: boolean
   /**
    * Lists editor (`DashboardListsEditor`) open state. Owned here so any
-   * component (canvas list widget's kind menu, rail lens slot, etc.) can
-   * dispatch "open editor for def N" without prop-drilling. CanvasPage
-   * subscribes and renders the modal when `listsEditorOpen` is true.
+   * component (a list tab's menu, Settings, etc.) can dispatch "open editor
+   * for def N" without prop-drilling. WorkspacePage subscribes and renders
+   * the modal when `listsEditorOpen` is true.
    */
   listsEditorOpen: boolean
   /** Optional def id to preselect + auto-expand the ConfigPanel for. */
@@ -101,29 +60,19 @@ interface UIState {
   /**
    * Direct list-editor dialog id — when non-null, `<StandaloneListEditor>`
    * mounts the per-list editor dialog *without* the surrounding Lists
-   * manager modal. Drives the "Edit list" entry from a tab pill / float's
-   * widget-kind menu (triage-2026-04-26 P5 / Q7=A). The Lists manager's
+   * manager modal. Drives the "Edit list" entry from a list tab's menu.
+   * The Lists manager's
    * own row-click → P2 dialog-on-modal flow keeps using the
    * `listsEditorOpen` + `listsEditorInitialId` pair above; the two paths
    * are deliberately distinct so the surfaces don't stack.
    */
   listEditorDialogId: number | null
-  /** Descriptor of the floating canvas widget currently being dragged, or null. */
-  floatDrag: FloatDragState | null
-  /**
-   * Screen-reader announcement for float-dock drag gestures — mirrors the
-   * `useRailsDragMonitor` announcer (rendered as its own `aria-live=polite`
-   * region by `RailsFrame`). Empty string = silence. Set on drag start
-   * (`Dragging <kind>`) and on successful dock (`Dropped in <zone>`); cleared
-   * when the drag ends without a dock or is cancelled.
-   */
-  floatAnnouncement: string
   /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
    * prop-drilling. `openCreatePopup` remains the entry point for the
-   * deliberate "I want all the fields" path (right-click → New Task on the
-   * canvas) and for the bar's "Open full editor →" handoff.
+   * deliberate "I want all the fields" path and for the bar's "Open full
+   * editor →" handoff.
    */
   quickAddOpen: boolean
   /**
@@ -136,7 +85,7 @@ interface UIState {
    *    pre-fills title + parser-derived metadata. The popup clears the
    *    draft via `closeEditPopup` on its close.
    * 3. `defaults` carries pre-resolved task metadata that overrides the
-   *    active filter when seeding a new task — used by the canvas list
+   *    active filter when seeding a new task — used by the list
    *    widget's "+ Add task" affordance to plumb the list's predicate
    *    through to QuickAddBar's submit handler. When absent, the submit
    *    handler falls back to `useFilterStore.getState().filters`.
@@ -152,7 +101,6 @@ interface UIState {
    */
   recentlyCreated: { todoId: number; key: number } | null
 
-  setActiveView: (view: AppView) => void
   selectTodo: (id: number | null) => void
   selectOneTodo: (id: number) => void
   toggleSelectTodo: (id: number) => void
@@ -168,22 +116,12 @@ interface UIState {
   openEditPopup: (todoId: number) => void
   openCreatePopup: () => void
   closeEditPopup: () => void
-  setListGroupBy: (groupBy: ListGroupBy) => void
-  setListSortBy: (sortBy: ListItemSortBy) => void
-  triggerInlineCreate: (afterTodoId: number) => void
-  clearInlineCreate: () => void
-  cutTasks: (todoIds: number[], sourceProjectId: number | null) => void
-  clearClipboard: () => void
   showFilteredList: (x: number, y: number, filter: AttributeFilter) => void
   hideFilteredList: () => void
-  setPendingCanvasTarget: (target: { x: number; y: number } | null) => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
   /** Opens the mobile filter sheet with its search box focused. */
   openFilterSheetSearch: () => void
-  toggleProjectNavigator: () => void
-  setFloatDrag: (next: FloatDragState | null) => void
-  setFloatAnnouncement: (text: string) => void
   openListsEditor: (initialId?: number | null) => void
   closeListsEditor: () => void
   openListEditorDialog: (id: number) => void
@@ -196,7 +134,6 @@ interface UIState {
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
-  activeView: AppView.Canvas,
   selectedTodoId: null,
   selectedTodoIds: new Set<number>(),
   selectionAnchorId: null,
@@ -208,28 +145,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   hoveredTodoId: null,
   editPopupMode: null,
   bulkConfirmation: null,
-  listGroupBy: 'deadline' as ListGroupBy,
-  listSortBy: 'manual' as ListItemSortBy,
-  inlineCreateAfterId: null,
-  clipboardTodoIds: [],
-  clipboardSourceProjectId: null,
   filteredListPopup: null,
-  pendingCanvasTarget: null,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
-  isProjectNavigatorOpen: false,
   listsEditorOpen: false,
   listsEditorInitialId: null,
   listEditorDialogId: null,
-  floatDrag: null,
-  floatAnnouncement: '',
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
-
-  setActiveView(view: AppView) {
-    set({ activeView: view })
-  },
 
   selectTodo(id: number | null) {
     set({ selectedTodoId: id })
@@ -321,40 +245,12 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ selectedTodoId: null, editPopupMode: null, quickAddDraft: null })
   },
 
-  setListGroupBy(groupBy: ListGroupBy) {
-    set({ listGroupBy: groupBy })
-  },
-
-  setListSortBy(sortBy: ListItemSortBy) {
-    set({ listSortBy: sortBy })
-  },
-
-  triggerInlineCreate(afterTodoId: number) {
-    set({ inlineCreateAfterId: afterTodoId })
-  },
-
-  clearInlineCreate() {
-    set({ inlineCreateAfterId: null })
-  },
-
-  cutTasks(todoIds: number[], sourceProjectId: number | null) {
-    set({ clipboardTodoIds: todoIds, clipboardSourceProjectId: sourceProjectId })
-  },
-
-  clearClipboard() {
-    set({ clipboardTodoIds: [], clipboardSourceProjectId: null })
-  },
-
   showFilteredList(x: number, y: number, filter: AttributeFilter) {
     set({ filteredListPopup: { x, y, filter } })
   },
 
   hideFilteredList() {
     set({ filteredListPopup: null })
-  },
-
-  setPendingCanvasTarget(target: { x: number; y: number } | null) {
-    set({ pendingCanvasTarget: target })
   },
 
   toggleFilterSheet() {
@@ -367,22 +263,6 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   openFilterSheetSearch() {
     set({ isFilterSheetOpen: true, filterSheetFocusSearch: true })
-  },
-
-  toggleProjectNavigator() {
-    set({ isProjectNavigatorOpen: !get().isProjectNavigatorOpen })
-  },
-
-  setFloatDrag(next) {
-    const cur = get().floatDrag
-    if (next === null && cur === null) return
-    if (next && cur && next.kind === cur.kind && next.id === cur.id) return
-    set({ floatDrag: next })
-  },
-
-  setFloatAnnouncement(text) {
-    if (get().floatAnnouncement === text) return
-    set({ floatAnnouncement: text })
   },
 
   openListsEditor(initialId) {

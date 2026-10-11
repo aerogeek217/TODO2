@@ -11,7 +11,7 @@ import { TaskPillBar } from '../shared/TaskPillBar'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { ChipSelector } from '../shared/ChipSelector'
 import { PortalDropdown } from '../shared/PortalDropdown'
-import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
+import { ContextMenu } from '../overlays/ContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { TaskNotePopover } from './TaskNotePopover'
 import { FollowupPopover } from '../shared/followup/FollowupPopover'
@@ -353,7 +353,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
       )}
 
       {contextMenu && (
-        <CanvasContextMenu
+        <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           items={buildTaskRowMenuItems({

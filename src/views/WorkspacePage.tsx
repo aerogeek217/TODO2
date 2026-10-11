@@ -53,7 +53,7 @@ import { TaskEditPopupHost } from '../components/task/TaskEditPopupHost'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
-import overlayStyles from '../components/canvas/DragOverlayTask.module.css'
+import overlayStyles from '../components/workspace/DragOverlayTask.module.css'
 import styles from './WorkspacePage.module.css'
 
 /** No drag sensors on mobile: layout editing and task drags are desktop-only there. */

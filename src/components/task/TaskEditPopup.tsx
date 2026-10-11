@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoItem, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
-import { AppView, DEFAULT_STATUS_ICON } from '../../models'
+import { DEFAULT_STATUS_ICON } from '../../models'
 import { useProjectStore } from '../../stores/project-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -85,8 +85,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (mode !== 'create') return null
     const draftDefaults = useUIStore.getState().quickAddDraft?.defaults
     if (draftDefaults) return draftDefaults
-    const activeView = useUIStore.getState().activeView
-    if (activeView === AppView.Dashboard || activeView === AppView.Settings) return null
     return getFilterDefaults(useFilterStore.getState().filters)
   }, [mode])
 

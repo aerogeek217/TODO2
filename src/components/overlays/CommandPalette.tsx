@@ -5,22 +5,21 @@ import styles from './CommandPalette.module.css'
 
 interface CommandPaletteProps {
   commands: Command[]
-  /** Lazy search for dynamic commands (tasks/projects) — only called when query is non-empty */
+  /** Lazy search for dynamic commands (tasks) — only called when query is non-empty */
   onSearchDynamic?: (query: string) => Command[]
   onClose: () => void
 }
 
-const CATEGORY_ORDER: CommandCategory[] = ['navigation', 'task', 'bulk', 'filter', 'projects', 'tasks']
+const CATEGORY_ORDER: CommandCategory[] = ['navigation', 'task', 'bulk', 'filter', 'tasks']
 const CATEGORY_LABELS: Record<CommandCategory, string> = {
   navigation: 'Navigation',
   task: 'Tasks',
   bulk: 'Bulk Actions',
   filter: 'Filters',
-  projects: 'Projects',
   tasks: 'Search Results',
 }
 
-/** Max dynamic results (tasks/projects) to show to avoid overwhelming the list */
+/** Max dynamic results (tasks) to show to avoid overwhelming the list */
 const MAX_DYNAMIC_RESULTS = 20
 
 export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPaletteProps) {
@@ -31,7 +30,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   const listboxId = 'command-palette-listbox'
   const optionId = (idx: number) => `command-palette-option-${idx}`
 
-  // > prefix = commands only (no task/project search)
+  // > prefix = commands only (no task search)
   const isCommandMode = query.startsWith('>')
   const searchQuery = isCommandMode ? query.slice(1).trim() : query.trim()
 
@@ -61,13 +60,13 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   const results = useMemo(() => {
     if (!searchQuery) {
       // No query: show static commands only
-      return commands.filter((c) => c.category !== 'tasks' && c.category !== 'projects')
+      return commands.filter((c) => c.category !== 'tasks')
     }
 
     // Static commands via fuzzy search
     const items = fuse.search(searchQuery).map((r) => r.item)
 
-    // Merge lazily-searched dynamic commands (tasks/projects) unless in command-only mode
+    // Merge lazily-searched dynamic commands (tasks) unless in command-only mode
     if (!isCommandMode && onSearchDynamic) {
       const dynamic = onSearchDynamic(searchQuery)
       items.push(...dynamic)
@@ -76,14 +75,10 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
     // Cap dynamic results
     const commandResults: Command[] = []
     let taskCount = 0
-    let projectCount = 0
     for (const item of items) {
       if (item.category === 'tasks') {
         if (taskCount >= MAX_DYNAMIC_RESULTS) continue
         taskCount++
-      } else if (item.category === 'projects') {
-        if (projectCount >= MAX_DYNAMIC_RESULTS) continue
-        projectCount++
       }
       commandResults.push(item)
     }
@@ -165,7 +160,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search tasks, projects, commands... (> for commands only)"
+            placeholder="Search tasks, commands... (> for commands only)"
             role="combobox"
             aria-expanded
             aria-controls={listboxId}

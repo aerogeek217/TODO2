@@ -18,11 +18,10 @@ import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
-import { useFloatingNoteStore } from './stores/floating-note-store'
 import { useStatusStore } from './stores/status-store'
 import { useTagStore } from './stores/tag-store'
 import { formatShortcut } from './utils/platform'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
+import { LEGACY_ROUTES, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
@@ -43,9 +42,6 @@ import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsM
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
-const CanvasPage = lazy(() => import('./views/CanvasPage').then(m => ({ default: m.CanvasPage })))
-const ListView = lazy(() => import('./views/ListView').then(m => ({ default: m.ListView })))
-const CalendarView = lazy(() => import('./views/CalendarView').then(m => ({ default: m.CalendarView })))
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const WorkspacePage = lazy(() => import('./views/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
 import styles from './App.module.css'
@@ -264,7 +260,7 @@ function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   // Desktop: quick add lives in the sidebar. Mobile: a floating + above the tab bar.
-  const showFab = isMobile && location.pathname !== ROUTE_SETTINGS && location.pathname !== ROUTE_CALENDAR
+  const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
 
   // Reset filter sheet when viewport transitions from mobile to desktop
   useEffect(() => {
@@ -307,50 +303,18 @@ function AppShell() {
     return () => backupScheduler.stop()
   }, [ensureDefault, loadSettings, initFileStorage, loadPeople])
 
-  const createFloatingNote = useCallback(() => {
-    if (location.pathname !== ROUTE_CANVAS) return
-    const canvasId = useCanvasStore.getState().selectedCanvasId
-    if (!canvasId) return
-    const vp = useSettingsStore.getState().canvasViewport
-    const el = document.querySelector('.react-flow')
-    const w = el?.clientWidth ?? window.innerWidth
-    const h = el?.clientHeight ?? window.innerHeight
-    const zoom = vp?.zoom ?? 1
-    const cx = (-(vp?.x ?? 0) + w / 2) / zoom
-    const cy = (-(vp?.y ?? 0) + h / 2) / zoom
-    void useFloatingNoteStore.getState().add(canvasId, cx - 120, cy - 100)
-  }, [location.pathname])
-
-  // Fit-to-view: dispatch a custom event that CanvasPage can listen to,
-  // but we can directly use the React Flow instance via the DOM for simplicity.
-  // The fitView button in the controls already exists; this wires Ctrl+0.
-  const fitView = useCallback(() => {
-    if (location.pathname !== ROUTE_CANVAS) return
-    // React Flow exposes fitView on the instance; trigger via a custom event
-    window.dispatchEvent(new CustomEvent('canvas-fit-view'))
-  }, [location.pathname])
-
-  const toggleProjectNavigator = useCallback(() => {
-    if (location.pathname !== ROUTE_CANVAS) return
-    useUIStore.getState().toggleProjectNavigator()
-  }, [location.pathname])
-
   // Global keyboard shortcuts
   useKeyboardShortcuts({
     openPalette: () => setShowPalette(true),
     closePalette: () => setShowPalette(false),
     navigate,
-    createFloatingNote,
     openShortcutsModal: () => setShowShortcuts(true),
-    fitView,
-    toggleProjectNavigator,
     enabled: !isMobile,
   })
 
   const handleClosePalette = useCallback(() => setShowPalette(false), [])
 
   const todos = useTodoStore((s) => s.todos)
-  const projects = useProjectStore((s) => s.projects)
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
 
   const commandCtx = useMemo(
@@ -367,29 +331,14 @@ function AppShell() {
       getShowCompleted: () => useFilterStore.getState().filters.showCompleted,
       setDateRange: useFilterStore.getState().setDateRange,
       getTodos: () => todos,
-      getProjects: () => projects,
       focusTask: (todoId: number) => {
-        const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
-        if (!todo?.projectId) return
-        const project = useProjectStore.getState().projects.find((p) => p.id === todo.projectId)
-        if (!project) return
-        useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
         useUIStore.getState().selectOneTodo(todoId)
-        navigate(ROUTE_CANVAS)
+        useUIStore.getState().openEditPopup(todoId)
       },
-      focusProject: (projectId: number) => {
-        const project = useProjectStore.getState().projects.find((p) => p.id === projectId)
-        if (!project) return
-        useUIStore.getState().setPendingCanvasTarget({ x: project.positionX + 140, y: project.positionY + 100 })
-        navigate(ROUTE_CANVAS)
-      },
-      fitView,
-      createFloatingNote: location.pathname === ROUTE_CANVAS ? createFloatingNote : undefined,
-      toggleProjectNavigator: location.pathname === ROUTE_CANVAS ? toggleProjectNavigator : undefined,
       openShortcutsModal: () => setShowShortcuts(true),
       getStatuses: () => useStatusStore.getState().statuses,
     }),
-    [navigate, todos, projects, selectionCount, fitView, createFloatingNote, toggleProjectNavigator, location.pathname]
+    [navigate, todos, selectionCount]
   )
 
   const commands = useMemo(() => createCommands(commandCtx), [commandCtx])
@@ -427,21 +376,16 @@ function AppShell() {
         <div className={styles.content}>
         <Suspense fallback={null}>
           <Routes>
-            <Route path={ROUTE_CANVAS} element={isMobile ? <Navigate to={ROUTE_WORKSPACE} replace /> : (
-              <ErrorBoundary scope="Canvas">
-                <CanvasPage />
-              </ErrorBoundary>
-            )} />
             <Route path={ROUTE_WORKSPACE} element={
               <ErrorBoundary scope="Workspace">
                 <WorkspacePage />
               </ErrorBoundary>
             } />
-            <Route path="/dashboard" element={<Navigate to={ROUTE_CANVAS} replace />} />
-            <Route path={ROUTE_LIST} element={<ListView />} />
-            <Route path={ROUTE_CALENDAR} element={isMobile ? <Navigate to={ROUTE_WORKSPACE} replace /> : <CalendarView />} />
+            {LEGACY_ROUTES.map((path) => (
+              <Route key={path} path={path} element={<Navigate to={ROUTE_WORKSPACE} replace />} />
+            ))}
             <Route path={ROUTE_SETTINGS} element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to={isMobile ? ROUTE_WORKSPACE : ROUTE_CANVAS} replace />} />
+            <Route path="*" element={<Navigate to={ROUTE_WORKSPACE} replace />} />
           </Routes>
         </Suspense>
         </div>

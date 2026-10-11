@@ -10,15 +10,15 @@ function dispatchKey(target: EventTarget, key: string, init: KeyboardEventInit =
 describe('useKeyboardShortcuts — focus gating', () => {
   const noop = () => {}
   let options: Parameters<typeof useKeyboardShortcuts>[0]
-  let createFloatingNote: ReturnType<typeof vi.fn<() => void>>
+  let openShortcutsModal: ReturnType<typeof vi.fn<() => void>>
 
   beforeEach(() => {
-    createFloatingNote = vi.fn<() => void>()
+    openShortcutsModal = vi.fn<() => void>()
     options = {
       openPalette: noop,
       closePalette: noop,
       navigate: noop,
-      createFloatingNote,
+      openShortcutsModal,
     }
   })
 
@@ -26,24 +26,24 @@ describe('useKeyboardShortcuts — focus gating', () => {
     document.body.innerHTML = ''
   })
 
-  it('fires `n` → createFloatingNote when focus is on the body (no text field)', () => {
+  it('fires `n` → openShortcutsModal when focus is on the body (no text field)', () => {
     renderHook(() => useKeyboardShortcuts(options))
-    dispatchKey(window, 'n')
-    expect(createFloatingNote).toHaveBeenCalledOnce()
+    dispatchKey(window, '?')
+    expect(openShortcutsModal).toHaveBeenCalledOnce()
   })
 
-  it('does NOT fire `n` when focus is inside a contenteditable', () => {
+  it('does NOT fire `?` when focus is inside a contenteditable', () => {
     const editable = document.createElement('div')
     editable.setAttribute('contenteditable', 'true')
     document.body.appendChild(editable)
     editable.focus()
 
     renderHook(() => useKeyboardShortcuts(options))
-    dispatchKey(editable, 'n')
-    expect(createFloatingNote).not.toHaveBeenCalled()
+    dispatchKey(editable, '?')
+    expect(openShortcutsModal).not.toHaveBeenCalled()
   })
 
-  it('does NOT fire `n` when focus is inside [data-shortcut-scope="none"]', () => {
+  it('does NOT fire `?` when focus is inside [data-shortcut-scope="none"]', () => {
     const wrapper = document.createElement('div')
     wrapper.setAttribute('data-shortcut-scope', 'none')
     const child = document.createElement('span')
@@ -53,18 +53,18 @@ describe('useKeyboardShortcuts — focus gating', () => {
     child.focus()
 
     renderHook(() => useKeyboardShortcuts(options))
-    dispatchKey(child, 'n')
-    expect(createFloatingNote).not.toHaveBeenCalled()
+    dispatchKey(child, '?')
+    expect(openShortcutsModal).not.toHaveBeenCalled()
   })
 
-  it('does NOT fire `n` when focus is on a plain INPUT', () => {
+  it('does NOT fire `?` when focus is on a plain INPUT', () => {
     const input = document.createElement('input')
     document.body.appendChild(input)
     input.focus()
 
     renderHook(() => useKeyboardShortcuts(options))
-    dispatchKey(input, 'n')
-    expect(createFloatingNote).not.toHaveBeenCalled()
+    dispatchKey(input, '?')
+    expect(openShortcutsModal).not.toHaveBeenCalled()
   })
 })
 
@@ -80,18 +80,18 @@ describe('useKeyboardShortcuts — sequence chords (G then …)', () => {
     document.body.innerHTML = ''
   })
 
-  it('G then L navigates to /list', () => {
+  it('G then W navigates to the workspace (/)', () => {
     renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
     dispatchKey(window, 'g')
-    dispatchKey(window, 'l')
-    expect(navigate).toHaveBeenCalledExactlyOnceWith('/list')
+    dispatchKey(window, 'w')
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('/')
   })
 
-  it('G then C navigates to /', () => {
+  it('G then S navigates to /settings', () => {
     renderHook(() => useKeyboardShortcuts({ openPalette: noop, closePalette: noop, navigate }))
     dispatchKey(window, 'g')
-    dispatchKey(window, 'c')
-    expect(navigate).toHaveBeenCalledExactlyOnceWith('/')
+    dispatchKey(window, 's')
+    expect(navigate).toHaveBeenCalledExactlyOnceWith('/settings')
   })
 
   it('G then unrelated key (e.g., x) does not navigate', () => {

@@ -11,7 +11,6 @@ export { type FloatingCalendar } from './floating-calendar'
 export { type FloatingNote } from './floating-note'
 export { type RecurrenceRule, type RecurrenceType } from './recurrence'
 export { type Backup, type BackupTrigger } from './backup'
-export { AppView } from './app-view'
 export { type ListSortBy, type ListGroupBy, type ListItemSortBy, type DateField, DATE_FIELD_VALUES } from './app-view'
 export {
   type TodoSortBy,

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createCommands, searchDynamicCommands } from '../../services/command-registry'
 import type { CommandContext } from '../../services/command-registry'
-import { makeTodo, makeProject } from '../helpers'
+import { makeTodo } from '../helpers'
 
 function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
@@ -17,9 +17,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     getShowCompleted: vi.fn().mockReturnValue(false),
     setDateRange: vi.fn(),
     getTodos: () => [],
-    getProjects: () => [],
     focusTask: vi.fn(),
-    focusProject: vi.fn(),
     ...overrides,
   }
 }
@@ -31,44 +29,19 @@ beforeEach(() => {
 // ─── Navigation commands ─────────────────────────────────────────────────────
 
 describe('createCommands — navigation commands', () => {
-  it('createCommands_noSelection_includesCanvasNavCommand', () => {
+  it('createCommands_noSelection_includesWorkspaceAndSettingsNavigation', () => {
     const ctx = makeContext()
     const commands = createCommands(ctx)
-    expect(commands.some(c => c.id === 'nav-canvas')).toBe(true)
+    const navIds = commands.filter(c => c.category === 'navigation' && c.id.startsWith('nav-')).map(c => c.id)
+    expect(navIds).toEqual(['nav-workspace', 'nav-settings'])
   })
 
-  it('createCommands_noSelection_includesAllFourNavigationCommands', () => {
+  it('createCommands_navWorkspace_actionCallsNavigateToRoot', () => {
     const ctx = makeContext()
     const commands = createCommands(ctx)
-    const navIds = commands.filter(c => c.category === 'navigation').map(c => c.id)
-    expect(navIds).toContain('nav-canvas')
-    expect(navIds).toContain('nav-list')
-    expect(navIds).toContain('nav-calendar')
-    expect(navIds).toContain('nav-settings')
-  })
-
-  it('createCommands_navCanvas_actionCallsNavigateTo', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-canvas')!
+    const cmd = commands.find(c => c.id === 'nav-workspace')!
     cmd.action()
     expect(ctx.navigateTo).toHaveBeenCalledWith('/')
-  })
-
-  it('createCommands_navList_actionCallsNavigateToList', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-list')!
-    cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/list')
-  })
-
-  it('createCommands_navCalendar_actionCallsNavigateToCalendar', () => {
-    const ctx = makeContext()
-    const commands = createCommands(ctx)
-    const cmd = commands.find(c => c.id === 'nav-calendar')!
-    cmd.action()
-    expect(ctx.navigateTo).toHaveBeenCalledWith('/calendar')
   })
 
   it('createCommands_navSettings_actionCallsNavigateToSettings', () => {
@@ -263,53 +236,15 @@ describe('searchDynamicCommands — task search', () => {
   })
 })
 
-// ─── searchDynamicCommands — lazy project search ─────────────────────────────
-
-describe('searchDynamicCommands — project search', () => {
-  it('searchDynamicCommands_withMatchingQuery_returnsMatchingProjects', () => {
-    const projects = [
-      makeProject({ id: 1, canvasId: 1, name: 'Backend' }),
-      makeProject({ id: 2, canvasId: 1, name: 'Frontend' }),
-    ]
-    const ctx = makeContext({ getProjects: () => projects })
-    const results = searchDynamicCommands('back', ctx)
-    expect(results.filter(c => c.category === 'projects')).toHaveLength(1)
-  })
-
-  it('searchDynamicCommands_withQuery_commandNameIsProjectName', () => {
-    const projects = [makeProject({ id: 3, canvasId: 1, name: 'My Sprint' })]
-    const ctx = makeContext({ getProjects: () => projects })
-    const results = searchDynamicCommands('sprint', ctx)
-    const cmd = results.find(c => c.id === 'project-3')!
-    expect(cmd.name).toBe('My Sprint')
-  })
-
-  it('searchDynamicCommands_withQuery_actionCallsFocusProject', () => {
-    const projects = [makeProject({ id: 4, canvasId: 1, name: 'Design' })]
-    const ctx = makeContext({ getProjects: () => projects })
-    const results = searchDynamicCommands('design', ctx)
-    const cmd = results.find(c => c.id === 'project-4')!
-    cmd.action()
-    expect(ctx.focusProject).toHaveBeenCalledWith(4)
-  })
-
-  it('searchDynamicCommands_noMatchingProjects_returnsEmpty', () => {
-    const projects = [makeProject({ id: 1, canvasId: 1, name: 'Backend' })]
-    const ctx = makeContext({ getProjects: () => projects })
-    expect(searchDynamicCommands('zzz', ctx).filter(c => c.category === 'projects')).toHaveLength(0)
-  })
-})
 
 // ─── createCommands no longer includes dynamic commands ──────────────────────
 
 describe('createCommands — no dynamic commands', () => {
-  it('createCommands_withTodosAndProjects_doesNotIncludeDynamicCommands', () => {
+  it('createCommands_withTodos_doesNotIncludeDynamicCommands', () => {
     const ctx = makeContext({
       getTodos: () => [makeTodo({ id: 1 })],
-      getProjects: () => [makeProject({ id: 1, canvasId: 1 })],
     })
     const commands = createCommands(ctx)
     expect(commands.filter(c => c.category === 'tasks')).toHaveLength(0)
-    expect(commands.filter(c => c.category === 'projects')).toHaveLength(0)
   })
 })

@@ -1,0 +1,15 @@
+import { NotesBody } from '../shared/notes/NotesBody'
+import styles from './NotesWidget.module.css'
+
+interface NotesWidgetProps {
+  onToast?: (message: string) => void
+}
+
+/** Body of a notes tab: the single global note. */
+export function NotesWidget({ onToast }: NotesWidgetProps) {
+  return (
+    <div className={styles.wrap}>
+      <NotesBody dock="slot" onConvertToast={onToast} />
+    </div>
+  )
+}

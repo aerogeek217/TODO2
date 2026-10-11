@@ -11,7 +11,7 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderTabBar(route = '/workspace') {
+function renderTabBar(route = '/') {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <BottomTabBar />
@@ -50,8 +50,8 @@ describe('BottomTabBar', () => {
   // ── Active tab states ─────────────────────────────────────────────
 
   describe('active states', () => {
-    it('Workspace tab is active on /workspace', () => {
-      renderTabBar('/workspace')
+    it('Workspace tab is active on /', () => {
+      renderTabBar('/')
       const tabs = screen.getAllByRole('tab')
       expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
       expect(tabs[1]).toHaveAttribute('aria-selected', 'false')
@@ -71,7 +71,7 @@ describe('BottomTabBar', () => {
     })
 
     it('Filters tab is active when filter sheet is open', () => {
-      renderTabBar('/workspace')
+      renderTabBar('/')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
       const tabs = screen.getAllByRole('tab')
@@ -93,14 +93,14 @@ describe('BottomTabBar', () => {
   // ── Navigation ────────────────────────────────────────────────────
 
   describe('navigation', () => {
-    it('navigates to /workspace when Workspace tab clicked', () => {
+    it('navigates to the workspace (/) when Workspace tab clicked', () => {
       renderTabBar('/settings')
       fireEvent.click(screen.getByText('Workspace'))
-      expect(screen.getByTestId('location')).toHaveTextContent('/workspace')
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
     })
 
     it('navigates to /settings when Settings tab clicked', () => {
-      renderTabBar('/workspace')
+      renderTabBar('/')
       fireEvent.click(screen.getByText('Settings'))
       expect(screen.getByTestId('location')).toHaveTextContent('/settings')
     })
@@ -115,7 +115,7 @@ describe('BottomTabBar', () => {
     })
 
     it('closes filter sheet when Workspace tab clicked while sheet is open', () => {
-      renderTabBar('/workspace')
+      renderTabBar('/')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
       fireEvent.click(screen.getByText('Workspace'))
@@ -123,7 +123,7 @@ describe('BottomTabBar', () => {
     })
 
     it('closes filter sheet when Settings tab clicked while sheet is open', () => {
-      renderTabBar('/workspace')
+      renderTabBar('/')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 
       fireEvent.click(screen.getByText('Settings'))

@@ -10,10 +10,6 @@ import { useListDraftStore } from './list-draft-store'
 import { useListWidgetStore } from './list-widget-store'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListOrderStore } from './list-order-store'
-import { useListInsetStore } from './list-inset-store'
-import { useFloatingNoteStore } from './floating-note-store'
-import { useFloatingCalendarStore } from './floating-calendar-store'
-import { useFloatingStatusStore } from './floating-status-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
 import { useWorkspaceStore } from './workspace-store'
@@ -41,7 +37,6 @@ export async function refreshAllStores() {
   useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
   await useCanvasStore.getState().ensureDefault()
   await useSettingsStore.getState().load()
-  const canvasId = useCanvasStore.getState().selectedCanvasId
   await Promise.all([
     useTodoStore.getState().loadAll(),
     useProjectStore.getState().loadAll(),
@@ -54,12 +49,6 @@ export async function refreshAllStores() {
     // Re-open the active layout from the replaced data (drops any unsaved
     // working copy); untouched until the workspace has been opened once.
     ...(useWorkspaceStore.getState().hydrated ? [useWorkspaceStore.getState().init()] : []),
-    ...(canvasId != null ? [
-      useListInsetStore.getState().loadByCanvas(canvasId),
-      useFloatingNoteStore.getState().loadByCanvas(canvasId),
-      useFloatingCalendarStore.getState().loadByCanvas(canvasId),
-      useFloatingStatusStore.getState().loadByCanvas(canvasId),
-    ] : []),
   ])
   // Reload assignment maps after entities and todos are loaded. Refetch every
   // id: the replaced tables can keep a todo's id while changing its people /

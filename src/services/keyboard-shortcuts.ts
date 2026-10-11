@@ -12,15 +12,13 @@
 import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useUndoStore } from '../stores/undo-store'
-import { pasteTasksAt } from './clipboard'
-import { bySortOrder } from '../utils/sort-order'
 import {
   findScopeElement,
   nextScopedSelection,
   readScopeRows,
   type ScopedSelectMode,
 } from '../utils/scoped-selection'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
+import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../routes'
 
 export type ShortcutCategory = 'general' | 'navigation' | 'task' | 'notes'
 
@@ -35,10 +33,7 @@ export interface ShortcutCallbacks {
   openPalette: () => void
   closePalette: () => void
   navigate: (path: string) => void
-  createFloatingNote?: () => void
   openShortcutsModal?: () => void
-  fitView?: () => void
-  toggleProjectNavigator?: () => void
 }
 
 export interface ShortcutCtx {
@@ -235,23 +230,10 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
     allowInInput: true,
     modalRow: { category: 'general', label: 'Esc', description: 'Close overlay / Clear selection' },
     handler: ({ callbacks }) => {
-      const { editPopupMode, clipboardTodoIds } = useUIStore.getState()
-      if (!editPopupMode) {
+      if (!useUIStore.getState().editPopupMode) {
         useUIStore.getState().clearSelection()
       }
-      if (clipboardTodoIds.length > 0) {
-        useUIStore.getState().clearClipboard()
-      }
       callbacks.closePalette()
-    },
-  },
-  {
-    chord: { key: '0', mod: true },
-    allowInInput: true,
-    handler: ({ e, callbacks }) => {
-      if (!callbacks.fitView) return
-      e.preventDefault()
-      callbacks.fitView()
     },
   },
   {
@@ -266,7 +248,7 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
     },
   },
 
-  // ── Undo / Redo / Cut / Paste / Select All — outside inputs only ──
+  // ── Undo / Redo / Select All — outside inputs only ──
   {
     chord: { key: 'z', mod: true, shift: false },
     modalRow: { category: 'general', label: 'Mod-Z', description: 'Undo' },
@@ -289,42 +271,6 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
     handler: ({ e }) => {
       e.preventDefault()
       useUndoStore.getState().redo()
-    },
-  },
-  {
-    chord: { key: 'x', mod: true },
-    handler: ({ e }) => {
-      const ids = useUIStore.getState().selectedTodoIds
-      if (ids.size === 0) return
-      e.preventDefault()
-      const { todos } = useTodoStore.getState()
-      const first = todos.find(t => ids.has(t.id))
-      useUIStore.getState().cutTasks(Array.from(ids), first?.projectId ?? null)
-    },
-  },
-  {
-    chord: { key: 'v', mod: true },
-    handler: async ({ e }) => {
-      const { clipboardTodoIds, focusedTodoId } = useUIStore.getState()
-      if (clipboardTodoIds.length === 0) return
-      e.preventDefault()
-      const { todos } = useTodoStore.getState()
-      const focusedTodo = focusedTodoId != null ? todos.find(t => t.id === focusedTodoId) : null
-      if (focusedTodo && focusedTodo.projectId != null) {
-        const projectTodos = todos
-          .filter(t => t.projectId === focusedTodo.projectId)
-          .sort(bySortOrder)
-        const focusedIdx = projectTodos.findIndex(t => t.id === focusedTodo.id)
-        const beforeTodo = focusedIdx < projectTodos.length - 1 ? projectTodos[focusedIdx + 1] : null
-        await pasteTasksAt({
-          projectId: focusedTodo.projectId,
-          beforeTodoId: beforeTodo?.id ?? null,
-        })
-      } else {
-        const sourceProjectId = useUIStore.getState().clipboardSourceProjectId
-        if (sourceProjectId == null) return
-        await pasteTasksAt({ projectId: sourceProjectId, beforeTodoId: null })
-      }
     },
   },
   {
@@ -386,22 +332,6 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
       if (!firstBtn) return
       e.preventDefault()
       firstBtn.focus()
-    },
-  },
-  {
-    chord: { key: 'n' },
-    handler: ({ e, callbacks }) => {
-      if (!callbacks.createFloatingNote) return
-      e.preventDefault()
-      callbacks.createFloatingNote()
-    },
-  },
-  {
-    chord: { key: 'p' },
-    handler: ({ e, callbacks }) => {
-      if (!callbacks.toggleProjectNavigator) return
-      e.preventDefault()
-      callbacks.toggleProjectNavigator()
     },
   },
 
@@ -476,20 +406,6 @@ export const SINGLE_BINDINGS: SingleBinding[] = [
       useUIStore.getState().showBulkConfirmation('delete', Array.from(ids))
     },
   },
-  {
-    chord: { key: 'insert' },
-    blockedByEditPopup: true,
-    modalRow: { category: 'task', label: 'Insert', description: 'Create task below selected' },
-    handler: ({ e }) => {
-      const ids = useUIStore.getState().selectedTodoIds
-      if (ids.size !== 1) return
-      const todoId = Array.from(ids)[0]
-      if (todoId == null) return
-      e.preventDefault()
-      useUIStore.getState().clearSelection()
-      useUIStore.getState().triggerInlineCreate(todoId)
-    },
-  },
 ]
 
 export const SEQUENCE_BINDINGS: SequenceBinding[] = [
@@ -497,21 +413,6 @@ export const SEQUENCE_BINDINGS: SequenceBinding[] = [
     prefix: 'g', key: 'w',
     modalRow: { category: 'navigation', label: 'G then W', description: 'Go to Workspace' },
     handler: ({ callbacks }) => callbacks.navigate(ROUTE_WORKSPACE),
-  },
-  {
-    prefix: 'g', key: 'c',
-    modalRow: { category: 'navigation', label: 'G then C', description: 'Go to Canvas' },
-    handler: ({ callbacks }) => callbacks.navigate(ROUTE_CANVAS),
-  },
-  {
-    prefix: 'g', key: 'l',
-    modalRow: { category: 'navigation', label: 'G then L', description: 'Go to List' },
-    handler: ({ callbacks }) => callbacks.navigate(ROUTE_LIST),
-  },
-  {
-    prefix: 'g', key: 'a',
-    modalRow: { category: 'navigation', label: 'G then A', description: 'Go to Calendar' },
-    handler: ({ callbacks }) => callbacks.navigate(ROUTE_CALENDAR),
   },
   {
     prefix: 'g', key: 's',
@@ -545,7 +446,7 @@ export interface ShortcutDocSection {
 
 /**
  * Group all visible rows by category in the order declared by SHORTCUT_CATEGORIES.
- * Single bindings without a modalRow are dispatch-only (e.g., Mod-X cut, '/' focus).
+ * Single bindings without a modalRow are dispatch-only (e.g., Mod-F / '/' focus search).
  */
 export function getShortcutDocSections(): ShortcutDocSection[] {
   const rows: ModalRow[] = [

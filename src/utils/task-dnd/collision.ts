@@ -9,9 +9,9 @@ import { dndLog } from '../debug-flags'
 
 /**
  * dnd-kit collision algorithms exposed by {@link buildTaskCollision}. The
- * choice between `pointerWithin` vs. `closestCenter` matters in rails-style
+ * choice between `pointerWithin` vs. `closestCenter` matters in dense
  * layouts — `pointerWithin` requires the pointer to be inside the droppable,
- * which drops that must land on a target (calendar days, rail zones) rely
+ * which drops that must land on a target (calendar days) rely
  * on. `closestCenter` always returns a hit for
  * row/card sortables as long as any eligible droppable exists.
  */
@@ -29,14 +29,14 @@ const ALGORITHMS: Record<TaskCollisionAlgorithm, CollisionDetection> = {
  * The first matching rule wins; rules are evaluated top-to-bottom.
  *
  * Each rule names its own dnd-kit algorithm so one collision function can
- * host both pointer-based drops (calendar days, rail zones) and
+ * host both pointer-based drops (calendar days) and
  * center-based drops (card reorder) without the caller threading context.
  */
 export interface TaskCollisionRule {
   /**
    * Returns true when this rule applies to the current active drag. Consult
    * `active.id` for sortable-style active ids and `active.data.current?.type`
-   * for the `TASK_DRAG_KIND` / `RAILS_DRAG_TYPE` family.
+   * for the `TASK_DRAG_KIND` family.
    */
   when: (active: CollisionActive) => boolean
 
@@ -58,18 +58,12 @@ export interface CollisionActive {
 }
 
 /**
- * Build a `CollisionDetection` from a declarative rules table. Replaces the
- * hand-rolled per-context functions in `CanvasPage` and any other route
- * that wants to scope which droppables a given drag can hit.
+ * Build a `CollisionDetection` from a declarative rules table, scoping which
+ * droppables a given drag can hit.
  *
  * Rules are checked in order; the first `when` that matches wins and the
  * others are skipped. When no rule matches, the returned detection falls back
  * to `fallback` (default `closestCenter`) with every droppable in scope.
- *
- * F12 (audit): rails drags must continue to be routed to rail-only zones.
- * Callers that live in a `DndContext` that hosts both rails and tasks (today:
- * only the canvas) must supply a rails rule that accepts `isRailsDropId` zones
- * and a task rule that rejects them.
  */
 export function buildTaskCollision(
   rules: readonly TaskCollisionRule[],

@@ -8,7 +8,6 @@ import {
   type ListSectionsSpec,
   type Section,
 } from '../../services/list-sections'
-import { encodeGroupSort } from '../../utils/list-view-encoding'
 import { makeTodo } from '../helpers'
 
 function ctxWith(over: Partial<ListSectionsContext> = {}): ListSectionsContext {
@@ -537,41 +536,6 @@ describe('buildListSections — accents and sentinels', () => {
   })
 })
 
-describe('encodeGroupSort', () => {
-  // Post ui-consistency-2026-04-25 P4 the encoder is the identity over flat
-  // `TodoSortBy` / `TodoGroupBy` literals — `sort = itemSortBy`,
-  // `grouping = groupBy`. The former discriminated-union shape was flattened
-  // in the v46 Dexie migration.
-  it('ungrouped + manual → grouping=none, sort=manual', () => {
-    const { sort, grouping } = encodeGroupSort('none', 'manual')
-    expect(grouping).toBe('none')
-    expect(sort).toBe('manual')
-  })
-
-  it('coupled groupBy === itemSortBy → both = same field', () => {
-    const { sort, grouping } = encodeGroupSort('deadline', 'deadline')
-    expect(grouping).toBe('deadline')
-    expect(sort).toBe('deadline')
-  })
-
-  it('decoupled groupBy / itemSortBy → flat literals retained independently', () => {
-    const { sort, grouping } = encodeGroupSort('project', 'deadline')
-    expect(grouping).toBe('project')
-    expect(sort).toBe('deadline')
-  })
-
-  it('grouped by categorical + manual sort → grouping=project, sort=manual', () => {
-    const { sort, grouping } = encodeGroupSort('project', 'manual')
-    expect(grouping).toBe('project')
-    expect(sort).toBe('manual')
-  })
-
-  it("grouped by tag → grouping='tag'", () => {
-    const { sort, grouping } = encodeGroupSort('tag', 'followup')
-    expect(grouping).toBe('tag')
-    expect(sort).toBe('followup')
-  })
-})
 
 describe('truncateSections', () => {
   const mkSection = (key: string, ids: number[]): Section => ({

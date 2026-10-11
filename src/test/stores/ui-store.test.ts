@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useUIStore } from '../../stores/ui-store'
-import { AppView } from '../../models'
 
 beforeEach(() => {
   useUIStore.setState({
-    activeView: AppView.Canvas,
     selectedTodoId: null,
     selectedTodoIds: new Set(),
     selectionAnchorId: null,
@@ -12,11 +10,6 @@ beforeEach(() => {
     focusedTodoId: null,
     editPopupMode: null,
     bulkConfirmation: null,
-    listGroupBy: 'date',
-    listSortBy: 'manual',
-    inlineCreateAfterId: null,
-    clipboardTodoIds: [],
-    clipboardSourceProjectId: null,
     filteredListPopup: null,
     listsEditorOpen: false,
     listsEditorInitialId: null,
@@ -105,51 +98,12 @@ describe('useUIStore', () => {
     expect(state.focusedTodoId).toBeNull()
   })
 
-  it('setActiveView switches view', () => {
-    useUIStore.getState().setActiveView(AppView.List)
-    expect(useUIStore.getState().activeView).toBe(AppView.List)
-  })
-
   it('showBulkConfirmation and clearBulkConfirmation', () => {
     useUIStore.getState().showBulkConfirmation('delete', [1, 2])
     expect(useUIStore.getState().bulkConfirmation).toEqual({ action: 'delete', ids: [1, 2] })
 
     useUIStore.getState().clearBulkConfirmation()
     expect(useUIStore.getState().bulkConfirmation).toBeNull()
-  })
-
-  it('triggerInlineCreate and clearInlineCreate', () => {
-    useUIStore.getState().triggerInlineCreate(7)
-    expect(useUIStore.getState().inlineCreateAfterId).toBe(7)
-
-    useUIStore.getState().clearInlineCreate()
-    expect(useUIStore.getState().inlineCreateAfterId).toBeNull()
-  })
-
-  it('setListSortBy changes within-group sort', () => {
-    useUIStore.getState().setListSortBy('date')
-    expect(useUIStore.getState().listSortBy).toBe('date')
-
-    useUIStore.getState().setListSortBy('manual')
-    expect(useUIStore.getState().listSortBy).toBe('manual')
-  })
-
-  it('setListGroupBy changes grouping', () => {
-    useUIStore.getState().setListGroupBy('date')
-    expect(useUIStore.getState().listGroupBy).toBe('date')
-
-    useUIStore.getState().setListGroupBy('none')
-    expect(useUIStore.getState().listGroupBy).toBe('none')
-  })
-
-  it('cutTasks and clearClipboard', () => {
-    useUIStore.getState().cutTasks([1, 2, 3], 10)
-    expect(useUIStore.getState().clipboardTodoIds).toEqual([1, 2, 3])
-    expect(useUIStore.getState().clipboardSourceProjectId).toBe(10)
-
-    useUIStore.getState().clearClipboard()
-    expect(useUIStore.getState().clipboardTodoIds).toEqual([])
-    expect(useUIStore.getState().clipboardSourceProjectId).toBeNull()
   })
 
   it('openListsEditor stores initialId; closeListsEditor resets both', () => {

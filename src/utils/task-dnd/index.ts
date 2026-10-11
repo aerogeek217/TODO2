@@ -9,9 +9,7 @@ export {
 export {
   taskDragId,
   isTaskDragId,
-  projectDropId,
   calendarDayDropId,
-  CALENDAR_VIEW_SCOPE,
   type TaskSurfaceKey,
   type TaskDragIdExtras,
 } from './ids'

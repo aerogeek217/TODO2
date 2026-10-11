@@ -1,13 +1,5 @@
 import type { TodoSortBy, TodoGroupBy } from './todo-sort-group'
 
-export enum AppView {
-  Canvas = 'canvas',
-  Dashboard = 'dashboard',
-  List = 'list',
-  Calendar = 'calendar',
-  Settings = 'settings',
-}
-
 /** Alias of the unified `TodoSortBy` (post ui-consistency-2026-04-25 P4). */
 export type ListSortBy = TodoSortBy
 

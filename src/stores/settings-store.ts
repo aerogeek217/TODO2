@@ -3,7 +3,7 @@ import { settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
 import type { WeekStart } from '../utils/effective-date'
-import type { CanvasViewport } from './ui-store'
+interface CanvasViewport { x: number; y: number; zoom: number }
 import type { RailsState } from '../models/canvas-rails'
 import { parseRailsState, serializeRailsState } from '../models/canvas-rails'
 import type { ProjectGroupBy } from '../models'

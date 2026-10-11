@@ -2,10 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { DndContext, useDndMonitor, type Active } from '@dnd-kit/core'
 import { useEffect, useRef } from 'react'
-import {
-  SortableTaskDraggable,
-  TaskDraggable,
-} from '../../../../components/task/dnd/TaskDraggable'
+import { TaskDraggable } from '../../../../components/task/dnd/TaskDraggable'
 import { TASK_DRAG_KIND } from '../../../../utils/task-dnd'
 import { makeTodo } from '../../../helpers'
 
@@ -25,12 +22,8 @@ afterEach(() => cleanup())
 
 describe('TaskDraggable — per-surface id + payload', () => {
   it.each([
-    { surface: 'canvas-project' as const, extras: {}, expectedId: 'todo-42' },
-    { surface: 'inset' as const, extras: {}, expectedId: 'inset-todo-42' },
-    { surface: 'lens' as const, extras: {}, expectedId: 'lens-todo-42' },
-    { surface: 'list' as const, extras: {}, expectedId: 'list-todo-42' },
-    { surface: 'calendar-view' as const, extras: {}, expectedId: 'calview-todo-42' },
-    { surface: 'calendar-strip' as const, extras: {}, expectedId: 'calstrip-todo-42' },
+    { surface: 'status-widget' as const, extras: {}, expectedId: 'status-todo-42' },
+    { surface: 'calendar-widget' as const, extras: { scope: 't2', sectionKey: 'due' }, expectedId: 'cw|t2|due|42' },
     { surface: 'list-widget' as const, extras: { scope: 't1', sectionKey: 'all' }, expectedId: 'lw|t1|all|42' },
   ])('$surface emits id $expectedId', ({ surface, extras, expectedId }) => {
     const todo = makeTodo({ id: 42 })
@@ -117,12 +110,12 @@ describe('TaskDraggable — drag payload contents', () => {
     const todo = makeTodo({ id: 9 })
     const rendered = render(
       <DndContext>
-        <TaskDraggable todo={todo} surface="list" extraData={{ sectionKey: 'project:5' }}>
-          {({ setNodeRef }) => <div ref={setNodeRef} data-id="list-todo-9" />}
+        <TaskDraggable todo={todo} surface="status-widget" extraData={{ sectionKey: 'status:5' }}>
+          {({ setNodeRef }) => <div ref={setNodeRef} data-id="status-todo-9" />}
         </TaskDraggable>
       </DndContext>,
     )
-    expect(rendered.container.querySelector('[data-id="list-todo-9"]')).not.toBeNull()
+    expect(rendered.container.querySelector('[data-id="status-todo-9"]')).not.toBeNull()
   })
 
   it('defaults drag kind to TASK_DRAG_KIND.task when `kind` is omitted', () => {
@@ -130,7 +123,7 @@ describe('TaskDraggable — drag payload contents', () => {
     const todo = makeTodo({ id: 5 })
     const r1 = render(
       <DndContext>
-        <TaskDraggable todo={todo} surface="canvas-project">
+        <TaskDraggable todo={todo} surface="status-widget">
           {({ setNodeRef }) => <div ref={setNodeRef} data-id="implicit-kind" />}
         </TaskDraggable>
       </DndContext>,
@@ -139,7 +132,7 @@ describe('TaskDraggable — drag payload contents', () => {
     cleanup()
     const r2 = render(
       <DndContext>
-        <TaskDraggable todo={todo} surface="lens" kind={TASK_DRAG_KIND.task}>
+        <TaskDraggable todo={todo} surface="status-widget" kind={TASK_DRAG_KIND.task}>
           {({ setNodeRef }) => <div ref={setNodeRef} data-id="explicit-kind" />}
         </TaskDraggable>
       </DndContext>,
@@ -148,52 +141,3 @@ describe('TaskDraggable — drag payload contents', () => {
   })
 })
 
-describe('SortableTaskDraggable — sortable wiring', () => {
-  it.each([
-    { surface: 'canvas-project' as const, expectedId: 'todo-42' },
-    { surface: 'inset' as const, expectedId: 'inset-todo-42' },
-  ])('$surface emits sortable id $expectedId', ({ surface, expectedId }) => {
-    const todo = makeTodo({ id: 42 })
-    render(
-      <DndContext>
-        <SortableTaskDraggable
-          todo={todo}
-          surface={surface}
-        >
-          {({ setNodeRef, transform, transition }) => (
-            <div
-              ref={setNodeRef}
-              data-id={expectedId}
-              data-transform={transform ? 'set' : 'null'}
-              data-transition={transition ?? ''}
-            />
-          )}
-        </SortableTaskDraggable>
-      </DndContext>,
-    )
-    const wrapper = document.querySelector(`[data-id="${expectedId}"]`)
-    expect(wrapper).not.toBeNull()
-    // transform defaults to null at rest (no drag active); transition may be
-    // undefined until a neighbor is dragged. Just verify the render-prop
-    // passed both fields through without exception.
-    expect(wrapper!.getAttribute('data-transform')).toBe('null')
-  })
-
-  it('disabled={true} still renders children but skips sortable activation', () => {
-    const todo = makeTodo({ id: 1 })
-    render(
-      <DndContext>
-        <SortableTaskDraggable todo={todo} surface="canvas-project" disabled>
-          {({ setNodeRef, attributes }) => (
-            <div ref={setNodeRef} data-disabled="yes" {...attributes} />
-          )}
-        </SortableTaskDraggable>
-      </DndContext>,
-    )
-    const wrapper = document.querySelector('[data-disabled="yes"]')
-    expect(wrapper).not.toBeNull()
-    // dnd-kit still tags the wrapper `aria-roledescription="sortable"` in the
-    // attributes object but marks tabindex -1 when disabled.
-    expect(wrapper!.getAttribute('aria-roledescription')).toBe('sortable')
-  })
-})

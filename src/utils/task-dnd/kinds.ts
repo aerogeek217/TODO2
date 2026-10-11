@@ -1,14 +1,10 @@
 /**
- * Canonical `data.type` strings for task-shaped drag payloads.
- *
- * Phase 4 of the DnD unification collapsed the three "this is a task from
- * surface X" aliases (`task`, `list-task`, `dashboard-task`) into a single
- * `'task'` — every surface that drags a plain task row now emits that kind,
- * and the `surface` field on the id plus any extras in `data` distinguish
- * where the drag came from.
+ * Canonical `data.type` strings for task-shaped drag payloads. Every surface
+ * that drags a plain task row emits `'task'`; the drag id (see `ids.ts`) and
+ * any extras in `data` distinguish where the drag came from.
  */
 export const TASK_DRAG_KIND = {
-  /** Any draggable task row — canvas project, inset, lens, list, dashboard. */
+  /** Any draggable task row — list widget row, calendar entry, status widget row. */
   task: 'task',
 } as const
 
@@ -18,27 +14,12 @@ export type TaskDragKind = typeof TASK_DRAG_KIND[keyof typeof TASK_DRAG_KIND]
  * Canonical `data.type` strings for drop targets that accept task drags. These
  * are what live on `useDroppable`'s `data` field and what drop handlers read
  * via `event.over.data.current.type`.
- *
- * Note the overlap with `TASK_DRAG_KIND.task`: the canvas project's sortable
- * task rows register with `type: 'task'`, acting simultaneously as a drag
- * source and as a drop target for reordering. That dual-role is preserved —
- * this constant exists so drop-side comparisons have a named home.
  */
 export const TASK_DROP_KIND = {
-  /** Sortable task row (SortableTaskList entries). */
-  task: 'task',
-  /** Project container (ProjectNode body). */
-  project: 'project',
-  /** Calendar day cell (CalendarView grid or CalendarStrip row/column). The
-   * drop data carries `{ date: Date }` so the dispatcher can reschedule
+  /** Calendar day cell. The drop data carries `{ date: Date }` (plus the
+   * calendar's `dateTypes` and `scope`) so the dispatcher can reschedule
    * without consulting the DOM. */
   calendarDay: 'calendar-day',
-  /** ListView section container. The drop data carries `{ sectionKey }` so
-   * the caller can map the drop back to projectId / statusId / person
-   * assignment. Intra-list drops preserve the "rebucket" intent; cross-
-   * surface ListView drops (once Phase 8's hoisting lands) fall through to
-   * plain task-handling. */
-  listSection: 'list-section',
 } as const
 
 export type TaskDropKind = typeof TASK_DROP_KIND[keyof typeof TASK_DROP_KIND]

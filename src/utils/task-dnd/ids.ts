@@ -1,32 +1,20 @@
 /**
  * Centralized id factories for every surface that renders a draggable task
- * row. Phase 1 of the DnD unification plan emits the same id strings that the
- * per-surface wrappers emit today — this module exists so later phases can
- * change the format in one place.
+ * row, so the id format lives in one place.
  *
  * Surfaces:
  *
  * | surface key       | emitted id              | notes                          |
  * |-------------------|-------------------------|--------------------------------|
- * | canvas-project    | `todo-<id>`             | sortable in project body       |
- * | inset             | `inset-todo-<id>`       | ListInsetNode floating widget  |
- * | lens              | `lens-todo-<id>`        | rail lens slot row             |
- * | list              | `list-todo-<id>`        | ListView row                   |
- * | calendar-view     | `calview-todo-<id>`     | CalendarView row; drops via dispatchTaskDrop → reschedule |
- * | calendar-strip    | `calstrip-todo-<id>`    | rail/float CalendarStrip row; drops via dispatchTaskDrop → reschedule |
  * | list-widget       | `lw|<tab>|<section>|<id>` | workspace list widget row — one id per occurrence (a task with two people shows in both people's groups) |
  * | calendar-widget   | `cw|<tab>|<slot>|<id>`  | workspace calendar entry — `slot` = the entry's date type (`due` / `followup`), prefixed `pop-` inside the day popover; drops via dispatchTaskDrop → reschedule |
+ * | status-widget     | `status-todo-<id>`      | open task under the status widget's selected status |
  */
 
 export type TaskSurfaceKey =
-  | 'canvas-project'
-  | 'lens'
-  | 'inset'
-  | 'list'
-  | 'calendar-view'
-  | 'calendar-strip'
   | 'list-widget'
   | 'calendar-widget'
+  | 'status-widget'
 
 /**
  * Extras required by some surfaces:
@@ -43,10 +31,10 @@ export interface TaskDragIdExtras {
 }
 
 /**
- * Emit the draggable/sortable id for a given surface + todo id.
+ * Emit the draggable id for a given surface + todo id.
  *
- * `extras` are required for `list-widget` (`scope`, `sectionKey`); omitted for
- * all other surfaces.
+ * `extras` are required for `list-widget` and `calendar-widget` (`scope`,
+ * `sectionKey`); omitted for the status widget.
  */
 export function taskDragId(
   surface: TaskSurfaceKey,
@@ -54,18 +42,6 @@ export function taskDragId(
   extras?: TaskDragIdExtras,
 ): string {
   switch (surface) {
-    case 'canvas-project':
-      return `todo-${todoId}`
-    case 'inset':
-      return `inset-todo-${todoId}`
-    case 'lens':
-      return `lens-todo-${todoId}`
-    case 'list':
-      return `list-todo-${todoId}`
-    case 'calendar-view':
-      return `calview-todo-${todoId}`
-    case 'calendar-strip':
-      return `calstrip-todo-${todoId}`
     case 'list-widget':
       if (extras?.scope == null || extras.sectionKey == null) {
         throw new Error('taskDragId("list-widget") requires extras.scope and extras.sectionKey')
@@ -76,19 +52,16 @@ export function taskDragId(
         throw new Error('taskDragId("calendar-widget") requires extras.scope and extras.sectionKey')
       }
       return `cw|${extras.scope}|${extras.sectionKey}|${todoId}`
+    case 'status-widget':
+      return `status-todo-${todoId}`
   }
 }
 
-/** Known task-drag id prefixes used by dnd-kit surfaces today. */
+/** Known task-drag id prefixes. */
 const TASK_DRAG_PREFIXES: readonly string[] = [
-  'todo-',
-  'inset-todo-',
-  'lens-todo-',
-  'list-todo-',
-  'calview-todo-',
-  'calstrip-todo-',
   'lw|',
   'cw|',
+  'status-todo-',
 ]
 
 /**
@@ -96,7 +69,7 @@ const TASK_DRAG_PREFIXES: readonly string[] = [
  * for any string starting with one of the known prefixes. Callers that need to
  * distinguish surfaces should decode further.
  *
- * Drop-target ids (`project-drop-…`, `calday-…`) are NOT task-drag ids.
+ * Drop-target ids (`calday-…`) are NOT task-drag ids.
  */
 export function isTaskDragId(id: string | number | null | undefined): boolean {
   if (typeof id !== 'string') return false
@@ -105,27 +78,12 @@ export function isTaskDragId(id: string | number | null | undefined): boolean {
 }
 
 // ── Drop-target ids (task drop zones) ──────────────────────────────────────
-//
-// Drop zones for task payloads live here too so all dnd id vocabulary is in
-// one place. The canvas / calendar drop handlers match on these ids.
-
-export function projectDropId(projectId: number): string {
-  return `project-drop-${projectId}`
-}
 
 /**
- * Drop-zone id for a calendar day cell. Emitted by CalendarStrip (rail +
- * float + view) and CalendarView day grids. `scope` distinguishes multiple
- * calendar surfaces sharing a `DndContext` (e.g. two rail-docked strips +
- * a floating calendar on the same canvas) so their day cells register
- * distinct droppable ids.
+ * Drop-zone id for a calendar day cell. `scope` distinguishes several
+ * calendars sharing one `DndContext` (two calendar widgets, or a widget and
+ * its day popover) so their day cells register distinct droppable ids.
  */
 export function calendarDayDropId(scope: string, dateMs: number): string {
   return `calday-${scope}-${dateMs}`
 }
-
-/**
- * Stable scope for `CalendarView`'s month/week grid day cells. Lives here so
- * all drag-id construction is colocated rather than per-surface.
- */
-export const CALENDAR_VIEW_SCOPE = 'calview'

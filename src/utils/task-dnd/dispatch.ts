@@ -32,10 +32,9 @@ export interface CalendarOps {
 }
 
 export interface TaskDropDispatchDeps {
-  /** Optional — required by surfaces that host calendar day droppables
-   * (canvas rails/floating strips, the `/calendar` route, the workspace).
-   * When omitted, calendar-day drops fall through to the caller's own
-   * handler. */
+  /** Optional — required by surfaces that host calendar day droppables (the
+   * workspace). When omitted, calendar-day drops fall through to the
+   * caller's own handler. */
   calendar?: CalendarOps
 }
 
@@ -78,8 +77,7 @@ function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
  *
  * Returns `true` when the drop was handled (the caller should stop
  * processing — also when the user cancelled the date-type choice), `false`
- * when the drop is not one of these targets (the caller continues with its
- * route-specific logic — e.g. canvas project placement).
+ * when the drop is not one of these targets.
  */
 export async function dispatchTaskDrop(
   event: DragEndEvent,
