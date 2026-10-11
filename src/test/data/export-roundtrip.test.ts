@@ -95,6 +95,7 @@ function buildSeed(): Seed {
       { key: 'themeMode', value: 'dark' },
       { key: 'canvasRails', value: RAILS },
       { key: 'color.dark.accent', value: '#4f8cff' },
+      { key: 'activeLayoutId', value: '2' },
     ],
     taskboards: [{
       id: 1, entries: [{ todoId: 2, sortOrder: 0 }, { todoId: 1, sortOrder: 1 }],
@@ -123,6 +124,32 @@ function buildSeed(): Seed {
       { id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-09-02T10:00:00.000Z' },
       { id: 2, todoId: 1, type: 'deadline', fromValue: null, toValue: '2026-10-16T00:00:00.000Z', timestamp: '2026-09-11T09:30:00.000Z' },
       { id: 3, todoId: 1, type: 'status', fromValue: 1, toValue: 2, timestamp: '2026-09-11T09:31:00.000Z' },
+    ],
+    layouts: [
+      { id: 1, name: 'Empty', columns: [], createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
+      {
+        id: 2, name: 'Daily',
+        createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'),
+        columns: [
+          {
+            id: 'c1', weight: 1.5, cells: [
+              {
+                id: 'k1', weight: 2, activeTabId: 't2', tabs: [
+                  { id: 't1', kind: 'lens', config: { listDefinitionId: 1 }, viewState: { runtimeFilterValue: [1, 0] } },
+                  { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'month', offset: -2 } },
+                ],
+              },
+              { id: 'k2', weight: 1, collapsed: true, tabs: [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'taskboard', config: {} }] },
+            ],
+          },
+          {
+            id: 'c2', weight: 0.75, cells: [
+              { id: 'k3', weight: 1, tabs: [{ id: 't5', kind: 'status', config: {} }, { id: 't6', kind: 'lens', config: {} }] },
+              { id: 'k4', weight: 1, tabs: [] },
+            ],
+          },
+        ],
+      },
     ],
   }
 }
@@ -187,6 +214,14 @@ describe('export → JSON → import round-trip', () => {
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
     expect(seed.taskboards.some((b) => b.entries.length > 0)).toBe(true)
+    const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))
+    const tabs = cells.flatMap((c) => c.tabs)
+    expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)
+    expect(cells.some((c) => c.collapsed === true)).toBe(true)
+    expect(cells.some((c) => c.tabs.length === 0)).toBe(true)
+    expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(['lens', 'calendar', 'notes', 'taskboard', 'status']))
+    expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined && t.viewState?.runtimeFilterValue !== undefined)).toBe(true)
+    expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
   })
 
   it('restores every table deep-equal to the seed, with real Dates', async () => {

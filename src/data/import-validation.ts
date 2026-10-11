@@ -12,6 +12,9 @@ import { SLOT_KINDS } from '../models/canvas-rails'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { MAX_CANVAS_RAILS_SETTING_BYTES } from '../constants'
 import { parseFollowupInterval } from '../utils/followup'
+import type { WorkspaceLayout } from '../models/workspace-layout'
+import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
+import { checkLayoutColumns, pickLayoutColumns } from './layout-shape'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -380,6 +383,19 @@ function checkFloatingTaskboard(v: unknown): CheckResult {
   return checkFields(v, checkFloatPlacementFields(v))
 }
 
+function checkLayout(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  const fields = checkFields(v, [
+    ['id', isOptNum(v.id)],
+    ['name', isStr(v.name, LAYOUT_NAME_MAX) && (v.name as string).trim().length > 0],
+    ['createdAt', isDateLike(v.createdAt)],
+    ['modifiedAt', isDateLike(v.modifiedAt)],
+    ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
+  ])
+  if (fields !== true) return fields
+  return checkLayoutColumns(v.columns)
+}
+
 const VALID_SETTING_KEYS: readonly string[] = ALL_SETTING_KEYS
 
 // `defaultProjectGroupBy` shares the unified `TodoGroupBy` literal set; the
@@ -479,7 +495,8 @@ function checkSetting(v: unknown): CheckResult {
   if (
     v.key === SETTING_KEYS.defaultStatusId ||
     v.key === SETTING_KEYS.quickStatusId ||
-    v.key === SETTING_KEYS.seededAssignedStatusId
+    v.key === SETTING_KEYS.seededAssignedStatusId ||
+    v.key === SETTING_KEYS.activeLayoutId
   ) {
     const n = Number(v.value)
     return Number.isFinite(n) ? true : `value (${v.key} must be numeric)`
@@ -701,6 +718,17 @@ function pickFloatingStatus(v: Raw): AllFields<FloatingStatus> {
   return { ...pickFloatPlacement(v), collapsed: optBool(v.collapsed) } satisfies AllFields<FloatingStatus>
 }
 
+function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
+  return {
+    id: optNum(v.id),
+    name: v.name as string,
+    columns: pickLayoutColumns(v.columns),
+    createdAt: toDate(v.createdAt),
+    modifiedAt: toDate(v.modifiedAt),
+    lastUsedAt: toOptDate(v.lastUsedAt),
+  } satisfies AllFields<WorkspaceLayout>
+}
+
 function pickTodoEvent(v: Raw): AllFields<TodoEvent> {
   return {
     id: optNum(v.id),
@@ -766,6 +794,7 @@ export const IMPORT_ROW_PICKERS: { readonly [K in keyof ImportData]-?: (v: Raw) 
   floatingNotes: pickFloatingNote,
   floatingStatus: pickFloatingStatus,
   todoEvents: pickTodoEvent,
+  layouts: pickLayout,
 }
 
 /** Picks + compacts every row of `rows` for table `key`. */
@@ -800,6 +829,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'floatingNotes', check: checkFloatingNote },
   { key: 'floatingStatus', check: checkFloatingStatus },
   { key: 'todoEvents', check: checkTodoEvent },
+  { key: 'layouts', check: checkLayout },
 ]
 
 const TABLE_VALIDATOR_BY_KEY: ReadonlyMap<keyof ImportData, (v: unknown) => CheckResult> =
@@ -824,6 +854,7 @@ export interface ImportData {
   floatingNotes: FloatingNote[]
   floatingStatus: FloatingStatus[]
   todoEvents: TodoEvent[]
+  layouts: WorkspaceLayout[]
 }
 
 /**
@@ -976,6 +1007,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       floatingNotes: pickRows('floatingNotes', raw.floatingNotes),
       floatingStatus: pickRows('floatingStatus', raw.floatingStatus),
       todoEvents: pickRows('todoEvents', raw.todoEvents),
+      layouts: pickRows('layouts', raw.layouts),
     },
   }
 }

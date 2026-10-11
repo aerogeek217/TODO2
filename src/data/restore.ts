@@ -58,6 +58,7 @@ const TABLE_KEY_PAIRS: BulkAddPair[] = [
   bulkAddPair('tags', db.tags),
   bulkAddPair('todoTags', db.todoTags),
   bulkAddPair('todoEvents', db.todoEvents),
+  bulkAddPair('layouts', db.layouts),
 ]
 
 /**

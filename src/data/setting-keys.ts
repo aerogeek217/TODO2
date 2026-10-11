@@ -25,6 +25,8 @@ export const SETTING_KEYS = {
   canvasMaxExtent: 'canvasMaxExtent',
   /** Default next-follow-up interval for new tasks / "Followed up", compact form (`1m`, `2w`, `10d`). */
   followupDefaultInterval: 'followupDefaultInterval',
+  /** Id of the workspace layout that is open (a `layouts` row). */
+  activeLayoutId: 'activeLayoutId',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

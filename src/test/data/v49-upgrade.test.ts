@@ -20,6 +20,9 @@ import { resetDb } from '../helpers'
 
 type FixtureTable = keyof typeof fixture
 
+/** Tables a later schema version created — the frozen v49 fixture can't have them. */
+const TABLES_ADDED_AFTER_V49: ReadonlySet<string> = new Set(['layouts'])
+
 async function importFixture(): Promise<void> {
   // Deep copy so a mutating bug in the pipeline can't leak between tests.
   const raw: unknown = JSON.parse(JSON.stringify(fixture))
@@ -40,6 +43,7 @@ describe('v49 fixture → prepareImport → restore', () => {
   it('fixture is a v49 export with every data table populated', () => {
     expect(fixture.__schemaVersion).toBe(49)
     for (const table of ALL_DATA_TABLES) {
+      if (TABLES_ADDED_AFTER_V49.has(table.name)) continue
       const rows = fixture[table.name as FixtureTable]
       expect(Array.isArray(rows), `fixture has table ${table.name}`).toBe(true)
       expect((rows as unknown[]).length, `fixture.${table.name} is populated`).toBeGreaterThan(0)
@@ -49,9 +53,12 @@ describe('v49 fixture → prepareImport → restore', () => {
   it('restores every table with the fixture row counts', async () => {
     await importFixture()
     for (const table of ALL_DATA_TABLES) {
-      let expected = (fixture[table.name as FixtureTable] as unknown[]).length
-      // v52 deletes the two horizons settings rows, v53 the seeded follow-up status pointer.
-      if (table.name === 'settings') expected -= 3
+      let expected = TABLES_ADDED_AFTER_V49.has(table.name) ? 0 : (fixture[table.name as FixtureTable] as unknown[]).length
+      // v52 deletes the two horizons settings rows, v53 the seeded follow-up status pointer;
+      // v56 adds `activeLayoutId`.
+      if (table.name === 'settings') expected -= 3 - 1
+      // v56 seeds the Default layout.
+      if (table.name === 'layouts') expected = 1
       // v55 turns the two orgs into people and their two assignments into person assignments.
       if (table.name === 'people' || table.name === 'todoPeople') expected += 2
       expect(await table.count(), `${table.name} count`).toBe(expected)
@@ -127,7 +134,7 @@ describe('v49 fixture → prepareImport → restore', () => {
   it('preserves every surviving settings row, including rails JSON and theme colors', async () => {
     await importFixture()
     const settings = new Map((await db.settings.toArray()).map((s) => [s.key, s.value]))
-    expect(settings.size).toBe(fixture.settings.length - 3)
+    expect(settings.size).toBe(fixture.settings.length - 3 + 1)
     expect(settings.get('weekStartsOn')).toBe('1')
     expect(settings.get('color.dark.accent')).toBe('#4f8cff')
     expect(settings.get('color.light.accent')).toBe('#1a5fd0')
@@ -449,5 +456,81 @@ describe('v49 fixture → v55: orgs become Org: people', () => {
       }
     }
     expect(defs.map((d) => d.membership.predicate.personIds)).toEqual([null, null, null, [1, 0, 4]])
+  })
+})
+
+// ── v56: workspace layouts ────────────────────────────────────────────────
+
+describe('v49 fixture → v56: rails + floating widgets become the Default layout', () => {
+  const canvasCreatedAt = new Date('2026-09-01T09:00:00.000Z')
+
+  it('seeds one active Default layout: left rail, bottom rail, right rail, then every float', async () => {
+    await importFixture()
+    const layouts = await db.layouts.toArray()
+    expect(layouts).toHaveLength(1)
+    expect((await db.settings.get('activeLayoutId'))?.value).toBe('1')
+    expect(layouts[0]).toEqual({
+      id: 1,
+      name: 'Default',
+      createdAt: canvasCreatedAt,
+      modifiedAt: canvasCreatedAt,
+      columns: [
+        {
+          id: 'col-1', weight: 1, cells: [
+            {
+              id: 's-lens', weight: 2, activeTabId: 't-lens', tabs: [
+                { id: 't-lens', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { runtimeFilterValue: [1] } },
+                { id: 't-notes', kind: 'notes', config: {} },
+              ],
+            },
+            {
+              id: 's-cal', weight: 1, activeTabId: 't-cal', tabs: [
+                { id: 't-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 1 } },
+              ],
+            },
+          ],
+        },
+        // Bottom rail (no top rail); horizons / stats tabs were already removed by v52.
+        { id: 'col-2', weight: 1, cells: [{ id: 's-stats', weight: 1, activeTabId: 't-st', tabs: [{ id: 't-st', kind: 'status', config: {} }] }] },
+        // Right rail — collapsed on the canvas; the rail's collapse is not carried over.
+        { id: 'col-3', weight: 1, cells: [{ id: 's-tb', weight: 1, activeTabId: 't-tb', tabs: [{ id: 't-tb', kind: 'taskboard', config: {} }] }] },
+        // Floats in canvas reading order (y, then x).
+        {
+          id: 'col-4', weight: 1, cells: [
+            {
+              id: 'cell-floatingCalendars-1', weight: 1, activeTabId: 'tab-floatingCalendars-1', tabs: [
+                { id: 'tab-floatingCalendars-1', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: -1 } },
+              ],
+            },
+            { id: 'cell-floatingNotes-1', weight: 1, activeTabId: 'tab-floatingNotes-1', tabs: [{ id: 'tab-floatingNotes-1', kind: 'notes', config: {} }] },
+            {
+              id: 'cell-floatingCalendars-2', weight: 1, activeTabId: 'tab-floatingCalendars-2', tabs: [
+                { id: 'tab-floatingCalendars-2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 0 } },
+              ],
+            },
+            { id: 'cell-floatingTaskboards-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingTaskboards-1', tabs: [{ id: 'tab-floatingTaskboards-1', kind: 'taskboard', config: {} }] },
+            { id: 'cell-floatingStatus-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingStatus-1', tabs: [{ id: 'tab-floatingStatus-1', kind: 'status', config: {} }] },
+            {
+              id: 'cell-listInsets-1', weight: 1, activeTabId: 'tab-listInsets-1', tabs: [
+                { id: 'tab-listInsets-1', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { runtimeFilterValue: [1, 2] } },
+              ],
+            },
+            {
+              id: 'cell-listInsets-2', weight: 1, collapsed: true, activeTabId: 'tab-listInsets-2', tabs: [
+                { id: 'tab-listInsets-2', kind: 'lens', config: { listDefinitionId: 2 } },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('leaves the canvas, rails and floating widgets in place', async () => {
+    await importFixture()
+    expect(await db.settings.get('canvasRails')).toBeDefined()
+    expect(await db.listInsets.count()).toBe(fixture.listInsets.length)
+    expect(await db.floatingCalendars.count()).toBe(fixture.floatingCalendars.length)
+    expect(await db.floatingNotes.count()).toBe(fixture.floatingNotes.length)
   })
 })

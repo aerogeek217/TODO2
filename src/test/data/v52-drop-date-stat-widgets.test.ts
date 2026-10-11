@@ -137,7 +137,8 @@ describe('v52 Dexie upgrade', () => {
     expect(await db.floatingTaskboards.count()).toBe(1)
 
     const settings = await db.settings.orderBy('key').toArray()
-    expect(settings.map((s) => s.key)).toEqual(['canvasRails', 'themeMode'])
+    // `activeLayoutId` comes from the later v56 layout seed.
+    expect(settings.map((s) => s.key)).toEqual(['activeLayoutId', 'canvasRails', 'themeMode'])
 
     // A JSON copy of the same v51 data upgrades to the same settings.
     const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 51, ...v51DataSet() })) as unknown)

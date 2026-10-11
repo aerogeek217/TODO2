@@ -9,6 +9,7 @@ import type {
   Tag, TodoTag, TodoEvent, PersistedTodoItem,
 } from '../models'
 import type { ListDefinition } from '../models/list-definition'
+import type { WorkspaceLayout } from '../models/workspace-layout'
 import { bySortOrder } from '../utils/sort-order'
 import { formatFollowupDate } from '../utils/followup'
 import { startOfToday } from '../utils/date'
@@ -40,6 +41,7 @@ export interface ExportData {
   tags: Tag[]
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]
+  layouts: WorkspaceLayout[]
 }
 
 /**
