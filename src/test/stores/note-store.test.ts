@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
-import { useNoteStore } from '../../stores/note-store'
+import { useNoteStore, SAVE_DEBOUNCE_MS } from '../../stores/note-store'
 import { noteRepository } from '../../data/note-repository'
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 beforeEach(async () => {
   await db.delete()
@@ -57,11 +57,22 @@ describe('useNoteStore', () => {
       const id = useNoteStore.getState().activeId!
       const updateSpy = vi.spyOn(noteRepository, 'update')
 
+      // Fake only the debounce timer — Dexie / fake-indexeddb keep their real
+      // scheduling. A real-time wait raced the persist under load: a stalled
+      // worker fires the debounce and the wait together, before the persist's
+      // own repo read resolves.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
       useNoteStore.getState().setContent(id, 'one')
       useNoteStore.getState().setContent(id, 'two')
       useNoteStore.getState().setContent(id, 'three')
 
-      await wait(650)
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS - 1)
+      expect(updateSpy).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      // The persist reads the row before writing; wait for the write to start,
+      // then for it to land.
+      await vi.waitFor(() => expect(updateSpy).toHaveBeenCalled())
+      await updateSpy.mock.results[0]?.value
       expect(updateSpy).toHaveBeenCalledTimes(1)
       const persisted = await noteRepository.getById(id)
       expect(persisted!.content).toBe('three')

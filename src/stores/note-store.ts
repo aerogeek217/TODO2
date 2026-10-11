@@ -12,7 +12,7 @@ import type { PersistedNote } from '../models'
  * bypass the store entirely via `NotesBody`'s optional `source` adapter prop.
  */
 
-const SAVE_DEBOUNCE_MS = 500
+export const SAVE_DEBOUNCE_MS = 500
 
 interface NoteState {
   notes: Map<number, PersistedNote>
