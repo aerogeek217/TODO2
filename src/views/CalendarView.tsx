@@ -16,9 +16,8 @@ import { useProjectStore } from '../stores/project-store'
 import { useUIStore } from '../stores/ui-store'
 import { useFilterStore, applyFilter } from '../stores/filter-store'
 import { useStatusStore } from '../stores/status-store'
-import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
-import { TaskEditPopup } from '../components/task/TaskEditPopup'
+import { TaskEditPopupHost } from '../components/task/TaskEditPopupHost'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { TaskDraggable } from '../components/task/dnd/TaskDraggable'
 import type { PersistedTodoItem } from '../models'
@@ -129,7 +128,6 @@ export function CalendarView() {
   const { openEditPopup } = useUIStore()
   const { filters } = useFilterStore()
   const { statuses } = useStatusStore()
-  const taskEdit = useTaskEditCallbacks()
 
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [currentDate, setCurrentDate] = useState(() => new Date())
@@ -462,34 +460,7 @@ export function CalendarView() {
           )}
         </div>
 
-        {/* Task edit popup */}
-        {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
-          <TaskEditPopup
-            mode="edit"
-            {...taskEdit.editProps}
-            allPeople={taskEdit.allPeople}
-            allTags={taskEdit.allTags}
-            onClose={taskEdit.closeEditPopup}
-            {...taskEdit.entityCreators}
-          />
-        )}
-
-        {taskEdit.editPopupMode === 'create' && (
-          <TaskEditPopup
-            mode="create"
-            assignedPeople={[]}
-            allPeople={taskEdit.allPeople}
-            onClose={taskEdit.closeEditPopup}
-            onCreate={taskEdit.onCreate}
-            assignedTags={[]}
-            allTags={taskEdit.allTags}
-            onAssignPerson={() => {}}
-            onUnassignPerson={() => {}}
-            onAssignTag={() => {}}
-            onUnassignTag={() => {}}
-            {...taskEdit.entityCreators}
-          />
-        )}
+        <TaskEditPopupHost />
 
         <FilteredListPopup />
 

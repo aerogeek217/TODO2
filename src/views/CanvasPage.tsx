@@ -24,7 +24,6 @@ import { useTaskboardStore } from '../stores/taskboard-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useCanvasDnD } from '../hooks/use-canvas-dnd'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
-import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import {
   useFloatingNoteController,
   useFloatingCalendarController,
@@ -35,7 +34,7 @@ import { CanvasView } from '../components/canvas/CanvasView'
 import { ProjectNavigator } from '../components/canvas/ProjectNavigator'
 import { RailsFrame } from '../components/canvas/rails/RailsFrame'
 import { TaskRow } from '../components/task/TaskRow'
-import { TaskEditPopup } from '../components/task/TaskEditPopup'
+import { TaskEditPopupHost } from '../components/task/TaskEditPopupHost'
 import { ListDefinitionPickerPopup } from '../components/overlays/ListDefinitionPickerPopup'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
@@ -61,7 +60,6 @@ export function CanvasPage() {
   const loadTags = useTagStore((s) => s.ensureLoaded)
   const { openEditPopup, showBulkConfirmation } = useUIStore()
   const { statuses } = useStatusStore()
-  const taskEdit = useTaskEditCallbacks()
   const { filters } = useFilterStore()
   const { insets, loadByCanvas: loadInsets, add: addInset, update: updateInset, updatePosition: updateInsetPosition, remove: removeInset } = useListInsetStore()
   const loadDefinitions = useListDefinitionStore((s) => s.ensureLoaded)
@@ -627,33 +625,7 @@ export function CanvasPage() {
         )}
       </DragOverlay>
 
-      {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
-        <TaskEditPopup
-          mode="edit"
-          {...taskEdit.editProps}
-          allPeople={taskEdit.allPeople}
-          allTags={taskEdit.allTags}
-          onClose={taskEdit.closeEditPopup}
-          {...taskEdit.entityCreators}
-        />
-      )}
-
-      {taskEdit.editPopupMode === 'create' && (
-        <TaskEditPopup
-          mode="create"
-          assignedPeople={[]}
-          allPeople={taskEdit.allPeople}
-          onClose={taskEdit.closeEditPopup}
-          onCreate={taskEdit.onCreate}
-          assignedTags={[]}
-          allTags={taskEdit.allTags}
-          onAssignPerson={() => {}}
-          onUnassignPerson={() => {}}
-          onAssignTag={() => {}}
-          onUnassignTag={() => {}}
-          {...taskEdit.entityCreators}
-        />
-      )}
+      <TaskEditPopupHost />
 
       <FilteredListPopup />
 

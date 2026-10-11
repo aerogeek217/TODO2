@@ -20,12 +20,11 @@ import { useFilterStore, applyFilter, criteriaToPredicate, predicateToCriteria }
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { encodeGroupSort } from '../utils/list-view-encoding'
-import { useTaskEditCallbacks } from '../hooks/use-task-edit-callbacks'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import { bySortOrder } from '../utils/sort-order'
 import { TaskList } from '../components/task/TaskList'
 import { TaskRow } from '../components/task/TaskRow'
-import { TaskEditPopup } from '../components/task/TaskEditPopup'
+import { TaskEditPopupHost } from '../components/task/TaskEditPopupHost'
 import { SectionHeader } from '../components/shared/SectionHeader'
 import { ReassignDialog } from '../components/overlays/ReassignDialog'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
@@ -174,7 +173,6 @@ export function ListView() {
   const setRuntimeFilterSpec = useFilterStore((s) => s.setRuntimeFilterSpec)
   const setRuntimeFilterValue = useFilterStore((s) => s.setRuntimeFilterValue)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const taskEdit = useTaskEditCallbacks()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
   const [overSectionKey, setOverSectionKey] = useState<string | null>(null)
@@ -736,33 +734,7 @@ export function ListView() {
           )}
         </div>
 
-        {taskEdit.editPopupMode === 'edit' && taskEdit.editProps && (
-          <TaskEditPopup
-            mode="edit"
-            {...taskEdit.editProps}
-            allPeople={taskEdit.allPeople}
-            allTags={taskEdit.allTags}
-            onClose={taskEdit.closeEditPopup}
-            {...taskEdit.entityCreators}
-          />
-        )}
-
-        {taskEdit.editPopupMode === 'create' && (
-          <TaskEditPopup
-            mode="create"
-            assignedPeople={[]}
-            allPeople={taskEdit.allPeople}
-            onClose={taskEdit.closeEditPopup}
-            onCreate={taskEdit.onCreate}
-            assignedTags={[]}
-            allTags={taskEdit.allTags}
-            onAssignPerson={() => {}}
-            onUnassignPerson={() => {}}
-            onAssignTag={() => {}}
-            onUnassignTag={() => {}}
-            {...taskEdit.entityCreators}
-          />
-        )}
+        <TaskEditPopupHost />
 
         {pendingReassign && (
           <ReassignDialog
