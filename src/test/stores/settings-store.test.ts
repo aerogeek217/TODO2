@@ -341,8 +341,12 @@ describe('useSettingsStore.setCanvasRails persistence', () => {
       top: null,
       bottom: null,
     }
+    // Fake only setTimeout: fake-indexeddb schedules its own work on the other
+    // timer APIs, so faking those would stall the persist.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     useSettingsStore.getState().setCanvasRails(rails)
-    await new Promise((r) => setTimeout(r, 600))
+    vi.advanceTimersByTime(500)
+    vi.useRealTimers()
     const row = await db.settings.get('canvasRails')
     expect(row).toBeDefined()
     const parsed = JSON.parse(row!.value)
