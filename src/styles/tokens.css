@@ -49,6 +49,14 @@
   --topbar-search-width-collapsed: 140px;
   --topbar-search-width-expanded: 200px;
 
+  /* Workspace (columns of cells) */
+  --workspace-gutter: 6px;
+  --cell-header-height: 32px;
+  --cell-tab-height: 26px;
+  --column-min-width: 280px;
+  --cell-body-min-height: 80px;
+  --divider-hit: 10px;
+
   /* Mobile */
   --mobile-tab-bar-height: 56px;
   --mobile-row-min-height: 48px;
@@ -179,6 +187,8 @@
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.55);
+  /* Dims a workspace cell body under its drop zones while a tab is dragged over it */
+  --color-scrim: rgba(17, 17, 16, 0.74);
 
   /* Card glass */
   --color-card-glass-from: rgba(38, 36, 34, 0.97);
@@ -307,6 +317,7 @@
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.35);
+  --color-scrim: rgba(245, 244, 242, 0.78);
 
   /* Card glass */
   --color-card-glass-from: rgba(255, 255, 255, 0.98);

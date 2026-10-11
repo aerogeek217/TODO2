@@ -1,0 +1,134 @@
+.area {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  padding: var(--workspace-gutter);
+  background: var(--color-canvas-bg);
+  overflow-x: auto;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  flex-basis: 0;
+  min-width: var(--column-min-width);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cellGap {
+  flex: 0 0 var(--workspace-gutter);
+}
+
+/* ── Empty layout ── */
+
+.emptyLayout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-card);
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  padding: 24px 16px;
+}
+
+.emptyTitle {
+  margin: 0 0 6px;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
+.emptyHint {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 96px;
+  height: 72px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted), var(--shadow-card);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.tile:hover,
+.tile:focus-visible {
+  outline: none;
+  background: var(--color-accent-bg-medium);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent), var(--shadow-card);
+  color: var(--color-accent);
+}
+
+.tileIcon {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+/* ── Tab drag feedback (viewport coordinates) ── */
+
+.dragLayer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dropdown);
+  pointer-events: none;
+}
+
+.edgeBar {
+  position: fixed;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-border);
+}
+
+.edgeBand {
+  position: fixed;
+  width: 32px;
+  border-radius: var(--radius-md);
+  background: var(--color-accent-bg);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+
+.edgeBand::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 1.5px);
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+.cellBar {
+  position: fixed;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
+}

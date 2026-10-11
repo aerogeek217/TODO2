@@ -36,6 +36,11 @@ export interface WidgetKindMenuProps {
   secondaryLabel?: string
   /** Group-label heading. Defaults to "Change widget"; use "Add widget" in add mode. */
   heading?: string
+  /**
+   * The widget's own actions (e.g. "Copy tasks"), listed before the kind
+   * switcher. Each closes the menu after running.
+   */
+  widgetActions?: ReadonlyArray<{ label: string; icon?: string; onSelect: () => void }>
 }
 
 const FLYOUT_LEAVE_DELAY_MS = 120
@@ -53,6 +58,7 @@ export function WidgetKindMenu({
   onClose,
   secondaryLabel,
   heading = 'Change widget',
+  widgetActions,
 }: WidgetKindMenuProps) {
   const flyoutRef = useRef<HTMLDivElement | null>(null)
   const listRowRef = useRef<HTMLButtonElement | null>(null)
@@ -205,6 +211,23 @@ export function WidgetKindMenu({
             <span className={styles.icon} aria-hidden="true">✎</span>
             <span className={styles.label}>Edit list</span>
           </button>
+          {!widgetActions?.length && <div className={styles.separator} />}
+        </>
+      )}
+      {widgetActions && widgetActions.length > 0 && (
+        <>
+          {widgetActions.map((a) => (
+            <button
+              type="button"
+              key={a.label}
+              role="menuitem"
+              className={styles.item}
+              onClick={() => { a.onSelect(); onClose() }}
+            >
+              <span className={styles.icon} aria-hidden="true">{a.icon ?? ''}</span>
+              <span className={styles.label}>{a.label}</span>
+            </button>
+          ))}
           <div className={styles.separator} />
         </>
       )}

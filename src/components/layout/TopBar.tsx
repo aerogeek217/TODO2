@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
 import { useLocation } from 'react-router'
-import { ROUTE_SETTINGS } from '../../routes'
+import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../../routes'
 import { DRAG_ACTIVATION_DISTANCE_PX, SEARCH_DEBOUNCE_MS } from '../../constants'
 import {
   DndContext,
@@ -31,6 +31,7 @@ import { CanvasContextMenu } from '../overlays/CanvasContextMenu'
 import { ProjectPickerPopup } from '../overlays/ProjectPickerPopup'
 import { computeSearchDropIndex } from '../../utils/task-dnd'
 import { buildSearchContextMenuItems } from './top-bar-search-menu'
+import { LayoutControls } from '../workspace/LayoutControls'
 import styles from './TopBar.module.css'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'project', 'person', 'status', 'tag']
@@ -360,6 +361,7 @@ export function TopBar() {
   const { isConnected, isSupported } = useFileStorageStore()
   const location = useLocation()
   const isSettingsPage = location.pathname === ROUTE_SETTINGS
+  const isWorkspace = location.pathname === ROUTE_WORKSPACE
 
   const handleSearchDragStart = useCallback((event: DragStartEvent) => {
     const activator = event.activatorEvent as PointerEvent
@@ -447,7 +449,8 @@ export function TopBar() {
   if (isSettingsPage) return null
 
   return (
-    <header className={`${styles.topBar} ${isActive ? styles.topBarFiltered : ''}`} data-filter-row>
+    <header className={`${styles.topBar} ${isActive ? styles.topBarFiltered : ''} ${isWorkspace ? styles.topBarWorkspace : ''}`} data-filter-row>
+      {isWorkspace && <LayoutControls />}
       <DndContext
         sensors={searchSensors}
         onDragStart={handleSearchDragStart}

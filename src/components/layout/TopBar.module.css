@@ -11,6 +11,12 @@
   transition: background 0.15s, border-bottom-color 0.15s, box-shadow 0.15s;
 }
 
+/* Workspace: layout picker first, everything left-aligned. */
+.topBarWorkspace {
+  justify-content: flex-start;
+  padding-left: 6px;
+}
+
 .topBarFiltered {
   background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
   border-bottom-color: color-mix(in srgb, var(--color-danger) 55%, var(--color-border));

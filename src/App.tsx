@@ -22,7 +22,7 @@ import { useFloatingNoteStore } from './stores/floating-note-store'
 import { useStatusStore } from './stores/status-store'
 import { useTagStore } from './stores/tag-store'
 import { formatShortcut } from './utils/platform'
-import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS } from './routes'
+import { ROUTE_CANVAS, ROUTE_LIST, ROUTE_CALENDAR, ROUTE_SETTINGS, ROUTE_WORKSPACE } from './routes'
 
 import { createCommands, searchDynamicCommands } from './services/command-registry'
 import { backupScheduler } from './services/backup-scheduler'
@@ -47,6 +47,7 @@ const CanvasPage = lazy(() => import('./views/CanvasPage').then(m => ({ default:
 const ListView = lazy(() => import('./views/ListView').then(m => ({ default: m.ListView })))
 const CalendarView = lazy(() => import('./views/CalendarView').then(m => ({ default: m.CalendarView })))
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const WorkspacePage = lazy(() => import('./views/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
 import styles from './App.module.css'
 import './styles/fonts.css'
 import './styles/tokens.css'
@@ -422,6 +423,11 @@ function AppShell() {
             <Route path={ROUTE_CANVAS} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : (
               <ErrorBoundary scope="Canvas">
                 <CanvasPage />
+              </ErrorBoundary>
+            )} />
+            <Route path={ROUTE_WORKSPACE} element={isMobile ? <Navigate to={ROUTE_LIST} replace /> : (
+              <ErrorBoundary scope="Workspace">
+                <WorkspacePage />
               </ErrorBoundary>
             )} />
             <Route path="/dashboard" element={<Navigate to={ROUTE_CANVAS} replace />} />

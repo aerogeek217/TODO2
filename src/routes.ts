@@ -7,9 +7,11 @@ export const ROUTE_CANVAS = '/'
 export const ROUTE_LIST = '/list'
 export const ROUTE_CALENDAR = '/calendar'
 export const ROUTE_SETTINGS = '/settings'
+export const ROUTE_WORKSPACE = '/workspace'
 
 export type AppRoute =
   | typeof ROUTE_CANVAS
   | typeof ROUTE_LIST
   | typeof ROUTE_CALENDAR
   | typeof ROUTE_SETTINGS
+  | typeof ROUTE_WORKSPACE

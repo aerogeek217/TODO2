@@ -1,0 +1,224 @@
+.cell {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(var(--cell-header-height) + var(--cell-body-min-height));
+  min-width: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  position: relative;
+}
+
+.collapsed {
+  min-height: var(--cell-header-height);
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: var(--cell-header-height);
+  flex-shrink: 0;
+  padding: 0 4px;
+  background: var(--color-header-bg);
+  border-bottom: 1px solid var(--color-border-muted);
+  position: relative;
+}
+
+.collapsed .header {
+  border-bottom: none;
+  height: var(--cell-header-height);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  align-self: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.header:hover .actions,
+.header:focus-within .actions,
+.headerMenuOpen .actions {
+  opacity: 1;
+}
+
+.action,
+.expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.action:hover,
+.expand:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.actionPressed {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.expand {
+  margin-left: auto;
+  align-self: center;
+}
+
+.insertLine {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  height: var(--cell-tab-height);
+  border-radius: 1px;
+  background: var(--color-drop-line, var(--color-accent));
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+/* Drop zones over a cell body while a tab is dragged over it. */
+.zones {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-above-3);
+  display: grid;
+  grid-template-rows: 1fr 2fr 1fr;
+  gap: 4px;
+  padding: 8px;
+  background: var(--color-scrim);
+  pointer-events: none;
+}
+
+.zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.zoneActive {
+  background: var(--color-accent-bg);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Empty cell (after a split): no header, inset fill, centred content. */
+.emptyCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  min-height: calc(var(--cell-header-height) + var(--cell-body-min-height));
+  min-width: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  position: relative;
+  overflow: auto;
+}
+
+.emptyCellOver {
+  background: var(--color-accent-bg);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+
+.emptyClose {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.emptyClose:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.emptyPlus {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.emptyTitle {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.kindRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 380px;
+}
+
+.kindButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.kindButton:hover {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
+.kindButtonIcon {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.emptyHint {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
