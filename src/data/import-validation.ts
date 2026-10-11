@@ -1,4 +1,4 @@
-import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, ListInset, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType } from '../models'
+import type { TodoItem, Project, ProjectGroupBy, Canvas, Person, TodoPerson, ListInset, RecurrenceRule, TaskboardEntry, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
 import { isTodoSortBy, isTodoGroupBy, DATE_FIELD_VALUES } from '../models'
 
 export type ImportTag = Tag
@@ -274,6 +274,16 @@ function checkTodoTag(v: unknown): CheckResult {
   return checkFields(v, [
     ['todoId', isFiniteNum(v.todoId)],
     ['tagId', isFiniteNum(v.tagId)],
+  ])
+}
+
+function checkListOrder(v: unknown): CheckResult {
+  if (!isObj(v)) return 'not an object'
+  return checkFields(v, [
+    ['id', isOptNum(v.id)],
+    ['listDefinitionId', isFiniteNum(v.listDefinitionId)],
+    ['todoId', isFiniteNum(v.todoId)],
+    ['rank', isFiniteNum(v.rank)],
   ])
 }
 
@@ -651,6 +661,15 @@ function pickTodoTag(v: Raw): AllFields<TodoTag> {
   return { id: optNum(v.id), todoId: v.todoId as number, tagId: v.tagId as number } satisfies AllFields<TodoTag>
 }
 
+function pickListOrder(v: Raw): AllFields<ListOrder> {
+  return {
+    id: optNum(v.id),
+    listDefinitionId: v.listDefinitionId as number,
+    todoId: v.todoId as number,
+    rank: v.rank as number,
+  } satisfies AllFields<ListOrder>
+}
+
 function pickTodoPerson(v: Raw): AllFields<TodoPerson> {
   return { id: optNum(v.id), todoId: v.todoId as number, personId: v.personId as number } satisfies AllFields<TodoPerson>
 }
@@ -793,6 +812,7 @@ export const IMPORT_ROW_PICKERS: { readonly [K in keyof ImportData]-?: (v: Raw) 
   floatingStatus: pickFloatingStatus,
   todoEvents: pickTodoEvent,
   layouts: pickLayout,
+  listOrders: pickListOrder,
 }
 
 /** Picks + compacts every row of `rows` for table `key`. */
@@ -828,6 +848,7 @@ const TABLE_VALIDATORS: TableValidator[] = [
   { key: 'floatingStatus', check: checkFloatingStatus },
   { key: 'todoEvents', check: checkTodoEvent },
   { key: 'layouts', check: checkLayout },
+  { key: 'listOrders', check: checkListOrder },
 ]
 
 const TABLE_VALIDATOR_BY_KEY: ReadonlyMap<keyof ImportData, (v: unknown) => CheckResult> =
@@ -853,6 +874,7 @@ export interface ImportData {
   floatingStatus: FloatingStatus[]
   todoEvents: TodoEvent[]
   layouts: WorkspaceLayout[]
+  listOrders: ListOrder[]
 }
 
 /**
@@ -964,6 +986,22 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
     })
   }
 
+  // Cross-row: one rank per (list, task) pair (Dexie index
+  // `&[listDefinitionId+todoId]` — a duplicate would abort the restore).
+  if (Array.isArray(raw.listOrders)) {
+    const firstIndexByPair = new Map<string, number>()
+    raw.listOrders.forEach((row: unknown, i) => {
+      if (!isObj(row)) return
+      const pair = `${String(row.listDefinitionId)}:${String(row.todoId)}`
+      const first = firstIndexByPair.get(pair)
+      if (first === undefined) {
+        firstIndexByPair.set(pair, i)
+        return
+      }
+      rowErrors.push(`Invalid "listOrders" record at index ${i}: duplicate list + task pair (same as index ${first})`)
+    })
+  }
+
   const [firstError] = rowErrors
   if (firstError !== undefined) {
     if (rowErrors.length === 1) return { ok: false, error: firstError }
@@ -1006,6 +1044,7 @@ export function validateImportData(data: unknown, options: ValidateImportOptions
       floatingStatus: pickRows('floatingStatus', raw.floatingStatus),
       todoEvents: pickRows('todoEvents', raw.todoEvents),
       layouts: pickRows('layouts', raw.layouts),
+      listOrders: pickRows('listOrders', raw.listOrders),
     },
   }
 }

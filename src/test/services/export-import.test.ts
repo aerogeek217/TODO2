@@ -160,6 +160,7 @@ describe('export → restore round-trip', () => {
       name: 'Default', createdAt: now, modifiedAt: now,
       columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }],
     })
+    await db.listOrders.add({ listDefinitionId: 1, todoId, rank: 2.5 })
 
     // Snapshot table sizes before the round-trip so the post-restore counts
     // are checked against what was actually exported (not what was hardcoded).
@@ -193,5 +194,7 @@ describe('export → restore round-trip', () => {
     expect(statusFloatAfter).toHaveLength(1)
     const todoTagsAfter = await db.todoTags.toArray()
     expect(todoTagsAfter).toHaveLength(1)
+    const ranksAfter = await db.listOrders.toArray()
+    expect(ranksAfter.map((r) => [r.listDefinitionId, r.todoId, r.rank])).toEqual([[1, todoId, 2.5]])
   })
 })

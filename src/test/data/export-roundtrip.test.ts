@@ -151,6 +151,10 @@ function buildSeed(): Seed {
         ],
       },
     ],
+    listOrders: [
+      { id: 1, listDefinitionId: 2, todoId: 2, rank: 1 },
+      { id: 2, listDefinitionId: 2, todoId: 1, rank: 1.5 },
+    ],
   }
 }
 

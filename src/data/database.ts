@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Project, Canvas, Person, TodoPerson, ListInset, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent } from '../models'
+import type { TodoItem, Project, Canvas, Person, TodoPerson, ListInset, Backup, Taskboard, Status, Note, FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus, Tag, TodoTag, TodoEvent, ListOrder } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
@@ -23,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 57
+export const CURRENT_DB_VERSION = 58
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -65,6 +65,7 @@ export class Todo2Database extends Dexie {
   todoTags!: Table<TodoTag, number>
   todoEvents!: Table<TodoEvent, number>
   layouts!: Table<WorkspaceLayout, number>
+  listOrders!: Table<ListOrder, number>
 
   constructor() {
     super('todo2')
@@ -438,10 +439,19 @@ export class Todo2Database extends Dexie {
     // transform (`upgrades/v57-drop-list-favorites.ts`) strips `favorited`
     // from list definitions and `viewState.runtimeFilterValue` from
     // workspace list tabs.
+    this.version(57).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 57))
+
+    // v58: per-list manual order. Adds the `listOrders` table — one rank per
+    // (list, task) pair, unique on the pair; nothing to transform (an empty
+    // table means every task is unranked).
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `57` first.
-    this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
+    // docblock above). When bumping, turn this into a literal `58` first.
+    this.version(CURRENT_DB_VERSION)
+      .stores({
+        listOrders: '++id, listDefinitionId, todoId, &[listDefinitionId+todoId]',
+      })
+      .upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }
 
@@ -478,5 +488,5 @@ export async function ensureSeededStatuses(
 }
 
 /** All data tables (excludes backups). Used for export, import, and file-storage sync. */
-export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingStatus, db.tags, db.todoTags, db.todoEvents, db.layouts] as const
+export const ALL_DATA_TABLES = [db.todos, db.projects, db.canvases, db.listInsets, db.people, db.settings, db.todoPeople, db.taskboards, db.statuses, db.listDefinitions, db.notes, db.floatingCalendars, db.floatingNotes, db.floatingTaskboards, db.floatingStatus, db.tags, db.todoTags, db.todoEvents, db.layouts, db.listOrders] as const
 

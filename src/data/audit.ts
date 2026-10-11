@@ -121,6 +121,7 @@ function joinTargetTable(field: string): string {
     case 'canvasId': return 'canvases'
     case 'projectId': return 'projects'
     case 'statusId': return 'statuses'
+    case 'listDefinitionId': return 'listDefinitions'
     default: return field
   }
 }
@@ -159,7 +160,7 @@ export async function auditData(): Promise<AuditReport> {
     todoPeople, todoTags, taskboards,
     listInsets, floatingNotes, floatingCalendars, floatingTaskboards,
     floatingStatus, todoEvents,
-    settingsRows, listDefinitions, notes,
+    settingsRows, listDefinitions, notes, listOrders,
   ] = await Promise.all([
     db.todos.toArray(),
     db.projects.toArray(),
@@ -179,6 +180,7 @@ export async function auditData(): Promise<AuditReport> {
     db.settings.toArray(),
     db.listDefinitions.toArray(),
     db.notes.toArray(),
+    db.listOrders.toArray(),
   ])
 
   // --- Unknown rows in known tables ---
@@ -193,7 +195,7 @@ export async function auditData(): Promise<AuditReport> {
     canvases, projects, todos, people, tags, listInsets, todoTags, todoPeople,
     taskboards, floatingTaskboards,
     statuses, listDefinitions, notes,
-    floatingCalendars, floatingNotes, floatingStatus, todoEvents,
+    floatingCalendars, floatingNotes, floatingStatus, todoEvents, listOrders,
   }
   for (const tableKey of KNOWN_TABLE_KEYS) {
     if (tableKey === 'settings') continue
@@ -338,6 +340,26 @@ export async function auditData(): Promise<AuditReport> {
         joinSample(r as unknown as Record<string, unknown>, [
           { field: 'todoId', valid: todoIds.has(r.todoId) },
           { field: 'tagId', valid: tagIds.has(r.tagId) },
+        ]),
+      ),
+    })
+  }
+
+  const listDefinitionIds = new Set(listDefinitions.map((d) => d.id!))
+  const orphanedListOrders = listOrders.filter(
+    (r) => !todoIds.has(r.todoId) || !listDefinitionIds.has(r.listDefinitionId),
+  )
+  if (orphanedListOrders.length > 0) {
+    issues.push({
+      table: 'listOrders',
+      description: 'Manual list order entries referencing deleted todos or lists',
+      count: orphanedListOrders.length,
+      ids: orphanedListOrders.map((r) => r.id!),
+      fix: 'delete',
+      samples: orphanedListOrders.slice(0, MAX_SAMPLES_PER_ISSUE).map((r) =>
+        joinSample(r as unknown as Record<string, unknown>, [
+          { field: 'todoId', valid: todoIds.has(r.todoId) },
+          { field: 'listDefinitionId', valid: listDefinitionIds.has(r.listDefinitionId) },
         ]),
       ),
     })

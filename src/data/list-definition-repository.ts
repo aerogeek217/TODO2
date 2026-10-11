@@ -20,6 +20,14 @@ export const listDefinitionRepository = {
     })
   },
 
+  /** Deletes the list and its manual order. */
+  async remove(id: number): Promise<void> {
+    await db.transaction('rw', db.listDefinitions, db.listOrders, async () => {
+      await db.listOrders.where('listDefinitionId').equals(id).delete()
+      await db.listDefinitions.delete(id)
+    })
+  },
+
   /**
    * Undo-restore for `remove`: re-insert the row preserving its original id so
    * any saved references (canvas inset, dashboard pin) keep pointing at it.

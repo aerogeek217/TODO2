@@ -21,7 +21,7 @@ import { resetDb } from '../helpers'
 type FixtureTable = keyof typeof fixture
 
 /** Tables a later schema version created — the frozen v49 fixture can't have them. */
-const TABLES_ADDED_AFTER_V49: ReadonlySet<string> = new Set(['layouts'])
+const TABLES_ADDED_AFTER_V49: ReadonlySet<string> = new Set(['layouts', 'listOrders'])
 
 async function importFixture(): Promise<void> {
   // Deep copy so a mutating bug in the pipeline can't leak between tests.
@@ -534,5 +534,15 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
     expect(await db.listInsets.count()).toBe(fixture.listInsets.length)
     expect(await db.floatingCalendars.count()).toBe(fixture.floatingCalendars.length)
     expect(await db.floatingNotes.count()).toBe(fixture.floatingNotes.length)
+  })
+})
+
+// ── v58: per-list manual order ───────────────────────────────────────────
+describe('v49 fixture → v58: manual lists start unranked', () => {
+  it('creates no ranks; manual lists keep their manual sort', async () => {
+    await importFixture()
+    expect(await db.listOrders.count()).toBe(0)
+    const manual = (await db.listDefinitions.toArray()).filter((d) => d.sort === 'manual')
+    expect(manual.length).toBe(fixture.listDefinitions.filter((d) => (d as { sort?: unknown }).sort === 'manual').length)
   })
 })

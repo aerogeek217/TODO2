@@ -118,6 +118,8 @@ describe('dev seed → prepareImport → restore', () => {
       todoTags: count('todoTags'),
       todoEvents: count('todoEvents'),
       layouts: 1,
+      // v58: no list has a manual order yet.
+      listOrders: 0,
     }
     for (const table of ALL_DATA_TABLES) {
       expect(await table.count(), `${table.name} count`).toBe(expected[table.name])

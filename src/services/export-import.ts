@@ -6,7 +6,7 @@ import type {
   TodoItem, Project, Canvas, Person, ListInset,
   TodoPerson, Taskboard, Status, Note,
   FloatingCalendar, FloatingNote, FloatingTaskboard, FloatingStatus,
-  Tag, TodoTag, TodoEvent, PersistedTodoItem,
+  Tag, TodoTag, TodoEvent, PersistedTodoItem, ListOrder,
 } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
@@ -42,6 +42,7 @@ export interface ExportData {
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]
   layouts: WorkspaceLayout[]
+  listOrders: ListOrder[]
 }
 
 /**
