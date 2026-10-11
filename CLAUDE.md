@@ -16,6 +16,7 @@ A spatial todo web app with infinite canvas, multiple views, and local-first sto
 - Test watch: `npm run test:watch`
 - E2E: `npm run test:e2e` (Playwright, `fullyParallel`; starts its own dev server on port 5173 — separate from the 5180 dev server). Single spec: `npx playwright test e2e/<name>.spec.ts`
 - Lint: `npm run lint` (`eslint . --max-warnings 0`). Temporary per-file ignores for canvas-replacement files live in `eslint.config.js` — each is removed by the phase that deletes/rewrites the file; don't add entries to dodge fixes.
+- Dev seed: `npm run seed:dev` → `dev-data/seed-v49.json` (gitignored; realistic v49 export for manual testing via Settings → Import JSON — runs the full upgrade pipeline; dates relative to today, re-run when stale). Needs Node ≥ 22.6.
 
 ## Tech Stack
 - React 19 + TypeScript + Vite
