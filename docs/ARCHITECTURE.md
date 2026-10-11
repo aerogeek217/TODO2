@@ -60,6 +60,8 @@ Two layers, picked by what's being verified:
 
 **Diagnosis vs. regression.** The Chrome DevTools MCP server (`mcp__chrome-devtools__*`) is a *spike* tool — drive an interaction live in real Chromium, capture state, then codify the regression in Playwright. See CLAUDE.md "Tools — Chrome DevTools MCP".
 
+**Manual-testing seed.** `npm run seed:dev` (`scripts/dev-seed.ts`) writes a realistic v49 export with dates relative to the run day to `dev-data/seed-v49.json` (gitignored); Settings → Import JSON in the dev server then runs the full v49 → current upgrade. `src/test/data/dev-seed.test.ts` keeps it importable.
+
 ## Detail References
 
 Load the relevant file when you need per-abstraction detail. Each is a table of `Abstraction | Location | Purpose` rows.

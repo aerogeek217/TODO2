@@ -5,6 +5,9 @@
 # Local data
 .data/
 
+# Generated dev seed (npm run seed:dev)
+/dev-data/
+
 # OS files
 .DS_Store
 Thumbs.db
