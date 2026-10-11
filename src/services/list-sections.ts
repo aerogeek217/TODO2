@@ -5,6 +5,7 @@ import { compareTodosByDate, type WeekStart } from '../utils/effective-date'
 import { bySortOrder } from '../utils/sort-order'
 import { UNTAGGED_BUCKET_KEY, UNTAGGED_BUCKET_LABEL } from '../utils/bucket-by-tag'
 import type { DateBucketKey } from '../utils/bucket-by-date'
+import { manualOrderComparator, type ListRanks } from '../utils/list-order'
 
 /**
  * One rendered group of a list. Every list surface (the list page and list
@@ -41,13 +42,19 @@ export interface ListSectionsContext {
   projects: readonly Project[]
   assignedPeopleMap: Map<number, Person[]>
   assignedTagsMap: Map<number, Tag[]>
+  /**
+   * The list's manual order (`listOrders`). Given → `manual` sorts by it;
+   * omitted (a surface without a stored list) → `manual` is `sortOrder`.
+   */
+  manualRanks?: ListRanks
 }
 
 /**
  * Comparator for a list's sort. Applied before grouping; grouping keeps input
  * order, so every section comes out sorted.
  *
- * - `manual` — `sortOrder` (then id).
+ * - `manual` — the list's ranks when given (`manualOrderComparator`: ranked
+ *   first, then unranked oldest first), else `sortOrder` (then id).
  * - `name` — alphabetical title, ties by `sortOrder`.
  * - `deadline` / `followup` — ascending date, undated last, ties by `sortOrder`.
  * - `created` / `people` / `project` / `status` — no ordering of their own;
@@ -56,7 +63,9 @@ export interface ListSectionsContext {
  */
 export function listSortComparator(
   sortBy: TodoSortBy,
+  manualRanks?: ListRanks,
 ): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
+  if (sortBy === 'manual' && manualRanks) return manualOrderComparator(manualRanks)
   switch (sortBy) {
     case 'name':
       return (a, b) => a.title.localeCompare(b.title) || bySortOrder(a, b)
@@ -93,6 +102,11 @@ const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none'>, { key: string; lab
   tag: { key: UNTAGGED_BUCKET_KEY, label: UNTAGGED_BUCKET_LABEL },
 }
 
+/** Whether `key` is the trailing "No …" / "Unassigned" section of `groupBy`. */
+export function isUngroupedSectionKey(groupBy: TodoGroupBy, key: string): boolean {
+  return groupBy !== 'none' && UNGROUPED_SECTION[groupBy]?.key === key
+}
+
 function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped: boolean } {
   const ids =
     spec.groupBy === 'people' ? spec.restrictToPersonIds
@@ -124,7 +138,7 @@ export function buildListSections(
   // A stored grouping this build doesn't know reads as ungrouped rather than
   // breaking the surface.
   const groupBy = isTodoGroupBy(spec.groupBy) ? spec.groupBy : 'none'
-  const sorted = [...members].sort(listSortComparator(spec.sortBy))
+  const sorted = [...members].sort(listSortComparator(spec.sortBy, ctx.manualRanks))
   if (groupBy === 'none') {
     return sorted.length > 0 ? [{ key: 'all', label: 'All tasks', todos: sorted }] : []
   }

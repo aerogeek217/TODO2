@@ -6,6 +6,8 @@ import { undoable } from '../services/undoable'
 import { advanceRecurring } from '../services/recurrence'
 import { loadWithState, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded } from './store-helpers'
 import { useSettingsStore } from './settings-store'
+import { useListOrderStore } from './list-order-store'
+import { listOrderRepository } from '../data/list-order-repository'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { addFollowupInterval, formatFollowupDate } from '../utils/followup'
 
@@ -257,14 +259,19 @@ export const useTodoStore = create<TodoState>((set, get) => {
       if (!todo) return
       const snapshot = { ...todo }
       const { personIds } = await captureAssignments(id)
+      const ranks = await listOrderRepository.getByTodos([id])
 
       await todoRepository.delete(id)
+      useListOrderStore.getState().forgetTodos([id])
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
 
       undoable(
         `Delete "${todo.title}"`,
         () => get()._removeNoUndo(id),
-        () => get()._restore(snapshot, personIds),
+        async () => {
+          await get()._restore(snapshot, personIds)
+          await useListOrderStore.getState().restoreRows(ranks)
+        },
         true,
       )
     }, 'Failed to delete task')
@@ -467,7 +474,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
         return { todo: t, personIds: a.personIds }
       })
 
+      const ranks = await listOrderRepository.getByTodos(ids)
+
       await todoRepository.bulkDelete(ids)
+      useListOrderStore.getState().forgetTodos(ids)
       const idSet = new Set(ids)
       set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
 
@@ -478,6 +488,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           for (const { todo, personIds } of assignmentData) {
             await get()._restore(todo, personIds)
           }
+          await useListOrderStore.getState().restoreRows(ranks)
         },
         true,
       )
@@ -612,6 +623,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
   async _removeNoUndo(id: number) {
     await todoRepository.delete(id)
+    useListOrderStore.getState().forgetTodos([id])
     set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
   },
 
@@ -626,6 +638,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const { backupScheduler } = await import('../services/backup-scheduler')
     await backupScheduler.snapshotBeforeDestructive().catch(e => console.warn('backup snapshot failed', e))
     await todoRepository.bulkDelete(doomed)
+    useListOrderStore.getState().forgetTodos(doomed)
     const doomedSet = new Set(doomed)
     set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
     return doomed.length

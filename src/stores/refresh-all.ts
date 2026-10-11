@@ -10,6 +10,7 @@ import { useNoteStore } from './note-store'
 import { useListDraftStore } from './list-draft-store'
 import { useListWidgetStore } from './list-widget-store'
 import { useListDefinitionStore } from './list-definition-store'
+import { useListOrderStore } from './list-order-store'
 import { useListInsetStore } from './list-inset-store'
 import { useFloatingNoteStore } from './floating-note-store'
 import { useFloatingCalendarStore } from './floating-calendar-store'
@@ -52,6 +53,7 @@ export async function refreshAllStores() {
     useTaskboardStore.getState().load(),
     useNoteStore.getState().load(),
     useListDefinitionStore.getState().load(),
+    useListOrderStore.getState().load(),
     // Re-open the active layout from the replaced data (drops any unsaved
     // working copy); untouched until the workspace has been opened once.
     ...(useWorkspaceStore.getState().hydrated ? [useWorkspaceStore.getState().init()] : []),

@@ -12,6 +12,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useProjectStore } from '../stores/project-store'
 import { useTagStore } from '../stores/tag-store'
 import { useSettingsStore } from '../stores/settings-store'
+import { useListOrderStore, useListRanks } from '../stores/list-order-store'
 import { applyRuntimeFilter, buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
@@ -29,9 +30,17 @@ export interface BuiltList {
   runtimeFilterPending: boolean
   /** The list's predicate with the prompt picks merged in. */
   mergedPredicate: TodoPredicate | null
+  /**
+   * Every task the list can show, whatever the prompt pick or the screen
+   * filter: the list's own predicate's matches plus what is shown now. What
+   * a manual order is planned over (unordered; callers sort).
+   */
+  orderCandidates: () => PersistedTodoItem[]
 }
 
-const NO_BUILT: BuiltList = { list: null, baseCount: 0, runtimeFilterPending: false, mergedPredicate: null }
+const NO_CANDIDATES = (): PersistedTodoItem[] => []
+
+const NO_BUILT: BuiltList = { list: null, baseCount: 0, runtimeFilterPending: false, mergedPredicate: null, orderCandidates: NO_CANDIDATES }
 
 /**
  * Runs a list definition over the loaded tasks: its predicate (plus prompt
@@ -58,6 +67,11 @@ export function useBuiltList(
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   // Date-sensitive predicates roll at midnight.
   const today = useToday()
+  const ranks = useListRanks(definition?.id)
+
+  useEffect(() => {
+    void useListOrderStore.getState().ensureLoaded()
+  }, [])
 
   // Tag filter clauses read `assignedTagsMap`; keep it populated for the
   // current task set.
@@ -74,7 +88,7 @@ export function useBuiltList(
       : definition.runtimeFilter && runtimeFilterValue && runtimeFilterValue.length > 0
         ? applyRuntimeFilter(definition.membership.predicate, definition.runtimeFilter, runtimeFilterValue)
         : definition.membership.predicate
-    if (runtimeFilterPending) return { list: null, baseCount: 0, runtimeFilterPending, mergedPredicate }
+    if (runtimeFilterPending) return { ...NO_BUILT, runtimeFilterPending }
 
     const lookups: TodoNameLookups = {
       assignedPeopleMap,
@@ -97,14 +111,20 @@ export function useBuiltList(
       projects,
       statuses,
       runtimeFilterValues,
+      listRanks: new Map([[definition.id, ranks]]),
     })
     const baseCount = screenFilter && mergedPredicate
       ? countMatching(todos, (t) => listOnly(mergedPredicate, t))
       : (list?.todos.length ?? 0)
-    return { list: list ?? null, baseCount, runtimeFilterPending, mergedPredicate }
+    const ownPredicate = definition.membership.predicate
+    const orderCandidates = () => {
+      const shown = new Set((list?.todos ?? []).map((t) => t.id))
+      return todos.filter((t) => shown.has(t.id) || listOnly(ownPredicate, t))
+    }
+    return { list: list ?? null, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates }
   }, [
     definition, todos, people, assignedPeopleMap, projects,
-    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter,
+    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks,
   ])
 }
 

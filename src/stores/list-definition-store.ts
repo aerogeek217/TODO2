@@ -11,6 +11,8 @@ import type { TodoPredicate } from '../models'
 import { loadWithState, mutate, optimistic, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
 import { bySortOrder } from '../utils/sort-order'
+import { listOrderRepository } from '../data/list-order-repository'
+import { useListOrderStore } from './list-order-store'
 
 interface AddInput {
   name: string
@@ -128,7 +130,9 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
     const def = prev.find(d => d.id === id)
     if (!def) return
 
+    const ranks = await listOrderRepository.getByList(id)
     await listDefinitionRepository.remove(id)
+    useListOrderStore.getState().forgetList(id)
     set({ listDefinitions: prev.filter(d => d.id !== id) })
 
     undoable(
@@ -136,6 +140,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       () => get().remove(id),
       async () => {
         await listDefinitionRepository.restore(def)
+        await useListOrderStore.getState().restoreRows(ranks)
         await get().load()
       },
       true,

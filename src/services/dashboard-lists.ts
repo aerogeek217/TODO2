@@ -15,6 +15,9 @@ import type { WeekStart } from '../utils/effective-date'
 import { startOfDay } from '../utils/date'
 import { bySortOrder } from '../utils/sort-order'
 import { buildListSections, listSortComparator, type Section } from './list-sections'
+import type { ListRanks } from '../utils/list-order'
+
+const NO_RANKS: ListRanks = new Map()
 
 export interface DashboardListsContext {
   today: Date
@@ -41,6 +44,11 @@ export interface DashboardListsContext {
    * through unchanged) — matches "user cleared all chips" UX.
    */
   runtimeFilterValues?: ReadonlyMap<number, number[]>
+  /**
+   * Manual order by def id (`listOrders`). Given → a manual list sorts by its
+   * ranks (none yet → oldest first); omitted → by `sortOrder`.
+   */
+  listRanks?: ReadonlyMap<number, ListRanks>
 }
 
 export interface DashboardList {
@@ -107,6 +115,7 @@ export function buildDashboardLists(
     // The effective predicate's person / tag picks narrow the visible groups
     // so a multi-assignee task doesn't emit sections for non-picked people.
     const predicate = effectiveDef.membership.kind === 'custom' ? effectiveDef.membership.predicate : undefined
+    const manualRanks = ctx.listRanks ? (ctx.listRanks.get(def.id) ?? NO_RANKS) : undefined
     const sections = buildListSections(
       members,
       {
@@ -123,9 +132,10 @@ export function buildDashboardLists(
         projects: ctx.projects ?? [],
         assignedPeopleMap: ctx.assignedPeopleMap ?? new Map(),
         assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
+        manualRanks,
       },
     )
-    const sorted = [...members].sort(listSortComparator(def.sort))
+    const sorted = [...members].sort(listSortComparator(def.sort, manualRanks))
     result.push({
       id: def.id,
       key: `def-${def.id}`,
