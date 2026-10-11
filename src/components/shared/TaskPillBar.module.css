@@ -294,3 +294,11 @@
 .followupChipOverdue .followupClear:hover {
   background: var(--color-followup-glow);
 }
+
+/* Narrow list widgets (< 360px; the widget is the size container): avatars
+ * keep their size; the tags in front of them give way first. */
+@container (max-width: 359px) {
+  .peopleGroup {
+    flex-shrink: 0;
+  }
+}

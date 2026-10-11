@@ -501,7 +501,7 @@ describe('buildListSections — sort within groups', () => {
 })
 
 describe('buildListSections — accents and sentinels', () => {
-  it('date sections: danger for overdue, accent for today and this week, none for later', () => {
+  it('date sections: overdue, accent for today, secondary for this week, muted for later', () => {
     const today = new Date(2026, 0, 12)
     const todos = [
       makeTodo({ id: 1, dueDate: new Date(2026, 0, 11) }),
@@ -510,7 +510,7 @@ describe('buildListSections — accents and sentinels', () => {
       makeTodo({ id: 4, dueDate: new Date(2026, 1, 1) }),
     ]
     expect(buildDeadlineSections(todos, 1, today).map((s) => s.accentColor)).toEqual([
-      'var(--color-danger)', 'var(--color-accent)', 'var(--color-accent)', undefined,
+      'var(--color-overdue)', 'var(--color-accent)', 'var(--color-text-secondary)', 'var(--color-text-muted)',
     ])
   })
 
@@ -524,7 +524,7 @@ describe('buildListSections — accents and sentinels', () => {
     expect(sections.map((s) => [s.key, s.label, s.accentColor])).toEqual([
       ['status-2', 'Waiting', '#aa0'],
       ['status-1', 'Doing', '#0a0'],
-      ['no-status', 'No Status', undefined],
+      ['no-status', 'No Status', 'var(--color-text-muted)'],
     ])
   })
 

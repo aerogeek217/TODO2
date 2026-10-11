@@ -5,6 +5,7 @@
   gap: var(--space-1);
   flex-shrink: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 /* Empty-state wrapper — hover-revealed via the surrounding row's hover rule
@@ -59,4 +60,40 @@
   padding: 4px 0;
   box-shadow: var(--shadow-dropdown);
   min-width: 180px;
+}
+
+/* "+N" for the tags after the first: shown only in narrow list widgets. */
+.tagMore {
+  display: none;
+  font-size: var(--font-size-meta);
+  padding: 0 5px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Narrow list widgets (< 360px; the widget is the size container). */
+@container (max-width: 359px) {
+  .tagChip ~ .tagChip {
+    display: none;
+  }
+
+  .tagMore {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .tagChip {
+    min-width: 0;
+  }
+
+  /* The first tag stays readable-ish ("#ho…") instead of shrinking away. */
+  .chipGroup:not(.tagChipEmpty) {
+    min-width: 44px;
+  }
 }

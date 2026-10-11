@@ -508,3 +508,28 @@
 .row:hover [class*="tagChipEmpty"] {
   opacity: 1;
 }
+
+/* Inside a list widget (the widget is the size container) the title keeps
+ * at least a third of the row, so chips can't squeeze it to nothing. */
+@container (min-width: 0px) {
+  .titleBlock {
+    min-width: 33cqi;
+  }
+}
+
+/* Narrow list widgets (< 360px): a follow-up pill gives way to a due pill.
+ * (People are already avatars; extra tags collapse into "+N".) */
+@container (max-width: 359px) {
+  .titleBlock {
+    min-width: 25cqi;
+  }
+
+  .row:has([data-pill="due"]) [data-pill="followup"] {
+    display: none;
+  }
+
+  /* No due date: the empty date slot doesn't reserve a pill's width. */
+  .dateStackEmpty {
+    width: auto;
+  }
+}

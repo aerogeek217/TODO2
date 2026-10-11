@@ -607,7 +607,7 @@ describe('buildDashboardLists — tag grouping', () => {
     const def = customDef({ grouping: 'tag' })
     const lists = buildDashboardLists([def], [a], makeCtx())
     expect(lists[0]!.sections).toEqual([
-      { key: 'no-tag', label: 'No Tag', todos: [a] },
+      { key: 'no-tag', label: 'No Tag', accentColor: 'var(--color-text-muted)', todos: [a] },
     ])
   })
 })

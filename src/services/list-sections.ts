@@ -73,11 +73,15 @@ export function listSortComparator(
   return bySortOrder
 }
 
+/** Group colours of date sections; the trailing "No …" sections are muted too. */
 const DATE_ACCENTS: Partial<Record<DateBucketKey, string>> = {
-  overdue: 'var(--color-danger)',
+  overdue: 'var(--color-overdue)',
   today: 'var(--color-accent)',
-  week: 'var(--color-accent)',
+  week: 'var(--color-text-secondary)',
+  later: 'var(--color-text-muted)',
 }
+
+const UNGROUPED_ACCENT = 'var(--color-text-muted)'
 
 /** Trailing section for tasks with no value on the grouped axis. */
 const UNGROUPED_SECTION: Record<Exclude<TodoGroupBy, 'none'>, { key: string; label: string }> = {
@@ -159,7 +163,7 @@ export function buildListSections(
   })
 
   if (ungrouped.length > 0 && restrict.keepUngrouped) {
-    sections.push({ ...UNGROUPED_SECTION[groupBy], todos: ungrouped })
+    sections.push({ ...UNGROUPED_SECTION[groupBy], accentColor: UNGROUPED_ACCENT, todos: ungrouped })
   }
   return sections
 }

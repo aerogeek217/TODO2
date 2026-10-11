@@ -62,6 +62,17 @@ export function TagChipSelector({
             #{tag.name}
           </button>
         ))}
+        {assignedTags.length > 1 && (
+          // Narrow list widgets show only the first tag and this count.
+          <button
+            type="button"
+            className={styles.tagMore}
+            onClick={toggleOpen}
+            title={assignedTags.slice(1).map((t) => `#${t.name}`).join(' ')}
+          >
+            +{assignedTags.length - 1}
+          </button>
+        )}
         {!hasTags && (
           <button
             type="button"

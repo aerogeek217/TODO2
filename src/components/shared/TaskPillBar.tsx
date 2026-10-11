@@ -152,6 +152,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         className={deadlineChipClass}
         style={deadlineChipStyle}
         onClick={onDeadlineClick}
+        data-pill="due"
         title={deadlinePast ? 'Due date passed — click to change' : 'Due — click to change'}
         aria-label="Edit due date"
       >
@@ -243,6 +244,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
       aria-label={`Follow-up: ${label}`}
       aria-haspopup="dialog"
       aria-expanded={open}
+      data-pill="followup"
       data-followup-overdue={overdue ? 'true' : undefined}
     >
       <FollowupFlagIcon />
