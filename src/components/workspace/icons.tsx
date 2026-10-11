@@ -82,6 +82,30 @@ export function ChevronRightIcon({ size = 12 }: { size?: number }) {
   return <Svg size={size}><path d="M6 4l4 4-4 4" /></Svg>
 }
 
+export function ChevronLeftIcon({ size = 12 }: { size?: number }) {
+  return <Svg size={size}><path d="M10 4l-4 4 4 4" /></Svg>
+}
+
+/** Two arrows chasing round: a recurring task. */
+export function RepeatIcon({ size = 10 }: { size?: number }) {
+  return (
+    <Svg size={size} strokeWidth={1.8}>
+      <path d="M12.5 6.5A4.5 4.5 0 0 0 4.2 5M3.5 9.5A4.5 4.5 0 0 0 11.8 11" />
+      <path d="M4 2.5V5h2.5M12 13.5V11H9.5" />
+    </Svg>
+  )
+}
+
+/** A ring with a dot: jump to today. */
+export function TodayIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 8h.01" strokeWidth={3} />
+    </Svg>
+  )
+}
+
 export function PlusIcon({ size = 14, strokeWidth = 1.6 }: { size?: number; strokeWidth?: number }) {
   return <Svg size={size} strokeWidth={strokeWidth}><path d="M8 3v10M3 8h10" /></Svg>
 }

@@ -21,6 +21,8 @@ export type MenuEntry =
       submenu?: boolean
       /** Keep the menu open after `onSelect` (submenus open their own popover). */
       keepOpen?: boolean
+      /** A single key that picks the item while the menu is open, shown as a kbd hint. */
+      shortcut?: string
     }
   | { kind: 'separator' }
   | { kind: 'label'; text: string }
@@ -66,6 +68,16 @@ export function MenuPopover({ anchorRef, point, placement = 'bottom-start', entr
   }, [items])
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const key = e.key.toLowerCase()
+      const hit = entries.find((en) => en.kind === 'item' && !en.disabled && en.shortcut?.toLowerCase() === key)
+      if (hit && hit.kind === 'item') {
+        e.preventDefault()
+        hit.onSelect()
+        if (!hit.keepOpen) onClose()
+        return
+      }
+    }
     const list = items()
     if (list.length === 0) return
     const idx = list.findIndex((b) => b === document.activeElement)
@@ -99,6 +111,7 @@ export function MenuPopover({ anchorRef, point, placement = 'bottom-start', entr
             role={entry.radio ? 'menuitemradio' : 'menuitem'}
             aria-checked={entry.radio ? entry.checked === true : undefined}
             aria-haspopup={entry.submenu ? 'menu' : undefined}
+            aria-keyshortcuts={entry.shortcut}
             disabled={entry.disabled}
             className={`${styles.item} ${entry.danger ? styles.danger : ''}`}
             onClick={() => {
@@ -109,6 +122,7 @@ export function MenuPopover({ anchorRef, point, placement = 'bottom-start', entr
             {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
             <span className={styles.label}>{entry.label}</span>
             {entry.note && <span className={styles.note}>{entry.note}</span>}
+            {entry.shortcut && <kbd className={styles.kbd} aria-hidden="true">{entry.shortcut}</kbd>}
             {entry.checked && <span className={styles.check}><CheckIcon /></span>}
             {entry.submenu && <span className={styles.chevron}><ChevronRightIcon /></span>}
           </button>

@@ -11,6 +11,7 @@ import {
 } from '@dnd-kit/core'
 import { useBlocker } from 'react-router'
 import type { PersistedTodoItem } from '../models'
+import type { CalendarDateType } from '../models/workspace-layout'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
@@ -20,7 +21,7 @@ import { useProjectStore } from '../stores/project-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useUIStore } from '../stores/ui-store'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
-import { buildTaskCollision, dispatchTaskDrop } from '../utils/task-dnd'
+import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
 import { dropChangesLayout, dropTargetForHit, hitTestWorkspace } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
@@ -39,6 +40,15 @@ import {
   type TabDragState,
 } from '../components/workspace/workspace-drag'
 import { TaskRow } from '../components/task/TaskRow'
+import { CalendarEntryButton } from '../components/workspace/calendar/CalendarEntryButton'
+import { CalendarDropChooser } from '../components/workspace/calendar/CalendarDropChooser'
+import {
+  isCalendarEntryDragData,
+  PendingCalendarDropContext,
+  type CalendarEntryDragData,
+  type PendingCalendarDrop,
+} from '../components/workspace/calendar/calendar-drag'
+import calendarStyles from '../components/workspace/calendar/CalendarWidget.module.css'
 import { TaskEditPopupHost } from '../components/task/TaskEditPopupHost'
 import { FilteredListPopup } from '../components/overlays/FilteredListPopup'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
@@ -185,13 +195,94 @@ function UnsavedNavigationGuard() {
   )
 }
 
+/**
+ * dnd-kit scrolls the dragged item's scrollable ancestors whenever the
+ * pointer is near or past their edges — even from another column, so a row
+ * dragged out of a list toward a calendar scrolled the list. Only scroll a
+ * container while the pointer is inside it.
+ */
+function useAutoScrollUnderPointer() {
+  const pointerRef = useRef<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => { pointerRef.current = { x: e.clientX, y: e.clientY } }
+    window.addEventListener('pointerdown', onMove, { passive: true, capture: true })
+    window.addEventListener('pointermove', onMove, { passive: true, capture: true })
+    return () => {
+      window.removeEventListener('pointerdown', onMove, { capture: true })
+      window.removeEventListener('pointermove', onMove, { capture: true })
+    }
+  }, [])
+  return useMemo(() => ({
+    canScroll: (el: Element) => {
+      const p = pointerRef.current
+      if (!p) return true
+      const r = el.getBoundingClientRect()
+      return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom
+    },
+  }), [])
+}
+
+/** A task drag in progress (list row or calendar entry), for the drag overlay. */
+interface ActiveTaskDrag {
+  todo: PersistedTodoItem
+  /** Set for a calendar entry: the overlay draws the entry, not a task row. */
+  calendarEntry?: CalendarEntryDragData['calendarEntry']
+}
+
+interface CalendarChoice {
+  todo: PersistedTodoItem
+  date: Date
+  at: { x: number; y: number }
+  scope: string | undefined
+  settle: (type: CalendarDateType | null) => void
+}
+
+/**
+ * The Due / Follow-up chooser for a list drag dropped on a calendar showing
+ * both date types: `choose` opens it and resolves with the pick (`null` =
+ * cancelled); `pending` keeps the day highlighted while it's open.
+ */
+function useCalendarDropChoice() {
+  const [request, setRequest] = useState<CalendarChoice | null>(null)
+  const openRef = useRef<CalendarChoice | null>(null)
+  const choose = useCallback((req: CalendarDropChoiceRequest) => new Promise<CalendarDateType | null>((resolve) => {
+    openRef.current?.settle(null)
+    let settled = false
+    const choice: CalendarChoice = {
+      todo: req.todo,
+      date: req.date,
+      at: req.at ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+      scope: req.scope,
+      settle: (type) => {
+        if (settled) return
+        settled = true
+        if (openRef.current === choice) {
+          openRef.current = null
+          setRequest(null)
+        }
+        resolve(type)
+      },
+    }
+    openRef.current = choice
+    setRequest(choice)
+  }), [])
+  const done = useCallback((type: CalendarDateType | null) => request?.settle(type), [request])
+  const pending = useMemo<PendingCalendarDrop | null>(
+    () => (request?.scope ? { scope: request.scope, dateMs: request.date.getTime() } : null),
+    [request],
+  )
+  return { request, choose, done, pending }
+}
+
 export function WorkspacePage() {
   const working = useWorkspaceStore((s) => s.working)
   const hydrated = useWorkspaceStore((s) => s.hydrated)
   const showListsEditor = useUIStore((s) => s.listsEditorOpen)
   const listsEditorInitialId = useUIStore((s) => s.listsEditorInitialId)
   const closeListsEditor = useUIStore((s) => s.closeListsEditor)
-  const [activeDragTodo, setActiveDragTodo] = useState<PersistedTodoItem | null>(null)
+  const [activeDrag, setActiveDrag] = useState<ActiveTaskDrag | null>(null)
+  const calendarChoice = useCalendarDropChoice()
+  const autoScroll = useAutoScrollUnderPointer()
   const tabDrag = useTabDragState()
   const isMobile = useIsMobile()
 
@@ -218,30 +309,33 @@ export function WorkspacePage() {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     if (tabDrag.start(event)) return
-    const todo = event.active.data.current?.todo as PersistedTodoItem | undefined
-    if (todo) setActiveDragTodo(todo)
+    const data = event.active.data.current
+    const todo = data?.todo as PersistedTodoItem | undefined
+    if (todo) setActiveDrag({ todo, calendarEntry: isCalendarEntryDragData(data) ? data.calendarEntry : undefined })
   }, [tabDrag])
 
+  const chooseType = calendarChoice.choose
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     if (isWorkspaceTabDragData(event.active.data.current)) {
       tabDrag.end(true)
       return
     }
-    setActiveDragTodo(null)
+    setActiveDrag(null)
     await dispatchTaskDrop(event, {
       calendar: {
-        reschedule: async (todoId, date) => {
+        reschedule: async (todoId, date, type) => {
           const t = useTodoStore.getState().todos.find((x) => x.id === todoId)
           if (!t) return
-          await useTodoStore.getState().update(buildRescheduleUpdate(t, date))
+          await useTodoStore.getState().update(buildRescheduleUpdate(t, date, type))
         },
+        chooseType,
       },
     })
-  }, [tabDrag])
+  }, [tabDrag, chooseType])
 
   const handleDragCancel = useCallback(() => {
     tabDrag.end(false)
-    setActiveDragTodo(null)
+    setActiveDrag(null)
   }, [tabDrag])
 
   const drag = tabDrag.drag
@@ -250,16 +344,19 @@ export function WorkspacePage() {
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetection}
+      autoScroll={autoScroll}
       onDragStart={handleDragStart}
       onDragEnd={(e) => { void handleDragEnd(e) }}
       onDragCancel={handleDragCancel}
     >
       <TabDragContext.Provider value={drag}>
-        <div className={styles.page} data-dragging-tab={drag ? 'true' : undefined}>
-          {working
-            ? (isMobile ? <MobileWorkspaceView layout={working} /> : <WorkspaceView layout={working} />)
-            : hydrated ? null : <div className={styles.loading}>Loading…</div>}
-        </div>
+        <PendingCalendarDropContext.Provider value={calendarChoice.pending}>
+          <div className={styles.page} data-dragging-tab={drag ? 'true' : undefined}>
+            {working
+              ? (isMobile ? <MobileWorkspaceView layout={working} /> : <WorkspaceView layout={working} />)
+              : hydrated ? null : <div className={styles.loading}>Loading…</div>}
+          </div>
+        </PendingCalendarDropContext.Provider>
       </TabDragContext.Provider>
 
       <DragOverlay dropAnimation={null} modifiers={[followPointer]}>
@@ -273,12 +370,30 @@ export function WorkspacePage() {
               <div className={styles.ghostLabel}><PlusIcon size={12} strokeWidth={2} /> New column</div>
             )}
           </div>
-        ) : activeDragTodo ? (
+        ) : activeDrag?.calendarEntry ? (
+          <div className={calendarStyles.ghost} data-drag-overlay>
+            <CalendarEntryButton
+              entry={activeDrag.calendarEntry.entry}
+              today={activeDrag.calendarEntry.today}
+              size={activeDrag.calendarEntry.size}
+              wrap={activeDrag.calendarEntry.wrap}
+              ghost
+            />
+          </div>
+        ) : activeDrag ? (
           <div className={overlayStyles.overlay} data-drag-overlay>
-            <TaskRow todo={activeDragTodo} ghost />
+            <TaskRow todo={activeDrag.todo} ghost />
           </div>
         ) : null}
       </DragOverlay>
+      {calendarChoice.request && (
+        <CalendarDropChooser
+          todo={calendarChoice.request.todo}
+          date={calendarChoice.request.date}
+          at={calendarChoice.request.at}
+          onDone={calendarChoice.done}
+        />
+      )}
 
       <TaskEditPopupHost />
       <FilteredListPopup />

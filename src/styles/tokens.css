@@ -62,6 +62,15 @@
   --list-prompt-row-height: 40px;
   --list-group-header-height: 28px;
 
+  /* Calendar widget (compact month below 480px of widget width, week rows
+     below 560px, icon-only date-type toggles below 620px — measured in JS) */
+  --cal-toolbar-height: 40px;
+  --cal-weekday-row-height: 22px;
+  --cal-entry-sm: 18px;
+  --cal-entry-md: 24px;
+  --cal-entry-touch: 44px;
+  --cal-compact-day-height: 40px;
+
   /* Mobile */
   --mobile-tab-bar-height: 56px;
   --mobile-row-min-height: 48px;
@@ -72,6 +81,8 @@
   --mobile-cell-tab-height: 34px;
   --mobile-list-filter-row-height: 48px;
   --mobile-list-group-header-height: 36px;
+  --mobile-cal-toolbar-height: 48px;
+  --mobile-cal-compact-day-height: 48px;
   --touch-target-min: 44px;
 
   /* Transitions */
@@ -145,7 +156,16 @@
   /* Overdue / special dates */
   --color-overdue: #e86bf0;
   --color-overdue-bg: rgba(232, 107, 240, 0.12);
+  --color-overdue-bg-strong: rgba(232, 107, 240, 0.22);
   --color-overdue-glow: rgba(232, 107, 240, 0.3);
+
+  /* Calendar widget: solid overdue entries (and text on them), past-day washes */
+  --cal-overdue-solid: #e86bf0;
+  --cal-on-overdue: #111110;
+  --cal-followup-solid: #f5c842;
+  --cal-on-followup: #111110;
+  --cal-overdue-day: rgba(232, 107, 240, 0.10);
+  --cal-followup-day: rgba(245, 200, 66, 0.08);
 
   /* Due-date chip colors */
   --color-deadline: #e86bf0;
@@ -275,7 +295,18 @@
   /* Overdue */
   --color-overdue: #b838c0;
   --color-overdue-bg: rgba(184, 56, 192, 0.08);
+  --color-overdue-bg-strong: rgba(163, 44, 171, 0.16);
   --color-overdue-glow: rgba(184, 56, 192, 0.15);
+
+  /* Calendar widget: solid overdue entries (and text on them), past-day washes.
+     The overdue follow-up fill stays bright yellow: the darker text yellow
+     reads brown as a fill. */
+  --cal-overdue-solid: #a32cab;
+  --cal-on-overdue: #ffffff;
+  --cal-followup-solid: #f5c842;
+  --cal-on-followup: #1a1917;
+  --cal-overdue-day: rgba(163, 44, 171, 0.07);
+  --cal-followup-day: rgba(245, 200, 66, 0.14);
 
   /* Due-date chip colors */
   --color-deadline: #b838c0;
