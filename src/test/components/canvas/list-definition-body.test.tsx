@@ -41,7 +41,7 @@ function futureDef(): PersistedListDefinition {
     favorited: false,
     membership: { kind: 'custom', predicate },
     sort: 'deadline',
-    grouping: { kind: 'none' },
+    grouping: 'none',
   }
 }
 
@@ -163,7 +163,7 @@ describe('ListDefinitionBody', () => {
         favorited: false,
         membership: { kind: 'custom', predicate },
         sort: 'deadline',
-        grouping: { kind: 'none' },
+        grouping: 'none',
       }],
     })
     // Global top-bar filter excludes the def's status — should NOT affect the widget.

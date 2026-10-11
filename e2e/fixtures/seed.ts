@@ -1,4 +1,5 @@
 import type { Page, Locator } from '@playwright/test'
+import { emptyPredicate } from './workspace'
 
 const DB_NAME = 'todo2'
 
@@ -51,8 +52,8 @@ export interface FloatingStatusSeed {
 
 export interface ListDefinitionSeed {
   name: string
-  /** Membership shape passed straight to Dexie; the most common is
-   *  `{ kind: 'all' }` which surfaces every todo. */
+  /** Membership shape passed straight to Dexie; defaults to a custom
+   *  membership with an empty predicate, which surfaces every open todo. */
   membership?: { kind: string } & Record<string, unknown>
   sort?: { kind: string } & Record<string, unknown> | string
   grouping?: { kind: string } & Record<string, unknown> | string
@@ -287,7 +288,10 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
     floatingCalendars: opts.floatingCalendars ?? [],
     floatingTaskboards: opts.floatingTaskboards ?? [],
     floatingStatus: opts.floatingStatus ?? [],
-    listDefinitions: opts.listDefinitions ?? [],
+    listDefinitions: (opts.listDefinitions ?? []).map((d) => ({
+      ...d,
+      membership: d.membership ?? { kind: 'custom', predicate: emptyPredicate() },
+    })),
     listInsets: opts.listInsets ?? [],
     people: opts.people ?? [],
     canvasRails: opts.canvasRails ?? null,
@@ -333,9 +337,9 @@ export async function seedCanvas(page: Page, opts: CanvasSeedOptions): Promise<v
           const row: Record<string, unknown> = {
             name: def.name,
             sortOrder: nextDef + 1,
-            membership: def.membership ?? { kind: 'all' },
-            sort: def.sort ?? { kind: 'effective-date', direction: 'asc' },
-            grouping: def.grouping ?? { kind: 'none' },
+            membership: def.membership,
+            sort: def.sort ?? 'deadline',
+            grouping: def.grouping ?? 'none',
             pinnedToDashboard: def.pinnedToDashboard ?? false,
             favorited: def.favorited ?? false,
           }

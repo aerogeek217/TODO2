@@ -12,7 +12,7 @@ function makeDef(overrides: Partial<PersistedListDefinition> & { id: number }): 
     favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
-    grouping: { kind: 'none' },
+    grouping: 'none',
     ...overrides,
   }
 }

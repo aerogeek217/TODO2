@@ -16,8 +16,8 @@ function makeDef(overrides: Partial<ListDefinition> = {}): ListDefinition {
     pinnedToDashboard: true,
     favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
-    sort: 'date',
-    grouping: { kind: 'none' },
+    sort: 'deadline',
+    grouping: 'none',
     ...overrides,
   }
 }

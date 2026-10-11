@@ -38,7 +38,7 @@ export interface WorkspaceSeed {
 }
 
 /** Mirrors `emptyPredicate()` in the list-definition store. */
-function emptyPredicate(): Record<string, unknown> {
+export function emptyPredicate(): Record<string, unknown> {
   return {
     showCompleted: false,
     personIds: null,

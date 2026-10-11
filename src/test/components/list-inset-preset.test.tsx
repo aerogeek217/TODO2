@@ -54,7 +54,7 @@ function dueThisWeekDef(): PersistedListDefinition {
     favorited: false,
     membership: { kind: 'custom', predicate },
     sort: 'deadline',
-    grouping: { kind: 'none' },
+    grouping: 'none',
   }
 }
 

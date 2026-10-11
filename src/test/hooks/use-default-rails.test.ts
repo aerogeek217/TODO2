@@ -33,7 +33,7 @@ function makeDef(overrides: { id: number; name: string }): PersistedListDefiniti
     favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
     sort: 'manual',
-    grouping: { kind: 'none' },
+    grouping: 'none',
   }
 }
 

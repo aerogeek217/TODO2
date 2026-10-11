@@ -29,15 +29,15 @@ describe('useListDefinitionStore load', () => {
       pinnedToDashboard: true,
       favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: 'date',
-      grouping: 'date',
+      sort: 'deadline',
+      grouping: 'deadline',
     })
     await listDefinitionRepository.insert({
       name: 'A', sortOrder: 1,
       pinnedToDashboard: true,
       favorited: false,
       membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: 'date',
+      sort: 'deadline',
       grouping: 'none',
     })
 
@@ -166,8 +166,8 @@ describe('Save-as-preset round-trip', () => {
     const id = await useListDefinitionStore.getState().add({
       name: "Alice's tasks",
       membership: { kind: 'custom', predicate },
-      sort: 'date',
-      grouping: 'date',
+      sort: 'deadline',
+      grouping: 'deadline',
       pinnedToDashboard: true,
     })
 
@@ -180,8 +180,8 @@ describe('Save-as-preset round-trip', () => {
     if (reloaded!.membership.kind === 'custom') {
       expect(reloaded!.membership.predicate.personIds).toEqual([7])
     }
-    expect(reloaded!.sort).toBe('date')
-    expect(reloaded!.grouping).toBe('date')
+    expect(reloaded!.sort).toBe('deadline')
+    expect(reloaded!.grouping).toBe('deadline')
 
     // Round-trip predicate evaluation: matchesFilter via the dashboard interpreter.
     const todos: PersistedTodoItem[] = [
@@ -215,8 +215,8 @@ describe('Save-as-preset round-trip', () => {
     const id = await useListDefinitionStore.getState().add({
       name: 'My preset',
       membership: { kind: 'custom', predicate: initialPredicate },
-      sort: 'date',
-      grouping: 'date',
+      sort: 'deadline',
+      grouping: 'deadline',
     })
 
     // Simulate a user editing in ListView and saving back: build a new predicate

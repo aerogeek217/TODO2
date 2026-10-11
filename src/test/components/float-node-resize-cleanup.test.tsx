@@ -43,8 +43,8 @@ function emptyDef(): PersistedListDefinition {
     pinnedToDashboard: false,
     favorited: false,
     membership: { kind: 'custom', predicate: emptyPredicate() },
-    sort: 'date',
-    grouping: { kind: 'none' },
+    sort: 'deadline',
+    grouping: 'none',
   }
 }
 

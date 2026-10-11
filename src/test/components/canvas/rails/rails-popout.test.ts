@@ -82,7 +82,7 @@ describe('popSlotToCanvas', () => {
         hasDeadline: null,
       } },
       sort: 'manual',
-      grouping: { kind: 'none' },
+      grouping: 'none',
     })
 
     const slot = makeSlot('slot-lens', 'lens', { listDefinitionId: defId })
@@ -351,7 +351,7 @@ describe('popTabAtPosition', () => {
         hasDeadline: null,
       } },
       sort: 'manual',
-      grouping: { kind: 'none' },
+      grouping: 'none',
     })
     const tab: Tab = { id: 't-l', type: 'lens', listDefinitionId: defId }
     const moved = await popTabAtPosition(tab, canvasId, 200, 100)
