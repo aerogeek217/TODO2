@@ -23,6 +23,11 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 beforeEach(async () => {
   await db.delete()
   await db.open()
+  // A fresh database reuses ids (todo 1, person 1, …): drop the caches an
+  // earlier test filled so they can't describe this test's rows.
+  for (const store of [useTodoStore, usePersonStore, useTagStore]) {
+    store.setState(store.getInitialState(), true)
+  }
 })
 
 describe('refreshAllStores', () => {
