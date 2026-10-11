@@ -626,9 +626,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onFollowedUp={handleFollowedUp}
           />
 
-          {/* Status Notes */}
+          {/* Progress */}
           <div className={styles.notesSection}>
-            <div className={styles.notesLabel}>Status Notes</div>
+            <div className={styles.notesLabel}>Progress</div>
             <input
               className={styles.metaInput}
               value={progress}
