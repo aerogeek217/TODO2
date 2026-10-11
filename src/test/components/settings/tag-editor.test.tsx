@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { render, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { TagEditor } from '../../../components/settings/TagEditor'
 import { db } from '../../../data/database'
 import { useTagStore } from '../../../stores/tag-store'
@@ -12,9 +12,26 @@ beforeEach(async () => {
   useTodoStore.setState({ todos: [], todosVersion: 0, loading: false, error: null })
 })
 
+const realLoad = useTagStore.getState().load
+
 afterEach(() => {
   cleanup()
+  useTagStore.setState({ load: realLoad })
 })
+
+/**
+ * Renders the editor and waits for its mount-time `load()` to finish. Without
+ * the wait, a test that edits right away races that read: the load's
+ * `set({ tags })` can land after the edit's optimistic update and put the
+ * pre-edit rows back.
+ */
+async function renderEditor() {
+  let mountLoad: Promise<void> | undefined
+  useTagStore.setState({ load: () => (mountLoad = realLoad()) })
+  const utils = render(<TagEditor onClose={() => {}} />)
+  await act(async () => { await mountLoad })
+  return utils
+}
 
 async function addTodo(title = 'Task'): Promise<number> {
   return (await db.todos.add({
@@ -25,7 +42,7 @@ async function addTodo(title = 'Task'): Promise<number> {
 
 describe('TagEditor', () => {
   it('adds a new tag via the inline form', async () => {
-    const { getByPlaceholderText, getByText, findByText } = render(<TagEditor onClose={() => {}} />)
+    const { getByPlaceholderText, getByText, findByText } = await renderEditor()
     fireEvent.click(getByText('+ Add Tag'))
     fireEvent.change(getByPlaceholderText('Tag name'), { target: { value: 'urgent' } })
     fireEvent.click(getByText('Add'))
@@ -38,7 +55,7 @@ describe('TagEditor', () => {
   it('rejects a case-insensitive duplicate name with an inline error', async () => {
     await useTagStore.getState().add('urgent')
 
-    const { getByPlaceholderText, getByText, findByText, container } = render(<TagEditor onClose={() => {}} />)
+    const { getByPlaceholderText, getByText, findByText, container } = await renderEditor()
     await findByText('urgent')
 
     fireEvent.click(getByText('+ Add Tag'))
@@ -52,7 +69,7 @@ describe('TagEditor', () => {
   it('edits a tag name via click-on-name', async () => {
     await useTagStore.getState().add('urgent')
 
-    const { getByDisplayValue, getByText, findByText } = render(<TagEditor onClose={() => {}} />)
+    const { getByDisplayValue, getByText, findByText } = await renderEditor()
     const row = await findByText('urgent')
     fireEvent.click(row)
 
@@ -76,7 +93,7 @@ describe('TagEditor', () => {
     await useTodoStore.getState().loadAll()
     await useTagStore.getState().loadAssignments([todoId])
 
-    const { container, getByText, findByText } = render(<TagEditor onClose={() => {}} />)
+    const { container, getByText, findByText } = await renderEditor()
     await findByText('urgent')
 
     const deleteBtn = container.querySelector('[title="Delete"]') as HTMLButtonElement | null
