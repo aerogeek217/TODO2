@@ -4,7 +4,7 @@ const DB_NAME = 'todo2'
 
 export interface WsTabSeed {
   id: string
-  kind: 'lens' | 'calendar' | 'notes' | 'taskboard' | 'status'
+  kind: 'lens' | 'calendar' | 'notes' | 'status'
   /** Lens tabs: index into `listDefinitions`. */
   listDefIdx?: number
 }
@@ -70,6 +70,7 @@ export function emptyPredicate(): Record<string, unknown> {
     dateRangeIncludeNoDate: false,
     hasDeadline: null,
     hasFollowup: null,
+    focus: null,
     tags: null,
   }
 }
