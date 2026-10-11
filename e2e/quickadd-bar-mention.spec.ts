@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedCanvas } from './fixtures/seed'
+import { seedTaskList } from './fixtures/workspace'
 
 /**
  * `@`-mention picker in QuickAddBar: substring-matches people, writes the
@@ -86,7 +86,7 @@ async function readTodoPeopleForTitle(
 
 test.describe('QuickAddBar @ mention picker', () => {
   test('@acme finds the matching person; picking it submits with a todoPeople join', async ({ page }) => {
-    await seedCanvas(page, {
+    await seedTaskList(page, {
       people: [
         { name: PERSON_NAME, initials: 'AS' },
         { name: TARGET_NAME, initials: 'AC', color: '#f28c4e' },
@@ -96,7 +96,7 @@ test.describe('QuickAddBar @ mention picker', () => {
 
     // The TopBar's `@ People ▾` filter renders only when
     // `usePersonStore.people.length > 0`, so its visibility is the cheapest
-    // signal that the person store has loaded. `seedCanvas` reloads the page
+    // signal that the person store has loaded. `seedTaskList` reloads the page
     // after writing IDB, but the app's init chain races the test's first `@`
     // keystroke; without this gate the autocomplete filters an empty list and
     // the popup never opens.

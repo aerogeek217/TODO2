@@ -164,7 +164,7 @@ test('closing the last widget of an unsaved list asks first; leaving the workspa
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: /Cancel/ }).click()
-  await expect(page).toHaveURL(/#\/workspace$/)
+  await expect(page).toHaveURL(/#\/$/)
 
   // Closing its only widget: Save writes the list, then closes the tab.
   await wsTab(page, 't1').getByRole('button', { name: 'Close Team' }).click()

@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedCanvasWithProjects, selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
+import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
+import { seedTaskList, TASK_LIST_TAB, wsListWidget } from './fixtures/workspace'
 
 /**
  * Inline title editing on `TaskRow` (`useInlineEdit`). Focus handoff into the
@@ -41,6 +42,13 @@ async function renameExternally(page: Page, id: number, title: string): Promise<
   }, { url: TODO_STORE_URL, id, title })
 }
 
+/** Click outside the row: the list widget's empty space below the rows. */
+async function clickOutside(page: Page): Promise<void> {
+  const box = await wsListWidget(page, TASK_LIST_TAB).boundingBox()
+  if (!box) throw new Error('no list widget')
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 20)
+}
+
 /**
  * Select the row, then single-click its title again to enter edit mode
  * (`scheduleEdit` fires after the 250 ms click/double-click window). Returns
@@ -65,9 +73,7 @@ async function startEditing(page: Page, title: string): Promise<{ id: number; in
 
 test.describe('TaskRow inline title edit', () => {
   test.beforeEach(async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [{ name: 'Edits', tasks: ['alpha', 'beta'] }],
-    })
+    await seedTaskList(page, { tasks: [{ title: 'alpha' }, { title: 'beta' }] })
   })
 
   test('single-click on a selected title focuses the edit box; Enter saves', async ({ page }) => {
@@ -95,7 +101,7 @@ test.describe('TaskRow inline title edit', () => {
   test('blur (click elsewhere) saves', async ({ page }) => {
     const { id, input } = await startEditing(page, 'alpha')
     await input.fill('alpha via blur')
-    await page.mouse.click(1100, 700)
+    await clickOutside(page)
     await expect(input).toHaveCount(0)
     await expect.poll(() => storeTitle(page, id)).toBe('alpha via blur')
     await expect(taskRowByTitle(page, 'alpha via blur')).toBeVisible()
@@ -108,7 +114,7 @@ test.describe('TaskRow inline title edit', () => {
     // Untouched draft follows the live title.
     await expect(input).toHaveValue('renamed elsewhere')
 
-    await page.mouse.click(1100, 700)
+    await clickOutside(page)
     await expect(input).toHaveCount(0)
     await expect(taskRowByTitle(page, 'renamed elsewhere')).toBeVisible()
     // Give any (wrong) blur-save a chance to land before asserting it didn't.

@@ -1,43 +1,20 @@
 import { expect, test } from '@playwright/test'
-import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
-
-const DB_NAME = 'todo2'
+import { taskRowByTitle } from './fixtures/seed'
+import { seedTaskList } from './fixtures/workspace'
 
 /**
- * Regression: opening `TaskEditPopup` in *edit*
- * mode for an existing task showed an empty Tags chip-picker dropdown,
- * even when the registry had tags. Root cause was a missing `allTags`
- * prop in the edit-mode mount sites — `taskEdit.editProps` doesn't carry
- * `allTags` (only `assignedTags`), and CanvasPage / ListView / CalendarView
- * were spreading editProps + threading `allPeople` explicitly
- * but not `allTags`. So `TaskEditPopup` defaulted `allTags = []` and the
- * picker had nothing to render. Create mode was unaffected — it threaded
- * `allTags={taskEdit.allTags}` directly.
+ * Regression: opening `TaskEditPopup` in *edit* mode for an existing task
+ * showed an empty Tags chip-picker dropdown, even when the registry had tags.
+ * Root cause was a missing `allTags` prop in the edit-mode mount sites —
+ * `taskEdit.editProps` doesn't carry `allTags` (only `assignedTags`), so
+ * `TaskEditPopup` defaulted `allTags = []` and the picker had nothing to
+ * render. Create mode was unaffected — it threaded `allTags` directly.
  */
 test('TaskEditPopup edit mode shows registry tags in the Tags picker', async ({ page }) => {
-  await seedCanvasWithProjects(page, {
-    projects: [{ name: 'Project A', tasks: ['Some task'] }],
+  await seedTaskList(page, {
+    tags: ['urgent', 'later'],
+    tasks: [{ title: 'Some task' }],
   })
-
-  // Seed the tag registry directly. (`tagStore.add` would also work via
-  // page.evaluate but raw IDB sidesteps the store load timing.)
-  await page.evaluate(async ({ db }) => {
-    return await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open(db)
-      req.onsuccess = () => {
-        const idb = req.result
-        const tx = idb.transaction(['tags'], 'readwrite')
-        tx.objectStore('tags').add({ name: 'urgent', color: '#ff5555' })
-        tx.objectStore('tags').add({ name: 'later', color: '#5555ff' })
-        tx.oncomplete = () => { idb.close(); resolve() }
-        tx.onerror = () => { idb.close(); reject(tx.error) }
-      }
-      req.onerror = () => reject(req.error)
-    })
-  }, { db: DB_NAME })
-
-  await page.reload()
-  await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
 
   // Open the task edit popup for the seeded task. TaskRow's row `<div>`
   // fires `onOpenDetail` (→ openEditPopup) on double-click; single click is

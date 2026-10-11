@@ -68,7 +68,7 @@ async function swipe(page: Page, dx: number): Promise<void> {
 test('mobile opens the workspace; list widgets use touch rows and tabs are not draggable', async ({ page }) => {
   await seed(page)
   await page.goto('/#/')
-  await expect(page).toHaveURL(/#\/workspace$/)
+  await expect(page).toHaveURL(/#\/$/)
   await expect(page.getByRole('tablist', { name: 'Columns' })).toBeVisible()
   await expect(columnName(page, 'Today')).toHaveAttribute('aria-selected', 'true')
 

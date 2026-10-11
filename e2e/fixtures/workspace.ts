@@ -36,8 +36,11 @@ export interface WsLayoutSeed {
 export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
-  people?: string[]
+  /** Names, or a name with initials / colour. */
+  people?: Array<string | { name: string; initials?: string; color?: string }>
   tags?: string[]
+  /** Status names, added after the app's own. */
+  statuses?: string[]
   listDefinitions?: Array<{
     name: string
     grouping?: string
@@ -61,6 +64,8 @@ export interface WorkspaceSeed {
     /** Hour of the due date (default midnight). */
     dueHour?: number
     recurrence?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+    /** Name of a status from `statuses`. */
+    status?: string
   }>
 }
 
@@ -69,7 +74,6 @@ export function emptyPredicate(): Record<string, unknown> {
   return {
     showCompleted: false,
     personIds: null,
-    projectIds: null,
     statusIds: null,
     searchText: '',
     dateField: 'deadline',
@@ -86,10 +90,10 @@ export function emptyPredicate(): Record<string, unknown> {
 /**
  * Seeds layouts (replacing the app's own), list definitions, people, tags and
  * tasks straight into IndexedDB, then reloads on the workspace. The app must
- * have booted once (Dexie upgraded) — this opens `/#/workspace` first.
+ * have booted once (Dexie upgraded) — this opens the workspace (`/#/`) first.
  */
 export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<void> {
-  await page.goto('/#/workspace')
+  await page.goto('/#/')
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   const payload = { ...seed, predicate: emptyPredicate() }
   await page.evaluate(async ({ db, seed }) => {
@@ -103,7 +107,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
       r.onsuccess = () => resolve(r.result as number)
       r.onerror = () => reject(r.error)
     })
-    const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'todos', 'todoPeople', 'todoTags'], 'readwrite')
+    const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'statuses', 'todos', 'todoPeople', 'todoTags'], 'readwrite')
     const done = new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
@@ -111,12 +115,20 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     })
     const now = new Date()
     const personIds = new Map<string, number>()
-    for (const name of seed.people ?? []) {
-      personIds.set(name, await add(tx.objectStore('people'), { name, initials: name.slice(0, 2).toUpperCase() }))
+    for (const entry of seed.people ?? []) {
+      const p = typeof entry === 'string' ? { name: entry } : entry
+      const row: Record<string, unknown> = { name: p.name, initials: p.initials ?? p.name.slice(0, 2).toUpperCase() }
+      if (p.color) row.color = p.color
+      personIds.set(p.name, await add(tx.objectStore('people'), row))
     }
     const tagIds = new Map<string, number>()
     for (const name of seed.tags ?? []) {
       tagIds.set(name, await add(tx.objectStore('tags'), { name, color: '#7ec4bc' }))
+    }
+    const statusIds = new Map<string, number>()
+    let statusOrder = 100
+    for (const name of seed.statuses ?? []) {
+      statusIds.set(name, await add(tx.objectStore('statuses'), { name, color: '#4caf50', icon: 'circle', sortOrder: ++statusOrder }))
     }
     const defIds: number[] = []
     let defOrder = 0
@@ -146,6 +158,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(task.dueInDays != null ? { dueDate: new Date(day(task.dueInDays).setHours(task.dueHour ?? 0)) } : {}),
         ...(task.recurrence ? { recurrenceRule: { type: task.recurrence } } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
+        ...(task.status != null ? { statusId: statusIds.get(task.status) } : {}),
         createdAt: now,
         modifiedAt: now,
         sortOrder: ++taskOrder,
@@ -186,6 +199,33 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
   }, { db: DB_NAME, seed: payload })
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+}
+
+/** Tab id of the list widget `seedTaskList` opens. */
+export const TASK_LIST_TAB = 'tasks'
+
+type ListDefinitionSeed = NonNullable<WorkspaceSeed['listDefinitions']>[number]
+
+/**
+ * Seeds people / tags / statuses / tasks and opens one layout with a single
+ * list widget (tab `TASK_LIST_TAB`) over a list named "Tasks" that shows
+ * every open task in manual order — a host for task-row specs. `list`
+ * overrides the list definition (grouping, predicate, runtime filter, …).
+ * Returns the list widget.
+ */
+export async function seedTaskList(
+  page: Page,
+  seed: Omit<WorkspaceSeed, 'layouts' | 'listDefinitions'> & { list?: Partial<ListDefinitionSeed> },
+): Promise<Locator> {
+  const { list, ...rest } = seed
+  await seedWorkspace(page, {
+    ...rest,
+    listDefinitions: [{ name: 'Tasks', ...list }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }] }] }],
+  })
+  const widget = wsListWidget(page, TASK_LIST_TAB)
+  await widget.waitFor({ state: 'visible' })
+  return widget
 }
 
 export function wsCell(page: Page, cellId: string): Locator {

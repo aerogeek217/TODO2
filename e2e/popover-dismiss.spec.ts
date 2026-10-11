@@ -1,73 +1,70 @@
-import { expect, test, type Page } from '@playwright/test'
-import {
-  railBySide,
-  seedCanvas,
-  seedCanvasWithProjects,
-  taskRowByTitle,
-} from './fixtures/seed'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { taskRowByTitle } from './fixtures/seed'
+import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsCell, wsListWidget } from './fixtures/workspace'
 
 /**
- * P13 migration: ui-consistency P1's popover-dismissal contract for the
- * three popovers that gained `usePopoverAnchor` portalization
- * (`CanvasContextMenu`, `ProjectPickerPopup`, `SlotMenu`). The previous
- * JSDOM cover (`src/test/components/overlays/popover-dismiss.test.tsx`)
- * fired synthetic `scroll` / `resize` events that JSDOM treats as bare
- * Event objects with no layout consequences — the actual contract reads
- * the capture-phase scroll handler installed in `usePopoverAnchor.ts:302`,
- * so a real browser running the listener against a real `window`/`document`
- * stack is the authoritative surface.
+ * Popover-dismissal contract for portaled popovers built on
+ * `usePopoverAnchor`: the task-row context menu (`ContextMenu`) and the
+ * workspace cell's ⋯ menu (`MenuPopover`). JSDOM fires synthetic `scroll` /
+ * `resize` events with no layout consequences; the contract reads the
+ * capture-phase scroll handler and the window resize listener installed by
+ * `usePopoverAnchor`, so a real browser is the authoritative surface.
  *
- * Each popover gets the universal four-leg dismissal check:
+ * The task-row menu gets the four-leg dismissal check:
  *   - outside-click closes
  *   - Escape closes
- *   - window scroll closes (gained via portal migration)
- *   - window resize closes (gained via portal migration)
+ *   - window scroll closes
+ *   - window resize closes
+ * The cell menu opts out of closing on scroll (`closeOnScroll: false`), so it
+ * gets outside-click, Escape and resize.
  */
 
 async function rightClickRowCenter(page: Page, title: string): Promise<void> {
-  // Helper-local: avoid repeating the right-click pattern at three sites below.
   // Right-click on the task title span specifically so the contextmenu lands
-  // on the row (and not on a chip popover trigger that lives under the row's
-  // bbox center per the post-P10 slot reorder).
+  // on the row (and not on a chip popover trigger under the row's bbox center).
   const span = taskRowByTitle(page, title).locator(`span[title="${title}"]`)
   const box = await span.boundingBox()
   if (!box) throw new Error(`right-click target "${title}" has no bounding box`)
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' })
 }
 
-async function titleCenter(page: Page, title: string): Promise<{ x: number; y: number }> {
-  const box = await taskRowByTitle(page, title).locator(`span[title="${title}"]`).boundingBox()
+async function titleCenter(row: Locator, title: string): Promise<{ x: number; y: number }> {
+  const box = await row.locator(`span[title="${title}"]`).boundingBox()
   if (!box) throw new Error(`"${title}" has no bounding box`)
   return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
 }
 
-test.describe('CanvasContextMenu — portalized dismissal contract', () => {
-  test('right-click opens a portalized menu; outside-click closes it', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [{ name: 'P1', tasks: ['seed'] }],
-    })
+/** A real mousedown outside any popover: the list widget's empty space below its rows. */
+async function clickOutside(page: Page, widget: Locator): Promise<void> {
+  const box = await widget.boundingBox()
+  if (!box) throw new Error('no list widget')
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height - 20)
+}
+
+test.describe('task-row context menu — portalized dismissal contract', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedTaskList(page, { tasks: [{ title: 'seed' }] })
+  })
+
+  test('right-click opens a portalized menu with the task actions; outside-click closes it', async ({ page }) => {
     await rightClickRowCenter(page, 'seed')
 
+    const menu = page.getByRole('menu')
+    await expect(menu.getByRole('menuitem')).toHaveText([
+      'Open', 'Mark complete', 'Set follow-up…', 'Followed up', 'Add to Focus', 'Delete',
+    ])
     // Portalization invariant: the menu lives at body level, not inside the
-    // task row's DOM subtree. Hidden-but-present is fine; we just check the
-    // menu mounted.
-    const menu = page.getByRole('menuitem', { name: 'Mark complete' })
-    await expect(menu).toBeVisible()
+    // task row's DOM subtree.
+    expect(await menu.evaluate((el) => el.parentElement === document.body)).toBe(true)
 
-    // Outside-click — fire a real mousedown well below the menu via
-    // `page.mouse.click` (skips Playwright's actionability checks that fail
-    // on a viewport intercepted by `react-flow__pane`). The
-    // `usePopoverAnchor` outside-click listener attaches at `document` in the
-    // capture phase, so any mousedown that reaches a non-panel element
+    // The `usePopoverAnchor` outside-click listener attaches at `document` in
+    // the capture phase, so any mousedown that reaches a non-panel element
     // triggers `onClose`.
-    await page.mouse.click(600, 600)
+    await clickOutside(page, wsListWidget(page, TASK_LIST_TAB))
     await expect(menu).toHaveCount(0)
   })
 
   test('Escape closes the context menu', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [{ name: 'P1', tasks: ['seed'] }],
-    })
     await rightClickRowCenter(page, 'seed')
     const menu = page.getByRole('menuitem', { name: 'Mark complete' })
     await expect(menu).toBeVisible()
@@ -76,10 +73,7 @@ test.describe('CanvasContextMenu — portalized dismissal contract', () => {
     await expect(menu).toHaveCount(0)
   })
 
-  test('window scroll closes the context menu (gained via portal migration)', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [{ name: 'P1', tasks: ['seed'] }],
-    })
+  test('window scroll closes the context menu', async ({ page }) => {
     await rightClickRowCenter(page, 'seed')
     const menu = page.getByRole('menuitem', { name: 'Mark complete' })
     await expect(menu).toBeVisible()
@@ -93,41 +87,44 @@ test.describe('CanvasContextMenu — portalized dismissal contract', () => {
     await expect(menu).toHaveCount(0)
   })
 
-  test('window resize closes the context menu (gained via portal migration)', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [{ name: 'P1', tasks: ['seed'] }],
-    })
+  test('window resize closes the context menu', async ({ page }) => {
     await rightClickRowCenter(page, 'seed')
     const menu = page.getByRole('menuitem', { name: 'Mark complete' })
     await expect(menu).toBeVisible()
 
-    // Real viewport resize — fires `window.resize`, which `usePopoverAnchor`
-    // listens for. Restore the configured viewport at the end so subsequent
-    // assertions don't drift if the helper is reused.
+    // Real viewport resize — fires `window.resize`.
     await page.setViewportSize({ width: 1180, height: 760 })
     await expect(menu).toHaveCount(0)
   })
 })
 
-test.describe('CanvasContextMenu — re-anchor', () => {
+test.describe('task-row context menu — re-anchor', () => {
   test('right-clicking task B while the menu for A is open re-positions the menu at B', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [
-        { name: 'Left', positionX: 80, positionY: 80, tasks: ['task A'] },
-        { name: 'Right', positionX: 640, positionY: 360, tasks: ['task B'] },
-      ],
+    // Two widgets side by side showing the same list, so A and B sit far apart.
+    await seedWorkspace(page, {
+      listDefinitions: [{ name: 'Tasks' }],
+      tasks: [{ title: 'task A' }, { title: 'task B' }],
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'left', cells: [{ id: 'l1', tabs: [{ id: 'leftTab', kind: 'lens', listDefIdx: 0 }] }] },
+          { id: 'right', cells: [{ id: 'r1', tabs: [{ id: 'rightTab', kind: 'lens', listDefIdx: 0 }] }] },
+        ],
+      }],
     })
+    const rowA = wsListWidget(page, 'leftTab').locator('[data-row-key]').filter({ hasText: 'task A' })
+    const rowB = wsListWidget(page, 'rightTab').locator('[data-row-key]').filter({ hasText: 'task B' })
     const menu = page.getByRole('menu')
     const viewport = page.viewportSize()
     if (!viewport) throw new Error('no viewport size')
 
-    const pointA = await titleCenter(page, 'task A')
+    const pointA = await titleCenter(rowA, 'task A')
     await page.mouse.click(pointA.x, pointA.y, { button: 'right' })
     await expect(menu).toHaveCount(1)
     const boxA = await menu.boundingBox()
     if (!boxA) throw new Error('menu A has no bounding box')
 
-    const pointB = await titleCenter(page, 'task B')
+    const pointB = await titleCenter(rowB, 'task B')
     await page.mouse.click(pointB.x, pointB.y, { button: 'right' })
     // Exactly one menu, now anchored at B's click point (bottom-start + 4px
     // gap unless a viewport flip/clamp applies — B sits well inside).
@@ -146,148 +143,25 @@ test.describe('CanvasContextMenu — re-anchor', () => {
   })
 })
 
-test.describe('ProjectPickerPopup — portalized dismissal contract', () => {
-  test('opens via context menu; outside-click closes it', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [
-        { name: 'P1', tasks: ['seed'] },
-        { name: 'P2', tasks: [] },
-      ],
-    })
-    await rightClickRowCenter(page, 'seed')
-    await page.getByRole('menuitem', { name: 'Move to project…' }).click()
-    // Anchor on the picker's search input — unique to the picker portal,
-    // unambiguous vs. the project node's `P2` text on the canvas.
-    const picker = page.getByPlaceholder('Search projects...')
-    await expect(picker).toBeVisible()
-
-    await page.mouse.click(600, 600)
-    await expect(picker).toHaveCount(0)
+test.describe('cell ⋯ menu — portalized dismissal contract', () => {
+  test.beforeEach(async ({ page }) => {
+    await seedTaskList(page, { tasks: [{ title: 'seed' }] })
+    await wsCell(page, 'cell').getByRole('button', { name: 'Cell options' }).click()
+    await expect(page.getByRole('menu', { name: 'Cell options' })).toBeVisible()
   })
 
-  test('Escape closes the project picker', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [
-        { name: 'P1', tasks: ['seed'] },
-        { name: 'P2', tasks: [] },
-      ],
-    })
-    await rightClickRowCenter(page, 'seed')
-    await page.getByRole('menuitem', { name: 'Move to project…' }).click()
-    // Anchor on the picker's search input — unique to the picker portal,
-    // unambiguous vs. the project node's `P2` text on the canvas.
-    const picker = page.getByPlaceholder('Search projects...')
-    await expect(picker).toBeVisible()
+  test('outside-click closes the cell menu', async ({ page }) => {
+    await clickOutside(page, wsListWidget(page, TASK_LIST_TAB))
+    await expect(page.getByRole('menu', { name: 'Cell options' })).toHaveCount(0)
+  })
 
+  test('Escape closes the cell menu', async ({ page }) => {
     await page.keyboard.press('Escape')
-    await expect(picker).toHaveCount(0)
+    await expect(page.getByRole('menu', { name: 'Cell options' })).toHaveCount(0)
   })
 
-  test('window scroll closes the project picker', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [
-        { name: 'P1', tasks: ['seed'] },
-        { name: 'P2', tasks: [] },
-      ],
-    })
-    await rightClickRowCenter(page, 'seed')
-    await page.getByRole('menuitem', { name: 'Move to project…' }).click()
-    // Anchor on the picker's search input — unique to the picker portal,
-    // unambiguous vs. the project node's `P2` text on the canvas.
-    const picker = page.getByPlaceholder('Search projects...')
-    await expect(picker).toBeVisible()
-
-    await page.evaluate(() => {
-      document.body.dispatchEvent(new Event('scroll', { bubbles: true }))
-    })
-    await expect(picker).toHaveCount(0)
-  })
-
-  test('window resize closes the project picker', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [
-        { name: 'P1', tasks: ['seed'] },
-        { name: 'P2', tasks: [] },
-      ],
-    })
-    await rightClickRowCenter(page, 'seed')
-    await page.getByRole('menuitem', { name: 'Move to project…' }).click()
-    // Anchor on the picker's search input — unique to the picker portal,
-    // unambiguous vs. the project node's `P2` text on the canvas.
-    const picker = page.getByPlaceholder('Search projects...')
-    await expect(picker).toBeVisible()
-
+  test('window resize closes the cell menu', async ({ page }) => {
     await page.setViewportSize({ width: 1180, height: 760 })
-    await expect(picker).toHaveCount(0)
-  })
-})
-
-test.describe('SlotMenu — portalized dismissal contract', () => {
-  // SlotMenu lives on a rail slot's "Slot options" button. Seeding a left
-  // rail with one lens slot (referencing a real list def, so the slot
-  // renders without `useDefaultRails` reseeding) gives us the trigger.
-  async function seedRailWithLensSlot(page: Page): Promise<void> {
-    await seedCanvas(page, {
-      listDefinitions: [{ name: 'Source list' }],
-      canvasRails: {
-        left: {
-          orientation: 'vertical',
-          slots: [{
-            id: 'slot-A',
-            tabs: [{ id: 'tab-A', type: 'lens', listDefIdx: 0 }],
-            activeTabId: 'tab-A',
-          }],
-        },
-        right: null,
-        top: null,
-        bottom: null,
-      },
-    })
-    await railBySide(page, 'left').waitFor({ state: 'visible' })
-  }
-
-  test('opens via slot-options button; outside-click closes it', async ({ page }) => {
-    await seedRailWithLensSlot(page)
-    await page.getByRole('button', { name: 'Slot options' }).first().click()
-    const menu = page.getByRole('menu', { name: /list slot options/i })
-    await expect(menu).toBeVisible()
-
-    // Outside-click via direct mouse coords (avoids
-    // `react-flow__pane intercepts pointer events` actionability check on
-    // viewport locators).
-    await page.mouse.click(700, 500)
-    await expect(menu).toHaveCount(0)
-  })
-
-  test('Escape closes the slot menu', async ({ page }) => {
-    await seedRailWithLensSlot(page)
-    await page.getByRole('button', { name: 'Slot options' }).first().click()
-    const menu = page.getByRole('menu', { name: /list slot options/i })
-    await expect(menu).toBeVisible()
-
-    await page.keyboard.press('Escape')
-    await expect(menu).toHaveCount(0)
-  })
-
-  test('window scroll closes the slot menu', async ({ page }) => {
-    await seedRailWithLensSlot(page)
-    await page.getByRole('button', { name: 'Slot options' }).first().click()
-    const menu = page.getByRole('menu', { name: /list slot options/i })
-    await expect(menu).toBeVisible()
-
-    await page.evaluate(() => {
-      document.body.dispatchEvent(new Event('scroll', { bubbles: true }))
-    })
-    await expect(menu).toHaveCount(0)
-  })
-
-  test('window resize closes the slot menu', async ({ page }) => {
-    await seedRailWithLensSlot(page)
-    await page.getByRole('button', { name: 'Slot options' }).first().click()
-    const menu = page.getByRole('menu', { name: /list slot options/i })
-    await expect(menu).toBeVisible()
-
-    await page.setViewportSize({ width: 1180, height: 760 })
-    await expect(menu).toHaveCount(0)
+    await expect(page.getByRole('menu', { name: 'Cell options' })).toHaveCount(0)
   })
 })

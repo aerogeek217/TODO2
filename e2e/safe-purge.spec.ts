@@ -77,7 +77,7 @@ async function dbTodos(page: Page): Promise<Array<{ title: string; uid: string; 
 
 async function boot(page: Page, path = '/') {
   await page.goto(path)
-  if (path === '/') await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
+  if (path === '/') await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
 }
 
 test('launch prompt: Not now skips one launch; Export & delete archives, deletes, and the archive appends back with the duplicate picker', async ({ page }) => {
@@ -117,7 +117,7 @@ test('launch prompt: Not now skips one launch; Export & delete archives, deletes
 
   // Next launch: nothing expired, no prompt.
   await page.reload()
-  await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
   // Append the archive back: Old B is a title duplicate of the active task.

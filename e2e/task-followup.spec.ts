@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
+import { taskRowByTitle } from './fixtures/seed'
+import { seedTaskList, TASK_LIST_TAB, wsListWidget } from './fixtures/workspace'
 
 /**
  * Follow-up pill, empty-slot flag, follow-up popover and the editor's
@@ -64,9 +65,7 @@ async function expectInViewport(page: Page, el: Locator): Promise<void> {
 test.describe('Task follow-up', () => {
   test.beforeEach(async ({ page }) => {
     await page.clock.setFixedTime(NOW)
-    await seedCanvasWithProjects(page, {
-      projects: [{ name: 'Follow', positionX: 80, positionY: 80, tasks: ['alpha', 'beta'] }],
-    })
+    await seedTaskList(page, { tasks: [{ title: 'alpha' }, { title: 'beta' }] })
   })
 
   test('empty-slot flag: hidden at rest, revealed on hover, opens the popover; typing an interval + Enter sets it', async ({ page }) => {
@@ -121,7 +120,9 @@ test.describe('Task follow-up', () => {
 
     await pill.click()
     await expect(pop).toBeVisible()
-    await page.mouse.click(5, 790)
+    // Outside: the list widget's empty space below the rows.
+    const wb = (await wsListWidget(page, TASK_LIST_TAB).boundingBox())!
+    await page.mouse.click(wb.x + wb.width / 2, wb.y + wb.height - 20)
     await expect(pop).toBeHidden()
     await expect(pill).toBeVisible()
   })

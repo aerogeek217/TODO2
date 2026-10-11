@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { listInsetByIndex, seedCanvas } from './fixtures/seed'
+import { seedTaskList, TASK_LIST_TAB, wsTab } from './fixtures/workspace'
 
 /**
  * List editor modal regressions.
@@ -20,16 +20,12 @@ import { listInsetByIndex, seedCanvas } from './fixtures/seed'
  * meaningfully under a real viewport.
  */
 
+/** Opens the list editor from the list tab's menu (right-click → Edit list…). */
 async function openListEditor(page: Page): Promise<void> {
-  const inset = listInsetByIndex(page)
-  await expect(inset).toBeVisible()
-  // WidgetHeader's title-caret carries `aria-label="Change List"`
-  // (KIND_LABEL.lens === 'List').
-  const titleButton = inset.locator('button[aria-haspopup="menu"][aria-label="Change List"]').first()
-  await titleButton.click()
-  const menu = page.locator('[role="menu"][aria-label="Change widget"]')
+  await wsTab(page, TASK_LIST_TAB).click({ button: 'right' })
+  const menu = page.getByRole('menu', { name: 'Change widget' })
   await expect(menu).toBeVisible()
-  await menu.getByRole('menuitem', { name: 'Edit list' }).click()
+  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
   await expect(menu).toHaveCount(0)
   await expect(page.getByRole('dialog', { name: /Edit list:/ })).toBeVisible()
 }
@@ -69,14 +65,7 @@ test.describe('list editor modal — filter picker placement', () => {
     // near the bottom; portaled, it escapes the dialog and flips up when
     // there's no room below.
     await page.setViewportSize({ width: 1024, height: 480 })
-    await seedCanvas(page, {
-      listDefinitions: [{
-        name: 'Date flip target',
-        // A minimal stored predicate: the editor fills in the rest.
-        membership: { kind: 'custom', predicate: {} },
-      }],
-      listInsets: [{ listDefIdx: 0, x: 320, y: 200, width: 320, height: 240 }],
-    })
+    await seedTaskList(page, { list: { name: 'Date flip target' } })
 
     await openListEditor(page)
     await openDatePicker(page)
@@ -101,13 +90,7 @@ test.describe('list editor modal — filter picker placement', () => {
     // Pre-fix the panel lived inside the dialog's `body { overflow: auto }`
     // wrapper, so a tall option list got clipped. Asserting the panel's
     // ancestor chain proves it now portals to document.body.
-    await seedCanvas(page, {
-      listDefinitions: [{
-        name: 'Date portal target',
-        membership: { kind: 'custom', predicate: {} },
-      }],
-      listInsets: [{ listDefIdx: 0, x: 320, y: 200, width: 320, height: 240 }],
-    })
+    await seedTaskList(page, { list: { name: 'Date portal target' } })
 
     await openListEditor(page)
     await openDatePicker(page)
@@ -138,10 +121,7 @@ test.describe('list editor modal — filter picker placement', () => {
 
 test.describe('list editor modal — nested confirm z-index', () => {
   test('discard-changes confirm renders above the editor', async ({ page }) => {
-    await seedCanvas(page, {
-      listDefinitions: [{ name: 'Discard probe' }],
-      listInsets: [{ listDefIdx: 0, x: 320, y: 200, width: 320, height: 240 }],
-    })
+    await seedTaskList(page, { list: { name: 'Discard probe' } })
 
     await openListEditor(page)
 

@@ -249,7 +249,7 @@ test.describe('saved layouts', () => {
     const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
     await expect(dialog).toContainText('You’re leaving the workspace.')
     await dialog.getByRole('button', { name: /Cancel/ }).click()
-    await expect(page).toHaveURL(/#\/workspace$/)
+    await expect(page).toHaveURL(/#\/$/)
     await expect(page.locator('[data-ws-area]')).toBeVisible()
 
     await page.getByRole('button', { name: 'Settings' }).click()

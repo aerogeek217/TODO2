@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
+import { taskRowByTitle } from './fixtures/seed'
+import { seedTaskList } from './fixtures/workspace'
 
 /**
  * Locks in the chip-slot ordering invariant on `TaskRow`. The four chip
@@ -15,87 +16,18 @@ import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
  * x-position even without hover.
  */
 
-const DB = 'todo2'
-
 test.describe('TaskRow chip slot order', () => {
   test('# / @ / date / status appear in fixed left-to-right order across populated/empty combos', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [{
-        name: 'Slots',
-        tasks: ['empty row', 'date only', 'status only', 'tag and status'],
-      }],
+    await seedTaskList(page, {
+      statuses: ['Doing'],
+      tags: ['urgent'],
+      tasks: [
+        { title: 'empty row' },
+        { title: 'date only', dueInDays: 0 },
+        { title: 'status only', status: 'Doing' },
+        { title: 'tag and status', status: 'Doing', tags: ['urgent'] },
+      ],
     })
-
-    // Mutate the seeded todos to give each row a different combination of
-    // status / date / tag, plus the supporting status + tag entities. The
-    // helper only seeds title + project, so the rest goes via raw IDB here.
-    await page.evaluate(async (db) => {
-      await new Promise<void>((resolve, reject) => {
-        const req = indexedDB.open(db)
-        req.onsuccess = () => {
-          const idb = req.result
-          const tx = idb.transaction(['todos', 'statuses', 'tags', 'todoTags'], 'readwrite')
-
-          const statusReq = tx.objectStore('statuses').add({
-            name: 'Doing', color: '#3b82f6', icon: 'circle', sortOrder: 1,
-          })
-          const tagReq = tx.objectStore('tags').add({
-            name: 'urgent', color: '#ef4444',
-          })
-
-          statusReq.onsuccess = () => {
-            const statusId = statusReq.result as number
-            tagReq.onsuccess = () => {
-              const tagId = tagReq.result as number
-              const allReq = tx.objectStore('todos').getAll()
-              allReq.onsuccess = () => {
-                const todos = allReq.result as Array<{ id: number; title: string }>
-                const byTitle = (t: string) => {
-                  const row = todos.find((x) => x.title === t)
-                  if (!row) throw new Error(`seed: missing row "${t}"`)
-                  return row.id
-                }
-                const dateOnlyId = byTitle('date only')
-                const statusOnlyId = byTitle('status only')
-                const tagAndStatusId = byTitle('tag and status')
-
-                const todoStore = tx.objectStore('todos')
-                // date only — set dueDate
-                const r1 = todoStore.get(dateOnlyId)
-                r1.onsuccess = () => {
-                  const t = r1.result as Record<string, unknown>
-                  t.dueDate = new Date()
-                  todoStore.put(t)
-                }
-                // status only — set statusId
-                const r2 = todoStore.get(statusOnlyId)
-                r2.onsuccess = () => {
-                  const t = r2.result as Record<string, unknown>
-                  t.statusId = statusId
-                  todoStore.put(t)
-                }
-                // tag and status — set statusId, then add a todoTags join
-                const r3 = todoStore.get(tagAndStatusId)
-                r3.onsuccess = () => {
-                  const t = r3.result as Record<string, unknown>
-                  t.statusId = statusId
-                  todoStore.put(t)
-                  tx.objectStore('todoTags').add({ todoId: tagAndStatusId, tagId })
-                }
-              }
-            }
-          }
-
-          tx.oncomplete = () => { idb.close(); resolve() }
-          tx.onerror = () => { idb.close(); reject(tx.error) }
-          tx.onabort = () => { idb.close(); reject(tx.error ?? new Error('seed tx aborted')) }
-        }
-        req.onerror = () => reject(req.error)
-      })
-    }, DB)
-
-    await page.reload()
-    await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
     await taskRowByTitle(page, 'tag and status').waitFor({ state: 'visible' })
 
     const titles = ['empty row', 'date only', 'status only', 'tag and status']

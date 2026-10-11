@@ -25,9 +25,11 @@ async function expectChipsAndGroups(page: import('@playwright/test').Page) {
   await expect(cell.locator('[data-list-group="person-1"]')).toContainText('Water the plants')
 }
 
-test('cold load of the workspace renders person and tag chips and person groups', async ({ page }) => {
+test('cold load of / renders person and tag chips and person groups', async ({ page }) => {
   await seedWorkspace(page, seed)
-  // seedWorkspace reloads on /#/workspace: a cold load.
+  await page.goto('/')
+  await page.reload()
+  await expect(page.locator('[data-ws-area]')).toBeVisible()
   await expectChipsAndGroups(page)
 })
 

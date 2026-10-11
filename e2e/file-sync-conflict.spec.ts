@@ -84,13 +84,18 @@ async function addTodo(page: Page, title: string) {
 test('attaching a file that differs from a non-empty browser asks first; cancel and "Use browser data" behave', async ({ page }) => {
   await stubPicker(page)
   await page.goto('/')
-  await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
 
   // Browser side: one task. File side: same DB, but the task renamed.
   await addTodo(page, 'Browser task')
   const dump = await dumpDb(page)
   const fileTodos = (dump.todos as Array<Record<string, unknown>>).map((t) => ({ ...t, title: 'File task' }))
-  const fileText = JSON.stringify({ ...dump, todos: fileTodos, __schemaVersion: 49, savedAt: '2026-01-01T00:00:00.000Z' })
+  // Same schema as the browser (Vite dev serves the source module by URL).
+  const schemaVersion = await page.evaluate(async (url) => {
+    const mod = (await import(/* @vite-ignore */ url)) as { CURRENT_DB_VERSION: number }
+    return mod.CURRENT_DB_VERSION
+  }, '/src/data/database.ts')
+  const fileText = JSON.stringify({ ...dump, todos: fileTodos, __schemaVersion: schemaVersion, savedAt: '2026-01-01T00:00:00.000Z' })
   await writeSyncFile(page, fileText)
 
   await page.goto('/#/settings')
@@ -146,7 +151,7 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
 test('an unreadable sync file pauses sync and is never overwritten by edits', async ({ page }) => {
   await stubPicker(page)
   await page.goto('/')
-  await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await writeSyncFile(page, '{ not json')
 
   await page.goto('/#/settings')
@@ -155,7 +160,7 @@ test('an unreadable sync file pauses sync and is never overwritten by edits', as
   await expect(page.getByTestId('file-sync-paused')).toContainText('invalid JSON')
   // A real app edit (QuickAdd → Dexie hooks), not a raw IDB write.
   await page.goto('/')
-  await page.locator('.react-flow__viewport').first().waitFor({ state: 'visible' })
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(page.getByTestId('file-sync-paused')).toBeVisible()
   await page.keyboard.press('Control+Space')
   const quickAdd = page.getByRole('dialog', { name: 'Quick add task' })

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
+import { taskRowByTitle } from './fixtures/seed'
+import { seedTaskList } from './fixtures/workspace'
 
 /**
  * Inline tag chip on task rows.
@@ -13,9 +14,7 @@ import { seedCanvasWithProjects, taskRowByTitle } from './fixtures/seed'
 
 test.describe('inline tag chip', () => {
   test('row hover reveals the # trigger; clicking it opens the lookup-or-create dropdown', async ({ page }) => {
-    await seedCanvasWithProjects(page, {
-      projects: [{ name: 'Garden', tasks: ['weed beds'] }],
-    })
+    await seedTaskList(page, { tasks: [{ title: 'weed beds' }] })
 
     const row = taskRowByTitle(page, 'weed beds')
     await expect(row).toBeVisible()
