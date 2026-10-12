@@ -158,7 +158,7 @@ describe('TopBar search right-click — dropdown survival', () => {
         <TopBar />
       </MemoryRouter>,
     )
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     act(() => {
       input.focus()
       fireEvent.change(input, { target: { value: 'buy' } })

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, forwardRef } from 'react'
 import { useLocation } from 'react-router'
-import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../../routes'
+import { ROUTE_WORKSPACE } from '../../routes'
 import { SEARCH_DEBOUNCE_MS } from '../../constants'
 import { useFilterStore, criteriaToPredicate, predicateToCriteria } from '../../stores/filter-store'
 import type { Person, PersistedTodoItem, Status, TodoPredicate } from '../../models'
@@ -18,6 +18,9 @@ import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { ContextMenu } from '../overlays/ContextMenu'
 import { buildSearchContextMenuItems } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
+import { CloseIcon, FunnelIcon, PlusIcon, SearchIcon } from '../workspace/icons'
+import { useMediaQuery } from '../../hooks/use-media-query'
+import { formatShortcut } from '../../utils/platform'
 import styles from './TopBar.module.css'
 
 const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
@@ -29,6 +32,19 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   tag: 'Tags',
 }
 const MAX_GROUP_PREVIEW = 5
+
+/** Below this width the screen-filter buttons fold into one Filters menu. */
+const FOLD_FILTERS_QUERY = '(max-width: 1279px)'
+
+/** The Settings gear (16px, stroke ≈ 1.9). */
+function GearIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
 
 function SearchFieldIcon({ field }: { field: TextMatchField }) {
   const common = { width: 12, height: 12, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
@@ -305,8 +321,11 @@ export function TopBar() {
 
   const { isConnected, isSupported } = useFileStorageStore()
   const location = useLocation()
-  const isSettingsPage = location.pathname === ROUTE_SETTINGS
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
+  const settingsOpen = useUIStore((s) => s.settingsOpen)
+  // The bar never wraps: below 1280px the filter buttons fold into one
+  // Filters menu (search and labels narrow in CSS).
+  const foldFilters = useMediaQuery(FOLD_FILTERS_QUERY)
 
   const handleOpenTodo = useCallback((todoId: number) => {
     openEditPopup(todoId)
@@ -329,83 +348,118 @@ export function TopBar() {
     return todos.find((t) => t.id === searchContextMenu.todoId) ?? null
   }, [searchContextMenu, todos])
 
-  if (isSettingsPage) return null
-
   return (
-    <header className={`${styles.topBar} ${isActive ? styles.topBarFiltered : ''} ${isWorkspace ? styles.topBarWorkspace : ''}`} data-filter-row>
+    <header className={styles.topBar}>
+      <button
+        type="button"
+        className={styles.newTask}
+        onClick={() => useUIStore.getState().openQuickAdd()}
+        aria-label="New task"
+        title={`New task (${formatShortcut('Mod-Space')})`}
+      >
+        <PlusIcon size={14} strokeWidth={2} />
+        <span className={styles.newTaskLabel}>New task</span>
+      </button>
       {isWorkspace && <LayoutControls />}
-      <div className={styles.searchWrapper}>
-        <svg className={styles.searchIcon} width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="7" cy="7" r="4.5" />
-          <path d="M10.5 10.5 14 14" />
-        </svg>
-        <input
-          ref={searchInputRef}
-          className={styles.searchInput}
-          type="text"
-          placeholder="Search..."
-          value={localSearch}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          aria-controls="search-results"
-          aria-expanded={showMiniList}
-          onFocus={() => setSearchFocused(true)}
-          onBlur={(e) => {
-            if (miniListRef.current?.contains(e.relatedTarget as Node)) return
-            // Right-click on a search row opens a context menu that autoFocuses
-            // its first item; preserve the listbox so the menu's actions can
-            // still target the row.
-            if (searchContextMenu) return
-            setSearchFocused(false)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              handleSearchChange('')
-              setSearchFocused(false)
-              searchInputRef.current?.blur()
-            } else if (e.key === 'ArrowDown' && showMiniList) {
-              e.preventDefault()
-              const first = miniListRef.current?.querySelector<HTMLButtonElement>('[role="option"]')
-              first?.focus()
-            }
-          }}
-          data-search-input
-        />
-        {localSearch && (
-          <button
-            className={styles.searchClear}
-            onMouseDown={(e) => { e.preventDefault(); handleSearchChange(''); searchInputRef.current?.focus() }}
-          >
-            &times;
-          </button>
-        )}
-        {showMiniList && miniListGroups && (
-          <SearchResultsGroups
-            ref={miniListRef}
-            groups={miniListGroups}
-            query={localSearch}
-            pillCtx={searchPillCtx}
-            searchInputRef={searchInputRef}
-            onOpen={handleOpenTodo}
-            onOpenContextMenu={handleOpenSearchContextMenu}
+
+      <div
+        className={`${styles.tray} ${isActive ? styles.trayActive : ''}`}
+        role="group"
+        aria-label="Screen filters — apply to every widget"
+        data-filter-row
+        data-filtered={isActive || undefined}
+      >
+        <div className={styles.searchWrapper}>
+          <span className={styles.searchIcon}><SearchIcon size={14} /></span>
+          <input
+            ref={searchInputRef}
+            className={styles.searchInput}
+            type="text"
+            placeholder="Search…"
+            aria-label="Search tasks"
+            value={localSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            aria-controls="search-results"
+            aria-expanded={showMiniList}
+            onFocus={() => setSearchFocused(true)}
             onBlur={(e) => {
-              if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
-                if (searchContextMenu) return
+              if (miniListRef.current?.contains(e.relatedTarget as Node)) return
+              // Right-click on a search row opens a context menu that autoFocuses
+              // its first item; preserve the listbox so the menu's actions can
+              // still target the row.
+              if (searchContextMenu) return
+              setSearchFocused(false)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                handleSearchChange('')
                 setSearchFocused(false)
+                searchInputRef.current?.blur()
+              } else if (e.key === 'ArrowDown' && showMiniList) {
+                e.preventDefault()
+                const first = miniListRef.current?.querySelector<HTMLButtonElement>('[role="option"]')
+                first?.focus()
               }
             }}
+            data-search-input
           />
-        )}
+          {localSearch ? (
+            <button
+              type="button"
+              className={styles.searchClear}
+              aria-label="Clear search"
+              onMouseDown={(e) => { e.preventDefault(); handleSearchChange(''); searchInputRef.current?.focus() }}
+            >
+              <CloseIcon size={8} />
+            </button>
+          ) : (
+            <kbd className={styles.searchKbd} aria-hidden="true">/</kbd>
+          )}
+          {showMiniList && miniListGroups && (
+            <SearchResultsGroups
+              ref={miniListRef}
+              groups={miniListGroups}
+              query={localSearch}
+              pillCtx={searchPillCtx}
+              searchInputRef={searchInputRef}
+              onOpen={handleOpenTodo}
+              onOpenContextMenu={handleOpenSearchContextMenu}
+              onBlur={(e) => {
+                if (!miniListRef.current?.contains(e.relatedTarget as Node) && e.relatedTarget !== searchInputRef.current) {
+                  if (searchContextMenu) return
+                  setSearchFocused(false)
+                }
+              }}
+            />
+          )}
+        </div>
+
+        <span className={styles.funnel} title="Filters apply to every widget on screen" aria-hidden="true">
+          <FunnelIcon size={14} />
+        </span>
+        <FilterChipBar
+          predicate={filterPredicate}
+          onChange={handleFilterChange}
+          onClearAll={() => useFilterStore.getState().clearAll()}
+          fold={foldFilters}
+          compact={foldFilters}
+        />
       </div>
 
-      <FilterChipBar
-        predicate={filterPredicate}
-        onChange={handleFilterChange}
-        onClearAll={() => useFilterStore.getState().clearAll()}
-      />
-
-      {isSupported && !isConnected && (
-        <span className={styles.storageStatus}>Local only</span>
-      )}
+      <div className={styles.right}>
+        {isSupported && !isConnected && (
+          <span className={styles.storageStatus}>Local only</span>
+        )}
+        <button
+          type="button"
+          className={`${styles.gear} ${settingsOpen ? styles.gearOpen : ''}`}
+          onClick={() => useUIStore.getState().openSettings()}
+          aria-label="Settings"
+          title="Settings (G then S)"
+        >
+          <GearIcon />
+        </button>
+      </div>
 
       {searchContextMenu && menuTodo && (
         <SearchResultContextMenu

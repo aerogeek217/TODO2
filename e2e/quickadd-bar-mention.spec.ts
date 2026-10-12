@@ -94,13 +94,13 @@ test.describe('QuickAddBar @ mention picker', () => {
       ],
     })
 
-    // The TopBar's `@ People ▾` filter renders only when
+    // The top bar's People filter renders only when
     // `usePersonStore.people.length > 0`, so its visibility is the cheapest
     // signal that the person store has loaded. `seedTaskList` reloads the page
     // after writing IDB, but the app's init chain races the test's first `@`
     // keystroke; without this gate the autocomplete filters an empty list and
     // the popup never opens.
-    await expect(page.getByRole('button', { name: /@ People/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
 
     // Open QuickAddBar via the global hotkey.
     await page.keyboard.press('Control+Space')

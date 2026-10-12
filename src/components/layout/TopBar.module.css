@@ -1,26 +1,86 @@
+/* The app's one top bar (desktop): New task, the layout picker + save,
+ * the screen-filter tray, then the storage pill and the Settings gear. It
+ * never wraps; narrower windows fold the filters and shorten labels. */
+
 .topBar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: var(--topbar-height);
-  padding: 0 12px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
   gap: 4px;
+  height: var(--topbar-height);
+  padding: 0 8px;
+  background: var(--color-canvas-bg);
+  border-bottom: 1px solid var(--color-border-muted);
   flex-shrink: 0;
-  transition: background 0.15s, border-bottom-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
 }
 
-/* Workspace: layout picker first, everything left-aligned. */
-.topBarWorkspace {
-  justify-content: flex-start;
-  padding-left: 6px;
+/* ═══ New task ═══ */
+
+.newTask {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  margin-right: 4px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-.topBarFiltered {
-  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
-  border-bottom-color: color-mix(in srgb, var(--color-danger) 55%, var(--color-border));
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-danger) 35%, transparent);
+.newTask:hover {
+  background: var(--color-accent-dim);
+}
+
+.newTask:active {
+  background: var(--color-accent-dim);
+  transform: scale(0.98);
+}
+
+.newTask:focus-visible,
+.gear:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ═══ Screen-filter tray ═══ */
+
+.tray {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  margin-left: 10px;
+  padding: 0 4px 0 3px;
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+  flex: 0 1 auto;
+  min-width: 0;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.trayActive {
+  background: color-mix(in srgb, var(--color-danger) 7%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent);
+}
+
+.funnel {
+  display: inline-flex;
+  margin: 0 2px 0 6px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.trayActive .funnel {
+  color: var(--color-danger);
 }
 
 /* ═══ Search input ═══ */
@@ -29,28 +89,33 @@
   position: relative;
   display: flex;
   align-items: center;
-  margin-right: 4px;
+  flex-shrink: 0;
 }
 
 .searchIcon {
   position: absolute;
-  left: 8px;
+  left: 9px;
+  display: inline-flex;
   color: var(--color-text-muted);
   pointer-events: none;
-  flex-shrink: 0;
 }
 
 .searchInput {
-  width: var(--topbar-search-width-collapsed);
-  padding: 4px 24px 4px 26px;
-  border-radius: var(--radius-chip);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-high);
+  width: 200px;
+  height: 26px;
+  padding: 0 28px 0 29px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
-  font-size: var(--font-size-meta);
+  font-size: 13px;
   font-family: inherit;
   outline: none;
-  transition: border-color 0.15s, width 0.15s;
+}
+
+[data-theme="light"] .searchInput {
+  background: var(--color-surface-high);
 }
 
 .searchInput::placeholder {
@@ -58,24 +123,102 @@
 }
 
 .searchInput:focus {
-  border-color: var(--color-accent-dim);
-  width: var(--topbar-search-width-expanded);
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
+}
+
+.searchKbd {
+  position: absolute;
+  right: 5px;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  pointer-events: none;
 }
 
 .searchClear {
   position: absolute;
-  right: 4px;
-  background: none;
+  right: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
   border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-12);
   color: var(--color-text-muted);
-  font-size: 14px;
   cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
 }
 
 .searchClear:hover {
   color: var(--color-text-primary);
+}
+
+/* ═══ Right zone: storage pill + Settings ═══ */
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.gear:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.gearOpen,
+.gearOpen:hover {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+/* ═══ Narrower windows (the bar never wraps) ═══ */
+
+@media (max-width: 1279px) {
+  .searchInput {
+    width: 180px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .searchInput {
+    width: 140px;
+  }
+
+  .newTask {
+    width: 28px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .newTaskLabel {
+    display: none;
+  }
 }
 
 /* ═══ Search Mini-List ═══ */
@@ -215,69 +358,6 @@
   color: var(--color-text-muted);
   font-style: italic;
   text-align: center;
-}
-
-/* ═══ Filter label icons ═══ */
-
-.filterIcon {
-  display: inline-block;
-  vertical-align: middle;
-  line-height: 1;
-  font-size: 12px;
-}
-
-.filterIconSvg {
-  display: inline-block;
-  vertical-align: middle;
-  flex-shrink: 0;
-}
-
-/* ═══ Filter chips ═══ */
-
-.filterChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: var(--radius-chip);
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--color-text-muted);
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.filterChip:hover {
-  background: var(--color-surface-high);
-  color: var(--color-text-primary);
-}
-
-.filterChipActive {
-  background: var(--color-surface-bright);
-  border-color: var(--color-accent-dim);
-  color: var(--color-text-primary);
-}
-
-.filterChipStarActive {
-  background: var(--color-surface-bright);
-  border-color: var(--color-followup);
-  color: var(--color-followup);
-}
-
-
-.chevron {
-  font-size: 9px;
-  color: var(--color-text-muted);
-  transition: transform 0.15s;
-  margin-left: -1px;
-}
-
-.chevronOpen {
-  transform: rotate(180deg);
 }
 
 /* ═══ Dropdowns ═══ */
@@ -570,26 +650,6 @@
   border-color: var(--color-accent-dim);
 }
 
-/* ═══ Clear filters button ═══ */
-
-.clearFilters {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--color-text-muted);
-  padding: 4px 6px;
-  border-radius: var(--radius-chip);
-  cursor: pointer;
-  transition: color 0.15s;
-  flex-shrink: 0;
-}
-
-.clearFilters:hover {
-  color: var(--color-text-primary);
-}
-
 /* ═══ Storage status ═══ */
 
 .storageStatus {
@@ -601,10 +661,3 @@
 }
 
 
-/* ═══ Mobile: hide entire TopBar ═══ */
-
-@media (max-width: 640px) {
-  .topBar {
-    display: none;
-  }
-}

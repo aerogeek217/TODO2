@@ -95,7 +95,6 @@ export function LayoutControls() {
       >
         <SaveIcon />
       </button>
-      <span className={styles.separator} aria-hidden="true" />
 
       {menuOpen && (
         <MenuPopover

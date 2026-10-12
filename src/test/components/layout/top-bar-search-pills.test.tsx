@@ -67,7 +67,7 @@ describe('TopBar search-result pill bar', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'Q4' } })
@@ -93,7 +93,7 @@ describe('TopBar search-result pill bar', () => {
     useUIStore.setState({ selectedTodoId: null, editPopupMode: null } as never)
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'Click' } })
@@ -132,7 +132,7 @@ describe('TopBar search-result pill bar', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'plain' } })

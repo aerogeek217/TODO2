@@ -37,9 +37,43 @@ describe('FilterChipBar — primitive', () => {
 
   describe('desktop density', () => {
     it('offers Show completed but no show-hidden toggle', () => {
-      render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
-      expect(screen.getByRole('switch', { name: /Show completed/i })).toBeInTheDocument()
-      expect(screen.queryByRole('switch', { name: /hidden/i })).toBeNull()
+      const updates: TodoPredicate[] = []
+      render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      const toggle = screen.getByRole('button', { name: 'Show completed' })
+      expect(toggle).toHaveAttribute('aria-pressed', 'false')
+      fireEvent.click(toggle)
+      expect(updates.at(-1)?.showCompleted).toBe(true)
+      expect(screen.queryByRole('button', { name: /hidden/i })).toBeNull()
+    })
+
+    it('an active filter button shows its value and a × that clears only that field', () => {
+      const updates: TodoPredicate[] = []
+      const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], tags: [10, 20] }
+      render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByRole('button', { name: 'People filter: Alice' })).toHaveTextContent('Alice')
+      expect(screen.getByRole('button', { name: 'Tags filter: urgent +1' })).toHaveTextContent('urgent +1')
+      fireEvent.click(screen.getByRole('button', { name: 'Clear people filter' }))
+      expect(updates.at(-1)?.personIds).toBeNull()
+      expect(updates.at(-1)?.tags).toEqual([10, 20])
+      expect(screen.queryByRole('button', { name: 'Clear status filter' })).toBeNull()
+    })
+
+    it('folded: one Filters menu with a count; a row opens its picker, × clears, Clear all filters', () => {
+      const updates: TodoPredicate[] = []
+      const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], tags: [10] }
+      render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} onClearAll={() => updates.push(emptyPredicate())} fold compact />)
+      expect(screen.queryByRole('button', { name: /^People/ })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Show completed' })).toHaveTextContent('Completed')
+      fireEvent.click(screen.getByRole('button', { name: 'Filters, 2 active' }))
+      const menu = screen.getByRole('group', { name: 'Screen filters' })
+      expect(menu).toHaveTextContent('Screen filters · apply to every widget')
+      fireEvent.click(screen.getByRole('button', { name: 'Status filter' }))
+      fireEvent.click(screen.getByText('Active'))
+      expect(updates.at(-1)?.statusIds).toEqual([1])
+      fireEvent.click(screen.getByRole('button', { name: 'Clear tags filter' }))
+      expect(updates.at(-1)?.tags).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
+      expect(updates.at(-1)).toEqual(emptyPredicate())
     })
 
     it('the Focus button picks in focus / not in focus / any task', () => {
@@ -49,7 +83,7 @@ describe('FilterChipBar — primitive', () => {
       fireEvent.click(screen.getByRole('radio', { name: 'In focus' }))
       expect(updates.at(-1)?.focus).toBe(true)
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), focus: true }} onChange={(p) => updates.push(p)} />)
-      fireEvent.click(screen.getByRole('button', { name: /Focus/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Focus filter: In focus' }))
       expect(screen.getByRole('radio', { name: 'In focus' })).toHaveAttribute('aria-checked', 'true')
       fireEvent.click(screen.getByRole('radio', { name: 'Any task' }))
       expect(updates.at(-1)?.focus).toBeNull()
@@ -178,7 +212,7 @@ describe('FilterChipBar — primitive', () => {
       render(
         <FilterChipBar predicate={active} onChange={(p) => updates.push(p)} />,
       )
-      fireEvent.click(screen.getByRole('button', { name: /Date/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^Dates filter:/ }))
       fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
       const last = updates.at(-1)!
       expect(last.dateRangeStart).toBeNull()

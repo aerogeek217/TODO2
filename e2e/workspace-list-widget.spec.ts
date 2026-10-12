@@ -56,7 +56,7 @@ test('a completed task comes back in a list widget when the top bar shows comple
   await expect(row).toHaveCount(0)
 
   // Top bar → Show completed: it is back, and the widget shows the screen filter.
-  await page.getByRole('switch', { name: /Show completed/ }).click()
+  await page.getByRole('button', { name: 'Show completed' }).click()
   await expect(row).toBeVisible()
   await expect(row.getByRole('checkbox')).toBeChecked()
   await expect(widget.getByTestId('screen-filter-chip')).toHaveText(/Completed shown/)
@@ -64,7 +64,7 @@ test('a completed task comes back in a list widget when the top bar shows comple
 
 test('a screen filter narrows every list widget and shows the count as shown of total', async ({ page }) => {
   await seedWorkspace(page, team)
-  await page.getByRole('button', { name: /@ People/ }).click()
+  await page.getByRole('button', { name: 'People filter' }).click()
   await page.locator('label', { hasText: '@Alice' }).click()
   await page.keyboard.press('Escape')
   for (const tabId of ['t1', 't2']) {
@@ -77,7 +77,7 @@ test('a screen filter narrows every list widget and shows the count as shown of 
 test('adding a filter from the filter row makes the list unsaved; saving keeps it across a reload', async ({ page }) => {
   await seedWorkspace(page, team)
   // A screen filter shows the filter row (with its + Filter).
-  await page.getByRole('switch', { name: /Show completed/ }).click()
+  await page.getByRole('button', { name: 'Show completed' }).click()
   const widget = wsListWidget(page, 't1')
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'People' }).click()

@@ -26,6 +26,10 @@ export interface FilterChipBarProps {
    * path so the extra slots get reset along with the predicate.
    */
   onClearAll?: () => void
+  /** Desktop: fold the filter buttons into one Filters menu (narrow windows). */
+  fold?: boolean
+  /** Desktop: the short `Completed` label for Show completed (narrow windows). */
+  compact?: boolean
 }
 
 export const DEFAULT_PREDICATE: TodoPredicate = {

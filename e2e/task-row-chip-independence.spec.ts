@@ -28,12 +28,12 @@ test.describe('TaskRow chip independence', () => {
   test('QuickAdd @person chip is visible without setting status (race regression)', async ({ page }) => {
     await seedTaskList(page, { people: [{ name: 'Alice', initials: 'A' }] })
 
-    // Open QuickAdd via the sidebar's Quick add button and submit a task with
+    // Open QuickAdd via the top bar's New task button and submit a task with
     // @Alice. The race window is the few ms between `useTodoStore.add`
     // resolving and `applyNlpMetadata` finishing — the assignment load fires
     // in that window on every `todos` change, and pre-fix its post-fetch
     // `setMap` clobbered the optimistic assign.
-    await page.getByRole('button', { name: 'Quick add' }).click()
+    await page.getByRole('button', { name: 'New task' }).click()
     const input = page.locator('input[placeholder="New task…"]')
     await input.waitFor({ state: 'visible' })
     await input.fill('Race regression @Alice')

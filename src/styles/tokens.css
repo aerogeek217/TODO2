@@ -44,10 +44,7 @@
   --z-portal-popup-flyout: 9999;
 
   /* Layout */
-  --sidebar-width: 44px;
   --topbar-height: 40px;
-  --topbar-search-width-collapsed: 140px;
-  --topbar-search-width-expanded: 200px;
   --sync-strip-height: 36px;
   --settings-modal-width: 940px;
   --settings-modal-height: 680px;

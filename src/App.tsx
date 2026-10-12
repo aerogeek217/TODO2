@@ -6,7 +6,6 @@ import { useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
 import { useFileStorageStore } from './stores/file-storage-store'
 import { TopBar } from './components/layout/TopBar'
-import { Sidebar } from './components/layout/Sidebar'
 import { FileSyncBanner } from './components/layout/FileSyncBanner'
 import { useUIStore } from './stores/ui-store'
 import { CommandPalette } from './components/overlays/CommandPalette'
@@ -226,7 +225,7 @@ function AppShell() {
   /** uids of the completed tasks past retention at launch (for the purge prompt). */
   const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
   const location = useLocation()
-  // Desktop: quick add lives in the sidebar. Mobile: a floating + above the tab bar.
+  // Desktop: New task leads the top bar. Mobile: a floating + above the tab bar.
   const showFab = isMobile && location.pathname !== ROUTE_SETTINGS
 
   // Reset filter sheet when viewport transitions from mobile to desktop; the
@@ -340,7 +339,6 @@ function AppShell() {
 
   return (
     <div className={styles.app}>
-      {!isMobile && <Sidebar />}
       <div className={styles.mainColumn}>
         {!isMobile && <TopBar />}
         {!isMobile && <FileSyncBanner />}

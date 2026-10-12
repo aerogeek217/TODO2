@@ -45,7 +45,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
 
     await act(async () => {
       input.focus()
@@ -73,7 +73,7 @@ describe('TopBar grouped search', () => {
       error: null,
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'task' } })
@@ -99,7 +99,7 @@ describe('TopBar grouped search', () => {
       error: null,
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'zzz' } })
@@ -133,7 +133,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
@@ -150,7 +150,7 @@ describe('TopBar grouped search', () => {
   // option — the intermittent "roving focus" failure under full-suite load.
   it('an unmounted bar does not write its pending search into the filter store', async () => {
     const view = renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'zzz' } })
@@ -175,7 +175,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
