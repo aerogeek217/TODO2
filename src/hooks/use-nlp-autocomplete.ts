@@ -3,6 +3,7 @@ import { useLatestRef } from './use-latest-ref'
 import { useSettingsStore } from '../stores/settings-store'
 import {
   applyAutocompletePick,
+  carrySelection,
   computeAutocomplete,
   isSelectable,
   isVisible,
@@ -76,10 +77,7 @@ export function useNlpAutocomplete({ people, tags = [], statuses = [], commands 
     setState((s) => ({
       visible: true,
       view,
-      // Keep the active row while the same list narrows; reset otherwise.
-      selectedIndex: s.view?.mode === view.mode && s.view.anchor === view.anchor
-        ? Math.min(s.selectedIndex, Math.max(0, view.rows.length - 1))
-        : 0,
+      selectedIndex: carrySelection(s.view, s.selectedIndex, view),
       caretLeft: measureCaretLeft(input, value, view.anchor),
     }))
   }, [people, tags, statuses, commands, followupDefault])

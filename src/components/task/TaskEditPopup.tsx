@@ -15,6 +15,7 @@ import { askClearUrgent, clearUrgent, planClearUrgent } from '../../services/cle
 import { startOfToday } from '../../utils/date'
 import { urgentByDateReason, urgentMark } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
+import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { makeRecurrenceRule } from '../../services/recurrence'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { TaskEditHeader } from './TaskEditHeader'
@@ -174,23 +175,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const tagsRef = useRef<HTMLDivElement>(null)
   const statusMenuRef = useRef<HTMLDivElement>(null)
 
-  const acPeople = useMemo(
-    () => allPeople.map((p) => ({ id: p.id!, name: p.name, color: p.color, initials: p.initials, kind: 'person' as const })),
-    [allPeople],
-  )
-  const acTags = useMemo(
-    () => [...allTags].sort((a, b) => a.name.localeCompare(b.name)).map((t) => ({
-      id: t.id!,
-      name: t.name,
-      color: t.color,
-      kind: 'tag' as const,
-    })),
-    [allTags],
-  )
-  const acStatuses = useMemo(
-    () => statuses.map((s) => ({ id: s.id!, name: s.name, color: s.color, icon: s.icon, kind: 'status' as const })),
-    [statuses],
-  )
+  const acPeople = useMemo(() => personItems(allPeople), [allPeople])
+  const acTags = useMemo(() => tagItems(allTags), [allTags])
+  const acStatuses = useMemo(() => statusItems(statuses), [statuses])
   // Slash commands only in create mode: the title is parsed when the task is created.
   const ac = useNlpAutocomplete({
     people: acPeople,

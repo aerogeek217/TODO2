@@ -29,7 +29,8 @@ import type {
 } from '../../models'
 import { DEFAULT_STATUS_ICON } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
-import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
+import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
+import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -360,23 +361,9 @@ export function QuickAddBar({
   const resolved = internalRun.resolved
 
   // Autocomplete candidates. Tags sort alphabetically; the others keep store order.
-  const acPeople = useMemo<AutocompleteItem[]>(
-    () =>
-      people.map((p) => ({ id: p.id!, name: p.name, color: p.color, initials: p.initials, kind: 'person' as const })),
-    [people],
-  )
-  const acTags = useMemo<AutocompleteItem[]>(
-    () =>
-      [...tags]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((t) => ({ id: t.id!, name: t.name, color: t.color, kind: 'tag' as const })),
-    [tags],
-  )
-  const acStatuses = useMemo<AutocompleteItem[]>(
-    () =>
-      statuses.map((s) => ({ id: s.id!, name: s.name, color: s.color, icon: s.icon, kind: 'status' as const })),
-    [statuses],
-  )
+  const acPeople = useMemo(() => personItems(people), [people])
+  const acTags = useMemo(() => tagItems(tags), [tags])
+  const acStatuses = useMemo(() => statusItems(statuses), [statuses])
   const ac = useNlpAutocomplete({
     people: acPeople,
     tags: acTags,

@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
   applyAutocompletePick,
+  carrySelection,
   computeAutocomplete,
   isPartialDateArgument,
   isVisible,
+  personItems,
+  statusItems,
+  tagItems,
   type AutocompleteItem,
   type AutocompleteRow,
   type AutocompleteSources,
@@ -252,6 +256,15 @@ describe('@ and #', () => {
     expect(isVisible(at('x @"Marco'))).toBe(false)
   })
 
+  it('offers create only for a name the parser reads whole', () => {
+    // `##` (a Markdown heading being typed) and `#a.b` would not round-trip.
+    expect(isVisible(at('##'))).toBe(false)
+    expect(isVisible(at('x #a.b'))).toBe(false)
+    expect(isVisible(at('x @bob.smith'))).toBe(false)
+    expect(labels(at('x #q4-plan'))).toEqual(['create #q4-plan'])
+    expect(labels(at('x @Marco_R'))).toEqual(['create @Marco_R'])
+  })
+
   it('picks quote a name with a space', () => {
     expect(pick('Call @dan')?.value).toBe('Call @"Dana Kim" ')
     expect(pick('Call @Marco')?.value).toBe('Call @Marco ')
@@ -294,5 +307,39 @@ describe('tokenTints', () => {
     expect(tintsOf('x /due ', { start: 2, end: 7, error: false })).toEqual(['/due :chip'])
     expect(tintsOf('x /due fri', { start: 2, end: 10, error: false })).toEqual(['/due fri:due'])
     expect(tintsOf('x /due frday', { start: 2, end: 12, error: true })).toEqual(['/due frday:error'])
+  })
+})
+
+describe('carrySelection', () => {
+  it('keeps the active row (clamped) while the same list narrows', () => {
+    const a = at('x /')
+    const b = at('x /f')
+    if (!a || !b) throw new Error('no popup')
+    expect(carrySelection(a, 5, b)).toBe(b.rows.length - 1)
+    expect(carrySelection(a, 0, b)).toBe(0)
+  })
+
+  it('resets to the first row for another list or trigger', () => {
+    const cmd = at('x /due')
+    const arg = at('x /due ')
+    const other = at('x @a /')
+    if (!cmd || !arg || !other) throw new Error('no popup')
+    expect(carrySelection(cmd, 2, arg)).toBe(0)
+    expect(carrySelection(cmd, 2, other)).toBe(0)
+    expect(carrySelection(null, 2, cmd)).toBe(0)
+  })
+})
+
+describe('candidate builders', () => {
+  it('map stored rows only; tags alphabetical, the others in store order', () => {
+    expect(personItems([{ id: 2, name: 'Zed', initials: 'Z' }, { name: 'Unsaved', initials: 'U' }, { id: 1, name: 'Amy', initials: 'A', color: '#f00' }]))
+      .toEqual([
+        { id: 2, name: 'Zed', initials: 'Z', color: undefined, kind: 'person' },
+        { id: 1, name: 'Amy', initials: 'A', color: '#f00', kind: 'person' },
+      ])
+    expect(tagItems([{ id: 1, name: 'zeta', color: '#000' }, { id: 2, name: 'alpha', color: '#111' }]).map((t) => t.name))
+      .toEqual(['alpha', 'zeta'])
+    expect(statusItems([{ id: 3, name: 'Done', color: '#0f0', icon: 'check', sortOrder: 0 }]))
+      .toEqual([{ id: 3, name: 'Done', color: '#0f0', icon: 'check', kind: 'status' }])
   })
 })

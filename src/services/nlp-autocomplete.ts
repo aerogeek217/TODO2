@@ -1,4 +1,4 @@
-import type { RecurrenceType } from '../models'
+import type { Person, RecurrenceType, Status, Tag } from '../models'
 import {
   QUICK_FOLLOWUP_INTERVALS,
   addFollowupInterval,
@@ -103,6 +103,43 @@ export interface AutocompleteView {
   to: number
   /** What was typed after the trigger (or the argument), as typed. */
   query: string
+}
+
+// ─── Sources ────────────────────────────────────────────────────────
+
+/** People as candidates, in store order (stored rows only). */
+export function personItems(people: readonly Person[]): AutocompleteItem[] {
+  return people.flatMap((p) => (p.id === undefined ? [] : [{
+    id: p.id, name: p.name, color: p.color, initials: p.initials, kind: 'person' as const,
+  }]))
+}
+
+/** Tags as candidates, alphabetical (stored rows only). */
+export function tagItems(tags: readonly Tag[]): AutocompleteItem[] {
+  return [...tags]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((t) => (t.id === undefined ? [] : [{ id: t.id, name: t.name, color: t.color, kind: 'tag' as const }]))
+}
+
+/** Statuses as candidates, in Settings order (stored rows only). */
+export function statusItems(statuses: readonly Status[]): AutocompleteItem[] {
+  return statuses.flatMap((s) => (s.id === undefined ? [] : [{
+    id: s.id, name: s.name, color: s.color, icon: s.icon, kind: 'status' as const,
+  }]))
+}
+
+/**
+ * The active row after the popup re-evaluates: kept (clamped) while the same
+ * list narrows — same mode and trigger position — otherwise the first row.
+ */
+export function carrySelection(
+  prev: AutocompleteView | null | undefined,
+  prevIndex: number,
+  next: AutocompleteView,
+): number {
+  return prev?.mode === next.mode && prev.anchor === next.anchor
+    ? Math.min(prevIndex, Math.max(0, next.rows.length - 1))
+    : 0
 }
 
 /** Rows that a key or click can pick (an error row can't). */
@@ -218,6 +255,12 @@ function findArgumentContext(before: string, today: Date): ArgumentContext | nul
 
 // ─── Rows ───────────────────────────────────────────────────────────
 
+/** Names a create row may offer: what `parseInput` reads as a whole `@name` / `#tag`. */
+const CREATABLE: Record<'@' | '#', RegExp> = {
+  '@': /^\w+$/,
+  '#': /^[A-Za-z0-9_-]+$/,
+}
+
 function entityView(
   trigger: '@' | '#',
   index: number,
@@ -237,9 +280,10 @@ function entityView(
       : sources.people
   }
   const rows: AutocompleteRow[] = items.slice(0, MAX_ENTITY_ROWS).map((item) => ({ kind: 'entity', item }))
-  // Nothing matches: offer to create — not while a quoted `@"First Last"` is
-  // being typed (it can't be completed before the closing quote).
-  if (items.length === 0 && query.length > 0 && !(trigger === '@' && query.startsWith('"'))) {
+  // Nothing matches: offer to create — only a name the parser reads as one
+  // token (`#q4`, `@Marco`; not `##` or `#a.b`), and not while a quoted
+  // `@"First Last"` is being typed (it can't be completed before the closing quote).
+  if (items.length === 0 && query.length > 0 && CREATABLE[trigger].test(rawQuery)) {
     rows.push({ kind: 'create', trigger, name: rawQuery })
   }
   return {
