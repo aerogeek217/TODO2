@@ -232,6 +232,30 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Empty follow-up slot on touch: always shown (no hover), D4's round ghost flag. */
+.emptyFollowupAction {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.emptyFollowupActionOpen {
+  color: var(--color-followup);
+  box-shadow: inset 0 0 0 1px var(--color-followup);
+}
+
 .overflow {
   font-size: 11px;
   color: var(--color-text-muted);

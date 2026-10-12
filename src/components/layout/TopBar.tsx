@@ -14,8 +14,8 @@ import { groupTodosByTextMatch, textMatchContextFor, type TextMatchField } from 
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
-import { ContextMenu } from '../overlays/ContextMenu'
-import { buildSearchContextMenuItems } from './top-bar-search-menu'
+import { TaskMenu } from '../task/TaskMenu'
+import { searchMenuHandlers } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
 import { StoragePill } from './StoragePill'
 import { CloseIcon, FunnelIcon, PlusIcon, SearchIcon } from '../workspace/icons'
@@ -150,7 +150,7 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
 /**
  * Right-click menu for a search result. Its own component so TopBar hands the
  * ref-touching `handleOpenTodo` over as a JSX prop instead of passing it into
- * a render-time `buildSearchContextMenuItems` call (`react-hooks/refs`).
+ * a render-time `searchMenuHandlers` call (`react-hooks/refs`).
  */
 function SearchResultContextMenu({ x, y, todo, onOpen, onClose }: {
   x: number
@@ -160,10 +160,11 @@ function SearchResultContextMenu({ x, y, todo, onOpen, onClose }: {
   onClose: () => void
 }) {
   return (
-    <ContextMenu
-      x={x}
-      y={y}
-      items={buildSearchContextMenuItems({ todo, onOpen })}
+    <TaskMenu
+      todo={todo}
+      point={{ x, y }}
+      selectionAware={false}
+      handlers={searchMenuHandlers({ todo, onOpen })}
       onClose={onClose}
     />
   )

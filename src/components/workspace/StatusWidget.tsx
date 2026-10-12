@@ -4,8 +4,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useUIStore } from '../../stores/ui-store'
 import { StatusIcon } from '../shared/StatusIcon'
-import { ContextMenu } from '../overlays/ContextMenu'
-import type { ContextMenuItem } from '../../models/context-menu'
+import { MenuPopover, type MenuEntry } from './MenuPopover'
 import { DraggableTaskRow } from '../task/dnd/DraggableTaskRow'
 import { selectStatusBreakdown } from '../../services/stats/status-breakdown'
 import type { Person, PersistedTodoItem } from '../../models'
@@ -25,7 +24,7 @@ interface RowContextMenu { x: number; y: number; key: SelectedStatusKey }
  * Clicking a legend row (or hero
  * segment) selects that status and reveals its open tasks below the legend;
  * clicking the same row again deselects. Right-click opens a
- * `ContextMenu` with row-relevant items.
+ * `MenuPopover` with row-relevant items.
  */
 export function StatusWidget() {
   const todos = useTodoStore((s) => s.todos)
@@ -67,13 +66,14 @@ export function StatusWidget() {
     setRowMenu({ x: e.clientX, y: e.clientY, key })
   }, [])
 
-  const rowMenuItems = useMemo<ContextMenuItem[]>(() => {
+  const rowMenuItems = useMemo<MenuEntry[]>(() => {
     if (!rowMenu) return []
     const isSelected = selectedKey === rowMenu.key
     return [
       {
+        kind: 'item',
         label: isSelected ? 'Hide tasks' : 'Show tasks',
-        action: () => setSelectedKey(isSelected ? null : rowMenu.key),
+        onSelect: () => setSelectedKey(isSelected ? null : rowMenu.key),
       },
     ]
   }, [rowMenu, selectedKey])
@@ -159,10 +159,10 @@ export function StatusWidget() {
         </div>
       )}
       {rowMenu && (
-        <ContextMenu
-          x={rowMenu.x}
-          y={rowMenu.y}
-          items={rowMenuItems}
+        <MenuPopover
+          point={{ x: rowMenu.x, y: rowMenu.y }}
+          entries={rowMenuItems}
+          label="Status"
           onClose={() => setRowMenu(null)}
         />
       )}

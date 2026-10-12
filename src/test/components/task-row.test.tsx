@@ -4,6 +4,7 @@ import { TaskRow } from '../../components/task/TaskRow'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
+import { useTodoStore } from '../../stores/todo-store'
 import { makeTodo, makePerson, resetEntityStores } from '../helpers'
 
 const mockBulk = {
@@ -13,6 +14,8 @@ const mockBulk = {
   setUrgent: vi.fn(),
   setImportant: vi.fn(),
   setDeadline: vi.fn(),
+  setFollowup: vi.fn(),
+  markFollowedUp: vi.fn(),
   setStatus: vi.fn(),
   quickAssignPerson: vi.fn(),
   quickUnassignPerson: vi.fn(),
@@ -31,7 +34,8 @@ function getRow(): HTMLElement {
 function resetStores() {
   // Tags too: several tests seed tag assignments for todo 1.
   resetEntityStores({ todos: false })
-  useUIStore.setState({ hoveredTodoId: null })
+  useUIStore.setState({ hoveredTodoId: null, selectedTodoIds: new Set() })
+  useTodoStore.setState({ todos: [] })
 }
 
 // April 16, 2026 (Thursday) — matches `vi.setSystemTime` below.
@@ -109,54 +113,131 @@ describe('TaskRow', () => {
     })
   })
 
-  describe('context menu', () => {
-    it('opens a menu without a filter-by-priority option', () => {
-      render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      fireEvent.contextMenu(getRow())
-      expect(screen.queryByText(/priority/i)).not.toBeInTheDocument()
-      expect(screen.getByText('Add to Focus')).toBeInTheDocument()
-      expect(screen.queryByText(/project/i)).not.toBeInTheDocument()
-    })
-
-    it('Add to Focus puts the row task (or its selection) in focus', () => {
-      mockBulk.setFocus.mockClear()
-      render(<TaskRow todo={makeTodo({ id: 3 })} />)
-      fireEvent.contextMenu(getRow())
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Focus' }))
-      expect(mockBulk.setFocus).toHaveBeenCalledWith(3, true)
-    })
-
-    it('Remove from Focus takes a task in focus out', () => {
-      mockBulk.setFocus.mockClear()
-      render(<TaskRow todo={makeTodo({ id: 3, focus: true })} />)
-      fireEvent.contextMenu(getRow())
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Focus' }))
-      expect(mockBulk.setFocus).toHaveBeenCalledWith(3, false)
-    })
-  })
-
-  describe('urgent / important menu items', () => {
+  describe('task menu', () => {
     beforeEach(() => {
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
-      mockBulk.setUrgent.mockClear()
-      mockBulk.setImportant.mockClear()
     })
 
-    it('Mark urgent / Mark important flag the row task (or its selection)', () => {
-      render(<TaskRow todo={makeTodo({ id: 3 })} />)
+    it('right-click opens the task menu (no priority / project items)', () => {
+      render(<TaskRow todo={makeTodo({ id: 1 })} onOpenDetail={vi.fn()} />)
       fireEvent.contextMenu(getRow())
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark urgent' }))
+      expect(screen.getByRole('menu', { name: 'Task actions' })).toBeInTheDocument()
+      expect(screen.queryByText(/priority/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/project/i)).not.toBeInTheDocument()
+      for (const name of ['Open', 'Mark complete', 'Set due date…', 'Followed up', 'Assign people…', 'Add tag…', 'Delete']) {
+        expect(screen.getByRole('menuitem', { name })).toBeInTheDocument()
+      }
+      expect(screen.getByRole('menuitem', { name: /^Follow-up/ })).toHaveAttribute('aria-haspopup', 'menu')
+      for (const name of ['Urgent', 'Important', 'Focus']) {
+        expect(screen.getByRole('menuitemcheckbox', { name })).toHaveAttribute('aria-checked', 'false')
+      }
+    })
+
+    it('the ⋯ button opens the same menu; Esc closes it and returns focus to ⋯', () => {
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      const more = screen.getByRole('button', { name: 'Task actions' })
+      act(() => { more.focus() })
+      fireEvent.click(more)
+      expect(more).toHaveAttribute('aria-expanded', 'true')
+      expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Mark complete' }))
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+      expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Set due date…' }))
+      fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+      expect(screen.queryByRole('menu')).toBeNull()
+      expect(document.activeElement).toBe(more)
+      expect(more).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('Markers are checkbox items that set the marker on the row task (or its selection)', () => {
+      render(<TaskRow todo={makeTodo({ id: 3, focus: true })} />)
+      fireEvent.contextMenu(getRow())
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Focus' })).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Focus' }))
+      expect(mockBulk.setFocus).toHaveBeenCalledWith(3, false)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Urgent' }))
       expect(mockBulk.setUrgent).toHaveBeenCalledWith(3, true)
       fireEvent.contextMenu(getRow())
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark important' }))
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Important' }))
       expect(mockBulk.setImportant).toHaveBeenCalledWith(3, true)
     })
 
-    it('a task urgent only by its due date offers Remove urgent (which may ask about the date)', () => {
+    it('a task urgent only by its due date shows Urgent checked; clicking turns it off (which may ask)', () => {
       render(<TaskRow todo={makeTodo({ id: 4, dueDate: new Date(2026, 3, 18) })} />)
       fireEvent.contextMenu(getRow())
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Remove urgent' }))
+      const urgent = screen.getByRole('menuitemcheckbox', { name: 'Urgent' })
+      expect(urgent).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(urgent)
       expect(mockBulk.setUrgent).toHaveBeenCalledWith(4, false)
+    })
+
+    it('with several rows selected: a count label, Delete N tasks, mixed markers', () => {
+      useUIStore.setState({ selectedTodoIds: new Set([1, 2]) })
+      useTodoStore.setState({ todos: [makeTodo({ id: 1, important: true }), makeTodo({ id: 2 })] })
+      render(<TaskRow todo={makeTodo({ id: 1, important: true })} onOpenDetail={vi.fn()} />)
+      fireEvent.contextMenu(getRow())
+      expect(screen.getByRole('menu', { name: '2 tasks' })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: 'Open' })).toBeNull()
+      expect(screen.getByRole('menuitem', { name: 'Delete 2 tasks' })).toBeInTheDocument()
+      const important = screen.getByRole('menuitemcheckbox', { name: /Important/ })
+      expect(important).toHaveAttribute('aria-checked', 'mixed')
+      expect(important).toHaveTextContent('1 of 2')
+      fireEvent.click(important)
+      expect(mockBulk.setImportant).toHaveBeenCalledWith(1, true)
+    })
+
+    it('Follow-up › opens with → (focus moves in), ← closes it, and an interval sets the follow-up', async () => {
+      render(<TaskRow todo={makeTodo({ id: 5, nextFollowupAt: new Date(2026, 3, 20) })} />)
+      fireEvent.contextMenu(getRow())
+      const followup = screen.getByRole('menuitem', { name: /^Follow-up/ })
+      expect(followup).toHaveTextContent('Mon 20')
+      act(() => { followup.focus() })
+      fireEvent.keyDown(followup, { key: 'ArrowRight' })
+      // The submenu's first item gets focus on the next microtask.
+      await act(async () => { await Promise.resolve() })
+      expect(followup).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('menu', { name: 'Follow-up' })).toHaveTextContent('Clear follow-up')
+      expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /^1 week/ }))
+      fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+      expect(screen.queryByRole('menu', { name: 'Follow-up' })).toBeNull()
+      expect(document.activeElement).toBe(followup)
+      // Esc with the submenu open closes only the submenu.
+      fireEvent.click(followup)
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(screen.queryByRole('menu', { name: 'Follow-up' })).toBeNull()
+      expect(screen.getByRole('menu', { name: 'Task actions' })).toBeInTheDocument()
+      fireEvent.click(followup)
+      fireEvent.click(screen.getByRole('menuitem', { name: /^2 weeks/ }))
+      expect(mockBulk.setFollowup).toHaveBeenCalledWith(5, new Date(2026, 3, 30))
+      expect(screen.queryByRole('menu')).toBeNull()
+    })
+
+    it('Followed up, Set due date…, Assign people… and Add tag… reach their row actions', () => {
+      render(<TaskRow todo={makeTodo({ id: 6 })} />)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Followed up' }))
+      expect(mockBulk.markFollowedUp).toHaveBeenCalledWith(6)
+
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Set due date…' }))
+      act(() => { vi.runOnlyPendingTimers() })
+      expect(HTMLInputElement.prototype.showPicker).toHaveBeenCalled()
+
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Assign people…' }))
+      expect(screen.getByPlaceholderText('Search people...')).toBeInTheDocument()
+
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Add tag…' }))
+      expect(screen.getByPlaceholderText('Search tags...')).toBeInTheDocument()
+    })
+
+    it('Pick a date or interval… opens the follow-up popover', () => {
+      render(<TaskRow todo={makeTodo({ id: 6 })} />)
+      fireEvent.contextMenu(getRow())
+      fireEvent.click(screen.getByRole('menuitem', { name: /^Follow-up/ }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Pick a date or interval…' }))
+      expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()
     })
   })
 
@@ -176,7 +257,16 @@ describe('TaskRow', () => {
     it('a task urgent only by its due date shows the clock; a flagged one the mark', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', dueDate: new Date(2026, 3, 18) })} />)
       const clock = screen.getByRole('img', { name: 'Urgent: due soon' })
-      expect(clock.querySelector('title')!.textContent).toBe('Urgent: due soon\nDue Sat 18, within 3 days.')
+      // D0 tooltip: opens after 400 ms of hover, two lines, described-by while open.
+      fireEvent.pointerEnter(clock)
+      act(() => { vi.advanceTimersByTime(399) })
+      expect(screen.queryByRole('tooltip')).toBeNull()
+      act(() => { vi.advanceTimersByTime(1) })
+      const tip = screen.getByRole('tooltip')
+      expect(tip).toHaveTextContent('Urgent: due soonDue Sat 18, within 3 days.')
+      expect(clock).toHaveAttribute('aria-describedby', tip.id)
+      fireEvent.pointerLeave(clock)
+      expect(screen.queryByRole('tooltip')).toBeNull()
       expect(screen.queryByRole('img', { name: 'Urgent' })).toBeNull()
       unmount()
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', urgent: true, dueDate: new Date(2026, 3, 18) })} />)
@@ -399,8 +489,11 @@ describe('TaskRow', () => {
       })
       expect(screen.getByRole('menuitem', { name: 'Open' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Focus' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
+      // A ghost row renders no pickers, so the menu leaves their items out.
+      expect(screen.queryByRole('menuitem', { name: 'Assign people…' })).toBeNull()
+      expect(screen.queryByRole('menuitem', { name: 'Set due date…' })).toBeNull()
     })
 
     it('Mark complete on a ghost row routes through bulk.toggleComplete', () => {

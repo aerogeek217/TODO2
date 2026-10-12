@@ -242,3 +242,38 @@ export function SearchIcon({ size = 14 }: { size?: number }) {
     </Svg>
   )
 }
+
+/** A box with an arrow out of its corner: open. */
+export function OpenIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M9.5 2.5h4v4M13.5 2.5 8 8" />
+      <path d="M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" />
+    </Svg>
+  )
+}
+
+/** A check in a circle: complete. */
+export function CheckCircleIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M5.75 8.25l1.6 1.6 2.9-3.2" />
+    </Svg>
+  )
+}
+
+/** A head and shoulders: a person. */
+export function PersonIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="5.5" r="2.5" />
+      <path d="M3.5 13.5a4.5 4.5 0 0 1 9 0" />
+    </Svg>
+  )
+}
+
+/** A short bar: the mixed state of a checkbox item. */
+export function DashIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size} strokeWidth={2}><path d="M4.5 8h7" /></Svg>
+}

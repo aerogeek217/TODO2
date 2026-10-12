@@ -263,3 +263,11 @@ export function lastFollowupLine(last: Date | undefined, today: Date): string {
 export function isFutureDay(d: Date, today: Date): boolean {
   return dayDiff(d, today) > 0
 }
+
+/**
+ * True when the task was already followed up today — "Followed up" then only
+ * moves the next follow-up, so its controls render dimmed.
+ */
+export function isFollowedUpToday(t: Pick<TodoItem, 'lastFollowupAt'>, today: Date): boolean {
+  return !!t.lastFollowupAt && dayDiff(t.lastFollowupAt, today) === 0
+}

@@ -16,6 +16,9 @@ interface TagChipSelectorProps {
   onCreate: (name: string) => Promise<void> | void
   /** Ghost rows: suppress popover open. */
   disabled?: boolean
+  /** Controlled popover state (the task menu's "Add tag…" opens it). Uncontrolled when omitted. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -30,16 +33,22 @@ interface TagChipSelectorProps {
  */
 export function TagChipSelector({
   assignedTags, allTags, onToggle, onCreate, disabled,
+  open: openProp, onOpenChange,
 }: TagChipSelectorProps) {
-  const [open, setOpen] = useState(false)
+  const [innerOpen, setInnerOpen] = useState(false)
+  const open = openProp ?? innerOpen
   const anchorRef = useRef<HTMLDivElement>(null)
 
-  const close = useCallback(() => setOpen(false), [])
+  const setOpen = useCallback((next: boolean) => {
+    if (onOpenChange) onOpenChange(next)
+    else setInnerOpen(next)
+  }, [onOpenChange])
+  const close = useCallback(() => setOpen(false), [setOpen])
   const toggleOpen = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (disabled) return
-    setOpen((v) => !v)
-  }, [disabled])
+    setOpen(!open)
+  }, [disabled, open, setOpen])
 
   const hasTags = assignedTags.length > 0
   const assignedIds = new Set(assignedTags.map((t) => t.id!))

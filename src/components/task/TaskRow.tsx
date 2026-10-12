@@ -6,7 +6,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
-import { useTaskRowActions, buildTaskRowMenuItems } from '../../hooks/use-task-row-actions'
+import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { generateInitials } from '../../utils/person'
 import { startOfToday, toDateInputValue } from '../../utils/date'
@@ -19,8 +19,9 @@ import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { TagChipSelector } from '../shared/TagChipSelector'
 import { DragHandle } from '../shared/DragHandle'
 import { PortalDropdown } from '../shared/PortalDropdown'
-
-import { ContextMenu } from '../overlays/ContextMenu'
+import { TaskMenu } from './TaskMenu'
+import type { TaskMenuHandlers } from './task-menu-entries'
+import { MoreIcon } from '../workspace/icons'
 import { TaskNotePopover } from './TaskNotePopover'
 import { TaskMarkers } from '../shared/TaskMarkers'
 import styles from './TaskRow.module.css'
@@ -40,13 +41,14 @@ export const TaskRow = memo(function TaskRow({
 }: TaskRowProps) {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'people' | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  /** The task menu: from the ⋯ button, or at the pointer (right-click). */
+  const [menu, setMenu] = useState<{ kind: 'button' } | { kind: 'point'; x: number; y: number } | null>(null)
+  const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [showNotesPopover, setShowNotesPopover] = useState(false)
-  /** Follow-up popover: anchored to the pill / empty-slot flag, or at the menu's point. */
-  const [followupPopover, setFollowupPopover] = useState<
-    { kind: 'slot' } | { kind: 'point'; x: number; y: number } | null
-  >(null)
+  /** Follow-up popover, anchored to the pill or the empty-slot flag. */
+  const [followupPopover, setFollowupPopover] = useState<{ kind: 'slot' } | null>(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
+  const moreRef = useRef<HTMLButtonElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
@@ -69,7 +71,7 @@ export const TaskRow = memo(function TaskRow({
 
   // Bulk-aware mutation callbacks (toggle/delete share semantics with MobileTaskRow + search via this hook)
   const {
-    bulk, urgentOn, handleToggleComplete, handleToggleUrgent, handleToggleImportant, handleToggleFocus, handleDelete,
+    bulk, handleToggleComplete, handleSetMarker, handleDelete,
   } = useTaskRowActions({ todo })
 
   // Inline title editing
@@ -129,6 +131,20 @@ export const TaskRow = memo(function TaskRow({
     bulk.quickAssignTag(todo.id, id)
   }, [ghost, bulk, todo.id])
 
+  // Ghost rows render no pickers, so their menu leaves the picker items out.
+  const menuHandlers: TaskMenuHandlers = {
+    onOpen: onOpenDetail ? () => onOpenDetail(todo.id) : undefined,
+    onToggleComplete: handleToggleComplete,
+    onSetDueDate: ghost ? undefined : openDeadlinePicker,
+    onSetFollowup: (d) => bulk.setFollowup(todo.id, d),
+    onPickFollowup: ghost ? undefined : () => setFollowupPopover({ kind: 'slot' }),
+    onFollowedUp: () => bulk.markFollowedUp(todo.id),
+    onAssignPeople: ghost ? undefined : () => setOpenDropdown('people'),
+    onAddTag: ghost ? undefined : () => setTagPickerOpen(true),
+    onSetMarker: handleSetMarker,
+    onDelete: handleDelete,
+  }
+
   const assignedPeopleIds = useMemo(() => new Set((assignedPeople ?? []).map(p => p.id!)), [assignedPeople])
 
   return (
@@ -148,7 +164,7 @@ export const TaskRow = memo(function TaskRow({
       onContextMenu={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        setContextMenu({ x: e.clientX, y: e.clientY })
+        setMenu({ kind: 'point', x: e.clientX, y: e.clientY })
       }}
     >
 
@@ -271,6 +287,8 @@ export const TaskRow = memo(function TaskRow({
           allTags={allTags}
           onToggle={toggleTag}
           onCreate={handleCreateTag}
+          open={tagPickerOpen}
+          onOpenChange={setTagPickerOpen}
         />
       )}
 
@@ -378,6 +396,25 @@ export const TaskRow = memo(function TaskRow({
         />
       )}
 
+      {/* Task menu trigger — hover / keyboard-focus revealed, pressed while open. */}
+      {!ghost && (
+        <button
+          ref={moreRef}
+          type="button"
+          className={`${styles.moreBtn} ${menu ? styles.moreBtnOpen : ''}`}
+          aria-label="Task actions"
+          aria-haspopup="menu"
+          aria-expanded={menu !== null}
+          onClick={(e) => {
+            e.stopPropagation()
+            setMenu((m) => (m ? null : { kind: 'button' }))
+          }}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
+          <MoreIcon />
+        </button>
+      )}
+
       {/* Portaled people chip selector — anchored to peopleRef. */}
       {!ghost && openDropdown === 'people' && createPortal(
         <PortalDropdown anchorRef={peopleRef} onClickOutside={closeDropdown}>
@@ -397,9 +434,7 @@ export const TaskRow = memo(function TaskRow({
       {followupPopover && !ghost && (
         <FollowupPopover
           todo={todo}
-          anchor={followupPopover.kind === 'point'
-            ? { kind: 'point', x: followupPopover.x, y: followupPopover.y }
-            : { kind: 'ref', ref: followupAnchorRef }}
+          anchor={{ kind: 'ref', ref: followupAnchorRef }}
           onClose={closeFollowup}
           onSetNext={(d) => bulk.setFollowup(todo.id, d)}
           onFollowedUp={() => bulk.markFollowedUp(todo.id)}
@@ -432,23 +467,13 @@ export const TaskRow = memo(function TaskRow({
         document.body,
       )}
 
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={buildTaskRowMenuItems({
-            todo,
-            urgentOn,
-            onToggleUrgent: handleToggleUrgent,
-            onToggleImportant: handleToggleImportant,
-            onToggleFocus: handleToggleFocus,
-            onOpenDetail,
-            onSetFollowup: () => setFollowupPopover({ kind: 'point', x: contextMenu.x, y: contextMenu.y }),
-            onFollowedUp: () => bulk.markFollowedUp(todo.id),
-            onComplete: handleToggleComplete,
-            onDelete: handleDelete,
-          })}
-          onClose={() => setContextMenu(null)}
+      {menu && (
+        <TaskMenu
+          todo={todo}
+          anchorRef={menu.kind === 'button' ? moreRef : undefined}
+          point={menu.kind === 'point' ? { x: menu.x, y: menu.y } : undefined}
+          handlers={menuHandlers}
+          onClose={() => setMenu(null)}
         />
       )}
 

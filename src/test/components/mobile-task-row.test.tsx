@@ -269,18 +269,18 @@ describe('MobileTaskRow', () => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Focus' })).toBeInTheDocument()
       expect(screen.queryByRole('menuitem', { name: /project/i })).not.toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 
-    it('Add to Focus menu action targets the row todo', () => {
+    it('the Focus menu item targets the row todo', () => {
       mockSetFocus.mockClear()
       render(<MobileTaskRow todo={makeTodo({ id: 42, title: 'Foo' })} />)
       act(() => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Add to Focus' }))
+      fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Focus' }))
       expect(mockSetFocus).toHaveBeenCalledWith(42, true)
     })
 
@@ -308,13 +308,34 @@ describe('MobileTaskRow', () => {
         fireEvent.contextMenu(getRow(), { clientX: 50, clientY: 50 })
       })
       expect(screen.getByRole('menuitem', { name: 'Mark complete' })).toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Add to Focus' })).toBeInTheDocument()
+      expect(screen.getByRole('menuitemcheckbox', { name: 'Focus' })).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument()
     })
 
     afterEach(() => {
       vi.restoreAllMocks()
       useUIStore.getState().clearBulkConfirmation?.()
+    })
+  })
+
+  describe('touch follow-up flag', () => {
+    it('an empty follow-up slot always shows its flag, which opens the follow-up popover', () => {
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Bare' })} />)
+      const flag = screen.getByRole('button', { name: 'Set follow-up' })
+      fireEvent.click(flag)
+      expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()
+      expect(flag).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('rows with other metadata show the flag too, but not when a follow-up is set or the row is a ghost', () => {
+      const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
+      expect(screen.getByRole('button', { name: 'Set follow-up' })).toBeInTheDocument()
+      unmount()
+      const second = render(<MobileTaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })} />)
+      expect(screen.queryByRole('button', { name: 'Set follow-up' })).toBeNull()
+      second.unmount()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} ghost />)
+      expect(screen.queryByRole('button', { name: 'Set follow-up' })).toBeNull()
     })
   })
 

@@ -40,7 +40,8 @@
 }
 
 .item:hover:not(:disabled),
-.item:focus-visible {
+.item:focus-visible,
+.itemOpen {
   background: var(--color-tint-8);
   outline: none;
 }
@@ -57,7 +58,8 @@
 }
 
 .item:hover:not(:disabled) .icon,
-.item:focus-visible .icon {
+.item:focus-visible .icon,
+.itemOpen .icon {
   color: var(--color-text-primary);
 }
 
@@ -112,4 +114,14 @@
   font-size: 11px;
   font-weight: var(--font-weight-semibold);
   line-height: 14px;
+}
+
+/* A nested submenu sits above its parent menu. */
+.submenu {
+  z-index: calc(var(--z-dialog-nested) + 1);
+}
+
+/* An item that would change little right now (still clickable). */
+.dim {
+  color: var(--color-text-muted);
 }

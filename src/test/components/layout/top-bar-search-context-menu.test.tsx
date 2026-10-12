@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../../components/layout/TopBar'
-import { buildSearchContextMenuItems } from '../../../components/layout/top-bar-search-menu'
+import { searchMenuHandlers } from '../../../components/layout/top-bar-search-menu'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -15,19 +15,13 @@ import { makeTodo } from '../../helpers'
  * Search-result right-click menu.
  *
  * The menu lives on `TopBar` (not `SearchResultRow`) so it outlives the
- * search dropdown closing when the menu opens. The menu's item list is
- * produced by `buildSearchContextMenuItems` — a pure helper. Testing that
- * helper confirms each menu item dispatches the expected store call. The
- * right-click wiring (`onContextMenu` → parent callback) is trivial and
- * covered by manual testing against the exit criteria.
+ * search dropdown closing when the menu opens. It is the shared task menu
+ * (`TaskMenu`) driven by `searchMenuHandlers`, which act on just the one
+ * task (search rows aren't part of the selection) and leave out the picker
+ * items (the row has none). These tests pin that each handler dispatches
+ * the expected store call.
  */
-function itemByLabel(items: ReturnType<typeof buildSearchContextMenuItems>, label: string) {
-  const item = items.find((i) => i.label === label)
-  if (!item) throw new Error(`no menu item "${label}" in ${items.map((i) => i.label).join(', ')}`)
-  return item
-}
-
-describe('buildSearchContextMenuItems — search context menu', () => {
+describe('searchMenuHandlers — search context menu', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -36,112 +30,56 @@ describe('buildSearchContextMenuItems — search context menu', () => {
     vi.restoreAllMocks()
   })
 
-  it('includes the full menu item sequence with a separator before Delete', () => {
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 1, title: 'Foo' }),
-      onOpen: vi.fn(),
-    })
-    const labels = items.map((i) => i.separator ? '--' : i.label)
-    expect(labels).toEqual([
-      'Open',
-      'Mark complete',
-      'Followed up',
-      'Mark urgent',
-      'Mark important',
-      'Add to Focus',
-      '--',
-      'Delete',
-    ])
-    expect(items[items.length - 1]!.danger).toBe(true)
+  it('has no picker handlers, so the menu leaves those items out', () => {
+    const h = searchMenuHandlers({ todo: makeTodo({ id: 1 }), onOpen: vi.fn() })
+    expect(h.onSetDueDate).toBeUndefined()
+    expect(h.onPickFollowup).toBeUndefined()
+    expect(h.onAssignPeople).toBeUndefined()
+    expect(h.onAddTag).toBeUndefined()
   })
 
-  it('shows "Mark incomplete" when the todo is completed', () => {
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 1, title: 'Foo', isCompleted: true }),
-      onOpen: vi.fn(),
-    })
-    expect(items[1]!.label).toBe('Mark incomplete')
-  })
-
-  it('Open action calls the onOpen callback with the todo id', () => {
+  it('Open calls onOpen with the todo id', () => {
     const onOpen = vi.fn()
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 42, title: 'Foo' }),
-      onOpen,
-    })
-    items[0]!.action()
+    searchMenuHandlers({ todo: makeTodo({ id: 42 }), onOpen }).onOpen!()
     expect(onOpen).toHaveBeenCalledWith(42)
   })
 
-  it('Mark complete action calls todoStore.toggleComplete', () => {
+  it('Mark complete calls todoStore.toggleComplete', () => {
     const toggleComplete = vi.fn()
     vi.spyOn(useTodoStore, 'getState').mockReturnValue({ toggleComplete } as never)
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 7, title: 'Foo' }),
-      onOpen: vi.fn(),
-    })
-    items[1]!.action()
+    searchMenuHandlers({ todo: makeTodo({ id: 7 }), onOpen: vi.fn() }).onToggleComplete()
     expect(toggleComplete).toHaveBeenCalledWith(7)
   })
 
-  it('Add to Focus puts just this task in focus', () => {
+  it('markers act on just this task', () => {
     const bulkSetFocus = vi.fn()
-    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetFocus } as never)
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 9, title: 'Foo' }),
-      onOpen: vi.fn(),
-    })
-    itemByLabel(items, 'Add to Focus').action()
-    expect(bulkSetFocus).toHaveBeenCalledWith([9], true)
-  })
-
-  it('Remove from Focus takes a task in focus out', () => {
-    const bulkSetFocus = vi.fn()
-    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetFocus } as never)
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 11, title: 'Foo', focus: true }),
-      onOpen: vi.fn(),
-    })
-    itemByLabel(items, 'Remove from Focus').action()
-    expect(bulkSetFocus).toHaveBeenCalledWith([11], false)
-  })
-
-  it('Mark important / Remove important flag just this task', () => {
     const bulkSetImportant = vi.fn()
-    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetImportant } as never)
-    itemByLabel(buildSearchContextMenuItems({ todo: makeTodo({ id: 9 }), onOpen: vi.fn() }), 'Mark important').action()
-    expect(bulkSetImportant).toHaveBeenCalledWith([9], true)
-    itemByLabel(buildSearchContextMenuItems({ todo: makeTodo({ id: 9, important: true }), onOpen: vi.fn() }), 'Remove important').action()
-    expect(bulkSetImportant).toHaveBeenCalledWith([9], false)
-  })
-
-  it('Mark urgent flags just this task', () => {
     const bulkSetUrgent = vi.fn()
-    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetUrgent } as never)
-    itemByLabel(buildSearchContextMenuItems({ todo: makeTodo({ id: 9 }), onOpen: vi.fn() }), 'Mark urgent').action()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ bulkSetFocus, bulkSetImportant, bulkSetUrgent, todos: [] } as never)
+    const h = searchMenuHandlers({ todo: makeTodo({ id: 9 }), onOpen: vi.fn() })
+    h.onSetMarker('focus', true)
+    h.onSetMarker('important', false)
+    h.onSetMarker('urgent', true)
+    expect(bulkSetFocus).toHaveBeenCalledWith([9], true)
+    expect(bulkSetImportant).toHaveBeenCalledWith([9], false)
     expect(bulkSetUrgent).toHaveBeenCalledWith([9], true)
   })
 
-  it('Followed up stamps just this task (search rows are not part of the selection)', () => {
+  it('Follow-up and Followed up act on just this task', () => {
     const markFollowedUp = vi.fn()
-    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ markFollowedUp } as never)
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 5, title: 'Foo' }),
-      onOpen: vi.fn(),
-    })
-    itemByLabel(items, 'Followed up').action()
+    const bulkSetFollowup = vi.fn()
+    vi.spyOn(useTodoStore, 'getState').mockReturnValue({ markFollowedUp, bulkSetFollowup } as never)
+    const h = searchMenuHandlers({ todo: makeTodo({ id: 5 }), onOpen: vi.fn() })
+    h.onFollowedUp()
+    h.onSetFollowup(null)
     expect(markFollowedUp).toHaveBeenCalledWith([5])
+    expect(bulkSetFollowup).toHaveBeenCalledWith([5], null)
   })
 
-  it('Delete action queues a single-id bulk confirmation', () => {
+  it('Delete queues a single-id bulk confirmation', () => {
     const showBulkConfirmation = vi.fn()
     vi.spyOn(useUIStore, 'getState').mockReturnValue({ showBulkConfirmation } as never)
-    const items = buildSearchContextMenuItems({
-      todo: makeTodo({ id: 99, title: 'Foo' }),
-      onOpen: vi.fn(),
-    })
-    const deleteItem = items[items.length - 1]!
-    deleteItem.action()
+    searchMenuHandlers({ todo: makeTodo({ id: 99 }), onOpen: vi.fn() }).onDelete()
     expect(showBulkConfirmation).toHaveBeenCalledWith('delete', [99])
   })
 })

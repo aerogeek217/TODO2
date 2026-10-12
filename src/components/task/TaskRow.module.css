@@ -530,3 +530,55 @@
 .markersDone {
   opacity: 0.45;
 }
+
+/* Task menu trigger (⋯): 24×24 at the row's end, revealed on row hover /
+   keyboard focus, pressed tint while open. Its slot is always reserved so
+   the chips don't shift when the row is hovered. */
+.moreBtn {
+  display: inline-flex;
+  visibility: hidden;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.row:hover .moreBtn,
+.row:focus-within .moreBtn,
+.moreBtnOpen {
+  visibility: visible;
+}
+
+.moreBtn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-tint-8);
+}
+
+.moreBtnOpen {
+  color: var(--color-text-primary);
+  background: var(--color-tint-14);
+}
+
+.moreBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Touch screens have no hover: the empty follow-up flag and ⋯ stay visible. */
+@media (hover: none) {
+  .followupTrigger {
+    display: inline-flex;
+  }
+
+  .moreBtn {
+    visibility: visible;
+  }
+}
