@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { EditorState, Compartment } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { htmlToMarkdown } from '../../../services/notes-export'
+import { notesNlp, notesPopupField, type NotesNlpConfig, type NotesPopupState } from './notes-nlp'
+import { NotesNlpPopup } from './NotesNlpPopup'
 import styles from './NotesEditor.module.css'
 
 interface NotesEditorProps {
@@ -19,6 +21,11 @@ interface NotesEditorProps {
    * imperative API) without exposing a ref-forwarding ladder.
    */
   viewRef?: { current: EditorView | null }
+  /**
+   * The `@ # /` autocomplete popup and token tints (`notes-nlp`). Read once,
+   * when the editor is created.
+   */
+  nlp?: NotesNlpConfig
 }
 
 /**
@@ -37,6 +44,7 @@ export function NotesEditor({
   extraKeymap = [],
   placeholder,
   viewRef: externalViewRef,
+  nlp,
 }: NotesEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -45,6 +53,7 @@ export function NotesEditor({
   const extraKeymapRef = useRef(extraKeymap)
   const valueRef = useRef(value)
   const keymapCompartment = useRef(new Compartment())
+  const [popup, setPopup] = useState<{ editor: EditorView; state: NotesPopupState } | null>(null)
 
   onChangeRef.current = onChange
   onLineChangeRef.current = onLineChange
@@ -88,7 +97,12 @@ export function NotesEditor({
         EditorView.lineWrapping,
         pasteHandler,
         keymapCompartment.current.of(buildKeymap()),
+        nlp ? notesNlp(nlp) : [],
         EditorView.updateListener.of((update) => {
+          const nextPopup = update.state.field(notesPopupField, false) ?? null
+          if (nextPopup !== (update.startState.field(notesPopupField, false) ?? null)) {
+            setPopup(nextPopup ? { editor: update.view, state: nextPopup } : null)
+          }
           if (update.docChanged) {
             const next = update.state.doc.toString()
             if (next !== valueRef.current) {
@@ -163,12 +177,15 @@ export function NotesEditor({
   }
 
   return (
-    <div
-      className={styles.host}
-      ref={hostRef}
-      data-placeholder={placeholder ?? undefined}
-      data-shortcut-scope="none"
-      onMouseDown={handleHostMouseDown}
-    />
+    <>
+      <div
+        className={styles.host}
+        ref={hostRef}
+        data-placeholder={placeholder ?? undefined}
+        data-shortcut-scope="none"
+        onMouseDown={handleHostMouseDown}
+      />
+      {popup && <NotesNlpPopup editor={popup.editor} popup={popup.state} />}
+    </>
   )
 }

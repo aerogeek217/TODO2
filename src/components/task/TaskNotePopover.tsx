@@ -5,6 +5,8 @@ import { NotesBody, type NotesSource } from '../shared/notes/NotesBody'
 import { TOAST_VISIBLE_MS } from '../../constants'
 import styles from './TaskNotePopover.module.css'
 
+const isNlpPopup = (target: Element) => target.closest('[data-nlp-popup]') !== null
+
 interface TaskNotePopoverProps {
   todoId: number
   anchorRef: React.RefObject<HTMLElement | null>
@@ -28,7 +30,9 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   const draftRef = useRef<string>(initialNotes)
   const [, setDraft] = useState<string>(initialNotes)
 
-  useClickOutside(containerRef, onClose, true)
+  // The notes' `@ # /` popup is portalled to the body: picking a row in it
+  // isn't an outside click.
+  useClickOutside(containerRef, onClose, true, isNlpPopup)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

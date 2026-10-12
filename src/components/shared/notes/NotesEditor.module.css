@@ -91,3 +91,55 @@
   color: var(--color-accent);
   text-decoration: underline;
 }
+
+/* `@ # /` token tints: Quick Add's colours, radius 3, no padding (the
+   monospace columns never shift). */
+.host :global(.cm-nlp-tint) {
+  border-radius: 3px;
+}
+
+.host :global(.cm-nlp-tint[data-tint="chip"]) {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+}
+
+.host :global(.cm-nlp-tint[data-tint="new"]) {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  color: var(--color-accent);
+}
+
+.host :global(.cm-nlp-tint[data-tint="due"]) {
+  background: var(--color-overdue-bg);
+  color: var(--color-overdue);
+}
+
+.host :global(.cm-nlp-tint[data-tint="urgent"]) {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.host :global(.cm-nlp-tint[data-tint="followup"]) {
+  background: var(--color-followup-bg);
+  color: var(--color-followup);
+}
+
+.host :global(.cm-nlp-tint[data-tint="accent"]) {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+}
+
+.host :global(.cm-nlp-tint[data-tint="error"]) {
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+  color: var(--color-danger);
+}
+
+.host :global(.cm-nlp-tint[data-tint="ignored"]) {
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* The popup is portalled to the body (above dialogs and note popovers). */
+.nlpPopup {
+  position: fixed;
+  z-index: var(--z-portal-popup);
+}

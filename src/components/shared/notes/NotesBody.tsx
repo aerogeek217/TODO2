@@ -13,6 +13,8 @@ import { parseTaskInput, applyNlpMetadata } from '../../../services/nlp-task-cre
 import { copyNotesRich } from '../../../services/notes-export'
 import { NotesEditor } from './NotesEditor'
 import { NotesToolbar } from './NotesToolbar'
+import { storeNotesNlpConfig } from './notes-nlp-stores'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesBody.module.css'
 
 /**
@@ -69,6 +71,9 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
   const [caretLine, setCaretLine] = useState(0)
   const [copying, setCopying] = useState(false)
   const viewRef = useRef<EditorView | null>(null)
+  // `@ # /` popup + tints over the live stores (read once by the editor).
+  const toastRef = useLatestRef(onConvertToast)
+  const nlp = useMemo(() => storeNotesNlpConfig((message) => toastRef.current?.(message)), [toastRef])
 
   useEffect(() => {
     // Only auto-seed the global note when no override was specified and
@@ -215,6 +220,7 @@ export function NotesBody({ dock = 'right', onConvertToast, showToolbar = true, 
         extraKeymap={extraKeymap}
         placeholder={placeholder ?? 'Jot notes here…'}
         viewRef={viewRef}
+        nlp={nlp}
       />
     </div>
   )
