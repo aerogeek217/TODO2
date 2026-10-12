@@ -51,6 +51,15 @@ async function openCustomize(page: Page): Promise<Locator> {
   return customize(page)
 }
 
+/**
+ * dnd-kit's live-region announcement (`Customize`'s `announcements`). A
+ * keyboard move only lands once the previous one has rendered: the keyboard
+ * sensor computes the next row from the last rendered `over`, so an arrow
+ * press that arrives first targets the same row again. Each move waits for
+ * its announcement before the next key.
+ */
+const announced = (page: Page, text: string) => expect(page.locator('[id^="DndLiveRegion"]').filter({ hasText: text })).toHaveCount(1)
+
 /** A trusted-mouse drag of a row's grip onto another row (past the activation distance, in steps). */
 async function dragGrip(page: Page, grip: Locator, onto: Locator, below: boolean) {
   const from = await grip.boundingBox()
@@ -85,8 +94,11 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   await peopleGrip.focus()
   await page.keyboard.press('Space')
   await expect(peopleGrip).toHaveAttribute('aria-pressed', 'true')
+  await announced(page, 'People is at position 6 of 6.')
   await page.keyboard.press('ArrowUp')
+  await announced(page, 'People is at position 5 of 6.')
   await page.keyboard.press('ArrowUp')
+  await announced(page, 'People is at position 4 of 6.')
   await page.keyboard.press('Space')
   await expect(peopleGrip).not.toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => sectionIds(page)).toEqual(['hot', 'followup', 'next7', 'people', 'trend', 'status'])
@@ -95,7 +107,9 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   await page.keyboard.press('Space')
   await expect(peopleGrip).toHaveAttribute('aria-pressed', 'true')
   await page.keyboard.press('ArrowUp')
+  await announced(page, 'People is at position 3 of 6.')
   await page.keyboard.press('Escape')
+  await announced(page, 'Moving People was cancelled.')
   await expect(dialog).toBeVisible()
   await expect.poll(() => sectionIds(page)).toEqual(['hot', 'followup', 'next7', 'people', 'trend', 'status'])
 
