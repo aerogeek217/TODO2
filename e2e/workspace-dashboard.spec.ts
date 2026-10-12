@@ -91,7 +91,9 @@ test('the tab config decides which tiles and sections show; a dashboard is a lay
   expect(await sectionIds(page)).toEqual(['people', 'hot'])
   // 4 + 5 share a row; the last one stretches to fill it.
   await expect(section(page, 'hot')).toHaveCSS('grid-column-start', 'span 8')
-  await expect(dash(page).locator('[aria-label="List tiles"]')).toHaveCount(0)
+  // No list tiles: the strip holds only "+ Add list tile".
+  await expect(dash(page).locator('[data-dash-list-tile]')).toHaveCount(0)
+  await expect(dash(page).locator('[aria-label="List tiles"]').getByRole('button', { name: 'Add list tile' })).toBeVisible()
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
   // Change widget → Dashboard on a new tab: an unsaved layout change.
