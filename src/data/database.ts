@@ -23,7 +23,7 @@ export interface SettingRow {
  *      constant will fail the test (the schema-upgrade prompt would otherwise
  *      silently regress, as it has done historically).
  */
-export const CURRENT_DB_VERSION = 61
+export const CURRENT_DB_VERSION = 62
 
 /**
  * Lowest database version this build will silently load. A database whose
@@ -477,9 +477,14 @@ export class Todo2Database extends Dexie {
     // (`urgent` / `important` task flags aren't indexed); the transform
     // (`upgrades/v61-focus-filter-to-markers.ts`) rewrites stored list
     // predicates from `focus` to `markers`.
+    this.version(61).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 61))
+
+    // v62: the Status widget is retired. No index change; the transform
+    // (`upgrades/v62-retire-status-widget.ts`) drops every `status` tab from
+    // the stored layouts (and the cells / columns that leaves empty).
     // The latest version uses `CURRENT_DB_VERSION` (not a literal): that is
     // what enforces the single-source-of-truth invariant (see the constant's
-    // docblock above). When bumping, turn this into a literal `61` first.
+    // docblock above). When bumping, turn this into a literal `62` first.
     this.version(CURRENT_DB_VERSION).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, CURRENT_DB_VERSION))
   }
 }

@@ -1,4 +1,5 @@
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../models'
+import { DASHBOARD_TREND_RANGES, type DashboardTrendRange } from '../../models/dashboard-config'
 import { addDays, weekStartOf } from '../../utils/calendar-grid'
 import { daysUntil } from '../../utils/effective-date'
 import type { StatsContext } from './stats-context'
@@ -10,8 +11,8 @@ import type { StatsContext } from './stats-context'
  */
 
 /** The trend ranges: 14 days (daily bars) or 4 / 12 weeks (weekly bars). */
-export const TREND_RANGES = ['14d', '4w', '12w'] as const
-export type TrendRange = (typeof TREND_RANGES)[number]
+export const TREND_RANGES = DASHBOARD_TREND_RANGES
+export type TrendRange = DashboardTrendRange
 
 /** The event types the trend reads. */
 export const TREND_EVENT_TYPES: readonly TodoEventType[] = ['created', 'completed', 'reopened']

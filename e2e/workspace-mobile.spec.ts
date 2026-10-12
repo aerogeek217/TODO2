@@ -16,7 +16,7 @@ const weekly: WsLayoutSeed = {
     { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }, { id: 'b2', tabs: [{ id: 'notesTab', kind: 'notes' }] }] },
     {
       id: 'colC',
-      cells: [{ id: 'c1', tabs: [{ id: 'waitTab', kind: 'lens', listDefIdx: 1 }, { id: 'statusTab', kind: 'status' }] }],
+      cells: [{ id: 'c1', tabs: [{ id: 'waitTab', kind: 'lens', listDefIdx: 1 }, { id: 'eisTab', kind: 'eisenhower' }] }],
     },
   ],
 }
@@ -118,15 +118,15 @@ test('tapping a column name scrolls to it; tabs switch inside a cell and stay sw
   await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
   await expect(wsCell(page, 'c1').getByText('Ben', { exact: true })).toBeVisible()
 
-  await wsTab(page, 'statusTab').tap()
-  await expect(wsTab(page, 'statusTab')).toHaveAttribute('aria-selected', 'true')
-  await expect(wsCell(page, 'c1').getByText('No Status')).toBeVisible()
+  await wsTab(page, 'eisTab').tap()
+  await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
+  await expect(wsCell(page, 'c1').locator('[data-eisenhower="eisTab"]')).toBeVisible()
   // The column is named after its first cell's active tab.
-  await expect(columnName(page, 'Status')).toHaveAttribute('aria-selected', 'true')
+  await expect(columnName(page, 'Eisenhower')).toHaveAttribute('aria-selected', 'true')
 
   // The active tab is view state: kept across a reload, never an unsaved change.
   await page.reload()
-  await expect(wsTab(page, 'statusTab')).toHaveAttribute('aria-selected', 'true')
+  await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
   await page.getByTestId('layout-picker').tap()
   const sheet = page.getByRole('dialog', { name: 'Layouts' })
   await expect(sheet).toBeVisible()

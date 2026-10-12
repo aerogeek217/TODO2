@@ -4,7 +4,7 @@ const DB_NAME = 'todo2'
 
 export interface WsTabSeed {
   id: string
-  kind: 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'status'
+  kind: 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard'
   /** Lens tabs: index into `listDefinitions`. */
   listDefIdx?: number
   /** Calendar tabs: date types shown (default both). */
@@ -14,6 +14,13 @@ export interface WsTabSeed {
   offset?: number
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
+  /** Dashboard tabs: the config (defaults: the six default tiles, no list tiles, every section). */
+  dashboard?: {
+    tiles?: string[]
+    /** List tiles as indexes into `listDefinitions`. */
+    listTileIdxs?: number[]
+    sections?: Array<{ id: string; options?: Record<string, unknown> }>
+  }
 }
 
 export interface WsCellSeed {
@@ -197,6 +204,18 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
             if (tab.kind === 'calendar') {
               const viewState = tab.view != null || tab.offset != null ? { view: tab.view ?? 'month', offset: tab.offset ?? 0 } : undefined
               return { id: tab.id, kind: 'calendar', config: { dateTypes: tab.dateTypes ?? { due: true, followup: true } }, ...(viewState ? { viewState } : {}) }
+            }
+            if (tab.kind === 'dashboard') {
+              const d = tab.dashboard ?? {}
+              return {
+                id: tab.id,
+                kind: 'dashboard',
+                config: {
+                  tiles: d.tiles ?? ['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'],
+                  listTiles: (d.listTileIdxs ?? []).map((i) => defIds[i]).filter((id) => id != null),
+                  sections: d.sections ?? ['hot', 'followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
+                },
+              }
             }
             if (tab.kind === 'eisenhower' && tab.collapsed) {
               return { id: tab.id, kind: 'eisenhower', config: {}, viewState: { collapsed: tab.collapsed } }

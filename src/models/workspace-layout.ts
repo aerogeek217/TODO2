@@ -15,10 +15,12 @@
  * tasks, the note) lives in its own tables.
  */
 
-/** Widget kinds a tab can hold. */
-export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'status'
+import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-config'
 
-export const WIDGET_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'eisenhower', 'status']
+/** Widget kinds a tab can hold. */
+export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard'
+
+export const WIDGET_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'eisenhower', 'dashboard']
 
 export function isWidgetKind(v: unknown): v is WidgetKind {
   return typeof v === 'string' && (WIDGET_KINDS as readonly string[]).includes(v)
@@ -92,9 +94,9 @@ export type LensTab = TabOf<'lens', LensTabConfig, NoTabSettings>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', NoTabSettings, EisenhowerTabViewState>
-export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
+export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, NoTabSettings>
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | StatusTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -163,8 +165,9 @@ export function createTab(kind: WidgetKind, id: string, seed: TabSeed = {}): Lay
       return { id, kind, config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }
     case 'notes':
     case 'eisenhower':
-    case 'status':
       return { id, kind, config: {} }
+    case 'dashboard':
+      return { id, kind, config: defaultDashboardConfig() }
   }
 }
 

@@ -109,6 +109,9 @@
   --font-size-body: 14px;
   --font-size-meta: 12px;
   --font-size-input: 16px;
+  /* Dashboard tile counts — the one size outside the 24 / 14 / 12 scale
+     (700, -0.02em, line-height 40px, tabular figures). */
+  --font-size-display: 36px;
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
@@ -149,6 +152,11 @@
   --eis-schedule-bg: rgba(245, 200, 66, 0.06);
   --eis-delegate-bg: rgba(255, 255, 255, 0.035);
   --eis-drop-bg: rgba(0, 0, 0, 0.2);
+
+  /* Dashboard: tile / list-tile / panel fill (with an inset border-muted
+     ring) and the "Created" bars of Created vs completed. */
+  --color-dash-panel: rgba(255, 255, 255, 0.025);
+  --color-chart-created: rgba(255, 255, 255, 0.2);
 
   /* Accent */
   --color-accent: #7ec4bc;
@@ -299,6 +307,10 @@
   --eis-schedule-bg: rgba(245, 200, 66, 0.10);
   --eis-delegate-bg: rgba(0, 0, 0, 0.025);
   --eis-drop-bg: rgba(0, 0, 0, 0.055);
+
+  /* Dashboard panel fill + "Created" bars. */
+  --color-dash-panel: rgba(0, 0, 0, 0.018);
+  --color-chart-created: rgba(0, 0, 0, 0.16);
 
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;

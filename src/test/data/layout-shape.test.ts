@@ -20,7 +20,7 @@ describe('layouts row validation', () => {
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
           { id: 't3', kind: 'notes', config: {} },
           { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
-          { id: 't5', kind: 'status', config: {} },
+          { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] } },
         ] },
         { id: 'k2', weight: 0.5, tabs: [] },
       ] },
@@ -36,6 +36,10 @@ describe('layouts row validation', () => {
     ['column without cells', layoutRow([{ id: 'c', weight: 1, cells: [] }]), 'columns[0].cells'],
     ['zero weight', layoutRow([{ id: 'c', weight: 0, cells: [] }]), 'columns[0].weight'],
     ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'columns[0].cells[0].tabs[0].kind'],
+    ['retired Status widget', layoutRow(oneTab({ id: 't', kind: 'status', config: {} })), 'columns[0].cells[0].tabs[0].kind'],
+    ['dashboard tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: 'open' } })), 'columns[0].cells[0].tabs[0].config.tiles'],
+    ['dashboard list tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: 3 } })), 'columns[0].cells[0].tabs[0].config.listTiles'],
+    ['dashboard sections not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { sections: {} } })), 'columns[0].cells[0].tabs[0].config.sections'],
     ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].cells[0].tabs[0].config'],
     ['calendar with no date type', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: false, followup: false } } })), 'columns[0].cells[0].tabs[0].config.dateTypes'],
     ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].cells[0].tabs[0].viewState.view'],
@@ -75,6 +79,47 @@ describe('layouts row validation', () => {
         { id: 't5', kind: 'eisenhower', config: {} },
       ] }] }],
     }])
+  })
+
+  it('import keeps a dashboard config’s known ids (once, in order) and options, drops the rest', () => {
+    const config = {
+      tiles: ['hot', 'nope', 'open', 'hot'],
+      listTiles: [3, '4', 3, 1.5, -1, 7],
+      sections: [
+        { id: 'people', options: { showUnassigned: false, range: '4w' } },
+        { id: 'gone' },
+        'junk',
+        { id: 'trend', options: { range: '12w' } },
+        { id: 'followup', options: { lookAhead: 5 } },
+        { id: 'trend' },
+      ],
+      stray: true,
+    }
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config, viewState: { x: 1 } }))] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({
+      id: 't',
+      kind: 'dashboard',
+      config: {
+        tiles: ['hot', 'open'],
+        listTiles: [3, 7],
+        sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '12w' } }, { id: 'followup' }],
+      },
+    })
+  })
+
+  it('import fills a dashboard config’s missing parts with the defaults', () => {
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: [2] } }))] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({
+      id: 't',
+      kind: 'dashboard',
+      config: {
+        tiles: ['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'],
+        listTiles: [2],
+        sections: ['hot', 'followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
+      },
+    })
   })
 
   it('validates the activeLayoutId setting as a number', () => {

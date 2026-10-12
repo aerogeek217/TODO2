@@ -1,15 +1,15 @@
 import type { LayoutTab } from '../../models/workspace-layout'
 import { NotesWidget } from './NotesWidget'
-import { StatusWidget } from './StatusWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
+import { DashboardWidget } from './dashboard/DashboardWidget'
 import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 
 interface WidgetBodyProps {
   tab: LayoutTab
   /**
-   * List and Eisenhower tabs report their count label (for the tab); list
-   * tabs also their shown sections (for "Copy tasks").
+   * List, Eisenhower and Dashboard tabs report their count label (for the
+   * tab); list tabs also their shown sections (for "Copy tasks").
    */
   onResult?: (result: ListWidgetResult) => void
 }
@@ -27,7 +27,7 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps) {
       return <NotesWidget />
     case 'eisenhower':
       return <EisenhowerWidget tab={tab} onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined} />
-    case 'status':
-      return <StatusWidget />
+    case 'dashboard':
+      return <DashboardWidget tab={tab} onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined} />
   }
 }

@@ -6,15 +6,13 @@
  *
  * | surface key       | emitted id              | notes                          |
  * |-------------------|-------------------------|--------------------------------|
- * | list-widget       | `lw|<tab>|<section>|<id>` | workspace list widget row — one id per occurrence (a task with two people shows in both people's groups) |
+ * | list-widget       | `lw|<tab>|<section>|<id>` | workspace list widget row — one id per occurrence (a task with two people shows in both people's groups); Eisenhower quadrant and Dashboard section rows use it too |
  * | calendar-widget   | `cw|<tab>|<slot>|<id>`  | workspace calendar entry — `slot` = the entry's date type (`due` / `followup`), prefixed `pop-` inside the day popover; drops via dispatchTaskDrop → reschedule |
- * | status-widget     | `status-todo-<id>`      | open task under the status widget's selected status |
  */
 
 export type TaskSurfaceKey =
   | 'list-widget'
   | 'calendar-widget'
-  | 'status-widget'
 
 /**
  * Extras required by some surfaces:
@@ -33,8 +31,7 @@ export interface TaskDragIdExtras {
 /**
  * Emit the draggable id for a given surface + todo id.
  *
- * `extras` are required for `list-widget` and `calendar-widget` (`scope`,
- * `sectionKey`); omitted for the status widget.
+ * `extras` (`scope`, `sectionKey`) are required.
  */
 export function taskDragId(
   surface: TaskSurfaceKey,
@@ -52,8 +49,6 @@ export function taskDragId(
         throw new Error('taskDragId("calendar-widget") requires extras.scope and extras.sectionKey')
       }
       return `cw|${extras.scope}|${extras.sectionKey}|${todoId}`
-    case 'status-widget':
-      return `status-todo-${todoId}`
   }
 }
 
@@ -61,7 +56,6 @@ export function taskDragId(
 const TASK_DRAG_PREFIXES: readonly string[] = [
   'lw|',
   'cw|',
-  'status-todo-',
 ]
 
 /**

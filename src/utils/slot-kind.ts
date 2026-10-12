@@ -5,5 +5,5 @@ export const KIND_LABEL: Record<WidgetKind, string> = {
   notes: 'Notes',
   calendar: 'Calendar',
   eisenhower: 'Eisenhower',
-  status: 'Status',
+  dashboard: 'Dashboard',
 }

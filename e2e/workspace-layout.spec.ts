@@ -12,7 +12,7 @@ import { dragTab, openSettings, seedWorkspace, wsCell, wsShape, wsTab, type WsLa
 const twoColumns: WsLayoutSeed = {
   name: 'Main',
   columns: [
-    { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'statusTab', kind: 'status' }] }] },
+    { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] }] },
     { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
   ],
 }
@@ -29,27 +29,27 @@ test.describe('tab drop targets', () => {
   test('cell middle joins the cell as a tab', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const to = await bodyPoint(page, 'b1', 0.5)
-    await dragTab(page, wsTab(page, 'statusTab'), to, async () => {
+    await dragTab(page, wsTab(page, 'eisTab'), to, async () => {
       await expect(wsCell(page, 'b1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', 'middle')
       await expect(wsCell(page, 'b1').getByTestId('ws-ghost-tab')).toBeVisible()
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'statusTab']]])
-    await expect(wsTab(page, 'statusTab')).toHaveAttribute('aria-selected', 'true')
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
+    await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })
 
   test('cell top / bottom edge makes a new cell in that column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const top = await bodyPoint(page, 'b1', 0.1)
-    await dragTab(page, wsTab(page, 'statusTab'), top, async () => {
+    await dragTab(page, wsTab(page, 'eisTab'), top, async () => {
       await expect(wsCell(page, 'b1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', 'top')
       await expect(page.getByTestId('ws-new-cell-bar')).toBeVisible()
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['statusTab'], ['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab'], ['calTab']]])
 
     const bottom = await bodyPoint(page, 'b1', 0.92)
     await dragTab(page, wsTab(page, 'notesTab'), bottom)
-    await expect.poll(() => wsShape(page)).toEqual([[['statusTab'], ['calTab'], ['notesTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['eisTab'], ['calTab'], ['notesTab']]])
   })
 
   test('column edge makes a new column; the empty column goes away', async ({ page }) => {
@@ -58,17 +58,17 @@ test.describe('tab drop targets', () => {
     const b = await page.locator('[data-ws-column="colB"]').boundingBox()
     if (!a || !b) throw new Error('no columns')
     const gutterX = (a.x + a.width + b.x) / 2
-    await dragTab(page, wsTab(page, 'statusTab'), { x: gutterX + 6, y: a.y + a.height / 2 }, async () => {
+    await dragTab(page, wsTab(page, 'eisTab'), { x: gutterX + 6, y: a.y + a.height / 2 }, async () => {
       await expect(page.getByTestId('ws-new-column-band')).toBeVisible()
       await expect(page.getByText('New column')).toBeVisible()
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['statusTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab']], [['calTab']]])
 
     // The outer right edge, from the middle column (its only tab): that column empties and is removed.
     const area = await page.locator('[data-ws-area]').boundingBox()
     if (!area) throw new Error('no area')
-    await dragTab(page, wsTab(page, 'statusTab'), { x: area.x + area.width - 10, y: area.y + area.height / 2 })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']], [['statusTab']]])
+    await dragTab(page, wsTab(page, 'eisTab'), { x: area.x + area.width - 10, y: area.y + area.height / 2 })
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']], [['eisTab']]])
   })
 
   test('tab strip inserts at the pointer position; own cell middle is a no-op', async ({ page }) => {
@@ -76,22 +76,22 @@ test.describe('tab drop targets', () => {
     const first = await wsTab(page, 'notesTab').boundingBox()
     if (!first) throw new Error('no tab')
     // Left half of the first tab, clear of the outer-edge new-column zone.
-    await dragTab(page, wsTab(page, 'statusTab'), { x: first.x + 20, y: first.y + first.height / 2 }, async () => {
+    await dragTab(page, wsTab(page, 'eisTab'), { x: first.x + 20, y: first.y + first.height / 2 }, async () => {
       await expect(wsCell(page, 'a1').getByTestId('ws-tab-insert-line')).toBeVisible()
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['statusTab', 'notesTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['eisTab', 'notesTab']], [['calTab']]])
 
     // Dropping a single-tab cell's tab on its own body changes nothing (and stays plain).
     const own = await bodyPoint(page, 'b1', 0.5)
     await dragTab(page, wsTab(page, 'calTab'), own, async () => {
       await expect(wsCell(page, 'b1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', '')
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['statusTab', 'notesTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['eisTab', 'notesTab']], [['calTab']]])
   })
 
   test('Escape cancels a tab drag', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    const tab = wsTab(page, 'statusTab')
+    const tab = wsTab(page, 'eisTab')
     const box = await tab.boundingBox()
     const to = await bodyPoint(page, 'b1', 0.5)
     if (!box) throw new Error('no tab')
@@ -101,7 +101,7 @@ test.describe('tab drop targets', () => {
     await page.mouse.move(to.x, to.y, { steps: 8 })
     await page.keyboard.press('Escape')
     await page.mouse.up()
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'statusTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   })
 })
@@ -135,7 +135,7 @@ test.describe('resize and collapse', () => {
         name: 'Main',
         columns: [{ id: 'colA', cells: [
           { id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] },
-          { id: 'a2', tabs: [{ id: 'statusTab', kind: 'status' }] },
+          { id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
         ] }],
       }],
     })
@@ -190,16 +190,16 @@ test.describe('resize and collapse', () => {
 test.describe('saved layouts', () => {
   const second: WsLayoutSeed = {
     name: 'Second',
-    columns: [{ id: 'colZ', cells: [{ id: 'z1', tabs: [{ id: 'zTab', kind: 'status' }] }] }],
+    columns: [{ id: 'colZ', cells: [{ id: 'z1', tabs: [{ id: 'zTab', kind: 'eisenhower' }] }] }],
   }
 
   test('save persists across reload; switching layouts prompts Save / Discard / Cancel', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
     await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Main')
 
-    // An unsaved change: close the status tab.
-    await wsTab(page, 'statusTab').click()
-    await wsTab(page, 'statusTab').getByRole('button', { name: 'Close Status' }).click()
+    // An unsaved change: close the Eisenhower tab.
+    await wsTab(page, 'eisTab').click()
+    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
 
     // Switch → prompt → Cancel stays.
@@ -229,21 +229,21 @@ test.describe('saved layouts', () => {
 
   test('switching with Discard drops the change', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
-    await wsTab(page, 'statusTab').click()
-    await wsTab(page, 'statusTab').getByRole('button', { name: 'Close Status' }).click()
+    await wsTab(page, 'eisTab').click()
+    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
     await page.getByTestId('layout-picker').click()
     await page.getByRole('menuitemradio', { name: 'Second' }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Discard' }).click()
     await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Second')
     await page.getByTestId('layout-picker').click()
     await page.getByRole('menuitemradio', { name: 'Main' }).click()
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'statusTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
   })
 
   test('opening Settings with unsaved changes shows no prompt and keeps the layout dirty', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await wsTab(page, 'statusTab').click()
-    await wsTab(page, 'statusTab').getByRole('button', { name: 'Close Status' }).click()
+    await wsTab(page, 'eisTab').click()
+    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
 
     const settings = await openSettings(page)
@@ -257,8 +257,8 @@ test.describe('saved layouts', () => {
 
   test('leaving the workspace with unsaved changes prompts; Cancel stays, Discard leaves', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await wsTab(page, 'statusTab').click()
-    await wsTab(page, 'statusTab').getByRole('button', { name: 'Close Status' }).click()
+    await wsTab(page, 'eisTab').click()
+    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
 
     // Only the phone's Settings tab still navigates away from the workspace.
     await page.setViewportSize({ width: 390, height: 844 })
@@ -276,7 +276,7 @@ test.describe('saved layouts', () => {
     // Back on the workspace: the discarded change is gone, nothing to save.
     await page.getByRole('tab', { name: 'Workspace' }).click()
     await page.setViewportSize({ width: 1280, height: 800 })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'statusTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   })
 
@@ -317,8 +317,8 @@ test.describe('adding and changing widgets', () => {
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
-    await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Open by status' }).click()
-    await expect(page.getByRole('tab', { name: 'Status' })).toBeVisible()
+    await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Dashboard' }).click()
+    await expect(page.getByRole('tab', { name: /Dashboard/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveCount(0)
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })

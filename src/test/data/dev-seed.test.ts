@@ -206,18 +206,21 @@ describe('dev seed → prepareImport → restore', () => {
     expect((await db.settings.get('activeLayoutId'))?.value).toBe(String(layouts[0]!.id))
 
     const columns = layouts[0]!.columns
-    // Left rail, bottom rail, right rail, then one column of every surviving float.
+    // Left rail, bottom rail, right rail, then one column of every surviving
+    // float. v62 dropped the status tabs: the bottom rail's status-only cell
+    // and the floating status widget are gone.
     expect(columns.map((c) => c.cells.map((cell) => cell.id))).toEqual([
       ['s-focus', 's-cal'],
-      ['s-stats', 's-client'],
+      ['s-client'],
       ['s-board'],
       expect.any(Array),
     ])
     const floats = rows(seed, 'listInsets').length + rows(seed, 'floatingCalendars').length
-      + rows(seed, 'floatingNotes').length + rows(seed, 'floatingTaskboards').length + rows(seed, 'floatingStatus').length
+      + rows(seed, 'floatingNotes').length + rows(seed, 'floatingTaskboards').length
+    expect(rows(seed, 'floatingStatus').length).toBeGreaterThan(0)
     expect(columns[3]!.cells).toHaveLength(floats)
     // Removed kinds are gone from every cell.
     const kinds = columns.flatMap((c) => c.cells.flatMap((cell) => cell.tabs.map((t) => t.kind)))
-    for (const removed of ['horizons', 'scoreboard', 'snoozeGraveyard']) expect(kinds).not.toContain(removed)
+    for (const removed of ['horizons', 'scoreboard', 'snoozeGraveyard', 'status']) expect(kinds).not.toContain(removed)
   })
 })

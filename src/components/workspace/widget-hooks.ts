@@ -5,7 +5,7 @@ import { KIND_LABEL } from '../../utils/slot-kind'
 import { countListTabs, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 
 /** Widget kinds offered for a new widget, in menu order. */
-export const ADDABLE_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'eisenhower', 'status']
+export const ADDABLE_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'eisenhower', 'dashboard']
 
 export function kindLabel(kind: WidgetKind): string {
   return KIND_LABEL[kind]

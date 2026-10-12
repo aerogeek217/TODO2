@@ -9,6 +9,7 @@ import {
   type LayoutTab,
   type LensTabConfig,
 } from '../models/workspace-layout'
+import { normalizeDashboardConfig } from '../models/dashboard-config'
 
 /**
  * Shape check + whitelist reconstruction for `WorkspaceLayout.columns`, the
@@ -65,6 +66,12 @@ function checkTabSettings(tab: Obj, path: string): true | string {
       }
       return true
     }
+    case 'dashboard':
+      // Unknown ids / options inside are dropped by the pick, not rejected.
+      for (const key of ['tiles', 'listTiles', 'sections'] as const) {
+        if (config[key] !== undefined && !Array.isArray(config[key])) return `${path}.config.${key}`
+      }
+      return true
     default:
       return true
   }
@@ -135,8 +142,6 @@ function pickTab(raw: Obj): LayoutTab {
       }
       return tab
     }
-    case 'notes':
-      return { id, kind: 'notes', config: {} }
     case 'eisenhower': {
       const raw = view?.collapsed
       const collapsed = Array.isArray(raw) ? new Set<unknown>(raw) : null
@@ -145,8 +150,11 @@ function pickTab(raw: Obj): LayoutTab {
       if (collapsed && collapsed.size > 0) tab.viewState = { collapsed: EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) }
       return tab
     }
+    case 'dashboard':
+      return { id, kind: 'dashboard', config: normalizeDashboardConfig(config) }
     default:
-      return { id, kind: 'status', config: {} }
+      // 'notes' — the only kind left (`checkLayoutColumns` vetted it).
+      return { id, kind: 'notes', config: {} }
   }
 }
 

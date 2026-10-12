@@ -136,10 +136,11 @@ describe('v52 Dexie upgrade', () => {
     expect(settings.map((s) => s.key)).toEqual(['activeLayoutId', 'themeMode'])
 
     // The stripped rails (and the surviving floats) became the Default layout
-    // at v56: no tab of a removed kind made it there.
+    // at v56: no tab of a removed kind made it there (v62 then drops the
+    // status tabs).
     const [layout] = await db.layouts.toArray()
     const kinds = layout!.columns.flatMap((c) => c.cells.flatMap((cell) => cell.tabs.map((t) => t.kind)))
-    expect([...new Set(kinds)].sort()).toEqual(['lens', 'status'])
+    expect([...new Set(kinds)].sort()).toEqual(['lens'])
 
     // A JSON copy of the same v51 data upgrades to the same settings and layout.
     const prepared = prepareImport(JSON.parse(JSON.stringify({ __schemaVersion: 51, todos: [], ...v51DataSet() })) as unknown)

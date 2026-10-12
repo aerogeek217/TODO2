@@ -118,7 +118,8 @@ describe('upgradeV56 (pure)', () => {
     const out = upgradeV56(data)
     expect(shape(out)).toEqual([[['x', 'x-2', 'tab']]])
     expect(columnsOf(out)[0]!.cells[0]!.id).toBe('dup')
-    expect(validateImportData({ todos: [], settings: [], layouts: out.layouts }).ok).toBe(true)
+    // Valid once the later upgrades ran (v62 retires the status tab).
+    expect(validateImportData({ todos: [], settings: [], layouts: upgradeDataSet(out, 56, CURRENT_DB_VERSION).layouts }).ok).toBe(true)
 
     const broken = upgradeV56({ settings: [{ key: 'canvasRails', value: '{nope' }], floatingNotes: [{ id: 1, x: 0, y: 0 }] })
     expect(shape(broken)).toEqual([[['tab-floatingNotes-1']]])

@@ -15,7 +15,7 @@ function twoColumns(name = 'Daily', extra: Partial<WorkspaceLayout> = {}): Omit<
     modifiedAt: T0,
     columns: [
       { id: 'A', weight: 1, cells: [{ id: 'ka', weight: 1, activeTabId: 'a1', tabs: [createTab('notes', 'a1'), createTab('calendar', 'a2')] }] },
-      { id: 'B', weight: 1, cells: [{ id: 'kb', weight: 1, activeTabId: 'b1', tabs: [createTab('status', 'b1')] }] },
+      { id: 'B', weight: 1, cells: [{ id: 'kb', weight: 1, activeTabId: 'b1', tabs: [createTab('eisenhower', 'b1')] }] },
     ],
     ...extra,
   }
@@ -115,6 +115,18 @@ describe('structural edits and dirty state', () => {
     ws().discard()
     ws().changeTabKind('b1', 'notes')
     expect(ws().working!.columns[1]!.cells[0]!.tabs[0]).toEqual({ id: 'b1', kind: 'notes', config: {} })
+    expect(ws().isDirty).toBe(true)
+  })
+
+  it('a dashboard tab: changing to it and editing its config are layout changes', async () => {
+    await seedAndInit(twoColumns())
+    ws().changeTabKind('b1', 'dashboard')
+    expect(ws().working!.columns[1]!.cells[0]!.tabs[0]).toEqual(createTab('dashboard', 'b1'))
+    expect(ws().isDirty).toBe(true)
+    await ws().save()
+    expect(ws().isDirty).toBe(false)
+    // Hiding a section (what Customize writes).
+    ws().patchTabConfig('b1', 'dashboard', { sections: [{ id: 'hot' }, { id: 'people' }] })
     expect(ws().isDirty).toBe(true)
   })
 

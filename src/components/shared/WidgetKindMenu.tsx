@@ -8,10 +8,10 @@ import styles from './WidgetKindMenu.module.css'
 
 const PRIMARY_KINDS: { kind: WidgetKind; label: string }[] = [
   { kind: 'lens', label: 'List' },
-  { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
+  { kind: 'notes', label: 'Notes' },
   { kind: 'eisenhower', label: 'Eisenhower' },
-  { kind: 'status', label: 'Open by status' },
+  { kind: 'dashboard', label: 'Dashboard' },
 ]
 
 /** One choice of a {@link WidgetSetting}. */

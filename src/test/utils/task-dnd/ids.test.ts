@@ -8,7 +8,6 @@ import {
 
 describe('taskDragId — per-surface id format', () => {
   it.each([
-    ['status-widget' as TaskSurfaceKey, 42, undefined, 'status-todo-42'],
     ['list-widget' as TaskSurfaceKey, 42, { scope: 't1', sectionKey: 'all' }, 'lw|t1|all|42'],
     ['calendar-widget' as TaskSurfaceKey, 42, { scope: 't2', sectionKey: 'due' }, 'cw|t2|due|42'],
   ])('%s → %s', (surface, id, extras, expected) => {
@@ -27,7 +26,6 @@ describe('taskDragId — per-surface id format', () => {
 
 describe('isTaskDragId', () => {
   it('accepts every surface id format', () => {
-    expect(isTaskDragId('status-todo-1')).toBe(true)
     expect(isTaskDragId('lw|t1|all|1')).toBe(true)
     expect(isTaskDragId('cw|t1|due|1')).toBe(true)
   })

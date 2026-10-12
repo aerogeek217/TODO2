@@ -4,7 +4,7 @@
  * any extras in `data` distinguish where the drag came from.
  */
 export const TASK_DRAG_KIND = {
-  /** Any draggable task row — list widget row, calendar entry, status widget row. */
+  /** Any draggable task row — list widget row (also Eisenhower and dashboard rows), calendar entry. */
   task: 'task',
 } as const
 

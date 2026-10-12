@@ -72,7 +72,7 @@ test('the add-tab list picker opened from a cell near the bottom stays inside th
         id: 'col',
         cells: [
           { id: 'top', weight: 5, tabs: [{ id: 'notesTab', kind: 'notes' }] },
-          { id: 'bottom', weight: 1, tabs: [{ id: 'statusTab', kind: 'status' }] },
+          { id: 'bottom', weight: 1, tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
         ],
       }],
     }],

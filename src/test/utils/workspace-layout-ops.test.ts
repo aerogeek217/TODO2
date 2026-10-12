@@ -220,10 +220,10 @@ describe('weights, view state, tab settings', () => {
 
   it('replaceTab swaps a tab in place and keeps it active', () => {
     const l = base()
-    const next = replaceTab(l, 'a1', createTab('status', 'a1'))
-    expect(next.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 'a1', kind: 'status', config: {} })
+    const next = replaceTab(l, 'a1', createTab('eisenhower', 'a1'))
+    expect(next.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 'a1', kind: 'eisenhower', config: {} })
     expect(next.columns[0]!.cells[0]!.activeTabId).toBe('a1')
-    expect(replaceTab(l, 'a1', createTab('status', 'b1'))).toBe(l)
+    expect(replaceTab(l, 'a1', createTab('eisenhower', 'b1'))).toBe(l)
   })
 })
 

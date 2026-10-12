@@ -22,7 +22,6 @@ afterEach(() => cleanup())
 
 describe('TaskDraggable — per-surface id + payload', () => {
   it.each([
-    { surface: 'status-widget' as const, extras: {}, expectedId: 'status-todo-42' },
     { surface: 'calendar-widget' as const, extras: { scope: 't2', sectionKey: 'due' }, expectedId: 'cw|t2|due|42' },
     { surface: 'list-widget' as const, extras: { scope: 't1', sectionKey: 'all' }, expectedId: 'lw|t1|all|42' },
   ])('$surface emits id $expectedId', ({ surface, extras, expectedId }) => {
@@ -110,12 +109,12 @@ describe('TaskDraggable — drag payload contents', () => {
     const todo = makeTodo({ id: 9 })
     const rendered = render(
       <DndContext>
-        <TaskDraggable todo={todo} surface="status-widget" extraData={{ sectionKey: 'status:5' }}>
-          {({ setNodeRef }) => <div ref={setNodeRef} data-id="status-todo-9" />}
+        <TaskDraggable todo={todo} surface="list-widget" scope="t1" sectionKey="status:5" extraData={{ listTabId: 't1' }}>
+          {({ setNodeRef }) => <div ref={setNodeRef} data-id="lw-9" />}
         </TaskDraggable>
       </DndContext>,
     )
-    expect(rendered.container.querySelector('[data-id="status-todo-9"]')).not.toBeNull()
+    expect(rendered.container.querySelector('[data-id="lw-9"]')).not.toBeNull()
   })
 
   it('defaults drag kind to TASK_DRAG_KIND.task when `kind` is omitted', () => {
@@ -123,7 +122,7 @@ describe('TaskDraggable — drag payload contents', () => {
     const todo = makeTodo({ id: 5 })
     const r1 = render(
       <DndContext>
-        <TaskDraggable todo={todo} surface="status-widget">
+        <TaskDraggable todo={todo} surface="list-widget" scope="t1" sectionKey="all">
           {({ setNodeRef }) => <div ref={setNodeRef} data-id="implicit-kind" />}
         </TaskDraggable>
       </DndContext>,
@@ -132,7 +131,7 @@ describe('TaskDraggable — drag payload contents', () => {
     cleanup()
     const r2 = render(
       <DndContext>
-        <TaskDraggable todo={todo} surface="status-widget" kind={TASK_DRAG_KIND.task}>
+        <TaskDraggable todo={todo} surface="list-widget" scope="t1" sectionKey="all" kind={TASK_DRAG_KIND.task}>
           {({ setNodeRef }) => <div ref={setNodeRef} data-id="explicit-kind" />}
         </TaskDraggable>
       </DndContext>,

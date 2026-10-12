@@ -1,10 +1,11 @@
 import type { PersistedTodoItem } from '../../models'
+import { DASHBOARD_LOOK_AHEAD_CHOICES, type DashboardLookAhead } from '../../models/dashboard-config'
 import { daysUntil } from '../../utils/effective-date'
 import { idsByDate, NEXT_DAYS, openTasks, type StatsContext } from './stats-context'
 
 /** The look-ahead choices of the Needs follow-up section. */
-export const FOLLOWUP_LOOK_AHEAD_CHOICES = [3, 7, 14] as const
-export type FollowupLookAhead = (typeof FOLLOWUP_LOOK_AHEAD_CHOICES)[number]
+export const FOLLOWUP_LOOK_AHEAD_CHOICES = DASHBOARD_LOOK_AHEAD_CHOICES
+export type FollowupLookAhead = DashboardLookAhead
 
 /**
  * Open tasks by next follow-up day, ids by follow-up date then `sortOrder`.

@@ -494,6 +494,57 @@ describe('v49 fixture → v55: orgs become Org: people', () => {
 
 // ── v56: workspace layouts (v57: no saved prompt picks; v59: taskboard tabs show the Focus list) ──
 
+/** The Default layout v56 builds from the fixture's rails and floats (v57 / v59 applied). */
+const V56_DEFAULT_COLUMNS = [
+  {
+    id: 'col-1', weight: 1, cells: [
+      {
+        id: 's-lens', weight: 2, activeTabId: 't-lens', tabs: [
+          { id: 't-lens', kind: 'lens', config: { listDefinitionId: 3 } },
+          { id: 't-notes', kind: 'notes', config: {} },
+        ],
+      },
+      {
+        id: 's-cal', weight: 1, activeTabId: 't-cal', tabs: [
+          { id: 't-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 1 } },
+        ],
+      },
+    ],
+  },
+  // Bottom rail (no top rail); horizons / stats tabs were already removed by v52.
+  { id: 'col-2', weight: 1, cells: [{ id: 's-stats', weight: 1, activeTabId: 't-st', tabs: [{ id: 't-st', kind: 'status', config: {} }] }] },
+  // Right rail — collapsed on the canvas; the rail's collapse is not carried over.
+  { id: 'col-3', weight: 1, cells: [{ id: 's-tb', weight: 1, activeTabId: 't-tb', tabs: [{ id: 't-tb', kind: 'lens', config: { listDefinitionId: FOCUS_LIST_ID } }] }] },
+  // Floats in canvas reading order (y, then x).
+  {
+    id: 'col-4', weight: 1, cells: [
+      {
+        id: 'cell-floatingCalendars-1', weight: 1, activeTabId: 'tab-floatingCalendars-1', tabs: [
+          { id: 'tab-floatingCalendars-1', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: -1 } },
+        ],
+      },
+      { id: 'cell-floatingNotes-1', weight: 1, activeTabId: 'tab-floatingNotes-1', tabs: [{ id: 'tab-floatingNotes-1', kind: 'notes', config: {} }] },
+      {
+        id: 'cell-floatingCalendars-2', weight: 1, activeTabId: 'tab-floatingCalendars-2', tabs: [
+          { id: 'tab-floatingCalendars-2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 0 } },
+        ],
+      },
+      { id: 'cell-floatingTaskboards-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingTaskboards-1', tabs: [{ id: 'tab-floatingTaskboards-1', kind: 'lens', config: { listDefinitionId: FOCUS_LIST_ID } }] },
+      { id: 'cell-floatingStatus-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingStatus-1', tabs: [{ id: 'tab-floatingStatus-1', kind: 'status', config: {} }] },
+      {
+        id: 'cell-listInsets-1', weight: 1, activeTabId: 'tab-listInsets-1', tabs: [
+          { id: 'tab-listInsets-1', kind: 'lens', config: { listDefinitionId: 3 } },
+        ],
+      },
+      {
+        id: 'cell-listInsets-2', weight: 1, collapsed: true, activeTabId: 'tab-listInsets-2', tabs: [
+          { id: 'tab-listInsets-2', kind: 'lens', config: { listDefinitionId: 2 } },
+        ],
+      },
+    ],
+  },
+]
+
 describe('v49 fixture → v57: rails + floating widgets become the Default layout', () => {
   const canvasCreatedAt = new Date('2026-09-01T09:00:00.000Z')
 
@@ -502,61 +553,9 @@ describe('v49 fixture → v57: rails + floating widgets become the Default layou
     const layouts = await db.layouts.toArray()
     expect(layouts).toHaveLength(1)
     expect((await db.settings.get('activeLayoutId'))?.value).toBe('1')
-    expect(layouts[0]).toEqual({
-      id: 1,
-      name: 'Default',
-      createdAt: canvasCreatedAt,
-      modifiedAt: canvasCreatedAt,
-      columns: [
-        {
-          id: 'col-1', weight: 1, cells: [
-            {
-              id: 's-lens', weight: 2, activeTabId: 't-lens', tabs: [
-                { id: 't-lens', kind: 'lens', config: { listDefinitionId: 3 } },
-                { id: 't-notes', kind: 'notes', config: {} },
-              ],
-            },
-            {
-              id: 's-cal', weight: 1, activeTabId: 't-cal', tabs: [
-                { id: 't-cal', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 1 } },
-              ],
-            },
-          ],
-        },
-        // Bottom rail (no top rail); horizons / stats tabs were already removed by v52.
-        { id: 'col-2', weight: 1, cells: [{ id: 's-stats', weight: 1, activeTabId: 't-st', tabs: [{ id: 't-st', kind: 'status', config: {} }] }] },
-        // Right rail — collapsed on the canvas; the rail's collapse is not carried over.
-        { id: 'col-3', weight: 1, cells: [{ id: 's-tb', weight: 1, activeTabId: 't-tb', tabs: [{ id: 't-tb', kind: 'lens', config: { listDefinitionId: FOCUS_LIST_ID } }] }] },
-        // Floats in canvas reading order (y, then x).
-        {
-          id: 'col-4', weight: 1, cells: [
-            {
-              id: 'cell-floatingCalendars-1', weight: 1, activeTabId: 'tab-floatingCalendars-1', tabs: [
-                { id: 'tab-floatingCalendars-1', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: -1 } },
-              ],
-            },
-            { id: 'cell-floatingNotes-1', weight: 1, activeTabId: 'tab-floatingNotes-1', tabs: [{ id: 'tab-floatingNotes-1', kind: 'notes', config: {} }] },
-            {
-              id: 'cell-floatingCalendars-2', weight: 1, activeTabId: 'tab-floatingCalendars-2', tabs: [
-                { id: 'tab-floatingCalendars-2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week', offset: 0 } },
-              ],
-            },
-            { id: 'cell-floatingTaskboards-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingTaskboards-1', tabs: [{ id: 'tab-floatingTaskboards-1', kind: 'lens', config: { listDefinitionId: FOCUS_LIST_ID } }] },
-            { id: 'cell-floatingStatus-1', weight: 1, collapsed: true, activeTabId: 'tab-floatingStatus-1', tabs: [{ id: 'tab-floatingStatus-1', kind: 'status', config: {} }] },
-            {
-              id: 'cell-listInsets-1', weight: 1, activeTabId: 'tab-listInsets-1', tabs: [
-                { id: 'tab-listInsets-1', kind: 'lens', config: { listDefinitionId: 3 } },
-              ],
-            },
-            {
-              id: 'cell-listInsets-2', weight: 1, collapsed: true, activeTabId: 'tab-listInsets-2', tabs: [
-                { id: 'tab-listInsets-2', kind: 'lens', config: { listDefinitionId: 2 } },
-              ],
-            },
-          ],
-        },
-      ],
-    })
+    expect(layouts[0]).toMatchObject({ id: 1, name: 'Default', createdAt: canvasCreatedAt, modifiedAt: canvasCreatedAt })
+    // As v56 made it (v62 later drops its status tabs).
+    expect(fixtureAt(61).layouts![0]!.columns).toEqual(V56_DEFAULT_COLUMNS)
   })
 
   it('leaves the canvas, rails and floating widgets in place (v60 drops them)', () => {
@@ -729,5 +728,25 @@ describe('v49 fixture → v61: list predicates use markers; no task is flagged u
   it('upgrading the v61 data again changes nothing', () => {
     const upgraded = fixtureAt(CURRENT_DB_VERSION)
     expect(upgradeDataSet(upgraded, 60, CURRENT_DB_VERSION)).toBe(upgraded)
+  })
+})
+
+// ── v62: the Status widget is retired ────────────────────────────────────
+describe('v49 fixture → v62: the Default layout loses its status tabs', () => {
+  it('drops the status tabs, the cell / column left empty, and keeps everything else', async () => {
+    await importFixture()
+    const [layout] = await db.layouts.toArray()
+    const expected = V56_DEFAULT_COLUMNS
+      // The bottom rail held only the status tab: its column goes.
+      .filter((col) => col.id !== 'col-2')
+      .map((col) => ({ ...col, cells: col.cells.filter((cell) => cell.id !== 'cell-floatingStatus-1') }))
+    expect(layout!.columns).toEqual(expected)
+    const kinds = layout!.columns.flatMap((c) => c.cells.flatMap((cell) => cell.tabs.map((t) => t.kind)))
+    expect(kinds).not.toContain('status')
+  })
+
+  it('upgrading the v62 data again changes nothing', () => {
+    const upgraded = fixtureAt(CURRENT_DB_VERSION)
+    expect(upgradeDataSet(upgraded, 61, CURRENT_DB_VERSION)).toBe(upgraded)
   })
 })

@@ -1,0 +1,248 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { render, cleanup, act, within, fireEvent } from '@testing-library/react'
+import { DndContext } from '@dnd-kit/core'
+import { DashboardWidget, type DashboardResult } from '../../../components/workspace/dashboard/DashboardWidget'
+import type { DashboardDrill } from '../../../components/workspace/dashboard/types'
+import { defaultDashboardConfig, type DashboardTabConfig } from '../../../models/dashboard-config'
+import { createTab, type DashboardTab } from '../../../models/workspace-layout'
+import { useFilterStore } from '../../../stores/filter-store'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { useListDraftStore } from '../../../stores/list-draft-store'
+import { usePersonStore } from '../../../stores/person-store'
+import { useSettingsStore } from '../../../stores/settings-store'
+import { useStatusStore } from '../../../stores/status-store'
+import { useTagStore } from '../../../stores/tag-store'
+import { useTodoStore } from '../../../stores/todo-store'
+import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-events-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { DEFAULT_HOT_RULE } from '../../../utils/hot'
+import { clearFilterStore, resetEntityStores } from '../../helpers'
+import {
+  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, Q4, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
+} from '../../fixtures/dashboard-sample'
+
+let lastResult: DashboardResult | null = null
+
+function tabWith(config: Partial<DashboardTabConfig> = {}): DashboardTab {
+  return { id: 'dash', kind: 'dashboard', config: { ...defaultDashboardConfig(), ...config } }
+}
+
+function setup(tab: DashboardTab = tabWith(), onDrill?: (d: DashboardDrill) => void) {
+  return render(
+    <DndContext>
+      <DashboardWidget tab={tab} onResult={(r) => { lastResult = r }} onDrill={onDrill} />
+    </DndContext>,
+  )
+}
+
+const widget = () => document.querySelector<HTMLElement>('[data-dashboard]')!
+const tile = (id: string) => document.querySelector<HTMLElement>(`[data-dash-tile="${id}"]`)!
+const tileCount = (id: string) => within(tile(id)).getByTestId('dash-tile-count').textContent
+const section = (id: string) => document.querySelector<HTMLElement>(`[data-dash-section="${id}"]`)
+const sectionCount = (id: string) => within(section(id)!).getByTestId('dash-section-count').textContent
+const rowTitles = (el: HTMLElement) => Array.from(el.querySelectorAll('[data-row-todo]'))
+  .map((r) => SAMPLE_TASKS.find((t) => t.id === Number((r as HTMLElement).dataset.rowTodo))?.title)
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 10, 10))
+  lastResult = null
+  resetEntityStores()
+  clearFilterStore()
+  useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 })
+  useTodoStore.setState({ todos: SAMPLE_TASKS })
+  usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: ASSIGNED_PEOPLE })
+  useTagStore.setState({ tags: TAGS, assignedTagsMap: ASSIGNED_TAGS })
+  useStatusStore.setState({ statuses: STATUSES })
+  useListDefinitionStore.setState({ listDefinitions: SAMPLE_LISTS })
+  useListDraftStore.setState({ drafts: {} })
+  useUIStore.setState({ selectedTodoIds: new Set(), selectionScope: null, filteredListPopup: null })
+  // The trend's history, as the cache holds it after its read.
+  useTrendEventsStore.setState({
+    entries: new Map([[trendEventsKey('14d', SAMPLE_TODAY, 0), { events: SAMPLE_EVENTS, stale: false, loading: false }]]),
+    generation: 0,
+  })
+})
+
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
+
+describe('DashboardWidget — the design sample', () => {
+  it('a new dashboard tab gets the default config', () => {
+    expect(createTab('dashboard', 'd')).toEqual({ id: 'd', kind: 'dashboard', config: defaultDashboardConfig() })
+  })
+
+  it('renders the default tiles with the design numbers and sub-lines', () => {
+    setup()
+    expect(Array.from(document.querySelectorAll('[data-dash-tile]')).map((el) => (el as HTMLElement).dataset.dashTile))
+      .toEqual(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'])
+    expect(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount)).toEqual(['19', '4', '8', '2', '2', '3'])
+    expect(tile('open').textContent).toContain('+3 in the last 14 days')
+    expect(tile('hot').textContent).toContain('3 urgent + important · 1 Focus')
+    expect(tile('urgent').textContent).toContain('3 flagged · 5 by due date')
+    expect(tile('overdue').textContent).toContain('Oldest Wed 7 · 3d late')
+    expect(tile('followupDue').textContent).toContain('1 late · 3 more in 7 days')
+    expect(tile('focus').textContent).toContain('2 due today')
+    expect(tile('open').querySelector('polyline')).not.toBeNull()
+  })
+
+  it('reports the open count for the tab', () => {
+    setup()
+    expect(lastResult).toEqual({ countLabel: '19' })
+  })
+
+  it('renders every section in the default order and spans', () => {
+    setup()
+    const ids = Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)
+    expect(ids).toEqual(['hot', 'followup', 'next7', 'trend', 'status', 'people'])
+    expect(['hot', 'followup', 'next7', 'trend', 'status', 'people'].map((id) => section(id)!.style.gridColumn))
+      .toEqual(['span 5', 'span 4', 'span 3', 'span 5', 'span 3', 'span 4'])
+    // No list tiles configured: no strip.
+    expect(document.querySelector('[aria-label="List tiles"]')).toBeNull()
+  })
+
+  it('Hot: the hot tasks as task rows, overdue first then by due date, with the rule in words', () => {
+    setup()
+    const hot = section('hot')!
+    expect(sectionCount('hot')).toBe('4')
+    expect(hot.textContent).toContain('Urgent and important, or in Focus')
+    expect(rowTitles(hot)).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy', 'Book venue for offsite'])
+    // Real task rows: draggable list-widget rows of this tab.
+    expect(hot.querySelector('[data-drag-id^="lw|dash|hot|"]')).not.toBeNull()
+  })
+
+  it('Needs follow-up: Late / Today / Next 7 days groups', () => {
+    setup()
+    const fu = section('followup')!
+    expect(sectionCount('followup')).toBe('5')
+    const groups = within(fu).getAllByRole('group').map((g) => [g.getAttribute('aria-label'), rowTitles(g)])
+    expect(groups).toEqual([
+      ['Late', ['Vendor contract']],
+      ['Today', ['Chase venue deposit invoice']],
+      ['Next 7 days', ['Vendor contract redlines', 'Sign off on new logo', 'Book venue for offsite']],
+    ])
+  })
+
+  it('Next 7 days: a Late column, today and six days, with due / follow-up counts', () => {
+    setup()
+    const days = within(section('next7')!).getAllByTestId('dash-day')
+    expect(days).toHaveLength(8)
+    expect(days.map((d) => d.querySelector('[class*="dayName"]')?.textContent))
+      .toEqual(['Late', 'Today', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
+    expect(days[0]!.dataset.late).toBe('true')
+    expect(days[1]!.dataset.today).toBe('true')
+  })
+
+  it('Created vs completed: the window totals', () => {
+    setup()
+    expect(within(section('trend')!).getByTestId('dash-trend-completed').textContent).toBe('14completed')
+    expect(within(section('trend')!).getByTestId('dash-trend-created').textContent).toBe('17created')
+    expect(section('trend')!.textContent).toContain('+3open since Sun 27 Sep')
+  })
+
+  it('Status: open counts per status with percentages', () => {
+    setup()
+    const status = section('status')!
+    expect(sectionCount('status')).toBe('19 open')
+    const rows = Array.from(status.querySelectorAll('[data-status-key]')).map((r) => r.textContent)
+    expect(rows).toEqual(['To do1158%', 'In progress526%', 'Waiting211%', 'Blocked15%'])
+  })
+
+  it('People: by open count, ties by name, Unassigned last; a row opens the person popup', () => {
+    setup()
+    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
+    expect(rows.map((r) => r.querySelector('[class*="personName"] > span')?.textContent)).toEqual(['Priya Nair', 'Alice Chen', 'Ben Ortiz', 'Dana Kim', 'Sam Lee', 'Unassigned'])
+    fireEvent.click(rows[0]!)
+    expect(useUIStore.getState().filteredListPopup?.filter).toEqual({ type: 'person', personId: 4, personName: 'Priya Nair' })
+  })
+
+  it('People: Unassigned can be hidden', () => {
+    setup(tabWith({ sections: [{ id: 'people', options: { showUnassigned: false } }] }))
+    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
+    expect(rows.map((r) => r.dataset.personRow)).not.toContain('none')
+  })
+})
+
+describe('DashboardWidget — config', () => {
+  it('shows only the configured tiles and sections, in config order, re-flowing spans', () => {
+    setup(tabWith({ tiles: ['focus', 'noFollowup'], sections: [{ id: 'hot' }, { id: 'trend' }, { id: 'people' }] }))
+    expect(Array.from(document.querySelectorAll('[data-dash-tile]')).map((el) => (el as HTMLElement).dataset.dashTile)).toEqual(['focus', 'noFollowup'])
+    expect(Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)).toEqual(['hot', 'trend', 'people'])
+    // 5 + 5 fit a row and the row's last stretches to 7; People (4) starts a row alone.
+    expect(['hot', 'trend', 'people'].map((id) => section(id)!.style.gridColumn)).toEqual(['span 5', 'span 7', 'span 12'])
+    expect(widget().style.gridTemplateRows).toBe('auto minmax(0, 1fr) 272px')
+  })
+
+  it('list tiles: count shown of total; prompted and deleted lists are skipped', () => {
+    useFilterStore.setState((s) => ({ filters: { ...s.filters, tags: new Set([Q4]) } }))
+    setup(tabWith({ listTiles: [1, 2, 3, 4, 5, 99] }))
+    const tiles = Array.from(document.querySelectorAll<HTMLElement>('[data-dash-list-tile]'))
+    expect(tiles.map((t) => Number(t.dataset.dashListTile))).toEqual([1, 2, 3, 4])
+    expect(tiles.map((t) => within(t).getByTestId('dash-list-count').textContent)).toEqual(['0of 2', '2of 4', '5', '0of 2'])
+    expect(tiles.map((t) => t.querySelector('[class*="listHint"]')?.textContent)).toEqual(['Status: Waiting', '@Priya Nair', '#q4', '#errands'])
+  })
+
+  it('list tiles follow unsaved list edits', () => {
+    const waiting = SAMPLE_LISTS[0]!
+    useListDraftStore.setState({ drafts: { 1: { ...waiting, membership: { kind: 'custom', predicate: { ...waiting.membership.predicate, statusIds: [1] } } } } })
+    setup(tabWith({ listTiles: [1] }))
+    expect(within(document.querySelector<HTMLElement>('[data-dash-list-tile="1"]')!).getByTestId('dash-list-count').textContent).toBe('11')
+  })
+
+  it('an empty section shows its empty lines', () => {
+    useSettingsStore.setState({ hotRule: [{ urgent: true, important: true, focus: true }] })
+    useTodoStore.setState({ todos: SAMPLE_TASKS.filter((t) => t.focus !== true) })
+    setup()
+    expect(section('hot')!.textContent).toContain('Nothing hot')
+    expect(section('hot')!.textContent).toContain('Tasks matching the Hot setting show here.')
+  })
+})
+
+describe('DashboardWidget — screen filter', () => {
+  it('every count reads shown of total under the top-bar filter', () => {
+    useFilterStore.setState((s) => ({ filters: { ...s.filters, tags: new Set([Q4]) } }))
+    setup()
+    expect(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount))
+      .toEqual(['5of 19', '1of 4', '1of 8', '0of 2', '0of 2', '1of 3'])
+    expect(tile('hot').textContent).toContain('1 in Focus')
+    expect(tile('overdue').textContent).toContain('Nothing overdue')
+    expect(tile('focus').textContent).toContain('None due today')
+    expect(lastResult).toEqual({ countLabel: '5 of 19' })
+    expect(sectionCount('hot')).toBe('1 of 4')
+    expect(sectionCount('status')).toBe('5 of 19 open')
+  })
+
+  it('Show completed adds nothing to the counts', () => {
+    useFilterStore.setState((s) => ({ filters: { ...s.filters, showCompleted: true } }))
+    setup()
+    expect(tileCount('open')).toBe('19')
+  })
+
+  it('counts follow store changes', () => {
+    setup()
+    act(() => {
+      useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === 1 ? { ...t, isCompleted: true } : t)) })
+    })
+    expect(tileCount('open')).toBe('18')
+    expect(tileCount('hot')).toBe('3')
+  })
+})
+
+describe('DashboardWidget — drill hook', () => {
+  it('without a drill handler numbers are not buttons', () => {
+    setup()
+    expect(tile('hot').tagName).toBe('DIV')
+  })
+
+  it('with one, a tile opens its tasks and a list tile its list', () => {
+    const onDrill = vi.fn()
+    setup(tabWith({ listTiles: [3] }), onDrill)
+    fireEvent.click(tile('hot'))
+    expect(onDrill).toHaveBeenLastCalledWith({ kind: 'tasks', title: 'Hot tasks', glyph: 'hot', todoIds: [1, 2, 3, 4] })
+    fireEvent.click(document.querySelector('[data-dash-list-tile="3"]')!)
+    expect(onDrill).toHaveBeenLastCalledWith({ kind: 'list', listDefinitionId: 3 })
+  })
+})

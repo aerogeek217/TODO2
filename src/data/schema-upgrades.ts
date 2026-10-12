@@ -10,6 +10,7 @@ import { upgradeV57 } from './upgrades/v57-drop-list-favorites'
 import { upgradeV59 } from './upgrades/v59-taskboard-to-focus'
 import { upgradeV60 } from './upgrades/v60-projects-to-tags'
 import { upgradeV61 } from './upgrades/v61-focus-filter-to-markers'
+import { upgradeV62 } from './upgrades/v62-retire-status-widget'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -77,6 +78,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [59, upgradeV59],
   [60, upgradeV60],
   [61, upgradeV61],
+  [62, upgradeV62],
 ])
 
 /**

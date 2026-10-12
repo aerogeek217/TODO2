@@ -127,7 +127,13 @@ function buildSeed(): Seed {
           {
             id: 'c2', weight: 0.75, cells: [
               { id: 'k3', weight: 1, tabs: [
-                { id: 't5', kind: 'status', config: {} },
+                {
+                  id: 't5', kind: 'dashboard', config: {
+                    tiles: ['hot', 'open', 'noFollowup'],
+                    listTiles: [2, 1],
+                    sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '4w' } }, { id: 'followup', options: { lookAhead: 14 } }, { id: 'status' }],
+                  },
+                },
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
               ] },
@@ -219,6 +225,8 @@ describe('export → JSON → import round-trip', () => {
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
+    const dashboard = tabs.find((t) => t.kind === 'dashboard')
+    expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)
   })
 
   it('restores every table deep-equal to the seed, with real Dates', async () => {

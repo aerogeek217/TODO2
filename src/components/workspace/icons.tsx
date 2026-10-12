@@ -50,7 +50,9 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M8 2.5v11M2.5 8h11" />
     </>
   ),
-  status: <path d="M3.5 13.5V10M8 13.5V6.5M12.5 13.5V3" />,
+  dashboard: (
+    <path d="M3.5 2.5h3a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM9.5 2.5h3a1 1 0 0 1 1 1v1.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1zM3.5 10.5h3a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1zM9.5 8h3a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+  ),
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
