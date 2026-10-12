@@ -8,8 +8,8 @@ import { DateAnchorInput } from '../DateAnchorInput'
 import { StatusIcon } from '../StatusIcon'
 import topBar from '../../layout/TopBar.module.css'
 import { cycleTri, triIcon, triLabel } from './FilterChipBar.shared'
-import { MarkerIcon } from '../MarkerIcons'
-import { MARKER_COLOR, MARKER_LABELS, toggleMarker } from '../../../utils/markers'
+import { HotIcon, MarkerIcon } from '../MarkerIcons'
+import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, activeMarkers, isHotFilter, toggleHot, toggleMarker } from '../../../utils/markers'
 import markerStyles from './MarkersPanel.module.css'
 
 /**
@@ -268,39 +268,59 @@ export function DateRangePanelBody({
   )
 }
 
+const TICK = (
+  <svg className={markerStyles.tick} width="12" height="12" viewBox="0 0 16 16" aria-hidden>
+    <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 /**
- * The Markers filter: Urgent / Important / Focus checkboxes; a task must have
- * every ticked marker (strict AND). Ticking keeps the picker open.
+ * The Markers filter: Hot, then Urgent / Important / Focus checkboxes. A task
+ * must be hot, or have every ticked marker (strict AND). Ticking Hot clears
+ * and disables the single markers. Ticking keeps the picker open.
  */
 export function MarkersPanelBody({ value, onChange }: {
   value: MarkersFilter | null
   onChange: (v: MarkersFilter | null) => void
 }) {
+  const hot = isHotFilter(value)
+  const ticked = activeMarkers(value)
   return (
     <div className={markerStyles.panel} role="group" aria-label="Markers">
+      <button
+        type="button"
+        className={`${topBar.dropdownItem} ${markerStyles.row} ${hot ? markerStyles.rowOn : ''}`}
+        role="checkbox"
+        aria-checked={hot}
+        onClick={() => onChange(toggleHot(value))}
+      >
+        <span className={markerStyles.glyph} style={{ color: 'var(--color-danger)' }}><HotIcon /></span>
+        <span className={markerStyles.label}>{HOT_LABEL}</span>
+        {hot && TICK}
+      </button>
+      <div className={markerStyles.separator} role="separator" />
       {MARKER_KEYS.map((key) => {
-        const on = value?.[key] === true
+        const on = ticked.includes(key)
         return (
           <button
             key={key}
             type="button"
-            className={`${topBar.dropdownItem} ${markerStyles.row} ${on ? markerStyles.rowOn : ''}`}
+            className={`${topBar.dropdownItem} ${markerStyles.row} ${on ? markerStyles.rowOn : ''} ${hot ? markerStyles.rowDisabled : ''}`}
             role="checkbox"
             aria-checked={on}
-            onClick={() => onChange(toggleMarker(value, key))}
+            aria-disabled={hot || undefined}
+            onClick={() => { if (!hot) onChange(toggleMarker(value, key)) }}
           >
             <span className={markerStyles.glyph} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
             <span className={markerStyles.label}>{MARKER_LABELS[key]}</span>
-            {on && (
-              <svg className={markerStyles.tick} width="12" height="12" viewBox="0 0 16 16" aria-hidden>
-                <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
+            {on && TICK}
           </button>
         )
       })}
       <p className={markerStyles.note}>
-        Tasks must have every ticked marker (strict AND). Urgent includes urgent by due date.
+        {hot
+          ? 'Hot already combines these markers. Clear Hot to pick them one by one.'
+          : 'Tasks must have every ticked marker (strict AND). Urgent includes urgent by due date.'}
       </p>
     </div>
   )

@@ -24,6 +24,8 @@ export {
   RELATIVE_DATE_TOKENS,
   type MarkerKey,
   type MarkersFilter,
+  type MarkerSet,
+  HOT_MARKERS,
   MARKER_KEYS,
 } from './filter-predicate'
 export { type Note, type PersistedNote } from './note'

@@ -161,4 +161,26 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().urgentDueWithinDays).toBe(3)
   })
+
+  it('hotRule defaults to (Urgent AND Important) OR Focus, saves normalized, and ignores junk on load', async () => {
+    const DEFAULT = [{ urgent: true, important: true }, { focus: true }]
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
+
+    await useSettingsStore.getState().setHotRule([{ focus: true, important: true }, {}, { important: true, focus: true }, { urgent: true }])
+    expect((await db.settings.get('hotRule'))!.value).toBe('[{"important":true,"focus":true},{"urgent":true}]')
+    expect(useSettingsStore.getState().hotRule).toEqual([{ important: true, focus: true }, { urgent: true }])
+    useSettingsStore.setState({ hotRule: DEFAULT })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().hotRule).toEqual([{ important: true, focus: true }, { urgent: true }])
+
+    // No marker at all: not a rule, not written.
+    await useSettingsStore.getState().setHotRule([{}])
+    await useSettingsStore.getState().setHotRule([])
+    expect((await db.settings.get('hotRule'))!.value).toBe('[{"important":true,"focus":true},{"urgent":true}]')
+
+    await db.settings.put({ key: 'hotRule', value: '[{"warm":true}]' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
+  })
 })

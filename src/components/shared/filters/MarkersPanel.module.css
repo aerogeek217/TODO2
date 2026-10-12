@@ -45,3 +45,19 @@
   color: var(--color-accent);
   flex-shrink: 0;
 }
+
+.separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border-muted);
+}
+
+/* Hot is ticked: the single markers are greyed out and can't be picked. */
+.rowDisabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rowDisabled:hover {
+  background: none;
+}

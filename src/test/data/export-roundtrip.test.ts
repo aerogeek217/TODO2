@@ -77,6 +77,7 @@ function buildSeed(): Seed {
       { key: 'weekStartsOn', value: '1' },
       { key: 'followupDefaultInterval', value: '2w' },
       { key: 'urgentDueWithinDays', value: 'off' },
+      { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
       { key: 'themeMode', value: 'dark' },
       { key: 'defaultStatusId', value: '2' },
       { key: 'quickStatusId', value: '1' },
@@ -92,7 +93,7 @@ function buildSeed(): Seed {
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true, markers: { focus: true } } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dateField: 'followup', hasFollowup: true, markers: 'hot' } },
       sort: 'followup', grouping: 'followup', pinnedToDashboard: false,
     }, {
       id: 1, name: 'By person', sortOrder: 0,
@@ -205,6 +206,10 @@ describe('export → JSON → import round-trip', () => {
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter?.label !== undefined)).toBe(true)
+    // Both forms of the Markers filter: Hot and ticked markers.
+    const markers = seed.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate.markers : undefined)
+    expect(markers).toContain('hot')
+    expect(markers.some((m) => typeof m === 'object' && m !== null)).toBe(true)
     const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))
     const tabs = cells.flatMap((c) => c.tabs)
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)

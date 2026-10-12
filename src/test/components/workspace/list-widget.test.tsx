@@ -12,6 +12,7 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
 import { useSettingsStore } from '../../../stores/settings-store'
+import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { SINGLE_BINDINGS, type ShortcutCtx } from '../../../services/keyboard-shortcuts'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab } from '../../../models/workspace-layout'
@@ -51,6 +52,7 @@ beforeEach(() => {
   useUIStore.getState().clearSelection()
   useUIStore.setState({ bulkConfirmation: null })
   useListOrderStore.setState({ ranks: new Map(), loaded: true })
+  useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE })
   usePersonStore.setState({ people: [alice, bob], assignedPeopleMap: new Map([[1, [alice]], [2, [bob]], [3, [alice, bob]]]) })
   useTodoStore.setState({
     todos: [
@@ -388,6 +390,29 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(screen.getByRole('button', { name: /Add task/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
+  })
+
+  it('a Hot list re-filters when the Hot rule or the urgent range changes, and offers no + Add task', () => {
+    const tomorrow = new Date()
+    tomorrow.setHours(0, 0, 0, 0)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, important: true, dueDate: tomorrow }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2, focus: true }),
+        makeTodo({ id: 3, title: 'Shared task', sortOrder: 3, important: true }),
+      ],
+    })
+    const { result } = setup(def({}, { markers: 'hot' }))
+    expect(titles()).toEqual(['Alice task', 'Bob task'])
+    expect(screen.queryByRole('button', { name: /Add task/ })).toBeNull()
+    act(() => useSettingsStore.setState({ hotRule: [{ important: true }] }))
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+    expect(result()?.countLabel).toBe('2')
+    act(() => useSettingsStore.setState({ hotRule: [{ urgent: true }] }))
+    expect(titles()).toEqual(['Alice task'])
+    act(() => useSettingsStore.setState({ urgentDueWithinDays: null }))
+    expect(titles()).toEqual([])
   })
 
   it('a manual list follows its ranks; unranked tasks come after, oldest first', () => {

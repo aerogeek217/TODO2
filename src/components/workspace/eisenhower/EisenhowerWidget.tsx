@@ -10,6 +10,7 @@ import {
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useToday } from '../../../hooks/use-today'
+import { useMarkerSettings } from '../../../hooks/use-marker-settings'
 import { useTooltip } from '../../../hooks/use-tooltip'
 import { applyFilter, countActiveFilters, useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -374,6 +375,7 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const screen = useFilterStore((s) => s.filters)
+  const markerSettings = useMarkerSettings()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const inScope = useUIStore((s) => s.selectionScope === tab.id)
   const selectedIds = useUIStore((s) => s.selectedTodoIds)
@@ -389,8 +391,8 @@ export function EisenhowerWidget({ tab, onResult }: { tab: EisenhowerTab; onResu
   const collapsed = useMemo(() => new Set(tab.viewState?.collapsed ?? []), [tab.viewState?.collapsed])
 
   const shown = useMemo(
-    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap],
+    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings),
+    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings],
   )
   const quadrants = useMemo(() => buildQuadrants(shown, today, range), [shown, today, range])
   const openShown = useMemo(() => shown.filter((t) => !t.isCompleted).length, [shown])

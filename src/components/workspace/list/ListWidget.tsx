@@ -45,7 +45,7 @@ import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from './L
 import { ListBulkBar } from './ListBulkBar'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
-import { hasMarkers } from '../../../utils/markers'
+import { activeMarkers } from '../../../utils/markers'
 import styles from './ListWidget.module.css'
 
 /** What a list widget reports to its cell (tab count, Copy tasks). */
@@ -151,12 +151,12 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const showFilterRow = listChips.length > 0 || screenChips.length > 0
 
   // + Add task: only when the merged predicate names people / status / tags
-  // / markers to seed the new task with.
+  // / markers to seed the new task with (Hot seeds nothing).
   const canAddTask = mergedPredicate != null && (
     mergedPredicate.personIds != null
     || mergedPredicate.statusIds != null
     || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
-    || hasMarkers(mergedPredicate.markers)
+    || activeMarkers(mergedPredicate.markers).length > 0
   )
 
   const groupedBy = definition.grouping

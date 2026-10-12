@@ -3,6 +3,7 @@ import { useFilterStore, matchesFilter, applyFilter, countActiveFilters, criteri
 import type { PersistedTodoItem } from '../../models'
 import { makeTodo } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
+import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 /** Short-hand: current active filter state from the store. */
 const f = () => useFilterStore.getState().filters
@@ -197,7 +198,7 @@ describe('useFilterStore', () => {
     const day = (offset: number) => new Date(2026, 9, 10 + offset)
 
     beforeEach(() => {
-      useSettingsStore.setState({ urgentDueWithinDays: 3 })
+      useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE })
     })
 
     it('each ticked marker narrows; several AND together', () => {
@@ -237,6 +238,26 @@ describe('useFilterStore', () => {
       useFilterStore.getState().setMarkers({})
       expect(f().markers).toBeNull()
       expect(useFilterStore.getState().isActive).toBe(false)
+    })
+
+    it('Hot keeps the tasks the Settings rule makes hot, and is one active filter', () => {
+      useFilterStore.getState().setMarkers('hot')
+      expect(f().markers).toBe('hot')
+      expect(countActiveFilters(f())).toBe(1)
+      const urgentImportant = makeTodo({ id: 1, important: true, dueDate: day(1) })
+      const focused = makeTodo({ id: 2, focus: true })
+      const importantOnly = makeTodo({ id: 3, important: true })
+      const doneFocused = makeTodo({ id: 4, focus: true, isCompleted: true })
+      useFilterStore.getState().setShowCompleted(true)
+      const shown = () => [urgentImportant, focused, importantOnly, doneFocused].map((t) => matchesFilter(f(), t, undefined, today))
+      expect(shown()).toEqual([true, true, false, false])
+      useSettingsStore.setState({ hotRule: [{ important: true }] })
+      expect(shown()).toEqual([true, false, true, false])
+      // A caller's own settings win over the store's.
+      expect(matchesFilter(f(), focused, undefined, today, undefined, undefined, { urgentRange: 3, hotRule: [{ focus: true }] })).toBe(true)
+      const predicate = criteriaToPredicate(f())
+      expect(predicate.markers).toBe('hot')
+      expect(predicateToCriteria(predicate).markers).toBe('hot')
     })
 
     it('round-trips through the predicate; a predicate without it reads as null', () => {

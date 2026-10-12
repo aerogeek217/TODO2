@@ -99,6 +99,30 @@ describe('FilterChipBar — primitive', () => {
       expect(updates.at(-1)?.markers).toBeNull()
     })
 
+    it('Hot comes first; ticking it replaces the single markers and greys them out', () => {
+      const updates: TodoPredicate[] = []
+      const { rerender } = render(<FilterChipBar predicate={{ ...emptyPredicate(), markers: { urgent: true } }} onChange={(p) => updates.push(p)} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Markers filter: Urgent' }))
+      const names = screen.getAllByRole('checkbox').map((c) => c.textContent)
+      expect(names).toEqual(['Hot', 'Urgent', 'Important', 'Focus'])
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' }))
+      expect(updates.at(-1)?.markers).toBe('hot')
+
+      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: 'hot' }} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByRole('button', { name: 'Markers filter: Hot' })).toBeInTheDocument()
+      expect(screen.getByRole('checkbox', { name: 'Hot' })).toHaveAttribute('aria-checked', 'true')
+      for (const name of ['Urgent', 'Important', 'Focus']) {
+        expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-disabled', 'true')
+        expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-checked', 'false')
+      }
+      expect(screen.getByText('Hot already combines these markers. Clear Hot to pick them one by one.')).toBeInTheDocument()
+      const before = updates.length
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Important' }))
+      expect(updates.length).toBe(before)
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' }))
+      expect(updates.at(-1)?.markers).toBeNull()
+    })
+
     it('opens the Tags chip and commits only the clicked tag (preview-empty)', () => {
       let captured: TodoPredicate | null = null
       render(
@@ -290,6 +314,12 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.getByRole('switch', { name: 'Only focus tasks' })).toHaveAttribute('aria-checked', 'true')
       fireEvent.click(screen.getByRole('switch', { name: 'Only urgent tasks' }))
       expect(updates.at(-1)?.markers).toEqual({ urgent: true, focus: true })
+      fireEvent.click(screen.getByRole('switch', { name: 'Only hot tasks' }))
+      expect(updates.at(-1)?.markers).toBe('hot')
+      rerender(<FilterChipBar density="mobile" predicate={updates.at(-1)!} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByRole('switch', { name: 'Only hot tasks' })).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByRole('switch', { name: 'Only urgent tasks' })).toBeDisabled()
+      expect(screen.getByRole('switch', { name: 'Only urgent tasks' })).toHaveAttribute('aria-checked', 'false')
     })
 
     it('renders the show-completed switch with correct aria-label and toggles it', () => {

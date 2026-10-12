@@ -25,6 +25,11 @@ export const SETTING_KEYS = {
    * Absent = the default (3 days).
    */
   urgentDueWithinDays: 'urgentDueWithinDays',
+  /**
+   * Hot rule: JSON array of lines, each an object of markers set to `true`
+   * (`[{"urgent":true,"important":true},{"focus":true}]`). Absent = that default.
+   */
+  hotRule: 'hotRule',
   /** Id of the workspace layout that is open (a `layouts` row). */
   activeLayoutId: 'activeLayoutId',
 } as const

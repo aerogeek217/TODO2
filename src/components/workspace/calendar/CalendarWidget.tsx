@@ -17,6 +17,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { applyFilter, countActiveFilters, useFilterStore } from '../../../stores/filter-store'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useToday } from '../../../hooks/use-today'
+import { useMarkerSettings } from '../../../hooks/use-marker-settings'
 import {
   buildEntries,
   dayDots,
@@ -416,6 +417,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const screen = useFilterStore((s) => s.filters)
+  const markerSettings = useMarkerSettings()
   const screenActive = useFilterStore((s) => s.isActive)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const pending = useContext(PendingCalendarDropContext)
@@ -438,8 +440,8 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const month = range.start.getMonth()
 
   const shownTodos = useMemo(
-    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap],
+    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings),
+    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings],
   )
 
   const entriesByDay = useMemo(

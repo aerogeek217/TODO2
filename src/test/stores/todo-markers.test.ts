@@ -146,6 +146,14 @@ describe('marker filter defaults and list equality', () => {
     expect(markerFlags(none)).toEqual({})
   })
 
+  it('a Hot filter seeds no markers (no one set of flags makes a task hot under every rule)', () => {
+    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: 'hot', personIds: [3] }))
+    expect(fd.markers).toBeUndefined()
+    expect(fd.personIds).toEqual([3])
+    expect(seedsMarkers(fd)).toBe(false)
+    expect(markerFlags(fd)).toEqual({})
+  })
+
   it('list-definition equality sees markers (absent == null == {}), not their order', () => {
     const base: PersistedListDefinition = {
       id: 1, name: 'L', sortOrder: 0, pinnedToDashboard: false, sort: 'manual', grouping: 'none',
@@ -162,5 +170,12 @@ describe('marker filter defaults and list equality', () => {
       withPredicate({ ...emptyPredicate(), markers: { focus: true, urgent: true } }),
       withPredicate({ ...emptyPredicate(), markers: { urgent: true, focus: true } }),
     )).toBe(true)
+    // Hot equals only Hot.
+    expect(defsEqual(withPredicate({ ...emptyPredicate(), markers: 'hot' }), withPredicate({ ...emptyPredicate(), markers: 'hot' }))).toBe(true)
+    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: 'hot' }))).toBe(false)
+    expect(defsEqual(
+      withPredicate({ ...emptyPredicate(), markers: 'hot' }),
+      withPredicate({ ...emptyPredicate(), markers: { urgent: true, important: true, focus: true } }),
+    )).toBe(false)
   })
 })

@@ -6,11 +6,12 @@ export type ImportTodoTag = TodoTag
 
 import type { ListDefinition, ListMembership, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { toDate, toOptDate } from './date-revive'
-import { MARKER_KEYS, RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
+import { HOT_MARKERS, MARKER_KEYS, RELATIVE_DATE_TOKENS } from '../models/filter-predicate'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
+import { formatHotRule, parseHotRule } from '../utils/hot'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutColumns, pickLayoutColumns } from './layout-shape'
@@ -121,9 +122,9 @@ function isOptTriBool(v: unknown): boolean {
   return v === undefined || v === null || isBool(v)
 }
 
-/** A Markers filter: absent / null, or an object of known markers set to `true`. */
+/** A Markers filter: absent / null, `'hot'`, or an object of known markers set to `true`. */
 function isOptMarkers(v: unknown): boolean {
-  if (v === undefined || v === null) return true
+  if (v === undefined || v === null || v === HOT_MARKERS) return true
   if (!isObj(v)) return false
   return Object.entries(v).every(([k, val]) => (MARKER_KEYS as readonly string[]).includes(k) && val === true)
 }
@@ -339,6 +340,11 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : 'value (urgentDueWithinDays must be off or a day count 0–365)'
   }
+  if (v.key === SETTING_KEYS.hotRule) {
+    return parseHotRule(v.value as string) !== undefined
+      ? true
+      : 'value (hotRule must be a list of lines, each with at least one of urgent / important / focus)'
+  }
   return true
 }
 
@@ -426,7 +432,11 @@ function pickTodoPerson(v: Raw): AllFields<TodoPerson> {
 }
 
 function pickSetting(v: Raw): AllFields<SettingRow> {
-  return { key: v.key as string, value: v.value as string } satisfies AllFields<SettingRow>
+  const key = v.key as string
+  const value = v.value as string
+  // The Hot rule is stored normalized (duplicate lines collapsed).
+  const hotRule = key === SETTING_KEYS.hotRule ? parseHotRule(value) : undefined
+  return { key, value: hotRule ? formatHotRule(hotRule) : value } satisfies AllFields<SettingRow>
 }
 
 function pickNote(v: Raw): AllFields<Note> {

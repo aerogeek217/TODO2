@@ -53,13 +53,22 @@ export type MarkerKey = 'urgent' | 'important' | 'focus'
 export const MARKER_KEYS: readonly MarkerKey[] = ['urgent', 'important', 'focus']
 
 /**
- * The Markers filter: a task must have **every** listed marker (strict AND).
- * `urgent` means effective urgent — flagged, or due within the Settings range
- * (`utils/urgency.ts`). Only `true` values are stored; an empty object is no
- * filter. (A string form, e.g. a derived `'hot'`, can join this union
- * without rewriting stored predicates.)
+ * A set of markers: only `true` values are stored, an empty object is none.
+ * A Markers filter's ticked markers, one line of the Hot rule, the flags a
+ * filter seeds on new tasks.
  */
-export type MarkersFilter = { [K in MarkerKey]?: true }
+export type MarkerSet = { [K in MarkerKey]?: true }
+
+/** The Markers filter's Hot choice: the task must be hot (Settings' Hot rule, `utils/hot.ts`). */
+export const HOT_MARKERS = 'hot'
+
+/**
+ * The Markers filter: either `'hot'` — the task must be hot — or a set of
+ * markers the task must **all** have (strict AND). `urgent` means effective
+ * urgent — flagged, or due within the Settings range (`utils/urgency.ts`).
+ * Hot excludes picking single markers.
+ */
+export type MarkersFilter = typeof HOT_MARKERS | MarkerSet
 
 /**
  * Serializable predicate describing the live filter fields. Intentionally does
@@ -92,8 +101,8 @@ export interface TodoPredicate {
    */
   hasFollowup?: boolean | null
   /**
-   * Markers filter (Urgent / Important / Focus, strict AND); null or absent
-   * = no filter. Optional on read.
+   * Markers filter (Hot, or Urgent / Important / Focus with strict AND);
+   * null or absent = no filter. Optional on read.
    */
   markers?: MarkersFilter | null
   /**

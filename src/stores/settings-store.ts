@@ -17,6 +17,7 @@ import {
   parseUrgentDueWithinDays,
   type UrgentDueWithinDays,
 } from '../utils/urgency'
+import { DEFAULT_HOT_RULE, formatHotRule, normalizeHotRule, parseHotRule, type HotRule } from '../utils/hot'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -43,6 +44,8 @@ interface SettingsState {
   followupDefaultInterval: FollowupInterval
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
+  /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
+  hotRule: HotRule
 
   load: () => Promise<void>
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
@@ -55,6 +58,8 @@ interface SettingsState {
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
+  /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
+  setHotRule: (rule: HotRule) => Promise<void>
 }
 
 function expandHex(hex: string): string {
@@ -190,6 +195,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   maxTags: DEFAULT_MAX_TAGS,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
+  hotRule: DEFAULT_HOT_RULE,
 
   async load() {
     try {
@@ -208,6 +214,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let maxTags: number = DEFAULT_MAX_TAGS
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
+      let hotRule: HotRule = DEFAULT_HOT_RULE
       for (const row of rows) {
         if (row.key.startsWith('color.')) {
           const rest = row.key.slice('color.'.length)
@@ -241,10 +248,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
           const parsed = parseUrgentDueWithinDays(row.value)
           urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
+        } else if (row.key === SETTING_KEYS.hotRule) {
+          hotRule = parseHotRule(row.value) ?? DEFAULT_HOT_RULE
         }
       }
       customizedColorKeys = customKeys
-      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval, urgentDueWithinDays })
+      set({ colors, defaultStatusId, quickStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn, maxTags, followupDefaultInterval, urgentDueWithinDays, hotRule })
       applyThemeMode(themeMode)
       setupMediaQueryListener(themeMode)
       applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
@@ -339,5 +348,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (parseUrgentDueWithinDays(value) === undefined) return
     await settingsRepository.put(SETTING_KEYS.urgentDueWithinDays, value)
     set({ urgentDueWithinDays: range })
+  },
+
+  async setHotRule(rule: HotRule) {
+    const next = normalizeHotRule(rule)
+    if (next.length === 0) return
+    await settingsRepository.put(SETTING_KEYS.hotRule, formatHotRule(next))
+    set({ hotRule: next })
   },
 }))

@@ -15,6 +15,7 @@ import { useListOrderStore, useListRanks } from '../stores/list-order-store'
 import { applyRuntimeFilter, buildDashboardLists, type DashboardList } from '../services/dashboard-lists'
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
+import { useMarkerSettings } from './use-marker-settings'
 
 export interface BuiltList {
   /** The list's members and sections; `null` without a definition or while its prompt is unanswered. */
@@ -63,6 +64,8 @@ export function useBuiltList(
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
+  // Markers clauses (Urgent by date, Hot) read these settings.
+  const markerSettings = useMarkerSettings()
   // Date-sensitive predicates roll at midnight.
   const today = useToday()
   const ranks = useListRanks(definition?.id)
@@ -93,8 +96,8 @@ export function useBuiltList(
       assignedTagsMap,
       statusesById: new Map(statuses.map((st) => [st.id!, st])),
     }
-    const listOnly = createPredicateEvaluator(lookups, today)
-    const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today) : listOnly
+    const listOnly = createPredicateEvaluator(lookups, today, markerSettings)
+    const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today, markerSettings) : listOnly
     const runtimeFilterValues = definition.runtimeFilter && runtimeFilterValue != null
       ? new Map<number, number[]>([[definition.id, runtimeFilterValue]])
       : undefined
@@ -120,7 +123,7 @@ export function useBuiltList(
     return { list: list ?? null, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates }
   }, [
     definition, todos, people, assignedPeopleMap,
-    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks,
+    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings,
   ])
 }
 

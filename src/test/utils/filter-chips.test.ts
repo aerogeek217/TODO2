@@ -79,6 +79,14 @@ describe('filterChips', () => {
     expect(filterChips({ ...emptyPredicate(), markers: {} }, names)).toEqual([])
   })
 
+  it('a Hot Markers clause reads Hot and narrows', () => {
+    expect(filterChips({ ...emptyPredicate(), markers: 'hot' }, names)).toEqual([
+      { field: 'markers', label: 'Markers', value: 'Hot' },
+    ])
+    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: 'hot' })).toBe(true)
+    expect(clearChipField({ ...emptyPredicate(), markers: 'hot' }, 'markers')).toMatchObject({ markers: null })
+  })
+
   it('describeFilters joins chips in words', () => {
     const p = { ...emptyPredicate(), statusIds: [1], dateField: 'followup' as const, dateRangeEnd: { kind: 'relative' as const, token: 'end-of-week' as const } }
     expect(describeFilters(filterChips(p, names))).toBe('Follow-up by end of week · Status Waiting')

@@ -3,9 +3,9 @@ import { toggleItem } from '../../../utils/filter'
 import { DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
 import { FollowupFlagIcon } from '../FollowupIcons'
-import { MarkerIcon } from '../MarkerIcons'
+import { HotIcon, MarkerIcon } from '../MarkerIcons'
 import { MARKER_KEYS } from '../../../models'
-import { activeMarkers, MARKER_COLOR, MARKER_LABELS, toggleMarker } from '../../../utils/markers'
+import { activeMarkers, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, toggleHot, toggleMarker } from '../../../utils/markers'
 import sheet from '../../overlays/FilterSheet.module.css'
 import {
   cycleTri,
@@ -168,7 +168,8 @@ export function FilterChipBarMobile({
     setTags(toggleItem(tagIdsSet, tagId, allTagIds))
   }
 
-  const togglesActiveCount = (p.showCompleted ? 1 : 0) + activeMarkers(p.markers).length
+  const hot = isHotFilter(p.markers)
+  const togglesActiveCount = (p.showCompleted ? 1 : 0) + (hot ? 1 : 0) + activeMarkers(p.markers).length
 
   return (
     <>
@@ -193,11 +194,25 @@ export function FilterChipBarMobile({
               aria-label="Show completed"
             />
           </div>
-          {/* Markers: every switched-on marker is required (strict AND). */}
+          {/* Markers: Hot, or every switched-on marker (strict AND). Hot
+              switches the single markers off and disables them. */}
+          <div className={sheet.filterRow}>
+            <span className={sheet.filterLabel}>
+              <span className={sheet.filterLabelIcon} style={{ color: 'var(--color-danger)' }}><HotIcon /></span>
+              {HOT_LABEL}
+            </span>
+            <button
+              className={`${sheet.toggle} ${hot ? sheet.toggleActive : ''}`}
+              onClick={() => update({ markers: toggleHot(p.markers) })}
+              role="switch"
+              aria-checked={hot}
+              aria-label="Only hot tasks"
+            />
+          </div>
           {MARKER_KEYS.map((key) => {
-            const on = p.markers?.[key] === true
+            const on = activeMarkers(p.markers).includes(key)
             return (
-              <div key={key} className={sheet.filterRow}>
+              <div key={key} className={sheet.filterRow} style={hot ? { opacity: 0.4 } : undefined}>
                 <span className={sheet.filterLabel}>
                   <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
                   {MARKER_LABELS[key]}
@@ -207,6 +222,7 @@ export function FilterChipBarMobile({
                   onClick={() => update({ markers: toggleMarker(p.markers, key) })}
                   role="switch"
                   aria-checked={on}
+                  disabled={hot}
                   aria-label={`Only ${MARKER_LABELS[key].toLowerCase()} tasks`}
                 />
               </div>

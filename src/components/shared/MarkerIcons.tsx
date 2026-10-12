@@ -53,6 +53,22 @@ export function UrgentClockIcon() {
   )
 }
 
+/** Hot (derived from the markers by the Settings rule): a flame. */
+export function HotIcon() {
+  return (
+    <svg width="1em" height="1em" viewBox="0 0 16 16" style={SVG_STYLE} aria-hidden>
+      <path
+        d="M8 14.2c-2.6 0-4.6-1.9-4.6-4.4 0-2.7 2.3-3.9 2.8-6.9 1.8 1 2.8 2.6 2.8 4.1.7-.5 1.1-1.3 1.2-2.1 1.6 1.3 2.4 3.1 2.4 4.9 0 2.5-2 4.4-4.6 4.4z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 /** The glyph of a marker. */
 export function MarkerIcon({ marker }: { marker: MarkerKey }) {
   switch (marker) {

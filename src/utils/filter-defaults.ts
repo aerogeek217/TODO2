@@ -1,7 +1,7 @@
 import type { FilterCriteria } from '../stores/filter-store'
 import { predicateToCriteria } from '../stores/filter-store'
 import type { ResolvedInput } from '../services/nlp-resolver'
-import type { MarkersFilter, TodoItem, TodoPredicate } from '../models'
+import type { MarkerSet, TodoItem, TodoPredicate } from '../models'
 import { activeMarkers } from './markers'
 
 export interface FilterDefaults {
@@ -10,16 +10,18 @@ export interface FilterDefaults {
   statusId: number | undefined
   /**
    * The markers the filter requires (Urgent / Important / Focus): new tasks
-   * start with those flags, so they show where they were added.
+   * start with those flags, so they show where they were added. A Hot filter
+   * seeds nothing (no single set of flags makes a task hot under every rule).
    */
-  markers?: MarkersFilter
+  markers?: MarkerSet
 }
 
 /**
  * Extract task creation defaults from active filter criteria.
  * Strips sentinel value 0 (None/Unaffiliated) from entity ID sets.
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
- * A Markers filter makes new tasks start with those markers flagged.
+ * A Markers filter makes new tasks start with those markers flagged; a Hot
+ * filter seeds none.
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const personIds = filters.personIds ? [...filters.personIds].filter(id => id !== 0) : []
@@ -55,7 +57,7 @@ export function seedsMarkers(fd: Pick<FilterDefaults, 'markers'> | null | undefi
  * neither). Other markers (Focus) and the people / tags / status stay.
  */
 export function withUrgentImportant(fd: FilterDefaults, flags: { urgent: boolean; important: boolean }): FilterDefaults {
-  const markers: MarkersFilter = {}
+  const markers: MarkerSet = {}
   if (fd.markers?.focus === true) markers.focus = true
   if (flags.urgent) markers.urgent = true
   if (flags.important) markers.important = true
