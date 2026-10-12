@@ -344,7 +344,7 @@
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   height: 36px;
   padding: 0 4px 0 12px;
   border-radius: 8px;
@@ -358,7 +358,7 @@
 }
 
 .bulkCount {
-  margin-right: 6px;
+  margin-right: 4px;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
@@ -382,18 +382,6 @@
 .bulkButtonOpen {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
-}
-
-.bulkButtonFocus {
-  color: var(--color-marker-focus);
-}
-
-.bulkButtonUrgent {
-  color: var(--color-marker-urgent);
-}
-
-.bulkButtonImportant {
-  color: var(--color-marker-important);
 }
 
 .bulkDanger {

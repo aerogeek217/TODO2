@@ -11,15 +11,16 @@ import { PortalDropdown } from '../../shared/PortalDropdown'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { FollowupFlagIcon } from '../../shared/FollowupIcons'
 import { FollowupPopover } from '../../shared/followup/FollowupPopover'
-import { FocusIcon, ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
 import { setUrgent } from '../../../services/clear-urgent'
 import { useSettingsStore } from '../../../stores/settings-store'
-import { startOfToday } from '../../../utils/date'
-import { isEffectivelyUrgent } from '../../../utils/urgency'
-import { AtIcon, CheckIcon, CloseIcon, HashIcon, TrashIcon } from '../icons'
+import { useToday } from '../../../hooks/use-today'
+import { isFollowedUpToday } from '../../../utils/followup'
+import { followedUpMenuEntry, markerMenuEntries } from '../../task/task-menu-entries'
+import { MenuPopover } from '../MenuPopover'
+import { AtIcon, CheckIcon, CloseIcon, HashIcon, MoreIcon, TrashIcon } from '../icons'
 import styles from './ListWidget.module.css'
 
-type OpenPicker = 'people' | 'tags' | 'followup' | null
+type OpenPicker = 'people' | 'tags' | 'followup' | 'more' | null
 
 /** Ids assigned to every one of `todoIds` in `map`. */
 function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly number[]): Set<number> {
@@ -36,13 +37,13 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
 
 /**
  * The floating bar over a list widget with 2+ rows selected: set due date,
- * set follow-up, assign people, add tag, complete, urgent, important, focus,
- * delete, clear. The markers are tri-state: when only some tasks have one, a
- * click gives it to all of them; when all have it, a click takes it off all
- * (Urgent counts tasks urgent by due date too, and turning it off asks about
- * those dates — `services/clear-urgent.ts`). Each goes
- * through the existing bulk paths (`bulkSet*`, `bulkAssign*`,
- * `showBulkConfirmation`).
+ * set follow-up, assign people, add tag, complete, ⋯ More, delete, clear.
+ * ⋯ More holds Followed up and the Markers (Urgent / Important / Focus) as
+ * tri-state checkbox items: when only some tasks have one, a click gives it
+ * to all of them; when all have it, a click takes it off all (Urgent counts
+ * tasks urgent by due date too, and turning it off asks about those dates —
+ * `services/clear-urgent.ts`). Each goes through the existing bulk paths
+ * (`bulkSet*`, `bulkAssign*`, `markFollowedUp`, `showBulkConfirmation`).
  */
 export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: number }) {
   const [open, setOpen] = useState<OpenPicker>(null)
@@ -50,6 +51,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
   const followupRef = useRef<HTMLButtonElement>(null)
   const peopleRef = useRef<HTMLButtonElement>(null)
   const tagsRef = useRef<HTMLButtonElement>(null)
+  const moreRef = useRef<HTMLButtonElement>(null)
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const tags = useTagStore((s) => s.tags)
@@ -62,14 +64,8 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
     return todos.filter((t) => set.has(t.id))
   }, [todos, ids])
   const allCompleted = selectedTodos.length > 0 && selectedTodos.every((t) => t.isCompleted)
-  const focusedCount = selectedTodos.filter((t) => t.focus === true).length
-  const allFocused = selectedTodos.length > 0 && focusedCount === selectedTodos.length
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
-  const today = startOfToday()
-  const urgentCount = selectedTodos.filter((t) => isEffectivelyUrgent(t, today, urgentRange)).length
-  const allUrgent = selectedTodos.length > 0 && urgentCount === selectedTodos.length
-  const importantCount = selectedTodos.filter((t) => t.important === true).length
-  const allImportant = selectedTodos.length > 0 && importantCount === selectedTodos.length
+  const today = useToday()
   const sharedPeople = useMemo(() => sharedIds(assignedPeopleMap, ids), [assignedPeopleMap, ids])
   const sharedTags = useMemo(() => sharedIds(assignedTagsMap, ids), [assignedTagsMap, ids])
   // The follow-up popover edits "the selection": it starts empty.
@@ -157,34 +153,16 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
         <CheckIcon />
       </button>
       <button
+        ref={moreRef}
         type="button"
-        className={`${styles.bulkButton} ${urgentCount > 0 ? styles.bulkButtonUrgent : ''}`}
-        title={allUrgent ? 'Remove urgent' : urgentCount > 0 ? `Mark urgent (${urgentCount} of ${selectedTodos.length} urgent)` : 'Mark urgent'}
-        aria-label={allUrgent ? 'Remove urgent' : 'Mark urgent'}
-        aria-pressed={allUrgent ? true : urgentCount > 0 ? 'mixed' : false}
-        onClick={() => { void setUrgent(list, !allUrgent) }}
+        className={`${styles.bulkButton} ${open === 'more' ? styles.bulkButtonOpen : ''}`}
+        title="More"
+        aria-label="More"
+        aria-haspopup="menu"
+        aria-expanded={open === 'more'}
+        onClick={() => toggle('more')}
       >
-        <UrgentIcon />
-      </button>
-      <button
-        type="button"
-        className={`${styles.bulkButton} ${importantCount > 0 ? styles.bulkButtonImportant : ''}`}
-        title={allImportant ? 'Remove important' : importantCount > 0 ? `Mark important (${importantCount} of ${selectedTodos.length} important)` : 'Mark important'}
-        aria-label={allImportant ? 'Remove important' : 'Mark important'}
-        aria-pressed={allImportant ? true : importantCount > 0 ? 'mixed' : false}
-        onClick={() => { void useTodoStore.getState().bulkSetImportant(list, !allImportant) }}
-      >
-        <ImportantIcon />
-      </button>
-      <button
-        type="button"
-        className={`${styles.bulkButton} ${focusedCount > 0 ? styles.bulkButtonFocus : ''}`}
-        title={allFocused ? 'Remove from Focus' : focusedCount > 0 ? `Add to Focus (${focusedCount} of ${selectedTodos.length} in focus)` : 'Add to Focus'}
-        aria-label={allFocused ? 'Remove from Focus' : 'Add to Focus'}
-        aria-pressed={allFocused ? true : focusedCount > 0 ? 'mixed' : false}
-        onClick={() => { void useTodoStore.getState().bulkSetFocus(list, !allFocused) }}
-      >
-        <FocusIcon />
+        <MoreIcon />
       </button>
       <button
         type="button"
@@ -213,6 +191,26 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
           onClose={close}
           onSetNext={(d) => { void useTodoStore.getState().bulkSetFollowup(list, d) }}
           onFollowedUp={() => { void useTodoStore.getState().markFollowedUp(list) }}
+          followedUpToday={selectedTodos.length > 0 && selectedTodos.every((t) => isFollowedUpToday(t, today))}
+        />
+      )}
+      {open === 'more' && (
+        <MenuPopover
+          anchorRef={moreRef}
+          placement="top-start"
+          label="More actions"
+          width={220}
+          entries={[
+            followedUpMenuEntry(selectedTodos, today, () => { void useTodoStore.getState().markFollowedUp(list) }),
+            { kind: 'separator' },
+            ...markerMenuEntries(selectedTodos, today, urgentRange, (marker, on) => {
+              const store = useTodoStore.getState()
+              if (marker === 'urgent') void setUrgent(list, on)
+              else if (marker === 'important') void store.bulkSetImportant(list, on)
+              else void store.bulkSetFocus(list, on)
+            }),
+          ]}
+          onClose={close}
         />
       )}
       {open === 'people' && createPortal(

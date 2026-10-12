@@ -285,7 +285,25 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(screen.queryByTestId('list-bulk-bar')).toBeNull()
   })
 
-  it('the bulk bar Focus button puts every selected task in focus, then takes them out', async () => {
+  /** Opens the bulk bar's ⋯ More menu. */
+  function openMore() {
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    return screen.getByRole('menu', { name: 'More actions' })
+  }
+
+  it('the bulk bar keeps the D4 order and puts Followed up + Markers under ⋯ More', () => {
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    const bar = screen.getByTestId('list-bulk-bar')
+    expect(Array.from(bar.querySelectorAll(':scope > button, :scope > span > button')).map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Set due date', 'Set follow-up', 'Assign people', 'Add tag', 'Complete', 'More', 'Delete', 'Clear selection'])
+    const menu = openMore()
+    expect(Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((b) => b.getAttribute('data-menu-label')))
+      .toEqual(['Followed up', 'Urgent', 'Important', 'Focus'])
+  })
+
+  it('⋯ More › Focus puts every selected task in focus, then takes them out', async () => {
     useTodoStore.setState({
       todos: [
         makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, focus: true }),
@@ -295,17 +313,20 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     setup(def())
     clickTitle('all|1')
     clickTitle('all|2', { shiftKey: true })
-    const focus = screen.getByRole('button', { name: 'Add to Focus' })
-    expect(focus).toHaveAttribute('aria-pressed', 'mixed')
+    openMore()
+    const focus = screen.getByRole('menuitemcheckbox', { name: /Focus/ })
+    expect(focus).toHaveAttribute('aria-checked', 'mixed')
+    expect(focus).toHaveTextContent('1 of 2')
     await act(async () => { fireEvent.click(focus) })
     expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([true, true])
-    const remove = screen.getByRole('button', { name: 'Remove from Focus' })
-    expect(remove).toHaveAttribute('aria-pressed', 'true')
+    openMore()
+    const remove = screen.getByRole('menuitemcheckbox', { name: /Focus/ })
+    expect(remove).toHaveAttribute('aria-checked', 'true')
     await act(async () => { fireEvent.click(remove) })
     expect(useTodoStore.getState().todos.map((t) => t.focus)).toEqual([undefined, undefined])
   })
 
-  it('the bulk bar Urgent / Important buttons are tri-state; Urgent counts due dates and asks before removing them', async () => {
+  it('⋯ More › Urgent / Important are tri-state; Urgent counts due dates and asks before removing them', async () => {
     useSettingsStore.setState({ urgentDueWithinDays: 3 })
     const tomorrow = new Date()
     tomorrow.setHours(0, 0, 0, 0)
@@ -320,23 +341,46 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     clickTitle('all|1')
     clickTitle('all|2', { shiftKey: true })
 
-    const important = screen.getByRole('button', { name: 'Mark important' })
-    expect(important).toHaveAttribute('aria-pressed', 'mixed')
+    openMore()
+    const important = screen.getByRole('menuitemcheckbox', { name: /Important/ })
+    expect(important).toHaveAttribute('aria-checked', 'mixed')
     await act(async () => { fireEvent.click(important) })
     expect(useTodoStore.getState().todos.map((t) => t.important)).toEqual([true, true])
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove important' })) })
+    openMore()
+    await act(async () => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /Important/ })) })
     expect(useTodoStore.getState().todos.map((t) => t.important)).toEqual([undefined, undefined])
 
     // Bob's task is urgent by its due date: mixed until both are flagged.
-    const urgent = screen.getByRole('button', { name: 'Mark urgent' })
-    expect(urgent).toHaveAttribute('aria-pressed', 'mixed')
+    openMore()
+    const urgent = screen.getByRole('menuitemcheckbox', { name: /Urgent/ })
+    expect(urgent).toHaveAttribute('aria-checked', 'mixed')
     await act(async () => { fireEvent.click(urgent) })
     expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([true, true])
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Remove urgent' })) })
+    openMore()
+    await act(async () => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: /Urgent/ })) })
     expect(useTodoStore.getState().todos.map((t) => t.urgent)).toEqual([undefined, undefined])
     await waitFor(() => expect(useUIStore.getState().bulkConfirmation).toMatchObject({
       ids: [2], message: '1 of 2 tasks stays urgent because of its due date.',
     }))
+  })
+
+  it('⋯ More › Followed up stamps every selected task, and is dimmed once they all were today', async () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2 }),
+      ],
+    })
+    setup(def())
+    clickTitle('all|1')
+    clickTitle('all|2', { shiftKey: true })
+    openMore()
+    const followedUp = screen.getByRole('menuitem', { name: 'Followed up' })
+    expect(followedUp).not.toHaveTextContent('Today')
+    await act(async () => { fireEvent.click(followedUp) })
+    expect(useTodoStore.getState().todos.every((t) => t.lastFollowupAt instanceof Date)).toBe(true)
+    openMore()
+    expect(screen.getByRole('menuitem', { name: /^Followed up/ })).toHaveTextContent('Today')
   })
 
   it('a Markers list offers + Add task (new tasks start with those markers)', () => {
