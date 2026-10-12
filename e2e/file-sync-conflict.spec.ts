@@ -178,4 +178,18 @@ test('an unreadable sync file pauses sync and is never overwritten by edits', as
   // …and the edit is recorded as unsynced for the next conflict check.
   const state = await page.evaluate(() => localStorage.getItem('todo2-file-sync-state'))
   expect(JSON.parse(state ?? '{}').dirtySince).toBeTruthy()
+
+  // A cold load still shows the warning strip, and the storage pill says so.
+  await page.goto('about:blank')
+  await page.goto('/')
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  const strip = page.getByTestId('file-sync-paused')
+  await expect(strip).toContainText('invalid JSON')
+  await expect(strip.getByRole('button', { name: 'Retry' })).toBeVisible()
+  await expect(strip.getByRole('button', { name: 'Keep browser data…' })).toBeVisible()
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'paused')
+  await expect(pill).toHaveText('Sync paused')
+  await pill.click()
+  await expect(page.getByRole('dialog', { name: 'Sync paused' })).toContainText('invalid JSON')
 })

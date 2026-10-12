@@ -24,10 +24,12 @@ test('TaskEditPopup edit mode shows registry tags in the Tags picker', async ({ 
 
   // Wait for the popup. The "Tags" row in `TaskEditMetadata` exposes a
   // `+ Add` button that toggles the chip selector dropdown.
-  await expect(page.getByText('Tags', { exact: true })).toBeVisible()
+  // (The top bar's Tags filter button reads "Tags" too — skip the filter tray.)
+  const tagsLabel = page.getByText('Tags', { exact: true }).and(page.locator(':not([data-filter-row] *)'))
+  await expect(tagsLabel).toBeVisible()
   // The Tags row's "+ Add" button — `.chipAddBtn` is reused by people/tags
   // rows, so we scope to the Tags row by walking from the visible label.
-  const tagsRow = page.getByText('Tags', { exact: true }).locator('..')
+  const tagsRow = tagsLabel.locator('..')
   await tagsRow.getByRole('button', { name: '+ Add' }).click()
 
   // Both seeded tags appear in the picker. Pre-fix this list would be empty.
