@@ -5,6 +5,7 @@ import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
 import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
+import { generateInitials } from '../utils/person'
 
 interface PersonState {
   people: Person[]
@@ -15,6 +16,13 @@ interface PersonState {
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
   add: (name: string, initials: string, color?: string) => Promise<number>
+  /**
+   * Lookup-or-create by name (the people counterpart of `useTagStore.add`):
+   * an existing person whose name matches case-insensitively is reused;
+   * otherwise a new person is created with initials from `generateInitials`
+   * and no color. Returns the person's id.
+   */
+  getOrCreate: (name: string) => Promise<number>
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
@@ -60,6 +68,20 @@ export const usePersonStore = create<PersonState>((set, get) => {
       const id = await personRepository.insert(person)
       set({ people: [...get().people, { ...person, id }] })
       return id
+    },
+
+    async getOrCreate(name: string) {
+      const trimmed = name.trim()
+      const target = trimmed.toLowerCase()
+      const existing = get().people.find(
+        (p) => p.id !== undefined && p.name.trim().toLowerCase() === target,
+      )
+      if (existing?.id !== undefined) return existing.id
+      const person = await personRepository.getOrCreate(trimmed, generateInitials(trimmed))
+      if (!get().people.some((p) => p.id === person.id)) {
+        set({ people: [...get().people, person] })
+      }
+      return person.id
     },
 
     async update(person: Person) {

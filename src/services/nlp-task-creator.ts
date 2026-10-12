@@ -1,5 +1,5 @@
 import { parseInput } from './natural-language-parser'
-import { resolveInput, resolveTags, type ResolvedInput } from './nlp-resolver'
+import { resolveInput, resolveTags, resolveUnmatchedPeople, type ResolvedInput } from './nlp-resolver'
 import { makeRecurrenceRule } from './recurrence'
 import { runNlpMetadataTransaction } from '../data'
 import type { Person, Status, PersistedTodoItem } from '../models'
@@ -25,10 +25,12 @@ export function parseTaskInput(
 /**
  * Apply resolved NLP metadata to a newly created task.
  * Writes the due date / status and assigns people. Recurrence anchors
- * to the due date; without one the recurrence is dropped. Tags go through the registry (resolve-or-create
- * via `tag-store`) after the transaction — they live in the normalized
- * `tags`+`todoTags` tables and don't need to be atomic with person
- * assignment.
+ * to the due date; without one the recurrence is dropped. `@name` tokens
+ * that matched nobody create the person first (lookup-or-create via
+ * `person-store`), then are assigned like matched people. Tags go through the
+ * registry (resolve-or-create via `tag-store`) after the transaction — they
+ * live in the normalized `tags`+`todoTags` tables and don't need to be atomic
+ * with person assignment.
  */
 export async function applyNlpMetadata(
   todoId: number,
@@ -41,8 +43,16 @@ export async function applyNlpMetadata(
     resolved.dueDate !== undefined ||
     resolved.recurrence !== undefined ||
     resolved.statusId !== undefined
-  const hasAssignments = resolved.personIds.length > 0
   const hasTags = resolved.tags.length > 0
+  const personIds = [...resolved.personIds]
+  if (resolved.unmatchedPersons.length > 0) {
+    const { usePersonStore } = await import('../stores/person-store')
+    const created = await resolveUnmatchedPeople(resolved.unmatchedPersons, {
+      personStore: usePersonStore.getState(),
+    })
+    for (const id of created) if (!personIds.includes(id)) personIds.push(id)
+  }
+  const hasAssignments = personIds.length > 0
   if (!hasUpdates && !hasAssignments && !hasTags) return
 
   if (hasUpdates || hasAssignments) {
@@ -67,7 +77,7 @@ export async function applyNlpMetadata(
       }
 
       // Assign people
-      for (const personId of resolved.personIds) {
+      for (const personId of personIds) {
         await assignPerson(todoId, personId)
       }
     })

@@ -110,6 +110,12 @@ describe('supplementWithFilterDefaults', () => {
     expect(resolved.personIds).toEqual([99])
   })
 
+  it('a typed new @name (created on submit) also wins over default people', () => {
+    const resolved = makeResolved({ unmatchedPersons: ['Marco'] })
+    supplementWithFilterDefaults(resolved, { personIds: [1, 2], tagIds: [], statusId: undefined })
+    expect(resolved.personIds).toEqual([])
+  })
+
   it('fills undefined statusId from filter default', () => {
     const resolved = makeResolved()
     supplementWithFilterDefaults(resolved, { personIds: [], tagIds: [], statusId: 4 })

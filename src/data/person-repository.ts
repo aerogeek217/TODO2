@@ -9,6 +9,25 @@ const todoPeopleOps = createJoinOps(db.todoPeople, 'todoId', 'personId')
 export const personRepository = {
   ...base,
 
+  /**
+   * Atomic lookup-or-insert by name: a person whose trimmed name matches
+   * case-insensitively is returned as stored; otherwise a new person with the
+   * given initials (and no color) is inserted. One `rw` transaction on
+   * `people`, so two concurrent creates of the same name insert one row.
+   */
+  async getOrCreate(name: string, initials: string): Promise<Person & { id: number }> {
+    const trimmed = name.trim()
+    const target = trimmed.toLowerCase()
+    return db.transaction('rw', db.people, async () => {
+      const all = await db.people.toArray()
+      const existing = all.find((p) => p.id != null && p.name.trim().toLowerCase() === target)
+      if (existing?.id != null) return { ...existing, id: existing.id }
+      const person: Person = { name: trimmed, initials }
+      const id = (await db.people.add(person)) as number
+      return { ...person, id }
+    })
+  },
+
   async delete(id: number): Promise<void> {
     await db.transaction('rw', [db.people, db.todoPeople], async () => {
       await db.todoPeople.where('personId').equals(id).delete()

@@ -8,7 +8,8 @@ export interface ResolvedInput {
   dueDate?: Date
   recurrence?: RecurrenceType
   personIds: number[]
-  /** Person names that didn't match any existing person */
+  /** Person names that didn't match any existing person — created on submit
+   * (`resolveUnmatchedPeople`). */
   unmatchedPersons: string[]
   /** Normalized tag slugs from `#foo` tokens (pass-through from `ParsedInput`). */
   tags: string[]
@@ -111,6 +112,45 @@ export async function resolveTags(
       }
     }
     if (id !== undefined && !seen.has(id)) {
+      ids.push(id)
+      seen.add(id)
+    }
+  }
+  return ids
+}
+
+/**
+ * Minimal shape of the person-store needed by `resolveUnmatchedPeople`.
+ */
+export interface PersonStoreLike {
+  /** Lookup-or-create by name (case-insensitive); returns the person's id. */
+  getOrCreate: (name: string) => Promise<number>
+}
+
+/**
+ * Create the people behind `@name` tokens that matched nobody when the input
+ * was parsed (`ResolvedInput.unmatchedPersons`): each name is looked up again
+ * case-insensitively (someone may have been added since) and created when
+ * still missing. Returns ids in input order, deduped. Empty / whitespace-only
+ * names are skipped.
+ */
+export async function resolveUnmatchedPeople(
+  names: readonly string[],
+  ctx: { personStore: PersonStoreLike },
+): Promise<number[]> {
+  const ids: number[] = []
+  const seen = new Set<number>()
+  const byLower = new Map<string, number>()
+  for (const raw of names) {
+    const trimmed = raw.trim()
+    if (trimmed.length === 0) continue
+    const lower = trimmed.toLowerCase()
+    let id = byLower.get(lower)
+    if (id === undefined) {
+      id = await ctx.personStore.getOrCreate(trimmed)
+      byLower.set(lower, id)
+    }
+    if (!seen.has(id)) {
       ids.push(id)
       seen.add(id)
     }

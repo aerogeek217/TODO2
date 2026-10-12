@@ -61,7 +61,8 @@ export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefau
 
 /**
  * Supplement resolved NLP output with filter-inferred defaults.
- * Mutates `resolved` in place for person/status fields.
+ * Mutates `resolved` in place for person/status fields; person defaults
+ * apply only when the input names nobody (matched or new).
  * Tags merge: filter-default tag ids are appended to any user-typed `#tag`
  * slugs as a parallel `seedTagIds` channel — applied at submit by the
  * caller (resolved.tags stays string-typed).
@@ -70,7 +71,10 @@ export function supplementWithFilterDefaults(
   resolved: ResolvedInput,
   fd: FilterDefaults,
 ): void {
-  if (resolved.personIds.length === 0) resolved.personIds = fd.personIds
+  // Any typed `@person` wins — including a new name, created on submit.
+  if (resolved.personIds.length === 0 && resolved.unmatchedPersons.length === 0) {
+    resolved.personIds = fd.personIds
+  }
   if (resolved.statusId === undefined && fd.statusId !== undefined) {
     resolved.statusId = fd.statusId
   }

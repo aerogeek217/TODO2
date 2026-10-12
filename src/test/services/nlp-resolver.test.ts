@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { resolveInput, resolveTags, type TagStoreLike } from '../../services/nlp-resolver'
+import { resolveInput, resolveTags, resolveUnmatchedPeople, type TagStoreLike } from '../../services/nlp-resolver'
 import { parseInput } from '../../services/natural-language-parser'
 import { TagLimitError } from '../../stores/tag-store'
 import type { Person, Tag } from '../../models'
@@ -188,5 +188,41 @@ describe('resolveTags', () => {
       },
     }
     await expect(resolveTags(['neu'], { tagStore })).rejects.toThrow(/dexie write failed/)
+  })
+})
+
+describe('resolveUnmatchedPeople', () => {
+  function makePersonStore(existing: Person[] = []) {
+    const people = [...existing]
+    let nextId = 100
+    const getOrCreate = vi.fn(async (name: string) => {
+      const hit = people.find((p) => p.name.toLowerCase() === name.trim().toLowerCase())
+      if (hit?.id !== undefined) return hit.id
+      const id = nextId++
+      people.push({ id, name: name.trim(), initials: '' })
+      return id
+    })
+    return { people, getOrCreate }
+  }
+
+  it('creates each new name and returns ids in input order', async () => {
+    const personStore = makePersonStore()
+    const ids = await resolveUnmatchedPeople(['Marco', 'Marco Rossi'], { personStore })
+    expect(ids).toEqual([100, 101])
+    expect(personStore.people.map((p) => p.name)).toEqual(['Marco', 'Marco Rossi'])
+  })
+
+  it('looks each name up case-insensitively before creating', async () => {
+    const personStore = makePersonStore([{ id: 7, name: 'Dana Kim', initials: 'DK' }])
+    const ids = await resolveUnmatchedPeople(['dana kim'], { personStore })
+    expect(ids).toEqual([7])
+    expect(personStore.people).toHaveLength(1)
+  })
+
+  it('dedupes names that differ only in case, and skips blanks', async () => {
+    const personStore = makePersonStore()
+    const ids = await resolveUnmatchedPeople(['marco', '  ', 'MARCO'], { personStore })
+    expect(ids).toEqual([100])
+    expect(personStore.getOrCreate).toHaveBeenCalledTimes(1)
   })
 })

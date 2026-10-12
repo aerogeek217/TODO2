@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { parseTaskInput, applyNlpMetadata } from '../../services/nlp-task-creator'
 import { resolveTags } from '../../services/nlp-resolver'
 import { useTagStore } from '../../stores/tag-store'
+import { usePersonStore } from '../../stores/person-store'
 import { db } from '../../data/database'
 import type { Person } from '../../models'
 import { makeTodo } from '../helpers'
@@ -272,5 +273,56 @@ describe('NLP → tag registry end-to-end', () => {
 
     expect(await db.tags.count()).toBe(1)
     expect(await db.todoTags.where('todoId').equals(todoId).count()).toBe(1)
+  })
+})
+
+describe('applyNlpMetadata — @name that matches nobody', () => {
+  async function setup() {
+    await db.delete()
+    await db.open()
+    usePersonStore.setState({ people: [], assignedPeopleMap: new Map(), loading: false, error: null })
+    return (await db.todos.add({
+      title: 'Call legal', isCompleted: false,
+      createdAt: new Date(), modifiedAt: new Date(), sortOrder: 1,
+    })) as number
+  }
+
+  it('creates the person on submit and assigns it, alongside matched people', async () => {
+    const todoId = await setup()
+    const dana = await usePersonStore.getState().add('Dana Kim', 'DK')
+    const { resolved } = parseTaskInput('Call legal @Dana @"Marco Rossi"', usePersonStore.getState().people)
+    expect(resolved.unmatchedPersons).toEqual(['Marco Rossi'])
+
+    await applyNlpMetadata(todoId, resolved, vi.fn(), vi.fn(), usePersonStore.getState().assignPerson)
+
+    const marco = (await db.people.toArray()).find((p) => p.name === 'Marco Rossi')
+    expect(marco).toMatchObject({ name: 'Marco Rossi', initials: 'MR' })
+    expect(marco?.color).toBeUndefined()
+    const joins = await db.todoPeople.where('todoId').equals(todoId).toArray()
+    expect(joins.map((j) => j.personId).sort()).toEqual([dana, marco!.id].sort())
+    expect(usePersonStore.getState().assignedPeopleMap.get(todoId)?.map((p) => p.name).sort())
+      .toEqual(['Dana Kim', 'Marco Rossi'])
+  })
+
+  it('reuses a person added since the input was parsed (case-insensitive)', async () => {
+    const todoId = await setup()
+    const { resolved } = parseTaskInput('Call legal @marco', [])
+    const marco = await usePersonStore.getState().add('Marco', 'M')
+
+    await applyNlpMetadata(todoId, resolved, vi.fn(), vi.fn(), usePersonStore.getState().assignPerson)
+
+    expect(await db.people.count()).toBe(1)
+    const joins = await db.todoPeople.where('todoId').equals(todoId).toArray()
+    expect(joins.map((j) => j.personId)).toEqual([marco])
+  })
+
+  it('one person for the same new name typed twice in different case', async () => {
+    const todoId = await setup()
+    const { resolved } = parseTaskInput('Call @Marco and @MARCO', [])
+
+    await applyNlpMetadata(todoId, resolved, vi.fn(), vi.fn(), usePersonStore.getState().assignPerson)
+
+    expect(await db.people.count()).toBe(1)
+    expect(await db.todoPeople.where('todoId').equals(todoId).count()).toBe(1)
   })
 })

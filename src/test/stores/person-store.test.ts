@@ -31,6 +31,39 @@ describe('usePersonStore', () => {
     expect(id).toBeGreaterThan(0)
   })
 
+  describe('getOrCreate', () => {
+    it('creates a person with derived initials and no color', async () => {
+      const id = await usePersonStore.getState().getOrCreate('  Marco Rossi ')
+      const stored = await db.people.get(id)
+      expect(stored).toEqual({ id, name: 'Marco Rossi', initials: 'MR' })
+      expect(usePersonStore.getState().people).toEqual([stored])
+    })
+
+    it('reuses an existing person whatever the case', async () => {
+      const id = await usePersonStore.getState().add('Dana Kim', 'DK', '#f28c4e')
+      expect(await usePersonStore.getState().getOrCreate('dana KIM')).toBe(id)
+      expect(await db.people.count()).toBe(1)
+      expect(usePersonStore.getState().people).toHaveLength(1)
+    })
+
+    it('reuses a stored person the store has not loaded yet', async () => {
+      const id = (await db.people.add({ name: 'Priya Nair', initials: 'PN' })) as number
+      expect(await usePersonStore.getState().getOrCreate('PRIYA NAIR')).toBe(id)
+      expect(await db.people.count()).toBe(1)
+      expect(usePersonStore.getState().people.map((p) => p.id)).toEqual([id])
+    })
+
+    it('two concurrent creates of one name insert one row', async () => {
+      const [a, b] = await Promise.all([
+        usePersonStore.getState().getOrCreate('Sam Lee'),
+        usePersonStore.getState().getOrCreate('sam lee'),
+      ])
+      expect(a).toBe(b)
+      expect(await db.people.count()).toBe(1)
+      expect(usePersonStore.getState().people).toHaveLength(1)
+    })
+  })
+
   it('update modifies in store', async () => {
     const id = await usePersonStore.getState().add('Alice', 'A')
     await usePersonStore.getState().update({ id, name: 'Alice Smith', initials: 'AS' })

@@ -5,9 +5,8 @@ import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useUIStore } from '../stores/ui-store'
 import type { TodoItem, PersistedTodoItem } from '../models'
-import { generateInitials } from '../utils/person'
 import { parseTaskInput } from '../services/nlp-task-creator'
-import { resolveTags } from '../services/nlp-resolver'
+import { resolveTags, resolveUnmatchedPeople } from '../services/nlp-resolver'
 import { makeRecurrenceRule } from '../services/recurrence'
 
 /** Return the IDs of other multi-selected tasks (excluding the primary edit target). */
@@ -65,7 +64,11 @@ export function useTaskEditCallbacks() {
         })
       }
     }
-    const allPersonIds = new Set([...resolved.personIds, ...(assignments?.personIds ?? [])])
+    // `@name` tokens that matched nobody create the person (lookup-or-create).
+    const newPersonIds = resolved.unmatchedPersons.length > 0
+      ? await resolveUnmatchedPeople(resolved.unmatchedPersons, { personStore: usePersonStore.getState() })
+      : []
+    const allPersonIds = new Set([...resolved.personIds, ...newPersonIds, ...(assignments?.personIds ?? [])])
     for (const personId of allPersonIds) await assignPerson(id, personId)
     // Registry-side writes: resolve-or-create NLP tags + apply any pending ids
     // picked in the popup's chip selector.
@@ -140,10 +143,7 @@ export function useTaskEditCallbacks() {
   }, [selectedTodo, selectedTodoId, assignedPeopleMap, assignedTagsMap, bulkAwareUpdate, closeEditPopup, openEditPopup, assignPerson, unassignPerson, assignTag, unassignTag])
 
   const entityCreators = useMemo(() => ({
-    onCreatePerson: (name: string) => {
-      const initials = generateInitials(name)
-      return usePersonStore.getState().add(name, initials)
-    },
+    onCreatePerson: (name: string) => usePersonStore.getState().getOrCreate(name),
     onCreateTag: (name: string) => useTagStore.getState().add(name),
   }), [])
 
