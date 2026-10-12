@@ -55,15 +55,17 @@ describe('backupRepository', () => {
   })
 
   describe('createSnapshot self-check', () => {
+    let unsubscribe: (() => void) | null = null
     afterEach(() => {
-      backupRepository.onSnapshotWarning(null)
+      unsubscribe?.()
+      unsubscribe = null
       vi.restoreAllMocks()
     })
 
     it('createSnapshot_validData_doesNotWarn', async () => {
       await seedDb()
       const listener = vi.fn()
-      backupRepository.onSnapshotWarning(listener)
+      unsubscribe = backupRepository.onSnapshotWarning(listener)
       await backupRepository.createSnapshot('auto')
       expect(listener).not.toHaveBeenCalled()
     })
@@ -74,7 +76,7 @@ describe('backupRepository', () => {
       await db.todos.add(makeTodo({ id: 2, title: '' }))
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const listener = vi.fn()
-      backupRepository.onSnapshotWarning(listener)
+      unsubscribe = backupRepository.onSnapshotWarning(listener)
 
       const id = await backupRepository.createSnapshot('pre-destructive')
 
@@ -86,18 +88,29 @@ describe('backupRepository', () => {
       expect(message).toContain('bad field "title"')
       expect(warn).toHaveBeenCalled()
     })
+
+    it('a subscriber leaving never silences the others', async () => {
+      await db.todos.add(makeTodo({ id: 2, title: '' }))
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const stays = vi.fn()
+      unsubscribe = backupRepository.onSnapshotWarning(stays)
+      const leaves = backupRepository.onSnapshotWarning(vi.fn())
+      leaves()
+      await backupRepository.createSnapshot('auto')
+      expect(stays).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('createSnapshotFromJson', () => {
     it('createSnapshotFromJson_storesRawTextVerbatim_evenIfUnreadable', async () => {
       const listener = vi.fn()
-      backupRepository.onSnapshotWarning(listener)
+      const unsubscribe = backupRepository.onSnapshotWarning(listener)
       const id = await backupRepository.createSnapshotFromJson('{ not json', 'pre-destructive')
       const backup = await db.backups.get(id)
       expect(backup?.data).toBe('{ not json')
       expect(backup?.trigger).toBe('pre-destructive')
       expect(listener).not.toHaveBeenCalled()
-      backupRepository.onSnapshotWarning(null)
+      unsubscribe()
     })
   })
 

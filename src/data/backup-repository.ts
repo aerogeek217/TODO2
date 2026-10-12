@@ -11,15 +11,17 @@ export interface BackupSummary {
 }
 
 type SnapshotWarningListener = (message: string) => void
-let snapshotWarningListener: SnapshotWarningListener | null = null
+const snapshotWarningListeners = new Set<SnapshotWarningListener>()
 
 /**
- * Registers the (single) listener told when a snapshot fails its import
- * self-check. `file-ops-store` subscribes and `FileSyncBanner` surfaces it —
- * same listener pattern as `fileStorageService.onStatusChange`.
+ * Subscribes `listener` to snapshots that fail their import self-check;
+ * returns its unsubscribe. `file-ops-store` subscribes for the app's
+ * lifetime and `FileSyncBanner` surfaces the warning. Each subscriber only
+ * removes itself, so another subscriber coming and going can't silence it.
  */
-function onSnapshotWarning(listener: SnapshotWarningListener | null): void {
-  snapshotWarningListener = listener
+function onSnapshotWarning(listener: SnapshotWarningListener): () => void {
+  snapshotWarningListeners.add(listener)
+  return () => { snapshotWarningListeners.delete(listener) }
 }
 
 async function createSnapshot(trigger: BackupTrigger): Promise<number> {
@@ -31,7 +33,7 @@ async function createSnapshot(trigger: BackupTrigger): Promise<number> {
   if (problem) {
     const message = `Backup snapshot (${trigger}) would not restore: ${problem}`
     console.warn(`[backup] ${message}`)
-    snapshotWarningListener?.(message)
+    for (const listener of snapshotWarningListeners) listener(message)
   }
   const backup: Backup = {
     createdAt: new Date().toISOString(),
