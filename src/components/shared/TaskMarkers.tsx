@@ -3,25 +3,29 @@ import type { TodoItem } from '../../models'
 import { useSettingsStore } from '../../stores/settings-store'
 import { urgentByDateReason, urgentMark } from '../../utils/urgency'
 import { FocusIcon, ImportantIcon, UrgentClockIcon, UrgentIcon } from './MarkerIcons'
+import { Tooltip } from './Tooltip'
 
 type MarkerFields = Pick<TodoItem, 'urgent' | 'important' | 'focus' | 'dueDate' | 'isCompleted'>
 
 /** One marker glyph with its accessible name, colour and tooltip. Display only. */
-function Marker({ label, color, testId, children }: {
+function Marker({ label, tooltip, color, testId, children }: {
   label: string
+  /** Tooltip text; defaults to the label. */
+  tooltip?: string
   color: string
   testId: string
   children: ReactNode
 }) {
   return (
-    <span
+    <Tooltip
+      text={tooltip ?? label}
       role="img"
       aria-label={label}
       data-testid={testId}
       style={{ display: 'inline-flex', flexShrink: 0, lineHeight: 0, color }}
     >
       {children}
-    </span>
+    </Tooltip>
   )
 }
 
@@ -48,22 +52,27 @@ export function TaskMarkers({ todo, today, size = 14, className }: {
     <span className={className} style={{ fontSize: size }} data-testid="task-markers">
       {urgent === 'flag' && (
         <Marker label="Urgent" color="var(--color-marker-urgent)" testId="urgent-marker">
-          <UrgentIcon tooltip="Urgent" />
+          <UrgentIcon />
         </Marker>
       )}
       {urgent === 'date' && (
-        <Marker label="Urgent: due soon" color="var(--color-marker-urgent)" testId="urgent-clock-marker">
-          <UrgentClockIcon tooltip={reason ? `Urgent: due soon\n${reason}` : 'Urgent: due soon'} />
+        <Marker
+          label="Urgent: due soon"
+          tooltip={reason ? `Urgent: due soon\n${reason}` : 'Urgent: due soon'}
+          color="var(--color-marker-urgent)"
+          testId="urgent-clock-marker"
+        >
+          <UrgentClockIcon />
         </Marker>
       )}
       {important && (
         <Marker label="Important" color="var(--color-marker-important)" testId="important-marker">
-          <ImportantIcon tooltip="Important" />
+          <ImportantIcon />
         </Marker>
       )}
       {focus && (
         <Marker label="Focus" color="var(--color-marker-focus)" testId="focus-marker">
-          <FocusIcon tooltip="Focus" />
+          <FocusIcon />
         </Marker>
       )}
     </span>

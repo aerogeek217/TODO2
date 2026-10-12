@@ -42,6 +42,8 @@
      drag overlays). Keep these as the only consumers. */
   --z-portal-popup: 9998;
   --z-portal-popup-flyout: 9999;
+  /* Tooltips sit above everything, popups included. */
+  --z-tooltip: 10000;
 
   /* Layout */
   --topbar-height: 40px;
@@ -157,6 +159,12 @@
   --color-followup-bg: rgba(245, 200, 66, 0.12);
   --color-followup-bg-strong: rgba(245, 200, 66, 0.24);
   --color-followup-glow: rgba(245, 200, 66, 0.3);
+
+  /* Tooltip (the light theme's is dark on purpose). */
+  --color-tooltip-bg: #2d2b29;
+  --color-tooltip-text: #ece9e6;
+  --color-tooltip-muted: #9d9891;
+  --shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08);
 
   /* Overdue / special dates */
   --color-overdue: #e86bf0;
@@ -292,6 +300,12 @@
   --color-followup-bg: rgba(245, 200, 66, 0.24);
   --color-followup-bg-strong: rgba(245, 200, 66, 0.40);
   --color-followup-glow: rgba(130, 102, 0, 0.3);
+
+  /* Tooltip (dark on purpose). */
+  --color-tooltip-bg: #1a1917;
+  --color-tooltip-text: #f5f4f2;
+  --color-tooltip-muted: #a8a39d;
+  --shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.25);
 
   /* Overdue */
   --color-overdue: #b838c0;

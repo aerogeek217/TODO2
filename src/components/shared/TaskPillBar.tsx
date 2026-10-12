@@ -6,6 +6,7 @@ import { isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
 import { startOfDay } from '../../utils/date'
 import { FollowupFlagIcon } from './FollowupIcons'
+import { useTooltip } from '../../hooks/use-tooltip'
 import { StatusIcon } from './StatusIcon'
 import { AvatarStack } from './AvatarStack'
 import styles from './TaskPillBar.module.css'
@@ -207,10 +208,12 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
   todo, today, interactive = true, compact = false, anchorRef, open = false,
   onFollowupClick, onFollowupClear,
 }: TaskPillFollowupProps) {
-  if (!todo.nextFollowupAt || compact) return null
+  const next = compact ? undefined : todo.nextFollowupAt
+  const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
+  if (!next) return null
   const overdue = isFollowupOverdue(todo, today)
   const isToday = !todo.isCompleted
-    && startOfDay(new Date(todo.nextFollowupAt)).getTime() === startOfDay(today).getTime()
+    && startOfDay(new Date(next)).getTime() === startOfDay(today).getTime()
   const showClear = interactive && !!onFollowupClear && !todo.isCompleted
   const cls = [
     styles.followupChip,
@@ -220,13 +223,13 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
     open ? styles.followupChipOpen : '',
   ].filter(Boolean).join(' ')
   const label = followupPillLabel(todo, today)
-  const title = followupTooltip(todo, today)
 
   if (!interactive) {
     return (
-      <span className={cls} title={title} data-followup-overdue={overdue ? 'true' : undefined}>
+      <span className={cls} data-followup-overdue={overdue ? 'true' : undefined} {...triggerProps}>
         <FollowupFlagIcon />
         {label}
+        {tooltip}
       </span>
     )
   }
@@ -236,7 +239,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
       type="button"
       className={cls}
       onClick={onFollowupClick}
-      title={title}
+      {...triggerProps}
       aria-label={`Follow-up: ${label}`}
       aria-haspopup="dialog"
       aria-expanded={open}
@@ -251,7 +254,6 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
           role="button"
           tabIndex={-1}
           aria-label="Clear follow-up"
-          title="Clear follow-up"
           onClick={(e) => { e.stopPropagation(); onFollowupClear(e) }}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -259,6 +261,7 @@ export const TaskPillFollowup = memo(function TaskPillFollowup({
           &times;
         </span>
       )}
+      {tooltip}
     </button>
   )
 })

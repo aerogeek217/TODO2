@@ -10,6 +10,7 @@ import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
 import { FocusIcon, ImportantIcon, UrgentClockIcon, UrgentIcon } from '../shared/MarkerIcons'
+import { useTooltip } from '../../hooks/use-tooltip'
 import { askClearUrgent, clearUrgent, planClearUrgent } from '../../services/clear-urgent'
 import { startOfToday } from '../../utils/date'
 import { urgentByDateReason, urgentMark } from '../../utils/urgency'
@@ -616,36 +617,33 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             </div>
           )}
           {statuses.length > 0 && <span className={styles.badgeDivider} aria-hidden="true" />}
-          <button
-            type="button"
+          <MarkerToggle
             className={`${styles.markerToggle} ${urgentState ? styles.markerToggleUrgentOn : ''}`}
-            aria-pressed={urgentState !== null}
+            pressed={urgentState !== null}
             onClick={handleToggleUrgent}
-            title={urgentState === 'date'
+            tooltip={urgentState === 'date'
               ? `Urgent: due soon\n${urgentReason} Click to make it not urgent.`
               : urgentState === 'flag' ? 'Remove urgent' : 'Mark urgent'}
             data-urgent={urgentState ?? undefined}
           >
             {urgentState === 'date' ? <UrgentClockIcon /> : <UrgentIcon />} Urgent
-          </button>
-          <button
-            type="button"
+          </MarkerToggle>
+          <MarkerToggle
             className={`${styles.markerToggle} ${importantOn ? styles.markerToggleImportantOn : ''}`}
-            aria-pressed={importantOn}
+            pressed={importantOn}
             onClick={handleToggleImportant}
-            title={importantOn ? 'Remove important' : 'Mark important'}
+            tooltip={importantOn ? 'Remove important' : 'Mark important'}
           >
             <ImportantIcon outline={!importantOn} /> Important
-          </button>
-          <button
-            type="button"
+          </MarkerToggle>
+          <MarkerToggle
             className={`${styles.markerToggle} ${focusOn ? styles.markerToggleFocusOn : ''}`}
-            aria-pressed={focusOn}
+            pressed={focusOn}
             onClick={handleToggleFocus}
-            title={focusOn ? 'Remove from Focus' : 'Add to Focus'}
+            tooltip={focusOn ? 'Remove from Focus' : 'Add to Focus'}
           >
             <FocusIcon /> Focus
-          </button>
+          </MarkerToggle>
         </div>
 
         <div className={`${styles.scrollBody} ${openDropdown ? styles.scrollBodyDropdownOpen : ''}`}>
@@ -711,5 +709,23 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         )}
       </div>
     </div>
+  )
+}
+
+/** An editor marker toggle (Urgent / Important / Focus) with its tooltip. */
+function MarkerToggle({ className, pressed, onClick, tooltip, children, ...rest }: {
+  className: string
+  pressed: boolean
+  onClick: () => void
+  tooltip: string
+  children: React.ReactNode
+  'data-urgent'?: string
+}) {
+  const { triggerProps, tooltip: tip } = useTooltip(tooltip)
+  return (
+    <button type="button" className={className} aria-pressed={pressed} onClick={onClick} {...rest} {...triggerProps}>
+      {children}
+      {tip}
+    </button>
   )
 }

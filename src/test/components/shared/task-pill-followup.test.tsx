@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskPillBar, TaskPillFollowup } from '../../../components/shared/TaskPillBar'
 import { makeTodo } from '../../helpers'
 
@@ -20,7 +20,19 @@ describe('<TaskPillFollowup>', () => {
     const todo = makeTodo({ id: 1, nextFollowupAt: new Date(2026, 9, 13), lastFollowupAt: new Date(2026, 8, 13) })
     render(<TaskPillFollowup todo={todo} today={today} onFollowupClick={onClick} onFollowupClear={onClear} />)
     const pill = screen.getByRole('button', { name: 'Follow-up: Tue 13' })
-    expect(pill).toHaveAttribute('title', 'Next follow-up · Tue 13 Oct\nLast followed up Sun 13 Sep, 4 weeks ago')
+    expect(pill).not.toHaveAttribute('title')
+    vi.useFakeTimers()
+    try {
+      fireEvent.pointerEnter(pill)
+      act(() => { vi.advanceTimersByTime(400) })
+      const tip = screen.getByRole('tooltip')
+      expect(tip.textContent).toBe('Next follow-up · Tue 13 OctLast followed up Sun 13 Sep, 4 weeks ago')
+      expect(tip.children).toHaveLength(2)
+      fireEvent.pointerLeave(pill)
+      expect(screen.queryByRole('tooltip')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
     fireEvent.click(screen.getByLabelText('Clear follow-up'))
     expect(onClear).toHaveBeenCalledTimes(1)
     expect(onClick).not.toHaveBeenCalled()

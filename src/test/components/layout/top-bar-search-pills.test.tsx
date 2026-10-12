@@ -78,7 +78,7 @@ describe('TopBar search-result pill bar', () => {
 
     expect(within(option).getByText('AL')).toBeInTheDocument()
     expect(within(option).getByTitle('In Progress')).toBeInTheDocument()
-    expect(within(option).getByTitle(/^Next follow-up/)).toBeInTheDocument()
+    expect(within(option).getByText(/^\w{3} \d+ Jan 2099$/)).toBeInTheDocument()
     expect(within(option).getByTitle('Due')).toBeInTheDocument()
   })
 

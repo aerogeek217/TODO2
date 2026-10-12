@@ -478,7 +478,10 @@ describe('TaskEditPopup', () => {
       const urgent = screen.getByRole('button', { name: 'Urgent' })
       expect(urgent).toHaveAttribute('aria-pressed', 'true')
       expect(urgent).toHaveAttribute('data-urgent', 'date')
-      expect(urgent.getAttribute('title')).toBe('Urgent: due soon\nDue Tue 13, within 3 days. Click to make it not urgent.')
+      fireEvent.pointerEnter(urgent)
+      const tip = await screen.findByRole('tooltip', undefined, { timeout: 1500 })
+      expect(tip.textContent).toBe('Urgent: due soonDue Tue 13, within 3 days. Click to make it not urgent.')
+      fireEvent.pointerLeave(urgent)
 
       await act(async () => { fireEvent.click(urgent) })
       const prompt = useUIStore.getState().bulkConfirmation!
