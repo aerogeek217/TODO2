@@ -25,6 +25,12 @@ function getInput() {
   return screen.getByPlaceholderText('New task…') as HTMLInputElement
 }
 
+/** Texts of the chips row (what the task will get). */
+function chipTexts() {
+  const group = screen.queryByRole('group', { name: 'What the task gets' })
+  return group ? Array.from(group.children, (el) => (el.textContent ?? '').trim()) : []
+}
+
 function changeInput(value: string) {
   const input = getInput()
   fireEvent.change(input, { target: { value } })
@@ -56,19 +62,62 @@ describe('QuickAddBar', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('renders chips for "@anna #x tomorrow" parsed input', () => {
+  it('renders chips for "@anna #x /due tomorrow /urgent" in task-row order', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    changeInput('Fix the build @anna #x tomorrow')
+    changeInput('Fix the build @anna #x /due tomorrow /urgent')
 
-    // Person chip — anchored on the @-prefixed display label, not the
-    // dropdown items (which match plain "Anna").
-    expect(screen.getByText('@Anna')).toBeInTheDocument()
-    // Tag chip — slug as-typed, lowercase
-    expect(screen.getByText('#x')).toBeInTheDocument()
-    // Schedule chip — exact label depends on locale + today's date, so just
-    // assert the calendar emoji rendered (no recurrence/deadline emojis here).
-    const surface = screen.getByRole('dialog')
-    expect(surface.textContent ?? '').toContain('📅')
+    const chips = chipTexts()
+    // markers › tags › people › due › follow-up (the default)
+    expect(chips[0]).toBe('Urgent')
+    expect(chips[1]).toBe('#x')
+    expect(chips[2]).toBe('AN@Anna')
+    expect(chips[3]).toMatch(/^\w{3} \d+$/) // tomorrow: `Sun 11`
+    expect(chips[4]).toMatch(/· default$/)
+  })
+
+  it('a plain date word is title text: no due chip', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('Call mom tomorrow ')
+    expect(chipTexts()).toHaveLength(1) // only the default follow-up
+    expect(chipTexts()[0]).toMatch(/default$/)
+  })
+
+  it('/followup replaces the default chip; none shows No follow-up', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('Vendor /followup none ')
+    expect(chipTexts()).toEqual(['No follow-up'])
+    changeInput('Vendor /followup 2w ')
+    expect(chipTexts()[0]).not.toMatch(/default/)
+  })
+
+  it('/repeat shows with a due date, and is reported as ignored without one', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('Standup /due today /repeat daily ')
+    expect(chipTexts()).toContain('Daily')
+    changeInput('Standup /repeat weekly ')
+    expect(chipTexts()).not.toContain('Weekly')
+    expect(screen.getByText('Ignored:')).toBeInTheDocument()
+    expect(screen.getByText('— repeating needs a /due date')).toBeInTheDocument()
+  })
+
+  it('lists problems: unknown command, unreadable date', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+    changeInput('Call plumber /urgnt /due frday ')
+    expect(screen.getByText('Unknown command:')).toBeInTheDocument()
+    expect(screen.getByText("Can't read date:")).toBeInTheDocument()
+    expect(screen.getByText('— try fri, tomorrow, 5/4, 10/30, 2w')).toBeInTheDocument()
+    // Adding still works: both stay in the title.
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).title).toBe('Call plumber /urgnt /due frday')
+  })
+
+  it('tints tokens in the mirror behind the input', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('Call @anna /due fri /urgent /urgnt ')
+    const tints = Array.from(screen.getByTestId('quickadd-mirror').querySelectorAll('[data-tint]'))
+      .map((el) => `${el.textContent}:${el.getAttribute('data-tint')}`)
+    expect(tints).toEqual(['@anna:chip', '/due fri:due', '/urgent:urgent'])
   })
 
   it('Tab calls onOpenFullEditor with the live draft', () => {
@@ -120,7 +169,7 @@ describe('QuickAddBar', () => {
     expect(draft.resolved.personIds).toEqual([1])
   })
 
-  it('keeps a `/word` in the title — no chip, no unknown token, no popup', () => {
+  it('keeps an unknown `/word` in the title — no chip, no popup', () => {
     const onSubmit = vi.fn()
     render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
     // Cursor sits right after the `/` token (as with the `@` popup test), so
@@ -130,8 +179,7 @@ describe('QuickAddBar', () => {
     fireEvent.change(input, { target: { value: 'Fix the build /triage' } })
 
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Unknown:/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/^\/triage$/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Unknown command:')).toBeInTheDocument()
 
     fireEvent.keyDown(getInput(), { key: 'Enter' })
     expect(onSubmit).toHaveBeenCalledTimes(1)
@@ -227,34 +275,106 @@ describe('QuickAddBar', () => {
     expect(popupTexts.some((t) => t.includes('@Bob'))).toBe(false)
   })
 
-  it(':status prefix renders the status chip after parser extraction', () => {
-    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    changeInput(':doing fix it')
-
-    // Status chip — the parser strips the `:doing` token and the resolver
-    // matches it to status id 100.
-    expect(screen.getByText('Doing')).toBeInTheDocument()
-    // Title narrows to the un-tokenized words.
-    const surface = screen.getByRole('dialog')
-    expect(surface.textContent ?? '').not.toContain(':doing')
+  it('/status renders the status chip; :status is plain text', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+    changeInput('/status doing fix it :blocked')
+    expect(chipTexts()).toContain('Doing')
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+    expect(draft.title).toBe('fix it :blocked')
+    expect(draft.resolved.statusId).toBe(100)
   })
 
   it('shows the new-person hint when a name does not resolve', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
     changeInput('check it @ghost')
-    expect(screen.getByText('New person:')).toBeInTheDocument()
-    expect(screen.getByText('@ghost')).toBeInTheDocument()
-    expect(screen.getByText('— created when you add the task')).toBeInTheDocument()
+    expect(screen.getByText('New person:').parentElement).toHaveTextContent(/^New person:\s*@ghost\s*— created when you add the task$/)
+    expect(chipTexts()).toContain('G@ghost')
     expect(screen.queryByText(/Unknown:/)).not.toBeInTheDocument()
   })
 
-  it('names several new people, and keeps unknown statuses on their own line', () => {
+  it('names several new people, and keeps an unknown status on its own line', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    changeInput('check it @ghost @"Marco Rossi" :nope ')
+    changeInput('check it @ghost @"Marco Rossi" /status nope ')
     expect(screen.getByText('New people:')).toBeInTheDocument()
     expect(screen.getByText('@ghost @Marco Rossi')).toBeInTheDocument()
-    expect(screen.getByText('Unknown:')).toBeInTheDocument()
-    expect(screen.getByText(':nope')).toBeInTheDocument()
+    expect(screen.getByText('Unknown status:').parentElement).toHaveTextContent(/^Unknown status:\s*\/status nope\s*— stays in the title$/)
+  })
+
+  describe('slash menu', () => {
+    function typeAtCaret(value: string) {
+      const input = getInput()
+      input.setSelectionRange(0, 0)
+      fireEvent.change(input, { target: { value } })
+      input.setSelectionRange(value.length, value.length)
+      fireEvent.change(input, { target: { value } })
+      return input
+    }
+    const options = () => screen.getAllByRole('option').map((o) => o.textContent ?? '')
+
+    it('/ lists the commands; typing filters', () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeAtCaret('Call legal /')
+      expect(screen.getByRole('listbox', { name: 'Commands' })).toBeInTheDocument()
+      expect(options().map((t) => t.split(/[A-Z]/)[0])).toEqual([
+        '/urgent', '/important', '/focus', '/due', '/followup', '/repeat', '/status',
+      ])
+      typeAtCaret('Call legal /fo')
+      expect(options()).toEqual(['/focusAdd to Focus', '/followupNext follow-up…'])
+    })
+
+    it('⏎ picks a command and never submits; ↓ moves', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Call legal /fo')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'ArrowDown' }) })
+      expect(screen.getByRole('option', { name: /followup/ })).toHaveAttribute('aria-selected', 'true')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      expect(onSubmit).not.toHaveBeenCalled()
+      expect(getInput().value).toBe('Call legal /followup ')
+      // An argument command goes on to its argument.
+      expect(screen.getByRole('listbox', { name: 'Next follow-up' })).toBeInTheDocument()
+    })
+
+    it('a date argument shows the live parse, or the error', () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeAtCaret('Renew /due tomorrow')
+      expect(screen.getByRole('listbox', { name: 'Due date' })).toBeInTheDocument()
+      expect(screen.getAllByRole('option')).toHaveLength(1)
+      typeAtCaret('Renew /due frday')
+      expect(screen.getByRole('alert')).toHaveTextContent('Can\'t read "frday"')
+    })
+
+    it('⏎ on an error row does nothing (no submit)', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeAtCaret('Renew /due frday')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      expect(onSubmit).not.toHaveBeenCalled()
+      expect(getInput().value).toBe('Renew /due frday')
+    })
+
+    it('Esc closes only the popup and leaves the text', async () => {
+      const onClose = vi.fn()
+      render(<QuickAddBar open onClose={onClose} onSubmit={noop} />)
+      typeAtCaret('Call /ur')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Escape' }) })
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+      expect(onClose).not.toHaveBeenCalled()
+      expect(getInput().value).toBe('Call /ur')
+    })
+
+    it('Tab hands the parsed commands to the editor draft', () => {
+      const onOpenFullEditor = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} onOpenFullEditor={onOpenFullEditor} />)
+      changeInput('Call legal /urgent /focus /due fri /followup none ')
+      fireEvent.keyDown(getInput(), { key: 'Tab' })
+      const draft = onOpenFullEditor.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.rawTitle).toBe('Call legal /urgent /focus /due fri /followup none ')
+      expect(draft.resolved).toMatchObject({ urgent: true, focus: true, followupNone: true, title: 'Call legal' })
+      expect(draft.resolved.dueDate).toBeInstanceOf(Date)
+    })
   })
 
   describe('@ create row', () => {
@@ -307,19 +427,17 @@ describe('QuickAddBar', () => {
     })
   })
 
-  it('empty hint row covers all NLP prefixes', () => {
+  it('the footer names @ person, # tag and / command — no dates, no status prefix', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    const surface = screen.getByRole('dialog')
-    const text = surface.textContent ?? ''
-    // Prefix tokens.
-    expect(text).toContain('@')
-    expect(text).toContain('#')
-    expect(text).toContain(':')
-    expect(text).toContain('!')
-    // Natural-date and recurrence examples.
-    expect(text.toLowerCase()).toContain('tomorrow')
-    expect(text.toLowerCase()).toContain('every')
-    // No project prefix any more.
+    const text = screen.getByRole('dialog').textContent ?? ''
+    expect(text).toContain('@ person')
+    expect(text).toContain('# tag')
+    expect(text).toContain('/ command')
+    expect(text).toContain('Details Tab')
+    expect(text).toContain('⏎ add')
+    expect(text).toContain('Esc close')
+    expect(text).not.toContain(': status')
+    expect(text.toLowerCase()).not.toContain('tomorrow')
     expect(text.toLowerCase()).not.toContain('project')
   })
 })

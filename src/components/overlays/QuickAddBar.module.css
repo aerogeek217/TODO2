@@ -43,14 +43,46 @@
   padding: var(--space-4) var(--space-5);
 }
 
-.titleInput {
+/* The input sits over a mirror of its text that carries the token tints:
+ * the input's own text is transparent (caret and selection stay visible). The
+ * mirror and the input share font, size and zero padding so characters line
+ * up; tints use box-shadow, not padding, so they never shift a character. */
+.field {
+  position: relative;
   flex: 1;
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: var(--color-text-primary);
+  min-width: 0;
+  height: 28px;
+}
+
+.mirror,
+.titleInput {
   font-size: 18px;
   font-family: inherit;
+  line-height: 28px;
+  letter-spacing: normal;
+  padding: 0;
+  margin: 0;
+}
+
+.mirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: pre;
+  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+.titleInput {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 28px;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  color: transparent;
+  caret-color: var(--color-text-primary);
   outline: none;
 }
 
@@ -58,75 +90,180 @@
   color: var(--color-text-muted);
 }
 
-/* ─── Chips row ───────────────────────────────────────────────── */
+.titleInput::selection {
+  color: transparent;
+  background: var(--color-accent-bg);
+}
+
+.tint {
+  border-radius: 4px;
+}
+
+.tint[data-tint="chip"] {
+  background: var(--color-tint-8);
+  box-shadow: 0 0 0 2px var(--color-tint-8);
+  color: var(--color-text-secondary);
+}
+
+.tint[data-tint="new"] {
+  box-shadow: 0 0 0 1px var(--color-accent);
+  color: var(--color-accent);
+}
+
+.tint[data-tint="due"] {
+  background: var(--color-overdue-bg);
+  box-shadow: 0 0 0 2px var(--color-overdue-bg);
+  color: var(--color-overdue);
+}
+
+.tint[data-tint="urgent"] {
+  background: var(--color-danger-bg);
+  box-shadow: 0 0 0 2px var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.tint[data-tint="followup"] {
+  background: var(--color-followup-bg);
+  box-shadow: 0 0 0 2px var(--color-followup-bg);
+  color: var(--color-followup);
+}
+
+.tint[data-tint="accent"] {
+  background: var(--color-accent-bg-medium);
+  box-shadow: 0 0 0 2px var(--color-accent-bg-medium);
+  color: var(--color-accent);
+}
+
+.tint[data-tint="error"] {
+  box-shadow: 0 0 0 1px var(--color-danger);
+  color: var(--color-danger);
+}
+
+.tint[data-tint="ignored"] {
+  box-shadow: 0 0 0 1px var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/* ─── Chips row (read-only: what the task gets) ─────────────── */
 
 .chipsRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
-  padding: 0 var(--space-5) var(--space-4);
+  padding: 6px var(--space-5);
+  border-top: 1px solid var(--color-border-muted);
 }
 
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  background: var(--color-surface-high);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  font-size: 11px;
-  color: var(--color-text-primary);
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  background: var(--color-tint-8);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
-.chipDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
+.chip[data-tint="due"] {
+  background: var(--color-overdue-bg);
+  color: var(--color-overdue);
+}
+
+.chip[data-tint="urgent"] {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.chip[data-tint="followup"] {
+  background: var(--color-followup-bg);
+  color: var(--color-followup);
+}
+
+.chip[data-tint="accent"] {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent);
+}
+
+.markerChip {
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+}
+
+/* The default next follow-up (every new task gets it). */
+.chipDefault {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-followup-glow);
+  color: var(--color-followup);
+  border-radius: var(--radius-pill);
+}
+
+.chipDefaultNote {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+/* `/followup none`. */
+.chipRing {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-pill);
+}
+
+.statusChip {
+  font-weight: 600;
 }
 
 .chipAvatar {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   color: var(--color-text-on-accent);
-  margin-left: -4px;
+  margin-left: -2px;
 }
 
-.chipRemove {
-  margin-left: 2px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-size: 10px;
-  line-height: 1;
+/* A person created with the task: a dashed ring with the initial. */
+.chipAvatarNew {
+  background: transparent;
+  box-sizing: border-box;
+  border: 1px dashed var(--color-accent);
+  color: var(--color-accent);
 }
 
-.chipRemove:hover {
-  color: var(--color-text-primary);
-}
+/* ─── Problem lines (new people, commands that set nothing) ────── */
 
-/* ─── Unmatched hint row ──────────────────────────────────────── */
-
-.unmatchedHint {
+.problemLine {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
-  padding: 0 var(--space-5) var(--space-4);
-  font-size: 11px;
+  padding: 4px var(--space-5) 0;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 
-.unmatchedNames {
+.problemLabel {
   color: var(--color-text-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.problemToken {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.problemTokenError {
+  color: var(--color-danger);
+  font-weight: 600;
 }
 
 /* ─── Footer row (always visible) ─────────────────────────────── */
@@ -212,96 +349,11 @@
  * (`--z-dialog`) so the popup paints over it. */
 .popup {
   position: fixed;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-popup);
-  overflow: hidden;
   z-index: var(--z-dialog-overlay);
 }
-
-.popupHeader {
-  padding: 6px 12px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  border-bottom: 1px solid var(--color-border-muted);
-}
-
-.popupItem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 12px;
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.popupItem:hover,
-.popupItem.selected {
-  background: var(--color-accent-bg);
-}
-
-.popupItem.selected .popupName {
-  color: var(--color-accent);
-}
-
-.popupCreateNew .popupName {
-  font-style: italic;
-  color: var(--color-text-muted);
-}
-
-.popupAvatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--color-text-on-accent);
-}
-
-.popupBody {
-  flex: 1;
-  min-width: 0;
-}
-
-.popupName {
-  font-size: 13px;
-  color: var(--color-text-primary);
-}
-
 
 /* `@name` that matches nobody — created on submit. */
 .newPersonNames {
   color: var(--color-accent);
   font-weight: 600;
-}
-
-.popupCreatePerson .popupName {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.popupNewAvatar {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  box-sizing: border-box;
-  border: 1px dashed var(--color-accent);
-  color: var(--color-accent);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
 }

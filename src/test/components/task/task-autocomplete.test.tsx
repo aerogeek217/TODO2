@@ -12,7 +12,7 @@ beforeEach(() => {
 
 afterEach(() => cleanup())
 
-const TITLE_PLACEHOLDER = 'New task... (@person #tag tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task… (@person #tag /command)'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 // Tags kept unsorted on purpose — the component sorts alphabetically; tests assert order.
@@ -53,11 +53,11 @@ function typeTitle(value: string) {
   return input
 }
 
-/** The popover items are buttons whose text starts with `#` — use that to
+/** The popover rows are options whose text starts with `#` — use that to
  * find them; the chip-selector's "Tags" section label collides with the
  * popover's "Tags" header, so we don't key tests off the header text. */
 function getPopoverItemTexts() {
-  return screen.getAllByRole('button')
+  return screen.queryAllByRole('option')
     .map((b) => b.textContent ?? '')
     .filter((t) => t.startsWith('#') && t !== '#')
 }

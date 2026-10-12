@@ -1,0 +1,221 @@
+/* The task-text autocomplete popup (`@` / `#` / `/`). Hosts position it. */
+
+.popup {
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 4px;
+  background: var(--color-surface-high);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  max-height: 320px;
+  overflow-y: auto;
+  font-family: inherit;
+  text-align: left;
+}
+
+[data-theme="light"] .popup {
+  background: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.headerNote {
+  font-weight: 400;
+}
+
+.hint {
+  padding: 0 8px 6px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-task);
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover,
+.item.active {
+  background: var(--color-tint-8);
+}
+
+.icon {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.icon[data-command="urgent"] { color: var(--color-marker-urgent); }
+.icon[data-command="important"] { color: var(--color-marker-important); }
+.icon[data-command="focus"] { color: var(--color-marker-focus); }
+.icon[data-command="due"] { color: var(--color-overdue); }
+.icon[data-command="followup"] { color: var(--color-followup); }
+.icon[data-command="repeat"] { color: var(--color-accent); }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match {
+  background: var(--color-followup-bg);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.detail {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.note {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.value {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* `none` under the follow-up intervals. */
+.separated {
+  position: relative;
+  margin-top: 5px;
+}
+
+.separated::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+/* The live parse of a typed date argument. */
+.parsed {
+  min-height: 32px;
+}
+
+.parsedDate {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.parsed .detail {
+  flex: 1;
+}
+
+.kbd {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-tint-6);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-text-secondary);
+}
+
+.error {
+  padding: 4px 8px 6px;
+}
+
+.errorText {
+  font-size: var(--font-size-task);
+  color: var(--color-danger);
+}
+
+.errorHint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 6px 8px 4px;
+  border-top: 1px solid var(--color-border-muted);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* `#tag` / `@name` that matches nothing. */
+.createTag .name {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.createPerson {
+  color: var(--color-accent);
+}
+
+.createPerson .name {
+  font-weight: 600;
+}
+
+.newAvatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px dashed var(--color-accent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .item {
+    min-height: var(--touch-target-min);
+  }
+}

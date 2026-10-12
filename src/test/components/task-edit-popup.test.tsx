@@ -5,6 +5,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useFilterStore } from '../../stores/filter-store'
+import { useStatusStore } from '../../stores/status-store'
 import { makePerson, makeTodo, resetDb } from '../helpers'
 import type { Person, Tag, PersistedTodoItem } from '../../models'
 
@@ -13,7 +14,7 @@ beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
 })
 
-const TITLE_PLACEHOLDER = 'New task... (@person #tag tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task… (@person #tag /command)'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })
@@ -215,7 +216,7 @@ describe('TaskEditPopup', () => {
     it('an @name in the title that matches nobody offers to create it', () => {
       renderCreateMode()
       typeTitle('Call legal @Marco')
-      const row = screen.getByRole('button', { name: 'Press ⏎ to create @Marco' })
+      const row = screen.getByRole('option', { name: 'Press ⏎ to create @Marco' })
       expect(row).toBeInTheDocument()
       fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
       expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call legal @Marco ')
@@ -558,6 +559,69 @@ describe('TaskEditPopup', () => {
       expect(updated.dueDate).toBeUndefined()
       expect(updated.recurrenceRule).toBeUndefined()
       expect(screen.queryByText('No repeat')).toBeNull()
+    })
+  })
+
+  describe('slash commands', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(2026, 9, 10, 15, 30)) // Sat 10 Oct 2026
+      useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#fa0', sortOrder: 0 }] })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+      useStatusStore.setState(useStatusStore.getInitialState(), true)
+    })
+
+    it('a Quick Add handoff fills the fields and drops the commands from the title', async () => {
+      useUIStore.setState({
+        quickAddDraft: { rawTitle: 'Call legal @Alice #urgent /urgent /important /focus /due fri /repeat weekly /followup 2w /status waiting' },
+      })
+      const { onCreate } = renderCreateMode()
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call legal @Alice #urgent')
+      expect(screen.getByRole('button', { name: /Urgent/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /Important/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /Focus/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByText(/Waiting/)).toBeInTheDocument()
+      clickCreate()
+      await waitFor(() => expect(onCreate).toHaveBeenCalled())
+      const [partial, assignments] = onCreate.mock.calls[0]!
+      expect(partial).toMatchObject({
+        title: 'Call legal @Alice #urgent',
+        urgent: true,
+        important: true,
+        focus: true,
+        statusId: 5,
+        dueDate: new Date(2026, 9, 16),
+        nextFollowupAt: new Date(2026, 9, 24),
+      })
+      expect(partial.recurrenceRule?.type).toBe('weekly')
+      expect(assignments.personIds).toEqual([1])
+      expect(assignments.tagIds).toEqual([1])
+    })
+
+    it('a handoff with /followup none starts with no next follow-up', async () => {
+      useUIStore.setState({ quickAddDraft: { rawTitle: 'Vendor /followup none' } })
+      const { onCreate } = renderCreateMode()
+      clickCreate()
+      await waitFor(() => expect(onCreate).toHaveBeenCalled())
+      const partial = onCreate.mock.calls[0]![0]
+      expect('nextFollowupAt' in partial).toBe(true)
+      expect(partial.nextFollowupAt).toBeUndefined()
+    })
+
+    it('/ opens the command menu in the create-mode title', () => {
+      renderCreateMode()
+      typeTitle('Call /')
+      expect(screen.getByRole('listbox', { name: 'Commands' })).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call /urgent ')
+    })
+
+    it('/ is plain text in an existing task’s title', () => {
+      renderEditMode(makeTodo({ id: 7, title: 'Existing' }) as PersistedTodoItem)
+      fireEvent.change(screen.getByDisplayValue('Existing'), { target: { value: 'Existing /' } })
+      expect(screen.queryByRole('listbox', { name: 'Commands' })).not.toBeInTheDocument()
     })
   })
 })

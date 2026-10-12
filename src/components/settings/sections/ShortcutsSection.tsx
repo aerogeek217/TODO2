@@ -12,7 +12,7 @@ export function ShortcutsSection() {
 
   return (
     <div className={styles.section}>
-      <SettingRow label="Quick-add syntax" help="People, tags and other details you can type into a new task.">
+      <SettingRow label="Quick-add syntax" help="People, tags and slash commands you can type into a new task.">
         <button type="button" className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowNlpSyntax(true)}>
           Show syntax…
         </button>

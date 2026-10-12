@@ -47,7 +47,7 @@ export function AppearanceSection() {
       </SettingRow>
       {/* On desktop the syntax lives with the keyboard shortcuts. */}
       {isMobile && (
-        <SettingRow label="Quick-add syntax" help="People, tags and other details you can type into a new task.">
+        <SettingRow label="Quick-add syntax" help="People, tags and slash commands you can type into a new task.">
           <button type="button" className={`${styles.button} ${styles.buttonSecondary}`} onClick={() => setShowNlpSyntax(true)}>
             Show syntax…
           </button>

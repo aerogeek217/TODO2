@@ -6,7 +6,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
 
-const TITLE_PLACEHOLDER = 'New task... (@person #tag tomorrow "this week")'
+const TITLE_PLACEHOLDER = 'New task… (@person #tag /command)'
 // Sat 10 Oct 2026, 15:30 local.
 const NOW = new Date(2026, 9, 10, 15, 30)
 const day = (y: number, m: number, d: number) => new Date(y, m - 1, d)
@@ -58,7 +58,7 @@ const nextInput = () => screen.getByLabelText('Next follow-up') as HTMLInputElem
 const lastInput = () => screen.getByLabelText('Last follow-up') as HTMLInputElement
 
 describe('TaskEditPopup — follow-up group', () => {
-  it('create mode: Next is pre-filled with the default and passed to onCreate', async () => {
+  it('create mode: Next is pre-filled with the default, which onCreate leaves to the new task', async () => {
     const { onCreate } = renderCreate()
     expect(nextInput().value).toBe('Tue 10 Nov')
     expect(screen.getByText('Default · 1 month')).toBeInTheDocument()
@@ -66,7 +66,9 @@ describe('TaskEditPopup — follow-up group', () => {
     fireEvent.click(screen.getByText('Create task'))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     const partial = onCreate.mock.calls[0]![0]
-    expect(partial.nextFollowupAt).toEqual(day(2026, 11, 10))
+    // Left out while untouched: a `/followup` in the title may still set it,
+    // otherwise the store gives every new task the default.
+    expect('nextFollowupAt' in partial).toBe(false)
     expect(partial.lastFollowupAt).toBeUndefined()
   })
 

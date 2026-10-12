@@ -2,16 +2,17 @@
  * QuickAddBar — keyboard-first task capture surface.
  *
  * Live subscriptions to person / status / tag stores feed
- * `parseInput` → `resolveInput` on every keystroke; chips render for every
- * metadata field the resolver produces (person, tag, status, due date,
- * recurrence). Tag chips show the parsed slug — the
- * tag-store resolve-or-create runs at submit.
+ * `parseInput` → `resolveInput` on every keystroke. Recognised tokens are
+ * tinted in the field (a mirror behind the transparent input text,
+ * `services/nlp-token-tints`), the chips row shows what the task will get,
+ * and problem lines name commands that set nothing. Tag chips show the
+ * parsed name — the tag-store resolve-or-create runs at submit.
  *
- * Auto-derived chips are read-only feedback (no removable ×). To clear, edit
- * the title.
+ * Chips are read-only feedback (no ×). To clear, edit the text.
  *
- * Inline syntax (parsed live, removed from title, surfaced as chips):
- *   @person   #tag   :status   natural dates ("tomorrow")
+ * Inline syntax (parsed live, removed from the title):
+ *   @person   #tag   /urgent /important /focus /due /followup /repeat /status
+ * Plain words are never read as dates.
  *
  * Title input carries `data-shortcut-scope="none"` so global keyboard
  * shortcuts (`use-keyboard-shortcuts.ts`) don't fire while typing.
@@ -26,13 +27,25 @@ import type {
   RecurrenceType,
   Status,
 } from '../../models'
+import { DEFAULT_STATUS_ICON } from '../../models'
+import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { usePersonStore } from '../../stores/person-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
-import { parseInput } from '../../services/natural-language-parser'
+import { parseInput, type CommandProblem } from '../../services/natural-language-parser'
 import { resolveInput, type ResolvedInput } from '../../services/nlp-resolver'
+import { DATE_ARGUMENT_HINT, REPEAT_FREQUENCIES } from '../../services/slash-commands'
+import { tokenTints, type TintSpan } from '../../services/nlp-token-tints'
+import { addFollowupInterval, formatFollowupDate, formatFollowupDay } from '../../utils/followup'
+import { startOfToday } from '../../utils/date'
+import { CalendarIcon, RepeatGlyph } from '../shared/CommandIcons'
+import { FollowupFlagIcon } from '../shared/FollowupIcons'
+import { FocusIcon, ImportantIcon, UrgentIcon } from '../shared/MarkerIcons'
+import { NlpPopup } from '../shared/NlpPopup'
+import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
 
 const POPUP_GAP_PX = 4
@@ -42,30 +55,39 @@ const POPUP_WIDTH_PX = 280
 // ─── Types ────────────────────────────────────────────────────────
 
 /**
- * Parsed-token shape consumed by the bar's chip renderers. Tags stay as slug
+ * Parsed-token shape consumed by the bar's chip renderers. Tags stay as name
  * strings — the tag-store resolve-or-create runs at submit so the registry is
  * the single source of truth for color/id.
  */
 export type ParsedTokens = {
-  /** Title with @foo #bar :baz tokens stripped. */
+  /** Title with every recognised token stripped. */
   title: string
   status?: PersistedStatus
   people: PersistedPerson[]
-  /** Lowercase tag slugs in first-seen order. */
+  /** Tag names in first-seen order. */
   tags: string[]
   deadlineAt?: Date
   recurrence?: RecurrenceType
   /** Person names from `@` tokens that didn't match any known person. */
   unmatchedPersons: string[]
-  /** Status names from `:` tokens that didn't match any known status. */
+  /** The `/status` name when it matched no status. */
   unmatchedStatuses: string[]
+  urgent?: boolean
+  important?: boolean
+  focus?: boolean
+  /** From `/followup <date|interval>`. */
+  nextFollowupAt?: Date
+  /** `/followup none`. */
+  followupNone?: boolean
+  /** Commands that set nothing (problem lines). */
+  problems?: CommandProblem[]
 }
 
 export type QuickAddDraft = ParsedTokens & {
   /** Unparsed input as the user typed it — used by the Details / Tab handoff
    * so `TaskEditPopup` can re-run its own NLP on mount. */
   rawTitle: string
-  /** Resolver output (`personIds` / `tags` / status / dates /
+  /** Resolver output (people / tags / status / dates / markers /
    * recurrence) — fed straight into `applyNlpMetadata` on submit. */
   resolved: ResolvedInput
 }
@@ -90,63 +112,128 @@ export interface QuickAddBarProps {
   parse?: (input: string) => ParsedTokens
 }
 
-// ─── Atoms ─────────────────────────────────────────────────────────
+// ─── Chips ─────────────────────────────────────────────────────────
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return <span className={styles.kbd}>{children}</span>
 }
 
-function StatusChip({ status }: { status: PersistedStatus }) {
-  return (
-    <span className={styles.chip}>
-      <span className={styles.chipDot} style={{ background: status.color }} />
-      <span>{status.name}</span>
-    </span>
-  )
-}
-
-function PersonChip({ person }: { person: PersistedPerson }) {
-  return (
-    <span className={styles.chip}>
-      <span className={styles.chipAvatar}>{person.initials}</span>
-      <span>@{person.name}</span>
-    </span>
-  )
-}
-
-function TagChip({ tag }: { tag: string }) {
-  return (
-    <span className={styles.chip}>
-      <span>#{tag}</span>
-    </span>
-  )
-}
-
-function DateChip({ icon, label }: { icon: string; label: string }) {
-  return (
-    <span className={styles.chip}>
-      <span style={{ fontSize: 10 }}>{icon}</span>
-      <span>{label}</span>
-    </span>
-  )
-}
-
 const RECURRENCE_LABEL: Record<RecurrenceType, string> = {
   daily: 'Daily',
   weekly: 'Weekly',
-  biweekly: 'Biweekly',
+  biweekly: 'Every 2 weeks',
   monthly: 'Monthly',
   quarterly: 'Quarterly',
   yearly: 'Yearly',
 }
 
-function RecurrenceChip({ recurrence }: { recurrence: RecurrenceType }) {
+/** `Every Mon` for weekly from a Monday due date; the frequency otherwise. */
+function repeatLabel(recurrence: RecurrenceType, due: Date): string {
+  if (recurrence === 'weekly') return `Every ${due.toLocaleDateString('en-US', { weekday: 'short' })}`
+  return RECURRENCE_LABEL[recurrence]
+}
+
+function PersonChip({ person }: { person: PersistedPerson }) {
   return (
     <span className={styles.chip}>
-      <span style={{ fontSize: 10 }}>↻</span>
-      <span>{RECURRENCE_LABEL[recurrence]}</span>
+      <span className={styles.chipAvatar} style={{ background: person.color ?? NEUTRAL_PERSON_COLOR }}>
+        {person.initials}
+      </span>
+      <span>@{person.name}</span>
     </span>
   )
+}
+
+function NewPersonChip({ name }: { name: string }) {
+  return (
+    <span className={styles.chip}>
+      <span className={`${styles.chipAvatar} ${styles.chipAvatarNew}`} aria-hidden="true">
+        {name.charAt(0).toUpperCase()}
+      </span>
+      <span>@{name}</span>
+    </span>
+  )
+}
+
+function ParsedChips({ draft, defaultFollowup, today }: {
+  draft: QuickAddDraft
+  defaultFollowup: Date
+  today: Date
+}) {
+  return (
+    <div className={styles.chipsRow} role="group" aria-label="What the task gets">
+      {draft.urgent && (
+        <span className={`${styles.chip} ${styles.markerChip}`} data-tint="urgent"><UrgentIcon /> Urgent</span>
+      )}
+      {draft.important && (
+        <span className={`${styles.chip} ${styles.markerChip}`} data-tint="followup"><ImportantIcon /> Important</span>
+      )}
+      {draft.focus && (
+        <span className={`${styles.chip} ${styles.markerChip}`} data-tint="accent"><FocusIcon /> Focus</span>
+      )}
+      {draft.tags.map((t) => (
+        <span key={`tag-${t}`} className={styles.chip}>#{t}</span>
+      ))}
+      {draft.people.map((p) => <PersonChip key={`person-${p.id}`} person={p} />)}
+      {draft.unmatchedPersons.map((n) => <NewPersonChip key={`new-${n}`} name={n} />)}
+      {draft.deadlineAt && (
+        <span className={styles.chip} data-tint="due"><CalendarIcon /> {formatFollowupDay(draft.deadlineAt, today)}</span>
+      )}
+      {draft.followupNone ? (
+        <span className={`${styles.chip} ${styles.chipRing}`}><FollowupFlagIcon /> No follow-up</span>
+      ) : draft.nextFollowupAt ? (
+        <span className={styles.chip} data-tint="followup"><FollowupFlagIcon /> {formatFollowupDate(draft.nextFollowupAt, today)}</span>
+      ) : (
+        <span className={`${styles.chip} ${styles.chipDefault}`}>
+          <FollowupFlagIcon /> {formatFollowupDate(defaultFollowup, today)}
+          <span className={styles.chipDefaultNote}> · default</span>
+        </span>
+      )}
+      {draft.recurrence && draft.deadlineAt && (
+        <span className={styles.chip} data-tint="accent"><RepeatGlyph /> {repeatLabel(draft.recurrence, draft.deadlineAt)}</span>
+      )}
+      {draft.status && (
+        <span className={`${styles.chip} ${styles.statusChip}`}>
+          <span style={{ color: draft.status.color }}><StatusIcon icon={draft.status.icon || DEFAULT_STATUS_ICON} filled /></span>
+          {draft.status.name}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** One line per command that sets nothing. */
+function problemLine(p: CommandProblem): { label: string; explain: string; error?: boolean } {
+  const first = p.command ? `the first /${p.command} counts` : ''
+  switch (p.kind) {
+    case 'unknown': return { label: 'Unknown command:', explain: '— stays in the title' }
+    case 'duplicate': return { label: 'Repeated:', explain: `— stays in the title; ${first}` }
+    case 'ignored': return { label: 'Ignored:', explain: '— repeating needs a /due date' }
+    case 'unmatched': return { label: 'Unknown status:', explain: '— stays in the title', error: true }
+    case 'unreadable':
+      if (p.command === 'due' || p.command === 'followup') {
+        return { label: "Can't read date:", explain: `— try ${DATE_ARGUMENT_HINT[p.command]}`, error: true }
+      }
+      if (p.command === 'repeat') {
+        return { label: "Can't read repeat:", explain: `— try ${REPEAT_FREQUENCIES.join(', ')}`, error: true }
+      }
+      return { label: "Can't read status:", explain: '— add a status name', error: true }
+  }
+}
+
+/** The field's text with tinted token spans (the mirror behind the input). */
+function TintedText({ text, spans }: { text: string; spans: TintSpan[] }) {
+  const out: React.ReactNode[] = []
+  let at = 0
+  for (const s of spans) {
+    if (s.start < at || s.end > text.length) continue
+    if (s.start > at) out.push(text.slice(at, s.start))
+    out.push(<span key={s.start} className={styles.tint} data-tint={s.tint}>{text.slice(s.start, s.end)}</span>)
+    at = s.end
+  }
+  out.push(text.slice(at))
+  // A trailing space would collapse; keep the mirror as wide as the input text.
+  return <>{out}{'​'}</>
 }
 
 // ─── Pipeline ─────────────────────────────────────────────────────
@@ -170,16 +257,16 @@ const EMPTY_RESOLVED: ResolvedInput = {
 /**
  * Live pipeline: `parseInput` → `resolveInput` → entity lookup against the
  * person / status stores. Pure helper — receives stores as args so the
- * component-level `useMemo` can deps-cache it cleanly. Returns both the chip
- * shape (display) and the underlying `ResolvedInput` (submit feeds it to
- * `applyNlpMetadata`).
+ * component-level `useMemo` can deps-cache it cleanly. Returns the chip
+ * shape (display), the underlying `ResolvedInput` (submit feeds it to
+ * `applyNlpMetadata`) and the parse (token tints).
  */
 function runParse(
   raw: string,
   people: Person[],
   statuses: Status[],
-): { parsed: ParsedTokens; resolved: ResolvedInput } {
-  if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED }
+): { parsed: ParsedTokens; resolved: ResolvedInput; input: ReturnType<typeof parseInput> | null } {
+  if (raw.trim().length === 0) return { parsed: EMPTY_PARSED, resolved: EMPTY_RESOLVED, input: null }
   const parsedInput = parseInput(raw)
   const resolved = resolveInput(parsedInput, people, statuses)
 
@@ -200,8 +287,15 @@ function runParse(
       recurrence: resolved.recurrence,
       unmatchedPersons: resolved.unmatchedPersons,
       unmatchedStatuses: resolved.unmatchedStatuses,
+      urgent: resolved.urgent,
+      important: resolved.important,
+      focus: resolved.focus,
+      nextFollowupAt: resolved.nextFollowupAt,
+      followupNone: resolved.followupNone,
+      problems: resolved.problems,
     },
     resolved,
+    input: parsedInput,
   }
 }
 
@@ -248,11 +342,13 @@ export function QuickAddBar({
 }: QuickAddBarProps) {
   const [raw, setRaw] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const mirrorRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
 
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
+  const followupInterval = useSettingsStore((s) => s.followupDefaultInterval)
 
   const internalRun = useMemo(
     () => runParse(raw, people, statuses),
@@ -278,13 +374,23 @@ export function QuickAddBar({
   )
   const acStatuses = useMemo<AutocompleteItem[]>(
     () =>
-      statuses.map((s) => ({ id: s.id!, name: s.name, color: s.color, kind: 'status' as const })),
+      statuses.map((s) => ({ id: s.id!, name: s.name, color: s.color, icon: s.icon, kind: 'status' as const })),
     [statuses],
   )
   const ac = useNlpAutocomplete({
     people: acPeople,
     tags: acTags,
     statuses: acStatuses,
+    commands: true,
+    onApply: (value, cursor) => {
+      setRaw(value)
+      // Restore caret after React commits the new value.
+      requestAnimationFrame(() => {
+        if (!inputRef.current) return
+        inputRef.current.setSelectionRange(cursor, cursor)
+        inputRef.current.focus()
+      })
+    },
   })
 
   const draft: QuickAddDraft = {
@@ -293,12 +399,16 @@ export function QuickAddBar({
     resolved,
   }
 
-  const hasChips =
-    !!draft.status ||
-    draft.people.length > 0 ||
-    draft.tags.length > 0 ||
-    !!draft.deadlineAt ||
-    !!draft.recurrence
+  // The token the popup is open on: tinted as "being typed"; its problem
+  // (e.g. `/due` with no argument yet) isn't listed while the popup shows it.
+  const view = ac.state.visible ? ac.state.view : null
+  const active = view
+    ? { start: view.anchor, end: view.to, error: view.rows.some((r) => r.kind === 'error') }
+    : undefined
+  const tints = internalRun.input ? tokenTints(internalRun.input, resolved, active) : []
+  const problems = (parsed.problems ?? []).filter(
+    (p) => !active || p.end < active.start || p.start > active.end,
+  )
 
   // Focus on open; reset (and dismiss any open popup) on close. Destructure
   // `dismiss` so the effect's deps are stable — the hook returns a fresh
@@ -322,9 +432,15 @@ export function QuickAddBar({
     }
   }, [open, dismissAutocomplete, initialDraftRef])
 
+  // Keep the tint mirror scrolled with the input's text.
+  const syncMirror = useCallback(() => {
+    if (mirrorRef.current && inputRef.current) mirrorRef.current.scrollLeft = inputRef.current.scrollLeft
+  }, [])
+  useLayoutEffect(() => { syncMirror() }, [raw, syncMirror])
+
   // Popup placement state — anchored to the input rect + caret offset,
-  // portal'd to body. Mirrors RuntimeFilterPicker's flip-above-when-clipping +
-  // clamp-on-right-edge math; tracks scroll (capture) + resize while visible.
+  // portal'd to body. Flips above when clipping, clamps on the right edge;
+  // tracks scroll (capture) + resize while visible.
   const [popupPos, setPopupPos] = useState<{ top: number; left: number; width: number }>({
     top: 0,
     left: 0,
@@ -353,10 +469,11 @@ export function QuickAddBar({
     if (pos) setPopupPos(pos)
   }, [ac.state.caretLeft])
 
+  const popupRowCount = ac.state.view?.rows.length ?? 0
   useLayoutEffect(() => {
     if (!ac.state.visible) return
     computePopupPosition()
-  }, [ac.state.visible, ac.state.items.length, computePopupPosition])
+  }, [ac.state.visible, popupRowCount, ac.state.view?.mode, computePopupPosition])
 
   useEffect(() => {
     if (!ac.state.visible) return
@@ -369,44 +486,11 @@ export function QuickAddBar({
     }
   }, [ac.state.visible, computePopupPosition])
 
-  const handleSelectItem = (item?: AutocompleteItem) => {
-    const input = inputRef.current
-    if (!input) return
-    const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length, item)
-    if (result) {
-      setRaw(result.value)
-      // Restore caret after React commits the new value.
-      requestAnimationFrame(() => {
-        if (!inputRef.current) return
-        inputRef.current.setSelectionRange(result.cursor, result.cursor)
-        inputRef.current.focus()
-      })
-    }
-  }
-
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Autocomplete-aware path — when the popup is visible the bar's outer
-    // Esc/Tab/Enter handlers must not fire, so we stopPropagation on every
-    // consumed key.
-    if (ac.state.visible) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault()
-        e.stopPropagation()
-        ac.handleKeyDown(e)
-        return
-      }
-      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || ac.state.createNew))) {
-        e.preventDefault()
-        e.stopPropagation()
-        handleSelectItem()
-        return
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        ac.dismiss()
-        return
-      }
+    // While the popup is open its keys never reach the bar's Esc / Tab / ⏎.
+    if (ac.handleKeyDown(e, inputRef.current)) {
+      e.preventDefault()
+      e.stopPropagation()
     }
   }
 
@@ -431,13 +515,8 @@ export function QuickAddBar({
 
   if (!open) return null
 
-  const popupHeader =
-    ac.state.trigger === '#'
-      ? 'Tags'
-      : ac.state.trigger === ':'
-        ? 'Statuses'
-        : 'People'
-  const isPersonCreate = ac.state.createNew && ac.state.trigger === '@'
+  const today = startOfToday()
+  const defaultFollowup = addFollowupInterval(today, followupInterval)
 
   return (
     <>
@@ -451,45 +530,48 @@ export function QuickAddBar({
         role="dialog"
         aria-label="Quick add task"
       >
-        {/* Title row — input only; all hints + Details live in the footer */}
+        {/* Title row — the input over its tint mirror */}
         <div className={styles.titleRow}>
-          <input
-            ref={inputRef}
-            className={styles.titleInput}
-            placeholder="New task…"
-            value={raw}
-            onChange={(e) => {
-              setRaw(e.target.value)
-              ac.handleInputChange(
-                e.target.value,
-                e.target.selectionStart ?? e.target.value.length,
-                e.target,
-              )
-            }}
-            onKeyDown={onInputKeyDown}
-            data-shortcut-scope="none"
-          />
+          <div className={styles.field}>
+            <div ref={mirrorRef} className={styles.mirror} aria-hidden="true" data-testid="quickadd-mirror">
+              <TintedText text={raw} spans={tints} />
+            </div>
+            <input
+              ref={inputRef}
+              className={styles.titleInput}
+              placeholder="New task…"
+              value={raw}
+              onChange={(e) => {
+                setRaw(e.target.value)
+                ac.handleInputChange(
+                  e.target.value,
+                  e.target.selectionStart ?? e.target.value.length,
+                  e.target,
+                )
+              }}
+              onSelect={(e) => {
+                const input = e.currentTarget
+                syncMirror()
+                // Moving the caret into / out of a token updates the popup.
+                ac.handleInputChange(input.value, input.selectionStart ?? input.value.length, input)
+              }}
+              onScroll={syncMirror}
+              onKeyDown={onInputKeyDown}
+              data-shortcut-scope="none"
+              spellCheck={false}
+            />
+          </div>
         </div>
 
-        {/* Chips row */}
-        {hasChips && (
-          <div className={styles.chipsRow}>
-            {draft.status && <StatusChip status={draft.status} />}
-            {draft.people.map((p) => (
-              <PersonChip key={`person-${p.id}`} person={p} />
-            ))}
-            {draft.tags.map((t) => (
-              <TagChip key={`tag-${t}`} tag={t} />
-            ))}
-            {draft.deadlineAt && <DateChip icon="📅" label={formatShort(draft.deadlineAt)} />}
-            {draft.recurrence && <RecurrenceChip recurrence={draft.recurrence} />}
-          </div>
+        {/* Chips row — what the task will get */}
+        {raw.trim().length > 0 && (
+          <ParsedChips draft={draft} defaultFollowup={defaultFollowup} today={today} />
         )}
 
         {/* `@name` that matches nobody — the person is created on submit */}
         {parsed.unmatchedPersons.length > 0 && (
-          <div className={styles.unmatchedHint}>
-            <span>{parsed.unmatchedPersons.length === 1 ? 'New person:' : 'New people:'}</span>
+          <div className={styles.problemLine}>
+            <span className={styles.problemLabel}>{parsed.unmatchedPersons.length === 1 ? 'New person:' : 'New people:'}</span>
             <span className={styles.newPersonNames}>
               {parsed.unmatchedPersons.map((n) => `@${n}`).join(' ')}
             </span>
@@ -497,38 +579,26 @@ export function QuickAddBar({
           </div>
         )}
 
-        {/* Unknown statuses hint */}
-        {parsed.unmatchedStatuses.length > 0 && (
-          <div className={styles.unmatchedHint}>
-            <span>Unknown:</span>
-            <span className={styles.unmatchedNames}>
-              {parsed.unmatchedStatuses.map((n) => `:${n}`).join(' ')}
-            </span>
-          </div>
-        )}
+        {/* Commands that set nothing */}
+        {problems.map((p) => {
+          const line = problemLine(p)
+          return (
+            <div key={`${p.kind}-${p.start}`} className={styles.problemLine}>
+              <span className={styles.problemLabel}>{line.label}</span>
+              <span className={line.error ? styles.problemTokenError : styles.problemToken}>{p.raw}</span>
+              <span>{line.explain}</span>
+            </div>
+          )
+        })}
 
-        {/* Footer row — NLP hints (always) + Details + keyboard hints */}
+        {/* Footer row — syntax hints + Details + keyboard hints */}
         <div className={styles.footerRow}>
           <div className={styles.nlpHints}>
-            <span>
-              <Kbd>@</Kbd> person
-            </span>
+            <span><Kbd>@</Kbd> person</span>
             <span aria-hidden="true">·</span>
-            <span>
-              <Kbd>#</Kbd> tag
-            </span>
+            <span><Kbd>#</Kbd> tag</span>
             <span aria-hidden="true">·</span>
-            <span>
-              <Kbd>:</Kbd> status
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              <Kbd>!</Kbd> due (mon, fri…)
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              natural dates: <i>tomorrow, fri 3pm</i>, <i>every week</i>
-            </span>
+            <span><Kbd>/</Kbd> command</span>
           </div>
           <div className={styles.actionCluster}>
             <button
@@ -536,16 +606,12 @@ export function QuickAddBar({
               onClick={() => onOpenFullEditor?.(draft)}
               disabled={!onOpenFullEditor}
             >
-              Details <span className={styles.kbd}>⇥</span>
+              Details <span className={styles.kbd}>Tab</span>
             </button>
             <span className={styles.hintCluster}>
-              <span>
-                <Kbd>↵</Kbd> create
-              </span>
+              <span><Kbd>⏎</Kbd> add</span>
               <span aria-hidden="true">·</span>
-              <span>
-                <Kbd>esc</Kbd> close
-              </span>
+              <span><Kbd>Esc</Kbd> close</span>
             </span>
           </div>
         </div>
@@ -553,73 +619,18 @@ export function QuickAddBar({
     </div>,
     document.body,
       )}
-      {ac.state.visible &&
+      {ac.state.visible && ac.state.view &&
         createPortal(
-          <div
-            ref={popupRef}
+          <NlpPopup
+            view={ac.state.view}
+            selectedIndex={ac.state.selectedIndex}
+            onPick={(row) => ac.select(row, inputRef.current)}
+            popupRef={popupRef}
             className={styles.popup}
             style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width }}
-            role="listbox"
-            aria-label={popupHeader}
-          >
-            <div className={styles.popupHeader}>{popupHeader}</div>
-            {ac.state.items.map((item, i) => (
-              <button
-                key={`${item.kind}-${item.id}`}
-                type="button"
-                className={`${styles.popupItem} ${i === ac.state.selectedIndex ? styles.selected : ''}`}
-                role="option"
-                aria-selected={i === ac.state.selectedIndex}
-                onMouseDown={(e) => {
-                  // Prevent the input from blurring (which would dismiss the popup
-                  // before the click commits the selection).
-                  e.preventDefault()
-                  handleSelectItem(item)
-                }}
-              >
-                {item.color && (
-                  <span className={styles.chipDot} style={{ background: item.color }} />
-                )}
-                <span className={styles.popupBody}>
-                  <span className={styles.popupName}>
-                    {ac.state.trigger}
-                    {item.name}
-                  </span>
-                </span>
-              </button>
-            ))}
-            {ac.state.createNew && (
-              <button
-                type="button"
-                className={`${styles.popupItem} ${isPersonCreate ? `${styles.popupCreatePerson} ${styles.selected}` : styles.popupCreateNew}`}
-                role="option"
-                aria-selected={isPersonCreate}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  handleSelectItem()
-                }}
-              >
-                {isPersonCreate && (
-                  <span className={styles.popupNewAvatar} aria-hidden="true">
-                    {ac.state.rawQuery.charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <span className={styles.popupName}>
-                  {isPersonCreate
-                    ? `Press ⏎ to create @${ac.state.rawQuery}`
-                    : `Press Enter to create #${ac.state.query}`}
-                </span>
-              </button>
-            )}
-          </div>,
+          />,
           document.body,
         )}
     </>
   )
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────
-
-function formatShort(d: Date) {
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 }

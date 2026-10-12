@@ -14,7 +14,7 @@ import { useTooltip } from '../../hooks/use-tooltip'
 import { askClearUrgent, clearUrgent, planClearUrgent } from '../../services/clear-urgent'
 import { startOfToday } from '../../utils/date'
 import { urgentByDateReason, urgentMark } from '../../utils/urgency'
-import { useNlpAutocomplete, type AutocompleteItem } from '../../hooks/use-nlp-autocomplete'
+import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { makeRecurrenceRule } from '../../services/recurrence'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { TaskEditHeader } from './TaskEditHeader'
@@ -115,10 +115,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       const match = allTags.find((t) => t.name.toLowerCase() === lower && t.id !== undefined)
       if (match?.id !== undefined) tagIds.push(match.id)
     }
-    return { rawTitle: draft.rawTitle, resolved, tagIds }
+    // The commands are carried by the fields below, so the title drops them;
+    // `@` / `#` tokens stay (new people and tags are created on create).
+    return { title: resolved.textWithoutCommands ?? draft.rawTitle, resolved, tagIds }
   })
 
-  const [title, setTitle] = useState(todo?.title ?? quickAddSeed?.rawTitle ?? '')
+  const [title, setTitle] = useState(todo?.title ?? quickAddSeed?.title ?? '')
   const [notes, setNotes] = useState(todo?.notes ?? '')
   const notesRef = useRef<string>(todo?.notes ?? '')
   const [progress, setProgress] = useState(todo?.progress ?? '')
@@ -132,15 +134,20 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   )
   // Follow-up: edit mode reads/writes the task directly (edits apply as you
   // make them); create mode keeps a draft seeded with the Settings default.
-  const [draftNextFollowup, setDraftNextFollowup] = useState<Date | undefined>(
-    () => (mode === 'create' ? addFollowupInterval(new Date(), followupInterval) : undefined),
-  )
+  // A Quick Add `/followup` replaces the default (`none` clears it).
+  const seededFollowup = quickAddSeed?.resolved.followupNone === true || quickAddSeed?.resolved.nextFollowupAt !== undefined
+  const [draftNextFollowup, setDraftNextFollowup] = useState<Date | undefined>(() => {
+    if (mode !== 'create') return undefined
+    if (seededFollowup) return quickAddSeed?.resolved.nextFollowupAt
+    return addFollowupInterval(new Date(), followupInterval)
+  })
   const [draftLastFollowup, setDraftLastFollowup] = useState<Date | undefined>(undefined)
-  // Create mode: marker drafts, seeded from a Markers filter.
-  const [draftUrgent, setDraftUrgent] = useState(filterDefaults?.markers?.urgent === true)
-  const [draftImportant, setDraftImportant] = useState(filterDefaults?.markers?.important === true)
-  const [draftFocus, setDraftFocus] = useState(filterDefaults?.markers?.focus === true)
-  const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create')
+  // Create mode: marker drafts, seeded from a Markers filter and Quick Add's
+  // `/urgent` `/important` `/focus`.
+  const [draftUrgent, setDraftUrgent] = useState(filterDefaults?.markers?.urgent === true || quickAddSeed?.resolved.urgent === true)
+  const [draftImportant, setDraftImportant] = useState(filterDefaults?.markers?.important === true || quickAddSeed?.resolved.important === true)
+  const [draftFocus, setDraftFocus] = useState(filterDefaults?.markers?.focus === true || quickAddSeed?.resolved.focus === true)
+  const [nextFollowupIsDefault, setNextFollowupIsDefault] = useState(mode === 'create' && !seededFollowup)
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>(
     todo?.recurrenceRule?.type ?? quickAddSeed?.resolved.recurrence ?? '',
   )
@@ -180,7 +187,24 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     })),
     [allTags],
   )
-  const ac = useNlpAutocomplete({ people: acPeople, tags: acTags })
+  const acStatuses = useMemo(
+    () => statuses.map((s) => ({ id: s.id!, name: s.name, color: s.color, icon: s.icon, kind: 'status' as const })),
+    [statuses],
+  )
+  // Slash commands only in create mode: the title is parsed when the task is created.
+  const ac = useNlpAutocomplete({
+    people: acPeople,
+    tags: acTags,
+    statuses: acStatuses,
+    commands: !isEdit,
+    onApply: (value, cursor) => {
+      setTitle(value)
+      requestAnimationFrame(() => {
+        titleRef.current?.setSelectionRange(cursor, cursor)
+        titleRef.current?.focus()
+      })
+    },
+  })
 
   useEffect(() => {
     if (!isEdit) titleRef.current?.focus()
@@ -256,59 +280,11 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     ac.handleInputChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)
   }
 
-  const handleAcSelect = (item: AutocompleteItem) => {
-    const input = titleRef.current
-    if (!input) return
-    const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length, item)
-    if (result) {
-      setTitle(result.value)
-      requestAnimationFrame(() => {
-        input.setSelectionRange(result.cursor, result.cursor)
-        input.focus()
-      })
-    }
-  }
-
-  const handleAcCreateNew = () => {
-    const input = titleRef.current
-    if (!input) return
-    const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length)
-    if (result) {
-      setTitle(result.value)
-      requestAnimationFrame(() => {
-        input.setSelectionRange(result.cursor, result.cursor)
-        input.focus()
-      })
-    }
-  }
-
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (ac.state.visible) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault()
-        ac.handleKeyDown(e)
-        return
-      }
-      if (e.key === 'Tab' || (e.key === 'Enter' && (ac.state.items.length > 0 || ac.state.createNew))) {
-        e.preventDefault()
-        const input = titleRef.current
-        if (input) {
-          const result = ac.applySelection(input.value, input.selectionStart ?? input.value.length)
-          if (result) {
-            setTitle(result.value)
-            requestAnimationFrame(() => {
-              input.setSelectionRange(result.cursor, result.cursor)
-              input.focus()
-            })
-          }
-        }
-        return
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        ac.dismiss()
-        return
-      }
+    if (ac.handleKeyDown(e, titleRef.current)) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
     }
     if (e.key === 'Enter') {
       e.preventDefault()
@@ -456,7 +432,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       progress: progress || undefined,
       statusId,
       dueDate: deadline ?? undefined,
-      nextFollowupAt: draftNextFollowup,
+      // Left out while still the default, so a `/followup` in the title applies.
+      ...(nextFollowupIsDefault ? {} : { nextFollowupAt: draftNextFollowup }),
       lastFollowupAt: draftLastFollowup,
       recurrenceRule: buildRule(),
       ...(draftUrgent ? { urgent: true } : {}),
@@ -563,8 +540,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onTitleKeyDown={handleTitleKeyDown}
           onClose={onClose}
           acState={ac.state}
-          onAcSelect={handleAcSelect}
-          onAcCreateNew={handleAcCreateNew}
+          onAcPick={(row) => ac.select(row, titleRef.current)}
         />
 
         {/* Status badge */}
