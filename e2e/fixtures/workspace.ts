@@ -77,6 +77,12 @@ export interface WorkspaceSeed {
     status?: string
     /** Task notes (Markdown). */
     notes?: string
+    /** Progress text. */
+    progress?: string
+    /** A fixed uid (default: a random UUID). */
+    uid?: string
+    /** Last modified (default: now), as a local date-time string, e.g. `2026-10-10T15:30`. */
+    modifiedAt?: string
     /** Marker flags. */
     urgent?: boolean
     important?: boolean
@@ -167,7 +173,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
     for (const task of seed.tasks ?? []) {
       const day = (n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n)
       const todoId = await add(tx.objectStore('todos'), {
-        uid: crypto.randomUUID(),
+        uid: task.uid ?? crypto.randomUUID(),
         title: task.title,
         isCompleted: task.isCompleted ?? false,
         ...(task.isCompleted ? { completedAt: now } : {}),
@@ -179,8 +185,9 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(task.important ? { important: true } : {}),
         ...(task.focus ? { focus: true } : {}),
         ...(task.notes ? { notes: task.notes } : {}),
+        ...(task.progress ? { progress: task.progress } : {}),
         createdAt: now,
-        modifiedAt: now,
+        modifiedAt: task.modifiedAt ? new Date(task.modifiedAt) : now,
         sortOrder: ++taskOrder,
       })
       for (const p of task.people ?? []) await add(tx.objectStore('todoPeople'), { todoId, personId: personIds.get(p) })
