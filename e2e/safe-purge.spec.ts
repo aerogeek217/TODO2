@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings } from './fixtures/workspace'
+import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
 
 /**
  * Safe purge: the launch prompt for completed tasks past the
@@ -122,7 +122,7 @@ test('launch prompt: Not now skips one launch; Export & delete archives, deletes
   await expect(page.getByRole('dialog')).toHaveCount(0)
 
   // Append the archive back: Old B is a title duplicate of the active task.
-  await page.goto('/#/settings')
+  await gotoSettingsDeepLink(page)
   await (await openSettings(page, 'Import / Export')).getByRole('button', { name: 'Import tasks (append)…' }).click()
   const picker = page.getByRole('dialog', { name: `Import tasks from ${ARCHIVE_FILE}` })
   await expect(picker).toBeVisible()

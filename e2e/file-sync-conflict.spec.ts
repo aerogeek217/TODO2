@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings } from './fixtures/workspace'
+import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
 
 /**
  * Sync-file conflict flow in a real browser.
@@ -99,7 +99,7 @@ test('attaching a file that differs from a non-empty browser asks first; cancel 
   const fileText = JSON.stringify({ ...dump, todos: fileTodos, __schemaVersion: schemaVersion, savedAt: '2026-01-01T00:00:00.000Z' })
   await writeSyncFile(page, fileText)
 
-  await page.goto('/#/settings')
+  await gotoSettingsDeepLink(page)
   await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
 
   // Conflict dialog before anything changed.
@@ -159,7 +159,7 @@ test('an unreadable sync file pauses sync and is never overwritten by edits', as
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await writeSyncFile(page, '{ not json')
 
-  await page.goto('/#/settings')
+  await gotoSettingsDeepLink(page)
   await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
 
   await expect(page.getByTestId('file-sync-paused')).toContainText('invalid JSON')

@@ -374,9 +374,24 @@ export async function dragRow(
 }
 
 /**
+ * Follows the `#/settings` deep link and waits for what it does on desktop:
+ * the Settings modal opens (from an effect, after the route renders) and the
+ * URL goes back to `#/`. From a loaded page this is a same-document hash
+ * change, so `goto` returns before the modal is there — callers must not
+ * look for it (or click the gear) until this resolves.
+ */
+export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
+  await page.goto('/#/settings')
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
+  await expect(dialog).toBeVisible()
+  await expect(page).toHaveURL(/#\/$/)
+  return dialog
+}
+
+/**
  * The Settings modal, opened with the top bar's gear unless it is already
- * open (e.g. from a `#/settings` deep link); optionally switched to a
- * section by its label.
+ * open (e.g. after `gotoSettingsDeepLink`); optionally switched to a section
+ * by its label.
  */
 export async function openSettings(page: Page, section?: string): Promise<Locator> {
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
