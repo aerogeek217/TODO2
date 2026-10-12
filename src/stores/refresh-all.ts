@@ -11,6 +11,7 @@ import { useListOrderStore } from './list-order-store'
 import { useUndoStore } from './undo-store'
 import { useFilterStore } from './filter-store'
 import { useWorkspaceStore } from './workspace-store'
+import { useTrendEventsStore } from './trend-events-store'
 
 /**
  * Reload every Zustand store from IndexedDB after a destructive replace
@@ -33,6 +34,8 @@ export async function refreshAllStores() {
   // the replaced data may reuse for other lists / tabs.
   useListDraftStore.setState({ drafts: {} })
   useListWidgetStore.setState({ picks: {}, collapsed: {}, popover: null })
+  // The replaced history (a table clear doesn't fire the event hooks).
+  useTrendEventsStore.getState().invalidate()
   await useSettingsStore.getState().load()
   await Promise.all([
     useTodoStore.getState().loadAll(),

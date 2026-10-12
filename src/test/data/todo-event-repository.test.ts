@@ -183,3 +183,35 @@ describe('encode helpers', () => {
 })
 
 // `runV42Migration` backfill is covered in `v42-migration.test.ts`.
+
+describe('todoEventRepository — since / onChange', () => {
+  it('since returns events at or after `from`, optionally of some types only', async () => {
+    await todoEventRepository.bulkAdd([
+      { todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-04-01T00:00:00.000Z' },
+      { todoId: 1, type: 'status', fromValue: null, toValue: 2, timestamp: '2026-04-10T00:00:00.000Z' },
+      { todoId: 2, type: 'completed', fromValue: null, toValue: null, timestamp: '2026-04-10T00:00:00.000Z' },
+      { todoId: 2, type: 'reopened', fromValue: null, toValue: null, timestamp: '2026-05-01T00:00:00.000Z' },
+    ])
+    const all = await todoEventRepository.since(new Date('2026-04-10T00:00:00Z'))
+    expect(all.map((e) => e.type).sort()).toEqual(['completed', 'reopened', 'status'])
+    const some = await todoEventRepository.since(new Date('2026-04-10T00:00:00Z'), ['completed', 'reopened'])
+    expect(some.map((e) => e.type).sort()).toEqual(['completed', 'reopened'])
+  })
+
+  it('onChange fires on event writes (insert, complete, delete) until unsubscribed', async () => {
+    let calls = 0
+    const off = todoEventRepository.onChange(() => { calls++ })
+    try {
+      const id = await todoRepository.insert(makeTodo({ id: undefined }))
+      expect(calls).toBe(1)
+      await todoRepository.complete(id, true)
+      expect(calls).toBe(2)
+      await todoRepository.delete(id)
+      expect(calls).toBe(4)
+    } finally {
+      off()
+    }
+    await todoRepository.insert(makeTodo({ id: undefined }))
+    expect(calls).toBe(4)
+  })
+})
