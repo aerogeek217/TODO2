@@ -130,6 +130,8 @@ interface UIState {
    * opened (none from the general command). `null` = closed.
    */
   checkinDialog: { personIds: number[] } | null
+  /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
+  checkinImportOpen: boolean
 
   selectTodo: (id: number | null) => void
   selectOneTodo: (id: number) => void
@@ -172,6 +174,9 @@ interface UIState {
   /** Opens the email check-in dialog with `personIds` ticked (none by default). */
   openCheckinDialog: (personIds?: readonly number[]) => void
   closeCheckinDialog: () => void
+  /** Opens the check-in reply import dialog (closing the check-in dialog). */
+  openCheckinImport: () => void
+  closeCheckinImport: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -198,6 +203,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   settingsOpen: false,
   settingsSection: 'appearance',
   checkinDialog: null,
+  checkinImportOpen: false,
 
   selectTodo(id: number | null) {
     set({ selectedTodoId: id })
@@ -378,5 +384,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeCheckinDialog() {
     set({ checkinDialog: null })
+  },
+
+  openCheckinImport() {
+    set({ checkinImportOpen: true, checkinDialog: null })
+  },
+
+  closeCheckinImport() {
+    set({ checkinImportOpen: false })
   },
 }))

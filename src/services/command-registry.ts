@@ -38,6 +38,8 @@ export interface CommandContext {
   getStatuses?: () => Status[]
   /** Opens the email check-in dialog with `personIds` ticked (none = choose people there). */
   openCheckinDialog?: (personIds?: number[]) => void
+  /** Opens the check-in reply import dialog. */
+  openCheckinImport?: () => void
 }
 
 export function createCommands(ctx: CommandContext): Command[] {
@@ -93,6 +95,9 @@ export function createCommands(ctx: CommandContext): Command[] {
   const openCheckinDialog = ctx.openCheckinDialog
   if (openCheckinDialog) {
     commands.push({ id: 'email-checkins', name: 'Email task check-ins…', category: 'email', action: () => openCheckinDialog() })
+  }
+  if (ctx.openCheckinImport) {
+    commands.push({ id: 'email-import-reply', name: 'Import check-in reply…', category: 'email', action: ctx.openCheckinImport })
   }
 
   // Bulk actions — only when tasks are selected

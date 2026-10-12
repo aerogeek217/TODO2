@@ -54,6 +54,7 @@ import {
 import calendarStyles from '../components/workspace/calendar/CalendarWidget.module.css'
 import { TaskEditPopupHost } from '../components/task/TaskEditPopupHost'
 import { CheckinDialog } from '../components/overlays/CheckinDialog'
+import { CheckinImportDialog } from '../components/overlays/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
 import { DashboardListsEditor } from '../components/settings/DashboardListsEditor'
 import { StandaloneListEditor } from '../components/shared/StandaloneListEditor'
@@ -409,6 +410,7 @@ export function WorkspacePage() {
 
       <TaskDialog />
       <CheckinDialog />
+      <CheckinImportDialog />
       <TaskEditPopupHost />
       {showListsEditor && (
         <DashboardListsEditor onClose={closeListsEditor} initialSelectedId={listsEditorInitialId ?? undefined} />

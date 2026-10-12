@@ -75,6 +75,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
   const [previewOpen, setPreviewOpen] = useState(false)
 
   const close = useUIStore((s) => s.closeCheckinDialog)
+  const openImport = useUIStore((s) => s.openCheckinImport)
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
@@ -387,6 +388,7 @@ function CheckinDialogPanel({ openedFor }: { openedFor: number[] }) {
 
         <div className={styles.footer}>
           <span className={styles.hint}>One message per person, opened one at a time.</span>
+          <button type="button" className={styles.linkBtn} onClick={openImport}>Paste a reply…</button>
           <button type="button" className={styles.footerBtn} disabled={checkedPeople.length === 0} onClick={() => setPreviewOpen(true)}>
             Preview email
           </button>

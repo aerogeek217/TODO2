@@ -392,6 +392,27 @@
   cursor: default;
 }
 
+.linkBtn {
+  flex: none;
+  padding: 7px 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.linkBtn:focus-visible {
+  outline: 2px solid var(--color-accent-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* Preview */
 
 .preview {
