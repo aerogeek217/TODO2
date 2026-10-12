@@ -32,10 +32,11 @@ interface EmailFieldProps {
   showError: boolean
   onBlur: () => void
   errorId: string
+  autoFocus?: boolean
 }
 
 /** The optional email input; the shape error shows under the row. */
-function EmailField({ value, onChange, showError, onBlur, errorId }: EmailFieldProps) {
+function EmailField({ value, onChange, showError, onBlur, errorId, autoFocus }: EmailFieldProps) {
   const invalid = showError && !emailOk(value)
   return (
     <input
@@ -49,12 +50,18 @@ function EmailField({ value, onChange, showError, onBlur, errorId }: EmailFieldP
       maxLength={PERSON_EMAIL_MAX}
       aria-invalid={invalid || undefined}
       aria-describedby={invalid ? errorId : undefined}
+      autoFocus={autoFocus}
     />
   )
 }
 
 interface PeopleEditorProps {
   onClose: () => void
+  /**
+   * Open straight onto this person's edit row with the Email field focused
+   * (e.g. "Add email" in the check-in dialog).
+   */
+  editPersonId?: number
 }
 
 /** Color picker plus a clear button; a person without a color shows the neutral swatch. */
@@ -83,7 +90,7 @@ function withColor(person: Omit<Person, 'color'>, color: string | undefined): Pe
   return color ? { ...person, color } : person
 }
 
-export function PeopleEditor({ onClose }: PeopleEditorProps) {
+export function PeopleEditor({ onClose, editPersonId }: PeopleEditorProps) {
   const { people, load: loadPeople, add: addPerson, update: updatePerson, remove: removePerson } = usePersonStore()
 
   const [editing, setEditing] = useState<PersonEditState | null>(null)
@@ -102,6 +109,18 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
   const [emailTouched, setEmailTouched] = useState(false)
 
   useEffect(() => { loadPeople() }, [loadPeople])
+
+  // Opened onto one person: edit that row once the person is there.
+  const [openedOnto, setOpenedOnto] = useState<number | null>(null)
+  const ontoPerson = editPersonId != null && openedOnto !== editPersonId
+    ? people.find((p) => p.id === editPersonId)
+    : undefined
+  if (ontoPerson) {
+    setOpenedOnto(editPersonId ?? null)
+    setEditing({ id: ontoPerson.id!, name: ontoPerson.name, initials: ontoPerson.initials, color: ontoPerson.color, email: ontoPerson.email ?? '' })
+    setEditInitialsManual(true)
+  }
+  const focusEmail = editPersonId != null && editing?.id === editPersonId
 
   const clearState = () => {
     setEditing(null)
@@ -192,7 +211,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
         <div key={p.id}>
           <div className={`${styles.editRow} ${styles.editRowWrap}`} onKeyDown={handleKeyDown(saveEditPerson, () => { setEditing(null); setNameError(''); setEmailTouched(false) })}>
             <PersonColorField color={ed.color} onChange={(color) => setEditing({ ...ed, color })} />
-            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus />
+            <input className={styles.editInput} value={ed.name} onChange={(e) => { const name = e.target.value; setEditing({ ...ed, name, ...(!editInitialsManual ? { initials: generateInitials(name) } : {}) }); setNameError('') }} placeholder="Name" autoFocus={!focusEmail} />
             <input className={styles.editInputSmall} value={ed.initials} onChange={(e) => { setEditInitialsManual(true); setEditing({ ...ed, initials: e.target.value.toUpperCase().slice(0, 2) }) }} placeholder="AB" />
             <div className={styles.editActions}>
               <button className={styles.saveBtn} onClick={saveEditPerson}>Save</button>
@@ -204,6 +223,7 @@ export function PeopleEditor({ onClose }: PeopleEditorProps) {
               showError={emailTouched}
               onBlur={() => setEmailTouched(true)}
               errorId={EMAIL_ERROR_ID}
+              autoFocus={focusEmail}
             />
           </div>
           {nameError && <div className={styles.errorHint}>{nameError}</div>}
