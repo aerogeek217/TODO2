@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup, act } from '@testing-library/react'
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { usePopoverAnchor, type PopoverAnchor } from '../../hooks/use-popover-anchor'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 
 /**
  * Hook unit tests cover the math (flip / clamp) and the lifecycle (scroll /
@@ -487,5 +488,56 @@ describe('usePopoverAnchor — anchor changes (refs synced in layout effects)', 
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(first).not.toHaveBeenCalled()
     expect(second).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('usePopoverAnchor — rect anchor + contentKey', () => {
+  /** A panel whose ref callback is stable, so only the hook's own deps recompute. */
+  function RectHarness({ anchor, size, contentKey }: {
+    anchor: PopoverAnchor
+    size: { width: number; height: number }
+    contentKey?: string
+  }) {
+    // Synced before the hook's own layout effect re-measures.
+    const sizeRef = useLatestRef(size)
+    const { panelRef, style, placementUsed } = usePopoverAnchor({
+      anchor, open: true, onClose: () => {}, contentKey,
+    })
+    const setPanel = useCallback((el: HTMLDivElement | null) => {
+      if (el) {
+        Object.defineProperty(el, 'getBoundingClientRect', {
+          configurable: true,
+          value: () => makeRect(0, 0, sizeRef.current.width, sizeRef.current.height),
+        })
+      }
+      panelRef(el)
+    }, [panelRef, sizeRef])
+    return <div ref={setPanel} data-testid="panel" data-placement={placementUsed} style={style}>panel</div>
+  }
+
+  it('sits below the rect, left-aligned with it', () => {
+    const { getByTestId } = render(
+      <RectHarness anchor={{ kind: 'rect', left: 100, top: 200, right: 108, bottom: 222 }} size={{ width: 200, height: 150 }} />,
+    )
+    expect(getByTestId('panel').style.top).toBe('226px')
+    expect(getByTestId('panel').style.left).toBe('100px')
+  })
+
+  it('flips above the rect top (not over it) near the bottom edge', () => {
+    const { getByTestId } = render(
+      <RectHarness anchor={{ kind: 'rect', left: 100, top: 680, right: 108, bottom: 702 }} size={{ width: 200, height: 150 }} />,
+    )
+    expect(getByTestId('panel').dataset.placement).toBe('top-start')
+    expect(getByTestId('panel').style.top).toBe('526px') // 680 - 150 - 4
+  })
+
+  it('a new contentKey re-measures the panel (it flips once it grew)', () => {
+    const anchor: PopoverAnchor = { kind: 'rect', left: 100, top: 680, right: 108, bottom: 702 }
+    const { getByTestId, rerender } = render(
+      <RectHarness anchor={anchor} size={{ width: 200, height: 40 }} contentKey="a" />,
+    )
+    expect(getByTestId('panel').style.top).toBe('706px')
+    rerender(<RectHarness anchor={anchor} size={{ width: 200, height: 150 }} contentKey="b" />)
+    expect(getByTestId('panel').style.top).toBe('526px')
   })
 })

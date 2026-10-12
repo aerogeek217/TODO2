@@ -14,6 +14,12 @@ const DEFAULT_GAP_PX = 4
 export type PopoverAnchor =
   | { kind: 'ref'; ref: RefObject<HTMLElement | null> }
   | { kind: 'point'; x: number; y: number }
+  /**
+   * A viewport rect the caller measures (e.g. the character box at a text
+   * caret): the panel sits below it and flips above its top. Static like
+   * `point` — the caller passes a new rect when it moves.
+   */
+  | { kind: 'rect'; left: number; top: number; right: number; bottom: number }
 
 export type PopoverPlacement = 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
 
@@ -64,6 +70,12 @@ export interface UsePopoverAnchorOptions {
    * field row containing the chips + input).
    */
   extraInsideRefs?: ReadonlyArray<RefObject<HTMLElement | null>>
+  /**
+   * Changes when the panel's content changes size (e.g. a list narrowing as
+   * the user types): the position is recomputed so the flip and clamp use
+   * the new size.
+   */
+  contentKey?: string | number
 }
 
 export interface PopoverStyle {
@@ -93,6 +105,9 @@ interface AnchorRect {
 function readAnchorRect(anchor: PopoverAnchor): AnchorRect | null {
   if (anchor.kind === 'point') {
     return { left: anchor.x, top: anchor.y, right: anchor.x, bottom: anchor.y }
+  }
+  if (anchor.kind === 'rect') {
+    return { left: anchor.left, top: anchor.top, right: anchor.right, bottom: anchor.bottom }
   }
   const el = anchor.ref.current
   if (!el) return null
@@ -249,6 +264,7 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
     closeOnOutsideClick = true,
     onClose,
     extraInsideRefs,
+    contentKey,
   } = opts
 
   const [style, setStyle] = useState<PopoverStyle>(makeInitialStyle)
@@ -271,8 +287,10 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   const closeOnResizeRef = useLatestRef(closeOnResize)
   const extraInsideRefsRef = useLatestRef(extraInsideRefs)
   const anchorElRef = anchor.kind === 'ref' ? anchor.ref : null
-  const anchorX = anchor.kind === 'point' ? anchor.x : null
-  const anchorY = anchor.kind === 'point' ? anchor.y : null
+  const anchorX = anchor.kind === 'point' ? anchor.x : anchor.kind === 'rect' ? anchor.left : null
+  const anchorY = anchor.kind === 'point' ? anchor.y : anchor.kind === 'rect' ? anchor.top : null
+  const anchorRight = anchor.kind === 'rect' ? anchor.right : null
+  const anchorBottom = anchor.kind === 'rect' ? anchor.bottom : null
 
   const compute = useCallback(() => {
     const pos = computePopoverPosition(
@@ -302,10 +320,11 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
 
   // useLayoutEffect runs synchronously after the commit that mounts the
   // panel, so the flip lands before paint. Re-runs when open / placement /
-  // offset / anchor identity changes (compute itself reads the synced refs).
+  // offset / anchor identity / content changes (compute itself reads the
+  // synced refs).
   useLayoutEffect(() => {
     if (open) compute()
-  }, [open, placement, offset, anchorElRef, anchorX, anchorY, compute])
+  }, [open, placement, offset, anchorElRef, anchorX, anchorY, anchorRight, anchorBottom, contentKey, compute])
 
   // Scroll/resize listeners. Capture-phase scroll catches ancestors.
   useEffect(() => {
