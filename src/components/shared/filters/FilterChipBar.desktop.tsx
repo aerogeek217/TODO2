@@ -7,18 +7,21 @@ import type { TodoPredicate } from '../../../models'
 import topBar from '../../layout/TopBar.module.css'
 import { ImportantIcon } from '../MarkerIcons'
 import { hasMarkers } from '../../../utils/markers'
+import { useUIStore } from '../../../stores/ui-store'
 import {
   AtIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
+  EnvelopeIcon,
   HashIcon,
   StatusRingIcon,
   WidgetKindIcon,
 } from '../../workspace/icons'
 import { DateRangePanelBody, EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
 import {
+  narrowedPeople,
   useFilterChipBarState,
   type EntityKey,
   type FilterChipBarProps,
@@ -35,6 +38,8 @@ type FieldPanel =
       onSelectAll: () => void
       onDeselectAll: () => void
       items: (searchText: string) => ReactNode
+      /** Below the items (the People picker's Email check-in action); `closeAll` closes every filter popover. */
+      footer?: (closeAll: () => void) => ReactNode
     }
   | { kind: 'custom'; render: (close: () => void) => ReactNode }
 
@@ -53,8 +58,12 @@ interface FieldDef {
   panel: FieldPanel
 }
 
-/** A field's picker body; owns the search text of a selection picker. */
-function FieldPanelBody({ field, onDone }: { field: FieldDef; onDone: () => void }) {
+/**
+ * A field's picker body; owns the search text of a selection picker.
+ * `onDone` closes this picker; `onCloseAll` also closes the Filters menu it
+ * opened from (the same as `onDone` for a bar button).
+ */
+function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDef; onDone: () => void; onCloseAll?: () => void }) {
   const [searchText, setSearchText] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const { panel } = field
@@ -63,16 +72,48 @@ function FieldPanelBody({ field, onDone }: { field: FieldDef; onDone: () => void
   }, [panel.kind])
   if (panel.kind === 'custom') return <>{panel.render(onDone)}</>
   return (
-    <SelectionPanelBody
-      allSelected={panel.allSelected}
-      noneSelected={panel.noneSelected}
-      onSelectAll={panel.onSelectAll}
-      onDeselectAll={panel.onDeselectAll}
-      search={{ text: searchText, setText: setSearchText, onEscape: onDone }}
-      searchInputRef={searchRef}
-    >
-      {panel.items(searchText)}
-    </SelectionPanelBody>
+    <>
+      <SelectionPanelBody
+        allSelected={panel.allSelected}
+        noneSelected={panel.noneSelected}
+        onSelectAll={panel.onSelectAll}
+        onDeselectAll={panel.onDeselectAll}
+        search={{ text: searchText, setText: setSearchText, onEscape: onDone }}
+        searchInputRef={searchRef}
+      >
+        {panel.items(searchText)}
+      </SelectionPanelBody>
+      {panel.footer?.(onCloseAll)}
+    </>
+  )
+}
+
+/**
+ * The People picker's footer: `Email check-in to <name>…` / `… N people…`
+ * while the filter is narrowed to some (not all, not none) people — opens
+ * the check-in dialog with exactly those people ticked — else a hint.
+ */
+function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number; name: string }[]; onDone: () => void }) {
+  const only = people.length === 1 ? people[0] : undefined
+  return (
+    <>
+      <div className={topBar.dropdownDivider} />
+      {people.length === 0 ? (
+        <div className={styles.checkinHint}>Narrow to some people to email them.</div>
+      ) : (
+        <button
+          type="button"
+          className={styles.checkinAction}
+          onClick={() => {
+            onDone()
+            useUIStore.getState().openCheckinDialog(people.map((p) => p.id))
+          }}
+        >
+          <EnvelopeIcon />
+          {only ? `Email check-in to ${only.name}…` : `Email check-in to ${people.length} people…`}
+        </button>
+      )}
+    </>
   )
 }
 
@@ -245,7 +286,7 @@ function FiltersMenu({ fields, onClearAll }: { fields: FieldDef[]; onClearAll: (
           className={topBar.dropdownPanel}
           style={{ position: subStyle.position, left: subStyle.left, top: subStyle.top }}
         >
-          <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} />
+          <FieldPanelBody key={subField.key} field={subField} onDone={closeSub} onCloseAll={closeAll} />
         </div>,
         document.body,
       )}
@@ -351,6 +392,12 @@ export function FilterChipBarDesktop({
             onToggle={(id) => toggle('people', id, personIdsSet, [0, ...people.map((x) => x.id!)], setPersonIds)}
             namePrefix="@"
             showDot={false}
+          />
+        ),
+        footer: (closeAll) => (
+          <PeopleCheckinAction
+            people={previewEmpty === 'people' ? [] : narrowedPeople(people, personIdsSet)}
+            onDone={closeAll}
           />
         ),
       },

@@ -298,3 +298,34 @@
   opacity: 0.4;
   cursor: default;
 }
+
+/* ── People picker footer: Email check-in ───────────────────────────────── */
+
+.checkinAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.checkinAction:hover,
+.checkinAction:focus-visible {
+  background: var(--color-accent-bg-medium);
+}
+
+.checkinHint {
+  padding: 7px 10px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

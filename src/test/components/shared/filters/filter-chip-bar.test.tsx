@@ -4,6 +4,7 @@ import { FilterChipBar } from '../../../../components/shared/filters/FilterChipB
 import type { TodoPredicate } from '../../../../models'
 import { useStatusStore } from '../../../../stores/status-store'
 import { usePersonStore } from '../../../../stores/person-store'
+import { useUIStore } from '../../../../stores/ui-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { emptyPredicate } from '../../../../stores/list-definition-store'
 import { makePerson } from '../../../helpers'
@@ -268,6 +269,59 @@ describe('FilterChipBar — primitive', () => {
       const active: TodoPredicate = { ...emptyPredicate(), showCompleted: true }
       rerender(<FilterChipBar predicate={active} onChange={() => {}} />)
       expect(screen.getByTitle('Clear all filters')).toBeInTheDocument()
+    })
+
+    describe('People picker: Email check-in', () => {
+      beforeEach(() => {
+        useUIStore.setState({ checkinDialog: null })
+        usePersonStore.setState({
+          people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' }), makePerson({ id: 3, name: 'Cara' })],
+        })
+      })
+
+      const openPeople = (personIds: number[] | null) => {
+        render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds }} onChange={() => {}} />)
+        fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
+      }
+
+      it('narrowed to one person: Email check-in to <name>… opens the dialog with them ticked and closes the picker', () => {
+        openPeople([2])
+        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Bob…' }))
+        expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [2] })
+        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
+      })
+
+      it('narrowed to several: Email check-in to N people…, ticking exactly those (None ignored)', () => {
+        openPeople([3, 0, 1])
+        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to 2 people…' }))
+        expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1, 3] })
+      })
+
+      it.each([
+        ['no filter', null],
+        ['every person', [1, 2, 3]],
+        ['only None', [0]],
+        ['nobody', []],
+      ])('%s: a hint instead of the action', (_label, personIds) => {
+        openPeople(personIds)
+        expect(screen.getByText('Narrow to some people to email them.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
+      })
+
+      it('folded: the action closes the Filters menu too', () => {
+        render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} fold />)
+        fireEvent.click(screen.getByRole('button', { name: 'Filters, 1 active' }))
+        fireEvent.click(screen.getByRole('button', { name: 'People filter: Alice' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Alice…' }))
+        expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1] })
+        expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
+      })
+
+      it('Tags and Status pickers have no such footer', () => {
+        render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
+        fireEvent.click(screen.getByRole('button', { name: 'Tags filter' }))
+        expect(screen.queryByText('Narrow to some people to email them.')).toBeNull()
+      })
     })
   })
 

@@ -65,7 +65,22 @@ export function hasAnyFilter(p: TodoPredicate): boolean {
   )
 }
 
-export const cycleTri = (v: boolean | null): boolean | null =>
+/**
+ * The people a People filter is narrowed to, by name — empty when it shows
+ * everyone (no filter, or every person ticked) or no one (only None, or
+ * nothing ticked).
+ */
+export function narrowedPeople(
+  people: readonly { id?: number; name: string }[],
+  personIds: ReadonlySet<number> | null,
+): { id: number; name: string }[] {
+  if (personIds === null) return []
+  const picked = people.flatMap((p) => (p.id != null && personIds.has(p.id) ? [{ id: p.id, name: p.name }] : []))
+  if (picked.length === people.length) return []
+  return picked.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export const cycleTri =(v: boolean | null): boolean | null =>
   v === null ? true : v === true ? false : null
 export const triIcon = (v: boolean | null) => (v === null ? '—' : v === true ? '✓' : '✕')
 export const triLabel = (v: boolean | null) =>
