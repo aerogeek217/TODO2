@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedTaskList } from './fixtures/workspace'
+import { taskRowByTitle } from './fixtures/seed'
 
 /**
  * Slash commands in Quick Add: the `/` menu (open, filter, keys, argument
@@ -192,5 +193,27 @@ test.describe('Quick Add slash commands', () => {
       nextFollowupAt: await dayFromToday(page, 7),
     })
     expect(todo?.urgent).toBeUndefined()
+  })
+})
+
+test.describe('Quick Add metadata write', () => {
+  test('a task with #tag @person /due is added without errors and shows its chips', async ({ page }) => {
+    const errors: string[] = []
+    page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+    await seedTaskList(page, { tags: ['ops'], people: [{ name: 'Dana Kim', initials: 'DK' }] })
+    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+
+    const { dialog, input } = await openQuickAdd(page)
+    await input.pressSequentially('Ship it #ops @Dana /due tomorrow ')
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeHidden()
+
+    const row = taskRowByTitle(page, 'Ship it')
+    await expect(row.getByText('#ops')).toBeVisible()
+    await expect(row.getByText('DK')).toBeVisible()
+    // Let the assignment loads the write triggered settle.
+    await page.waitForTimeout(500)
+    expect(errors).toEqual([])
   })
 })

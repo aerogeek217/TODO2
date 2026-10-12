@@ -1,4 +1,4 @@
-import type { Table } from 'dexie'
+import Dexie, { type Table } from 'dexie'
 import { db } from './database'
 
 /**
@@ -81,6 +81,12 @@ export function createJoinOps<
  * @param linkIdField The field on the join table to query by (e.g., 'todoId')
  * @param entityIdField The field on the join table referencing the entity (e.g., 'personId')
  * @param linkIds The IDs to query for (e.g., todoIds)
+ *
+ * A snapshot read for the UI, always outside any open transaction
+ * (`Dexie.ignoreTransaction`): store writes inside a transaction (the NLP
+ * metadata one in `runNlpMetadataTransaction`) re-render React
+ * synchronously, so effects that load assignments can start in that
+ * transaction's zone, whose scope doesn't cover these tables.
  */
 export async function buildAssignmentMap<L, E extends { id?: number }>(
   linkTable: Table<L, number>,
@@ -90,7 +96,16 @@ export async function buildAssignmentMap<L, E extends { id?: number }>(
   linkIds: number[],
 ): Promise<Map<number, E[]>> {
   if (linkIds.length === 0) return new Map()
+  return Dexie.ignoreTransaction(() => readAssignmentMap(linkTable, entityTable, linkIdField, entityIdField, linkIds))
+}
 
+async function readAssignmentMap<L, E extends { id?: number }>(
+  linkTable: Table<L, number>,
+  entityTable: Table<E, number>,
+  linkIdField: keyof L & string,
+  entityIdField: keyof L & string,
+  linkIds: number[],
+): Promise<Map<number, E[]>> {
   const links = await linkTable.where(linkIdField).anyOf(linkIds).toArray()
   const entityIds = [...new Set(links.map((l) => (l as Record<string, unknown>)[entityIdField] as number))]
   const entities = entityIds.length > 0
