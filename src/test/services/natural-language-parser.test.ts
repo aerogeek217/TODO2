@@ -94,6 +94,27 @@ describe('parseInput — people', () => {
     expect(r.persons).toEqual(['friday'])
     expect(r.dueDate).toBeUndefined()
   })
+
+  it.each([
+    'Email bob@acme.com about it',
+    'a@b',
+    'see foo@"Bar Baz"',
+    'ping (@Dana)',
+    'quote "@Dana"',
+    'list x,@Dana',
+  ])('`@` inside a word is plain text, like `#`: %s', (text) => {
+    const r = parse(text)
+    expect(r.persons).toEqual([])
+    expect(r.tokens).toEqual([])
+    expect(r.title).toBe(text)
+  })
+
+  it('a mention starts the text or follows whitespace; trailing punctuation stays text', () => {
+    const r = parse('@Anna, mail bob@acme.com\t@Dana. then @"Sarah Connor"!')
+    expect(r.persons).toEqual(['Anna', 'Dana', 'Sarah Connor'])
+    expect(r.tokens.map((t) => [t.raw, t.start])).toEqual([['@Anna', 0], ['@Dana', 25], ['@"Sarah Connor"', 37]])
+    expect(r.title).toBe(', mail bob@acme.com . then !')
+  })
 })
 
 describe('parseInput — tags (#foo)', () => {

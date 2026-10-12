@@ -12,6 +12,7 @@ import {
 /**
  * Task-text parser. Only explicit tokens set metadata:
  *  - `@name` / `@"First Last"` — people (looked up by `nlp-resolver`);
+ *    like `#` and `/`, only at the start of the text or after whitespace;
  *  - `#tag` — tags (lookup-or-create on submit);
  *  - slash commands (`services/slash-commands`): `/urgent`, `/important`,
  *    `/focus`, `/due <date>`, `/followup <date|interval|none>`,
@@ -79,9 +80,11 @@ export interface ParsedInput {
   problems: CommandProblem[]
 }
 
-// `@` mentions name a person. The parser stays store-free and emits
-// `'person'`-typed tokens; `nlp-resolver.ts` looks the names up.
-const MENTION_PATTERN = /@"([^"]+)"|@(\w+)/g
+// `@` mentions name a person. Whitespace-anchored like `#tag` and `/command`
+// (group 1 = the separator), so `bob@acme.com`, `a@b` or `(@Dana` are plain
+// text. The parser stays store-free and emits `'person'`-typed tokens;
+// `nlp-resolver.ts` looks the names up.
+const MENTION_PATTERN = /(^|\s)@(?:"([^"]+)"|(\w+))/g
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input) and group 2 is the slug. Separator stays in the remaining title
 // after token removal.
@@ -246,11 +249,11 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   const persons: string[] = []
   MENTION_PATTERN.lastIndex = 0
   while ((match = MENTION_PATTERN.exec(text)) !== null) {
-    const value = match[1] ?? match[2]
-    const start = match.index
-    const end = start + match[0].length
+    const value = match[2] ?? match[3]
+    const start = match.index + (match[1]?.length ?? 0)
+    const end = match.index + match[0].length
     if (value == null || inCommand(start, end)) continue
-    tokens.push({ type: 'person', value, raw: match[0], start, end })
+    tokens.push({ type: 'person', value, raw: text.slice(start, end), start, end })
     persons.push(value)
   }
 

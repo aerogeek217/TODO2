@@ -208,6 +208,17 @@ describe('notes token tints', () => {
     ])
   })
 
+  it('an email address is plain text, not a mention', () => {
+    const { view: v } = setup('- Mail bob@acme.com and (@Anna) with @Anna')
+    expect(tints(v)).toEqual(['@Anna:chip'])
+  })
+
+  it('typing `@` inside a word opens no popup', () => {
+    const { view: v } = setup('- Mail bob')
+    type(v, '@ac')
+    expect(popup(v)).toBeNull()
+  })
+
   it('re-tints when the people change (a created person stops reading as new)', async () => {
     const { view: v, setPeople } = setup('- Call @Marco')
     expect(tints(v)).toEqual(['@Marco:new'])

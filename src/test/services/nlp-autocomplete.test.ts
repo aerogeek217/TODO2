@@ -65,7 +65,7 @@ function pick(text: string, row?: (rows: AutocompleteRow[]) => AutocompleteRow |
 }
 
 describe('trigger rule', () => {
-  it.each(['a/b', 'path/to/', 'x 1/', 'https://x/', 'Check /etc/', 'a@b', 'x#y'])(
+  it.each(['a/b', 'path/to/', 'x 1/', 'https://x/', 'Check /etc/', 'a@b', 'x#y', 'mail bob@ac', 'ping (@Da', 'x,@Da'])(
     'no popup inside a word: "%s"',
     (text) => expect(isVisible(at(text))).toBe(false),
   )

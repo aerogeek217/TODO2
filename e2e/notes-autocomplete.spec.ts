@@ -124,6 +124,29 @@ test.describe('notes autocomplete', () => {
     expect(await lineWith(editor, 'legal')).toBe('- Call legal @Marco #launch ')
   })
 
+  test('an email address in a note is plain text and converts without a person', async ({ page }) => {
+    await seedWorkspace(page, NOTES_LAYOUT)
+    const editor = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
+    await editor.click()
+    await page.keyboard.type('Mail bob@acme.com about the SOW')
+    await expect(popup(page)).toBeHidden()
+    await expect(editor.locator('.cm-nlp-tint')).toHaveCount(0)
+    await page.keyboard.press('Alt+t')
+    await expect(editor.locator('.cm-line').first()).toHaveText('✓ Mail bob@acme.com about the SOW')
+    expect(await storedNames(page, 'people')).toEqual(['Anna', 'Dana Kim'])
+    const titles = await page.evaluate(async () => await new Promise<string[]>((resolve, reject) => {
+      const req = indexedDB.open('todo2')
+      req.onsuccess = () => {
+        const idb = req.result
+        const all = idb.transaction(['todos'], 'readonly').objectStore('todos').getAll()
+        all.onsuccess = () => { idb.close(); resolve((all.result as Array<{ title: string }>).map((t) => t.title)) }
+        all.onerror = () => { idb.close(); reject(all.error) }
+      }
+      req.onerror = () => reject(req.error)
+    }))
+    expect(titles).toEqual(['Mail bob@acme.com about the SOW'])
+  })
+
   test('Notes widget: flips above the caret near the bottom edge', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 420 })
     await seedWorkspace(page, NOTES_LAYOUT)
