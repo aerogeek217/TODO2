@@ -234,6 +234,30 @@ describe('useUndoStore', () => {
     expect(state.undoStack).toHaveLength(0)
   })
 
+  it('a group on a full stack still merges into one entry (pushes inside it never trim)', () => {
+    const store = useUndoStore.getState()
+    for (let i = 0; i < 50; i++) store.push(makeEntry(`old${i}`))
+    store.beginGroup()
+    store.push(makeEntry('a'))
+    store.push(makeEntry('b'))
+    useUndoStore.getState().endGroup('compound')
+
+    const state = useUndoStore.getState()
+    expect(state.undoStack).toHaveLength(50)
+    expect(state.undoStack.at(-1)!.description).toBe('compound')
+    expect(state.undoStack.at(-2)!.description).toBe('old49')
+    expect(state.undoStack[0]!.description).toBe('old1')
+  })
+
+  it('pushes inside a group show no snackbar; endGroup shows the group description', () => {
+    const store = useUndoStore.getState()
+    store.beginGroup()
+    store.push(makeEntry('a'), true)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    useUndoStore.getState().endGroup('compound', true)
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'compound' })
+  })
+
   // 15. canUndo/canRedo report based on stack contents
   it('canUndo returns true when undoStack has entries', () => {
     expect(useUndoStore.getState().canUndo()).toBe(false)

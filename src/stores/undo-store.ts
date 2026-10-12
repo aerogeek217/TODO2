@@ -20,7 +20,11 @@ interface UndoState {
   push: (entry: UndoEntry, showSnackbar?: boolean) => void
   undo: () => Promise<void>
   redo: () => Promise<void>
-  /** Mark the start of a compound operation. All entries pushed until endGroup() are merged into one. */
+  /**
+   * Mark the start of a compound operation. All entries pushed until
+   * endGroup() are merged into one; while the group is open, pushes show no
+   * snackbar.
+   */
   beginGroup: () => void
   /** Merge all entries pushed since beginGroup() into a single undo entry. */
   endGroup: (description: string, showSnackbar?: boolean) => void
@@ -39,14 +43,17 @@ export const useUndoStore = create<UndoState>((set, get) => ({
   snackbarTimerId: null,
 
   push(entry: UndoEntry, showSnackbar = false) {
-    const { undoStack, snackbarTimerId } = get()
-    const trimmed = undoStack.length >= MAX_STACK_SIZE
+    const { undoStack, snackbarTimerId, groupStartIndex } = get()
+    // Inside a group the stack is not trimmed (that would shift the group's
+    // start; `endGroup` trims) and no snackbar shows (`endGroup` decides).
+    const inGroup = groupStartIndex != null
+    const trimmed = !inGroup && undoStack.length >= MAX_STACK_SIZE
       ? undoStack.slice(undoStack.length - MAX_STACK_SIZE + 1)
       : undoStack
 
     if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
 
-    if (showSnackbar) {
+    if (showSnackbar && !inGroup) {
       const timerId = setTimeout(() => {
         set({ snackbar: null, snackbarTimerId: null })
       }, UNDO_SNACKBAR_MS)
