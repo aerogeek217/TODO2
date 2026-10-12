@@ -205,6 +205,26 @@ describe('appendImportTasks — archive from another database', () => {
   })
 })
 
+describe('appendImportTasks — person emails', () => {
+  it('matches people by name only: a match keeps its own email, a created person brings the archived one', async () => {
+    const alice = await db.people.add({ name: 'Alice', initials: 'AL', email: 'alice@source.example' }) as number
+    const bob = await db.people.add({ name: 'Bob', initials: 'BO', email: 'bob@source.example' }) as number
+    const now = new Date()
+    const id = await todoRepository.insert({ title: 'Shared task', isCompleted: true, completedAt: now, createdAt: now, modifiedAt: now, sortOrder: 1 })
+    await db.todoPeople.bulkAdd([{ todoId: id, personId: alice }, { todoId: id, personId: bob }])
+    const json = JSON.stringify(await buildTaskArchive([id]))
+
+    await resetDb()
+    const target = await db.people.add({ name: 'alice', initials: 'A' }) as number
+    const data = prepareAppend(json)
+    const result = await appendImportTasks(data, defaultAppendChoices(findAppendDuplicates(data.todos, [])))
+
+    expect(result.created.people).toEqual(['Bob'])
+    expect(await db.people.get(target)).toEqual({ id: target, name: 'alice', initials: 'A' })
+    expect(await db.people.where('name').equals('Bob').first()).toMatchObject({ initials: 'BO', email: 'bob@source.example' })
+  })
+})
+
 describe('appendImportTasks — duplicates in the same database', () => {
   it('honors Skip / Import as new and mints a fresh uid on a uid collision', async () => {
     const now = new Date()

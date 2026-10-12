@@ -5,7 +5,7 @@ import { captureJoinRows } from '../data/join-helpers'
 import { createAssignmentActions, type LoadAssignmentsOptions } from './assignment-helpers'
 import { loadWithState, optimistic, updateEntityInMap, makeEnsureLoaded } from './store-helpers'
 import { undoable } from '../services/undoable'
-import { generateInitials } from '../utils/person'
+import { generateInitials, withEmail } from '../utils/person'
 
 interface PersonState {
   people: Person[]
@@ -15,7 +15,8 @@ interface PersonState {
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
-  add: (name: string, initials: string, color?: string) => Promise<number>
+  /** Adds a person; `email` is stored trimmed and dropped when empty. */
+  add: (name: string, initials: string, color?: string, email?: string) => Promise<number>
   /**
    * Lookup-or-create by name (the people counterpart of `useTagStore.add`):
    * an existing person whose name matches case-insensitively is reused;
@@ -23,6 +24,7 @@ interface PersonState {
    * and no color. Returns the person's id.
    */
   getOrCreate: (name: string) => Promise<number>
+  /** Replaces the person row; `email` is stored trimmed and dropped when empty. */
   update: (person: Person) => Promise<void>
   remove: (id: number) => Promise<void>
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
@@ -63,8 +65,8 @@ export const usePersonStore = create<PersonState>((set, get) => {
     },
     ensureLoaded: () => personEnsure.ensureLoaded(),
 
-    async add(name: string, initials: string, color?: string) {
-      const person: Person = { name, initials, ...(color ? { color } : {}) }
+    async add(name: string, initials: string, color?: string, email?: string) {
+      const person = withEmail<Person>({ name, initials, ...(color ? { color } : {}) }, email)
       const id = await personRepository.insert(person)
       set({ people: [...get().people, { ...person, id }] })
       return id
@@ -84,7 +86,8 @@ export const usePersonStore = create<PersonState>((set, get) => {
       return person.id
     },
 
-    async update(person: Person) {
+    async update(input: Person) {
+      const person = withEmail(input, input.email)
       const prevPeople = get().people
       const prevMap = get().assignedPeopleMap
       return optimistic(

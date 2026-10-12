@@ -430,3 +430,28 @@
     color: var(--color-text-primary);
   }
 }
+
+/* People: the email line wraps under name + initials. */
+.editRowWrap {
+  flex-wrap: wrap;
+}
+
+.editInputEmail {
+  composes: editInput;
+  /* Its own line under the color, name and initials. */
+  flex: 1 1 100%;
+}
+
+.editInputEmail[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.email {
+  flex: 0 1 auto;
+  max-width: 45%;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

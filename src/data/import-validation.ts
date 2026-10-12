@@ -15,6 +15,7 @@ import { formatHotRule, parseHotRule } from '../utils/hot'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { checkLayoutColumns, pickLayoutColumns } from './layout-shape'
+import { normalizeEmail, PERSON_EMAIL_MAX } from '../utils/person'
 
 const VALID_RECURRENCE_TYPES = ['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']
 
@@ -205,6 +206,8 @@ function checkPerson(v: unknown): CheckResult {
     ['name', isStr(v.name, 200)],
     ['initials', isStr(v.initials, 4)],
     ['color', isOptColor(v.color)],
+    // Any string within the cap: the email shape is the person editor's check.
+    ['email', isOptStr(v.email, PERSON_EMAIL_MAX)],
   ])
 }
 
@@ -407,6 +410,7 @@ function pickPerson(v: Raw): AllFields<Person> {
   return {
     id: optNum(v.id), name: v.name as string, initials: v.initials as string,
     color: optStr(v.color),
+    email: normalizeEmail(optStr(v.email)),
   } satisfies AllFields<Person>
 }
 

@@ -324,6 +324,31 @@ describe('validateImportData', () => {
     if (result.ok) expect('color' in (result.data.people[0] ?? {})).toBe(false)
   })
 
+  describe('person email', () => {
+    it('keeps any string, trimmed (the editor checks the shape, not import)', () => {
+      const result = validateImportData(validData({
+        people: [makePerson({ email: '  ann@example.com ' }), makePerson({ id: 2, name: 'Bo', email: 'not an address' })],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) expect(result.data.people.map((p) => p.email)).toEqual(['ann@example.com', 'not an address'])
+    })
+
+    it('drops an empty or blank email', () => {
+      const result = validateImportData(validData({
+        people: [makePerson({ email: '' }), makePerson({ id: 2, name: 'Bo', email: '   ' }), makePerson({ id: 3, name: 'Cy', email: null })],
+      }))
+      expect(result.ok).toBe(true)
+      if (result.ok) for (const p of result.data.people) expect('email' in p).toBe(false)
+    })
+
+    it('rejects a non-string or over-long email', () => {
+      for (const email of [42, true, ['a@b.co'], { at: 'b.co' }, `${'a'.repeat(250)}@b.co`]) {
+        const result = validateImportData(validData({ people: [makePerson({ email })] }))
+        expect(result, JSON.stringify(email)).toEqual({ ok: false, error: expect.stringContaining('bad field "email"') })
+      }
+    })
+  })
+
   it('todo with valid recurrenceRule passes; invalid type fails', () => {
     const validResult = validateImportData(validData({
       todos: [makeTodo({ recurrenceRule: { type: 'weekly' } })],

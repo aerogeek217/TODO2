@@ -68,7 +68,7 @@ function buildSeed(): Seed {
         sortOrder: 1,
       },
     ],
-    people: [{ id: 1, name: 'Ann Lee', initials: 'AL', color: '#e05050' }],
+    people: [{ id: 1, name: 'Ann Lee', initials: 'AL', color: '#e05050', email: 'ann.lee@example.com' }],
     tags: [{ id: 1, name: 'urgent', color: '#ff0000' }],
     todoTags: [{ id: 1, todoId: 1, tagId: 1 }],
     todoPeople: [{ id: 1, todoId: 1, personId: 1 }],

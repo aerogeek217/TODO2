@@ -31,6 +31,31 @@ describe('usePersonStore', () => {
     expect(id).toBeGreaterThan(0)
   })
 
+  describe('email', () => {
+    it('add stores the email trimmed, and none when blank', async () => {
+      const ann = await usePersonStore.getState().add('Ann', 'A', undefined, '  ann@example.com ')
+      const bo = await usePersonStore.getState().add('Bo', 'B', undefined, '   ')
+      expect(await db.people.get(ann)).toEqual({ id: ann, name: 'Ann', initials: 'A', email: 'ann@example.com' })
+      expect(await db.people.get(bo)).toEqual({ id: bo, name: 'Bo', initials: 'B' })
+      expect(usePersonStore.getState().people.find((p) => p.id === ann)?.email).toBe('ann@example.com')
+    })
+
+    it('update replaces, trims and clears the email', async () => {
+      const id = await usePersonStore.getState().add('Ann', 'A', undefined, 'ann@example.com')
+      await usePersonStore.getState().update({ id, name: 'Ann', initials: 'A', email: ' ann@work.example ' })
+      expect((await db.people.get(id))?.email).toBe('ann@work.example')
+      await usePersonStore.getState().update({ id, name: 'Ann', initials: 'A', email: '' })
+      const stored = await db.people.get(id)
+      expect(stored).toEqual({ id, name: 'Ann', initials: 'A' })
+      expect('email' in usePersonStore.getState().people[0]!).toBe(false)
+    })
+
+    it('people created on the fly have no email', async () => {
+      const id = await usePersonStore.getState().getOrCreate('Marco Rossi')
+      expect('email' in (await db.people.get(id))!).toBe(false)
+    })
+  })
+
   describe('getOrCreate', () => {
     it('creates a person with derived initials and no color', async () => {
       const id = await usePersonStore.getState().getOrCreate('  Marco Rossi ')

@@ -85,4 +85,66 @@ describe('PeopleEditor', () => {
     fireEvent.click(await findByText('Ann Lee'))
     expect(queryByText('Orgs')).toBeNull()
   })
+
+  it('adds a person with an email, saved trimmed and shown in the row', async () => {
+    const { getByPlaceholderText, getByText, getByLabelText, findByText } = await renderEditor()
+    fireEvent.click(getByText('+ Add Person'))
+    fireEvent.change(getByPlaceholderText('Name'), { target: { value: 'Ann Lee' } })
+    fireEvent.change(getByLabelText('Email'), { target: { value: '  ann@example.com ' } })
+    fireEvent.click(getByText('Add'))
+
+    await findByText('ann@example.com')
+    expect((await db.people.toArray())[0]).toMatchObject({ name: 'Ann Lee', email: 'ann@example.com' })
+  })
+
+  it('shows the shape error after leaving the field, blocks saving, and clears it once fixed', async () => {
+    const { getByPlaceholderText, getByText, getByLabelText, queryByText } = await renderEditor()
+    fireEvent.click(getByText('+ Add Person'))
+    fireEvent.change(getByPlaceholderText('Name'), { target: { value: 'Ann Lee' } })
+    const email = getByLabelText('Email')
+    fireEvent.change(email, { target: { value: 'ann@' } })
+    expect(queryByText("Doesn't look like an email address")).toBeNull() // not while typing
+    fireEvent.blur(email)
+    expect(getByText("Doesn't look like an email address")).toBeTruthy()
+    expect(email.getAttribute('aria-invalid')).toBe('true')
+
+    fireEvent.click(getByText('Add'))
+    await act(async () => {})
+    expect(await db.people.count()).toBe(0)
+
+    fireEvent.change(email, { target: { value: 'ann@example.com' } })
+    expect(queryByText("Doesn't look like an email address")).toBeNull()
+    expect(email.getAttribute('aria-invalid')).toBeNull()
+    fireEvent.click(getByText('Add'))
+    await waitFor(async () => expect(await db.people.count()).toBe(1))
+  })
+
+  it('Enter with a bad email shows the error instead of saving', async () => {
+    await usePersonStore.getState().add('Ann Lee', 'AL')
+    const { findByText, getByLabelText, getByText } = await renderEditor()
+    fireEvent.click(await findByText('Ann Lee'))
+    const email = getByLabelText('Email')
+    fireEvent.change(email, { target: { value: 'ann at example' } })
+    fireEvent.keyDown(email, { key: 'Enter' })
+    expect(getByText("Doesn't look like an email address")).toBeTruthy()
+    await act(async () => {})
+    expect('email' in (await db.people.toArray())[0]!).toBe(false)
+  })
+
+  it('edits and then clears a person email', async () => {
+    await usePersonStore.getState().add('Ann Lee', 'AL', undefined, 'ann@example.com')
+    const { findByText, getByLabelText, getByText, queryByText } = await renderEditor()
+    fireEvent.click(await findByText('Ann Lee'))
+    expect((getByLabelText('Email') as HTMLInputElement).value).toBe('ann@example.com')
+    fireEvent.change(getByLabelText('Email'), { target: { value: 'ann@work.example' } })
+    fireEvent.click(getByText('Save'))
+    await findByText('ann@work.example')
+    expect((await db.people.toArray())[0]?.email).toBe('ann@work.example')
+
+    fireEvent.click(await findByText('Ann Lee'))
+    fireEvent.change(getByLabelText('Email'), { target: { value: '   ' } })
+    fireEvent.click(getByText('Save'))
+    await waitFor(() => expect(queryByText('ann@work.example')).toBeNull())
+    expect('email' in (await db.people.toArray())[0]!).toBe(false)
+  })
 })
