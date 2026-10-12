@@ -3,6 +3,7 @@
  * Subject; the body goes on the clipboard to paste) or an unsent `.eml` draft
  * (`X-Unsent: 1`) with the HTML and plain-text bodies.
  */
+import { toDateInputValue } from '../../utils/date'
 import { writeRichClipboard } from '../task-copy'
 
 /**
@@ -160,4 +161,35 @@ export function buildEml(input: EmlInput): string {
  */
 export function copyCheckinRich(html: string, plain: string): Promise<boolean> {
   return writeRichClipboard(html, plain)
+}
+
+/**
+ * Opens a `mailto:` link through a temporary `<a target="_blank">` click.
+ * A new browsing context, not this page: navigating the page itself to a
+ * `mailto:` URL runs its `beforeunload` handlers, so unsaved workspace
+ * changes would prompt "Leave site?". The browser hands the link to the mail
+ * app and closes the empty tab. (A hidden iframe would be blocked by the
+ * app's Content Security Policy.)
+ */
+export function openMailtoLink(url: string): void {
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  try {
+    a.click()
+  } finally {
+    a.remove()
+  }
+}
+
+/** Characters Windows / macOS don't allow in a file name (control characters are dropped separately). */
+const UNSAFE_FILE_CHARS = /[\\/:*?"<>|]/g
+
+/** `Check-in - <name> - <YYYY-MM-DD>.eml`; characters a file name can't hold become spaces. */
+export function checkinEmlFileName(personName: string, sentAt: Date): string {
+  const name = stripControls(personName).replace(UNSAFE_FILE_CHARS, ' ').replace(/\s+/g, ' ').trim() || 'person'
+  return `Check-in - ${name} - ${toDateInputValue(sentAt)}.eml`
 }

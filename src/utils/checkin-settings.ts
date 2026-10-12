@@ -64,3 +64,19 @@ export function resolveCheckinTaskScope(
   }
   return DEFAULT_CHECKIN_TASK_SCOPE
 }
+
+/** The "How to open it" choices, as the check-in dialog and Settings show them. */
+export const CHECKIN_OPEN_METHOD_OPTIONS: ReadonlyArray<{ method: CheckinOpenMethod; label: string; help: string }> = [
+  { method: 'mailto', label: 'Open in mail app, then paste', help: 'To + Subject filled in; body copied. New and classic Outlook.' },
+  { method: 'eml', label: 'Download draft (.eml)', help: 'Opens ready to send in classic Outlook. No paste.' },
+]
+
+/** The quick picks of "Which tasks", in menu order (saved lists follow). */
+export const CHECKIN_QUICK_SCOPES: ReadonlyArray<{ scope: CheckinTaskScope; label: string; hint: string }> = [
+  { scope: { kind: 'all' }, label: 'All open tasks', hint: 'Everything assigned to them that isn’t complete' },
+  { scope: { kind: 'due-soon' }, label: 'Overdue + next 2 weeks', hint: 'Overdue first, then anything due or following up in the next 14 days' },
+  { scope: { kind: 'hot' }, label: 'Hot', hint: 'Your Hot rule from Settings' },
+]
+
+/** The hint under a saved list in "Which tasks". */
+export const CHECKIN_LIST_SCOPE_HINT = 'Its filters, narrowed to each recipient'

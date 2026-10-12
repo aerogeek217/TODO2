@@ -54,14 +54,22 @@ export async function saveTextFile(opts: SaveTextFileOptions): Promise<SaveTextF
     }
   }
 
-  const blob = new Blob([opts.text], { type: opts.mimeType })
+  downloadTextFile(opts.text, opts.suggestedName, opts.mimeType)
+  return 'downloaded'
+}
+
+/**
+ * Hands `text` to the browser as a download named `fileName` (a temporary
+ * `<a download>`): no picker, so it works once per click for several files.
+ */
+export function downloadTextFile(text: string, fileName: string, mimeType: string): void {
+  const blob = new Blob([text], { type: mimeType })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = opts.suggestedName
+  a.download = fileName
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_MS)
-  return 'downloaded'
 }

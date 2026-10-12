@@ -5,18 +5,13 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useSettingsStore } from '../../../stores/settings-store'
-import type { CheckinOpenMethod } from '../../../utils/checkin-settings'
+import { CHECKIN_OPEN_METHOD_OPTIONS } from '../../../utils/checkin-settings'
 import { PeopleEditor } from '../PeopleEditor'
 import { StatusEditor } from '../StatusEditor'
 import { TagEditor } from '../TagEditor'
 import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import styles from './sections.module.css'
-
-const CHECKIN_METHOD_OPTIONS: ReadonlyArray<{ method: CheckinOpenMethod; label: string; help: string }> = [
-  { method: 'mailto', label: 'Open in mail app, then paste', help: 'To + Subject filled in; body copied. New and classic Outlook.' },
-  { method: 'eml', label: 'Download draft (.eml)', help: 'Opens ready to send in classic Outlook. No paste.' },
-]
 
 /** How a check-in email is handed to the mail app (also set from the check-in dialog). */
 function CheckinOpenMethodSetting() {
@@ -25,7 +20,7 @@ function CheckinOpenMethodSetting() {
   return (
     <SettingRow label="Email check-ins open as" help="How each check-in email reaches your mail app." column>
       <div className={styles.radioGroup} role="radiogroup" aria-label="Email check-ins open as">
-        {CHECKIN_METHOD_OPTIONS.map((o) => (
+        {CHECKIN_OPEN_METHOD_OPTIONS.map((o) => (
           <label key={o.method} className={styles.radioOption}>
             <input
               type="radio"
