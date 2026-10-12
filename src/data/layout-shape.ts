@@ -1,5 +1,7 @@
 import {
   clampCalendarOffset,
+  EISENHOWER_QUADRANTS,
+  isEisenhowerQuadrant,
   isWidgetKind,
   type CalendarTabViewState,
   type LayoutCell,
@@ -54,6 +56,13 @@ function checkTabSettings(tab: Obj, path: string): true | string {
       }
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
       if (view?.offset !== undefined && !isFiniteNum(view.offset)) return `${path}.viewState.offset`
+      return true
+    }
+    case 'eisenhower': {
+      const collapsed = view?.collapsed
+      if (collapsed !== undefined && (!Array.isArray(collapsed) || !collapsed.every(isEisenhowerQuadrant))) {
+        return `${path}.viewState.collapsed`
+      }
       return true
     }
     default:
@@ -128,6 +137,14 @@ function pickTab(raw: Obj): LayoutTab {
     }
     case 'notes':
       return { id, kind: 'notes', config: {} }
+    case 'eisenhower': {
+      const raw = view?.collapsed
+      const collapsed = Array.isArray(raw) ? new Set<unknown>(raw) : null
+      const tab: LayoutTab = { id, kind: 'eisenhower', config: {} }
+      // Known quadrants, once each, in display order.
+      if (collapsed && collapsed.size > 0) tab.viewState = { collapsed: EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) }
+      return tab
+    }
     default:
       return { id, kind: 'status', config: {} }
   }

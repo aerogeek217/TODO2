@@ -144,6 +144,12 @@
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
 
+  /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
+  --eis-do-bg: rgba(238, 125, 119, 0.075);
+  --eis-schedule-bg: rgba(245, 200, 66, 0.06);
+  --eis-delegate-bg: rgba(255, 255, 255, 0.035);
+  --eis-drop-bg: rgba(0, 0, 0, 0.2);
+
   /* Accent */
   --color-accent: #7ec4bc;
   --color-accent-dim: #4f9a91;
@@ -287,6 +293,12 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+
+  /* Eisenhower quadrant fills (Do › Schedule › Delegate › Drop step down). */
+  --eis-do-bg: rgba(196, 60, 53, 0.06);
+  --eis-schedule-bg: rgba(245, 200, 66, 0.10);
+  --eis-delegate-bg: rgba(0, 0, 0, 0.025);
+  --eis-drop-bg: rgba(0, 0, 0, 0.055);
 
   /* Accent — deepened for contrast on light backgrounds */
   --color-accent: #3a9e93;

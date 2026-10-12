@@ -31,6 +31,7 @@ import {
   WidgetKindIcon,
 } from './icons'
 import { useTabDrag } from './workspace-drag'
+import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import styles from './WorkspaceCell.module.css'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
@@ -157,6 +158,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
   const drag = useTabDrag()
+  const urgentRangeSetting = useUrgentRangeSetting()
 
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
@@ -295,7 +297,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
           <WidgetBody
             key={active.id}
             tab={active}
-            onLensResult={(result) => setLens({ tabId: active.id, result })}
+            onResult={(result) => setLens({ tabId: active.id, result })}
           />
           {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} />}
         </div>
@@ -348,6 +350,7 @@ function FilledCell({ cell, style }: WorkspaceCellProps) {
               }
             : undefined}
           currentListName={menuListName}
+          widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           widgetActions={menuTab.kind === 'lens' && lens && lens.tabId === menuTab.id
             ? [{
                 label: 'Copy tasks',

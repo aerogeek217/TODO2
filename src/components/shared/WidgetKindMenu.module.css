@@ -50,9 +50,14 @@
 }
 
 .icon {
+  display: inline-flex;
   font-size: 14px;
   color: var(--color-text-muted);
   flex-shrink: 0;
+}
+
+.item.active .icon {
+  color: var(--color-accent);
 }
 
 .label {
@@ -91,6 +96,70 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* A widget setting's radio submenu (e.g. the urgent range). */
+.settingFlyout {
+  padding: 4px 0;
+  overflow: visible;
+}
+
+.flyoutLabel {
+  padding: 6px 12px 4px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.radioItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 12px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-size: var(--font-size-task);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.radioItem:hover,
+.radioItem:focus-visible {
+  background: var(--color-tint-4);
+  outline: none;
+}
+
+.radioChecked {
+  background: var(--color-accent-bg-light);
+}
+
+.radio {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-text-muted);
+  border-radius: 50%;
+}
+
+.radioChecked .radio {
+  border: 4px solid var(--color-accent);
+}
+
+.radioNote {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.flyoutFootnote {
+  padding: 4px 12px 6px;
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+  color: var(--color-text-muted);
 }
 
 .note {

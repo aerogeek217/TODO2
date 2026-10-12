@@ -255,3 +255,51 @@ describe('WidgetKindMenu', () => {
     })
   })
 })
+
+describe('WidgetKindMenu — widget setting submenu', () => {
+  const onSelect = vi.fn()
+  const setting = {
+    label: 'Due date makes a task urgent',
+    value: '3 days',
+    heading: 'Due date makes a task urgent',
+    options: [
+      { key: 'off', label: 'Off', note: 'only the flag counts', checked: false, onSelect },
+      { key: '3', label: '3 days', note: 'by Tue 13', checked: true, onSelect: () => {} },
+    ],
+    footnote: 'Overdue tasks count too.',
+  }
+
+  beforeEach(() => onSelect.mockClear())
+
+  it('lists the setting first with its value; Eisenhower is a kind', () => {
+    render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={() => {}} widgetSetting={setting} />)
+    const items = screen.getAllByRole('menuitem')
+    expect(items[0]).toHaveTextContent('Due date makes a task urgent3 days')
+    expect(screen.getByRole('menuitem', { name: /Eisenhower/ })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('→ opens the submenu on the checked choice; picking one runs it and closes the menu', () => {
+    const onClose = vi.fn()
+    render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={onClose} widgetSetting={setting} />)
+    const row = screen.getAllByRole('menuitem')[0]!
+    row.focus()
+    fireEvent.keyDown(row, { key: 'ArrowRight' })
+    const sub = screen.getByRole('menu', { name: 'Due date makes a task urgent' })
+    expect(sub).toHaveTextContent('Overdue tasks count too.')
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /3 days/ }))
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Off/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /Off/ }))
+    expect(onSelect).toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('Esc in the submenu closes only the submenu', () => {
+    const onClose = vi.fn()
+    render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={onClose} widgetSetting={setting} />)
+    fireEvent.click(screen.getAllByRole('menuitem')[0]!)
+    fireEvent.keyDown(screen.getByRole('menuitemradio', { name: /3 days/ }), { key: 'Escape' })
+    expect(screen.queryByRole('menu', { name: 'Due date makes a task urgent' })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})

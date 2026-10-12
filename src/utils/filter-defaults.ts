@@ -50,6 +50,20 @@ export function seedsMarkers(fd: Pick<FilterDefaults, 'markers'> | null | undefi
 }
 
 /**
+ * `fd` with its Urgent / Important seeds replaced by `flags` (an Eisenhower
+ * quadrant's "+": Do → both, Schedule → Important, Delegate → Urgent, Drop →
+ * neither). Other markers (Focus) and the people / tags / status stay.
+ */
+export function withUrgentImportant(fd: FilterDefaults, flags: { urgent: boolean; important: boolean }): FilterDefaults {
+  const markers: MarkersFilter = {}
+  if (fd.markers?.focus === true) markers.focus = true
+  if (flags.urgent) markers.urgent = true
+  if (flags.important) markers.important = true
+  const base: FilterDefaults = { personIds: fd.personIds, tagIds: fd.tagIds, statusId: fd.statusId }
+  return activeMarkers(markers).length > 0 ? { ...base, markers } : base
+}
+
+/**
  * Same shape as `getFilterDefaults` but reads from a serializable
  * `TodoPredicate` — the form a `ListDefinition` stores on disk. Used to seed
  * a "+ Add task" affordance from the predicate of a list widget / saved list,

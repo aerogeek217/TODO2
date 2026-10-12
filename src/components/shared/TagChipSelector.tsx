@@ -58,6 +58,7 @@ export function TagChipSelector({
       <div
         ref={anchorRef}
         className={`${styles.chipGroup} ${hasTags ? '' : styles.tagChipEmpty}`}
+        data-tag-chips=""
       >
         {assignedTags.map((tag) => (
           <button

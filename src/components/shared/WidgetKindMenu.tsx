@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { WidgetKind } from '../../models/workspace-layout'
-import { KIND_ICON } from '../../utils/slot-kind'
+import { WidgetKindIcon } from '../workspace/icons'
 import { ListDefinitionPickerBody } from '../overlays/ListDefinitionPickerBody'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import styles from './WidgetKindMenu.module.css'
@@ -10,8 +10,35 @@ const PRIMARY_KINDS: { kind: WidgetKind; label: string }[] = [
   { kind: 'lens', label: 'List' },
   { kind: 'notes', label: 'Notes' },
   { kind: 'calendar', label: 'Calendar' },
+  { kind: 'eisenhower', label: 'Eisenhower' },
   { kind: 'status', label: 'Open by status' },
 ]
+
+/** One choice of a {@link WidgetSetting}. */
+export interface WidgetSettingOption {
+  key: string
+  label: string
+  /** Muted trailing text (e.g. the cut-off date a range implies). */
+  note?: string
+  checked: boolean
+  onSelect: () => void
+}
+
+/**
+ * A widget setting listed first in the tab menu: an item with its current
+ * value that opens a submenu of radio choices (e.g. the Eisenhower widget's
+ * due-date range).
+ */
+export interface WidgetSetting {
+  label: string
+  /** The current value, right-aligned on the item. */
+  value: string
+  /** Group label at the top of the submenu. */
+  heading: string
+  options: readonly WidgetSettingOption[]
+  /** Muted note under the choices. */
+  footnote?: string
+}
 
 export interface WidgetKindMenuProps {
   anchor: { x: number; y: number }
@@ -47,10 +74,13 @@ export interface WidgetKindMenuProps {
    */
   onListOptions?: () => void
   currentListName?: string
+  /** A setting of the widget, listed first (see {@link WidgetSetting}). */
+  widgetSetting?: WidgetSetting
 }
 
 const FLYOUT_LEAVE_DELAY_MS = 120
 const FLYOUT_WIDTH_PX = 240
+const SETTING_FLYOUT_WIDTH_PX = 248
 const FLYOUT_MAX_HEIGHT_PX = 320
 const VIEWPORT_MARGIN_PX = 8
 
@@ -67,11 +97,16 @@ export function WidgetKindMenu({
   widgetActions,
   onListOptions,
   currentListName,
+  widgetSetting,
 }: WidgetKindMenuProps) {
   const flyoutRef = useRef<HTMLDivElement | null>(null)
   const listRowRef = useRef<HTMLButtonElement | null>(null)
+  const settingFlyoutRef = useRef<HTMLDivElement | null>(null)
+  const settingRowRef = useRef<HTMLButtonElement | null>(null)
   const leaveTimerRef = useRef<number | null>(null)
   const [flyout, setFlyout] = useState<{ x: number; y: number } | null>(null)
+  /** The setting submenu; `focus` = opened from the keyboard / a click (focus moves into it). */
+  const [settingFlyout, setSettingFlyout] = useState<{ x: number; y: number; focus: boolean } | null>(null)
 
   // Parent menu — point-anchored at the click coords; the panelRef returned
   // here is the menu div. The flyout is special-cased (right-of-row anchor
@@ -85,7 +120,7 @@ export function WidgetKindMenu({
     closeOnResize: false,
     closeOnEscape: false,
     onClose,
-    extraInsideRefs: [flyoutRef],
+    extraInsideRefs: [flyoutRef, settingFlyoutRef],
   })
 
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -137,6 +172,27 @@ export function WidgetKindMenu({
     }
   }, [flyout])
 
+  // The setting submenu: kept in the viewport (flips to the row's left), and
+  // focus moves to its checked choice when opened from the keyboard / a click.
+  useEffect(() => {
+    if (!settingFlyout) return
+    const el = settingFlyoutRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.right > window.innerWidth - VIEWPORT_MARGIN_PX) {
+      const row = settingRowRef.current?.getBoundingClientRect()
+      el.style.left = `${row ? Math.max(VIEWPORT_MARGIN_PX, row.left - rect.width - 2) : VIEWPORT_MARGIN_PX}px`
+    }
+    if (rect.bottom > window.innerHeight - VIEWPORT_MARGIN_PX) {
+      el.style.top = `${Math.max(VIEWPORT_MARGIN_PX, window.innerHeight - rect.height - VIEWPORT_MARGIN_PX)}px`
+    }
+    if (settingFlyout.focus) {
+      const radios = Array.from(el.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'))
+      const target = radios.find((r) => r.getAttribute('aria-checked') === 'true') ?? radios[0]
+      target?.focus()
+    }
+  }, [settingFlyout])
+
   const cancelLeaveTimer = () => {
     if (leaveTimerRef.current != null) {
       window.clearTimeout(leaveTimerRef.current)
@@ -148,6 +204,7 @@ export function WidgetKindMenu({
     cancelLeaveTimer()
     leaveTimerRef.current = window.setTimeout(() => {
       setFlyout(null)
+      setSettingFlyout(null)
       leaveTimerRef.current = null
     }, FLYOUT_LEAVE_DELAY_MS)
   }
@@ -162,6 +219,38 @@ export function WidgetKindMenu({
     setFlyout({ x: rect.right + 2, y: rect.top })
   }
 
+  const openSettingFlyout = (focus: boolean) => {
+    cancelLeaveTimer()
+    const row = settingRowRef.current
+    if (!row) return
+    const rect = row.getBoundingClientRect()
+    setFlyout(null)
+    setSettingFlyout((prev) => (prev && !focus ? prev : { x: rect.right + 2, y: rect.top, focus }))
+  }
+
+  const closeSettingFlyout = () => {
+    queueMicrotask(() => settingRowRef.current?.focus())
+    setSettingFlyout(null)
+  }
+
+  const onSettingFlyoutKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const radios = Array.from(settingFlyoutRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]') ?? [])
+    const idx = radios.findIndex((r) => r === document.activeElement)
+    const move = (to: number) => radios[Math.max(0, Math.min(radios.length - 1, to))]?.focus()
+    let handled = true
+    if (e.key === 'ArrowDown') move(idx + 1)
+    else if (e.key === 'ArrowUp') move(idx === -1 ? radios.length - 1 : idx - 1)
+    else if (e.key === 'Home') move(0)
+    else if (e.key === 'End') move(radios.length - 1)
+    else if (e.key === 'ArrowLeft' || e.key === 'Escape') closeSettingFlyout()
+    else if (e.key === 'Tab') onClose()
+    else handled = false
+    if (handled) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+  }
+
   const focusListRow = () => {
     if (!flyout) return
     queueMicrotask(() => listRowRef.current?.focus())
@@ -171,6 +260,10 @@ export function WidgetKindMenu({
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
+      if (settingFlyout) {
+        closeSettingFlyout()
+        return
+      }
       if (flyout) {
         focusListRow()
         setFlyout(null)
@@ -186,6 +279,10 @@ export function WidgetKindMenu({
     else if (e.key === 'ArrowRight' && document.activeElement === listRowRef.current) {
       e.preventDefault()
       openListFlyout()
+    }
+    else if (e.key === 'ArrowRight' && document.activeElement === settingRowRef.current) {
+      e.preventDefault()
+      openSettingFlyout(true)
     }
     else if (e.key === 'ArrowLeft' && flyout) {
       e.preventDefault()
@@ -251,12 +348,33 @@ export function WidgetKindMenu({
         onClick={() => { onChangeKind(k.kind); onClose() }}
         aria-checked={active}
       >
-        <span className={styles.icon} aria-hidden="true">{KIND_ICON[k.kind]}</span>
+        <span className={styles.icon} aria-hidden="true"><WidgetKindIcon kind={k.kind} /></span>
         <span className={styles.label}>{k.label}</span>
         {active && <span className={styles.check} aria-hidden="true">✓</span>}
       </button>
     )
   })
+
+  const settingItem = widgetSetting && (
+    <>
+      <button
+        ref={settingRowRef}
+        type="button"
+        role="menuitem"
+        className={styles.item}
+        onPointerEnter={() => openSettingFlyout(false)}
+        onPointerLeave={scheduleClose}
+        onClick={() => openSettingFlyout(true)}
+        aria-haspopup="menu"
+        aria-expanded={settingFlyout != null}
+      >
+        <span className={styles.label}>{widgetSetting.label}</span>
+        <span className={styles.note}>{widgetSetting.value}</span>
+        <span className={styles.caret} aria-hidden="true">▸</span>
+      </button>
+      <div className={styles.separator} />
+    </>
+  )
 
   return createPortal(
     <div
@@ -291,6 +409,7 @@ export function WidgetKindMenu({
         </>
       ) : (
         <>
+          {settingItem}
           {showEditList && (
             <>
               {editListItem}
@@ -312,6 +431,41 @@ export function WidgetKindMenu({
             </>
           )}
         </>
+      )}
+      {settingFlyout && widgetSetting && createPortal(
+        <div
+          ref={settingFlyoutRef}
+          className={`${styles.flyout} ${styles.settingFlyout}`}
+          style={{ left: settingFlyout.x, top: settingFlyout.y, width: SETTING_FLYOUT_WIDTH_PX }}
+          role="menu"
+          aria-label={widgetSetting.heading}
+          onPointerEnter={cancelLeaveTimer}
+          onPointerLeave={scheduleClose}
+          onKeyDown={onSettingFlyoutKeyDown}
+        >
+          <div className={styles.flyoutLabel}>{widgetSetting.heading}</div>
+          {widgetSetting.options.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              role="menuitemradio"
+              aria-checked={o.checked}
+              className={`${styles.radioItem} ${o.checked ? styles.radioChecked : ''}`}
+              onClick={() => { o.onSelect(); onClose() }}
+            >
+              <span className={styles.radio} aria-hidden="true" />
+              <span className={styles.label}>{o.label}</span>
+              {o.note && <span className={styles.radioNote}>{o.note}</span>}
+            </button>
+          ))}
+          {widgetSetting.footnote && (
+            <>
+              <div className={styles.separator} />
+              <div className={styles.flyoutFootnote}>{widgetSetting.footnote}</div>
+            </>
+          )}
+        </div>,
+        document.body,
       )}
       {flyout && pickListForLens && createPortal(
         <div

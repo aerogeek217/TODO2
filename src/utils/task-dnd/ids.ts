@@ -69,7 +69,7 @@ const TASK_DRAG_PREFIXES: readonly string[] = [
  * for any string starting with one of the known prefixes. Callers that need to
  * distinguish surfaces should decode further.
  *
- * Drop-target ids (`calday-…`) are NOT task-drag ids.
+ * Drop-target ids (`calday-…`, `eis-…`) are NOT task-drag ids.
  */
 export function isTaskDragId(id: string | number | null | undefined): boolean {
   if (typeof id !== 'string') return false
@@ -86,4 +86,9 @@ export function isTaskDragId(id: string | number | null | undefined): boolean {
  */
 export function calendarDayDropId(scope: string, dateMs: number): string {
   return `calday-${scope}-${dateMs}`
+}
+
+/** Drop-zone id for one quadrant of an Eisenhower widget (`scope` = its tab id). */
+export function eisenhowerQuadrantDropId(scope: string, quadrant: string): string {
+  return `eis-${scope}-${quadrant}`
 }

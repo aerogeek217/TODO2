@@ -103,7 +103,7 @@ function GhostTab({ kind, title }: { kind: WidgetKind; title: string }) {
 interface CellTabStripProps {
   cell: LayoutCell
   collapsed: boolean
-  /** Task count of the active list tab (`N`, `shown of total`, or `—`). */
+  /** Task count of the active tab (list / Eisenhower: `N`, `shown of total`, or `—`). */
   activeCount?: string
   /** While a tab is dragged over this cell's middle zone: the ghost tab. */
   ghost?: { kind: WidgetKind; title: string } | null
@@ -198,7 +198,7 @@ export function CellTabStrip({
             active={tab.id === active?.id}
             collapsed={collapsed}
             touch={touch}
-            count={tab.id === active?.id && tab.kind === 'lens' ? activeCount : undefined}
+            count={tab.id === active?.id ? activeCount : undefined}
             onActivate={() => onActivate(tab.id)}
             onClose={onClose ? () => onClose(tab.id) : undefined}
             onOpenMenu={onOpenTabMenu ? (p) => onOpenTabMenu(tab.id, p) : undefined}

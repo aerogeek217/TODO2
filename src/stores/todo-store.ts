@@ -22,6 +22,18 @@ export interface NewTaskWithAssignments {
   tagIds: readonly number[]
 }
 
+/** One task's Urgent / Important writes (`setMarkerFlags`): only the flags that change. */
+export interface MarkerFlagChange {
+  todoId: number
+  urgent?: boolean
+  important?: boolean
+}
+
+/** The stored form of a flag: only `true` is kept. */
+function flagValue(on: boolean): true | undefined {
+  return on ? true : undefined
+}
+
 /** Reloads the people / tag assignment caches for every loaded task. */
 async function reloadAssignments(todoIds: number[]): Promise<void> {
   const { usePersonStore } = await import('./person-store')
@@ -73,6 +85,11 @@ interface TodoState {
   bulkSetUrgent: (ids: number[], on: boolean) => Promise<void>
   /** Flags every task in `ids` important (`on`) or clears the flag. One undo step. */
   bulkSetImportant: (ids: number[], on: boolean) => Promise<void>
+  /**
+   * Writes per-task Urgent / Important changes (e.g. an Eisenhower drop) as
+   * one undo step with the undo snackbar (`description`).
+   */
+  setMarkerFlags: (changes: readonly MarkerFlagChange[], description: string) => Promise<void>
   /** Removes the due date from every task in `ids`. One undo step, with the undo snackbar. */
   bulkClearDueDate: (ids: number[]) => Promise<void>
   /**
@@ -461,6 +478,56 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const what = ids.length === 1 ? 'task' : `${ids.length} tasks`
     const label = on ? `Flag ${what} important` : `Clear important on ${what}`
     await bulkUpdateField(ids, 'important', on ? true : undefined, label, get, set)
+  },
+
+  async setMarkerFlags(changes, description) {
+    const byId = new Map(changes.map((c) => [c.todoId, c]))
+    const targets = get().todos.filter((t) => byId.has(t.id))
+    if (targets.length === 0) return
+    const prev = new Map(targets.map((t) => [t.id, { urgent: t.urgent, important: t.important, modifiedAt: t.modifiedAt }]))
+    const patch = (c: MarkerFlagChange): Partial<PersistedTodoItem> => ({
+      ...(c.urgent !== undefined ? { urgent: flagValue(c.urgent) } : {}),
+      ...(c.important !== undefined ? { important: flagValue(c.important) } : {}),
+    })
+    const ids = targets.map((t) => t.id)
+    const restore = async (persist: boolean) => {
+      if (persist) {
+        await todoRepository.bulkUpdate(ids.map((todoId) => {
+          const p = prev.get(todoId)
+          return { todoId, changes: { urgent: p?.urgent, important: p?.important } }
+        }))
+      }
+      set({
+        todos: get().todos.map((t) => {
+          const p = prev.get(t.id)
+          return p ? { ...t, urgent: p.urgent, important: p.important, modifiedAt: p.modifiedAt } : t
+        }),
+      })
+    }
+    return optimistic(
+      set,
+      () => {
+        const now = new Date()
+        set({
+          todos: get().todos.map((t) => {
+            const c = byId.get(t.id)
+            return c ? { ...t, ...patch(c), modifiedAt: now } : t
+          }),
+        })
+      },
+      () => todoRepository.bulkUpdate(targets.flatMap((t) => {
+        const c = byId.get(t.id)
+        return c ? [{ todoId: t.id, changes: patch(c) }] : []
+      })),
+      () => { void restore(false) },
+      'Failed to update urgent / important',
+      {
+        description,
+        redo: () => get().setMarkerFlags(changes, description),
+        undo: () => restore(true),
+        showSnackbar: true,
+      },
+    )
   },
 
   async bulkClearDueDate(ids: number[]) {

@@ -19,6 +19,7 @@ describe('layouts row validation', () => {
           { id: 't1', kind: 'lens', config: { listDefinitionId: 3 } },
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
           { id: 't3', kind: 'notes', config: {} },
+          { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
           { id: 't5', kind: 'status', config: {} },
         ] },
         { id: 'k2', weight: 0.5, tabs: [] },
@@ -38,6 +39,8 @@ describe('layouts row validation', () => {
     ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].cells[0].tabs[0].config'],
     ['calendar with no date type', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: false, followup: false } } })), 'columns[0].cells[0].tabs[0].config.dateTypes'],
     ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].cells[0].tabs[0].viewState.view'],
+    ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
+    ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
     ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
     ['bad collapsed', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { collapsed: 'yes' })), 'columns[0].cells[0].collapsed'],
     ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
@@ -54,6 +57,9 @@ describe('layouts row validation', () => {
           // A list tab saves no prompt picks.
           { id: 't3', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { runtimeFilterValue: [1] } },
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, x: 1 } }, viewState: { offset: 500 } },
+          // Collapsed quadrants: once each, in display order.
+          { id: 't4', kind: 'eisenhower', config: { x: 1 }, viewState: { collapsed: ['drop', 'do', 'drop'], stray: 1 } },
+          { id: 't5', kind: 'eisenhower', config: {}, viewState: { collapsed: [] } },
         ],
       }],
     }]
@@ -65,6 +71,8 @@ describe('layouts row validation', () => {
         { id: 't1', kind: 'notes', config: {} },
         { id: 't3', kind: 'lens', config: { listDefinitionId: 4 } },
         { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
+        { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
+        { id: 't5', kind: 'eisenhower', config: {} },
       ] }] }],
     }])
   })

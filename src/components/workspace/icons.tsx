@@ -44,6 +44,12 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6 8h4.5M6 10.5h4.5" />
     </>
   ),
+  eisenhower: (
+    <>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+      <path d="M8 2.5v11M2.5 8h11" />
+    </>
+  ),
   status: <path d="M3.5 13.5V10M8 13.5V6.5M12.5 13.5V3" />,
 }
 

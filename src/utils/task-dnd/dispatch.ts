@@ -1,7 +1,10 @@
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../models'
 import type { CalendarDateType, CalendarDateTypes } from '../../models/workspace-layout'
+import { isEisenhowerQuadrant } from '../../models/workspace-layout'
 import { dndLog } from '../debug-flags'
+import { resolveQuadrantDrop, type FlagChange } from '../eisenhower'
+import type { UrgentDueWithinDays } from '../urgency'
 import { TASK_DROP_KIND } from './kinds'
 
 /** A list drag dropped on a day of a calendar showing both date types. */
@@ -31,11 +34,28 @@ export interface CalendarOps {
   chooseType?: (request: CalendarDropChoiceRequest) => Promise<CalendarDateType | null>
 }
 
+/**
+ * Eisenhower side of {@link dispatchTaskDrop}: a task (or the selection it
+ * belongs to) dropped on a quadrant takes that quadrant's flags, unless a
+ * task urgent by its due date would leave the urgent column — then nothing
+ * changes (see `resolveQuadrantDrop`).
+ */
+export interface EisenhowerOps {
+  /** The tasks the drag moves (current copies): the dragged task, or its selection. */
+  tasksFor: (activeData: Record<string, unknown>) => PersistedTodoItem[]
+  today: () => Date
+  range: () => UrgentDueWithinDays
+  /** Writes the flag changes as one undo step. */
+  apply: (changes: FlagChange[]) => Promise<void>
+}
+
 export interface TaskDropDispatchDeps {
   /** Optional — required by surfaces that host calendar day droppables (the
    * workspace). When omitted, calendar-day drops fall through to the
    * caller's own handler. */
   calendar?: CalendarOps
+  /** Optional — required by surfaces that host Eisenhower quadrants. */
+  eisenhower?: EisenhowerOps
 }
 
 function isDateType(v: unknown): v is CalendarDateType {
@@ -73,7 +93,8 @@ function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
 /**
  * Shared drop dispatcher for task-shaped drags that land on a shared drop
  * target: a task dropped on a calendar day gets that day as its due date or
- * next follow-up (see {@link resolveCalendarDropType}).
+ * next follow-up (see {@link resolveCalendarDropType}); a task dropped on an
+ * Eisenhower quadrant gets that quadrant's flags ({@link EisenhowerOps}).
  *
  * Returns `true` when the drop was handled (the caller should stop
  * processing — also when the user cancelled the date-type choice), `false`
@@ -115,6 +136,19 @@ export async function dispatchTaskDrop(
       }
       dndLog('dispatch.calendar-day-reschedule', { todoId: activeTodo.id, date: date.toISOString(), type })
       await deps.calendar.reschedule(activeTodo.id, date, type)
+      return true
+    }
+  }
+
+  // ── Eisenhower quadrant drop → set Urgent / Important ──
+  if (overData?.type === TASK_DROP_KIND.eisenhowerQuadrant && deps.eisenhower && activeData) {
+    const quadrant = overData.quadrant
+    if (isEisenhowerQuadrant(quadrant)) {
+      const ops = deps.eisenhower
+      const tasks = ops.tasksFor(activeData)
+      const result = resolveQuadrantDrop(tasks, quadrant, ops.today(), ops.range())
+      dndLog('dispatch.eisenhower-drop', { todoIds: tasks.map((t) => t.id), quadrant, result: result.kind })
+      if (result.kind === 'apply') await ops.apply(result.changes)
       return true
     }
   }

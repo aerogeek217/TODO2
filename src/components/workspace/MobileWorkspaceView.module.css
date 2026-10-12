@@ -402,6 +402,13 @@
   color: var(--color-text-muted);
 }
 
+.sheetFootnote {
+  margin: 8px 12px 4px;
+  font-size: var(--font-size-meta);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
 .sheetCheck {
   display: inline-flex;
   color: var(--color-accent);

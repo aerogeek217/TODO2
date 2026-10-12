@@ -207,3 +207,41 @@ describe('dispatchTaskDrop — degenerate inputs', () => {
     expect(reschedule).not.toHaveBeenCalled()
   })
 })
+
+describe('dispatchTaskDrop — Eisenhower quadrant drops', () => {
+  const TODAY = new Date(2026, 9, 10)
+  const quadrantOver = (quadrant: string) => ({ id: `eis-t1-${quadrant}`, type: TASK_DROP_KIND.eisenhowerQuadrant, extra: { quadrant, scope: 't1' } })
+  const ops = (tasks: ReturnType<typeof makeTodo>[]) => ({
+    tasksFor: vi.fn(() => tasks),
+    today: () => TODAY,
+    range: () => 3,
+    apply: vi.fn(async () => {}),
+  })
+
+  it('applies the quadrant flags to the tasks the drag moves', async () => {
+    const eisenhower = ops([makeTodo({ id: 4, important: true }), makeTodo({ id: 5 })])
+    const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('delegate') }), { eisenhower })
+    expect(handled).toBe(true)
+    expect(eisenhower.tasksFor).toHaveBeenCalledWith(expect.objectContaining({ todo: expect.objectContaining({ id: 4 }) }))
+    expect(eisenhower.apply).toHaveBeenCalledWith([{ todoId: 4, urgent: true, important: false }, { todoId: 5, urgent: true }])
+  })
+
+  it('a blocked drop is handled and changes nothing', async () => {
+    const eisenhower = ops([makeTodo({ id: 4, dueDate: new Date(2026, 9, 12) })])
+    const handled = await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('drop') }), { eisenhower })
+    expect(handled).toBe(true)
+    expect(eisenhower.apply).not.toHaveBeenCalled()
+  })
+
+  it('a drop on its own quadrant changes nothing', async () => {
+    const eisenhower = ops([makeTodo({ id: 4 })])
+    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('drop') }), { eisenhower })).toBe(true)
+    expect(eisenhower.apply).not.toHaveBeenCalled()
+  })
+
+  it('without Eisenhower ops (or with an unknown quadrant) the drop falls through', async () => {
+    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('do') }), {})).toBe(false)
+    const eisenhower = ops([makeTodo({ id: 4 })])
+    expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('later') }), { eisenhower })).toBe(false)
+  })
+})

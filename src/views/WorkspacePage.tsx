@@ -22,6 +22,10 @@ import { useUIStore } from '../stores/ui-store'
 import { useEntityAssignmentsForTodos } from '../hooks/use-entity-assignments-for-todos'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
 import { buildRescheduleUpdate } from '../utils/reschedule'
+import { dropDescription } from '../utils/eisenhower'
+import { startOfToday } from '../utils/date'
+import { useSettingsStore } from '../stores/settings-store'
+import { dragTasks } from '../components/workspace/eisenhower/eisenhower-drag'
 import { dropChangesLayout, dropTargetForHit, hitTestWorkspace } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
@@ -297,8 +301,8 @@ export function WorkspacePage() {
   const sensors = isMobile ? NO_SENSORS : pointerSensors
 
   // Tab drags find their target from pointer geometry, not dnd-kit
-  // droppables; task drags match the widgets' droppables (calendar days)
-  // under the pointer.
+  // droppables; task drags match the widgets' droppables (calendar days,
+  // Eisenhower quadrants) under the pointer.
   const collisionDetection = useMemo(() => buildTaskCollision([
     { when: (active) => active.data.current?.type === WORKSPACE_TAB_DRAG, accept: () => false, algorithm: 'pointerWithin' },
     { when: () => true, accept: () => true, algorithm: 'pointerWithin' },
@@ -326,6 +330,16 @@ export function WorkspacePage() {
           await useTodoStore.getState().update(buildRescheduleUpdate(t, date, type))
         },
         chooseType,
+      },
+      eisenhower: {
+        tasksFor: dragTasks,
+        today: startOfToday,
+        range: () => useSettingsStore.getState().urgentDueWithinDays,
+        apply: async (changes) => {
+          const todos = useTodoStore.getState().todos
+          const description = dropDescription(changes, (id) => todos.find((t) => t.id === id)?.title)
+          await useTodoStore.getState().setMarkerFlags(changes, description)
+        },
       },
     })
   }, [tabDrag, chooseType])

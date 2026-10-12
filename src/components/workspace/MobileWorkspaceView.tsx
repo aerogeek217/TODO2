@@ -17,6 +17,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { copyTasksRich } from '../../services/task-copy'
 import { useTabTitle } from './widget-hooks'
+import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon, LayoutIcon, MoreIcon } from './icons'
 import styles from './MobileWorkspaceView.module.css'
 
@@ -154,6 +155,51 @@ function MobileTopBar({ name }: { name: string }) {
 }
 
 /** Long-press on a list tab: the tab menu's list items as a bottom sheet. */
+/**
+ * An Eisenhower tab's long-press sheet: the app-wide "Due date makes a task
+ * urgent" range (the desktop tab menu's submenu).
+ */
+function SettingSheet({ onClose }: { onClose: () => void }) {
+  const setting = useUrgentRangeSetting()
+  const sheetRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    sheetRef.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus()
+  }, [])
+  return createPortal(
+    <>
+      <div className={styles.backdrop} onClick={onClose} aria-hidden="true" />
+      <div
+        ref={sheetRef}
+        className={styles.sheet}
+        role="menu"
+        aria-label={setting.heading}
+        onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}
+      >
+        <span className={styles.handle} aria-hidden="true" />
+        <div className={styles.sheetTitle}>{setting.heading}</div>
+        <div className={styles.sheetRows}>
+          {setting.options.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              role="menuitemradio"
+              aria-checked={o.checked}
+              className={styles.sheetRow}
+              onClick={() => { o.onSelect(); onClose() }}
+            >
+              <span className={styles.sheetName}>{o.label}</span>
+              {o.note && <span className={styles.sheetNote}>{o.note}</span>}
+              {o.checked && <span className={styles.sheetCheck} aria-hidden="true"><CheckIcon /></span>}
+            </button>
+          ))}
+        </div>
+        {setting.footnote && <div className={styles.sheetFootnote}>{setting.footnote}</div>}
+      </div>
+    </>,
+    document.body,
+  )
+}
+
 function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
   tabId: string
   listDefinitionId: number
@@ -228,6 +274,7 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
   const collapsed = cell.collapsed === true
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
+  const [rangeSheet, setRangeSheet] = useState(false)
   const activeListId = active?.kind === 'lens' ? active.config.listDefinitionId : undefined
   const activeListUnsaved = useIsListDirty(activeListId)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -261,6 +308,7 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
           onOpenTabMenu={(tabId) => {
             const tab = cell.tabs.find((t) => t.id === tabId)
             if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
+            if (tab?.kind === 'eisenhower') setRangeSheet(true)
           }}
           onActivate={(tabId) => {
             void setActiveTab(tabId)
@@ -305,10 +353,11 @@ function MobileCell({ cell, fill }: { cell: LayoutCell; fill: boolean }) {
           <WidgetBody
             key={active.id}
             tab={active}
-            onLensResult={(result) => setLens({ tabId: active.id, result })}
+            onResult={(result) => setLens({ tabId: active.id, result })}
           />
         </div>
       )}
+      {rangeSheet && <SettingSheet onClose={() => setRangeSheet(false)} />}
       {tabSheet && (
         <ListTabSheet
           tabId={tabSheet.tabId}

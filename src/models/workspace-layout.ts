@@ -16,9 +16,9 @@
  */
 
 /** Widget kinds a tab can hold. */
-export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'status'
+export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'status'
 
-export const WIDGET_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'status']
+export const WIDGET_KINDS: readonly WidgetKind[] = ['lens', 'calendar', 'notes', 'eisenhower', 'status']
 
 export function isWidgetKind(v: unknown): v is WidgetKind {
   return typeof v === 'string' && (WIDGET_KINDS as readonly string[]).includes(v)
@@ -58,6 +58,24 @@ export interface CalendarTabViewState {
   offset?: number
 }
 
+/**
+ * The four Eisenhower quadrants, by (urgent, important): Do (both),
+ * Schedule (important only), Delegate (urgent only), Drop (neither).
+ */
+export type EisenhowerQuadrant = 'do' | 'schedule' | 'delegate' | 'drop'
+
+/** Quadrants in display order (also the stacked layout's order). */
+export const EISENHOWER_QUADRANTS: readonly EisenhowerQuadrant[] = ['do', 'schedule', 'delegate', 'drop']
+
+export function isEisenhowerQuadrant(v: unknown): v is EisenhowerQuadrant {
+  return typeof v === 'string' && (EISENHOWER_QUADRANTS as readonly string[]).includes(v)
+}
+
+export interface EisenhowerTabViewState {
+  /** Sections collapsed in the stacked (narrow) layout. */
+  collapsed?: EisenhowerQuadrant[]
+}
+
 /** Config / view state of a kind that has none. */
 export type NoTabSettings = Record<string, never>
 
@@ -73,9 +91,10 @@ interface TabOf<K extends WidgetKind, C, V> {
 export type LensTab = TabOf<'lens', LensTabConfig, NoTabSettings>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
+export type EisenhowerTab = TabOf<'eisenhower', NoTabSettings, EisenhowerTabViewState>
 export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | StatusTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | StatusTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -143,6 +162,7 @@ export function createTab(kind: WidgetKind, id: string, seed: TabSeed = {}): Lay
     case 'calendar':
       return { id, kind, config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }
     case 'notes':
+    case 'eisenhower':
     case 'status':
       return { id, kind, config: {} }
   }

@@ -7,6 +7,7 @@ import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../services/export-import'
 import type { TodoPredicate } from '../../models/filter-predicate'
+import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 
 /**
@@ -124,7 +125,11 @@ function buildSeed(): Seed {
           },
           {
             id: 'c2', weight: 0.75, cells: [
-              { id: 'k3', weight: 1, tabs: [{ id: 't5', kind: 'status', config: {} }, { id: 't6', kind: 'lens', config: {} }] },
+              { id: 'k3', weight: 1, tabs: [
+                { id: 't5', kind: 'status', config: {} },
+                { id: 't6', kind: 'lens', config: {} },
+                { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
+              ] },
               { id: 'k4', weight: 1, tabs: [] },
             ],
           },
@@ -205,7 +210,8 @@ describe('export → JSON → import round-trip', () => {
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)
     expect(cells.some((c) => c.collapsed === true)).toBe(true)
     expect(cells.some((c) => c.tabs.length === 0)).toBe(true)
-    expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(['lens', 'calendar', 'notes', 'status']))
+    expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
+    expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
   })
