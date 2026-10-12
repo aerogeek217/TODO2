@@ -66,6 +66,8 @@ export interface WorkspaceSeed {
     recurrence?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
     /** Name of a status from `statuses`. */
     status?: string
+    /** Task notes (Markdown). */
+    notes?: string
     /** Marker flags. */
     urgent?: boolean
     important?: boolean
@@ -166,6 +168,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(task.urgent ? { urgent: true } : {}),
         ...(task.important ? { important: true } : {}),
         ...(task.focus ? { focus: true } : {}),
+        ...(task.notes ? { notes: task.notes } : {}),
         createdAt: now,
         modifiedAt: now,
         sortOrder: ++taskOrder,
