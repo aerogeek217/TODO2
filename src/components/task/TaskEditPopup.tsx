@@ -49,6 +49,8 @@ interface EditModeProps extends TaskEditPopupBaseProps {
   /** "Followed up" (bulk-aware in the views). Defaults to stamping just this task. */
   onFollowedUp?: () => void
   onCreate?: never
+  /** Stacks the editor above dialogs (the task dialog it was opened from). */
+  nested?: boolean
 }
 
 interface CreateModeProps extends TaskEditPopupBaseProps {
@@ -90,7 +92,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // Read once: later prop changes mustn't clobber edits.
   const [seed] = useState(() => (props.mode === 'create' ? props.seed : undefined))
   const isDraft = props.mode === 'create' && props.onSaveDraft !== undefined
-  const nested = props.mode === 'create' && props.nested === true
+  const nested = props.nested === true
 
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
   const statuses = useStatusStore((s) => s.statuses)
@@ -217,9 +219,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     },
   })
 
+  // Stacked over a dialog, the editor takes focus so Esc reaches it, not the dialog.
+  const backdropRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!isEdit) titleRef.current?.focus()
-  }, [isEdit])
+    else if (nested) backdropRef.current?.focus({ preventScroll: true })
+  }, [isEdit, nested])
 
   // Sync state when todo changes externally (edit mode). Keyed on the synced
   // fields (not the `todo` object) so an unrelated field change — e.g. a
@@ -540,7 +545,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }, [showStatusMenu])
 
   return (
-    <div className={`${styles.backdrop} ${nested ? styles.backdropNested : ''}`} onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
+    <div ref={backdropRef} className={`${styles.backdrop} ${nested ? styles.backdropNested : ''}`} onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick} onKeyDown={handleKeyDown} tabIndex={-1}>
       <div className={styles.card}>
         <TaskEditHeader
           isEdit={isEdit}

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { DASH_GLYPH, type DashGlyphName } from './glyph-paths'
+import { DASH_GLYPH, type DashGlyphName } from '../../../utils/dash-glyphs'
 
 /** A dashboard glyph (decorative: the control that shows it carries the name). */
 export function DashGlyph({ name, size = 14, color, strokeWidth = 1.6, className }: {

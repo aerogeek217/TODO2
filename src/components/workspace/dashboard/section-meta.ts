@@ -1,5 +1,5 @@
 import type { DashboardSectionId, DashboardSectionOptions } from '../../../models/dashboard-config'
-import type { DashGlyphName } from './glyph-paths'
+import type { DashGlyphName } from '../../../utils/dash-glyphs'
 
 /** What a section is, apart from how it renders. */
 export interface DashboardSectionMeta {

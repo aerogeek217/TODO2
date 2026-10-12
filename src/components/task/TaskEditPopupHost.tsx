@@ -1,4 +1,5 @@
 import { useTaskEditCallbacks } from '../../hooks/use-task-edit-callbacks'
+import { useUIStore } from '../../stores/ui-store'
 import { TaskEditPopup } from './TaskEditPopup'
 
 /**
@@ -8,6 +9,8 @@ import { TaskEditPopup } from './TaskEditPopup'
  */
 export function TaskEditPopupHost() {
   const taskEdit = useTaskEditCallbacks()
+  // Opened from the task dialog: stacked over it, which stays in view.
+  const overTaskDialog = useUIStore((s) => s.taskDialog !== null)
 
   if (taskEdit.editPopupMode === 'edit' && taskEdit.editProps) {
     return (
@@ -18,6 +21,7 @@ export function TaskEditPopupHost() {
         allTags={taskEdit.allTags}
         onClose={taskEdit.closeEditPopup}
         {...taskEdit.entityCreators}
+        nested={overTaskDialog}
       />
     )
   }

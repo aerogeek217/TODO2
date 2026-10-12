@@ -10,7 +10,7 @@ beforeEach(() => {
     focusedTodoId: null,
     editPopupMode: null,
     bulkConfirmation: null,
-    filteredListPopup: null,
+    taskDialog: null,
     listsEditorOpen: false,
     listsEditorInitialId: null,
     listEditorDialogId: null,
@@ -38,6 +38,18 @@ describe('useUIStore', () => {
     const state = useUIStore.getState()
     expect(state.selectedTodoId).toBeNull()
     expect(state.editPopupMode).toBeNull()
+  })
+
+  it('showTaskDialog opens the dialog and clears the selection; hideTaskDialog closes it', () => {
+    useUIStore.getState().setScopedSelection('tab', { ids: [1, 2], anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
+    const payload = { title: 'Hot tasks', glyph: 'hot', description: 'd', source: { kind: 'todos', todoIds: [1] } } as const
+    useUIStore.getState().showTaskDialog(payload)
+    const state = useUIStore.getState()
+    expect(state.taskDialog).toBe(payload)
+    expect(state.selectedTodoIds.size).toBe(0)
+    expect(state.selectionScope).toBeNull()
+    useUIStore.getState().hideTaskDialog()
+    expect(useUIStore.getState().taskDialog).toBeNull()
   })
 
   it('selectOneTodo sets selectedTodoIds to {id} and sets anchor/focus/focusedTodoId', () => {

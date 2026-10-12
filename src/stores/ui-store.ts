@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { TaskDialogPayload } from '../services/task-dialog'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ScopedSelection } from '../utils/scoped-selection'
 
@@ -17,20 +18,11 @@ export type SettingsSectionId =
   | 'shortcuts'
   | 'about'
 
-export type AttributeFilter =
-  | { type: 'person'; personId: number; personName: string }
-
 /** What Quick Add (or the editor it hands off to) starts from; see `quickAddDraft`. */
 export interface QuickAddDraftSeed {
   rawTitle: string
   defaults?: FilterDefaults
   source?: string
-}
-
-export interface FilteredListPopup {
-  x: number
-  y: number
-  filter: AttributeFilter
 }
 
 export interface BulkConfirmation {
@@ -63,7 +55,11 @@ interface UIState {
   hoveredTodoId: number | null
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
-  filteredListPopup: FilteredListPopup | null
+  /**
+   * The task dialog (`TaskDialog`): the tasks behind a dashboard number or a
+   * person chip. `null` = closed.
+   */
+  taskDialog: TaskDialogPayload | null
   /** Mobile filter sheet open state */
   isFilterSheetOpen: boolean
   /** The filter sheet was opened from a search button: focus its search box. */
@@ -145,8 +141,12 @@ interface UIState {
   openEditPopup: (todoId: number) => void
   openCreatePopup: () => void
   closeEditPopup: () => void
-  showFilteredList: (x: number, y: number, filter: AttributeFilter) => void
-  hideFilteredList: () => void
+  /**
+   * Opens the task dialog. Clears the selection, so a row's actions in the
+   * dialog act on that row only.
+   */
+  showTaskDialog: (payload: TaskDialogPayload) => void
+  hideTaskDialog: () => void
   toggleFilterSheet: () => void
   setFilterSheetOpen: (open: boolean) => void
   /** Opens the mobile filter sheet with its search box focused. */
@@ -178,7 +178,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   hoveredTodoId: null,
   editPopupMode: null,
   bulkConfirmation: null,
-  filteredListPopup: null,
+  taskDialog: null,
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
   listsEditorOpen: false,
@@ -280,12 +280,16 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ selectedTodoId: null, editPopupMode: null, quickAddDraft: null })
   },
 
-  showFilteredList(x: number, y: number, filter: AttributeFilter) {
-    set({ filteredListPopup: { x, y, filter } })
+  showTaskDialog(payload) {
+    set({
+      taskDialog: payload,
+      selectedTodoIds: new Set(), selectionAnchorId: null, selectionFocusId: null, focusedTodoId: null,
+      selectionScope: null, selectionAnchorKey: null, selectionCursorKey: null,
+    })
   },
 
-  hideFilteredList() {
-    set({ filteredListPopup: null })
+  hideTaskDialog() {
+    set({ taskDialog: null })
   },
 
   toggleFilterSheet() {

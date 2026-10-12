@@ -300,6 +300,23 @@ button.listTile:focus-visible {
   white-space: nowrap;
 }
 
+.panelCountBtn {
+  padding: 1px 6px;
+  margin: 0 -6px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.panelCountBtn:hover,
+.panelCountBtn:focus-visible {
+  outline: none;
+  background: var(--color-surface-hover);
+  color: var(--color-accent);
+}
+
 .panelSub {
   min-width: 0;
   font-size: var(--font-size-sm);
@@ -506,6 +523,22 @@ button.day:hover {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+button.trendStat {
+  margin: 0 -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button.trendStat:hover,
+button.trendStat:focus-visible {
+  outline: none;
+  background: var(--color-surface-hover);
 }
 
 .trendStat b {

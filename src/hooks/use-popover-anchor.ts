@@ -249,7 +249,7 @@ function computePopoverPosition(
  * ```
  *
  * Every anchored popover uses it (e.g. `RuntimeFilterPicker`,
- * `ListDefinitionPickerPopup`, `WidgetKindMenu`, `FilteredListPopup`,
+ * `ListDefinitionPickerPopup`, `WidgetKindMenu`,
  * `ContextMenu`, `MenuPopover`) instead of its own positioning effects.
  */
 export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAnchorResult {

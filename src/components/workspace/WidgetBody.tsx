@@ -1,4 +1,5 @@
 import type { LayoutTab } from '../../models/workspace-layout'
+import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
 import { DashboardWidget } from './dashboard/DashboardWidget'
@@ -28,6 +29,12 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps) {
     case 'eisenhower':
       return <EisenhowerWidget tab={tab} onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined} />
     case 'dashboard':
-      return <DashboardWidget tab={tab} onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined} />
+      return (
+        <DashboardWidget
+          tab={tab}
+          onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined}
+          onDrill={(drill) => useUIStore.getState().showTaskDialog({ ...drill, fromTabId: tab.id })}
+        />
+      )
   }
 }

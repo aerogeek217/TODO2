@@ -24,6 +24,7 @@ import type { TaskMenuHandlers } from './task-menu-entries'
 import { MoreIcon } from '../workspace/icons'
 import { TaskNotePopover } from './TaskNotePopover'
 import { TaskMarkers } from '../shared/TaskMarkers'
+import { personTaskDialog } from '../../services/task-dialog'
 import styles from './TaskRow.module.css'
 
 interface TaskRowProps {
@@ -302,7 +303,7 @@ export const TaskRow = memo(function TaskRow({
           onPersonContextMenu={(e, person) => {
             e.preventDefault()
             e.stopPropagation()
-            useUIStore.getState().showFilteredList(e.clientX, e.clientY, { type: 'person', personId: person.id!, personName: person.name })
+            useUIStore.getState().showTaskDialog(personTaskDialog(person))
           }}
         />
       ) : (

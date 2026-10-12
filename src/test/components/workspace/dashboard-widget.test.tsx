@@ -56,7 +56,7 @@ beforeEach(() => {
   useStatusStore.setState({ statuses: STATUSES })
   useListDefinitionStore.setState({ listDefinitions: SAMPLE_LISTS })
   useListDraftStore.setState({ drafts: {} })
-  useUIStore.setState({ selectedTodoIds: new Set(), selectionScope: null, filteredListPopup: null })
+  useUIStore.setState({ selectedTodoIds: new Set(), selectionScope: null, taskDialog: null })
   // The trend's history, as the cache holds it after its read.
   useTrendEventsStore.setState({
     entries: new Map([[trendEventsKey('14d', SAMPLE_TODAY, 0), { events: SAMPLE_EVENTS, stale: false, loading: false }]]),
@@ -151,12 +151,10 @@ describe('DashboardWidget — the design sample', () => {
     expect(rows).toEqual(['To do1158%', 'In progress526%', 'Waiting211%', 'Blocked15%'])
   })
 
-  it('People: by open count, ties by name, Unassigned last; a row opens the person popup', () => {
+  it('People: by open count, ties by name, Unassigned last', () => {
     setup()
     const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
     expect(rows.map((r) => r.querySelector('[class*="personName"] > span')?.textContent)).toEqual(['Priya Nair', 'Alice Chen', 'Ben Ortiz', 'Dana Kim', 'Sam Lee', 'Unassigned'])
-    fireEvent.click(rows[0]!)
-    expect(useUIStore.getState().filteredListPopup?.filter).toEqual({ type: 'person', personId: 4, personName: 'Priya Nair' })
   })
 
   it('People: Unassigned can be hidden', () => {
@@ -232,17 +230,118 @@ describe('DashboardWidget — screen filter', () => {
 })
 
 describe('DashboardWidget — drill hook', () => {
+  const HOT_WORDS = 'Hot = urgent and important, or in Focus (Settings › Task Defaults).'
+  type Group = { label: string; todoIds: number[] }
+
   it('without a drill handler numbers are not buttons', () => {
     setup()
     expect(tile('hot').tagName).toBe('DIV')
+    expect(section('hot')!.querySelector('button[data-testid="dash-section-count"]')).toBeNull()
+    expect(section('people')!.querySelector('button[data-person-row]')).toBeNull()
   })
 
-  it('with one, a tile opens its tasks and a list tile its list', () => {
+  it('a tile opens its tasks in dialog order, saying what it counts', () => {
+    const onDrill = vi.fn()
+    setup(tabWith({ tiles: ['hot', 'urgent', 'dueNext7'] }), onDrill)
+    fireEvent.click(tile('hot'))
+    expect(onDrill).toHaveBeenLastCalledWith({
+      title: 'Hot tasks', glyph: 'hot', description: HOT_WORDS, source: { kind: 'todos', todoIds: [1, 2, 3, 4] },
+    })
+    fireEvent.click(tile('urgent'))
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({
+      description: 'Urgent = flagged urgent, or due within 3 days (Settings › Task Defaults).',
+      // Overdue first, then by due date, ties by sortOrder.
+      source: { kind: 'todos', todoIds: [5, 6, 1, 2, 3, 7, 12, 13] },
+    })
+    fireEvent.click(tile('dueNext7'))
+    expect(onDrill.mock.lastCall?.[0].description).toBe('Open tasks due today through Fri 16.')
+  })
+
+  it('a list tile opens its list', () => {
     const onDrill = vi.fn()
     setup(tabWith({ listTiles: [3] }), onDrill)
-    fireEvent.click(tile('hot'))
-    expect(onDrill).toHaveBeenLastCalledWith({ kind: 'tasks', title: 'Hot tasks', glyph: 'hot', todoIds: [1, 2, 3, 4] })
     fireEvent.click(document.querySelector('[data-dash-list-tile="3"]')!)
-    expect(onDrill).toHaveBeenLastCalledWith({ kind: 'list', listDefinitionId: 3 })
+    expect(onDrill).toHaveBeenLastCalledWith({
+      title: '#q4 planning', glyph: 'list', description: 'Saved list · #q4', source: { kind: 'list', listDefinitionId: 3 },
+    })
+  })
+
+  it('panel counts open their tasks: Hot as its tile, Needs follow-up and Status under headings', () => {
+    const onDrill = vi.fn()
+    setup(tabWith(), onDrill)
+    fireEvent.click(within(section('hot')!).getByTestId('dash-section-count'))
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Hot tasks', source: { kind: 'todos', todoIds: [1, 2, 3, 4] } })
+
+    fireEvent.click(within(section('followup')!).getByTestId('dash-section-count'))
+    const fu = onDrill.mock.lastCall?.[0]
+    expect(fu.title).toBe('Needs follow-up')
+    expect(fu.source.groups.map((g: Group) => [g.label, g.todoIds])).toEqual([['Late', [10]], ['Today', [9]], ['Next 7 days', [11, 8, 4]]])
+
+    fireEvent.click(within(section('status')!).getByTestId('dash-section-count'))
+    const st = onDrill.mock.lastCall?.[0]
+    expect(st.title).toBe('Open tasks')
+    expect(st.source.groups.map((g: Group) => [g.label, g.todoIds.length])).toEqual([['To do', 11], ['In progress', 5], ['Waiting', 2], ['Blocked', 1]])
+  })
+
+  it('a status row opens its tasks', () => {
+    const onDrill = vi.fn()
+    setup(tabWith(), onDrill)
+    const waiting = Array.from(section('status')!.querySelectorAll<HTMLElement>('[data-status-key]')).find((r) => r.textContent?.startsWith('Waiting'))!
+    fireEvent.click(waiting)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Waiting', description: 'Status: Waiting.', source: { kind: 'todos', todoIds: [9, 10] } })
+  })
+
+  it('a Next 7 days column opens its due and follow-up tasks under headings', () => {
+    const onDrill = vi.fn()
+    setup(tabWith(), onDrill)
+    const days = within(section('next7')!).getAllByTestId('dash-day')
+    fireEvent.click(days[1]!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({
+      title: 'Today',
+      description: 'Open tasks due, or to follow up, today.',
+      source: { kind: 'groups', groups: [{ key: 'due', label: 'Due', todoIds: [1, 2, 3] }, { key: 'followup', label: 'Follow-up', todoIds: [9] }] },
+    })
+    fireEvent.click(days[6]!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Thu 15', description: 'Open tasks due, or to follow up, on Thu 15.' })
+  })
+
+  it('a trend day opens what was completed and created then; the totals open theirs', () => {
+    const onDrill = vi.fn()
+    setup(tabWith(), onDrill)
+    const today = Array.from(section('trend')!.querySelectorAll<HTMLElement>('button[class*="trendGroup"]')).at(-1)!
+    fireEvent.click(today)
+    const day = onDrill.mock.lastCall?.[0]
+    expect(day.title).toBe('Sat 10')
+    expect(day.source.groups.map((g: Group) => [g.label, g.todoIds])).toEqual([['Completed', [114]], ['Created', [1]]])
+
+    fireEvent.click(within(section('trend')!).getByTestId('dash-trend-completed'))
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Completed', description: 'Tasks completed in the last 14 days.' })
+    expect(onDrill.mock.lastCall?.[0].source.todoIds).toHaveLength(14)
+    fireEvent.click(within(section('trend')!).getByTestId('dash-trend-created'))
+    expect(onDrill.mock.lastCall?.[0].source.todoIds).toHaveLength(17)
+  })
+
+  it('a person row opens that person’s tasks in their own order; Unassigned too', () => {
+    const onDrill = vi.fn()
+    setup(tabWith(), onDrill)
+    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
+    fireEvent.click(rows[0]!)
+    expect(onDrill.mock.lastCall?.[0]).toEqual({
+      title: 'Priya Nair', glyph: 'people', description: 'Open tasks assigned to Priya Nair.',
+      source: { kind: 'todos', todoIds: [3, 11, 14, 15] },
+    })
+    fireEvent.click(rows.at(-1)!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Unassigned', description: 'Open tasks with nobody assigned.' })
+  })
+
+  it('under the top-bar filter a dialog says so and holds what the number counts', () => {
+    const onDrill = vi.fn()
+    useFilterStore.setState((s) => ({ filters: { ...s.filters, tags: new Set([Q4]) } }))
+    setup(tabWith(), onDrill)
+    fireEvent.click(tile('open'))
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({
+      description: 'Every open task. Only tasks the top-bar filter shows.',
+      source: { kind: 'todos', todoIds: [7, 14, 15, 4, 17] },
+    })
   })
 })

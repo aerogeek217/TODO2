@@ -17,7 +17,7 @@ import { statsFilter, type StatsContext } from '../../../services/stats/stats-co
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../../../services/stats/status-breakdown'
 import { computeTiles, type TileStats } from '../../../services/stats/tiles'
 import { computeTrend, type TrendStats } from '../../../services/stats/trend'
-import { applyFilter, useFilterStore } from '../../../stores/filter-store'
+import { applyFilter, countActiveFilters, useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -42,6 +42,8 @@ export interface DashboardData {
   ctx: StatsContext
   /** Tasks passing the screen filter (completed included). */
   shown: PersistedTodoItem[]
+  /** The screen filter narrows the tasks (Show completed alone doesn't). */
+  filtered: boolean
   todoById: ReadonlyMap<number, PersistedTodoItem>
   tiles: ShownOfTotal<TileStats>
   listTiles: ListTileCount[]
@@ -88,6 +90,7 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings],
   )
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
+  const filtered = countActiveFilters({ ...screen, showCompleted: false }) > 0
 
   const tiles = useMemo(() => ({ shown: computeTiles(shown, ctx), total: computeTiles(todos, ctx) }), [shown, todos, ctx])
   const followup = useMemo(
@@ -126,5 +129,5 @@ export function useDashboardData(config: DashboardTabConfig): DashboardData {
     })
   }, [config.listTiles, listDefinitions, drafts, todos, screen, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn, markerSettings])
 
-  return { ctx, shown, todoById, tiles, listTiles, followup, nextDays, status, people, trend, trendRange }
+  return { ctx, shown, filtered, todoById, tiles, listTiles, followup, nextDays, status, people, trend, trendRange }
 }

@@ -1,14 +1,13 @@
+import type { TaskDialogPayload } from '../../../services/task-dialog'
 import type { ListRowSelectMods } from '../list/ListWidgetRow'
-import type { DashGlyphName } from './glyph-paths'
 
 /**
- * A set of tasks a dashboard number stands for — what clicking it opens.
- * Built-in counts name their tasks (ids in display order); a list tile
- * names its list (the list's own sort and grouping apply).
+ * The tasks a dashboard number stands for — what clicking it opens in the
+ * task dialog. Built-in counts name their tasks (ids in dialog order, or
+ * under headings); a list tile names its list (the list's own sort and
+ * grouping apply). The widget's host adds where it was opened from.
  */
-export type DashboardDrill =
-  | { kind: 'tasks'; title: string; glyph: DashGlyphName; todoIds: readonly number[] }
-  | { kind: 'list'; listDefinitionId: number }
+export type DashboardDrill = Omit<TaskDialogPayload, 'fromTabId'>
 
 /** Opens the tasks behind a number; absent = numbers aren't clickable. */
 export type OnDashboardDrill = (drill: DashboardDrill) => void

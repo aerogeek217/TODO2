@@ -1,7 +1,7 @@
 /**
  * The dashboard's stroke glyphs (16×16 viewBox, stroke 1.6, round caps and
- * joins, `currentColor`). Decorative: the control that shows one carries
- * the accessible name.
+ * joins, `currentColor`), also the task dialog's header glyph. Decorative:
+ * the control that shows one carries the accessible name.
  */
 export const DASH_GLYPH = {
   open: 'M2.5 9h3l1 2h3l1-2h3M4 3.5h8l1.5 5.5v4h-11V9z',

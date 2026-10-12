@@ -3,7 +3,9 @@ import type { DashboardTrendRange } from '../../../models/dashboard-config'
 import type { TileStats } from '../../../services/stats/tiles'
 import type { FilterChip } from '../../../utils/filter-chips'
 import { formatFollowupDate, formatFollowupDay } from '../../../utils/followup'
+import { addDays } from '../../../utils/calendar-grid'
 import { lineMarkers, type HotRule } from '../../../utils/hot'
+import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 
 /**
  * The dashboard's words: tile sub-lines, the Hot rule in words, counts as
@@ -32,6 +34,11 @@ const RANGE_LABEL: Record<DashboardTrendRange, string> = {
   '14d': 'Last 14 days',
   '4w': 'Last 4 weeks',
   '12w': 'Last 12 weeks',
+}
+
+/** `the last 14 days` — the range inside a sentence. */
+export function trendRangeWords(range: DashboardTrendRange): string {
+  return RANGE_WORDS[range]
 }
 
 /** `Last 14 days` — the Created vs completed header. */
@@ -145,4 +152,69 @@ export function listTileHint(chips: readonly FilterChip[]): string {
     if (c.field === 'tags') return c.value
     return `${c.label}: ${c.value}`
   }).join(' · ')
+}
+
+// ── The task dialog's words ──────────────────────────────────────────────────
+
+const SETTINGS_NOTE = '(Settings › Task Defaults)'
+
+/** What a tile's dialog needs to say what the tile counts. */
+export interface TileDescriptionContext {
+  today: Date
+  urgentRange: UrgentDueWithinDays
+  hotRule: HotRule
+}
+
+/**
+ * What a built-in tile counts, in words — the task dialog's line under its
+ * title: `Hot = urgent and important, or in Focus (Settings › Task Defaults).`
+ */
+export function tileDescription(id: keyof TileStats, ctx: TileDescriptionContext): string {
+  switch (id) {
+    case 'open':
+      return 'Every open task.'
+    case 'hot': {
+      const words = hotRuleInWords(ctx.hotRule)
+      return `Hot = ${words.charAt(0).toLowerCase()}${words.slice(1)} ${SETTINGS_NOTE}.`
+    }
+    case 'urgent':
+      if (ctx.urgentRange == null) return 'Urgent = flagged urgent. Due dates don’t make tasks urgent ' + SETTINGS_NOTE + '.'
+      if (ctx.urgentRange === 0) return `Urgent = flagged urgent, or due today or earlier ${SETTINGS_NOTE}.`
+      return `Urgent = flagged urgent, or due within ${urgentRangeLabel(ctx.urgentRange)} ${SETTINGS_NOTE}.`
+    case 'overdue':
+      return 'Open tasks due before today.'
+    case 'followupDue':
+      return 'Open tasks whose next follow-up is today or earlier.'
+    case 'focus':
+      return 'Open tasks in Focus.'
+    case 'dueToday':
+      return 'Open tasks due today.'
+    case 'dueNext7':
+      return `Open tasks due today through ${formatFollowupDay(addDays(ctx.today, 6), ctx.today)}.`
+    case 'noFollowup':
+      return 'Open tasks with no next follow-up date.'
+  }
+}
+
+/** A dialog line under the top-bar filter: it counts only what the filter shows. */
+export function withScreenNote(description: string): string {
+  return `${description} Only tasks the top-bar filter shows.`
+}
+
+/** A Next 7 days column's dialog: title and line. `index` 0 = Late, 1 = today. */
+export function nextDayDialogWords(date: Date | null, index: number, today: Date): { title: string; description: string } {
+  if (date == null) return { title: 'Late', description: 'Open tasks due, or to follow up, before today.' }
+  if (index === 1) return { title: 'Today', description: 'Open tasks due, or to follow up, today.' }
+  const day = formatFollowupDay(date, today)
+  return { title: day, description: `Open tasks due, or to follow up, on ${day}.` }
+}
+
+/** A trend bar's dialog: title and line (`Thu 8`, or `Week of Sep 28`). */
+export function trendBucketDialogWords(start: Date, granularity: 'day' | 'week', today: Date): { title: string; description: string } {
+  if (granularity === 'day') {
+    const day = formatFollowupDay(start, today)
+    return { title: day, description: `Tasks completed or created on ${day}.` }
+  }
+  const week = `Week of ${trendBucketLabel(start, 'week')}`
+  return { title: week, description: `Tasks completed or created in the week of ${trendBucketLabel(start, 'week')}.` }
 }

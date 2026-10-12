@@ -17,10 +17,10 @@ import { nextScopedSelection, readScopeRows } from '../../../utils/scoped-select
 import { ListBulkBar } from '../list/ListBulkBar'
 import type { ListRowSelectMods } from '../list/ListWidgetRow'
 import { useElementSize } from '../calendar/use-element-size'
-import { countOf, listTileHint, tileSubLine } from './dashboard-copy'
+import { countOf, listTileHint, tileSubLine, withScreenNote } from './dashboard-copy'
+import { TILES, tileDrill } from './dashboard-tiles'
 import { DASHBOARD_WIDE_MIN_PX, packSections, sectionRowTracks, TILES_PER_ROW } from './dashboard-layout'
 import { DASHBOARD_SECTIONS } from './dashboard-sections'
-import type { DashGlyphName } from './glyph-paths'
 import { DashGlyph } from './glyphs'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
 import { useDashboardData, type DashboardData } from './use-dashboard-data'
@@ -30,26 +30,6 @@ import styles from './DashboardWidget.module.css'
 export interface DashboardResult {
   /** Open tasks shown; `shown of total` when the screen filter hides some. */
   countLabel: string
-}
-
-interface TileDef {
-  label: string
-  /** The task dialog's title. */
-  title: string
-  glyph: DashGlyphName
-  color: string
-}
-
-const TILES: Record<DashboardTileId, TileDef> = {
-  open: { label: 'Open', title: 'Open tasks', glyph: 'open', color: 'var(--color-accent)' },
-  hot: { label: 'Hot', title: 'Hot tasks', glyph: 'hot', color: 'var(--color-danger)' },
-  urgent: { label: 'Urgent', title: 'Urgent tasks', glyph: 'urgent', color: 'var(--color-danger)' },
-  overdue: { label: 'Overdue', title: 'Overdue tasks', glyph: 'overdue', color: 'var(--color-overdue)' },
-  followupDue: { label: 'Follow-up due', title: 'Follow-up due', glyph: 'followup', color: 'var(--color-followup)' },
-  focus: { label: 'Focus', title: 'Focus', glyph: 'focus', color: 'var(--color-accent)' },
-  dueToday: { label: 'Due today', title: 'Due today', glyph: 'calendar', color: 'var(--color-overdue)' },
-  dueNext7: { label: 'Due in the next 7 days', title: 'Due in the next 7 days', glyph: 'calendar', color: 'var(--color-overdue)' },
-  noFollowup: { label: 'No follow-up date', title: 'No follow-up date', glyph: 'followup', color: 'var(--color-text-muted)' },
 }
 
 /** The Open tile's sparkline: the open count per day over the trend range. */
@@ -96,7 +76,7 @@ function Tile({ id, data, onDrill }: { id: DashboardTileId; data: DashboardData;
       className={cls}
       data-dash-tile={id}
       aria-label={`${def.label}: ${countOf(shown, total)}. ${sub ? `${sub}. ` : ''}Show tasks`}
-      onClick={() => onDrill({ kind: 'tasks', title: def.title, glyph: def.glyph, todoIds: ids })}
+      onClick={() => onDrill(tileDrill(id, data))}
     >
       {content}
       <span className={styles.tileGo}><DashGlyph name="chevron" /></span>
@@ -142,7 +122,12 @@ function ListTiles({ data, onDrill, onAddListTile }: {
             className={cls}
             data-dash-list-tile={t.id}
             aria-label={`${t.name}: ${countOf(t.shown, t.total)}. Show tasks`}
-            onClick={() => onDrill({ kind: 'list', listDefinitionId: t.id })}
+            onClick={() => onDrill({
+              title: t.name,
+              glyph: 'list',
+              description: `Saved list · ${hints.get(t.id) ?? 'All tasks'}`,
+              source: { kind: 'list', listDefinitionId: t.id },
+            })}
           >
             {content}
           </button>
@@ -175,9 +160,13 @@ export interface DashboardWidgetProps {
  * sections — order and visibility). Built for one cell filling the
  * workspace; below ~1100px of cell width it's one scrolling column.
  */
-export function DashboardWidget({ tab, onResult, onDrill, onAddListTile }: DashboardWidgetProps) {
+export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onAddListTile }: DashboardWidgetProps) {
   const config = useMemo(() => normalizeDashboardConfig(tab.config), [tab.config])
   const data = useDashboardData(config)
+  // Under the top-bar filter every dialog says it counts only what it shows.
+  const onDrill: OnDashboardDrill | undefined = onDrillProp && ((d) => onDrillProp(
+    data.filtered ? { ...d, description: withScreenNote(d.description) } : d,
+  ))
   const isMobile = useIsMobile()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const inScope = useUIStore((s) => s.selectionScope === tab.id)
