@@ -1,6 +1,8 @@
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { FollowupIntervalSetting } from '../FollowupIntervalSetting'
+import { HotRuleEditor } from '../HotRuleEditor'
+import { HotIcon } from '../../shared/MarkerIcons'
 import {
   URGENT_DUE_WITHIN_CHOICES,
   formatUrgentDueWithinDays,
@@ -18,7 +20,7 @@ function urgentChoiceLabel(range: UrgentDueWithinDays): string {
 
 /**
  * Defaults for new tasks: status, next follow-up, when a due date makes a
- * task urgent, and the first day of the week.
+ * task urgent, which tasks are hot, and the first day of the week.
  */
 export function TaskDefaultsSection() {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
@@ -73,6 +75,13 @@ export function TaskDefaultsSection() {
             </option>
           ))}
         </select>
+      </SettingRow>
+      <SettingRow
+        label={<span className={styles.labelWithIcon}><span className={styles.hotIcon}><HotIcon /></span>Hot tasks</span>}
+        help="A task is hot when it matches any line. Within a line it needs every lit marker."
+        column
+      >
+        <HotRuleEditor />
       </SettingRow>
       <SettingRow label="Week starts on" help="Calendars and the This Week group.">
         <select
