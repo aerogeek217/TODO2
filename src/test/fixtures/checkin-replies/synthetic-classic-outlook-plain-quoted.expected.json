@@ -1,0 +1,37 @@
+{
+  "personName": "Marcus Chen",
+  "sentDate": "2026-10-12",
+  "blocks": [
+    {
+      "ref": "0c4d8e17",
+      "completed": false,
+      "progress": "section 4 done, section 7 waiting on the pen-test report from Sam",
+      "notes": ["Sections 4 and 7 still open.", "Sam has the SOC 2 letter."]
+    },
+    { "ref": "b71e05d9", "completed": true, "progress": "40%", "notes": [] },
+    {
+      "ref": "3f9a1c42",
+      "completed": false,
+      "progress": "",
+      "notes": [
+        "Cover the cutover sequence, rollback steps and who is on call.",
+        "Nina confirmed Saturday 06:00–08:00 for the cutover.",
+        "Link the existing DB checklist",
+        "Agreed the rollback window with Nina",
+        "[ ] Dry run on staging"
+      ]
+    },
+    { "ref": "9e8d7c6b", "completed": false, "progress": "", "notes": [] }
+  ],
+  "changes": {
+    "0c4d8e17": ["progress"],
+    "b71e05d9": ["completed"],
+    "3f9a1c42": ["notes"],
+    "9e8d7c6b": []
+  },
+  "notesTo": {
+    "plain": {
+      "3f9a1c42": "Cover the cutover sequence, rollback steps and who is on call.\nNina confirmed Saturday 06:00–08:00 for the cutover.\n- Link the existing **DB checklist**\n- Agreed the [rollback window](https://example.com/runbook) with Nina\n- [ ] Dry run on staging"
+    }
+  }
+}
