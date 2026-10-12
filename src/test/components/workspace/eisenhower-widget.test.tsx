@@ -65,6 +65,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  // The stacked-layout test stubs `clientWidth`; later tests must measure the real (0 = unmeasured → grid) width.
+  vi.restoreAllMocks()
 })
 
 describe('EisenhowerWidget', () => {
