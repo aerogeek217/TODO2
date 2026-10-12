@@ -101,6 +101,17 @@ test('B: the palette lists Email check-in per person with an email and open task
   await expect(email.getByRole('option', { name: /Cy Young/ })).toHaveCount(0)
   await email.getByRole('option', { name: /Email check-in: Ada Lovelace/ }).click()
   await expectTicked(page, ['Ada Lovelace'])
+  await checkinDialog(page).getByRole('button', { name: 'Done' }).click()
+  await expect(checkinDialog(page)).toHaveCount(0)
+
+  // Several words each match on their own: "email bob" puts Bob's command on top, Enter runs it.
+  await page.keyboard.press('Control+k')
+  await input.pressSequentially('email bob')
+  const options = page.getByRole('listbox').getByRole('option')
+  await expect(options.first()).toContainText('Email check-in: Bob Stone')
+  await expect(options.first()).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('Enter')
+  await expectTicked(page, ['Bob Stone'])
 })
 
 test('C: a People group header shows its envelope on hover and on keyboard focus', async ({ page }) => {

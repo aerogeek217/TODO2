@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import Fuse from 'fuse.js'
+import Fuse, { type FuseResult } from 'fuse.js'
 import type { Command, CommandCategory } from '../../services/command-registry'
 import styles from './CommandPalette.module.css'
 
@@ -23,6 +23,36 @@ const CATEGORY_LABELS: Record<CommandCategory, string> = {
 /** Max dynamic results (tasks) to show to avoid overwhelming the list */
 const MAX_DYNAMIC_RESULTS = 20
 
+/**
+ * Fuzzy-match the commands. One word is matched as typed. With several words,
+ * each word must match the command on its own (in any order), so `email mar`
+ * finds `Email check-in: Marcus Chen` — a fuzzy match of the whole phrase can't
+ * skip the text between the words. A command's score is the sum of its
+ * one-word scores (lower is better), so the word that matches it worst decides
+ * its rank; ties keep the command order. Fuse's own multi-term search isn't
+ * used: its scores multiply, and an exact word in a short name then outranks
+ * a better match of the other words.
+ */
+function searchCommands(fuse: Fuse<Command>, query: string): FuseResult<Command>[] {
+  if (!query) return []
+  const words = query.split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return fuse.search(query)
+  const perWord = words.map((w) => new Map(fuse.search(w).map((r) => [r.refIndex, r])))
+  const [first = new Map<number, FuseResult<Command>>(), ...rest] = perWord
+  const combined: FuseResult<Command>[] = []
+  for (const [refIndex, hit] of first) {
+    const hits = [hit, ...rest.flatMap((m) => m.get(refIndex) ?? [])]
+    if (hits.length < perWord.length) continue
+    combined.push({
+      item: hit.item,
+      refIndex,
+      score: hits.reduce((sum, h) => sum + (h.score ?? 1), 0),
+      matches: hits.flatMap((h) => h.matches ?? []),
+    })
+  }
+  return combined.sort((a, b) => (a.score ?? 1) - (b.score ?? 1) || a.refIndex - b.refIndex)
+}
+
 export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -36,27 +66,28 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
   const searchQuery = isCommandMode ? query.slice(1).trim() : query.trim()
 
   const fuse = useMemo(
-    () => new Fuse(commands, { keys: ['name', 'category'], threshold: 0.4, includeMatches: true }),
+    () => new Fuse(commands, { keys: ['name', 'category'], threshold: 0.4, includeMatches: true, includeScore: true }),
     [commands]
   )
+
+  const fuseResults = useMemo(() => searchCommands(fuse, searchQuery), [fuse, searchQuery])
 
   /** Map from command id to matched character indices in the name field */
   const matchIndicesMap = useMemo(() => {
     const map = new Map<string, Set<number>>()
-    if (!searchQuery) return map
-    const fuseResults = fuse.search(searchQuery)
     for (const r of fuseResults) {
-      const nameMatch = r.matches?.find(m => m.key === 'name')
-      if (nameMatch?.indices) {
-        const indices = new Set<number>()
-        for (const [start, end] of nameMatch.indices) {
+      const indices = new Set<number>()
+      // A multi-word query matches each word separately, so the name can have several matches.
+      for (const m of r.matches ?? []) {
+        if (m.key !== 'name') continue
+        for (const [start, end] of m.indices) {
           for (let i = start; i <= end; i++) indices.add(i)
         }
-        map.set(r.item.id, indices)
       }
+      if (indices.size > 0) map.set(r.item.id, indices)
     }
     return map
-  }, [searchQuery, fuse])
+  }, [fuseResults])
 
   const results = useMemo(() => {
     if (!searchQuery) {
@@ -65,7 +96,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
     }
 
     // Static commands via fuzzy search
-    const items = fuse.search(searchQuery).map((r) => r.item)
+    const items = fuseResults.map((r) => r.item)
 
     // Merge lazily-searched dynamic commands (tasks) unless in command-only mode
     if (!isCommandMode && onSearchDynamic) {
@@ -84,7 +115,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
       commandResults.push(item)
     }
     return commandResults
-  }, [searchQuery, fuse, commands, isCommandMode, onSearchDynamic])
+  }, [searchQuery, fuseResults, commands, isCommandMode, onSearchDynamic])
 
   // Group results by category, preserving order
   const grouped = useMemo(() => {
