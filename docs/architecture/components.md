@@ -77,7 +77,7 @@ Detail reference for `src/components/` (workspace, task, overlays, shared, layou
 
 ## Popover patterns
 
-Every floating panel anchored to a click-coord or a trigger element routes positioning + dismissal through the shared `usePopoverAnchor` hook (`hooks/use-popover-anchor.ts` — see services-and-utils.md). The hook owns flip-on-clip + clamp + scroll/resize/Escape/outside-click; the caller owns the panel + its `createPortal` wrapper. Current consumers include `ContextMenu`, `ListDefinitionPickerPopup`, `WidgetKindMenu`, `FilteredListPopup`, `RuntimeFilterPicker`, `FollowupPopover`, the desktop `FilterChipBar` / `DateRangeDropdown` dropdowns, `MenuPopover`, `CalendarDayPopover`, `ListOptionsHost`, `PredicateFieldPicker`, `SwitchToManualPopover` and `StatusEditor`.
+Every floating panel anchored to a click-coord or a trigger element routes positioning + dismissal through the shared `usePopoverAnchor` hook (`hooks/use-popover-anchor.ts` — see services-and-utils.md). The hook owns flip-on-clip + clamp + scroll/resize/Escape/outside-click; the caller owns the panel + its `createPortal` wrapper. Current consumers include `ContextMenu`, `ListDefinitionPickerPopup`, `WidgetKindMenu`, `FilteredListPopup`, `RuntimeFilterPicker`, `FollowupPopover`, the desktop `FilterChipBar` pickers and Filters menu, `StoragePill`, `MenuPopover`, `CalendarDayPopover`, `ListOptionsHost`, `PredicateFieldPicker`, `SwitchToManualPopover` and `StatusEditor`.
 
 **When to add a new popover, do this and only this:**
 
